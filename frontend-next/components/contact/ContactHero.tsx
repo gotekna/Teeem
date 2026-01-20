@@ -64,11 +64,11 @@ function getEntityIcon(entityType: string | null) {
 function getAvatarColor(entityType: string | null): string {
   switch (entityType?.toLowerCase()) {
     case "company":
-      return "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300";
+      return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/50 dark:text-blue-300";
     case "trust":
-      return "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300";
+      return "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/50 dark:text-purple-300";
     case "sole trader":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300";
+      return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/50 dark:text-amber-300";
     case "price only":
       return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
     default:
@@ -123,14 +123,14 @@ export function ContactHero({
           {isActive ? (
             <Badge
               variant="outline"
-              className="text-green-600 border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-800"
+              className="text-green-600 dark:text-green-400 border-green-200 bg-green-50 dark:bg-green-950/30 dark:border-green-800"
             >
               Active
             </Badge>
           ) : (
             <Badge
               variant="outline"
-              className="text-red-600 border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-800"
+              className="text-red-600 dark:text-red-400 border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-800"
             >
               Inactive
             </Badge>
@@ -148,7 +148,7 @@ export function ContactHero({
           {isXeroSupplier && (
             <Badge
               variant="outline"
-              className="text-orange-600 border-orange-200 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-800"
+              className="text-orange-600 dark:text-orange-400 border-orange-200 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-800"
             >
               Xero Supplier
             </Badge>

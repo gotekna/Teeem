@@ -1866,7 +1866,7 @@ export default function JobDetailPage() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
-                    <ClipboardCheck className="h-4 w-4 text-blue-500" />
+                    <ClipboardCheck className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                     <span className="text-sm text-muted-foreground">Active SWMS</span>
                   </div>
                   <p className="text-2xl font-bold mt-1">2</p>
@@ -1875,7 +1875,7 @@ export default function JobDetailPage() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-green-500" />
+                    <Users className="h-4 w-4 text-green-500 dark:text-green-400" />
                     <span className="text-sm text-muted-foreground">Inducted Workers</span>
                   </div>
                   <p className="text-2xl font-bold mt-1">8</p>
@@ -1884,7 +1884,7 @@ export default function JobDetailPage() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                     <span className="text-sm text-muted-foreground">Inspections</span>
                   </div>
                   <p className="text-2xl font-bold mt-1">3</p>
@@ -1893,7 +1893,7 @@ export default function JobDetailPage() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-orange-500" />
+                    <AlertTriangle className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                     <span className="text-sm text-muted-foreground">Open Incidents</span>
                   </div>
                   <p className="text-2xl font-bold mt-1">0</p>
@@ -1914,20 +1914,20 @@ export default function JobDetailPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
-                      <ClipboardCheck className="h-5 w-5 text-blue-500" />
+                      <ClipboardCheck className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                       <div>
                         <p className="font-medium">Excavation Works SWMS</p>
                         <p className="text-sm text-muted-foreground">Version 2 • 8 workers</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-green-100 text-green-700">Active</Badge>
+                      <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">Active</Badge>
                       <span className="text-sm text-muted-foreground">60 days remaining</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
-                      <ClipboardCheck className="h-5 w-5 text-blue-500" />
+                      <ClipboardCheck className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                       <div>
                         <p className="font-medium">Concrete Pouring SWMS</p>
                         <p className="text-sm text-muted-foreground">Version 1 • Draft</p>
@@ -1964,7 +1964,7 @@ export default function JobDetailPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                         <span className="text-sm text-muted-foreground">Inducted</span>
                       </div>
                     </div>
@@ -1980,7 +1980,7 @@ export default function JobDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-orange-500" />
+                      <Clock className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                       <Button size="sm">Start</Button>
                     </div>
                   </div>

@@ -36,12 +36,12 @@ interface IntegrationsPanelProps {
 function getStatusIcon(status: string) {
   switch (status) {
     case "connected":
-      return <CheckCircle className="h-4 w-4 text-green-600" />;
+      return <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />;
     case "warning":
-      return <AlertTriangle className="h-4 w-4 text-orange-600" />;
+      return <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />;
     case "disconnected":
     case "error":
-      return <XCircle className="h-4 w-4 text-red-600" />;
+      return <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />;
     default:
       return <AlertTriangle className="h-4 w-4 text-muted-foreground" />;
   }
@@ -49,10 +49,10 @@ function getStatusIcon(status: string) {
 
 function getStatusBadge(status: string, message: string) {
   const variants: Record<string, string> = {
-    connected: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
-    warning: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300",
+    connected: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/50 dark:text-green-300",
+    warning: "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 dark:bg-orange-900/50 dark:text-orange-300",
     disconnected: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground",
-    error: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300",
+    error: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/50 dark:text-red-300",
   };
 
   return (

@@ -217,7 +217,7 @@ export default function ConsolidationTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${(data.consolidated_profit_loss?.summary?.profit_attributable_to_group || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+              <div className={`text-2xl font-bold ${(data.consolidated_profit_loss?.summary?.profit_attributable_to_group || 0) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                 {formatCurrency(data.consolidated_profit_loss?.summary?.profit_attributable_to_group || 0)}
               </div>
             </CardContent>
@@ -341,7 +341,7 @@ export default function ConsolidationTab() {
                           <TableCell className="font-medium">{entity.entity}</TableCell>
                           <TableCell className="text-right">{formatCurrency(entity.revenue)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(entity.expenses)}</TableCell>
-                          <TableCell className={`text-right font-medium ${entity.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          <TableCell className={`text-right font-medium ${entity.profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                             {formatCurrency(entity.profit)}
                           </TableCell>
                           <TableCell className="text-right">{percentage}%</TableCell>
@@ -378,13 +378,13 @@ export default function ConsolidationTab() {
                     </div>
                     <div className="p-4 rounded-lg bg-muted">
                       <div className="text-sm text-muted-foreground">Net Profit</div>
-                      <div className={`text-xl font-bold ${data.consolidated_profit_loss.summary.net_profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      <div className={`text-xl font-bold ${data.consolidated_profit_loss.summary.net_profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                         {formatCurrency(data.consolidated_profit_loss.summary.net_profit)}
                       </div>
                     </div>
                     <div className="p-4 rounded-lg bg-muted">
                       <div className="text-sm text-muted-foreground">Attributable to Group</div>
-                      <div className={`text-xl font-bold ${data.consolidated_profit_loss.summary.profit_attributable_to_group >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      <div className={`text-xl font-bold ${data.consolidated_profit_loss.summary.profit_attributable_to_group >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                         {formatCurrency(data.consolidated_profit_loss.summary.profit_attributable_to_group)}
                       </div>
                     </div>

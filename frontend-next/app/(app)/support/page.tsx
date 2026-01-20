@@ -115,9 +115,9 @@ export default function SupportPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case TASK_STATUS.COMPLETED:
-        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Resolved</Badge>;
+        return <Badge className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">Resolved</Badge>;
       case TASK_STATUS.STARTED:
-        return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">In Progress</Badge>;
+        return <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">In Progress</Badge>;
       default:
         return <Badge variant="outline">Open</Badge>;
     }
@@ -257,19 +257,19 @@ export default function SupportPage() {
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-blue-500" />
+                <Clock className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                 <span className="text-sm text-muted-foreground">Open</span>
               </div>
-              <p className="text-2xl font-bold mt-1 text-blue-600">{openTickets.length}</p>
+              <p className="text-2xl font-bold mt-1 text-blue-600 dark:text-blue-400">{openTickets.length}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
+                <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                 <span className="text-sm text-muted-foreground">Resolved</span>
               </div>
-              <p className="text-2xl font-bold mt-1 text-green-600">{resolvedTickets.length}</p>
+              <p className="text-2xl font-bold mt-1 text-green-600 dark:text-green-400">{resolvedTickets.length}</p>
             </CardContent>
           </Card>
         </div>

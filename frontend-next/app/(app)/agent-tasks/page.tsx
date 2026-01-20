@@ -403,8 +403,8 @@ export default function AgentTasksPage() {
 
                 <div className="mt-2 flex gap-4 text-sm text-muted-foreground">
                   <span>Total runs: {agent.total_runs}</span>
-                  <span className="text-green-600">Success rate: {Math.round(agent.success_rate)}%</span>
-                  <span className="text-blue-600">
+                  <span className="text-green-600 dark:text-green-400">Success rate: {Math.round(agent.success_rate)}%</span>
+                  <span className="text-blue-600 dark:text-blue-400">
                     Tasks: {completedCount}/{tasks.length}
                   </span>
                 </div>
@@ -419,7 +419,7 @@ export default function AgentTasksPage() {
                     >
                       <button onClick={() => toggleTask(agent.agent_id, task.id)} className="flex-shrink-0">
                         {task.completed ? (
-                          <CheckCircleIcon className="h-6 w-6 text-green-500" />
+                          <CheckCircleIcon className="h-6 w-6 text-green-500 dark:text-green-400" />
                         ) : (
                           <div className="h-6 w-6 rounded-full border-2 border-muted-foreground/30" />
                         )}

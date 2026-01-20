@@ -175,7 +175,7 @@ export default function InvoicesTab() {
         );
       case "paid":
         return (
-          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <Badge className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400">
             <DollarSign className="h-3 w-3 mr-1" />
             Paid
           </Badge>
@@ -203,7 +203,7 @@ export default function InvoicesTab() {
         );
       case "bill":
         return (
-          <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+          <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400">
             <Receipt className="h-3 w-3 mr-1" />
             Bill
           </Badge>
@@ -238,7 +238,7 @@ export default function InvoicesTab() {
               {formatCurrency(summary?.totals?.sales_invoices?.total || 0)} total
             </p>
             {(summary?.totals?.sales_invoices?.overdue || 0) > 0 && (
-              <p className="text-xs text-red-600 mt-1">
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {formatCurrency(summary?.totals?.sales_invoices?.overdue || 0)} overdue
               </p>
             )}
@@ -258,7 +258,7 @@ export default function InvoicesTab() {
               {formatCurrency(summary?.totals?.bills?.total || 0)} total
             </p>
             {(summary?.totals?.bills?.overdue || 0) > 0 && (
-              <p className="text-xs text-red-600 mt-1">
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {formatCurrency(summary?.totals?.bills?.overdue || 0)} overdue
               </p>
             )}
@@ -272,7 +272,7 @@ export default function InvoicesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(summary?.totals?.sales_invoices?.due || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">amount due from customers</p>
@@ -286,7 +286,7 @@ export default function InvoicesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
               {formatCurrency(summary?.totals?.bills?.due || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">amount owed to suppliers</p>
@@ -370,7 +370,7 @@ export default function InvoicesTab() {
                     </TableCell>
                     <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
                     <TableCell>
-                      <span className={invoice.overdue ? "text-red-600 font-medium" : ""}>
+                      <span className={invoice.overdue ? "text-red-600 dark:text-red-400 font-medium" : ""}>
                         {formatDate(invoice.due_date)}
                       </span>
                     </TableCell>
@@ -379,11 +379,11 @@ export default function InvoicesTab() {
                     </TableCell>
                     <TableCell className="text-right">
                       {invoice.amount_due > 0 ? (
-                        <span className={invoice.overdue ? "text-red-600 font-medium" : ""}>
+                        <span className={invoice.overdue ? "text-red-600 dark:text-red-400 font-medium" : ""}>
                           {formatCurrency(invoice.amount_due)}
                         </span>
                       ) : (
-                        <span className="text-green-600">Paid</span>
+                        <span className="text-green-600 dark:text-green-400">Paid</span>
                       )}
                     </TableCell>
                     <TableCell className="text-center">

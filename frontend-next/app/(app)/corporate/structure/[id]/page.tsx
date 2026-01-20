@@ -233,7 +233,7 @@ export default function CorporateStructurePage() {
             >
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-blue-600" />
+                  <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   {company.name}
                 </CardTitle>
               </CardHeader>
@@ -242,13 +242,13 @@ export default function CorporateStructurePage() {
                   {company.roles.map((role, idx) => {
                     const roleColors: Record<string, string> = {
                       director:
-                        "bg-purple-100 text-purple-700 dark:bg-purple-900/30",
+                        "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30",
                       shareholder:
-                        "bg-amber-100 text-amber-700 dark:bg-amber-900/30",
+                        "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30",
                       secretary:
-                        "bg-blue-100 text-blue-700 dark:bg-blue-900/30",
+                        "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30",
                       officer:
-                        "bg-green-100 text-green-700 dark:bg-green-900/30",
+                        "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30",
                     };
                     const colorClass =
                       roleColors[role.type] ||

@@ -407,7 +407,7 @@ export function ReminderButton({
                 size="icon"
                 className={cn(
                   buttonSize,
-                  remindAt && "text-purple-500"
+                  remindAt && "text-purple-500 dark:text-purple-400"
                 )}
                 disabled={loading}
               >

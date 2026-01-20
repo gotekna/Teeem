@@ -566,12 +566,12 @@ export function EditorToolbar({
                 <span className="text-xs">Checking...</span>
               </div>
             ) : issues.length > 0 ? (
-              <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-500">
+              <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
                 <SpellCheck className="h-4 w-4" />
                 <span className="text-xs font-medium">{issues.length}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-1 text-green-600 dark:text-green-500">
+              <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
                 <SpellCheck className="h-4 w-4" />
               </div>
             )}
@@ -1312,7 +1312,7 @@ export function RichTextEditor({
         Link.configure({
           openOnClick: false,
           HTMLAttributes: {
-            class: "text-blue-600 underline hover:text-blue-800",
+            class: "text-blue-600 dark:text-blue-400 underline hover:text-blue-800",
           },
         }),
         Image.configure({

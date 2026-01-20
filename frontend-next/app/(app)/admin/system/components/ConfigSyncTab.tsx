@@ -464,17 +464,17 @@ export function ConfigSyncTab() {
       {selectedTable && !comparing && comparison.length > 0 && (
         <div className="grid grid-cols-4 gap-2">
           <div className="flex items-center gap-2 p-2 bg-green-100 dark:bg-green-950/30 rounded text-sm">
-            <Plus className="h-4 w-4 text-green-600" />
+            <Plus className="h-4 w-4 text-green-600 dark:text-green-400" />
             <span className="font-medium">{counts.onlyTeeem}</span>
             <span className="text-muted-foreground">in TEEEM only</span>
           </div>
           <div className="flex items-center gap-2 p-2 bg-yellow-100 dark:bg-yellow-950/30 rounded text-sm">
-            <Minus className="h-4 w-4 text-yellow-600" />
+            <Minus className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
             <span className="font-medium">{counts.onlyTenant}</span>
             <span className="text-muted-foreground">in Tenant only</span>
           </div>
           <div className="flex items-center gap-2 p-2 bg-blue-100 dark:bg-blue-950/30 rounded text-sm">
-            <RefreshCw className="h-4 w-4 text-blue-600" />
+            <RefreshCw className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             <span className="font-medium">{counts.different}</span>
             <span className="text-muted-foreground">different</span>
           </div>
@@ -621,13 +621,13 @@ export function ConfigSyncTab() {
                     row.status === "different" ? "Different" : "Same"
                   }>
                     {row.status === "only_teeem" && (
-                      <Plus className="h-4 w-4 mx-auto text-green-600" />
+                      <Plus className="h-4 w-4 mx-auto text-green-600 dark:text-green-400" />
                     )}
                     {row.status === "only_tenant" && (
-                      <Minus className="h-4 w-4 mx-auto text-yellow-600" />
+                      <Minus className="h-4 w-4 mx-auto text-yellow-600 dark:text-yellow-400" />
                     )}
                     {row.status === "different" && (
-                      <RefreshCw className="h-4 w-4 mx-auto text-blue-600" />
+                      <RefreshCw className="h-4 w-4 mx-auto text-blue-600 dark:text-blue-400" />
                     )}
                     {row.status === "same" && (
                       <Check className="h-4 w-4 mx-auto text-muted-foreground" />
@@ -802,7 +802,7 @@ export function ConfigSyncTab() {
                                     <td key={tenant.id} className="p-2 text-center">
                                       <span className={cn(
                                         "font-mono font-medium",
-                                        count === 0 && "text-red-500"
+                                        count === 0 && "text-red-500 dark:text-red-400"
                                       )}>
                                         {count}
                                       </span>
@@ -815,7 +815,7 @@ export function ConfigSyncTab() {
                                   <td className="p-2 text-center">
                                     <span className={cn(
                                       "font-mono font-medium",
-                                      counts.master === 0 && "text-red-500"
+                                      counts.master === 0 && "text-red-500 dark:text-red-400"
                                     )}>
                                       {counts.master}
                                     </span>
@@ -827,14 +827,14 @@ export function ConfigSyncTab() {
                                     {diff !== 0 && (
                                       <span className={cn(
                                         "font-mono text-xs px-2 py-1 rounded",
-                                        diff > 0 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400" :
-                                        "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-400"
+                                        diff > 0 ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/30 dark:text-yellow-400" :
+                                        "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-950/30 dark:text-green-400"
                                       )}>
                                         {diff > 0 ? `+${diff}` : diff}
                                       </span>
                                     )}
                                     {diff === 0 && counts.master > 0 && (
-                                      <Check className="h-4 w-4 mx-auto text-green-600" />
+                                      <Check className="h-4 w-4 mx-auto text-green-600 dark:text-green-400" />
                                     )}
                                   </td>
                                 </>

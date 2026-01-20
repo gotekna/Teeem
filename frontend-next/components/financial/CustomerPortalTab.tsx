@@ -321,11 +321,11 @@ export default function CustomerPortalTab() {
   const getTokenTypeBadge = (type: string) => {
     switch (type) {
       case "portal":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Portal</Badge>;
+        return <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Portal</Badge>;
       case "invoice":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">Invoice</Badge>;
+        return <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">Invoice</Badge>;
       case "statement":
-        return <Badge variant="outline" className="bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">Statement</Badge>;
+        return <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">Statement</Badge>;
       default:
         return <Badge variant="secondary">{type}</Badge>;
     }
@@ -336,29 +336,29 @@ export default function CustomerPortalTab() {
     const expires = new Date(token.expires_at);
 
     if (token.status === "revoked") {
-      return <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">Revoked</Badge>;
+      return <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300">Revoked</Badge>;
     }
     if (expires < now) {
       return <Badge variant="outline" className="bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground">Expired</Badge>;
     }
-    return <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">Active</Badge>;
+    return <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">Active</Badge>;
   };
 
   const getStatementStatusBadge = (statement: CustomerStatement) => {
     if (statement.sent_at) {
-      return <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">Sent</Badge>;
+      return <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">Sent</Badge>;
     }
-    return <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Draft</Badge>;
+    return <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-400">Draft</Badge>;
   };
 
   const getDebitStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">Active</Badge>;
+        return <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">Active</Badge>;
       case "cancelled":
-        return <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">Cancelled</Badge>;
+        return <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300">Cancelled</Badge>;
       case "pending":
-        return <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Pending</Badge>;
+        return <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-400">Pending</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -388,7 +388,7 @@ export default function CustomerPortalTab() {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <Button variant="outline" onClick={handleRefresh}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
@@ -405,7 +405,7 @@ export default function CustomerPortalTab() {
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <Key className="h-5 w-5 text-blue-600" />
+              <Key className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               <div className="text-2xl font-bold">{activeTokens}</div>
             </div>
             <p className="text-xs text-muted-foreground">Active Portal Links</p>
@@ -414,7 +414,7 @@ export default function CustomerPortalTab() {
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-purple-600" />
+              <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               <div className="text-2xl font-bold">{statements.length}</div>
             </div>
             <p className="text-xs text-muted-foreground">Statements Generated</p>
@@ -423,7 +423,7 @@ export default function CustomerPortalTab() {
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <Send className="h-5 w-5 text-green-600" />
+              <Send className="h-5 w-5 text-green-600 dark:text-green-400" />
               <div className="text-2xl font-bold">{sentStatements}</div>
             </div>
             <p className="text-xs text-muted-foreground">Statements Sent</p>
@@ -585,7 +585,7 @@ export default function CustomerPortalTab() {
                                       )}
                                     >
                                       {copiedToken === token.token ? (
-                                        <Check className="h-4 w-4 text-green-600" />
+                                        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
                                       ) : (
                                         <Copy className="h-4 w-4" />
                                       )}
@@ -615,7 +615,7 @@ export default function CustomerPortalTab() {
                                     <Button
                                       variant="ghost"
                                       size="icon"
-                                      className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      className="h-8 w-8 text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50"
                                       onClick={() => openConfirmDialog("revoke_token", token.id)}
                                     >
                                       <XCircle className="h-4 w-4" />
@@ -690,10 +690,10 @@ export default function CustomerPortalTab() {
                       <TableCell className="text-right font-mono">
                         {formatCurrency(statement.opening_balance)}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-red-600">
+                      <TableCell className="text-right font-mono text-red-600 dark:text-red-400">
                         {formatCurrency(statement.total_invoiced)}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-green-600">
+                      <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
                         {formatCurrency(statement.total_payments)}
                       </TableCell>
                       <TableCell className="text-right font-mono font-medium">
@@ -796,7 +796,7 @@ export default function CustomerPortalTab() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  className="h-8 w-8 text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50"
                                   onClick={() => openConfirmDialog("cancel_debit", mandate.id)}
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -889,7 +889,7 @@ export default function CustomerPortalTab() {
                     onClick={() => handleCopy(generatedUrl, "generated")}
                   >
                     {copiedToken === "generated" ? (
-                      <Check className="h-4 w-4 text-green-600" />
+                      <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
                     ) : (
                       <Copy className="h-4 w-4" />
                     )}
@@ -966,7 +966,7 @@ export default function CustomerPortalTab() {
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
               <XCircle className="h-5 w-5" />
               Confirm Action
             </DialogTitle>

@@ -192,7 +192,7 @@ export default function AsicLoginsPage() {
                           className="text-muted-foreground hover:text-foreground"
                         >
                           {copiedField === `${company.id}-corporate_key` ? (
-                            <Check className="h-4 w-4 text-green-500" />
+                            <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                           ) : (
                             <Copy className="h-4 w-4" />
                           )}
@@ -211,7 +211,7 @@ export default function AsicLoginsPage() {
                           className="text-muted-foreground hover:text-foreground"
                         >
                           {copiedField === `${company.id}-username` ? (
-                            <Check className="h-4 w-4 text-green-500" />
+                            <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                           ) : (
                             <Copy className="h-4 w-4" />
                           )}
@@ -238,7 +238,7 @@ export default function AsicLoginsPage() {
                           className="text-muted-foreground hover:text-foreground"
                         >
                           {copiedField === `${company.id}-password` ? (
-                            <Check className="h-4 w-4 text-green-500" />
+                            <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                           ) : (
                             <Copy className="h-4 w-4" />
                           )}
@@ -268,7 +268,7 @@ export default function AsicLoginsPage() {
                               className="text-muted-foreground hover:text-foreground"
                             >
                               {copiedField === `${company.id}-recovery` ? (
-                                <Check className="h-4 w-4 text-green-500" />
+                                <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                               ) : (
                                 <Copy className="h-4 w-4" />
                               )}

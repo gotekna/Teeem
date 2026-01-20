@@ -138,9 +138,9 @@ function TaskCard({ task, onClick }: TaskCardProps) {
   const getStatusVariant = (status: string) => {
     switch (status) {
       case TASK_STATUS.COMPLETED:
-        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
+        return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400";
       case TASK_STATUS.STARTED:
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -401,8 +401,8 @@ export default function SmFieldPage() {
               variant="secondary"
               className={
                 isOnline
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
+                  : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
               }
             >
               {isOnline ? <WifiIcon className="mr-1 h-4 w-4" /> : <ExclamationTriangleIcon className="mr-1 h-4 w-4" />}
@@ -416,7 +416,7 @@ export default function SmFieldPage() {
                 size="sm"
                 onClick={syncOfflineData}
                 disabled={!isOnline}
-                className="bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
+                className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
               >
                 <ArrowPathIcon className="mr-1 h-4 w-4" />
                 {pendingSync} pending

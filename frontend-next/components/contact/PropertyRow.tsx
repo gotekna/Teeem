@@ -268,7 +268,7 @@ export const PropertyRow = memo(function PropertyRow({
           </span>
           <div className="flex items-center gap-2">
             {saving && <Spinner className="h-4 w-4" />}
-            {showSuccess && <Check className="h-4 w-4 text-green-500" />}
+            {showSuccess && <Check className="h-4 w-4 text-green-500 dark:text-green-400" />}
             <Switch
               checked={Boolean(value)}
               onCheckedChange={handleSwitchChange}
@@ -277,7 +277,7 @@ export const PropertyRow = memo(function PropertyRow({
           </div>
         </div>
         {error && (
-          <span className="text-[11px] text-red-500 ml-2">{error}</span>
+          <span className="text-[11px] text-red-500 dark:text-red-400 ml-2">{error}</span>
         )}
       </div>
     );
@@ -314,7 +314,7 @@ export const PropertyRow = memo(function PropertyRow({
             >
               {displayValue || placeholder || "Not set"}
             </span>
-            {showSuccess && <Check className="h-4 w-4 text-green-500 shrink-0" />}
+            {showSuccess && <Check className="h-4 w-4 text-green-500 dark:text-green-400 shrink-0" />}
             {externalLink && displayValue && (
               <a
                 href={
@@ -420,7 +420,7 @@ export const PropertyRow = memo(function PropertyRow({
           </button>
         </div>
         {error && (
-          <span className="text-[11px] text-red-500 ml-2 pt-2">{error}</span>
+          <span className="text-[11px] text-red-500 dark:text-red-400 ml-2 pt-2">{error}</span>
         )}
       </div>
     );
@@ -477,7 +477,7 @@ export const PropertyRow = memo(function PropertyRow({
               </button>
             </div>
           </div>
-          {error && <span className="text-[11px] text-red-500">{error}</span>}
+          {error && <span className="text-[11px] text-red-500 dark:text-red-400">{error}</span>}
           <span className="text-[11px] text-muted-foreground">
             Press Escape to cancel, Cmd+Enter to save
           </span>
@@ -525,7 +525,7 @@ export const PropertyRow = memo(function PropertyRow({
             <X className="h-4 w-4" />
           </button>
         </div>
-        {error && <span className="text-[11px] text-red-500 mt-1 block">{error}</span>}
+        {error && <span className="text-[11px] text-red-500 dark:text-red-400 mt-1 block">{error}</span>}
       </div>
     </div>
   );

@@ -226,7 +226,7 @@ export default function QuotesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {(summary?.by_status?.sent || 0) + (summary?.by_status?.pending || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">awaiting response</p>
@@ -252,7 +252,7 @@ export default function QuotesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(summary?.totals?.accepted_value || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">won quotes</p>
@@ -342,11 +342,11 @@ export default function QuotesTab() {
                     <TableCell>{quote.reference || "-"}</TableCell>
                     <TableCell>{formatDate(quote.quote_date)}</TableCell>
                     <TableCell>
-                      <span className={isExpiringSoon(quote.expiry_date) ? "text-orange-600 font-medium" : ""}>
+                      <span className={isExpiringSoon(quote.expiry_date) ? "text-orange-600 dark:text-orange-400 font-medium" : ""}>
                         {formatDate(quote.expiry_date)}
                       </span>
                       {isExpiringSoon(quote.expiry_date) && (
-                        <Badge variant="outline" className="ml-2 text-orange-600 border-orange-300">
+                        <Badge variant="outline" className="ml-2 text-orange-600 dark:text-orange-400 border-orange-300">
                           Soon
                         </Badge>
                       )}

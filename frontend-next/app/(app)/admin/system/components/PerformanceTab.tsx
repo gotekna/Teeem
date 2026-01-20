@@ -409,7 +409,7 @@ export function PerformanceTab() {
               </div>
               <div className={cn(
                 "text-2xl font-bold",
-                overview.error_rate === 0 ? "text-green-600" : overview.error_rate < 1 ? "text-yellow-600" : "text-red-600"
+                overview.error_rate === 0 ? "text-green-600 dark:text-green-400" : overview.error_rate < 1 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
               )}>
                 {safePercent(overview.error_rate, 2)}
               </div>
@@ -434,7 +434,7 @@ export function PerformanceTab() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Bell className={cn(
                   "h-5 w-5",
-                  anomalies.critical > 0 ? "text-red-600" : "text-yellow-600"
+                  anomalies.critical > 0 ? "text-red-600 dark:text-red-400" : "text-yellow-600 dark:text-yellow-400"
                 )} />
                 Active Anomalies
               </CardTitle>
@@ -459,13 +459,13 @@ export function PerformanceTab() {
                   )}
                 >
                   {anomaly.severity === "critical" && (
-                    <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                    <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
                   )}
                   {anomaly.severity === "warning" && (
-                    <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                    <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
                   )}
                   {anomaly.severity === "info" && (
-                    <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -561,7 +561,7 @@ export function PerformanceTab() {
             {budgets.top_violations.length > 0 && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium flex items-center gap-2">
-                  <TrendingDown className="h-4 w-4 text-red-500" />
+                  <TrendingDown className="h-4 w-4 text-red-500 dark:text-red-400" />
                   Top Budget Violations
                 </h4>
                 {budgets.top_violations.map((violation, idx) => (
@@ -911,7 +911,7 @@ export function PerformanceTab() {
                     <div className="mt-2">
                       <div className="flex justify-between text-xs text-muted-foreground mb-1">
                         <span>Error Budget</span>
-                        <span className={budgetLow ? "text-red-600 font-medium" : ""}>
+                        <span className={budgetLow ? "text-red-600 dark:text-red-400 font-medium" : ""}>
                           {budgetPercent.toFixed(1)}% remaining
                         </span>
                       </div>
@@ -947,19 +947,19 @@ export function PerformanceTab() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="flex items-start gap-2">
-            <CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
+            <CheckCircle className="h-4 w-4 mt-0.5 text-green-500 dark:text-green-400 flex-shrink-0" />
             <p>
               <strong>Good:</strong> API P95 &lt; 200ms, Web Vitals all green, Error rate &lt; 0.1%
             </p>
           </div>
           <div className="flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 mt-0.5 text-yellow-500 flex-shrink-0" />
+            <AlertTriangle className="h-4 w-4 mt-0.5 text-yellow-500 dark:text-yellow-400 flex-shrink-0" />
             <p>
               <strong>Investigate:</strong> P95 &gt; 500ms suggests N+1 queries or missing indexes
             </p>
           </div>
           <div className="flex items-start gap-2">
-            <Database className="h-4 w-4 mt-0.5 text-blue-500 flex-shrink-0" />
+            <Database className="h-4 w-4 mt-0.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
             <p>
               <strong>Slow Queries:</strong> Queries &gt; 100ms are captured automatically. Check for missing indexes.
             </p>

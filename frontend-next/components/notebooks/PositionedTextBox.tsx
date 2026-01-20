@@ -84,7 +84,7 @@ export function PositionedTextBox({
     Link.configure({
       openOnClick: false,
       HTMLAttributes: {
-        class: "text-blue-600 underline hover:text-blue-800",
+        class: "text-blue-600 dark:text-blue-400 underline hover:text-blue-800",
       },
     }),
     Image.configure({

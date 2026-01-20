@@ -108,7 +108,7 @@ function formatDisplayValue(column: TableColumn, value: unknown): React.ReactNod
           href={String(value)}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:underline dark:text-blue-400"
+          className="text-blue-600 dark:text-blue-400 hover:underline dark:text-blue-400"
         >
           {String(value)}
         </a>
@@ -118,7 +118,7 @@ function formatDisplayValue(column: TableColumn, value: unknown): React.ReactNod
       return (
         <a
           href={`mailto:${String(value)}`}
-          className="text-blue-600 hover:underline dark:text-blue-400"
+          className="text-blue-600 dark:text-blue-400 hover:underline dark:text-blue-400"
         >
           {String(value)}
         </a>

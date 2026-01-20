@@ -18,7 +18,7 @@ export const StartEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeD
             : "border-green-500 dark:border-green-500"
         )}
       >
-        <Play className="h-4 w-4 fill-green-500 text-green-500" />
+        <Play className="h-4 w-4 fill-green-500 text-green-500 dark:text-green-400" />
       </div>
 
       {/* Label to the right */}

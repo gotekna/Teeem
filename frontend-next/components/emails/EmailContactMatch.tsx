@@ -164,7 +164,7 @@ export function EmailContactMatch({
                 variant="secondary"
                 className="gap-1.5 cursor-pointer hover:bg-secondary/80 transition-colors"
               >
-                <Star className="h-3 w-3 text-yellow-500" />
+                <Star className="h-3 w-3 text-yellow-500 dark:text-yellow-400" />
                 <User className="h-3 w-3" />
                 <span>{primaryContact.display_name}</span>
                 <ChevronRight className="h-3 w-3 opacity-50" />

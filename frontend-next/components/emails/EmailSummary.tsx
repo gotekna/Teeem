@@ -70,7 +70,7 @@ const SENTIMENT_CONFIG = {
   positive: { color: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400", label: "Positive" },
   negative: { color: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400", label: "Negative" },
   neutral: { color: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground", label: "Neutral" },
-  urgent: { color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400", label: "Urgent" },
+  urgent: { color: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400", label: "Urgent" },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {

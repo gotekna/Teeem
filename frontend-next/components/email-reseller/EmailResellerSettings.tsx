@@ -209,7 +209,7 @@ export function EmailResellerSettings() {
 
           {success && (
             <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
               <AlertDescription className="text-green-700 dark:text-green-300">
                 {success}
               </AlertDescription>
@@ -300,7 +300,7 @@ export function EmailResellerSettings() {
                 <strong>Last Error:</strong> {credential.error_message}
               </p>
               {credential.last_error_at && (
-                <p className="text-xs text-red-500 mt-1">
+                <p className="text-xs text-red-500 dark:text-red-400 mt-1">
                   {new Date(credential.last_error_at).toLocaleString()}
                 </p>
               )}

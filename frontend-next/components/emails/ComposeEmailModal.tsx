@@ -710,7 +710,7 @@ export function ComposeEmailModal({
                     <button
                       type="button"
                       onClick={() => removeAttachment(index)}
-                      className="ml-1 hover:text-red-500"
+                      className="ml-1 hover:text-red-500 dark:text-red-400"
                     >
                       <X className="h-3 w-3" />
                     </button>

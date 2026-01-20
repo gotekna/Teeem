@@ -479,7 +479,7 @@ function TeamEmailDomainsConfig() {
                 @{domain}
                 <button
                   onClick={() => removeDomain(domain)}
-                  className="ml-2 hover:text-red-500 transition-colors"
+                  className="ml-2 hover:text-red-500 dark:text-red-400 transition-colors"
                   disabled={saving}
                 >
                   <XCircle className="h-3.5 w-3.5" />
@@ -992,9 +992,9 @@ export function EmailAccountsTab() {
                     {/* Sync Status */}
                     <div className="flex items-center gap-1.5">
                       {cred.last_sync_status === "success" ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                       ) : cred.last_sync_status === "error" ? (
-                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                        <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
                       ) : (
                         <Clock className="h-4 w-4" />
                       )}
@@ -1056,7 +1056,7 @@ export function EmailAccountsTab() {
                       size="sm"
                       onClick={() => handleDelete(cred.id)}
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                     </Button>
                   </div>
                 </div>

@@ -105,12 +105,12 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
 
   const getFileIcon = (mimeType?: string) => {
     if (!mimeType) return <FileText className="h-4 w-4" />;
-    if (mimeType.includes("pdf")) return <FileText className="h-4 w-4 text-red-500" />;
-    if (mimeType.includes("image")) return <FileText className="h-4 w-4 text-blue-500" />;
+    if (mimeType.includes("pdf")) return <FileText className="h-4 w-4 text-red-500 dark:text-red-400" />;
+    if (mimeType.includes("image")) return <FileText className="h-4 w-4 text-blue-500 dark:text-blue-400" />;
     if (mimeType.includes("word") || mimeType.includes("document"))
-      return <FileText className="h-4 w-4 text-blue-600" />;
+      return <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
     if (mimeType.includes("sheet") || mimeType.includes("excel"))
-      return <FileText className="h-4 w-4 text-green-600" />;
+      return <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />;
     return <FileText className="h-4 w-4" />;
   };
 
@@ -137,7 +137,7 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
             </span>
             <div className="flex items-center gap-2">
               {folderStatus.exists ? (
-                <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   SharePoint Connected
                 </Badge>

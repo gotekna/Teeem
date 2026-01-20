@@ -241,7 +241,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
         if (doc.validated) {
           return (
             <div className="flex justify-center" title={doc.validation_source === "user" ? "Validated by user" : "Validated by AI"}>
-              <CheckCircle className={cn("h-5 w-5", doc.validation_source === "ai" ? "text-blue-500" : "text-green-500")} />
+              <CheckCircle className={cn("h-5 w-5", doc.validation_source === "ai" ? "text-blue-500 dark:text-blue-400" : "text-green-500 dark:text-green-400")} />
             </div>
           );
         }
@@ -254,15 +254,15 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
         if (doc.ai_verification_status === "processing") {
           return (
             <div className="flex justify-center" title="AI analyzing...">
-              <Spinner size={16} className="text-purple-500" />
+              <Spinner size={16} className="text-purple-500 dark:text-purple-400" />
             </div>
           );
         }
         if (doc.ai_confidence_score) {
           const score = doc.ai_confidence_score;
-          const colorClass = score >= 90 ? "text-green-600 bg-green-100 dark:bg-green-900/30"
-            : score >= 70 ? "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30"
-            : "text-red-600 bg-red-100 dark:bg-red-900/30";
+          const colorClass = score >= 90 ? "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30"
+            : score >= 70 ? "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30"
+            : "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30";
           return (
             <div className="flex justify-center" title={`AI confidence: ${score}%\n${doc.ai_analysis_notes || ''}`}>
               <Badge variant="outline" className={cn("text-[10px] px-1 py-0 font-mono", colorClass)}>
@@ -307,7 +307,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
             >
               <SelectValue placeholder="Select...">
                 {doc.folder ? (
-                  <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                  <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300">
                     {doc.folder}
                   </Badge>
                 ) : (
@@ -372,7 +372,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
               <Badge
                 key={year}
                 variant="outline"
-                className="text-[10px] px-1 py-0 font-mono bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 cursor-pointer hover:bg-blue-100"
+                className="text-[10px] px-1 py-0 font-mono bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300 cursor-pointer hover:bg-blue-100"
                 title={`Filter by FY${year.toString().slice(-2)}`}
               >
                 FY{year.toString().slice(-2)}

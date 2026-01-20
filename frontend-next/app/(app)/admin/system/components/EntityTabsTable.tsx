@@ -534,7 +534,7 @@ export function EntityTabsTable() {
                                   onClick={() => handleSavePath(tab)}
                                   disabled={saving}
                                 >
-                                  {saving ? <Spinner size={12} /> : <Check className="h-3 w-3 text-green-600" />}
+                                  {saving ? <Spinner size={12} /> : <Check className="h-3 w-3 text-green-600 dark:text-green-400" />}
                                 </Button>
                                 <Button
                                   size="icon"
@@ -761,7 +761,7 @@ export function EntityTabsTable() {
               <span>Corporate Trustee</span>
             </div>
             <div className="flex items-center gap-1.5 ml-4">
-              <FolderOpen className="h-3.5 w-3.5 text-blue-600" />
+              <FolderOpen className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
               <span>Has SharePoint folder</span>
             </div>
           </div>
@@ -786,7 +786,7 @@ export function EntityTabsTable() {
             {folderBrowserTab?.sharepoint_folder_path && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Current folder: </span>
-                <span className="font-mono text-blue-600">/{folderBrowserTab.sharepoint_folder_path}</span>
+                <span className="font-mono text-blue-600 dark:text-blue-400">/{folderBrowserTab.sharepoint_folder_path}</span>
               </div>
             )}
 
@@ -807,7 +807,7 @@ export function EntityTabsTable() {
             {/* Selected folder preview */}
             {selectedFolder && (
               <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                <FolderOpen className="h-5 w-5 text-green-600" />
+                <FolderOpen className="h-5 w-5 text-green-600 dark:text-green-400" />
                 <div className="flex-1">
                   <p className="font-medium text-sm">{selectedFolder.name}</p>
                   <p className="text-xs font-mono text-muted-foreground">{selectedFolder.path}</p>

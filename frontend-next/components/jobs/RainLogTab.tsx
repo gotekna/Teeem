@@ -207,7 +207,7 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
 
   const getSourceBadge = (source: string) => {
     if (source === "automatic") {
-      return <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400">Auto</Badge>;
+      return <Badge variant="secondary" className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400">Auto</Badge>;
     }
     return <Badge variant="secondary">Manual</Badge>;
   };
@@ -284,12 +284,12 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
                   <p className="text-sm">{weatherResult.error}</p>
                 ) : weatherResult.rain_log_created ? (
                   <p className="text-sm flex items-center gap-1">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                     Rain log created: {weatherResult.rain_log?.rainfall_mm}mm recorded
                   </p>
                 ) : (
                   <p className="text-sm flex items-center gap-1">
-                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <CheckCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     {weatherResult.message || `No rainfall detected (${weatherResult.rainfall_mm || 0}mm)`}
                   </p>
                 )}

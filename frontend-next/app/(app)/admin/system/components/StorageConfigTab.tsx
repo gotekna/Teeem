@@ -519,7 +519,7 @@ function TreeNode({
           return (
             <Link
               href={configLinkUrl}
-              className="ml-2 text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-1"
+              className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-1"
             >
               {getTabName(configLinkUrl)} <ExternalLink className="h-3 w-3" />
             </Link>
@@ -769,7 +769,7 @@ function TreeNode({
                   </>
                 ) : lastSaved ? (
                   <>
-                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    <CheckCircle2 className="h-3 w-3 text-green-500 dark:text-green-400" />
                     <span>Auto-saved</span>
                   </>
                 ) : (
@@ -980,7 +980,7 @@ function TabNode({
       >
         {/* Tab header row */}
         <div className="flex items-center gap-1 mb-2">
-          <FileText className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+          <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
           <span className="text-sm font-medium">{tab.display_name}</span>
           {!isEditing && (
             <Button
@@ -1084,7 +1084,7 @@ function TabNode({
       className="flex items-center gap-1 py-1 px-1 rounded-sm hover:bg-muted/50 group"
       style={{ paddingLeft: `${level * 16 + 24}px` }}
     >
-      <FileText className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+      <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
       <span className="text-sm">{tab.display_name}</span>
       <span className="ml-auto text-[10px] text-muted-foreground font-mono opacity-60">
         {tab.sharepoint_folder_path || '(no subfolder)'}
@@ -1742,7 +1742,7 @@ export function StorageConfigTab() {
 
             <div className="p-3 bg-muted/50 rounded-lg border">
               <p className="text-sm flex items-center gap-2">
-                <Info className="h-4 w-4 text-blue-500" />
+                <Info className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                 <span>Credentials are configured in <strong>Admin → System → Connections</strong></span>
               </p>
             </div>
@@ -1875,7 +1875,7 @@ export function StorageConfigTab() {
               Scope folder
             </span>
             <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3 text-blue-500" />
+              <FileText className="h-3 w-3 text-blue-500 dark:text-blue-400" />
               Tab (click to edit path)
             </span>
           </div>

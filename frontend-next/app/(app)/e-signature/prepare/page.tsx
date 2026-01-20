@@ -222,7 +222,7 @@ export default function ESignaturePreparePage() {
                   className={cn(
                     "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors",
                     isActive && "bg-primary text-primary-foreground",
-                    isComplete && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                    isComplete && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400",
                     !isActive && !isComplete && "text-muted-foreground hover:bg-muted"
                   )}
                   disabled={index > currentStepIndex}

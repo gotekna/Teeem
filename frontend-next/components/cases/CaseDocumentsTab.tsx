@@ -64,7 +64,7 @@ function getRelevanceColor(relevance: string) {
     case "critical":
       return "bg-status-error text-status-error-foreground";
     case "high":
-      return "bg-orange-100 text-orange-800";
+      return "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300";
     case "medium":
       return "bg-status-warning text-status-warning-foreground";
     case "low":
@@ -254,7 +254,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between py-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <FolderInput className="h-4 w-4 text-blue-500" />
+            <FolderInput className="h-4 w-4 text-blue-500 dark:text-blue-400" />
             Source Folders
           </CardTitle>
           <Button
@@ -367,7 +367,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
                   className="flex items-center justify-between p-2 bg-muted rounded-md"
                 >
                   <div className="flex items-center gap-2">
-                    <FolderOpen className="h-4 w-4 text-blue-500" />
+                    <FolderOpen className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                     <span className="text-sm font-medium">{path}</span>
                   </div>
                   <Button
@@ -375,7 +375,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
                     size="sm"
                     onClick={() => removeSourceFolder(path)}
                   >
-                    <Trash2 className="h-4 w-4 text-red-500" />
+                    <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                   </Button>
                 </div>
               ))}
@@ -427,7 +427,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
               {documents.map((doc) => (
                 <div key={doc.id} className="py-3 flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
-                    <div className="p-2 bg-blue-100 rounded text-blue-600">
+                    <div className="p-2 bg-blue-100 rounded text-blue-600 dark:text-blue-400">
                       <FileText className="h-4 w-4" />
                     </div>
                     <div>

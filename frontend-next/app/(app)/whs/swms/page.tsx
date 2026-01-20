@@ -58,7 +58,7 @@ interface SWMS {
 function getStatusBadge(status: string) {
   switch (status) {
     case "active":
-      return <Badge className="bg-green-100 text-green-700"><CheckCircle className="h-3 w-3 mr-1" />Active</Badge>;
+      return <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"><CheckCircle className="h-3 w-3 mr-1" />Active</Badge>;
     case "draft":
       return <Badge variant="secondary"><Edit className="h-3 w-3 mr-1" />Draft</Badge>;
     case "expired":
@@ -273,7 +273,7 @@ export default function WHSSWMSPage() {
                   <TableRow key={swms.id}>
                     <TableCell>
                       <div className="flex items-start gap-3">
-                        <ClipboardCheck className="h-5 w-5 text-blue-500 mt-0.5" />
+                        <ClipboardCheck className="h-5 w-5 text-blue-500 dark:text-blue-400 mt-0.5" />
                         <div>
                           <p className="font-medium">{swms.name}</p>
                           {swms.description && (
@@ -316,7 +316,7 @@ export default function WHSSWMSPage() {
                                 value={Math.max(0, Math.min(100, (daysRemaining / 90) * 100))}
                                 className={`h-1.5 w-20 ${isExpiringSoon ? "[&>div]:bg-orange-500" : ""}`}
                               />
-                              <p className={`text-xs ${isExpiringSoon ? "text-orange-600 font-medium" : "text-muted-foreground"}`}>
+                              <p className={`text-xs ${isExpiringSoon ? "text-orange-600 dark:text-orange-400 font-medium" : "text-muted-foreground"}`}>
                                 {daysRemaining} days remaining
                               </p>
                             </div>

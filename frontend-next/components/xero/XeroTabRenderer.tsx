@@ -290,8 +290,8 @@ export function XeroTabRenderer({
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
-        <AlertCircle className="h-8 w-8 text-red-500 mb-2" />
-        <p className="font-medium text-red-600">Failed to load Xero tabs</p>
+        <AlertCircle className="h-8 w-8 text-red-500 dark:text-red-400 mb-2" />
+        <p className="font-medium text-red-600 dark:text-red-400">Failed to load Xero tabs</p>
         <p className="text-sm text-muted-foreground mt-1">{error}</p>
       </div>
     );

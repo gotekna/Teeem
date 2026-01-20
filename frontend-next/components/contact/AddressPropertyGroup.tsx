@@ -245,7 +245,7 @@ export function AddressPropertyGroup({
                 {displayAddress || "No address set"}
               </span>
               {showSuccess && (
-                <Check className="h-4 w-4 text-green-500 shrink-0" />
+                <Check className="h-4 w-4 text-green-500 dark:text-green-400 shrink-0" />
               )}
             </div>
           </div>
@@ -391,7 +391,7 @@ export function AddressPropertyGroup({
       </div>
 
       {/* Error */}
-      {error && <p className="text-[11px] text-red-500">{error}</p>}
+      {error && <p className="text-[11px] text-red-500 dark:text-red-400">{error}</p>}
     </div>
   );
 }

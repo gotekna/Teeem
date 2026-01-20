@@ -79,7 +79,7 @@ export function ContactPortalTab({ contact }: ContactPortalTabProps) {
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Status</span>
             {hasPortalAccess ? (
-              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+              <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300">
                 <CheckCircle className="h-3 w-3 mr-1" />
                 Active
               </Badge>
@@ -169,19 +169,19 @@ export function ContactPortalTab({ contact }: ContactPortalTabProps) {
         <CardContent>
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
+              <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
               View and pay invoices online
             </li>
             <li className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
+              <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
               Access project documents and files
             </li>
             <li className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
+              <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
               Track job progress and updates
             </li>
             <li className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
+              <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
               Submit support requests
             </li>
           </ul>

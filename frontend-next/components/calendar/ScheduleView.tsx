@@ -124,13 +124,13 @@ export function ScheduleView() {
                       {/* Task name and icons */}
                       <div className="flex items-center gap-2">
                         {event.is_hold && (
-                          <Pause className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+                          <Pause className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
                         )}
                         {event.lock_type && (
                           <Lock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         )}
                         {event.is_overdue && (
-                          <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                          <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400 flex-shrink-0" />
                         )}
                         <span className="font-medium truncate">{event.name}</span>
                       </div>
@@ -176,7 +176,7 @@ export function ScheduleView() {
                       </Badge>
 
                       {event.is_overdue && (
-                        <span className="text-xs text-red-500">
+                        <span className="text-xs text-red-500 dark:text-red-400">
                           {event.days_overdue}d overdue
                         </span>
                       )}

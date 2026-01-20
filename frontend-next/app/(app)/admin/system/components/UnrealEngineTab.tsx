@@ -174,7 +174,7 @@ const CATEGORY_CONFIG = {
   core: { label: "Core MCP", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-200" },
   visualization: { label: "Visualization", color: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900 dark:text-purple-200" },
   client: { label: "Client Experience", color: "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-200" },
-  integration: { label: "TEEEM Integration", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
+  integration: { label: "TEEEM Integration", color: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900 dark:text-orange-200" },
 };
 
 export function UnrealEngineTab() {
@@ -262,11 +262,11 @@ export function UnrealEngineTab() {
           {/* Progress Summary */}
           <div className="flex gap-4 text-sm">
             <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
               <span>{doneCount} Done</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-yellow-500" />
+              <Clock className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
               <span>{inProgressCount} In Progress</span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -305,9 +305,9 @@ export function UnrealEngineTab() {
                         <StatusIcon
                           className={`h-5 w-5 mt-0.5 ${
                             feature.status === "done"
-                              ? "text-green-500"
+                              ? "text-green-500 dark:text-green-400"
                               : feature.status === "in-progress"
-                              ? "text-yellow-500"
+                              ? "text-yellow-500 dark:text-yellow-400"
                               : "text-muted-foreground"
                           }`}
                         />
@@ -321,9 +321,9 @@ export function UnrealEngineTab() {
                           variant="outline"
                           className={`shrink-0 ${
                             feature.status === "done"
-                              ? "border-green-500 text-green-600"
+                              ? "border-green-500 text-green-600 dark:text-green-400"
                               : feature.status === "in-progress"
-                              ? "border-yellow-500 text-yellow-600"
+                              ? "border-yellow-500 text-yellow-600 dark:text-yellow-400"
                               : "border-border text-muted-foreground"
                           }`}
                         >

@@ -83,7 +83,7 @@ function TaskCardContent({ task }: { task: TaskItem }) {
         </Badge>
       )}
       {task.locked && (
-        <Lock className="h-3 w-3 text-orange-500 shrink-0" />
+        <Lock className="h-3 w-3 text-orange-500 dark:text-orange-400 shrink-0" />
       )}
       {task.trade && (
         <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0">

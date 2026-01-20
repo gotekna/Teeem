@@ -17,7 +17,7 @@ export function CompletionStep({
   return (
     <div className="flex flex-col items-center py-8">
       <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-6">
-        <CheckCircle2 className="h-10 w-10 text-green-600" />
+        <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
       </div>
 
       <h2 className="text-2xl font-semibold mb-2">
@@ -42,7 +42,7 @@ export function CompletionStep({
         {allComplete ? (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
             <div className="flex items-center gap-3">
-              <Users className="h-5 w-5 text-green-600" />
+              <Users className="h-5 w-5 text-green-600 dark:text-green-400" />
               <div>
                 <p className="font-medium text-green-900 dark:text-green-100">
                   All Signatures Collected

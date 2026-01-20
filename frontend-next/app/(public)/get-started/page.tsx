@@ -204,9 +204,9 @@ export default function GetStartedPage() {
                     {!isCheckingAvailability && slugAvailable !== null && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
                         {slugAvailable ? (
-                          <Check className="h-5 w-5 text-green-500" />
+                          <Check className="h-5 w-5 text-green-500 dark:text-green-400" />
                         ) : (
-                          <AlertCircle className="h-5 w-5 text-red-500" />
+                          <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
                         )}
                       </div>
                     )}

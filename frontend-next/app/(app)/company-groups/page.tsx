@@ -62,7 +62,7 @@ function getEntityIcon(entityType: string | undefined, className = "h-5 w-5") {
 
 // Entity color helper
 function getEntityColor(entityType: string | undefined, isTrustee = false) {
-  if (isTrustee) return "text-purple-600";
+  if (isTrustee) return "text-purple-600 dark:text-purple-400";
   switch (entityType?.toLowerCase()) {
     case "trust":
       return "text-rose-500";
@@ -72,7 +72,7 @@ function getEntityColor(entityType: string | undefined, isTrustee = false) {
       return "text-teal-600";
     case "company":
     default:
-      return "text-blue-600";
+      return "text-blue-600 dark:text-blue-400";
   }
 }
 
@@ -264,7 +264,7 @@ function CompanyTreeNode({
               </Badge>
             )}
             {company.is_trustee && (
-              <Badge className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+              <Badge className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300">
                 Trustee
               </Badge>
             )}
@@ -513,7 +513,7 @@ export default function CompanyGroupsPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Trustees</span>
-                  <span className="font-medium text-purple-600">{structure.stats.trustees_count}</span>
+                  <span className="font-medium text-purple-600 dark:text-purple-400">{structure.stats.trustees_count}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Trusts</span>
@@ -581,7 +581,7 @@ export default function CompanyGroupsPage() {
                       {tradingCompanies.length > 0 && (
                         <div>
                           <div className="bg-blue-50 dark:bg-blue-950/30 px-4 py-2 flex items-center gap-2 border-b">
-                            <CompanyIcon className="h-4 w-4 text-blue-600" />
+                            <CompanyIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                             <span className="font-medium text-blue-700 dark:text-blue-300 text-sm">
                               Trading Companies ({tradingCompanies.length})
                             </span>
@@ -605,7 +605,7 @@ export default function CompanyGroupsPage() {
                       {corporateTrustees.length > 0 && (
                         <div className="border-t-2 border-purple-200 dark:border-purple-900">
                           <div className="bg-purple-50 dark:bg-purple-950/30 px-4 py-2 flex items-center gap-2">
-                            <CompanyIcon className="h-4 w-4 text-purple-600" />
+                            <CompanyIcon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                             <span className="font-medium text-purple-700 dark:text-purple-300 text-sm">
                               Corporate Trustees ({corporateTrustees.length})
                             </span>
@@ -689,7 +689,7 @@ export default function CompanyGroupsPage() {
             <div className="flex items-center gap-6 text-xs text-muted-foreground flex-wrap">
               <span className="font-medium">Legend:</span>
               <div className="flex items-center gap-1.5">
-                <CompanyIcon className="h-4 w-4 text-blue-600" />
+                <CompanyIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 <span>Company</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -706,7 +706,7 @@ export default function CompanyGroupsPage() {
               </div>
               <div className="border-l h-4 mx-1" />
               <div className="flex items-center gap-1.5">
-                <Badge className="text-[10px] bg-purple-100 text-purple-700">Trustee</Badge>
+                <Badge className="text-[10px] bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">Trustee</Badge>
                 <span>Acts as trustee</span>
               </div>
               <div className="flex items-center gap-1.5">

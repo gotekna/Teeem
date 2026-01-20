@@ -74,19 +74,19 @@ interface AIVerificationModalProps {
 }
 
 function getConfidenceColor(confidence: number): string {
-  if (confidence >= 80) return "text-green-600";
-  if (confidence >= 60) return "text-yellow-600";
-  return "text-red-600";
+  if (confidence >= 80) return "text-green-600 dark:text-green-400";
+  if (confidence >= 60) return "text-yellow-600 dark:text-yellow-400";
+  return "text-red-600 dark:text-red-400";
 }
 
 function getConfidenceBadge(confidence: number) {
   if (confidence >= 80) {
-    return <Badge className="bg-green-100 text-green-700">High Confidence</Badge>;
+    return <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">High Confidence</Badge>;
   }
   if (confidence >= 60) {
-    return <Badge className="bg-yellow-100 text-yellow-700">Medium Confidence</Badge>;
+    return <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300">Medium Confidence</Badge>;
   }
-  return <Badge className="bg-red-100 text-red-700">Low Confidence</Badge>;
+  return <Badge className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">Low Confidence</Badge>;
 }
 
 export function AIVerificationModal({
@@ -225,7 +225,7 @@ export function AIVerificationModal({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-purple-600" />
+            <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             AI Document Verification
           </DialogTitle>
           <DialogDescription>
@@ -246,7 +246,7 @@ export function AIVerificationModal({
           {/* Analyzing State */}
           {analyzing && (
             <div className="text-center py-8">
-              <Spinner size={32} className="mx-auto text-purple-600 mb-4" />
+              <Spinner size={32} className="mx-auto text-purple-600 dark:text-purple-400 mb-4" />
               <p className="font-medium">Analyzing document with AI...</p>
               <p className="text-sm text-muted-foreground mt-1">
                 This usually takes a few seconds
@@ -261,7 +261,7 @@ export function AIVerificationModal({
               <div className="p-4 border rounded-lg bg-purple-50 dark:bg-purple-900/10 border-purple-200">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-purple-600" />
+                    <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                     <span className="font-medium text-purple-900 dark:text-purple-100">
                       AI Suggestion
                     </span>

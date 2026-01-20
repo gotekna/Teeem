@@ -214,7 +214,7 @@ export default function ConstructionTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{pendingWaivers.length}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{pendingWaivers.length}</div>
             <p className="text-xs text-muted-foreground mt-1">awaiting receipt</p>
           </CardContent>
         </Card>
@@ -242,7 +242,7 @@ export default function ConstructionTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${totalChangeOrderValue >= 0 ? "text-green-600" : "text-red-600"}`}>
+            <div className={`text-2xl font-bold ${totalChangeOrderValue >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
               {formatCurrency(totalChangeOrderValue)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">contract adjustments</p>
@@ -409,13 +409,13 @@ export default function ConstructionTab() {
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{order.reason || "-"}</TableCell>
                         <TableCell className="text-right">
-                          <span className={order.contract_amount_change >= 0 ? "text-green-600" : "text-red-600"}>
+                          <span className={order.contract_amount_change >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                             {order.contract_amount_change >= 0 ? "+" : ""}{formatCurrency(order.contract_amount_change)}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
                           {order.schedule_days_change !== 0 && (
-                            <span className={order.schedule_days_change > 0 ? "text-orange-600" : "text-green-600"}>
+                            <span className={order.schedule_days_change > 0 ? "text-orange-600 dark:text-orange-400" : "text-green-600 dark:text-green-400"}>
                               {order.schedule_days_change > 0 ? "+" : ""}{order.schedule_days_change} days
                             </span>
                           )}

@@ -205,7 +205,7 @@ export default function ReportsBuilderTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{favorites.length}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{favorites.length}</div>
             <p className="text-xs text-muted-foreground mt-1">saved</p>
           </CardContent>
         </Card>
@@ -217,7 +217,7 @@ export default function ReportsBuilderTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{dashboards.length}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{dashboards.length}</div>
             <p className="text-xs text-muted-foreground mt-1">configured</p>
           </CardContent>
         </Card>
@@ -229,7 +229,7 @@ export default function ReportsBuilderTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{templates.length}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{templates.length}</div>
             <p className="text-xs text-muted-foreground mt-1">available</p>
           </CardContent>
         </Card>
@@ -345,7 +345,7 @@ export default function ReportsBuilderTab() {
                               onClick={() => handleToggleFavorite(report)}
                             >
                               {isFavorite(report) ? (
-                                <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                                <Star className="h-4 w-4 text-yellow-500 dark:text-yellow-400 fill-yellow-500" />
                               ) : (
                                 <StarOff className="h-4 w-4" />
                               )}
@@ -381,7 +381,7 @@ export default function ReportsBuilderTab() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Star className="h-5 w-5 text-yellow-500" />
+                <Star className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
                 Favorite Reports
               </CardTitle>
             </CardHeader>
@@ -402,7 +402,7 @@ export default function ReportsBuilderTab() {
                             <h3 className="text-sm font-medium">{report.name}</h3>
                             <p className="text-sm text-muted-foreground mt-1">{report.base_entity}</p>
                           </div>
-                          <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+                          <Star className="h-5 w-5 text-yellow-500 dark:text-yellow-400 fill-yellow-500" />
                         </div>
                         <div className="flex gap-2 mt-4">
                           <Button size="sm" onClick={() => handleRun(report)}>

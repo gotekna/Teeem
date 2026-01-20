@@ -280,12 +280,12 @@ function UsersManagementTab() {
                   {(user.integrations_count ?? 0) > 0 ? (
                     <div className="flex gap-1">
                       {user.integrations?.includes('microsoft') && (
-                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200">
                           MS
                         </Badge>
                       )}
                       {user.integrations?.includes('outlook') && (
-                        <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
+                        <Badge variant="outline" className="text-xs bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border-indigo-200">
                           Email
                         </Badge>
                       )}

@@ -301,16 +301,16 @@ export default function EmailResellerDashboard() {
                 >
                   <div className="flex items-center gap-3">
                     {activity.type === "subscription_created" && (
-                      <Plus className="h-4 w-4 text-green-500" />
+                      <Plus className="h-4 w-4 text-green-500 dark:text-green-400" />
                     )}
                     {activity.type === "migration_completed" && (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
                     )}
                     {activity.type === "invoice_paid" && (
-                      <DollarSign className="h-4 w-4 text-blue-500" />
+                      <DollarSign className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                     )}
                     {activity.type === "migration_started" && (
-                      <ArrowRight className="h-4 w-4 text-orange-500" />
+                      <ArrowRight className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                     )}
                     <span className="text-sm">{activity.message}</span>
                   </div>

@@ -287,7 +287,7 @@ export default function POInvoiceMatchingTab() {
         );
       case "ai_suggestion":
         return (
-          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             <Brain className="h-3 w-3 mr-1" />
             AI Suggested
           </Badge>
@@ -369,7 +369,7 @@ export default function POInvoiceMatchingTab() {
             <div className="flex items-center gap-2">
               {stats?.ai_enabled ? (
                 <>
-                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
                   <span className="text-lg font-semibold text-green-600 dark:text-green-400">Enabled</span>
                 </>
               ) : (
@@ -403,7 +403,7 @@ export default function POInvoiceMatchingTab() {
         <CardContent>
           {unmatchedBills.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500 opacity-50" />
+              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500 dark:text-green-400 opacity-50" />
               <p className="text-lg font-medium">All caught up!</p>
               <p className="text-sm mt-1">No bills awaiting PO matching</p>
             </div>

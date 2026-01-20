@@ -206,7 +206,7 @@ export default function AgedReportsTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatCurrency(summary.current)}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(summary.current)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {summary.total_outstanding > 0
                   ? `${((summary.current / summary.total_outstanding) * 100).toFixed(1)}% of total`
@@ -222,7 +222,7 @@ export default function AgedReportsTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{formatCurrency(summary.overdue)}</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{formatCurrency(summary.overdue)}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 {summary.total_outstanding > 0
                   ? `${((summary.overdue / summary.total_outstanding) * 100).toFixed(1)}% of total`
@@ -261,7 +261,7 @@ export default function AgedReportsTab() {
                   <div className="text-sm font-medium text-muted-foreground mb-1">
                     {bucket.label}
                   </div>
-                  <div className={`text-xl font-bold ${idx > 2 ? "text-red-600" : idx > 1 ? "text-orange-600" : ""}`}>
+                  <div className={`text-xl font-bold ${idx > 2 ? "text-red-600 dark:text-red-400" : idx > 1 ? "text-orange-600 dark:text-orange-400" : ""}`}>
                     {formatCurrency(bucket.amount)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
@@ -327,9 +327,9 @@ export default function AgedReportsTab() {
                     </TableCell>
                     <TableCell className="text-right">{formatCurrency(customer.current)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(customer.days_30)}</TableCell>
-                    <TableCell className="text-right text-orange-600">{formatCurrency(customer.days_60)}</TableCell>
+                    <TableCell className="text-right text-orange-600 dark:text-orange-400">{formatCurrency(customer.days_60)}</TableCell>
                     <TableCell className="text-right text-orange-700">{formatCurrency(customer.days_90)}</TableCell>
-                    <TableCell className="text-right text-red-600 font-medium">{formatCurrency(customer.days_over_90)}</TableCell>
+                    <TableCell className="text-right text-red-600 dark:text-red-400 font-medium">{formatCurrency(customer.days_over_90)}</TableCell>
                     <TableCell className="text-right font-bold">{formatCurrency(customer.total)}</TableCell>
                     <TableCell className="text-center">
                       <Badge variant="secondary">{customer.invoice_count}</Badge>

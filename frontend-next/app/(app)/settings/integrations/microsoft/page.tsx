@@ -608,7 +608,7 @@ export default function MicrosoftIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-lg ${isThisOneConnecting ? "bg-blue-100 dark:bg-blue-900" : "bg-muted dark:bg-card"}`}>
                       {isThisOneConnecting ? (
-                        <Spinner size={20} className="text-blue-500" />
+                        <Spinner size={20} className="text-blue-500 dark:text-blue-400" />
                       ) : (
                         <Building2 className="h-5 w-5 text-muted-foreground" />
                       )}
@@ -966,7 +966,7 @@ function OrganizationCard({
                         )}
                       </div>
                       {healthInfo.self_healing_available && (
-                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 text-xs">
+                        <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900 dark:text-green-300 text-xs">
                           <Activity className="h-3 w-3 mr-1" />
                           Auto-refresh active
                         </Badge>
@@ -1010,7 +1010,7 @@ function OrganizationCard({
 
                 {sharePointResult && (
                   <Alert variant={sharePointResult.success ? "default" : "destructive"} className={sharePointResult.success ? "bg-green-50 border-green-200 dark:bg-green-950/50 dark:border-green-800" : ""}>
-                    {sharePointResult.success ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4" />}
+                    {sharePointResult.success ? <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" /> : <AlertTriangle className="h-4 w-4" />}
                     <AlertTitle>{sharePointResult.success ? "Storage Connected" : "Storage Connection Error"}</AlertTitle>
                     <AlertDescription>
                       {sharePointResult.message}
@@ -1027,7 +1027,7 @@ function OrganizationCard({
 
                 {syncResult && (
                   <Alert variant={syncResult.success ? "default" : "destructive"} className={syncResult.success ? "bg-green-50 border-green-200 dark:bg-green-950/50 dark:border-green-800" : ""}>
-                    {syncResult.success ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4" />}
+                    {syncResult.success ? <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" /> : <AlertTriangle className="h-4 w-4" />}
                     <AlertTitle>{syncResult.success ? "Sync Started" : "Sync Error"}</AlertTitle>
                     <AlertDescription>{syncResult.message}</AlertDescription>
                   </Alert>

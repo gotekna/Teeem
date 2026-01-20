@@ -734,7 +734,7 @@ export function LocationMap({
       <Card className="h-full flex flex-col">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div className="flex items-center gap-3">
-            <MapPin className={`h-5 w-5 ${hasNoLocation ? "text-muted-foreground" : "text-green-600"}`} />
+            <MapPin className={`h-5 w-5 ${hasNoLocation ? "text-muted-foreground" : "text-green-600 dark:text-green-400"}`} />
             <CardTitle className="text-base">Job Location</CardTitle>
           </div>
 
@@ -886,7 +886,7 @@ export function LocationMap({
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-xs">Street Name <span className="text-red-500">*</span></Label>
+                      <Label className="text-xs">Street Name <span className="text-red-500 dark:text-red-400">*</span></Label>
                       <Input
                         value={formStreetName}
                         onChange={(e) => setFormStreetName(e.target.value)}
@@ -906,7 +906,7 @@ export function LocationMap({
                   </div>
 
                   <div className="relative">
-                    <Label className="text-xs">Suburb <span className="text-red-500">*</span></Label>
+                    <Label className="text-xs">Suburb <span className="text-red-500 dark:text-red-400">*</span></Label>
                     <Input
                       ref={suburbInputRef}
                       value={suburbSearchQuery || formSuburb}

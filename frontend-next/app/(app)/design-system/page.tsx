@@ -180,19 +180,19 @@ function StatsCardDemo() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-blue-500" />
+            <Clock className="h-4 w-4 text-blue-500 dark:text-blue-400" />
             <span className="text-xs text-muted-foreground">Active Leads</span>
           </div>
-          <div className="text-2xl font-bold font-mono text-blue-600 mt-1">6</div>
+          <div className="text-2xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-1">6</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
             <span className="text-xs text-muted-foreground">Won</span>
           </div>
-          <div className="text-2xl font-bold font-mono text-green-600 mt-1">1</div>
+          <div className="text-2xl font-bold font-mono text-green-600 dark:text-green-400 mt-1">1</div>
         </CardContent>
       </Card>
       <Card>
@@ -293,7 +293,7 @@ export default function DesignSystemPage() {
                             <span>Coorparoo</span>
                           </div>
                           <div className="flex items-center justify-between pt-1">
-                            <div className="flex items-center gap-1 text-xs font-medium text-green-600">
+                            <div className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
                               <DollarSign className="h-3 w-3" />
                               $85K
                             </div>
@@ -398,7 +398,7 @@ export default function DesignSystemPage() {
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-100 rounded-lg">
-                      <User className="h-5 w-5 text-blue-600" />
+                      <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                     </div>
                     <CardTitle className="text-base">Contact Details</CardTitle>
                   </div>
@@ -419,7 +419,7 @@ export default function DesignSystemPage() {
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-green-100 rounded-lg">
-                      <Building2 className="h-5 w-5 text-green-600" />
+                      <Building2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                     </div>
                     <CardTitle className="text-base">Site Details</CardTitle>
                   </div>
@@ -440,7 +440,7 @@ export default function DesignSystemPage() {
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-100 rounded-lg">
-                      <Calendar className="h-5 w-5 text-purple-600" />
+                      <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                     </div>
                     <CardTitle className="text-base">Timeline</CardTitle>
                   </div>
@@ -506,7 +506,7 @@ export default function DesignSystemPage() {
                 <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">Contacted</Badge>
                 <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">Qualified</Badge>
                 <Badge className="bg-status-warning text-status-warning-foreground">Proposal</Badge>
-                <Badge className="bg-orange-100 text-orange-800">Contract Sent</Badge>
+                <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300">Contract Sent</Badge>
                 <Badge className="bg-status-success text-status-success-foreground">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   Won
@@ -637,12 +637,12 @@ export default function DesignSystemPage() {
                 <AlertDescription>Something went wrong. Please try again.</AlertDescription>
               </Alert>
               <Alert className="border-green-200 bg-green-50 text-green-800">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                 <AlertTitle className="text-green-800">Success</AlertTitle>
                 <AlertDescription className="text-green-700">Your changes have been saved.</AlertDescription>
               </Alert>
               <Alert className="border-yellow-200 bg-yellow-50 text-yellow-800">
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                 <AlertTitle className="text-yellow-800">Warning</AlertTitle>
                 <AlertDescription className="text-yellow-700">Please review before proceeding.</AlertDescription>
               </Alert>

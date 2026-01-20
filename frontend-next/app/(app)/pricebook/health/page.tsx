@@ -157,7 +157,7 @@ const getHealthColor = (percentage: number): string => {
 // Health Score Ring Component
 function HealthScoreRing({ percentage, size = 64 }: { percentage: number; size?: number }) {
   const color = getHealthColor(percentage);
-  const colorClass = color === "green" ? "text-green-500" : color === "orange" ? "text-orange-500" : "text-red-500";
+  const colorClass = color === "green" ? "text-green-500 dark:text-green-400" : color === "orange" ? "text-orange-500 dark:text-orange-400" : "text-red-500 dark:text-red-400";
 
   return (
     <div className={`w-${size/4} h-${size/4}`} style={{ width: size, height: size }}>
@@ -210,9 +210,9 @@ function HealthCheckSection({
   children?: React.ReactNode;
 }) {
   const color = getHealthColor(percentage);
-  const colorClass = color === "green" ? "text-green-500 bg-green-500/10" :
-                     color === "orange" ? "text-orange-500 bg-orange-500/10" :
-                     "text-red-500 bg-red-500/10";
+  const colorClass = color === "green" ? "text-green-500 dark:text-green-400 bg-green-500/10" :
+                     color === "orange" ? "text-orange-500 dark:text-orange-400 bg-orange-500/10" :
+                     "text-red-500 dark:text-red-400 bg-red-500/10";
 
   return (
     <div className="border-b last:border-b-0">
@@ -229,7 +229,7 @@ function HealthCheckSection({
               <div className="text-left">
                 <h3 className="text-base font-medium flex items-center gap-2">
                   {title}
-                  <span className={`text-sm font-bold ${color === "green" ? "text-green-500" : color === "orange" ? "text-orange-500" : "text-red-500"}`}>
+                  <span className={`text-sm font-bold ${color === "green" ? "text-green-500 dark:text-green-400" : color === "orange" ? "text-orange-500 dark:text-orange-400" : "text-red-500 dark:text-red-400"}`}>
                     ({percentage}%)
                   </span>
                   {count > 0 && (
@@ -500,10 +500,10 @@ export default function PricebookHealthPage() {
                 <div
                   className={`text-3xl font-bold ${
                     healthColor === "green"
-                      ? "text-green-500"
+                      ? "text-green-500 dark:text-green-400"
                       : healthColor === "orange"
-                      ? "text-orange-500"
-                      : "text-red-500"
+                      ? "text-orange-500 dark:text-orange-400"
+                      : "text-red-500 dark:text-red-400"
                   }`}
                 >
                   {overallHealthPercentage}%
@@ -847,9 +847,9 @@ export default function PricebookHealthPage() {
                                   <span
                                     className={`font-medium ${
                                       issue.difference > 0
-                                        ? "text-red-500"
+                                        ? "text-red-500 dark:text-red-400"
                                         : issue.difference < 0
-                                        ? "text-green-500"
+                                        ? "text-green-500 dark:text-green-400"
                                         : "text-muted-foreground"
                                     }`}
                                   >
@@ -925,26 +925,26 @@ export default function PricebookHealthPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                       <div className="bg-muted/50 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-1">
-                          <LinkIcon className="h-4 w-4 text-blue-500" />
+                          <LinkIcon className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                           <span className="text-sm text-muted-foreground">Linked Contacts</span>
                         </div>
                         <div className="text-2xl font-semibold">{xeroSyncHealth.total_linked_contacts || 0}</div>
                       </div>
                       <div className="bg-muted/50 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-1">
-                          <XCircle className="h-4 w-4 text-red-500" />
+                          <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
                           <span className="text-sm text-muted-foreground">With Errors</span>
                         </div>
-                        <div className={`text-2xl font-semibold ${xeroSyncHealth.total_contacts_with_errors > 0 ? "text-red-500" : ""}`}>
+                        <div className={`text-2xl font-semibold ${xeroSyncHealth.total_contacts_with_errors > 0 ? "text-red-500 dark:text-red-400" : ""}`}>
                           {xeroSyncHealth.total_contacts_with_errors || 0}
                         </div>
                       </div>
                       <div className="bg-muted/50 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-1">
-                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                          <AlertTriangle className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
                           <span className="text-sm text-muted-foreground">Conflicts</span>
                         </div>
-                        <div className={`text-2xl font-semibold ${xeroSyncHealth.total_contacts_with_conflicts > 0 ? "text-yellow-500" : ""}`}>
+                        <div className={`text-2xl font-semibold ${xeroSyncHealth.total_contacts_with_conflicts > 0 ? "text-yellow-500 dark:text-yellow-400" : ""}`}>
                           {xeroSyncHealth.total_contacts_with_conflicts || 0}
                         </div>
                       </div>
@@ -994,10 +994,10 @@ export default function PricebookHealthPage() {
                               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                 <span>{org.linked_contacts} linked</span>
                                 {org.contacts_with_errors > 0 && (
-                                  <span className="text-red-500">{org.contacts_with_errors} errors</span>
+                                  <span className="text-red-500 dark:text-red-400">{org.contacts_with_errors} errors</span>
                                 )}
                                 {org.contacts_with_conflicts > 0 && (
-                                  <span className="text-yellow-500">{org.contacts_with_conflicts} conflicts</span>
+                                  <span className="text-yellow-500 dark:text-yellow-400">{org.contacts_with_conflicts} conflicts</span>
                                 )}
                               </div>
                             </div>
@@ -1026,7 +1026,7 @@ export default function PricebookHealthPage() {
                                     {error.contact_name || `Contact #${error.contact_id}`}
                                   </Link>
                                 </TableCell>
-                                <TableCell className="text-red-500 max-w-xs truncate">{error.error}</TableCell>
+                                <TableCell className="text-red-500 dark:text-red-400 max-w-xs truncate">{error.error}</TableCell>
                                 <TableCell>
                                   <Link href={`/contacts/${error.contact_id}/xero`} className="text-primary hover:underline">
                                     View Details
@@ -1042,7 +1042,7 @@ export default function PricebookHealthPage() {
                     {/* No Issues / Configure Link */}
                     <div className="flex items-center justify-between">
                       {xeroSyncHealth.total_contacts_with_errors === 0 && xeroSyncHealth.total_contacts_with_conflicts === 0 ? (
-                        <div className="flex items-center gap-2 text-green-500">
+                        <div className="flex items-center gap-2 text-green-500 dark:text-green-400">
                           <CheckCircle className="h-5 w-5" />
                           <span className="text-sm">All contacts syncing correctly</span>
                         </div>
@@ -1106,10 +1106,10 @@ export default function PricebookHealthPage() {
                       </div>
                       <div className="bg-muted/50 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-1">
-                          <XCircle className="h-4 w-4 text-red-500" />
+                          <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
                           <span className="text-sm text-muted-foreground">With Errors</span>
                         </div>
-                        <div className={`text-2xl font-semibold ${xeroInvoiceSyncHealth.with_errors_count > 0 ? "text-red-500" : ""}`}>
+                        <div className={`text-2xl font-semibold ${xeroInvoiceSyncHealth.with_errors_count > 0 ? "text-red-500 dark:text-red-400" : ""}`}>
                           {xeroInvoiceSyncHealth.with_errors_count || 0}
                         </div>
                       </div>
@@ -1228,13 +1228,13 @@ export default function PricebookHealthPage() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                         <div className="bg-muted/50 rounded-lg p-3">
                           <div className="text-sm text-muted-foreground">Duplicate Groups</div>
-                          <div className={`text-2xl font-semibold ${duplicateContacts.total_duplicate_groups > 0 ? "text-yellow-500" : ""}`}>
+                          <div className={`text-2xl font-semibold ${duplicateContacts.total_duplicate_groups > 0 ? "text-yellow-500 dark:text-yellow-400" : ""}`}>
                             {duplicateContacts.total_duplicate_groups}
                           </div>
                         </div>
                         <div className="bg-muted/50 rounded-lg p-3">
                           <div className="text-sm text-muted-foreground">Contacts Involved</div>
-                          <div className={`text-2xl font-semibold ${duplicateContacts.total_contacts_involved > 0 ? "text-yellow-500" : ""}`}>
+                          <div className={`text-2xl font-semibold ${duplicateContacts.total_contacts_involved > 0 ? "text-yellow-500 dark:text-yellow-400" : ""}`}>
                             {duplicateContacts.total_contacts_involved}
                           </div>
                         </div>
@@ -1304,7 +1304,7 @@ export default function PricebookHealthPage() {
                           )}
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 text-green-500">
+                        <div className="flex items-center gap-2 text-green-500 dark:text-green-400">
                           <CheckCircle className="h-5 w-5" />
                           <span className="text-sm">No duplicate contacts found</span>
                         </div>

@@ -132,10 +132,10 @@ const bgColorClasses: Record<ColorVariant, string> = {
 };
 
 const statColorClasses: Record<ColorVariant, string> = {
-  blue: "bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400",
-  green: "bg-green-50 text-green-600 dark:bg-green-950/50 dark:text-green-400",
+  blue: "bg-blue-50 text-blue-600 dark:text-blue-400 dark:bg-blue-950/50 dark:text-blue-400",
+  green: "bg-green-50 text-green-600 dark:text-green-400 dark:bg-green-950/50 dark:text-green-400",
   amber: "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400",
-  red: "bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-400",
+  red: "bg-red-50 text-red-600 dark:text-red-400 dark:bg-red-950/50 dark:text-red-400",
   indigo: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400",
   gray: "bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground",
 };

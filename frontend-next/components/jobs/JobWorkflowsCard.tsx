@@ -107,15 +107,15 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'active':
-        return <Clock className="h-4 w-4 text-blue-500" />;
+        return <Clock className="h-4 w-4 text-blue-500 dark:text-blue-400" />;
       case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />;
       case 'cancelled':
         return <XCircle className="h-4 w-4 text-muted-foreground" />;
       case 'error':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-red-500 dark:text-red-400" />;
       case 'suspended':
-        return <Pause className="h-4 w-4 text-orange-500" />;
+        return <Pause className="h-4 w-4 text-orange-500 dark:text-orange-400" />;
       default:
         return <Workflow className="h-4 w-4 text-muted-foreground" />;
     }
@@ -132,7 +132,7 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
       case 'error':
         return <Badge variant="destructive" className="text-xs">Error</Badge>;
       case 'suspended':
-        return <Badge variant="outline" className="text-xs border-orange-500 text-orange-600">Suspended</Badge>;
+        return <Badge variant="outline" className="text-xs border-orange-500 text-orange-600 dark:text-orange-400">Suspended</Badge>;
       default:
         return <Badge variant="outline" className="text-xs">{status}</Badge>;
     }
@@ -198,7 +198,7 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
                         <span>At: {instance.current_node} • </span>
                       )}
                       {instance.pending_tasks > 0 && (
-                        <span className="text-blue-600">{instance.pending_tasks} pending task{instance.pending_tasks !== 1 ? 's' : ''} • </span>
+                        <span className="text-blue-600 dark:text-blue-400">{instance.pending_tasks} pending task{instance.pending_tasks !== 1 ? 's' : ''} • </span>
                       )}
                       Started {formatDistanceToNow(new Date(instance.started_at), { addSuffix: true })}
                     </p>
@@ -280,7 +280,7 @@ export function JobWorkflowsCard({ jobId }: JobWorkflowsCardProps) {
             {completedInstances.length > 0 && (
               <details className="group">
                 <summary className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                   {completedInstances.length} completed workflow{completedInstances.length !== 1 ? 's' : ''}
                 </summary>
                 <div className="mt-2 space-y-2 pl-6">

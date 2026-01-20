@@ -286,7 +286,7 @@ export default function ReferrersPage() {
                     onClick={() => router.push(`/admin/referrers/${referrer.id}`)}
                   >
                     <div className={`text-2xl font-bold ${
-                      index === 0 ? "text-yellow-500" :
+                      index === 0 ? "text-yellow-500 dark:text-yellow-400" :
                       index === 1 ? "text-muted-foreground" :
                       index === 2 ? "text-amber-600" : "text-muted-foreground"
                     }`}>

@@ -154,7 +154,7 @@ export default function HealthReportPage() {
             onClick={() => setFilter(filter === "excellent" ? "all" : "excellent")}
           >
             <CardContent className="p-4">
-              <div className="text-3xl font-bold text-green-600">{summary.excellent}</div>
+              <div className="text-3xl font-bold text-green-600 dark:text-green-400">{summary.excellent}</div>
               <div className="text-sm text-muted-foreground">Excellent</div>
             </CardContent>
           </Card>
@@ -163,7 +163,7 @@ export default function HealthReportPage() {
             onClick={() => setFilter(filter === "good" ? "all" : "good")}
           >
             <CardContent className="p-4">
-              <div className="text-3xl font-bold text-blue-600">{summary.good}</div>
+              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{summary.good}</div>
               <div className="text-sm text-muted-foreground">Good</div>
             </CardContent>
           </Card>
@@ -172,7 +172,7 @@ export default function HealthReportPage() {
             onClick={() => setFilter(filter === "needs_attention" ? "all" : "needs_attention")}
           >
             <CardContent className="p-4">
-              <div className="text-3xl font-bold text-yellow-600">{summary.needs_attention}</div>
+              <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{summary.needs_attention}</div>
               <div className="text-sm text-muted-foreground">Needs Attention</div>
             </CardContent>
           </Card>
@@ -181,7 +181,7 @@ export default function HealthReportPage() {
             onClick={() => setFilter(filter === "critical" ? "all" : "critical")}
           >
             <CardContent className="p-4">
-              <div className="text-3xl font-bold text-red-600">{summary.critical}</div>
+              <div className="text-3xl font-bold text-red-600 dark:text-red-400">{summary.critical}</div>
               <div className="text-sm text-muted-foreground">Critical</div>
             </CardContent>
           </Card>
@@ -244,12 +244,12 @@ export default function HealthReportPage() {
                               {company.health_status.replace("_", " ")}
                             </Badge>
                             {company.issues.length > 0 && (
-                              <span className="text-xs text-red-600">
+                              <span className="text-xs text-red-600 dark:text-red-400">
                                 {company.issues.length} issue{company.issues.length !== 1 ? "s" : ""}
                               </span>
                             )}
                             {company.warnings.length > 0 && (
-                              <span className="text-xs text-yellow-600">
+                              <span className="text-xs text-yellow-600 dark:text-yellow-400">
                                 {company.warnings.length} warning{company.warnings.length !== 1 ? "s" : ""}
                               </span>
                             )}
@@ -271,13 +271,13 @@ export default function HealthReportPage() {
                         </div>
                         {/* Quick Stats */}
                         <div className="hidden md:flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className={company.has_acn ? "text-green-600" : "text-red-500"}>
+                          <span className={company.has_acn ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}>
                             ACN {company.has_acn ? "✓" : "✗"}
                           </span>
-                          <span className={company.has_abn ? "text-green-600" : "text-red-500"}>
+                          <span className={company.has_abn ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}>
                             ABN {company.has_abn ? "✓" : "✗"}
                           </span>
-                          <span className={(company.director_count || 0) > 0 ? "text-green-600" : "text-red-500"}>
+                          <span className={(company.director_count || 0) > 0 ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}>
                             Directors: {company.director_count || 0}
                           </span>
                         </div>

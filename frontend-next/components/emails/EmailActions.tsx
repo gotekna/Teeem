@@ -165,7 +165,7 @@ export function PinButton({ emailId, isPinned: initialPinned, onToggle, size = "
           <Button
             variant="ghost"
             size="icon"
-            className={cn(buttonSize, isPinned && "text-blue-500")}
+            className={cn(buttonSize, isPinned && "text-blue-500 dark:text-blue-400")}
             onClick={handleToggle}
             disabled={loading}
           >
@@ -528,7 +528,7 @@ export function DeleteButton({ emailId, onDelete, size = "md" }: DeleteButtonPro
           <Button
             variant="ghost"
             size="icon"
-            className={cn(buttonSize, "hover:text-red-500 hover:bg-red-500/10")}
+            className={cn(buttonSize, "hover:text-red-500 dark:text-red-400 hover:bg-red-500/10")}
             onClick={handleDelete}
             disabled={loading}
           >
@@ -577,7 +577,7 @@ export function SpamButton({ emailId, onSpam, size = "md" }: SpamButtonProps) {
           <Button
             variant="ghost"
             size="icon"
-            className={cn(buttonSize, "hover:text-orange-500 hover:bg-orange-500/10")}
+            className={cn(buttonSize, "hover:text-orange-500 dark:text-orange-400 hover:bg-orange-500/10")}
             onClick={handleSpam}
             disabled={loading}
           >

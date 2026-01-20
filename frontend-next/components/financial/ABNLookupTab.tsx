@@ -366,16 +366,16 @@ export default function ABNLookupTab() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   {abnResult?.valid || asicResult?.success ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
                   ) : (
-                    <XCircle className="h-5 w-5 text-red-500" />
+                    <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
                   )}
                   Lookup Result
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {abnResult?.error && !abnResult?.valid && (
-                  <div className="flex items-center gap-2 text-red-600">
+                  <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
                     <AlertTriangle className="h-5 w-5" />
                     <span>{abnResult.error}</span>
                   </div>
@@ -415,7 +415,7 @@ export default function ABNLookupTab() {
                               }
                             >
                               {copied === "abn" ? (
-                                <Check className="h-4 w-4 text-green-500" />
+                                <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                               ) : (
                                 <Copy className="h-4 w-4" />
                               )}
@@ -439,7 +439,7 @@ export default function ABNLookupTab() {
                               }
                             >
                               {copied === "acn" ? (
-                                <Check className="h-4 w-4 text-green-500" />
+                                <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                               ) : (
                                 <Copy className="h-4 w-4" />
                               )}
@@ -585,7 +585,7 @@ export default function ABNLookupTab() {
               </CardHeader>
               <CardContent>
                 {searchResults.error ? (
-                  <div className="flex items-center gap-2 text-red-600">
+                  <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
                     <AlertTriangle className="h-5 w-5" />
                     <span>{searchResults.error}</span>
                   </div>
@@ -686,9 +686,9 @@ export default function ABNLookupTab() {
                     >
                       <div className="flex-shrink-0">
                         {item.success ? (
-                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                         ) : (
-                          <XCircle className="h-4 w-4 text-red-500" />
+                          <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">

@@ -69,12 +69,12 @@ export function CalendarEventBar({
               <p className="text-xs">Assigned: {event.assigned_user_name}</p>
             )}
             {event.is_overdue && (
-              <p className="text-xs text-red-500">
+              <p className="text-xs text-red-500 dark:text-red-400">
                 Overdue by {event.days_overdue} day{event.days_overdue !== 1 ? "s" : ""}
               </p>
             )}
             {event.is_hold && event.hold_reason && (
-              <p className="text-xs text-yellow-600">On hold: {event.hold_reason}</p>
+              <p className="text-xs text-yellow-600 dark:text-yellow-400">On hold: {event.hold_reason}</p>
             )}
             <div className="flex items-center gap-2 text-xs">
               <span

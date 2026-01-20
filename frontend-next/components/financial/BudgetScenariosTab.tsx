@@ -237,7 +237,7 @@ export default function BudgetScenariosTab() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {formatCurrency(defaultScenario.summary.total_revenue)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -253,7 +253,7 @@ export default function BudgetScenariosTab() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${defaultScenario.summary.net_income >= 0 ? "text-green-600" : "text-red-600"}`}>
+                <div className={`text-2xl font-bold ${defaultScenario.summary.net_income >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                   {formatCurrency(defaultScenario.summary.net_income)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">projected profit</p>
@@ -340,12 +340,12 @@ export default function BudgetScenariosTab() {
                     <TableCell>{getTypeBadge(scenario.scenario_type)}</TableCell>
                     <TableCell>{scenario.fiscal_year}</TableCell>
                     <TableCell className="text-center">
-                      <span className={scenario.revenue_adjustment_pct >= 0 ? "text-green-600" : "text-red-600"}>
+                      <span className={scenario.revenue_adjustment_pct >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                         {formatPercentChange(scenario.revenue_adjustment_pct)}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <span className={scenario.expense_adjustment_pct <= 0 ? "text-green-600" : "text-red-600"}>
+                      <span className={scenario.expense_adjustment_pct <= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                         {formatPercentChange(scenario.expense_adjustment_pct)}
                       </span>
                     </TableCell>

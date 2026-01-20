@@ -1113,7 +1113,7 @@ function GoldStandardTableTab() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
+            <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
             Column Types ({columns.length})
           </CardTitle>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1162,7 +1162,7 @@ function GoldStandardTableTab() {
                         variant="secondary"
                         className={cn(
                           "font-mono text-xs",
-                          isSystemColumn(col.columnName) && "bg-red-100 text-red-700 dark:bg-red-900/30"
+                          isSystemColumn(col.columnName) && "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/30"
                         )}
                       >
                         {col.sqlType}
@@ -1642,10 +1642,10 @@ function GoldDocumentTypeEditor() {
                           "font-mono text-xs px-3 py-1.5",
                           token.type === "placeholder"
                             ? getPlaceholderColor(token.value) === "blue"
-                              ? "bg-blue-100 text-blue-700 border-blue-300"
+                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300"
                               : getPlaceholderColor(token.value) === "orange"
-                                ? "bg-orange-100 text-orange-700 border-orange-300"
-                                : "bg-purple-100 text-purple-700 border-purple-300"
+                                ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300"
+                                : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300"
                             : "bg-muted text-foreground border-border"
                         )}
                       >
@@ -1703,10 +1703,10 @@ function GoldDocumentTypeEditor() {
                           "font-mono text-xs px-3 py-1.5",
                           token.type === "placeholder"
                             ? getPlaceholderColor(token.value) === "blue"
-                              ? "bg-blue-100 text-blue-700 border-blue-300"
+                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300"
                               : getPlaceholderColor(token.value) === "orange"
-                                ? "bg-orange-100 text-orange-700 border-orange-300"
-                                : "bg-purple-100 text-purple-700 border-purple-300"
+                                ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300"
+                                : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300"
                             : "bg-muted text-foreground border-border"
                         )}
                       >

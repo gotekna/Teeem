@@ -179,9 +179,9 @@ export default function ConsolidationPage() {
   };
 
   const getHealthColor = (score: number) => {
-    if (score >= 90) return "text-green-600";
-    if (score >= 70) return "text-yellow-600";
-    return "text-red-600";
+    if (score >= 90) return "text-green-600 dark:text-green-400";
+    if (score >= 70) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
   };
 
   const getHealthBg = (score: number) => {
@@ -273,7 +273,7 @@ export default function ConsolidationPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                  <ArrowLeftRight className="h-5 w-5 text-blue-600" />
+                  <ArrowLeftRight className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Total Relationships</div>
@@ -287,11 +287,11 @@ export default function ConsolidationPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Matched</div>
-                  <div className="text-2xl font-bold text-green-600">{summary.matched}</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.matched}</div>
                 </div>
               </div>
             </CardContent>
@@ -301,11 +301,11 @@ export default function ConsolidationPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Mismatched</div>
-                  <div className="text-2xl font-bold text-red-600">{summary.mismatched}</div>
+                  <div className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.mismatched}</div>
                 </div>
               </div>
             </CardContent>
@@ -374,7 +374,7 @@ export default function ConsolidationPage() {
                   <TableRow key={index} className={!rel.matched ? "bg-red-50 dark:bg-red-900/10" : ""}>
                     <TableCell className="font-medium">{rel.company_a.name}</TableCell>
                     <TableCell className="text-right font-mono">
-                      <span className={rel.company_a.amount >= 0 ? "text-green-600" : "text-red-600"}>
+                      <span className={rel.company_a.amount >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                         {rel.company_a.amount >= 0 ? (
                           <TrendingUp className="inline h-3 w-3 mr-1" />
                         ) : (
@@ -385,7 +385,7 @@ export default function ConsolidationPage() {
                     </TableCell>
                     <TableCell className="font-medium">{rel.company_b.name}</TableCell>
                     <TableCell className="text-right font-mono">
-                      <span className={rel.company_b.amount >= 0 ? "text-green-600" : "text-red-600"}>
+                      <span className={rel.company_b.amount >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                         {rel.company_b.amount >= 0 ? (
                           <TrendingUp className="inline h-3 w-3 mr-1" />
                         ) : (
@@ -401,7 +401,7 @@ export default function ConsolidationPage() {
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {rel.discrepancy !== 0 && (
-                        <span className="text-red-600 font-semibold">
+                        <span className="text-red-600 dark:text-red-400 font-semibold">
                           {formatCurrencyAbs(rel.discrepancy)}
                         </span>
                       )}

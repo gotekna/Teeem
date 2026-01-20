@@ -231,7 +231,7 @@ export default function ArchitectureMap() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-blue-500" />
+                <Zap className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                 What is TEEEM?
               </CardTitle>
             </CardHeader>

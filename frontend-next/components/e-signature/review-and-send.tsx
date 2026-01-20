@@ -156,14 +156,14 @@ export function ReviewAndSend({
                   <div className="flex items-center gap-2">
                     {hasFields ? (
                       <>
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                         <span className="text-sm text-green-700 dark:text-green-400">
                           {signerFields.length} field{signerFields.length !== 1 ? "s" : ""}
                         </span>
                       </>
                     ) : (
                       <>
-                        <AlertCircle className="h-4 w-4 text-red-600" />
+                        <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
                         <span className="text-sm text-red-700 dark:text-red-400">
                           No fields assigned
                         </span>
@@ -230,12 +230,12 @@ export function ReviewAndSend({
       {/* Warning if signers don't have fields */}
       {!allSignersHaveFields && (
         <div className="flex items-start gap-3 p-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20">
-          <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-red-700 dark:text-red-400">
               Some signers have no fields assigned
             </p>
-            <p className="text-sm text-red-600 dark:text-red-500 mt-1">
+            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
               Please go back and add at least one signature field for each signer.
             </p>
           </div>

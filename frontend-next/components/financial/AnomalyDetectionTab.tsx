@@ -249,14 +249,14 @@ export default function AnomalyDetectionTab() {
     switch (level) {
       case "high":
         return (
-          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">
+          <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">
             <AlertTriangle className="h-3 w-3 mr-1" />
             High
           </Badge>
         );
       case "medium":
         return (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">
+          <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">
             <AlertCircle className="h-3 w-3 mr-1" />
             Medium
           </Badge>
@@ -327,7 +327,7 @@ export default function AnomalyDetectionTab() {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <Button variant="outline" onClick={fetchData}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
@@ -350,7 +350,7 @@ export default function AnomalyDetectionTab() {
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-red-600">{summary.high_severity}</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.high_severity}</div>
               <p className="text-xs text-muted-foreground">High Severity</p>
             </CardContent>
           </Card>
@@ -362,7 +362,7 @@ export default function AnomalyDetectionTab() {
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-green-600">{reviews.length}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{reviews.length}</div>
               <p className="text-xs text-muted-foreground">Reviewed</p>
             </CardContent>
           </Card>
@@ -372,9 +372,9 @@ export default function AnomalyDetectionTab() {
                 <div className="text-2xl font-bold">{formatCurrency(summary.total_amount)}</div>
                 {trendDirection !== 0 && (
                   trendDirection > 0 ? (
-                    <TrendingUp className="h-4 w-4 text-red-500" />
+                    <TrendingUp className="h-4 w-4 text-red-500 dark:text-red-400" />
                   ) : (
-                    <TrendingDown className="h-4 w-4 text-green-500" />
+                    <TrendingDown className="h-4 w-4 text-green-500 dark:text-green-400" />
                   )
                 )}
               </div>
@@ -492,7 +492,7 @@ export default function AnomalyDetectionTab() {
           <CardContent>
             {filteredAnomalies.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500" />
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500 dark:text-green-400" />
                 <p className="text-lg font-medium">No anomalies detected</p>
                 <p className="text-sm mt-1">
                   All transactions in the last {daysFilter} days appear normal.
@@ -651,10 +651,10 @@ export default function AnomalyDetectionTab() {
                           variant="outline"
                           className={
                             review.status === "false_positive"
-                              ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
                               : review.status === "confirmed"
-                              ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                              : "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                              ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
+                              : "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"
                           }
                         >
                           {review.status === "false_positive" && <CheckCircle className="h-3 w-3 mr-1" />}

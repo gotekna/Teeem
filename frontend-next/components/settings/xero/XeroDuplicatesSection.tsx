@@ -50,7 +50,7 @@ function XeroDuplicateGroupCard({ group }: { group: XeroDuplicateGroup }) {
             </Badge>
           </button>
           <div className="flex items-center gap-2">
-            <Badge className="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200">
+            <Badge className="bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 dark:bg-cyan-900 dark:text-cyan-200">
               {group.tenant_name}
             </Badge>
             <Button
@@ -93,7 +93,7 @@ function XeroDuplicateGroupCard({ group }: { group: XeroDuplicateGroup }) {
                   )}>
                     <Building2 className={cn(
                       "h-4 w-4",
-                      contact.has_teeem_link ? "text-green-600" : "text-red-600"
+                      contact.has_teeem_link ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                     )} />
                   </div>
                   <div>
@@ -159,7 +159,7 @@ export function XeroDuplicatesSection() {
   if (groups.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center border rounded-lg bg-muted/30">
-        <CheckCircle className="h-10 w-10 text-green-500 mb-3" />
+        <CheckCircle className="h-10 w-10 text-green-500 dark:text-green-400 mb-3" />
         <h3 className="text-base font-semibold">No Xero Duplicates Found</h3>
         <p className="text-sm text-muted-foreground mt-1">
           All Xero contacts appear to be unique within each tenant.

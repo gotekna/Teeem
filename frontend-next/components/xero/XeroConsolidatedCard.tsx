@@ -375,7 +375,7 @@ function ConsolidatedReportTable({ reports, reportType }: { reports: CompanyRepo
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">Failed to load:</p>
             {failedReports.map((r) => (
-              <div key={r.company_id} className="flex items-center gap-2 text-sm text-red-600">
+              <div key={r.company_id} className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
                 <XCircle className="h-4 w-4" />
                 <span>{r.company_name}: {r.error}</span>
               </div>
@@ -390,12 +390,12 @@ function ConsolidatedReportTable({ reports, reportType }: { reports: CompanyRepo
     <div className="space-y-4">
       {/* Status summary */}
       <div className="flex items-center gap-4 text-sm">
-        <div className="flex items-center gap-1 text-green-600">
+        <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
           <CheckCircle className="h-4 w-4" />
           <span>{successfulReports.length} loaded</span>
         </div>
         {failedReports.length > 0 && (
-          <div className="flex items-center gap-1 text-red-600">
+          <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
             <XCircle className="h-4 w-4" />
             <span>{failedReports.length} failed</span>
           </div>

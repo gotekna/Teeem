@@ -78,12 +78,12 @@ interface ScanResponse {
 }
 
 const ISSUE_TYPE_COLORS: Record<string, string> = {
-  misclassified_person: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  misclassified_person: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-300",
   misclassified_company: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300",
   abn_mismatch: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-300",
   needs_company_link: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300",
   multiple_xero_links: "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-300",
-  admin_email_pattern: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+  admin_email_pattern: "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-300",
 };
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
@@ -196,7 +196,7 @@ function ReviewCard({
               variant="ghost"
               onClick={() => onReject(review.id)}
               disabled={isProcessing}
-              className="w-20 text-red-600 hover:text-red-700"
+              className="w-20 text-red-600 dark:text-red-400 hover:text-red-700"
             >
               <X className="h-4 w-4 mr-1" />
               Wrong
@@ -419,7 +419,7 @@ export default function ContactQualityReviewPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>High Confidence (80%+)</CardDescription>
-            <CardTitle className="text-3xl font-mono text-green-600">
+            <CardTitle className="text-3xl font-mono text-green-600 dark:text-green-400">
               {highConfidenceCount}
             </CardTitle>
           </CardHeader>
@@ -427,7 +427,7 @@ export default function ContactQualityReviewPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Approved</CardDescription>
-            <CardTitle className="text-3xl font-mono text-blue-600">
+            <CardTitle className="text-3xl font-mono text-blue-600 dark:text-blue-400">
               {stats?.by_status?.approved || 0}
             </CardTitle>
           </CardHeader>

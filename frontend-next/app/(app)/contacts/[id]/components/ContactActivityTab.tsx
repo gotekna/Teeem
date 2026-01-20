@@ -84,7 +84,7 @@ export function ContactActivityTab({ contactId }: ContactActivityTabProps) {
             <Spinner className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : error ? (
-          <p className="text-red-600 text-center py-8">{error}</p>
+          <p className="text-red-600 dark:text-red-400 text-center py-8">{error}</p>
         ) : activities.length > 0 ? (
           <div className="space-y-3">
             {activities.map((activity) => (
@@ -116,12 +116,12 @@ function ActivityCard({ activity }: ActivityCardProps) {
       created: { label: "Created", color: "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300" },
       updated: { label: "Updated", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300" },
       synced_from_xero: { label: "Xero Sync", color: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900 dark:text-purple-300" },
-      synced_to_xero: { label: "Pushed to Xero", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300" },
+      synced_to_xero: { label: "Pushed to Xero", color: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 dark:bg-indigo-900 dark:text-indigo-300" },
       purchase_order_created: { label: "PO Created", color: "bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-300" },
       supplier_linked: { label: "Supplier Linked", color: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300" },
-      contact_merged: { label: "Merged", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300" },
+      contact_merged: { label: "Merged", color: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900 dark:text-orange-300" },
       sms_sent: { label: "SMS Sent", color: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-300" },
-      sms_received: { label: "SMS Received", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300" },
+      sms_received: { label: "SMS Received", color: "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 dark:bg-cyan-900 dark:text-cyan-300" },
     };
     return typeMap[type] || { label: type.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()), color: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground" };
   };

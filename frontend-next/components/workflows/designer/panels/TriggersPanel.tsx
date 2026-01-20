@@ -340,7 +340,7 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-full",
                     trigger.is_active
-                      ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"
                       : "bg-muted text-muted-foreground dark:bg-slate-800"
                   )}
                 >
@@ -372,7 +372,7 @@ export function TriggersPanel({ processId }: TriggersPanelProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0 text-red-500 hover:text-red-600"
+                    className="h-8 w-8 p-0 text-red-500 dark:text-red-400 hover:text-red-600 dark:text-red-400"
                     onClick={() => {
                       setTriggerToDelete(trigger);
                       setDeleteDialogOpen(true);

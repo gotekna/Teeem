@@ -59,15 +59,15 @@ function getHealthBg(score: number): string {
 }
 
 function getHealthIcon(score: number) {
-  if (score >= 90) return <CheckCircle className="h-3.5 w-3.5 text-green-600" />;
-  if (score >= 70) return <AlertTriangle className="h-3.5 w-3.5 text-yellow-600" />;
-  return <XCircle className="h-3.5 w-3.5 text-red-600" />;
+  if (score >= 90) return <CheckCircle className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />;
+  if (score >= 70) return <AlertTriangle className="h-3.5 w-3.5 text-yellow-600 dark:text-yellow-400" />;
+  return <XCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />;
 }
 
 function getScoreIndicator(score: number) {
-  if (score >= 90) return { symbol: "", color: "text-green-600" };
-  if (score >= 70) return { symbol: "", color: "text-yellow-600" };
-  return { symbol: "", color: "text-red-600" };
+  if (score >= 90) return { symbol: "", color: "text-green-600 dark:text-green-400" };
+  if (score >= 70) return { symbol: "", color: "text-yellow-600 dark:text-yellow-400" };
+  return { symbol: "", color: "text-red-600 dark:text-red-400" };
 }
 
 export function HealthCategoryCard({
@@ -104,8 +104,8 @@ export function HealthCategoryCard({
                 className={cn(
                   "text-xs",
                   criticalIssues > 0
-                    ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
-                    : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300"
+                    ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/50 dark:text-red-300"
+                    : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/50 dark:text-yellow-300"
                 )}
               >
                 {totalIssues}
@@ -136,7 +136,7 @@ export function HealthCategoryCard({
                   {category.totalIssues > 0 ? (
                     <span className={cn(
                       "text-xs",
-                      category.criticalIssues > 0 ? "text-red-600" : "text-yellow-600"
+                      category.criticalIssues > 0 ? "text-red-600 dark:text-red-400" : "text-yellow-600 dark:text-yellow-400"
                     )}>
                       {category.totalIssues} issues
                     </span>

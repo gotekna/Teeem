@@ -84,7 +84,7 @@ export default function WorkflowDesignerPage() {
   if (error && !isNew) {
     return (
       <div className="flex h-screen flex-col items-center justify-center">
-        <p className="mb-4 text-red-500">Failed to load workflow</p>
+        <p className="mb-4 text-red-500 dark:text-red-400">Failed to load workflow</p>
         <BackButton fallbackHref="/workflows/processes" />
       </div>
     );

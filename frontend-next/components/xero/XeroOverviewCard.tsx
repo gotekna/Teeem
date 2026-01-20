@@ -169,7 +169,7 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
           </div>
           <p className="text-lg font-semibold">{tenantStats?.contacts?.total_links || 0} linked</p>
           {tenantStats?.contacts?.pending_review && tenantStats.contacts.pending_review > 0 ? (
-            <p className="text-xs text-orange-600 mt-1">
+            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
               {tenantStats.contacts.pending_review} pending review
             </p>
           ) : (
@@ -245,7 +245,7 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
         <Card className="md:col-span-2 lg:col-span-4 border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
+              <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium text-orange-800 dark:text-orange-200">{status.message || 'Attention Required'}</p>
                 {status.action_required && (

@@ -175,14 +175,14 @@ function formatCellValue(
       return value ? (
         <Badge
           variant="outline"
-          className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 text-[10px]"
+          className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-950 dark:text-green-300 text-[10px]"
         >
           Yes
         </Badge>
       ) : (
         <Badge
           variant="outline"
-          className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 text-[10px]"
+          className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 dark:bg-red-950 dark:text-red-300 text-[10px]"
         >
           No
         </Badge>

@@ -249,7 +249,7 @@ export function PhotoCapture({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {isOnline ? (
-                  <Cloud className="h-4 w-4 text-blue-600" />
+                  <Cloud className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 ) : (
                   <CloudOff className="h-4 w-4 text-slate-500" />
                 )}

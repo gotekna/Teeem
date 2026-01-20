@@ -67,21 +67,26 @@ export default function CasesPage() {
   const pathname = usePathname();
   const { toast } = useToast();
 
-  // Path-based tab: /cases/cases, /cases/proposals
+  // Path-based tab: /cases/tab/cases, /cases/tab/proposals
+  // Uses /cases/tab/ prefix to avoid conflicts with /cases/[id] detail routes
   const activeTab = React.useMemo(() => {
     const parts = pathname.replace("/cases", "").split("/").filter(Boolean);
-    return parts[0] || null;
+    // Path format: /cases/tab/{tabname}
+    if (parts[0] === "tab" && parts[1]) {
+      return parts[1];
+    }
+    return null;
   }, [pathname]);
 
   // Redirect to default tab if none specified
   React.useEffect(() => {
     if (activeTab === null) {
-      router.replace("/cases/cases", { scroll: false });
+      router.replace("/cases/tab/cases", { scroll: false });
     }
   }, [activeTab, router]);
 
   const setActiveTab = React.useCallback((tab: string) => {
-    router.push(`/cases/${tab}`, { scroll: false });
+    router.push(`/cases/tab/${tab}`, { scroll: false });
   }, [router]);
   const [loading, setLoading] = React.useState(true);
   const [cases, setCases] = React.useState<CaseItem[]>([]);
@@ -203,13 +208,13 @@ export default function CasesPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "open":
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300";
       case "in_progress":
-        return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+        return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-300";
       case "review":
-        return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300";
+        return "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300";
       case "closed":
-        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
+        return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300";
       case "archived":
         return "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
       default:
@@ -220,11 +225,11 @@ export default function CasesPage() {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "urgent":
-        return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
+        return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/30 dark:text-red-300";
       case "high":
-        return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300";
+        return "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-300";
       case "normal":
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300";
       case "low":
         return "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
       default:
@@ -235,13 +240,13 @@ export default function CasesPage() {
   const getCaseTypeColor = (type: string) => {
     switch (type) {
       case "ato_audit":
-        return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
+        return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/30 dark:text-red-300";
       case "legal_dispute":
-        return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300";
+        return "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300";
       case "director_investigation":
-        return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+        return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-300";
       case "compliance_review":
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300";
       case "due_diligence":
         return "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300";
       default:
@@ -386,7 +391,7 @@ export default function CasesPage() {
                             {c.deadline && (
                               <span
                                 className={`flex items-center gap-1 ${
-                                  c.overdue ? "text-red-600" : ""
+                                  c.overdue ? "text-red-600 dark:text-red-400" : ""
                                 }`}
                               >
                                 <Calendar className="h-3 w-3" />
@@ -408,7 +413,7 @@ export default function CasesPage() {
                             variant="ghost"
                             size="sm"
                             onClick={(e) => handleDeleteCase(c.id, c.title, e)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

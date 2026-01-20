@@ -322,7 +322,7 @@ export default function RequestPaymentModal({
                                   className={({ active }) =>
                                     `relative cursor-default select-none py-2 pl-10 pr-4 ${
                                       active
-                                        ? "bg-indigo-100 text-indigo-900"
+                                        ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-300"
                                         : "text-foreground"
                                     }`
                                   }
@@ -395,13 +395,13 @@ export default function RequestPaymentModal({
                         </div>
                         <div>
                           <p className="text-muted-foreground">Discount (5%)</p>
-                          <p className="text-lg font-semibold text-red-600">
+                          <p className="text-lg font-semibold text-red-600 dark:text-red-400">
                             -{formatCurrency(parseFloat(calculateDiscountAmount()))}
                           </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">You'll Receive</p>
-                          <p className="text-lg font-semibold text-green-600">
+                          <p className="text-lg font-semibold text-green-600 dark:text-green-400">
                             {formatCurrency(parseFloat(calculateDiscountedAmount()))}
                           </p>
                         </div>
@@ -412,7 +412,7 @@ export default function RequestPaymentModal({
                     <div>
                       <label className="block text-sm font-medium text-foreground">
                         Proof of Completion Photos{" "}
-                        <span className="text-red-500">*</span>
+                        <span className="text-red-500 dark:text-red-400">*</span>
                       </label>
                       <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-border border-dashed rounded-md hover:border-indigo-500">
                         <div className="space-y-1 text-center">
@@ -435,14 +435,14 @@ export default function RequestPaymentModal({
                             PNG, JPG, GIF up to 10MB each (max 10 photos)
                           </p>
                           {proofPhotos.length > 0 && (
-                            <p className="text-sm text-green-600">
+                            <p className="text-sm text-green-600 dark:text-green-400">
                               {proofPhotos.length} photo(s) selected
                             </p>
                           )}
                         </div>
                       </div>
                       {errors.proof_photos && (
-                        <p className="mt-1 text-sm text-red-600">
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                           {errors.proof_photos}
                         </p>
                       )}
@@ -460,12 +460,12 @@ export default function RequestPaymentModal({
                         className="mt-1 block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                       />
                       {invoiceFile && (
-                        <p className="mt-1 text-sm text-green-600">
+                        <p className="mt-1 text-sm text-green-600 dark:text-green-400">
                           {invoiceFile.name}
                         </p>
                       )}
                       {errors.invoice_file && (
-                        <p className="mt-1 text-sm text-red-600">
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                           {errors.invoice_file}
                         </p>
                       )}

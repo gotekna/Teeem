@@ -182,8 +182,8 @@ export function PlanProcessingModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {isProcessing && <Spinner />}
-            {isComplete && <CheckCircle className="h-5 w-5 text-green-500" />}
-            {isFailed && <AlertTriangle className="h-5 w-5 text-red-500" />}
+            {isComplete && <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />}
+            {isFailed && <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400" />}
             {title}
           </DialogTitle>
         </DialogHeader>
@@ -221,7 +221,7 @@ export function PlanProcessingModal({
                       key={i}
                       className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50"
                     >
-                      <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                      <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400 shrink-0" />
                       <span className="text-sm truncate">{name}</span>
                     </div>
                   ))}

@@ -148,7 +148,7 @@ export default function ReconciliationsTab() {
       );
     } else if (recon.status === "in_progress") {
       return (
-        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+        <Badge variant="outline" className="bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400">
           <Clock className="h-3 w-3 mr-1" />
           In Progress
         </Badge>
@@ -193,7 +193,7 @@ export default function ReconciliationsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{inProgressCount}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{inProgressCount}</div>
             <p className="text-xs text-muted-foreground mt-1">need attention</p>
           </CardContent>
         </Card>
@@ -205,7 +205,7 @@ export default function ReconciliationsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{balancedCount}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{balancedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">balanced & ready</p>
           </CardContent>
         </Card>
@@ -217,7 +217,7 @@ export default function ReconciliationsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{completedCount}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{completedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">locked & finalized</p>
           </CardContent>
         </Card>
@@ -294,7 +294,7 @@ export default function ReconciliationsTab() {
                       <TableCell className="text-right">
                         {formatCurrency(recon.gl_closing_balance)}
                       </TableCell>
-                      <TableCell className={`text-right font-medium ${recon.difference === 0 ? "text-green-600" : "text-red-600"}`}>
+                      <TableCell className={`text-right font-medium ${recon.difference === 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                         {formatCurrency(recon.difference)}
                       </TableCell>
                       <TableCell>

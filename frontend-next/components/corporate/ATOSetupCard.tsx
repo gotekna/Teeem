@@ -48,7 +48,7 @@ export function ATOSetupCard({ company }: ATOSetupCardProps) {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-5 w-5 text-blue-600" />
+            <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             ATO Registration
           </CardTitle>
           <Button
@@ -80,7 +80,7 @@ export function ATOSetupCard({ company }: ATOSetupCardProps) {
             <Badge
               variant="outline"
               className={company.gst_registration_status === "registered"
-                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
                 : "bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground"
               }
             >
@@ -92,7 +92,7 @@ export function ATOSetupCard({ company }: ATOSetupCardProps) {
             <Button
               variant="link"
               size="sm"
-              className="h-auto p-0 text-blue-600"
+              className="h-auto p-0 text-blue-600 dark:text-blue-400"
               onClick={() => router.push(`/contacts/${company.contact_id}`)}
             >
               View Contact →

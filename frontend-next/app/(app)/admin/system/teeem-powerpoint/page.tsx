@@ -325,7 +325,7 @@ function ThumbnailElement({ element }: { element: SlideElement }) {
           fontSize: 8,
         }}
       >
-        <Table2 className="h-4 w-4 text-gray-500" />
+        <Table2 className="h-4 w-4 text-muted-foreground" />
       </div>
     );
   }
@@ -343,7 +343,7 @@ function ThumbnailElement({ element }: { element: SlideElement }) {
           fontSize: 8,
         }}
       >
-        <BarChart3 className="h-4 w-4 text-gray-500" />
+        <BarChart3 className="h-4 w-4 text-muted-foreground" />
       </div>
     );
   }
@@ -529,7 +529,7 @@ function CanvasElement({
             {chartEl.options?.title || `${chartEl.chartType.charAt(0).toUpperCase() + chartEl.chartType.slice(1)} Chart`}
           </div>
           {chartEl.data.length > 0 && (
-            <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+            <div className="text-[10px] text-muted-foreground dark:text-gray-400 mt-1">
               {chartEl.data.length} series · {chartEl.data[0]?.values?.length || 0} points
             </div>
           )}

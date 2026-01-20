@@ -306,7 +306,7 @@ ${formattedLogs || "(No logs)"}
         className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
           copiedButton === "screenshot"
             ? "bg-green-600 text-white"
-            : "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300"
+            : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300"
         }`}
         title="Copy screenshot"
       >

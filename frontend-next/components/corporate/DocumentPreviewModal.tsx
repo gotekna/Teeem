@@ -1247,7 +1247,7 @@ export default function DocumentPreviewModal({
             <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             <DialogTitle className="truncate text-sm font-medium mb-0 flex-1">
               {document.display_name || document.file_name}
-              {isEditingPdf && <span className="ml-2 text-xs text-orange-500">(Editing)</span>}
+              {isEditingPdf && <span className="ml-2 text-xs text-orange-500 dark:text-orange-400">(Editing)</span>}
             </DialogTitle>
             {/* Edit PDF button - only for PDFs */}
             {fileType === "pdf" && (previewUrl || document.file_url) && (
@@ -1330,8 +1330,8 @@ export default function DocumentPreviewModal({
               {/* Left Panel - User Editable */}
               <div className="w-1/2 overflow-y-auto border-r p-3">
               <div className="flex items-center gap-2 mb-2">
-                <Pencil className="h-3 w-3 text-blue-500" />
-                <span className="text-[10px] font-semibold text-blue-600 uppercase tracking-wide">Edit</span>
+                <Pencil className="h-3 w-3 text-blue-500 dark:text-blue-400" />
+                <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Edit</span>
               </div>
 
               <div className="space-y-2">
@@ -1682,16 +1682,16 @@ export default function DocumentPreviewModal({
                 document.ai_suggested_name ? "bg-purple-50/50 dark:bg-purple-900/10" : "bg-muted/30"
               )}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className={cn("h-3 w-3", document.ai_suggested_name ? "text-purple-500" : "text-muted-foreground/50")} />
+                  <Sparkles className={cn("h-3 w-3", document.ai_suggested_name ? "text-purple-500 dark:text-purple-400" : "text-muted-foreground/50")} />
                   <span className={cn(
                     "text-[10px] font-semibold uppercase tracking-wide",
-                    document.ai_suggested_name ? "text-purple-600" : "text-muted-foreground/50"
+                    document.ai_suggested_name ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground/50"
                   )}>AI Suggestion</span>
                   {document.ai_confidence_score && (
                     <Badge variant="outline" className={cn(
                       "text-[10px] ml-auto px-1",
-                      document.ai_confidence_score >= 80 ? "border-green-500 text-green-600" :
-                      document.ai_confidence_score >= 60 ? "border-yellow-500 text-yellow-600" : "border-red-500 text-red-600"
+                      document.ai_confidence_score >= 80 ? "border-green-500 text-green-600 dark:text-green-400" :
+                      document.ai_confidence_score >= 60 ? "border-yellow-500 text-yellow-600 dark:text-yellow-400" : "border-red-500 text-red-600 dark:text-red-400"
                     )}>
                       {document.ai_confidence_score}%
                     </Badge>
@@ -1700,7 +1700,7 @@ export default function DocumentPreviewModal({
 
                 {isProcessing ? (
                   <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <Spinner size={24} className="mb-2 text-purple-500" />
+                    <Spinner size={24} className="mb-2 text-purple-500 dark:text-purple-400" />
                     <p className="text-xs">AI analyzing...</p>
                   </div>
                 ) : (
@@ -1996,7 +1996,7 @@ export default function DocumentPreviewModal({
                           disabled={aiVerifying}
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
+                          className="h-7 text-xs text-purple-600 dark:text-purple-400 border-purple-300 hover:bg-purple-100"
                         >
                           {aiVerifying ? (
                             <><Spinner size={12} className="mr-1" />Analyzing</>
@@ -2012,7 +2012,7 @@ export default function DocumentPreviewModal({
                           disabled={aiVerifying}
                           variant="outline"
                           size="sm"
-                          className="w-full h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
+                          className="w-full h-7 text-xs text-purple-600 dark:text-purple-400 border-purple-300 hover:bg-purple-100"
                         >
                           {aiVerifying ? (
                             <><Spinner size={12} className="mr-1" />Analyzing...</>
@@ -2046,7 +2046,7 @@ export default function DocumentPreviewModal({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="w-full mt-2 h-6 text-[10px] text-orange-600 border-orange-300 hover:bg-orange-100"
+                            className="w-full mt-2 h-6 text-[10px] text-orange-600 dark:text-orange-400 border-orange-300 hover:bg-orange-100"
                             onClick={() => setIsEditingPdf(true)}
                           >
                             <Pencil className="h-3 w-3 mr-1" />

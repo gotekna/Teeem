@@ -488,7 +488,7 @@ export default function PaymentPage({ params }: { params: Promise<{ token: strin
               {invoice.amount_paid > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Amount Paid</span>
-                  <span className="text-green-600">-{formatCurrency(invoice.amount_paid, payment_link.currency)}</span>
+                  <span className="text-green-600 dark:text-green-400">-{formatCurrency(invoice.amount_paid, payment_link.currency)}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm">

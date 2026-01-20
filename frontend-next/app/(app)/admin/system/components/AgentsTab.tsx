@@ -283,7 +283,7 @@ export function AgentsTab() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Bot className="h-4 w-4 text-blue-500" />
+                <Bot className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                 Agents
               </CardTitle>
             </CardHeader>
@@ -297,7 +297,7 @@ export function AgentsTab() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Terminal className="h-4 w-4 text-purple-500" />
+                <Terminal className="h-4 w-4 text-purple-500 dark:text-purple-400" />
                 Commands
               </CardTitle>
             </CardHeader>
@@ -311,7 +311,7 @@ export function AgentsTab() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-green-500" />
+                <Sparkles className="h-4 w-4 text-green-500 dark:text-green-400" />
                 Skills
               </CardTitle>
             </CardHeader>
@@ -389,7 +389,7 @@ export function AgentsTab() {
                             >
                               {agent.command}
                               {copiedCommand === agent.command ? (
-                                <Check className="h-3 w-3 ml-1 text-green-500" />
+                                <Check className="h-3 w-3 ml-1 text-green-500 dark:text-green-400" />
                               ) : (
                                 <Copy className="h-3 w-3 ml-1 opacity-50" />
                               )}

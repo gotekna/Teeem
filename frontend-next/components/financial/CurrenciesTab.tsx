@@ -167,9 +167,9 @@ export default function CurrenciesTab() {
           <CardContent>
             <div className="text-2xl font-bold">
               {ratesStale ? (
-                <span className="text-yellow-600">Stale</span>
+                <span className="text-yellow-600 dark:text-yellow-400">Stale</span>
               ) : (
-                <span className="text-green-600">Current</span>
+                <span className="text-green-600 dark:text-green-400">Current</span>
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -255,9 +255,9 @@ export default function CurrenciesTab() {
                         <div className="flex items-center justify-end gap-1">
                           <span className="font-mono">{formatRate(currency.current_rate)}</span>
                           {currency.current_rate > 1 ? (
-                            <TrendingUp className="h-4 w-4 text-green-600" />
+                            <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
                           ) : (
-                            <TrendingDown className="h-4 w-4 text-red-600" />
+                            <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                           )}
                         </div>
                       ) : (

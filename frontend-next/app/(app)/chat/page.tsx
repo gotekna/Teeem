@@ -710,7 +710,7 @@ export default function ChatPage() {
                         variant={user.presence_status === "online" ? "default" : "secondary"}
                         className={cn(
                           "text-xs",
-                          user.presence_status === "online" && "bg-green-500/10 text-green-600 hover:bg-green-500/20"
+                          user.presence_status === "online" && "bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20"
                         )}
                       >
                         {user.presence_status}
@@ -1297,7 +1297,7 @@ function MessageBubble({
             <span>{formatTime(message.created_at)}</span>
             {message.is_own && (
               message.read_by.length > 1 ? (
-                <CheckCheck className="h-3 w-3 text-blue-500" />
+                <CheckCheck className="h-3 w-3 text-blue-500 dark:text-blue-400" />
               ) : (
                 <Check className="h-3 w-3" />
               )
@@ -1326,7 +1326,7 @@ function MessageBubble({
               </DropdownMenu>
             )}
             {message.saved_to_job && (
-              <span className="flex items-center gap-1 text-green-600">
+              <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                 <Bookmark className="h-3 w-3 fill-current" />
                 <span className="text-xs">Saved to job</span>
               </span>

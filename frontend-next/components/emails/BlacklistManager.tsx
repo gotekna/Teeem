@@ -354,9 +354,9 @@ export function BlacklistManager({ className }: BlacklistManagerProps) {
                   >
                     <div className="flex items-center gap-2">
                       {testResult.would_filter ? (
-                        <XCircle className="h-5 w-5 text-red-500" />
+                        <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
                       ) : (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
+                        <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
                       )}
                       <span className="font-medium">
                         {testResult.would_filter ? "Would be filtered" : "Would NOT be filtered"}

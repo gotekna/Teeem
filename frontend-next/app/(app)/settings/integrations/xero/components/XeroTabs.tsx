@@ -302,11 +302,11 @@ export function XeroFieldMapping() {
         <CardContent>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200">
                 XERO
               </Badge>
               <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+              <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200">
                 TEEEM
               </Badge>
             </div>
@@ -377,7 +377,7 @@ export function XeroFieldMapping() {
                       <div className="font-mono text-sm">{mapping.field}</div>
                       <div>
                         {isEnabled ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200">
                             <Check className="h-3 w-3 mr-1" />
                             Enabled
                           </Badge>
@@ -672,7 +672,7 @@ export function XeroContactSync() {
     // Synced icon (for "synced" column)
     if (columnKey === "synced") {
       return entry.synced ? (
-        <Check className="h-4 w-4 text-green-600 mx-auto" />
+        <Check className="h-4 w-4 text-green-600 dark:text-green-400 mx-auto" />
       ) : (
         <X className="h-4 w-4 text-muted-foreground mx-auto" />
       );
@@ -682,7 +682,7 @@ export function XeroContactSync() {
     if (columnKey === "entity_type") {
       const isPriceOnly = entry.entity_type === "price_only";
       return (
-        <Badge variant="outline" className={cn("text-xs", isPriceOnly && "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30")}>
+        <Badge variant="outline" className={cn("text-xs", isPriceOnly && "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:bg-red-900/30")}>
           {(entry.entity_type as string) || "?"}
         </Badge>
       );
@@ -693,9 +693,9 @@ export function XeroContactSync() {
       const role = entry.contact_role as string | null;
       if (!role) return <span className="text-muted-foreground">-</span>;
       const colors: Record<string, string> = {
-        "Both": "bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-900/30",
-        "Customer": "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30",
-        "Supplier": "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30",
+        "Both": "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:bg-purple-900/30",
+        "Customer": "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:bg-blue-900/30",
+        "Supplier": "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:bg-orange-900/30",
       };
       return (
         <Badge variant="outline" className={cn("text-xs", colors[role])}>
@@ -729,8 +729,8 @@ export function XeroContactSync() {
       const confidence = entry.match_confidence as number | null;
       if (confidence === null || confidence === undefined) return <span className="text-muted-foreground">-</span>;
       const percent = Math.round(confidence * 100);
-      const color = percent === 100 ? "text-green-600" :
-                   percent >= 80 ? "text-amber-600" : "text-red-600";
+      const color = percent === 100 ? "text-green-600 dark:text-green-400" :
+                   percent >= 80 ? "text-amber-600" : "text-red-600 dark:text-red-400";
       return <span className={cn("font-medium", color)}>{percent}%</span>;
     }
 
@@ -738,15 +738,15 @@ export function XeroContactSync() {
     if (columnKey === "pdf_sync_percent") {
       const percent = entry.pdf_sync_percent as number | null;
       if (percent === null || percent === undefined) return <span className="text-muted-foreground">-</span>;
-      const color = percent === 100 ? "text-green-600" :
-                   percent >= 50 ? "text-amber-600" : "text-red-600";
+      const color = percent === 100 ? "text-green-600 dark:text-green-400" :
+                   percent >= 50 ? "text-amber-600" : "text-red-600 dark:text-red-400";
       return <span className={cn("font-medium", color)}>{percent}%</span>;
     }
 
     // Has error indicator
     if (columnKey === "has_error") {
       return entry.has_error ? (
-        <div className="flex items-center gap-1 text-red-600">
+        <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
           <AlertTriangle className="h-3 w-3" />
           <span className="text-xs font-medium">Error</span>
         </div>
@@ -792,7 +792,7 @@ export function XeroContactSync() {
                     disabled={pushing}
                     size="sm"
                     variant="outline"
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
                   >
                     {pushing ? (
                       <Spinner size={14} className="mr-2" />
@@ -805,7 +805,7 @@ export function XeroContactSync() {
                     onClick={() => setShowSyncFromModal(true)}
                     size="sm"
                     variant="outline"
-                    className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/30"
+                    className="text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/30"
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Sync from Xero ({selectedRows.size})
@@ -923,7 +923,7 @@ function SyncStatusCell({ syncStatus, hasError }: { syncStatus: SyncStatusPerCon
   // If there's an error, show error indicator
   if (hasError) {
     return (
-      <div className="text-xs text-red-600 font-medium flex items-center gap-1">
+      <div className="text-xs text-red-600 dark:text-red-400 font-medium flex items-center gap-1">
         <AlertTriangle className="h-3 w-3" />
         Error
       </div>

@@ -205,7 +205,7 @@ export default function ComplianceCalendarPage() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-red-600">
+            <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
               <AlertTriangle className="h-5 w-5" />
               <span className="text-sm font-medium">Overdue</span>
             </div>
@@ -214,7 +214,7 @@ export default function ComplianceCalendarPage() {
         </Card>
         <Card className="bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-orange-600">
+            <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
               <Clock className="h-5 w-5" />
               <span className="text-sm font-medium">This Week</span>
             </div>
@@ -223,7 +223,7 @@ export default function ComplianceCalendarPage() {
         </Card>
         <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-yellow-600">
+            <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
               <Calendar className="h-5 w-5" />
               <span className="text-sm font-medium">This Month</span>
             </div>
@@ -232,7 +232,7 @@ export default function ComplianceCalendarPage() {
         </Card>
         <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-blue-600">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
               <Clock className="h-5 w-5" />
               <span className="text-sm font-medium">Pending</span>
             </div>
@@ -241,7 +241,7 @@ export default function ComplianceCalendarPage() {
         </Card>
         <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-green-600">
+            <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
               <CheckCircle className="h-5 w-5" />
               <span className="text-sm font-medium">Completed</span>
             </div>
@@ -390,11 +390,11 @@ export default function ComplianceCalendarPage() {
                       className="hover:bg-muted/50 cursor-pointer"
                     >
                       <TableCell className="px-4 py-3 whitespace-nowrap">
-                        <span className={item.is_overdue ? "text-red-600 font-medium" : ""}>
+                        <span className={item.is_overdue ? "text-red-600 dark:text-red-400 font-medium" : ""}>
                           {new Date(item.due_date).toLocaleDateString("en-AU")}
                         </span>
                         {item.is_overdue && (
-                          <span className="ml-2 text-xs text-red-500">({Math.abs(item.days_until_due)} days overdue)</span>
+                          <span className="ml-2 text-xs text-red-500 dark:text-red-400">({Math.abs(item.days_until_due)} days overdue)</span>
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-3">
@@ -407,17 +407,17 @@ export default function ComplianceCalendarPage() {
                       <TableCell className="px-4 py-3 text-sm">{item.title}</TableCell>
                       <TableCell className="px-4 py-3">
                         <span className="text-sm text-muted-foreground capitalize">{item.item_type?.replace(/_/g, " ")}</span>
-                        {item.asic_related && <Badge className="ml-2 bg-purple-100 text-purple-700">ASIC</Badge>}
-                        {item.ato_related && <Badge className="ml-2 bg-blue-100 text-blue-700">ATO</Badge>}
+                        {item.asic_related && <Badge className="ml-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">ASIC</Badge>}
+                        {item.ato_related && <Badge className="ml-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">ATO</Badge>}
                       </TableCell>
                       <TableCell className="px-4 py-3">
                         {item.completed ? (
-                          <span className="inline-flex items-center gap-1 text-green-600">
+                          <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
                             <CheckCircle className="h-4 w-4" />
                             Completed
                           </span>
                         ) : item.is_overdue ? (
-                          <span className="inline-flex items-center gap-1 text-red-600">
+                          <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
                             <AlertTriangle className="h-4 w-4" />
                             Overdue
                           </span>
@@ -465,7 +465,7 @@ export default function ComplianceCalendarPage() {
                   </div>
                   <div className="flex items-center gap-4 text-sm">
                     {data.items.some((i) => i.is_overdue) && (
-                      <span className="text-red-600">{data.items.filter((i) => i.is_overdue).length} overdue</span>
+                      <span className="text-red-600 dark:text-red-400">{data.items.filter((i) => i.is_overdue).length} overdue</span>
                     )}
                     <span className="text-muted-foreground">{data.items.length} items</span>
                   </div>
@@ -474,15 +474,15 @@ export default function ComplianceCalendarPage() {
                   {data.items.slice(0, 5).map((item) => (
                     <div key={item.id} className="flex items-center justify-between py-2 border-t">
                       <div className="flex items-center gap-3">
-                        <span className={cn("text-sm", item.is_overdue ? "text-red-600" : "text-muted-foreground")}>
+                        <span className={cn("text-sm", item.is_overdue ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
                           {new Date(item.due_date).toLocaleDateString("en-AU")}
                         </span>
                         <span className="text-sm">{item.title}</span>
                       </div>
                       {item.completed ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                       ) : item.is_overdue ? (
-                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                        <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
                       ) : (
                         <Clock className="h-4 w-4 text-muted-foreground" />
                       )}

@@ -260,7 +260,7 @@ export function EmailContextMenu({
         <ContextMenuItem
           onClick={handleDelete}
           disabled={loading === "delete"}
-          className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+          className="text-red-600 dark:text-red-400 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
         >
           <Trash2 className="mr-2 h-4 w-4" />
           Delete
@@ -355,7 +355,7 @@ export function EmailContextMenu({
         {/* Star with color submenu */}
         <ContextMenuSub>
           <ContextMenuSubTrigger>
-            <Star className={cn("mr-2 h-4 w-4", isStarred && "fill-current text-yellow-500")} />
+            <Star className={cn("mr-2 h-4 w-4", isStarred && "fill-current text-yellow-500 dark:text-yellow-400")} />
             {isStarred ? "Change star" : "Star"}
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-40">
@@ -406,7 +406,7 @@ export function EmailContextMenu({
         <ContextMenuItem
           onClick={handleSpam}
           disabled={loading === "spam"}
-          className="text-orange-600 dark:text-orange-400 focus:text-orange-600 dark:focus:text-orange-400"
+          className="text-orange-600 dark:text-orange-400 focus:text-orange-600 dark:text-orange-400 dark:focus:text-orange-400"
         >
           <AlertOctagon className="mr-2 h-4 w-4" />
           Mark as spam

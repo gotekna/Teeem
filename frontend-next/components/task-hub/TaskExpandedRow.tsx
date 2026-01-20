@@ -1329,7 +1329,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
               {item.item_type === 'question' && (
                 <div className="pl-1 border-l-2 border-blue-400">
                   <div className="flex items-start gap-2">
-                    <HelpCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                    <HelpCircle className="h-4 w-4 text-blue-500 dark:text-blue-400 mt-0.5 shrink-0" />
                     {editingItemId === item.id ? (
                       <Input
                         value={editingItemText}
@@ -1400,7 +1400,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                     {item.response ? (
                       <div className="text-sm bg-green-50 dark:bg-green-950 p-2 rounded border border-green-200 dark:border-green-800">
                         <div className="flex items-start gap-2">
-                          <Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                          <Check className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
                           <div className="flex-1">
                             <p className="text-foreground">{item.response}</p>
                             {item.responded_by_name && (
@@ -1416,7 +1416,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                       // Delegated - show status
                       <div className="text-sm bg-purple-50 dark:bg-purple-950 p-2 rounded border border-purple-200 dark:border-purple-800">
                         <div className="flex items-center gap-2">
-                          <Send className="h-4 w-4 text-purple-600 shrink-0" />
+                          <Send className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
                           <div className="flex-1">
                             <p className="text-xs text-purple-700 dark:text-purple-300">
                               Sent to <span className="font-medium">{item.delegated_task.assigned_user_name || 'Unknown'}</span>
@@ -1522,7 +1522,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                             setAnsweringItemId(item.id);
                             setAnswerText('');
                           }}
-                          className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 hover:underline"
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 hover:underline"
                         >
                           + Add answer
                         </button>
@@ -1536,7 +1536,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                               setDelegationUsers(userList);
                             }
                           }}
-                          className="text-xs text-purple-600 hover:text-purple-800 dark:text-purple-400 hover:underline flex items-center gap-1"
+                          className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:text-purple-400 hover:underline flex items-center gap-1"
                         >
                           <Send className="h-3 w-3" />
                           Send to...
@@ -1577,7 +1577,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
               {newActionItemType === 'action' ? (
                 <Checkbox disabled className="h-4 w-4 opacity-50" />
               ) : (
-                <HelpCircle className="h-4 w-4 text-blue-500 opacity-50" />
+                <HelpCircle className="h-4 w-4 text-blue-500 dark:text-blue-400 opacity-50" />
               )}
               <SmartTextField
                 placeholder={newActionItemType === 'action' ? "Add action item..." : "Add question..."}
@@ -1730,7 +1730,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                 className={cn(
                   "h-7 text-xs gap-1 min-w-[100px] justify-start font-normal",
                   !requiredByDate && "text-muted-foreground",
-                  task.is_overdue && task.status !== TASK_STATUS.COMPLETED && "border-red-300 text-red-600"
+                  task.is_overdue && task.status !== TASK_STATUS.COMPLETED && "border-red-300 text-red-600 dark:text-red-400"
                 )}
                 disabled={!!loading}
               >
@@ -2045,7 +2045,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                         key={attachment.id}
                         className="flex items-center gap-3 p-2 bg-background/50 rounded border hover:bg-muted/50 transition-colors"
                       >
-                        <FileText className="h-4 w-4 text-orange-500 shrink-0" />
+                        <FileText className="h-4 w-4 text-orange-500 dark:text-orange-400 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
                             {attachment.document!.display_name || attachment.document!.file_name}

@@ -418,7 +418,7 @@ function ParentCaseNode({ data }: { data: ParentCaseNodeData }) {
       <Handle type="source" position={Position.Bottom} className="!bg-blue-500" />
 
       <div className="px-4 py-3 rounded-t-md flex items-center gap-3 bg-blue-100 dark:bg-blue-900/50">
-        <ChevronUp className="h-5 w-5 text-blue-600" />
+        <ChevronUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
         <div className="flex-1 min-w-0">
           <div className="font-bold truncate">{label}</div>
           <div className="text-xs text-muted-foreground">#{caseNumber} &middot; Parent Case</div>
@@ -428,9 +428,9 @@ function ParentCaseNode({ data }: { data: ParentCaseNodeData }) {
       <div className="px-4 py-2 flex items-center justify-between text-sm">
         <span className={cn(
           "px-2 py-0.5 rounded text-xs font-medium",
-          status === "open" ? "bg-blue-100 text-blue-700" :
-          status === "in_progress" ? "bg-amber-100 text-amber-700" :
-          status === "closed" ? "bg-green-100 text-green-700" :
+          status === "open" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" :
+          status === "in_progress" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300" :
+          status === "closed" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300" :
           "bg-muted text-foreground"
         )}>
           {status?.replace(/_/g, " ")}
@@ -458,9 +458,9 @@ function ChildCaseNode({ data }: { data: ChildCaseNodeData }) {
 
   const getStatusIcon = () => {
     switch (status) {
-      case "closed": return <CheckCircle className="h-3 w-3 text-green-500" />;
+      case "closed": return <CheckCircle className="h-3 w-3 text-green-500 dark:text-green-400" />;
       case "in_progress": return <Clock className="h-3 w-3 text-amber-500" />;
-      case "open": return <Clock className="h-3 w-3 text-blue-500" />;
+      case "open": return <Clock className="h-3 w-3 text-blue-500 dark:text-blue-400" />;
       default: return null;
     }
   };
@@ -487,16 +487,16 @@ function ChildCaseNode({ data }: { data: ChildCaseNodeData }) {
           <div className="font-semibold truncate text-sm">{label}</div>
           <div className="text-xs text-muted-foreground">#{caseNumber}</div>
         </div>
-        {overdue && <AlertTriangle className="h-4 w-4 text-red-500" />}
+        {overdue && <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />}
       </div>
 
       <div className="px-4 py-2 flex items-center gap-2 text-xs">
         <span className={cn(
           "px-2 py-0.5 rounded font-medium flex items-center gap-1",
-          status === "open" ? "bg-blue-100 text-blue-700" :
-          status === "in_progress" ? "bg-amber-100 text-amber-700" :
-          status === "review" ? "bg-purple-100 text-purple-700" :
-          status === "closed" ? "bg-green-100 text-green-700" :
+          status === "open" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" :
+          status === "in_progress" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300" :
+          status === "review" ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" :
+          status === "closed" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300" :
           "bg-muted text-foreground"
         )}>
           {getStatusIcon()}
@@ -504,8 +504,8 @@ function ChildCaseNode({ data }: { data: ChildCaseNodeData }) {
         </span>
         <span className={cn(
           "px-2 py-0.5 rounded font-medium",
-          priority === "urgent" ? "bg-red-100 text-red-700" :
-          priority === "high" ? "bg-orange-100 text-orange-700" :
+          priority === "urgent" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300" :
+          priority === "high" ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300" :
           "bg-muted text-foreground"
         )}>
           {priority}

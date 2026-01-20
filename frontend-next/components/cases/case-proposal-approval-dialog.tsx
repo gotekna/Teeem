@@ -446,7 +446,7 @@ export function CaseProposalApprovalDialog({
             <Badge className={
               confidencePercent >= 80 ? "bg-status-success text-status-success-foreground" :
               confidencePercent >= 60 ? "bg-status-warning text-status-warning-foreground" :
-              "bg-orange-100 text-orange-800"
+              "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
             }>
               <Sparkles className="w-3 h-3 mr-1" />
               {confidencePercent}% confidence
@@ -536,7 +536,7 @@ export function CaseProposalApprovalDialog({
                       <AlertTriangle className="w-4 h-4" />
                       AI flagged missing information
                     </div>
-                    <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-500">
+                    <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-400">
                       {data.missing_info.map((item, idx) => (
                         <li key={idx}>{item}</li>
                       ))}
@@ -547,7 +547,7 @@ export function CaseProposalApprovalDialog({
                 {/* Source Folders - where documents currently are */}
                 <div className="grid gap-2">
                   <Label className="flex items-center gap-2">
-                    <FolderInput className="w-4 h-4 text-blue-500" />
+                    <FolderInput className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                     Source Folders (where documents are now)
                   </Label>
                   <p className="text-xs text-muted-foreground">
@@ -567,7 +567,7 @@ export function CaseProposalApprovalDialog({
                             className="h-6 w-6"
                             onClick={() => removeSourceFolder(idx)}
                           >
-                            <Trash2 className="w-3 h-3 text-red-500" />
+                            <Trash2 className="w-3 h-3 text-red-500 dark:text-red-400" />
                           </Button>
                         </div>
                       ))}
@@ -703,7 +703,7 @@ export function CaseProposalApprovalDialog({
                 {/* Filing Folders - where to save new documents */}
                 <div className="grid gap-2">
                   <Label className="flex items-center gap-2">
-                    <FolderOutput className="w-4 h-4 text-green-500" />
+                    <FolderOutput className="w-4 h-4 text-green-500 dark:text-green-400" />
                     Filing Folders (where to save case documents)
                   </Label>
                   <p className="text-xs text-muted-foreground">
@@ -715,7 +715,7 @@ export function CaseProposalApprovalDialog({
                     <div className="space-y-2 mb-2">
                       {filingFolders.map((path, idx) => (
                         <div key={idx} className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-                          <FolderOpen className="w-4 h-4 text-green-500" />
+                          <FolderOpen className="w-4 h-4 text-green-500 dark:text-green-400" />
                           <span className="flex-1 text-sm truncate">{path}</span>
                           <Button
                             variant="ghost"
@@ -723,7 +723,7 @@ export function CaseProposalApprovalDialog({
                             className="h-6 w-6"
                             onClick={() => removeFilingFolder(idx)}
                           >
-                            <Trash2 className="w-3 h-3 text-red-500" />
+                            <Trash2 className="w-3 h-3 text-red-500 dark:text-red-400" />
                           </Button>
                         </div>
                       ))}
@@ -944,7 +944,7 @@ export function CaseProposalApprovalDialog({
                     <div className="space-y-2 mb-3">
                       {relatedJobs.map((job) => (
                         <div key={job.job_id} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
-                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-4 h-4 text-green-500 dark:text-green-400" />
                           <span className="font-medium">Job #{job.job_id}</span>
                           <span className="text-muted-foreground flex-1">- {job.job_title}</span>
                           <Button
@@ -953,7 +953,7 @@ export function CaseProposalApprovalDialog({
                             className="h-6 w-6"
                             onClick={() => removeRelatedJob(job.job_id)}
                           >
-                            <X className="w-3 h-3 text-red-500" />
+                            <X className="w-3 h-3 text-red-500 dark:text-red-400" />
                           </Button>
                         </div>
                       ))}
@@ -1017,9 +1017,9 @@ export function CaseProposalApprovalDialog({
                       {relatedCompanies.map((company, idx) => (
                         <div key={idx} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
                           {company.company_found ? (
-                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <CheckCircle className="w-4 h-4 text-green-500 dark:text-green-400" />
                           ) : (
-                            <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                            <AlertTriangle className="w-4 h-4 text-yellow-500 dark:text-yellow-400" />
                           )}
                           <span className="font-medium">{company.name}</span>
                           {company.entity_type && (
@@ -1038,7 +1038,7 @@ export function CaseProposalApprovalDialog({
                             className="h-6 w-6"
                             onClick={() => removeRelatedCompany(idx)}
                           >
-                            <X className="w-3 h-3 text-red-500" />
+                            <X className="w-3 h-3 text-red-500 dark:text-red-400" />
                           </Button>
                         </div>
                       ))}
@@ -1394,7 +1394,7 @@ function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
             variant="ghost"
             size="icon"
             onClick={() => onRemove(index)}
-            className="text-red-500 hover:text-red-700"
+            className="text-red-500 dark:text-red-400 hover:text-red-700"
           >
             <Trash2 className="w-4 h-4" />
           </Button>

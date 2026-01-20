@@ -323,7 +323,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
                   <Card className="bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800">
                     <CardHeader>
                       <CardTitle className="text-sm flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                        <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                         Potential Challenges
                       </CardTitle>
                     </CardHeader>
@@ -331,7 +331,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
                       <ul className="space-y-1">
                         {analysis.estimated_scope.potential_challenges.map((challenge, index) => (
                           <li key={index} className="text-sm flex items-start gap-2">
-                            <span className="text-yellow-600 mt-1">⚠</span>
+                            <span className="text-yellow-600 dark:text-yellow-400 mt-1">⚠</span>
                             <span>{challenge}</span>
                           </li>
                         ))}
@@ -347,7 +347,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
             <Card className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5 text-green-600" />
+                  <Lightbulb className="h-5 w-5 text-green-600 dark:text-green-400" />
                   Recommendations
                 </CardTitle>
               </CardHeader>
@@ -355,7 +355,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
                 <ul className="space-y-2">
                   {analysis.recommendations.map((recommendation, index) => (
                     <li key={index} className="text-sm flex items-start gap-2">
-                      <span className="text-green-600 mt-1">✓</span>
+                      <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
                       <span>{recommendation}</span>
                     </li>
                   ))}

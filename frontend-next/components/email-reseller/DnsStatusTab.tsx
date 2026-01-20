@@ -268,7 +268,7 @@ export function DnsStatusTab({
                           {statusConfig.label}
                         </Badge>
                         {record.error_message && (
-                          <p className="text-xs text-red-500 mt-1">{record.error_message}</p>
+                          <p className="text-xs text-red-500 dark:text-red-400 mt-1">{record.error_message}</p>
                         )}
                       </TableCell>
                     </TableRow>

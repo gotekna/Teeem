@@ -374,9 +374,9 @@ export function BackupSettingsTab() {
                 {primaryCred && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     {primaryCred.isConnected ? (
-                      <Check className="h-3 w-3 text-green-500" />
+                      <Check className="h-3 w-3 text-green-500 dark:text-green-400" />
                     ) : (
-                      <X className="h-3 w-3 text-red-500" />
+                      <X className="h-3 w-3 text-red-500 dark:text-red-400" />
                     )}
                     {primaryCred.bucket} @ {primaryCred.endpoint}
                   </p>
@@ -421,9 +421,9 @@ export function BackupSettingsTab() {
                 {secondaryCred && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     {secondaryCred.isConnected ? (
-                      <Check className="h-3 w-3 text-green-500" />
+                      <Check className="h-3 w-3 text-green-500 dark:text-green-400" />
                     ) : (
-                      <X className="h-3 w-3 text-red-500" />
+                      <X className="h-3 w-3 text-red-500 dark:text-red-400" />
                     )}
                     {secondaryCred.bucket} @ {secondaryCred.endpoint}
                   </p>

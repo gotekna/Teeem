@@ -630,7 +630,7 @@ export function DataWarehouseTab() {
             variant="ghost"
             size="sm"
             onClick={clearCompanyFilter}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
           >
             <X className="h-4 w-4 mr-1" />
             Clear Filter
@@ -663,7 +663,7 @@ export function DataWarehouseTab() {
             <TabsTrigger key={org.name} value={`org-${org.name}`} className="gap-1">
               {org.name}
               {org.connected ? (
-                <CheckCircle className="h-3 w-3 text-green-500" />
+                <CheckCircle className="h-3 w-3 text-green-500 dark:text-green-400" />
               ) : (
                 <XCircle className="h-3 w-3 text-muted-foreground" />
               )}
@@ -986,14 +986,14 @@ export function DataWarehouseTab() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="p-4 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
-                          <Mail className="h-4 w-4 text-blue-500" />
+                          <Mail className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                           <span className="text-sm font-medium">Emails</span>
                         </div>
                         <p className="text-2xl font-bold">{org.stats.emails.toLocaleString()}</p>
                       </div>
                       <div className="p-4 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
-                          <HardDrive className="h-4 w-4 text-purple-500" />
+                          <HardDrive className="h-4 w-4 text-purple-500 dark:text-purple-400" />
                           <span className="text-sm font-medium">Storage</span>
                         </div>
                         <p className="text-2xl font-bold">
@@ -1005,14 +1005,14 @@ export function DataWarehouseTab() {
                       </div>
                       <div className="p-4 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
-                          <FolderOpen className="h-4 w-4 text-green-500" />
+                          <FolderOpen className="h-4 w-4 text-green-500 dark:text-green-400" />
                           <span className="text-sm font-medium">Linked to Jobs</span>
                         </div>
                         <p className="text-2xl font-bold">{org.stats.linked_to_job.toLocaleString()}</p>
                       </div>
                       <div className="p-4 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
-                          <Clock className="h-4 w-4 text-orange-500" />
+                          <Clock className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                           <span className="text-sm font-medium">Last Sync</span>
                         </div>
                         <p className="text-lg font-medium">
@@ -1149,7 +1149,7 @@ export function DataWarehouseTab() {
                           {/* Deduplication Savings */}
                           {org.stats.storage_location.attachments.dedup_savings_count > 0 && (
                             <p className="text-xs text-muted-foreground pt-1">
-                              <span className="text-green-600 font-medium">
+                              <span className="text-green-600 dark:text-green-400 font-medium">
                                 {org.stats.storage_location.attachments.dedup_savings_count.toLocaleString()} attachments
                               </span>
                               {" "}deduplicated (saving {formatFileSize(org.stats.storage_location.attachments.dedup_savings_bytes)})
@@ -1229,19 +1229,19 @@ export function DataWarehouseTab() {
                       />
                       <div className="grid grid-cols-5 gap-2">
                         <div className="text-center p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                          <p className="text-sm font-bold text-red-600">{(org.stats.ai_classification?.spam || 0).toLocaleString()}</p>
+                          <p className="text-sm font-bold text-red-600 dark:text-red-400">{(org.stats.ai_classification?.spam || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Spam</p>
                         </div>
                         <div className="text-center p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                          <p className="text-sm font-bold text-orange-600">{(org.stats.ai_classification?.marketing || 0).toLocaleString()}</p>
+                          <p className="text-sm font-bold text-orange-600 dark:text-orange-400">{(org.stats.ai_classification?.marketing || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Marketing</p>
                         </div>
                         <div className="text-center p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                          <p className="text-sm font-bold text-blue-600">{(org.stats.ai_classification?.transactional || 0).toLocaleString()}</p>
+                          <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{(org.stats.ai_classification?.transactional || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Transactional</p>
                         </div>
                         <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                          <p className="text-sm font-bold text-green-600">{(org.stats.ai_classification?.business || 0).toLocaleString()}</p>
+                          <p className="text-sm font-bold text-green-600 dark:text-green-400">{(org.stats.ai_classification?.business || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Business</p>
                         </div>
                         <div className="text-center p-2 bg-muted dark:bg-card rounded-lg">
@@ -1274,17 +1274,17 @@ export function DataWarehouseTab() {
                       </h4>
                       <div className="grid grid-cols-3 gap-3">
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-xl font-bold text-purple-600">{org.stats.emails.toLocaleString()}</p>
+                          <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{org.stats.emails.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Total Emails</p>
                           <p className="text-xs text-muted-foreground mt-1">{formatFileSize(org.stats.email_storage_bytes)}</p>
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-xl font-bold text-green-600">{org.stats.linked_to_job.toLocaleString()}</p>
+                          <p className="text-xl font-bold text-green-600 dark:text-green-400">{org.stats.linked_to_job.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Linked to Jobs</p>
                           <p className="text-xs text-muted-foreground mt-1">{formatFileSize(org.stats.size_by_job)}</p>
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-xl font-bold text-red-600">{org.stats.junk_emails.toLocaleString()}</p>
+                          <p className="text-xl font-bold text-red-600 dark:text-red-400">{org.stats.junk_emails.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Spam</p>
                         </div>
                       </div>
@@ -1391,7 +1391,7 @@ export function DataWarehouseTab() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
               {stats.storage.connected ? (
-                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                <Badge variant="default" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   Connected
                 </Badge>
@@ -1479,7 +1479,7 @@ export function DataWarehouseTab() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
               {stats.xero.connected ? (
-                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                <Badge variant="default" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   Connected
                 </Badge>
@@ -1540,19 +1540,19 @@ export function DataWarehouseTab() {
             {/* Health Summary */}
             <div className="grid grid-cols-5 gap-2">
               <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <p className="text-xl font-bold text-green-600">{warehouseStatus.health.healthy}</p>
+                <p className="text-xl font-bold text-green-600 dark:text-green-400">{warehouseStatus.health.healthy}</p>
                 <p className="text-xs text-muted-foreground">Healthy</p>
               </div>
               <div className="text-center p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                <p className="text-xl font-bold text-yellow-600">{warehouseStatus.health.stale}</p>
+                <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">{warehouseStatus.health.stale}</p>
                 <p className="text-xs text-muted-foreground">Stale</p>
               </div>
               <div className="text-center p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <p className="text-xl font-bold text-orange-600">{warehouseStatus.health.warning}</p>
+                <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{warehouseStatus.health.warning}</p>
                 <p className="text-xs text-muted-foreground">Warning</p>
               </div>
               <div className="text-center p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <p className="text-xl font-bold text-red-600">{warehouseStatus.health.error}</p>
+                <p className="text-xl font-bold text-red-600 dark:text-red-400">{warehouseStatus.health.error}</p>
                 <p className="text-xs text-muted-foreground">Error</p>
               </div>
               <div className="text-center p-2 bg-muted dark:bg-card rounded-lg">
@@ -1624,11 +1624,11 @@ export function DataWarehouseTab() {
                     >
                       <div className="flex items-center gap-2">
                         {activity.status === "success" ? (
-                          <CheckCircle className="h-3 w-3 text-green-500" />
+                          <CheckCircle className="h-3 w-3 text-green-500 dark:text-green-400" />
                         ) : activity.status === "failed" ? (
-                          <XCircle className="h-3 w-3 text-red-500" />
+                          <XCircle className="h-3 w-3 text-red-500 dark:text-red-400" />
                         ) : (
-                          <Spinner size={12} className="text-blue-500" />
+                          <Spinner size={12} className="text-blue-500 dark:text-blue-400" />
                         )}
                         <span className="font-mono">{activity.view_name}</span>
                       </div>
@@ -1668,19 +1668,19 @@ export function DataWarehouseTab() {
             />
             <div className="grid grid-cols-5 gap-2">
               <div className="text-center p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <p className="text-lg font-bold text-red-600">{(stats.emails.ai_classification?.spam || 0).toLocaleString()}</p>
+                <p className="text-lg font-bold text-red-600 dark:text-red-400">{(stats.emails.ai_classification?.spam || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Spam</p>
               </div>
               <div className="text-center p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <p className="text-lg font-bold text-orange-600">{(stats.emails.ai_classification?.marketing || 0).toLocaleString()}</p>
+                <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{(stats.emails.ai_classification?.marketing || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Marketing</p>
               </div>
               <div className="text-center p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <p className="text-lg font-bold text-blue-600">{(stats.emails.ai_classification?.transactional || 0).toLocaleString()}</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{(stats.emails.ai_classification?.transactional || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Transactional</p>
               </div>
               <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <p className="text-lg font-bold text-green-600">{(stats.emails.ai_classification?.business || 0).toLocaleString()}</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">{(stats.emails.ai_classification?.business || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Business</p>
               </div>
               <div className="text-center p-2 bg-muted dark:bg-card rounded-lg">
@@ -1728,11 +1728,11 @@ export function DataWarehouseTab() {
               <Progress value={stats.emails.storage_upload.upload_rate} className="h-2 mb-3" />
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                  <p className="text-xl font-bold text-green-600">{stats.emails.storage_upload.uploaded.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-green-600 dark:text-green-400">{stats.emails.storage_upload.uploaded.toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">Uploaded</p>
                 </div>
                 <div className="text-center p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                  <p className="text-xl font-bold text-orange-600">{stats.emails.storage_upload.remaining.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{stats.emails.storage_upload.remaining.toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">Remaining</p>
                 </div>
                 <div className="text-center p-3 bg-muted rounded-lg">
@@ -1753,11 +1753,11 @@ export function DataWarehouseTab() {
               <Progress value={stats.emails.storage_upload.attachments.migration_rate} className="h-2 mb-3" />
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                  <p className="text-xl font-bold text-green-600">{stats.emails.storage_upload.attachments.with_blob.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-green-600 dark:text-green-400">{stats.emails.storage_upload.attachments.with_blob.toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">Migrated to Wasabi</p>
                 </div>
                 <div className="text-center p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                  <p className="text-xl font-bold text-orange-600">{stats.emails.storage_upload.attachments.legacy_sharepoint.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{stats.emails.storage_upload.attachments.legacy_sharepoint.toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">Pending (SharePoint)</p>
                 </div>
                 <div className="text-center p-3 bg-muted rounded-lg">
@@ -1770,12 +1770,12 @@ export function DataWarehouseTab() {
               {stats.emails.storage_upload.attachments.unique_blobs !== undefined && stats.emails.storage_upload.attachments.unique_blobs > 0 && (
                 <div className="mt-4 pt-3 border-t border-dashed">
                   <div className="flex items-center gap-2 mb-3">
-                    <HardDrive className="h-4 w-4 text-purple-500" />
+                    <HardDrive className="h-4 w-4 text-purple-500 dark:text-purple-400" />
                     <span className="text-sm font-medium">Storage Deduplication (SSoT)</span>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
                     <div className="text-center p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                      <p className="text-lg font-bold text-purple-600">{stats.emails.storage_upload.attachments.unique_blobs?.toLocaleString()}</p>
+                      <p className="text-lg font-bold text-purple-600 dark:text-purple-400">{stats.emails.storage_upload.attachments.unique_blobs?.toLocaleString()}</p>
                       <p className="text-xs text-muted-foreground">Unique Files</p>
                     </div>
                     <div className="text-center p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
@@ -1783,7 +1783,7 @@ export function DataWarehouseTab() {
                       <p className="text-xs text-muted-foreground">Storage Used</p>
                     </div>
                     <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                      <p className="text-lg font-bold text-green-600">{stats.emails.storage_upload.attachments.files_saved_by_dedup?.toLocaleString() || 0}</p>
+                      <p className="text-lg font-bold text-green-600 dark:text-green-400">{stats.emails.storage_upload.attachments.files_saved_by_dedup?.toLocaleString() || 0}</p>
                       <p className="text-xs text-muted-foreground">Files Deduplicated</p>
                     </div>
                     <div className="text-center p-2 bg-muted rounded-lg">
@@ -1802,7 +1802,7 @@ export function DataWarehouseTab() {
                   <AccordionItem value="pending-mailboxes" className="border-none">
                     <AccordionTrigger className="py-2 hover:no-underline">
                       <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-orange-500" />
+                        <Mail className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                         <span className="text-sm font-medium">Pending Emails by Mailbox</span>
                         <Badge variant="outline" className="ml-2">
                           {stats.emails.storage_upload.pending_by_mailbox.length} mailboxes
@@ -1842,22 +1842,22 @@ export function DataWarehouseTab() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-purple-600">{stats.emails.total_emails.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.emails.total_emails.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Total Emails</p>
               <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.total_size)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">{stats.emails.linked_to_contact.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.emails.linked_to_contact.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Linked to Contact</p>
               <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_by_contact)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-green-600">{stats.emails.linked_to_job.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.emails.linked_to_job.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Linked to Job</p>
               <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_by_job)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-orange-600">{stats.emails.linked_to_company.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.emails.linked_to_company.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Linked to Company</p>
               <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_by_company)}</p>
             </div>
@@ -1867,7 +1867,7 @@ export function DataWarehouseTab() {
               <p className="text-xs text-muted-foreground mt-1">-</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-red-600">{stats.emails.junk_emails.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.emails.junk_emails.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Spam Emails</p>
               <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_junk)}</p>
             </div>
@@ -1899,15 +1899,15 @@ export function DataWarehouseTab() {
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div className="text-center p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <p className="text-xl font-bold text-blue-600">{stats.corporate.total}</p>
+                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{stats.corporate.total}</p>
                 <p className="text-xs text-muted-foreground">Total Companies</p>
               </div>
               <div className="text-center p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                <p className="text-xl font-bold text-yellow-600">{stats.corporate.missing_abn}</p>
+                <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">{stats.corporate.missing_abn}</p>
                 <p className="text-xs text-muted-foreground">Missing ABN</p>
               </div>
               <div className="text-center p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <p className="text-xl font-bold text-orange-600">{stats.corporate.missing_acn}</p>
+                <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{stats.corporate.missing_acn}</p>
                 <p className="text-xs text-muted-foreground">Missing ACN</p>
               </div>
               <div className="text-center p-3 bg-muted dark:bg-card rounded-lg">
@@ -1915,7 +1915,7 @@ export function DataWarehouseTab() {
                 <p className="text-xs text-muted-foreground">No Review Date</p>
               </div>
               <div className="text-center p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <p className="text-xl font-bold text-red-600">{stats.corporate.overdue_review}</p>
+                <p className="text-xl font-bold text-red-600 dark:text-red-400">{stats.corporate.overdue_review}</p>
                 <p className="text-xs text-muted-foreground">Overdue Review</p>
               </div>
             </div>
@@ -1956,9 +1956,9 @@ export function DataWarehouseTab() {
           <div className="flex flex-wrap gap-3">
             {Object.entries(stats.documents.by_ai_status).map(([status, count]) => {
               const config: Record<string, { color: string; icon: React.ElementType }> = {
-                verified: { color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: CheckCircle },
-                mismatch: { color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
-                needs_review: { color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: AlertTriangle },
+                verified: { color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400", icon: CheckCircle },
+                mismatch: { color: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300", icon: XCircle },
+                needs_review: { color: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400", icon: AlertTriangle },
                 pending: { color: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground", icon: Clock },
               };
               const { color, icon: Icon } = config[status] || { color: "bg-muted text-muted-foreground", icon: FileText };
@@ -1984,19 +1984,19 @@ export function DataWarehouseTab() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">{stats.job_documents.revit_files}</p>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.job_documents.revit_files}</p>
               <p className="text-xs text-muted-foreground">Revit (.rvt)</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-orange-600">{stats.job_documents.autocad_files}</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.job_documents.autocad_files}</p>
               <p className="text-xs text-muted-foreground">AutoCAD (.dwg)</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-red-600">{stats.job_documents.pdf_files}</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.job_documents.pdf_files}</p>
               <p className="text-xs text-muted-foreground">PDF (.pdf)</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-green-600">{stats.job_documents.image_files}</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.job_documents.image_files}</p>
               <p className="text-xs text-muted-foreground">Images</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
@@ -2051,10 +2051,10 @@ export function DataWarehouseTab() {
                 return (
                   <div key={source} className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {isCloudStorage && <Cloud className="h-4 w-4 text-blue-500 flex-shrink-0" />}
-                      {source === "upload" && <FolderOpen className="h-4 w-4 text-green-500 flex-shrink-0" />}
+                      {isCloudStorage && <Cloud className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />}
+                      {source === "upload" && <FolderOpen className="h-4 w-4 text-green-500 dark:text-green-400 flex-shrink-0" />}
                       {source === "xero" && <BarChart3 className="h-4 w-4 text-cyan-500 flex-shrink-0" />}
-                      {source === "email" && <Mail className="h-4 w-4 text-purple-500 flex-shrink-0" />}
+                      {source === "email" && <Mail className="h-4 w-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />}
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm font-medium">
                           {isCloudStorage ? stats.storage.provider_name : source.charAt(0).toUpperCase() + source.slice(1)}
@@ -2064,7 +2064,7 @@ export function DataWarehouseTab() {
                             href={storageUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline truncate flex items-center gap-1"
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline truncate flex items-center gap-1"
                           >
                             {stats.storage.connection_info.site_url}{stats.storage.root_path}
                             <ExternalLink className="h-3 w-3 flex-shrink-0" />

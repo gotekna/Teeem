@@ -143,14 +143,14 @@ export default function ScheduledInvoicesTab() {
     switch (status) {
       case "pending":
         return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <Clock className="h-3 w-3 mr-1" />
             Pending
           </Badge>
         );
       case "sent":
         return (
-          <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+          <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Sent
           </Badge>
@@ -194,7 +194,7 @@ export default function ScheduledInvoicesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.pending}</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.pending}</div>
               <p className="text-xs text-muted-foreground mt-1">scheduled to send</p>
             </CardContent>
           </Card>
@@ -206,7 +206,7 @@ export default function ScheduledInvoicesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.sent_today}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.sent_today}</div>
               <p className="text-xs text-muted-foreground mt-1">invoices delivered</p>
             </CardContent>
           </Card>
@@ -218,7 +218,7 @@ export default function ScheduledInvoicesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.failed}</div>
               <p className="text-xs text-muted-foreground mt-1">need attention</p>
             </CardContent>
           </Card>
@@ -309,7 +309,7 @@ export default function ScheduledInvoicesTab() {
                     </TableCell>
                     <TableCell className="text-center">
                       {schedule.send_email ? (
-                        <Mail className="h-4 w-4 text-green-600 mx-auto" />
+                        <Mail className="h-4 w-4 text-green-600 dark:text-green-400 mx-auto" />
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
@@ -317,7 +317,7 @@ export default function ScheduledInvoicesTab() {
                     <TableCell>
                       {getStatusBadge(schedule.status)}
                       {schedule.error_message && (
-                        <div className="text-xs text-red-600 mt-1 max-w-xs truncate" title={schedule.error_message}>
+                        <div className="text-xs text-red-600 dark:text-red-400 mt-1 max-w-xs truncate" title={schedule.error_message}>
                           {schedule.error_message}
                         </div>
                       )}

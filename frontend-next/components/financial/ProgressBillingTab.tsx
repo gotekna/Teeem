@@ -354,8 +354,8 @@ export default function ProgressBillingTab() {
       submitted: { className: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400", icon: <Send className="h-3 w-3 mr-1" /> },
       approved: { className: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle className="h-3 w-3 mr-1" /> },
       certified: { className: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400", icon: <CheckSquare className="h-3 w-3 mr-1" /> },
-      invoiced: { className: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400", icon: <Receipt className="h-3 w-3 mr-1" /> },
-      paid: { className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400", icon: <DollarSign className="h-3 w-3 mr-1" /> },
+      invoiced: { className: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400", icon: <Receipt className="h-3 w-3 mr-1" /> },
+      paid: { className: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400", icon: <DollarSign className="h-3 w-3 mr-1" /> },
       pending: { className: "bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400", icon: <Clock className="h-3 w-3 mr-1" /> },
       in_progress: { className: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400", icon: <Play className="h-3 w-3 mr-1" /> },
       completed: { className: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle className="h-3 w-3 mr-1" /> },
@@ -721,7 +721,7 @@ export default function ProgressBillingTab() {
                             )}
 
                             {milestone.invoice_id && (
-                              <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                              <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
                                 <Receipt className="h-3 w-3 mr-1" />
                                 Invoiced
                               </Badge>

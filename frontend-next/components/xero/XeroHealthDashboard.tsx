@@ -235,8 +235,8 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
               <div className="flex items-center gap-2 justify-end">
                 {health.end_of_month.last_month_closed ? (
                   <>
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="text-green-600 font-medium">Closed</span>
+                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                    <span className="text-green-600 dark:text-green-400 font-medium">Closed</span>
                   </>
                 ) : (
                   <>
@@ -256,7 +256,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <FileText className="h-4 w-4 text-blue-600" />
+              <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               <span className="font-medium text-sm">Invoices</span>
               {getStatusBadge(health.invoices.missing_pdfs > 0, health.invoices.total)}
             </div>
@@ -294,7 +294,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Receipt className="h-4 w-4 text-purple-600" />
+              <Receipt className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               <span className="font-medium text-sm">Bills</span>
               {getStatusBadge(health.bills.missing_pdfs > 0, health.bills.total)}
             </div>
@@ -331,7 +331,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Users className="h-4 w-4 text-green-600" />
+              <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
               <span className="font-medium text-sm">Contacts</span>
               {getStatusBadge(health.contacts.with_errors > 0, health.contacts.linked)}
             </div>
@@ -342,7 +342,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
                 <span className="font-medium text-foreground">{health.contacts.linked}</span>
               </div>
               {health.contacts.with_errors > 0 && (
-                <div className="flex justify-between text-red-600">
+                <div className="flex justify-between text-red-600 dark:text-red-400">
                   <span>With Errors:</span>
                   <span className="font-medium">{health.contacts.with_errors}</span>
                 </div>
@@ -380,7 +380,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
                 </div>
               )}
               {health.bank.statements_failed > 0 && (
-                <div className="flex justify-between text-red-600">
+                <div className="flex justify-between text-red-600 dark:text-red-400">
                   <span>Failed:</span>
                   <span className="font-medium">{health.bank.statements_failed}</span>
                 </div>
@@ -397,7 +397,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <PieChart className="h-4 w-4 text-orange-600" />
+              <PieChart className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               <span className="font-medium text-sm">Profit & Loss</span>
               {health.profit_loss.months_available > 0 && (
                 <Badge className="ml-2 bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">OK</Badge>

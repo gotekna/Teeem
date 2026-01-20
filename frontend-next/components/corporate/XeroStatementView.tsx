@@ -583,20 +583,20 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
         <div className="grid grid-cols-4 gap-4 mb-4">
           <div className="p-3 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ArrowDownLeft className="h-3 w-3 text-green-600" />
+              <ArrowDownLeft className="h-3 w-3 text-green-600 dark:text-green-400" />
               Money In
             </div>
-            <div className="text-lg font-semibold text-green-600">
+            <div className="text-lg font-semibold text-green-600 dark:text-green-400">
               {formatCurrency(totals.receives)}
             </div>
             <div className="text-xs text-muted-foreground">{totals.receivesCount} transactions</div>
           </div>
           <div className="p-3 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ArrowUpRight className="h-3 w-3 text-red-600" />
+              <ArrowUpRight className="h-3 w-3 text-red-600 dark:text-red-400" />
               Money Out
             </div>
-            <div className="text-lg font-semibold text-red-600">
+            <div className="text-lg font-semibold text-red-600 dark:text-red-400">
               {formatCurrency(totals.spends)}
             </div>
             <div className="text-xs text-muted-foreground">{totals.spendsCount} transactions</div>
@@ -605,7 +605,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
             <div className="text-xs text-muted-foreground">Net Change</div>
             <div className={cn(
               "text-lg font-semibold",
-              totals.receives - totals.spends >= 0 ? "text-green-600" : "text-red-600"
+              totals.receives - totals.spends >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
             )}>
               {formatCurrency(totals.receives - totals.spends)}
             </div>
@@ -728,9 +728,9 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
                 {selectedTransaction?.transaction_type === "RECEIVE" ? (
-                  <ArrowDownLeft className="h-5 w-5 text-green-600" />
+                  <ArrowDownLeft className="h-5 w-5 text-green-600 dark:text-green-400" />
                 ) : (
-                  <ArrowUpRight className="h-5 w-5 text-red-600" />
+                  <ArrowUpRight className="h-5 w-5 text-red-600 dark:text-red-400" />
                 )}
                 Transaction Details
               </SheetTitle>
@@ -741,7 +741,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
                 {/* Amount */}
                 <div className="text-center py-4 bg-muted/50 rounded-lg">
                   <div className="text-3xl font-bold">
-                    <span className={selectedTransaction.transaction_type === "RECEIVE" ? "text-green-600" : "text-red-600"}>
+                    <span className={selectedTransaction.transaction_type === "RECEIVE" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                       {selectedTransaction.transaction_type === "RECEIVE" ? "+" : "-"}
                       {formatCurrency(selectedTransaction.total)}
                     </span>
@@ -805,7 +805,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
 
                   {selectedTransaction.has_attachments && (
                     <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <FileText className="h-4 w-4 text-blue-600" />
+                      <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       <span className="text-sm text-blue-600 dark:text-blue-400">Has attachments in Xero</span>
                     </div>
                   )}

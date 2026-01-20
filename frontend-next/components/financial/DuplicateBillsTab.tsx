@@ -278,7 +278,7 @@ export default function DuplicateBillsTab() {
     }
     if (score >= 70) {
       return (
-        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 gap-1">
+        <Badge variant="outline" className="bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 border-yellow-200 gap-1">
           <AlertCircle className="h-3 w-3" />
           {score}% Medium
         </Badge>
@@ -296,7 +296,7 @@ export default function DuplicateBillsTab() {
       case "exact_invoice_number":
         return <Badge variant="destructive">Exact Match</Badge>;
       case "same_amount":
-        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Same Amount</Badge>;
+        return <Badge variant="outline" className="bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-200">Same Amount</Badge>;
       default:
         return <Badge variant="secondary">Fuzzy Match</Badge>;
     }
@@ -307,7 +307,7 @@ export default function DuplicateBillsTab() {
       case "confirmed_duplicate":
         return <Badge variant="destructive" className="gap-1"><CheckCircle className="h-3 w-3" />Confirmed</Badge>;
       case "not_duplicate":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 gap-1"><ThumbsUp className="h-3 w-3" />Not Duplicate</Badge>;
+        return <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200 gap-1"><ThumbsUp className="h-3 w-3" />Not Duplicate</Badge>;
       default:
         return <Badge variant="secondary">Pending</Badge>;
     }
@@ -336,19 +336,19 @@ export default function DuplicateBillsTab() {
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-red-600">{stats.scan.high_risk}</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.scan.high_risk}</div>
               <p className="text-xs text-muted-foreground">High Risk</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-yellow-600">{stats.scan.medium_risk}</div>
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.scan.medium_risk}</div>
               <p className="text-xs text-muted-foreground">Medium Risk</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-green-600">{stats.reviews.not_duplicates}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.reviews.not_duplicates}</div>
               <p className="text-xs text-muted-foreground">Cleared</p>
             </CardContent>
           </Card>
@@ -410,7 +410,7 @@ export default function DuplicateBillsTab() {
           <CardContent>
             {duplicates.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500 dark:text-green-400" />
                 <p className="text-lg font-medium text-green-700">No Duplicates Found</p>
                 <p className="text-sm mt-1">
                   All bills have been scanned. No potential duplicates detected.
@@ -437,7 +437,7 @@ export default function DuplicateBillsTab() {
                         <div className="space-y-1">
                           <Link
                             href={`/finance/invoices/${dup.bill1.id}`}
-                            className="flex items-center gap-1 text-blue-600 hover:underline font-mono text-sm"
+                            className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-mono text-sm"
                           >
                             <FileText className="h-3 w-3" />
                             {dup.bill1.invoice_number || "No #"}
@@ -456,7 +456,7 @@ export default function DuplicateBillsTab() {
                         <div className="space-y-1">
                           <Link
                             href={`/finance/invoices/${dup.bill2.id}`}
-                            className="flex items-center gap-1 text-blue-600 hover:underline font-mono text-sm"
+                            className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-mono text-sm"
                           >
                             <FileText className="h-3 w-3" />
                             {dup.bill2.invoice_number || "No #"}
@@ -480,7 +480,7 @@ export default function DuplicateBillsTab() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  className="h-8 w-8 text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50"
                                   onClick={() => {
                                     setSelectedPair(dup);
                                     setReviewNotes("");
@@ -499,7 +499,7 @@ export default function DuplicateBillsTab() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  className="h-8 w-8 text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50"
                                   onClick={() => {
                                     setSelectedPair(dup);
                                     setReviewNotes("");
@@ -564,7 +564,7 @@ export default function DuplicateBillsTab() {
                       <TableCell>
                         <Link
                           href={`/finance/invoices/${review.bill1.id}`}
-                          className="text-blue-600 hover:underline font-mono text-sm"
+                          className="text-blue-600 dark:text-blue-400 hover:underline font-mono text-sm"
                         >
                           {review.bill1.invoice_number}
                         </Link>
@@ -573,7 +573,7 @@ export default function DuplicateBillsTab() {
                       <TableCell>
                         <Link
                           href={`/finance/invoices/${review.bill2.id}`}
-                          className="text-blue-600 hover:underline font-mono text-sm"
+                          className="text-blue-600 dark:text-blue-400 hover:underline font-mono text-sm"
                         >
                           {review.bill2.invoice_number}
                         </Link>
@@ -610,7 +610,7 @@ export default function DuplicateBillsTab() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ThumbsUp className="h-5 w-5 text-green-600" />
+              <ThumbsUp className="h-5 w-5 text-green-600 dark:text-green-400" />
               Mark as Not Duplicate
             </DialogTitle>
             <DialogDescription>
@@ -665,7 +665,7 @@ export default function DuplicateBillsTab() {
       <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
               <AlertTriangle className="h-5 w-5" />
               Confirm Duplicate Bill
             </AlertDialogTitle>

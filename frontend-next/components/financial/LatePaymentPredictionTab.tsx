@@ -215,21 +215,21 @@ export default function LatePaymentPredictionTab() {
     switch (level) {
       case "high":
         return (
-          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">
+          <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800">
             <AlertTriangle className="h-3 w-3 mr-1" />
             High{score !== undefined ? ` (${score})` : ""}
           </Badge>
         );
       case "medium":
         return (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">
+          <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800">
             <AlertCircle className="h-3 w-3 mr-1" />
             Medium{score !== undefined ? ` (${score})` : ""}
           </Badge>
         );
       case "low":
         return (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
+          <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
             <CheckCircle className="h-3 w-3 mr-1" />
             Low{score !== undefined ? ` (${score})` : ""}
           </Badge>
@@ -283,7 +283,7 @@ export default function LatePaymentPredictionTab() {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <Button variant="outline" onClick={handleRefresh}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
@@ -312,7 +312,7 @@ export default function LatePaymentPredictionTab() {
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-red-600">{summary.high_risk}</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.high_risk}</div>
               <p className="text-xs text-muted-foreground">High Risk</p>
             </CardContent>
           </Card>
@@ -324,7 +324,7 @@ export default function LatePaymentPredictionTab() {
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-green-600">{summary.low_risk}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.low_risk}</div>
               <p className="text-xs text-muted-foreground">Low Risk</p>
             </CardContent>
           </Card>
@@ -390,7 +390,7 @@ export default function LatePaymentPredictionTab() {
           <CardContent>
             {filteredInvoices.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500" />
+                <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500 dark:text-green-400" />
                 <p className="text-lg font-medium">No at-risk invoices</p>
                 <p className="text-sm mt-1">
                   All unpaid invoices have low late-payment risk based on customer history.
@@ -420,7 +420,7 @@ export default function LatePaymentPredictionTab() {
                       <TableCell>
                         <Link
                           href={`/finance/invoices/${item.invoice.id}`}
-                          className="flex items-center gap-1 text-blue-600 hover:underline"
+                          className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
                         >
                           <FileText className="h-3 w-3" />
                           {item.invoice.invoice_number}
@@ -440,7 +440,7 @@ export default function LatePaymentPredictionTab() {
                       </TableCell>
                       <TableCell>
                         {item.invoice.days_overdue > 0 ? (
-                          <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                          <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300">
                             {item.invoice.days_overdue} days
                           </Badge>
                         ) : (
@@ -550,7 +550,7 @@ export default function LatePaymentPredictionTab() {
                       <TableCell>
                         <Link
                           href={`/contacts/${contact.contact_id}`}
-                          className="flex items-center gap-1 text-blue-600 hover:underline font-medium"
+                          className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-medium"
                         >
                           {contact.contact_name}
                         </Link>
@@ -630,7 +630,7 @@ export default function LatePaymentPredictionTab() {
                   <span className="text-muted-foreground">Invoice:</span>
                   <Link
                     href={`/finance/invoices/${selectedInvoice.invoice.id}`}
-                    className="font-medium text-blue-600 hover:underline"
+                    className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     {selectedInvoice.invoice.invoice_number}
                   </Link>
@@ -652,7 +652,7 @@ export default function LatePaymentPredictionTab() {
                 {selectedInvoice.invoice.days_overdue > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Overdue:</span>
-                    <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300">
                       {selectedInvoice.invoice.days_overdue} days
                     </Badge>
                   </div>
@@ -707,10 +707,10 @@ export default function LatePaymentPredictionTab() {
                     <div className="text-center p-3 bg-muted/30 rounded">
                       <div className={`text-xl font-bold ${
                         selectedInvoice.contact_history.late_rate >= 50
-                          ? "text-red-600"
+                          ? "text-red-600 dark:text-red-400"
                           : selectedInvoice.contact_history.late_rate >= 25
                           ? "text-amber-600"
-                          : "text-green-600"
+                          : "text-green-600 dark:text-green-400"
                       }`}>
                         {selectedInvoice.contact_history.late_rate}%
                       </div>

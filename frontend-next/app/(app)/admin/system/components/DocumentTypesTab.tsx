@@ -185,7 +185,7 @@ function TabsDisplayCell({
                   />
                   <span className="font-medium">
                     {parentFolder.name}
-                    {isPrimary && <span className="ml-1 text-blue-600">★</span>}
+                    {isPrimary && <span className="ml-1 text-blue-600 dark:text-blue-400">★</span>}
                   </span>
                 </div>
 
@@ -212,7 +212,7 @@ function TabsDisplayCell({
                           />
                           <span className="font-medium text-muted-foreground">
                             └ {child.name}
-                            {childPrimary && <span className="ml-1 text-green-600">★</span>}
+                            {childPrimary && <span className="ml-1 text-green-600 dark:text-green-400">★</span>}
                           </span>
                         </div>
                       );
@@ -547,7 +547,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       const value = entry[columnKey as keyof DocumentType] as string | undefined;
       if (!value) return <span className="text-muted-foreground">-</span>;
       return (
-        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300">
           {value}
         </Badge>
       );

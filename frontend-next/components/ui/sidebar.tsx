@@ -290,7 +290,7 @@ function SidebarContent({
               "w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-all",
               clearing
                 ? "bg-red-300 text-white cursor-wait"
-                : "bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:bg-red-500/20 dark:text-red-400 dark:hover:bg-red-500/30"
+                : "bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:bg-red-500/20 dark:text-red-400 dark:hover:bg-red-500/30"
             )}
             title="Clear all cached data and refresh"
           >

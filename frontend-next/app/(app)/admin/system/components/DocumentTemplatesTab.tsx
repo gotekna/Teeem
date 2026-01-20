@@ -283,7 +283,7 @@ export function DocumentTemplatesTab({ innerTab: innerTabProp, basePath = DEFAUL
                 <p className="text-2xl font-bold">{ssotTemplates.length}</p>
                 <p className="text-xs text-muted-foreground">SSoT Templates</p>
               </div>
-              <CheckCircle2 className="h-8 w-8 text-green-500/30" />
+              <CheckCircle2 className="h-8 w-8 text-green-500 dark:text-green-400/30" />
             </div>
           </CardContent>
         </Card>
@@ -294,7 +294,7 @@ export function DocumentTemplatesTab({ innerTab: innerTabProp, basePath = DEFAUL
                 <p className="text-2xl font-bold">{htmlTemplateCount}</p>
                 <p className="text-xs text-muted-foreground">HTML Templates</p>
               </div>
-              <FileCode className="h-8 w-8 text-blue-500/30" />
+              <FileCode className="h-8 w-8 text-blue-500 dark:text-blue-400/30" />
             </div>
           </CardContent>
         </Card>
@@ -316,7 +316,7 @@ export function DocumentTemplatesTab({ innerTab: innerTabProp, basePath = DEFAUL
                 <p className="text-2xl font-bold text-muted-foreground">{legacyCount}</p>
                 <p className="text-xs text-muted-foreground">Legacy (Deprecated)</p>
               </div>
-              <AlertCircle className="h-8 w-8 text-red-500/30" />
+              <AlertCircle className="h-8 w-8 text-red-500 dark:text-red-400/30" />
             </div>
           </CardContent>
         </Card>
@@ -334,7 +334,7 @@ export function DocumentTemplatesTab({ innerTab: innerTabProp, basePath = DEFAUL
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
+                <CheckCircle2 className="h-5 w-5 text-green-500 dark:text-green-400" />
                 SSoT Templates (TeknaDocumentGenerator)
               </CardTitle>
               <CardDescription>

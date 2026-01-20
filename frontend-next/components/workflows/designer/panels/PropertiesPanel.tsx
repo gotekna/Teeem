@@ -177,7 +177,7 @@ function NodeProperties({
         <TabsContent value="docs" className="space-y-4 pt-4">
           <div className="rounded-md border bg-muted p-4 dark:border-border dark:bg-slate-800">
             <h4 className="mb-2 flex items-center gap-2 text-sm font-medium">
-              <FileQuestion className="h-4 w-4 text-blue-500" />
+              <FileQuestion className="h-4 w-4 text-blue-500 dark:text-blue-400" />
               {meta.label}
             </h4>
             <p className="text-sm text-muted-foreground dark:text-muted-foreground">

@@ -355,12 +355,12 @@ function BankDetailsSubTab({ contact }: { contact: Contact }) {
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-muted-foreground">ABN Verification</p>
                   {contact.abn_valid ? (
-                    <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                    <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300">
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Verified
                     </Badge>
                   ) : contact.abn_valid === false ? (
-                    <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                    <Badge className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/30 dark:text-red-300">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Invalid
                     </Badge>
@@ -613,7 +613,7 @@ function JobsSubTab({ contact }: { contact: Contact }) {
               <div key={job.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                 <Link
                   href={`/jobs/${job.id}`}
-                  className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                  className="font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                 >
                   {job.title || `Job #${job.id}`}
                   <ExternalLink className="h-3 w-3" />

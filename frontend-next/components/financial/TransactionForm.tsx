@@ -400,7 +400,7 @@ export default function TransactionForm({
                     id="auto_post"
                     checked={formData.auto_post}
                     onChange={handleChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-border rounded"
+                    className="h-4 w-4 text-blue-600 dark:text-blue-400 focus:ring-blue-500 border-border rounded"
                   />
                   <label
                     htmlFor="auto_post"

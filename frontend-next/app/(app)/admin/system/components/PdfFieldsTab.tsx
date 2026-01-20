@@ -963,10 +963,10 @@ export function PdfFieldsTab() {
           return (
             <div className="flex items-center gap-2 px-3 py-1 bg-muted dark:bg-slate-800 rounded border">
               <span className="text-xs font-mono">
-                x:<span className="font-bold text-green-600">{dropPreview.x}</span>
+                x:<span className="font-bold text-green-600 dark:text-green-400">{dropPreview.x}</span>
               </span>
               <span className="text-xs font-mono">
-                y:<span className="font-bold text-green-600">{dropPreview.y}</span>
+                y:<span className="font-bold text-green-600 dark:text-green-400">{dropPreview.y}</span>
               </span>
               <span className="text-xs text-muted-foreground">(was {field.x}, {field.y})</span>
             </div>
@@ -1100,7 +1100,7 @@ export function PdfFieldsTab() {
                 <Document
                   file={pdfUrl}
                   loading={null}
-                  error={<div className="text-red-500 text-sm p-4">Failed to load PDF</div>}
+                  error={<div className="text-red-500 dark:text-red-400 text-sm p-4">Failed to load PDF</div>}
                 >
                   <Page
                     pageNumber={currentPage}
@@ -1334,7 +1334,7 @@ export function PdfFieldsTab() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MousePointer2 className="h-5 w-5 text-blue-600" />
+              <MousePointer2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Map Field
             </DialogTitle>
             <DialogDescription>

@@ -194,7 +194,7 @@ export default function DirectorsPage() {
                         )}
                       >
                         {compliance.isFullyCompliant ? (
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                         ) : (
                           <AlertCircle className="h-4 w-4 text-amber-600" />
                         )}
@@ -211,7 +211,7 @@ export default function DirectorsPage() {
                   {/* Compliance Status Bar */}
                   <div className="mt-3">
                     <div className="flex items-center justify-between text-xs mb-1">
-                      <span className={cn("font-medium", compliance.isFullyCompliant ? "text-green-600" : "text-amber-600")}>
+                      <span className={cn("font-medium", compliance.isFullyCompliant ? "text-green-600 dark:text-green-400" : "text-amber-600")}>
                         {compliance.isFullyCompliant
                           ? "Fully Compliant"
                           : `${compliance.filledRequired}/${compliance.totalRequired} Required`}

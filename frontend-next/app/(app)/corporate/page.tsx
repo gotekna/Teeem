@@ -365,7 +365,7 @@ function ShareholdersTable() {
               <TableCell className="py-2 px-3">
                 <button
                   onClick={() => router.push(`/corporate/companies/${sh.company_id}`)}
-                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
                 >
                   {sh.company_name}
                 </button>
@@ -461,7 +461,7 @@ function BeneficiariesTable() {
               <TableCell className="py-2 px-3">
                 <button
                   onClick={() => router.push(`/corporate/companies/${b.trust_id}`)}
-                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
                 >
                   {b.trust_name}
                 </button>
@@ -1066,7 +1066,7 @@ export default function CorporateDashboardPage() {
       case "person":
         return "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300";
       case "company":
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300";
       case "trust":
         return "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
       default:
@@ -1077,9 +1077,9 @@ export default function CorporateDashboardPage() {
   const getMembershipTypeBadgeColor = (type: string) => {
     switch (type) {
       case "director":
-        return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300";
+        return "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300";
       case "shareholder":
-        return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+        return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-300";
       case "company_entity":
       case "trust_entity":
         return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300";
@@ -1206,7 +1206,7 @@ export default function CorporateDashboardPage() {
                   e.stopPropagation();
                   router.push(`/corporate/companies/${contact.linked_company_id}`);
                 }}
-                className="flex items-center gap-1 text-green-600 hover:text-green-800 hover:underline"
+                className="flex items-center gap-1 text-green-600 dark:text-green-400 hover:text-green-800 hover:underline"
                 title="View linked Company"
               >
                 <CheckCircle2 className="h-4 w-4" />
@@ -1243,7 +1243,7 @@ export default function CorporateDashboardPage() {
                   e.stopPropagation();
                   router.push(`/contacts/${contact.contact_id}`);
                 }}
-                className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center gap-1"
                 title="View Contact"
               >
                 <ExternalLink className="h-4 w-4" />
@@ -1284,7 +1284,7 @@ export default function CorporateDashboardPage() {
               {m.company_name && (
                 <button
                   onClick={() => router.push(`/corporate/companies/${m.company_id}`)}
-                  className="text-blue-600 hover:text-blue-800 text-sm"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 text-sm"
                 >
                   {m.company_name}
                 </button>
@@ -1475,7 +1475,7 @@ export default function CorporateDashboardPage() {
                                           {company._level > 0 && (
                                             <span className="text-muted-foreground text-xs">└</span>
                                           )}
-                                          <Building2 className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
+                                          <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                                           <span className="text-sm truncate">{company.name}</span>
                                           <button
                                             onClick={(e) => {
@@ -1485,22 +1485,22 @@ export default function CorporateDashboardPage() {
                                             className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
                                             title="Open Financial Dashboard"
                                           >
-                                            <DollarSign className="h-3.5 w-3.5 text-green-600" />
+                                            <DollarSign className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
                                           </button>
                                         </div>
                                         <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                                           {company.hierarchy_level === 0 && (
-                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-200">
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200">
                                               Parent
                                             </Badge>
                                           )}
                                           {(company.entity_type === "Trust" || company.entity_type === "Superfund") && (
-                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-50 text-emerald-700 border-emerald-200">
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200">
                                               Trust
                                             </Badge>
                                           )}
                                           {company.is_trustee && (
-                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200">
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200">
                                               Trustee
                                             </Badge>
                                           )}
@@ -1509,7 +1509,7 @@ export default function CorporateDashboardPage() {
                                     ))}
                                     {hasMore && (
                                       <button
-                                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 py-1 px-2 -mx-2"
+                                        className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 py-1 px-2 -mx-2"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setExpandedGroups(prev => {
@@ -1660,7 +1660,7 @@ export default function CorporateDashboardPage() {
                                   </button>
                                   <button
                                     onClick={() => router.push(`/contacts/${person.id}`)}
-                                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center gap-1"
                                   >
                                     <ExternalLink className="h-4 w-4" />
                                     View
@@ -1792,7 +1792,7 @@ export default function CorporateDashboardPage() {
                       <div key={entityType}>
                         <h3 className={`font-medium mb-2 flex items-center gap-2 ${
                           isPerson(entityType) ? "text-teal-600" :
-                          isCompany(entityType) ? "text-blue-600" :
+                          isCompany(entityType) ? "text-blue-600 dark:text-blue-400" :
                           isTrust(entityType) ? "text-rose-500" : "text-muted-foreground"
                         }`}>
                           {entityTypeLabels[entityType]} ({contacts.length})

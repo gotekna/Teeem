@@ -371,7 +371,7 @@ export default function XeroIntegrationPage() {
                 </div>
                 {status?.connected ? (
                   status?.expired ? (
-                    <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">
+                    <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 hover:bg-orange-100">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Token Expired
                     </Badge>
@@ -449,7 +449,7 @@ export default function XeroIntegrationPage() {
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   )}
                   <span className="font-medium">Connected Xero Organizations</span>
-                  <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
+                  <Badge className="bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 hover:bg-cyan-100 text-xs">
                     {tenants.length}
                   </Badge>
                   {hasExpiredTenants && (
@@ -495,14 +495,14 @@ export default function XeroIntegrationPage() {
                           {tenant.is_primary ? (
                             <Star className="h-4 w-4 text-cyan-600" />
                           ) : (
-                            <CreditCard className={`h-4 w-4 ${isExpired(tenant) ? "text-red-600" : "text-muted-foreground"}`} />
+                            <CreditCard className={`h-4 w-4 ${isExpired(tenant) ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} />
                           )}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="font-medium">{tenant.tenant_name}</p>
                             {tenant.is_primary && (
-                              <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
+                              <Badge className="bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 hover:bg-cyan-100 text-xs">
                                 Primary
                               </Badge>
                             )}
@@ -646,8 +646,8 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded ${
                       (pdfSyncHealth?.stage1_percentage ?? 0) >= 95
-                        ? "bg-green-100 text-green-600"
-                        : "bg-purple-100 text-purple-600"
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                        : "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
                     }`}>
                       <Database className="h-4 w-4" />
                     </div>
@@ -661,7 +661,7 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <Progress value={pdfSyncHealth?.stage1_percentage ?? 0} className="w-24 h-2" />
                     <span className={`font-semibold text-sm w-12 text-right ${
-                      (pdfSyncHealth?.stage1_percentage ?? 0) >= 95 ? "text-green-600" : ""
+                      (pdfSyncHealth?.stage1_percentage ?? 0) >= 95 ? "text-green-600 dark:text-green-400" : ""
                     }`}>
                       {pdfSyncHealth?.stage1_percentage ?? 0}%
                     </span>
@@ -681,8 +681,8 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded ${
                       (pdfSyncHealth?.stage2_percentage ?? 0) >= 95
-                        ? "bg-green-100 text-green-600"
-                        : "bg-blue-100 text-blue-600"
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                        : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300"
                     }`}>
                       <Download className="h-4 w-4" />
                     </div>
@@ -696,7 +696,7 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <Progress value={pdfSyncHealth?.stage2_percentage ?? 0} className="w-24 h-2" />
                     <span className={`font-semibold text-sm w-12 text-right ${
-                      (pdfSyncHealth?.stage2_percentage ?? 0) >= 95 ? "text-green-600" : ""
+                      (pdfSyncHealth?.stage2_percentage ?? 0) >= 95 ? "text-green-600 dark:text-green-400" : ""
                     }`}>
                       {pdfSyncHealth?.stage2_percentage ?? 0}%
                     </span>
@@ -716,8 +716,8 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded ${
                       (pdfSyncHealth?.stage3_percentage ?? 0) >= 95
-                        ? "bg-green-100 text-green-600"
-                        : "bg-green-100 text-green-600"
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                        : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
                     }`}>
                       <Upload className="h-4 w-4" />
                     </div>
@@ -731,7 +731,7 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <Progress value={pdfSyncHealth?.stage3_percentage ?? 0} className="w-24 h-2" />
                     <span className={`font-semibold text-sm w-12 text-right ${
-                      (pdfSyncHealth?.stage3_percentage ?? 0) >= 95 ? "text-green-600" : ""
+                      (pdfSyncHealth?.stage3_percentage ?? 0) >= 95 ? "text-green-600 dark:text-green-400" : ""
                     }`}>
                       {pdfSyncHealth?.stage3_percentage ?? 0}%
                     </span>

@@ -1275,7 +1275,7 @@ export default function AllDocumentsPage() {
           onDoubleClick={() => openFileInNewWindow(file)}
         >
           {file.isImage ? (
-            <ImageIcon className="h-4 w-4 text-blue-500" />
+            <ImageIcon className="h-4 w-4 text-blue-500 dark:text-blue-400" />
           ) : (
             <File className="h-4 w-4 text-muted-foreground" />
           )}
@@ -1392,7 +1392,7 @@ export default function AllDocumentsPage() {
           )}
           {node.type === "category" && node.icon}
           {node.type !== "category" && (
-            <Folder className="h-4 w-4 text-yellow-500" />
+            <Folder className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
           )}
           <div className="flex-1 min-w-0">
             <span>{node.name}</span>
@@ -1542,7 +1542,7 @@ export default function AllDocumentsPage() {
           {isUploading ? (
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           ) : (
-            <Check className="h-5 w-5 text-green-500" />
+            <Check className="h-5 w-5 text-green-500 dark:text-green-400" />
           )}
           <span className="text-sm">{uploadProgress}</span>
         </div>
@@ -1727,7 +1727,7 @@ export default function AllDocumentsPage() {
                     onDoubleClick={() => openFileInNewWindow(doc)}
                   >
                     {doc.isImage ? (
-                      <ImageIcon className="h-4 w-4 text-blue-500 shrink-0" />
+                      <ImageIcon className="h-4 w-4 text-blue-500 dark:text-blue-400 shrink-0" />
                     ) : (
                       <File className="h-4 w-4 text-muted-foreground shrink-0" />
                     )}
@@ -1825,7 +1825,7 @@ export default function AllDocumentsPage() {
                         {isRenameSaving ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <Check className="h-4 w-4 text-green-600" />
+                          <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
                         )}
                       </Button>
                       <Button
@@ -2107,7 +2107,7 @@ export default function AllDocumentsPage() {
                         className="flex items-center justify-between py-3 px-3 bg-muted/50 rounded-lg"
                       >
                         <div className="flex items-center gap-3">
-                          <Folder className="h-4 w-4 text-blue-500" />
+                          <Folder className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                           <div>
                             <p className="text-sm font-medium">{sub.folderName}</p>
                             <p className="text-xs text-muted-foreground capitalize">
@@ -2156,7 +2156,7 @@ export default function AllDocumentsPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           {client.isActive ? (
-                            <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                            <Badge variant="outline" className="text-xs text-green-600 dark:text-green-400 border-green-600">
                               <Check className="h-3 w-3 mr-1" />
                               Active
                             </Badge>

@@ -754,7 +754,7 @@ export default function BankFeedsTab() {
                           <p className="text-xs text-muted-foreground">Live transaction sync</p>
                         </div>
                         <div className="p-3 rounded-lg bg-muted/50">
-                          <CheckCircle className="h-4 w-4 mx-auto mb-1 text-green-500" />
+                          <CheckCircle className="h-4 w-4 mx-auto mb-1 text-green-500 dark:text-green-400" />
                           <p className="font-medium">Secure</p>
                           <p className="text-xs text-muted-foreground">Bank-grade security</p>
                         </div>

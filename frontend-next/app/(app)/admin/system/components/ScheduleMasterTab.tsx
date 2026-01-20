@@ -109,7 +109,7 @@ function CopyableCode({ children }: { children: string }) {
         title="Copy column name"
       >
         {copied ? (
-          <Check className="h-3 w-3 text-green-500" />
+          <Check className="h-3 w-3 text-green-500 dark:text-green-400" />
         ) : (
           <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
         )}
@@ -4337,8 +4337,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                         <div className="flex items-center gap-1 text-[10px] mb-1">
                           <span className="font-medium truncate flex-1">#{task.task_number} {task.name}</span>
                           <span className={`px-1 py-0.5 rounded text-[9px] whitespace-nowrap ${
-                            task.supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
-                            : task.confirm ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            task.supplier_confirm ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900 dark:text-purple-300'
+                            : task.confirm ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900 dark:text-green-300'
                             : 'bg-muted text-foreground dark:bg-card dark:text-muted-foreground'
                           }`}>
                             {lockType}
@@ -4353,7 +4353,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                               <input
                                 type="checkbox"
                                 checked={decision === 'break'}
-                                className="h-3 w-3 rounded border-border text-red-600 focus:ring-red-500"
+                                className="h-3 w-3 rounded border-border text-red-600 dark:text-red-400 focus:ring-red-500"
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'break' }));
@@ -4372,7 +4372,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                                   type="checkbox"
                                   checked={decision === 'cascade'}
                                   disabled={!canUnlock}
-                                  className="h-3 w-3 rounded border-border text-green-600 focus:ring-green-500 disabled:opacity-50"
+                                  className="h-3 w-3 rounded border-border text-green-600 dark:text-green-400 focus:ring-green-500 disabled:opacity-50"
                                   onChange={(e) => {
                                     if (e.target.checked && canUnlock) {
                                       setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'cascade' }));
@@ -4412,8 +4412,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
             {/* Legend */}
             <div className="text-[9px] text-muted-foreground flex flex-col gap-0.5 pt-1 border-t">
-              <span><span className="text-green-600">●</span> Cascade = moves with parent (removes confirmation if locked)</span>
-              <span><span className="text-red-600">●</span> Break = stays in place, dependency removed</span>
+              <span><span className="text-green-600 dark:text-green-400">●</span> Cascade = moves with parent (removes confirmation if locked)</span>
+              <span><span className="text-red-600 dark:text-red-400">●</span> Break = stays in place, dependency removed</span>
             </div>
           </div>
 
@@ -4693,7 +4693,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 text-xs h-8 border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400"
+                          className="flex-1 text-xs h-8 border-orange-300 text-orange-600 dark:text-orange-400 dark:border-orange-700 dark:text-orange-400"
                           onClick={async () => {
                             if (startTaskDialog.task) {
                               await executeStartTask(startTaskDialog.task, 'break-header', new Date());
@@ -4731,7 +4731,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 text-xs h-8 border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400"
+                          className="flex-1 text-xs h-8 border-orange-300 text-orange-600 dark:text-orange-400 dark:border-orange-700 dark:text-orange-400"
                           onClick={async () => {
                             if (startTaskDialog.task) {
                               await executeStartTask(startTaskDialog.task, 'break-dependency', new Date());
@@ -4762,7 +4762,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Phone className="h-5 w-5 text-purple-500" />
+              <Phone className="h-5 w-5 text-purple-500 dark:text-purple-400" />
               {supplierConfirmDialog.isConfirming ? 'Supplier Confirmation' : 'Supplier Confirmed'}
             </DialogTitle>
             <DialogDescription>
@@ -4821,7 +4821,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                   <Button
                     variant={supplierConfirmDialog.confirmOption === 'break' ? 'default' : 'outline'}
                     size="sm"
-                    className="justify-start border-orange-300 text-orange-600 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950"
+                    className="justify-start border-orange-300 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950"
                     onClick={() => setSupplierConfirmDialog(prev => ({ ...prev, confirmOption: 'break' }))}
                   >
                     <Link2Off className="h-4 w-4 mr-2" />
@@ -4895,10 +4895,10 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                   id="sendEmailCheckbox"
                   checked={supplierConfirmDialog.sendEmail}
                   onChange={(e) => setSupplierConfirmDialog(prev => ({ ...prev, sendEmail: e.target.checked }))}
-                  className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                  className="h-4 w-4 rounded border-gray-300 text-orange-600 dark:text-orange-400 focus:ring-orange-500"
                 />
                 <label htmlFor="sendEmailCheckbox" className="text-sm font-medium flex items-center gap-1.5 cursor-pointer">
-                  <Mail className="h-4 w-4 text-orange-500" />
+                  <Mail className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                   Email Supplier
                   {supplierConfirmDialog.supplierEmail && (
                     <span className="text-muted-foreground font-normal">({supplierConfirmDialog.supplierEmail})</span>
@@ -4922,7 +4922,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
               <Button
                 variant="outline"
                 size="sm"
-                className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950"
+                className="border-red-300 text-red-600 dark:text-red-400 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950"
                 onClick={() => {
                   if (supplierConfirmDialog.task) {
                     executeSupplierUnconfirm(supplierConfirmDialog.task);

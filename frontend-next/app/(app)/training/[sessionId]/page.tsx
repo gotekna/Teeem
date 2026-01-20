@@ -175,7 +175,7 @@ export default function TrainingSessionPage() {
                 <Input value={sessionId} readOnly className="font-mono" />
                 <Button variant="secondary" size="icon" onClick={copySessionId} title="Copy Session ID">
                   {copied ? (
-                    <CheckIcon className="h-5 w-5 text-green-600" />
+                    <CheckIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
                   ) : (
                     <ClipboardIcon className="h-5 w-5" />
                   )}

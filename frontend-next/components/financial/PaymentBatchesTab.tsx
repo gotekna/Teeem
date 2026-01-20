@@ -207,21 +207,21 @@ export default function PaymentBatchesTab() {
         );
       case "pending_approval":
         return (
-          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge variant="outline" className="bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400">
             <Clock className="h-3 w-3 mr-1" />
             Pending Approval
           </Badge>
         );
       case "approved":
         return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Approved
           </Badge>
         );
       case "processing":
         return (
-          <Badge variant="outline" className="bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
             Processing
           </Badge>
@@ -277,7 +277,7 @@ export default function PaymentBatchesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                 {summary.by_status.pending_approval}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -293,7 +293,7 @@ export default function PaymentBatchesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                 {summary.by_status.approved}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -309,7 +309,7 @@ export default function PaymentBatchesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {formatCurrency(summary.this_month)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -409,7 +409,7 @@ export default function PaymentBatchesTab() {
                           onClick={() => handleDownloadAba(batch)}
                           title="Download ABA File"
                         >
-                          <FileDown className="h-4 w-4 text-green-600" />
+                          <FileDown className="h-4 w-4 text-green-600 dark:text-green-400" />
                         </Button>
                       ) : (
                         <span className="text-muted-foreground">-</span>

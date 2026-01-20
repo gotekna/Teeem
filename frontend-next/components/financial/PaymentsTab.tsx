@@ -173,7 +173,7 @@ export default function PaymentsTab() {
       case "supplier":
       case "spend":
         return (
-          <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+          <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400">
             <ArrowUpRight className="h-3 w-3 mr-1" />
             Paid
           </Badge>
@@ -205,12 +205,12 @@ export default function PaymentsTab() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ArrowDownLeft className="h-4 w-4 text-green-600" />
+              <ArrowDownLeft className="h-4 w-4 text-green-600 dark:text-green-400" />
               Customer Payments
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(summary?.customer_payments?.total || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -222,12 +222,12 @@ export default function PaymentsTab() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ArrowUpRight className="h-4 w-4 text-orange-600" />
+              <ArrowUpRight className="h-4 w-4 text-orange-600 dark:text-orange-400" />
               Supplier Payments
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
               {formatCurrency(summary?.supplier_payments?.total || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -239,12 +239,12 @@ export default function PaymentsTab() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <RotateCcw className="h-4 w-4 text-purple-600" />
+              <RotateCcw className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               Refunds
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {formatCurrency(summary?.refunds?.total || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">

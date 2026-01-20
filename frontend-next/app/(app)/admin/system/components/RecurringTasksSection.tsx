@@ -338,7 +338,7 @@ export function RecurringTasksSection() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-green-500" />
+                <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
                 <span className="text-2xl font-bold">{summary.active}</span>
               </div>
             </CardContent>
@@ -349,7 +349,7 @@ export function RecurringTasksSection() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <Pause className="h-5 w-5 text-yellow-500" />
+                <Pause className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
                 <span className="text-2xl font-bold">{summary.paused}</span>
               </div>
             </CardContent>
@@ -360,7 +360,7 @@ export function RecurringTasksSection() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-blue-500" />
+                <Clock className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                 <span className="text-2xl font-bold">{summary.upcoming_this_week}</span>
               </div>
             </CardContent>
@@ -371,7 +371,7 @@ export function RecurringTasksSection() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-purple-500" />
+                <Zap className="h-5 w-5 text-purple-500 dark:text-purple-400" />
                 <span className="text-2xl font-bold">{summary.tasks_generated_today}</span>
               </div>
             </CardContent>

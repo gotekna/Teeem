@@ -204,7 +204,7 @@ export function EditCaseContactDialog({
                 </div>
                 <Link
                   href={`/contacts/${contactData.contact_id}`}
-                  className="text-sm text-blue-600 hover:text-blue-500 flex items-center gap-1"
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:text-blue-400 flex items-center gap-1"
                 >
                   View Contact
                   <ExternalLink className="h-3 w-3" />
@@ -310,7 +310,7 @@ export function EditCaseContactDialog({
                     Automatically link ALL emails from/to this contact to the case
                   </p>
                   {contactData.auto_linked_email_count !== undefined && contactData.auto_linked_email_count > 0 && (
-                    <p className="text-xs font-medium text-green-600 mt-1">
+                    <p className="text-xs font-medium text-green-600 dark:text-green-400 mt-1">
                       ✓ {contactData.auto_linked_email_count} emails auto-linked
                     </p>
                   )}
@@ -341,7 +341,7 @@ export function EditCaseContactDialog({
               {/* Reason */}
               <div className="space-y-2">
                 <Label htmlFor="reason">
-                  Reason <span className="text-red-500">*</span>
+                  Reason <span className="text-red-500 dark:text-red-400">*</span>
                 </Label>
                 <Textarea
                   id="reason"

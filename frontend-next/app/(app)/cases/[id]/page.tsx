@@ -553,13 +553,13 @@ export default function CaseDetailPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "open":
-        return "bg-blue-100 text-blue-700";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
       case "in_progress":
-        return "bg-amber-100 text-amber-700";
+        return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300";
       case "review":
-        return "bg-purple-100 text-purple-700";
+        return "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300";
       case "closed":
-        return "bg-green-100 text-green-700";
+        return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300";
       case "archived":
         return "bg-muted text-foreground";
       default:
@@ -570,11 +570,11 @@ export default function CaseDetailPage() {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case "urgent":
-        return "bg-red-100 text-red-700";
+        return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
       case "high":
-        return "bg-orange-100 text-orange-700";
+        return "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300";
       case "normal":
-        return "bg-blue-100 text-blue-700";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
       case "low":
         return "bg-muted text-foreground";
       default:
@@ -585,11 +585,11 @@ export default function CaseDetailPage() {
   const getActionStatusColor = (status: string) => {
     switch (status) {
       case "completed":
-        return "bg-green-100 text-green-700";
+        return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300";
       case "running":
-        return "bg-blue-100 text-blue-700";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
       case "failed":
-        return "bg-red-100 text-red-700";
+        return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
       default:
         return "bg-muted text-foreground";
     }
@@ -598,13 +598,13 @@ export default function CaseDetailPage() {
   const getRelevanceColor = (relevance: string) => {
     switch (relevance) {
       case "key_evidence":
-        return "bg-red-100 text-red-700";
+        return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
       case "supporting":
-        return "bg-amber-100 text-amber-700";
+        return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300";
       case "background":
         return "bg-muted text-foreground";
       default:
-        return "bg-blue-100 text-blue-700";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
     }
   };
 
@@ -647,7 +647,7 @@ export default function CaseDetailPage() {
             <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
               <span>Type: {caseData.formatted_case_type}</span>
               {caseData.deadline && (
-                <span className={caseData.overdue ? "text-red-600" : ""}>
+                <span className={caseData.overdue ? "text-red-600 dark:text-red-400" : ""}>
                   <Calendar className="h-3 w-3 inline mr-1" />
                   Due: {format(new Date(caseData.deadline), "d MMM yyyy")}
                   {caseData.overdue && " (Overdue)"}
@@ -665,7 +665,7 @@ export default function CaseDetailPage() {
           <Button
             variant="outline"
             onClick={handleDeleteCase}
-            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50"
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Delete
@@ -719,7 +719,7 @@ export default function CaseDetailPage() {
                 <CardContent className="py-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <ChevronRight className="h-5 w-5 text-blue-500 rotate-180" />
+                      <ChevronRight className="h-5 w-5 text-blue-500 dark:text-blue-400 rotate-180" />
                       <div>
                         <p className="text-sm text-muted-foreground">This is a sub-case of:</p>
                         <p className="font-medium">{caseData.parent_case_title}</p>
@@ -749,7 +749,7 @@ export default function CaseDetailPage() {
                     <p className="text-sm text-muted-foreground mt-1">
                       {caseData.child_cases_summary.open} open, {caseData.child_cases_summary.closed} closed
                       {caseData.child_cases_summary.overdue > 0 && (
-                        <span className="text-red-600 ml-1">
+                        <span className="text-red-600 dark:text-red-400 ml-1">
                           ({caseData.child_cases_summary.overdue} overdue)
                         </span>
                       )}
@@ -917,8 +917,8 @@ export default function CaseDetailPage() {
                   <Card className="border-2 border-blue-300">
                     <CardHeader className="bg-blue-50">
                       <CardTitle className="text-lg flex items-center gap-2">
-                        <User className="h-5 w-5 text-blue-600" />
-                        <span className="text-blue-600">Client</span>
+                        <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <span className="text-blue-600 dark:text-blue-400">Client</span>
                       </CardTitle>
                       <p className="text-sm text-muted-foreground mt-1">
                         {contacts.filter(c => c.is_primary && c.alignment === 'friendly').length} contact{contacts.filter(c => c.is_primary && c.alignment === 'friendly').length !== 1 ? 's' : ''}
@@ -936,7 +936,7 @@ export default function CaseDetailPage() {
                             }}
                           >
                             <div className="flex items-start gap-2">
-                              <User className="h-4 w-4 text-blue-600 mt-1 flex-shrink-0" />
+                              <User className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-sm truncate">{contact.contact_name}</p>
                                 <Badge className="bg-blue-600 text-xs mt-1">Primary</Badge>
@@ -968,8 +968,8 @@ export default function CaseDetailPage() {
                   <Card className="border-2 border-green-200">
                     <CardHeader className="bg-green-50">
                       <CardTitle className="text-lg flex items-center gap-2">
-                        <User className="h-5 w-5 text-green-600" />
-                        <span className="text-green-600">Advisors</span>
+                        <User className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        <span className="text-green-600 dark:text-green-400">Advisors</span>
                       </CardTitle>
                       <p className="text-sm text-muted-foreground mt-1">
                         {contacts.filter(c => c.alignment === 'friendly' && !c.is_primary).length} contact{contacts.filter(c => c.alignment === 'friendly' && !c.is_primary).length !== 1 ? 's' : ''}
@@ -996,7 +996,7 @@ export default function CaseDetailPage() {
                             }}
                           >
                             <div className="flex items-start gap-2">
-                              <User className="h-4 w-4 text-green-600 mt-1 flex-shrink-0" />
+                              <User className="h-4 w-4 text-green-600 dark:text-green-400 mt-1 flex-shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-sm truncate">{contact.contact_name}</p>
                                 {contact.is_primary && (
@@ -1080,8 +1080,8 @@ export default function CaseDetailPage() {
                   <Card className="border-2 border-red-200">
                     <CardHeader className="bg-red-50">
                       <CardTitle className="text-lg flex items-center gap-2">
-                        <User className="h-5 w-5 text-red-600" />
-                        <span className="text-red-600">Opposing</span>
+                        <User className="h-5 w-5 text-red-600 dark:text-red-400" />
+                        <span className="text-red-600 dark:text-red-400">Opposing</span>
                       </CardTitle>
                       <p className="text-sm text-muted-foreground mt-1">
                         {contacts.filter(c => c.alignment === 'opposing').length} contact{contacts.filter(c => c.alignment === 'opposing').length !== 1 ? 's' : ''}
@@ -1099,7 +1099,7 @@ export default function CaseDetailPage() {
                             }}
                           >
                             <div className="flex items-start gap-2">
-                              <User className="h-4 w-4 text-red-600 mt-1 flex-shrink-0" />
+                              <User className="h-4 w-4 text-red-600 dark:text-red-400 mt-1 flex-shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-sm truncate">{contact.contact_name}</p>
                                 {contact.formatted_relationship_type && (
@@ -1209,7 +1209,7 @@ export default function CaseDetailPage() {
                           ) : null}
                         </div>
                         {action.error_message && (
-                          <div className="mt-2 p-2 bg-red-50 text-red-700 text-sm rounded">
+                          <div className="mt-2 p-2 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 text-sm rounded">
                             {action.error_message}
                           </div>
                         )}
@@ -1261,7 +1261,7 @@ export default function CaseDetailPage() {
                       }}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="p-2 bg-purple-100 rounded text-purple-600">
+                        <div className="p-2 bg-purple-100 rounded text-purple-600 dark:text-purple-400">
                           <Mail className="h-4 w-4" />
                         </div>
                         <div className="flex-1">

@@ -200,7 +200,7 @@ export function CriticalPathView({ constructionId }: CriticalPathViewProps) {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <ChartBarIcon className="h-5 w-5 text-red-500" />
+          <ChartBarIcon className="h-5 w-5 text-red-500 dark:text-red-400" />
           Critical Path
         </CardTitle>
       </CardHeader>
@@ -298,7 +298,7 @@ export function EvmDashboard({ constructionId }: EvmDashboardProps) {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <CurrencyDollarIcon className="h-5 w-5 text-blue-500" />
+          <CurrencyDollarIcon className="h-5 w-5 text-blue-500 dark:text-blue-400" />
           Earned Value Management
         </CardTitle>
       </CardHeader>
@@ -371,17 +371,17 @@ export function EvmDashboard({ constructionId }: EvmDashboardProps) {
         <div className="grid grid-cols-2 gap-4 border-t pt-4 text-sm">
           <div className="flex items-center gap-2">
             {data.variances?.sv >= 0 ? (
-              <ArrowTrendingUpIcon className="h-4 w-4 text-green-500" />
+              <ArrowTrendingUpIcon className="h-4 w-4 text-green-500 dark:text-green-400" />
             ) : (
-              <ArrowTrendingDownIcon className="h-4 w-4 text-red-500" />
+              <ArrowTrendingDownIcon className="h-4 w-4 text-red-500 dark:text-red-400" />
             )}
             <span>Schedule Variance: ${data.variances?.sv?.toLocaleString() || 0}</span>
           </div>
           <div className="flex items-center gap-2">
             {data.variances?.cv >= 0 ? (
-              <ArrowTrendingUpIcon className="h-4 w-4 text-green-500" />
+              <ArrowTrendingUpIcon className="h-4 w-4 text-green-500 dark:text-green-400" />
             ) : (
-              <ArrowTrendingDownIcon className="h-4 w-4 text-red-500" />
+              <ArrowTrendingDownIcon className="h-4 w-4 text-red-500 dark:text-red-400" />
             )}
             <span>Cost Variance: ${data.variances?.cv?.toLocaleString() || 0}</span>
           </div>
@@ -431,19 +431,19 @@ export function AiSuggestionsPanel({ constructionId }: AiSuggestionsPanelProps) 
   }
 
   const getPriorityVariant = (priority: number) => {
-    if (priority >= 8) return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400";
-    if (priority >= 5) return "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400";
+    if (priority >= 8) return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-950 dark:text-red-400";
+    if (priority >= 5) return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950 dark:text-yellow-400";
     return "bg-muted text-muted-foreground";
   };
 
   const getRiskVariant = (level: string) => {
     switch (level) {
       case "critical":
-        return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400";
+        return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-950 dark:text-red-400";
       case "high":
-        return "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400";
+        return "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 dark:bg-orange-950 dark:text-orange-400";
       case "medium":
-        return "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400";
+        return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950 dark:text-yellow-400";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -453,7 +453,7 @@ export function AiSuggestionsPanel({ constructionId }: AiSuggestionsPanelProps) 
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <LightBulbIcon className="h-5 w-5 text-yellow-500" />
+          <LightBulbIcon className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
           AI Insights
         </CardTitle>
       </CardHeader>

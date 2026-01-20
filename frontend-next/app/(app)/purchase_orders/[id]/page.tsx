@@ -266,8 +266,8 @@ const STATUS_BADGE_VARIANTS: Record<string, string> = {
   approved: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300",
   sent: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300",
   received: "bg-status-success text-status-success-foreground border-green-300",
-  invoiced: "bg-indigo-100 text-indigo-800 border-indigo-300",
-  paid: "bg-emerald-100 text-emerald-800 border-emerald-300",
+  invoiced: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 border-indigo-300",
+  paid: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-300",
   cancelled: "bg-status-error text-status-error-foreground border-red-300",
 };
 
@@ -1177,7 +1177,7 @@ export default function PurchaseOrderDetailPage() {
               <div className="flex items-center justify-between mb-1">
                 <label className="text-sm text-muted-foreground">Budget:</label>
                 {budgetLocked && (
-                  <Badge variant="secondary" className="gap-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                  <Badge variant="secondary" className="gap-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-300">
                     <Lock className="h-3 w-3" />
                     Locked
                   </Badge>
@@ -1260,8 +1260,8 @@ export default function PurchaseOrderDetailPage() {
                     "text-lg font-semibold",
                     purchaseOrder.labour_actual && purchaseOrder.labour_budget &&
                     purchaseOrder.labour_actual > purchaseOrder.labour_budget
-                      ? "text-red-500"
-                      : "text-green-500"
+                      ? "text-red-500 dark:text-red-400"
+                      : "text-green-500 dark:text-green-400"
                   )}>
                     {purchaseOrder.labour_actual ? formatCurrency(purchaseOrder.labour_actual) : "$0.00"}
                   </span>
@@ -1272,7 +1272,7 @@ export default function PurchaseOrderDetailPage() {
                     <span className={cn(
                       "text-lg font-semibold",
                       (purchaseOrder.labour_budget - (purchaseOrder.labour_actual || 0)) < 0
-                        ? "text-red-500"
+                        ? "text-red-500 dark:text-red-400"
                         : "text-muted-foreground"
                     )}>
                       {formatCurrency(purchaseOrder.labour_budget - (purchaseOrder.labour_actual || 0))}
@@ -1547,7 +1547,7 @@ export default function PurchaseOrderDetailPage() {
                         className={cn(
                           "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
                           shouldGreyOut && "text-muted-foreground",
-                          hasPriceChanged && "text-orange-600 font-semibold"
+                          hasPriceChanged && "text-orange-600 dark:text-orange-400 font-semibold"
                         )}
                         style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                         min={0}
@@ -1768,7 +1768,7 @@ export default function PurchaseOrderDetailPage() {
                           <TableCell className="p-3">{formatDate(syncPreview.linked_tasks[0]?.start_date)}</TableCell>
                           <TableCell className="p-3 text-center">
                             {syncPreview.linked_tasks[0]?.date_matches ? (
-                              <CheckCircle2 className="h-5 w-5 text-green-600 inline" />
+                              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 inline" />
                             ) : (
                               <AlertTriangle className="h-5 w-5 text-amber-500 inline" />
                             )}
@@ -1780,7 +1780,7 @@ export default function PurchaseOrderDetailPage() {
                           <TableCell className="p-3">{syncPreview.linked_tasks[0]?.supplier_name || "Not set"}</TableCell>
                           <TableCell className="p-3 text-center">
                             {syncPreview.linked_tasks[0]?.supplier_matches ? (
-                              <CheckCircle2 className="h-5 w-5 text-green-600 inline" />
+                              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 inline" />
                             ) : (
                               <AlertTriangle className="h-5 w-5 text-amber-500 inline" />
                             )}
@@ -1823,7 +1823,7 @@ export default function PurchaseOrderDetailPage() {
                   {/* Already in sync */}
                   {syncPreview.sync_preview?.nothing_to_sync && (
                     <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center gap-3">
-                      <CheckCircle2 className="h-6 w-6 text-green-600" />
+                      <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
                       <div>
                         <p className="font-medium text-green-800 dark:text-green-200">Already in Sync</p>
                         <p className="text-sm text-green-700 dark:text-green-300">

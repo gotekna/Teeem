@@ -584,7 +584,7 @@ export function AdminConfigSyncTab() {
                           {masterTenant && (
                             <TableCell className="text-center bg-primary/5">
                               {record.tenants[masterTenant.slug]?.exists ? (
-                                <Check className="h-4 w-4 mx-auto text-green-500" />
+                                <Check className="h-4 w-4 mx-auto text-green-500 dark:text-green-400" />
                               ) : (
                                 <span className="text-muted-foreground">-</span>
                               )}
@@ -596,7 +596,7 @@ export function AdminConfigSyncTab() {
                             return (
                               <TableCell key={tenant.id} className="text-center">
                                 {data?.exists ? (
-                                  <Check className="h-4 w-4 mx-auto text-green-500" />
+                                  <Check className="h-4 w-4 mx-auto text-green-500 dark:text-green-400" />
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
                                 )}

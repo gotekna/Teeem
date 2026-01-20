@@ -767,7 +767,7 @@ export default function AssetDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Depreciation</Label>
-                  <p className="text-sm text-red-600">
+                  <p className="text-sm text-red-600 dark:text-red-400">
                     {formatCurrency(asset.depreciation_amount)}
                   </p>
                 </div>
@@ -1033,10 +1033,10 @@ export default function AssetDetailPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
-                  <TrendingDown className="h-4 w-4 text-red-500" />
+                  <TrendingDown className="h-4 w-4 text-red-500 dark:text-red-400" />
                   <span className="text-sm text-muted-foreground">Accumulated</span>
                 </div>
-                <p className="text-2xl font-bold mt-2 text-red-600">
+                <p className="text-2xl font-bold mt-2 text-red-600 dark:text-red-400">
                   {formatCurrency(depreciationSchedule.length > 0
                     ? depreciationSchedule[depreciationSchedule.length - 1]?.book_accumulated
                     : 0)}
@@ -1172,10 +1172,10 @@ export default function AssetDetailPage() {
                           <TableCell className="font-medium">{schedule.financial_year}</TableCell>
                           <TableCell className="text-right">{schedule.days_held}</TableCell>
                           <TableCell className="text-right">{formatCurrency(schedule.book_opening_wdv)}</TableCell>
-                          <TableCell className="text-right text-red-600">{formatCurrency(schedule.book_depreciation)}</TableCell>
+                          <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(schedule.book_depreciation)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(schedule.book_closing_wdv)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(schedule.tax_opening_wdv)}</TableCell>
-                          <TableCell className="text-right text-red-600">{formatCurrency(schedule.tax_depreciation)}</TableCell>
+                          <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(schedule.tax_depreciation)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(schedule.tax_closing_wdv)}</TableCell>
                           <TableCell>
                             {schedule.status === "finalized" ? (
@@ -1245,10 +1245,10 @@ export default function AssetDetailPage() {
                       {depreciationForecast.map((forecast) => (
                         <TableRow key={forecast.financial_year}>
                           <TableCell className="font-medium">{forecast.financial_year}</TableCell>
-                          <TableCell className="text-right text-red-600">{formatCurrency(forecast.book_depreciation)}</TableCell>
+                          <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(forecast.book_depreciation)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(forecast.book_closing_wdv)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(forecast.book_accumulated)}</TableCell>
-                          <TableCell className="text-right text-red-600">{formatCurrency(forecast.tax_depreciation)}</TableCell>
+                          <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(forecast.tax_depreciation)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(forecast.tax_closing_wdv)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(forecast.tax_accumulated)}</TableCell>
                         </TableRow>

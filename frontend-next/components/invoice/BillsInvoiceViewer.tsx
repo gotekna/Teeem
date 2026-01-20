@@ -188,15 +188,15 @@ export interface BillDetail {
 
 const statusColors: Record<string, string> = {
   pending: "bg-muted text-foreground dark:bg-muted/50 dark:text-muted-foreground",
-  extracting: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
+  extracting: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-400/10 dark:text-blue-400",
   extracted: "bg-cyan-100 text-cyan-700 dark:bg-cyan-400/10 dark:text-cyan-400",
   matching: "bg-indigo-100 text-indigo-700 dark:bg-indigo-400/10 dark:text-indigo-400",
-  approval_pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500",
-  approved: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
-  processing: "bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400",
+  approval_pending: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  approved: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-400/10 dark:text-green-400",
+  processing: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-400/10 dark:text-purple-400",
   paid: "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-400",
-  rejected: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
-  error: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
+  rejected: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-400/10 dark:text-red-400",
+  error: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-400/10 dark:text-red-400",
 };
 
 // ============================================================================
@@ -504,7 +504,7 @@ export function BillsInvoiceViewer({
               <div className="flex items-center gap-1 shrink-0">
                 {onAmend && <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={onAmend} disabled={actionLoading}>Amend</Button>}
                 {onReject && bill.status === "approval_pending" && (
-                  <Button variant="outline" size="sm" className="h-6 px-2 text-xs text-red-600" onClick={onReject} disabled={actionLoading}>Reject</Button>
+                  <Button variant="outline" size="sm" className="h-6 px-2 text-xs text-red-600 dark:text-red-400" onClick={onReject} disabled={actionLoading}>Reject</Button>
                 )}
                 {onApprove && bill.status === "approval_pending" && (
                   <Button size="sm" className="h-6 px-2 text-xs bg-green-600 hover:bg-green-700" onClick={onApprove} disabled={actionLoading}>Approve</Button>
@@ -538,10 +538,10 @@ export function BillsInvoiceViewer({
                 if (match === false) {
                   return (
                     <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded">
-                      <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                      <XCircle className="h-4 w-4 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
                       <div>
                         <p className="font-medium text-red-700">Supplier ABN Mismatch</p>
-                        <p className="text-red-600 mt-0.5">
+                        <p className="text-red-600 dark:text-red-400 mt-0.5">
                           Invoice: {bill.ai_extraction_result?.supplier_abn || 'N/A'}<br />
                           Expected: {bill.supplier?.abn || 'N/A'}
                         </p>
@@ -558,12 +558,12 @@ export function BillsInvoiceViewer({
                   "flex items-start gap-2 p-2 rounded",
                   Math.abs(bill.variance_percent || 0) > 5 ? "bg-red-50 border border-red-200" : "bg-amber-50 border border-amber-200"
                 )}>
-                  <AlertTriangle className={cn("h-4 w-4 shrink-0 mt-0.5", Math.abs(bill.variance_percent || 0) > 5 ? "text-red-500" : "text-amber-500")} />
+                  <AlertTriangle className={cn("h-4 w-4 shrink-0 mt-0.5", Math.abs(bill.variance_percent || 0) > 5 ? "text-red-500 dark:text-red-400" : "text-amber-500")} />
                   <div>
                     <p className={cn("font-medium", Math.abs(bill.variance_percent || 0) > 5 ? "text-red-700" : "text-amber-700")}>
                       Purchase Order Variance
                     </p>
-                    <p className={cn("mt-0.5", Math.abs(bill.variance_percent || 0) > 5 ? "text-red-600" : "text-amber-600")}>
+                    <p className={cn("mt-0.5", Math.abs(bill.variance_percent || 0) > 5 ? "text-red-600 dark:text-red-400" : "text-amber-600")}>
                       PO: {formatCurrency(bill.matched_purchase_order.total)}<br />
                       Invoice: {formatCurrency(bill.total_amount)}<br />
                       Difference: {bill.variance_amount > 0 ? '+' : ''}{formatCurrency(bill.variance_amount)}
@@ -576,10 +576,10 @@ export function BillsInvoiceViewer({
               {/* All good */}
               {matchRate && matchRate >= 95 && (
                 <div className="flex items-start gap-2 p-2 bg-green-50 border border-green-200 rounded">
-                  <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                  <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-medium text-green-700">All Checks Passed</p>
-                    <p className="text-green-600 mt-0.5">High extraction confidence, all fields match</p>
+                    <p className="text-green-600 dark:text-green-400 mt-0.5">High extraction confidence, all fields match</p>
                   </div>
                 </div>
               )}
@@ -612,7 +612,7 @@ export function BillsInvoiceViewer({
                   onClick={() => setHighlightedField(highlightedField === "invoice_number" ? null : "invoice_number")}
                 >
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-                    Invoice # {bill.ai_extraction_result?.invoice_number && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                    Invoice # {bill.ai_extraction_result?.invoice_number && <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />}
                   </p>
                   <p className="font-mono font-bold">{bill.invoice_number || ai.invoice_number || "-"}</p>
                 </div>
@@ -625,7 +625,7 @@ export function BillsInvoiceViewer({
                   onClick={() => setHighlightedField(highlightedField === "invoice_date" ? null : "invoice_date")}
                 >
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-                    Invoice Date {bill.ai_extraction_result?.invoice_date && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                    Invoice Date {bill.ai_extraction_result?.invoice_date && <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />}
                   </p>
                   <p className="font-bold">{formatDate(bill.invoice_date)}</p>
                 </div>
@@ -643,9 +643,9 @@ export function BillsInvoiceViewer({
                   onClick={() => setHighlightedField(highlightedField === "due_date" ? null : "due_date")}
                 >
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-                    Due Date {bill.ai_extraction_result?.due_date && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                    Due Date {bill.ai_extraction_result?.due_date && <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />}
                   </p>
-                  <p className={cn("font-bold", isOverdue && "text-red-600")}>
+                  <p className={cn("font-bold", isOverdue && "text-red-600 dark:text-red-400")}>
                     {formatDate(bill.due_date)}
                     {isOverdue && <span className="ml-1 text-[10px] font-normal">(Overdue)</span>}
                   </p>
@@ -659,7 +659,7 @@ export function BillsInvoiceViewer({
                   onClick={() => setHighlightedField(highlightedField === "supplier_abn" ? null : "supplier_abn")}
                 >
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-                    Supplier ABN {bill.ai_extraction_result?.supplier_abn && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                    Supplier ABN {bill.ai_extraction_result?.supplier_abn && <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />}
                   </p>
                   <p className="font-mono font-bold">{bill.supplier?.abn || ai.supplier_abn || "-"}</p>
                 </div>
@@ -677,7 +677,7 @@ export function BillsInvoiceViewer({
                   )}
                   onClick={() => setHighlightedField(highlightedField === "subtotal" ? null : "subtotal")}
                 >
-                  <span className="text-muted-foreground flex items-center gap-1">Subtotal {bill.ai_extraction_result?.subtotal && <CheckCircle2 className="h-3 w-3 text-green-600" />}</span>
+                  <span className="text-muted-foreground flex items-center gap-1">Subtotal {bill.ai_extraction_result?.subtotal && <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />}</span>
                   <span className="font-mono font-bold">{formatCurrency(bill.subtotal)}</span>
                 </div>
                 <div
@@ -688,7 +688,7 @@ export function BillsInvoiceViewer({
                   )}
                   onClick={() => setHighlightedField(highlightedField === "tax_amount" ? null : "tax_amount")}
                 >
-                  <span className="text-muted-foreground flex items-center gap-1">GST {bill.ai_extraction_result?.tax_amount && <CheckCircle2 className="h-3 w-3 text-green-600" />}</span>
+                  <span className="text-muted-foreground flex items-center gap-1">GST {bill.ai_extraction_result?.tax_amount && <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />}</span>
                   <span className="font-mono font-bold">{formatCurrency(bill.tax_amount)}</span>
                 </div>
                 <Separator className="my-1" />
@@ -700,7 +700,7 @@ export function BillsInvoiceViewer({
                   )}
                   onClick={() => setHighlightedField(highlightedField === "total_amount" ? null : "total_amount")}
                 >
-                  <span className="flex items-center gap-1">Total {bill.ai_extraction_result?.total_amount && <CheckCircle2 className="h-4 w-4 text-green-600" />}</span>
+                  <span className="flex items-center gap-1">Total {bill.ai_extraction_result?.total_amount && <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />}</span>
                   <span className="font-mono text-lg">{formatCurrency(bill.total_amount)}</span>
                 </div>
 
@@ -750,7 +750,7 @@ export function BillsInvoiceViewer({
                       <p className="text-[10px] text-muted-foreground uppercase">PO Number</p>
                       <Link
                         href={`/purchase_orders/${bill.matched_purchase_order.id}`}
-                        className="font-bold text-sm text-blue-600 hover:underline inline-flex items-center gap-1 font-mono"
+                        className="font-bold text-sm text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 font-mono"
                       >
                         {bill.matched_purchase_order.purchase_order_number}
                         <ExternalLink className="h-3 w-3" />
@@ -758,7 +758,7 @@ export function BillsInvoiceViewer({
                     </div>
                     <div className="p-1.5 bg-muted dark:bg-card rounded">
                       <p className="text-[10px] text-muted-foreground uppercase">Payment Terms</p>
-                      <p className="font-medium text-sm text-blue-600">{bill.matched_purchase_order.payment_terms || bill.supplier?.payment_terms || "-"}</p>
+                      <p className="font-medium text-sm text-blue-600 dark:text-blue-400">{bill.matched_purchase_order.payment_terms || bill.supplier?.payment_terms || "-"}</p>
                     </div>
                   </div>
                   <Separator className="my-2" />
@@ -779,7 +779,7 @@ export function BillsInvoiceViewer({
                     <p className="text-[10px] text-muted-foreground uppercase">Variance</p>
                     <p className={cn(
                       "font-mono font-bold text-sm",
-                      bill.variance_amount === 0 || bill.variance_amount === null ? "text-green-600" : "text-yellow-600"
+                      bill.variance_amount === 0 || bill.variance_amount === null ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400"
                     )}>
                       {formatCurrency(bill.variance_amount || 0)} ({bill.variance_percent?.toFixed(1) || 0}%)
                     </p>

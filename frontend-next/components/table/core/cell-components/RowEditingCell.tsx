@@ -440,7 +440,7 @@ export function RowEditingCell({
         onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
       />
       {hasError && (
-        <span className="absolute -bottom-4 left-0 text-[10px] text-red-500 whitespace-nowrap">
+        <span className="absolute -bottom-4 left-0 text-[10px] text-red-500 dark:text-red-400 whitespace-nowrap">
           {hasError}
         </span>
       )}

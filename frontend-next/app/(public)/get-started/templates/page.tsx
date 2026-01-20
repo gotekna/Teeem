@@ -135,7 +135,7 @@ export default function TemplateSelectionPage() {
                     />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <Package className="h-5 w-5 text-blue-500" />
+                        <Package className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                         <CardTitle className="text-lg">{pack.name}</CardTitle>
                         {pack.visibility === "curated" && (
                           <Badge variant="secondary" className="flex items-center gap-1">

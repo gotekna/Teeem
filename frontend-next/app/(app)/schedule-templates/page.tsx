@@ -260,7 +260,7 @@ export default function ScheduleTemplatesPage() {
                       <CardTitle className="text-lg flex items-center gap-2">
                         {template.name}
                         {template.is_default && (
-                          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                          <Star className="h-4 w-4 text-yellow-500 dark:text-yellow-400 fill-yellow-500" />
                         )}
                       </CardTitle>
                       {template.description && (

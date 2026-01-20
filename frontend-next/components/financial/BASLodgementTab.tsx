@@ -416,9 +416,9 @@ export default function BASLodgementTab() {
 
   const getValidationIcon = (valid: boolean) => {
     return valid ? (
-      <CheckCircle className="h-5 w-5 text-green-500" />
+      <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
     ) : (
-      <AlertTriangle className="h-5 w-5 text-yellow-500" />
+      <AlertTriangle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
     );
   };
 
@@ -470,7 +470,7 @@ export default function BASLodgementTab() {
         <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20">
           <CardContent className="py-4">
             <div className="flex items-center gap-4">
-              <AlertCircle className="h-5 w-5 text-yellow-600" />
+              <AlertCircle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
               <div className="flex-1">
                 <p className="font-medium text-yellow-800 dark:text-yellow-200">
                   SBR Not Configured
@@ -530,7 +530,7 @@ export default function BASLodgementTab() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-red-600">
+                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                       {formatCurrency(basData.gst_section.label_1a_gst_on_sales)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -546,7 +546,7 @@ export default function BASLodgementTab() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                       {formatCurrency(basData.gst_section.label_1b_gst_on_purchases)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -563,7 +563,7 @@ export default function BASLodgementTab() {
                   </CardHeader>
                   <CardContent>
                     <div
-                      className={`text-2xl font-bold ${basData.gst_section.net_gst >= 0 ? "text-red-600" : "text-green-600"}`}
+                      className={`text-2xl font-bold ${basData.gst_section.net_gst >= 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}
                     >
                       {formatCurrency(basData.gst_section.net_gst)}
                     </div>
@@ -616,7 +616,7 @@ export default function BASLodgementTab() {
                       {basData.validation.errors.length > 0 && (
                         <ul className="mt-2 space-y-1">
                           {basData.validation.errors.map((error, i) => (
-                            <li key={i} className="text-sm text-red-600 flex items-center gap-2">
+                            <li key={i} className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
                               <XCircle className="h-4 w-4" />
                               {error}
                             </li>
@@ -628,7 +628,7 @@ export default function BASLodgementTab() {
                           {basData.validation.warnings.map((warning, i) => (
                             <li
                               key={i}
-                              className="text-sm text-yellow-600 flex items-center gap-2"
+                              className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-2"
                             >
                               <AlertTriangle className="h-4 w-4" />
                               {warning}
@@ -657,7 +657,7 @@ export default function BASLodgementTab() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-red-500" />
+                      <TrendingUp className="h-5 w-5 text-red-500 dark:text-red-400" />
                       GST on Sales
                     </CardTitle>
                     <CardDescription>Output tax collected from customers</CardDescription>
@@ -679,7 +679,7 @@ export default function BASLodgementTab() {
                         </TableRow>
                         <TableRow className="bg-muted/50">
                           <TableCell className="font-bold">1A - GST Payable</TableCell>
-                          <TableCell className="text-right font-bold text-red-600">
+                          <TableCell className="text-right font-bold text-red-600 dark:text-red-400">
                             {formatCurrency(basData.gst_section.label_1a_gst_on_sales)}
                           </TableCell>
                         </TableRow>
@@ -692,7 +692,7 @@ export default function BASLodgementTab() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <TrendingDown className="h-5 w-5 text-green-500" />
+                      <TrendingDown className="h-5 w-5 text-green-500 dark:text-green-400" />
                       GST on Purchases
                     </CardTitle>
                     <CardDescription>Input tax credits claimable</CardDescription>
@@ -714,7 +714,7 @@ export default function BASLodgementTab() {
                         </TableRow>
                         <TableRow className="bg-muted/50">
                           <TableCell className="font-bold">1B - GST Credit</TableCell>
-                          <TableCell className="text-right font-bold text-green-600">
+                          <TableCell className="text-right font-bold text-green-600 dark:text-green-400">
                             {formatCurrency(basData.gst_section.label_1b_gst_on_purchases)}
                           </TableCell>
                         </TableRow>
@@ -962,7 +962,7 @@ export default function BASLodgementTab() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                   {formatCurrency(
                     chartData.length > 0
                       ? chartData.reduce((sum, d) => sum + d.gst_collected, 0) / chartData.length
@@ -980,7 +980,7 @@ export default function BASLodgementTab() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {formatCurrency(
                     chartData.length > 0
                       ? chartData.reduce((sum, d) => sum + d.gst_paid, 0) / chartData.length
@@ -1046,12 +1046,12 @@ export default function BASLodgementTab() {
             )}
 
             {sbrStatus?.sbr_configured ? (
-              <div className="flex items-center gap-2 text-green-600">
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
                 <CheckCircle className="h-5 w-5" />
                 <span>SBR configured - can lodge directly to ATO</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 text-yellow-600">
+              <div className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
                 <AlertTriangle className="h-5 w-5" />
                 <span>SBR not configured - mark as lodged manually</span>
               </div>

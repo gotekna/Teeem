@@ -558,7 +558,7 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
                   className="h-8 px-3"
                 >
                   {shareLinkCopied ? (
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                   ) : (
                     <Copy className="h-4 w-4" />
                   )}
@@ -703,7 +703,7 @@ function SaveStatus({ isSaving, hasUnsavedChanges, lastSaved }: SaveStatusProps)
 
   if (lastSaved) {
     return (
-      <div className="flex items-center gap-1.5 text-xs text-green-500">
+      <div className="flex items-center gap-1.5 text-xs text-green-500 dark:text-green-400">
         <Check className="h-3.5 w-3.5" />
         <span>Saved</span>
       </div>

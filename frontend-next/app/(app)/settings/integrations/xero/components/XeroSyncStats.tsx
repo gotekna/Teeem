@@ -263,7 +263,7 @@ export function XeroSyncStats() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-blue-100 rounded">
-                <Users className="h-4 w-4 text-blue-600" />
+                <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
               <CardTitle className="text-base">Contacts</CardTitle>
             </div>
@@ -295,7 +295,7 @@ export function XeroSyncStats() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-green-100 rounded">
-                <FileText className="h-4 w-4 text-green-600" />
+                <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
               </div>
               <CardTitle className="text-base">Documents</CardTitle>
             </div>
@@ -331,7 +331,7 @@ export function XeroSyncStats() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-purple-100 rounded">
-                <Link2 className="h-4 w-4 text-purple-600" />
+                <Link2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               </div>
               <CardTitle className="text-base">Match Quality</CardTitle>
             </div>
@@ -459,7 +459,7 @@ export function XeroSyncStats() {
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-sm font-medium">{tenant.tenant_name}</CardTitle>
                       {tenant.is_primary && (
-                        <Badge className="bg-cyan-100 text-cyan-800 text-xs">Primary</Badge>
+                        <Badge className="bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 text-xs">Primary</Badge>
                       )}
                     </div>
                     <Badge

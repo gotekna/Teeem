@@ -171,7 +171,7 @@ export default function WhsActionItemsPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <CheckCircleIcon className="h-7 w-7 text-green-500" />
+            <CheckCircleIcon className="h-7 w-7 text-green-500 dark:text-green-400" />
             WHS Action Items
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -231,7 +231,7 @@ export default function WhsActionItemsPage() {
                       <span
                         className={
                           item.days_until_due < 0
-                            ? "font-medium text-red-600"
+                            ? "font-medium text-red-600 dark:text-red-400"
                             : item.days_until_due <= 3
                             ? "font-medium text-amber-600"
                             : ""
@@ -250,7 +250,7 @@ export default function WhsActionItemsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDelete(item)}
-                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                      className="text-red-600 dark:text-red-400 hover:bg-red-50 hover:text-red-700"
                     >
                       Delete
                     </Button>

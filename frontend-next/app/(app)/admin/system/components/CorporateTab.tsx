@@ -849,9 +849,9 @@ function CompaniesSubTab() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(
-                        company.entity_type === "Company" && "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800",
-                        company.entity_type === "Trust" && "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800",
-                        company.entity_type === "Superfund" && "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+                        company.entity_type === "Company" && "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800",
+                        company.entity_type === "Trust" && "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800",
+                        company.entity_type === "Superfund" && "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
                       )}>
                         {company.entity_type || "-"}
                       </Badge>
@@ -1133,8 +1133,8 @@ function CompaniesSubTab() {
                   <span className="font-medium">{selectedContactForAdd.display_name}</span>
                   <Badge variant="outline" className={cn(
                     "text-xs",
-                    selectedContactForAdd.entity_type === "company" && "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
-                    selectedContactForAdd.entity_type === "trust" && "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300"
+                    selectedContactForAdd.entity_type === "company" && "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
+                    selectedContactForAdd.entity_type === "trust" && "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300"
                   )}>
                     {selectedContactForAdd.entity_type}
                   </Badge>

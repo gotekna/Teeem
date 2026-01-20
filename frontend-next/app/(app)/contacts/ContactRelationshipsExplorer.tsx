@@ -159,7 +159,7 @@ export default function ContactRelationshipsExplorer({ initialContactId }: Conta
     } else if (relationshipType.includes("trustee") || relationshipType.includes("beneficiary")) {
       return "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300";
     } else if (relationshipType.includes("family")) {
-      return "bg-pink-100 text-pink-800 border-pink-300";
+      return "bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 border-pink-300";
     }
     return "bg-muted text-foreground border-border";
   };

@@ -503,9 +503,9 @@ export function SharePointFolderBrowser({
                 {switchingDrive ? (
                   <Spinner size={16} />
                 ) : currentDrive === "personal" ? (
-                  <Cloud className="h-4 w-4 text-blue-500" />
+                  <Cloud className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                 ) : (
-                  <Building2 className="h-4 w-4 text-green-600" />
+                  <Building2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                 )}
                 <span className="truncate">{currentDriveName}</span>
               </div>
@@ -514,14 +514,14 @@ export function SharePointFolderBrowser({
           <SelectContent>
             <SelectItem value="personal">
               <div className="flex items-center gap-2">
-                <Cloud className="h-4 w-4 text-blue-500" />
+                <Cloud className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                 <span>Personal Drive</span>
               </div>
             </SelectItem>
             {sites.map((site) => (
               <SelectItem key={site.id} value={site.id}>
                 <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-green-600" />
+                  <Building2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                   <span>{site.name}</span>
                 </div>
               </SelectItem>

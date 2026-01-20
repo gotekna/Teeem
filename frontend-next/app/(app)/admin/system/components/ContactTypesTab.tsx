@@ -153,9 +153,9 @@ function FieldStatusBadge({ status }: { status: "required" | "optional" | "compu
     case "required":
       return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-100">Required</Badge>;
     case "optional":
-      return <Badge variant="outline" className="text-blue-600 border-blue-300">Optional</Badge>;
+      return <Badge variant="outline" className="text-blue-600 dark:text-blue-400 border-blue-300">Optional</Badge>;
     case "computed":
-      return <Badge variant="outline" className="text-purple-600 border-purple-300">Auto</Badge>;
+      return <Badge variant="outline" className="text-purple-600 dark:text-purple-400 border-purple-300">Auto</Badge>;
     case "na":
       return <span className="text-muted-foreground text-xs">—</span>;
   }
@@ -202,11 +202,11 @@ function EntityTypesReferenceCard() {
             <span className="text-muted-foreground">Must be filled</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Optional</Badge>
+            <Badge variant="outline" className="text-blue-600 dark:text-blue-400 border-blue-300 text-xs">Optional</Badge>
             <span className="text-muted-foreground">Can be filled</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className="text-purple-600 border-purple-300 text-xs">Auto</Badge>
+            <Badge variant="outline" className="text-purple-600 dark:text-purple-400 border-purple-300 text-xs">Auto</Badge>
             <span className="text-muted-foreground">Computed automatically</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -255,14 +255,14 @@ function EntityTypesReferenceCard() {
                 <div className="pt-2 border-t space-y-1">
                   <div className="flex items-center gap-2 text-xs">
                     {entityType.can_have_employees ? (
-                      <span className="flex items-center gap-1 text-green-600"><Check className="h-3 w-3" /> Can have employees</span>
+                      <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><Check className="h-3 w-3" /> Can have employees</span>
                     ) : (
                       <span className="flex items-center gap-1 text-muted-foreground"><X className="h-3 w-3" /> No employees</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-xs">
                     {entityType.can_have_employer ? (
-                      <span className="flex items-center gap-1 text-green-600"><Check className="h-3 w-3" /> Can have employer</span>
+                      <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><Check className="h-3 w-3" /> Can have employer</span>
                     ) : (
                       <span className="flex items-center gap-1 text-muted-foreground"><X className="h-3 w-3" /> No employer</span>
                     )}

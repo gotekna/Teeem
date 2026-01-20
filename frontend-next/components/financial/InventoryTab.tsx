@@ -461,11 +461,11 @@ export default function InventoryTab() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Out of Stock</p>
-                    <p className="text-2xl font-bold text-red-600">
+                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">
                       {items.filter((i) => i.stock_status === "out_of_stock").length}
                     </p>
                   </div>
-                  <PackageX className="h-8 w-8 text-red-500" />
+                  <PackageX className="h-8 w-8 text-red-500 dark:text-red-400" />
                 </div>
               </CardContent>
             </Card>
@@ -478,7 +478,7 @@ export default function InventoryTab() {
                       {formatCurrency(items.reduce((sum, i) => sum + (i.inventory_value || 0), 0))}
                     </p>
                   </div>
-                  <DollarSign className="h-8 w-8 text-green-500" />
+                  <DollarSign className="h-8 w-8 text-green-500 dark:text-green-400" />
                 </div>
               </CardContent>
             </Card>
@@ -675,11 +675,11 @@ export default function InventoryTab() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-muted-foreground">Total Inventory Value</p>
-                        <p className="text-3xl font-bold text-green-600">
+                        <p className="text-3xl font-bold text-green-600 dark:text-green-400">
                           {formatCurrency(valuation.total_value)}
                         </p>
                       </div>
-                      <DollarSign className="h-10 w-10 text-green-500" />
+                      <DollarSign className="h-10 w-10 text-green-500 dark:text-green-400" />
                     </div>
                   </CardContent>
                 </Card>
@@ -850,7 +850,7 @@ export default function InventoryTab() {
                           {count.total_variance_value !== 0 ? (
                             <span
                               className={
-                                count.total_variance_value < 0 ? "text-red-600" : "text-green-600"
+                                count.total_variance_value < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
                               }
                             >
                               {formatCurrency(count.total_variance_value)}
@@ -972,7 +972,7 @@ export default function InventoryTab() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-red-500" />
+              <Trash2 className="h-5 w-5 text-red-500 dark:text-red-400" />
               Write Off Stock
             </DialogTitle>
             <DialogDescription>
@@ -1054,8 +1054,8 @@ export default function InventoryTab() {
                         variant="outline"
                         className={
                           txn.direction === "in"
-                            ? "text-green-600 border-green-600"
-                            : "text-red-600 border-red-600"
+                            ? "text-green-600 dark:text-green-400 border-green-600"
+                            : "text-red-600 dark:text-red-400 border-red-600"
                         }
                       >
                         {txn.direction === "in" ? (
@@ -1068,7 +1068,7 @@ export default function InventoryTab() {
                     </TableCell>
                     <TableCell
                       className={`text-right font-medium ${
-                        txn.quantity > 0 ? "text-green-600" : "text-red-600"
+                        txn.quantity > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                       }`}
                     >
                       {txn.quantity > 0 ? "+" : ""}

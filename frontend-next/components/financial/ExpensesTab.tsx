@@ -212,7 +212,7 @@ export default function ExpensesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {formatCurrency(summary?.by_status?.pending || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -229,7 +229,7 @@ export default function ExpensesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(summary?.by_status?.approved || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -246,7 +246,7 @@ export default function ExpensesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {formatCurrency(summary?.by_status?.billed || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">invoiced to clients</p>
@@ -261,7 +261,7 @@ export default function ExpensesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {formatCurrency(summary?.total_markup || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">profit from billable expenses</p>
@@ -386,7 +386,7 @@ export default function ExpensesTab() {
                       {formatCurrency(expense.cost_amount)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="text-green-600">+{expense.markup_percent}%</span>
+                      <span className="text-green-600 dark:text-green-400">+{expense.markup_percent}%</span>
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(expense.billable_amount)}

@@ -86,7 +86,7 @@ export function DuplicateContactsTab() {
         <TabsContent value="teeem">
           {!data || data.groups.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30">
-              <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
+              <CheckCircle className="h-12 w-12 text-green-500 dark:text-green-400 mb-4" />
               <h3 className="text-lg font-semibold">No TEEEM Duplicates Found</h3>
               <p className="text-muted-foreground mt-2">
                 All contacts from Xero sync are unique. Great job!
@@ -110,7 +110,7 @@ export function DuplicateContactsTab() {
                   <div className="text-sm text-muted-foreground">Total Duplicates</div>
                 </div>
                 <div className="bg-muted/50 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {data.summary.total_contacts_after_merge}
                   </div>
                   <div className="text-sm text-muted-foreground">After Merge</div>

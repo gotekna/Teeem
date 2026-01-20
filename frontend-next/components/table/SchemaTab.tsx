@@ -260,7 +260,7 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger>
-                              <Calculator className="h-3 w-3 text-purple-500" />
+                              <Calculator className="h-3 w-3 text-purple-500 dark:text-purple-400" />
                             </TooltipTrigger>
                             <TooltipContent>Computed/Formula field</TooltipContent>
                           </Tooltip>
@@ -285,7 +285,7 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
                   <TableCell>
                     {lookupFoundationId ? (
                       <div className="flex items-center gap-2">
-                        <Link className="h-3 w-3 text-blue-500" />
+                        <Link className="h-3 w-3 text-blue-500 dark:text-blue-400" />
                         <span className="text-sm">
                           {foundations[lookupFoundationId] || `Table #${lookupFoundationId}`}
                         </span>
@@ -319,7 +319,7 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
                             onClick={() => handleCopy(column.key)}
                           >
                             {copiedKey === column.key ? (
-                              <Check className="h-3 w-3 text-green-500" />
+                              <Check className="h-3 w-3 text-green-500 dark:text-green-400" />
                             ) : (
                               <Copy className="h-3 w-3" />
                             )}

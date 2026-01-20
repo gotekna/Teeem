@@ -146,8 +146,8 @@ export default function DocumentSidePanel({
                       document.ocr_confidence >= 90
                         ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700"
                         : document.ocr_confidence >= 70
-                        ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-600"
-                        : "bg-blue-50/50 text-blue-600 border-blue-200 dark:bg-blue-900/10 dark:text-blue-300 dark:border-blue-500"
+                        ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-600"
+                        : "bg-blue-50/50 text-blue-600 dark:text-blue-400 border-blue-200 dark:bg-blue-900/10 dark:text-blue-300 dark:border-blue-500"
                     }`}
                     title={`OCR text extraction confidence (${document.ocr_method || 'unknown'})`}
                   >
@@ -186,10 +186,10 @@ export default function DocumentSidePanel({
                     variant="outline"
                     className={`text-xs font-medium ${
                       document.human_confidence >= 90
-                        ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700"
+                        ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700"
                         : document.human_confidence >= 70
                         ? "bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-700"
-                        : "bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-700"
+                        : "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-700"
                     }`}
                     title="Human validation confidence score"
                   >
@@ -198,7 +198,7 @@ export default function DocumentSidePanel({
                 ) : document.user_validated_at ? (
                   <Badge
                     variant="outline"
-                    className="text-xs font-medium bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700"
+                    className="text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700"
                     title="Validated by human"
                   >
                     Human ✓

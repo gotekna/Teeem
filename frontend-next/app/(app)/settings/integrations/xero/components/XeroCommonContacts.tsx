@@ -142,9 +142,9 @@ export function XeroCommonContacts() {
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-purple-100 rounded-lg">
                         {contact.entity_type === 'company' ? (
-                          <Building2 className="h-5 w-5 text-purple-600" />
+                          <Building2 className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                         ) : (
-                          <Users className="h-5 w-5 text-purple-600" />
+                          <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                         )}
                       </div>
                       <div>

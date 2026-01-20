@@ -1104,7 +1104,7 @@ export function GanttDependencyEditor({
                 {brokenDependencies.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-dashed border-red-300 dark:border-red-800">
                     <div className="flex items-center gap-2 mb-2">
-                      <Link2Off className="h-3.5 w-3.5 text-red-500" />
+                      <Link2Off className="h-3.5 w-3.5 text-red-500 dark:text-red-400" />
                       <span className="text-xs font-medium text-red-600 dark:text-red-400">
                         Broken Dependencies ({brokenDependencies.length})
                       </span>
@@ -1190,7 +1190,7 @@ export function GanttDependencyEditor({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-900/30"
+                            className="h-8 w-8 text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-900/30"
                             onClick={() => restoreBrokenDependency(brokenDep)}
                             title="Restore this dependency"
                           >
@@ -1451,7 +1451,7 @@ export function GanttDependencyEditor({
                 {brokenSuccessors.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-dashed border-orange-300 dark:border-orange-800">
                     <div className="flex items-center gap-2 mb-2">
-                      <Link2Off className="h-3.5 w-3.5 text-orange-500" />
+                      <Link2Off className="h-3.5 w-3.5 text-orange-500 dark:text-orange-400" />
                       <span className="text-xs font-medium text-orange-600 dark:text-orange-400">
                         Broken Successors ({brokenSuccessors.length})
                       </span>
@@ -1535,12 +1535,12 @@ export function GanttDependencyEditor({
 
                           {/* Info icon - shows broken info on hover */}
                           <div className="h-8 w-8 flex items-center justify-center" title={brokenInfo || 'Broken successor'}>
-                            <AlertTriangle className="h-4 w-4 text-orange-500" />
+                            <AlertTriangle className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                           </div>
                         </div>
                       );
                     })}
-                    <p className="text-[10px] text-orange-600/70 dark:text-orange-400/70 mt-2 italic">
+                    <p className="text-[10px] text-orange-600 dark:text-orange-400/70 dark:text-orange-400/70 mt-2 italic">
                       These tasks removed their dependency on this task. Open their dependency editor to restore.
                     </p>
                   </div>
@@ -1566,7 +1566,7 @@ export function GanttDependencyEditor({
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              <AlertTriangle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
               Restore Dependency - Choose Which Task to Move
             </DialogTitle>
           </DialogHeader>

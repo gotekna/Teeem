@@ -338,8 +338,8 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
                                     className={cn(
                                       "text-xs",
                                       po.status === "draft" && "border-border text-muted-foreground",
-                                      po.status === "approved" && "border-green-300 text-green-600",
-                                      po.status === "sent" && "border-blue-300 text-blue-600"
+                                      po.status === "approved" && "border-green-300 text-green-600 dark:text-green-400",
+                                      po.status === "sent" && "border-blue-300 text-blue-600 dark:text-blue-400"
                                     )}
                                   >
                                     {po.status}

@@ -75,7 +75,7 @@ export default function GetStartedCompletePage() {
                   href={loginUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-blue-600 hover:underline flex items-center gap-1"
+                  className="font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                 >
                   {loginUrl.replace("https://", "")}
                   <ExternalLink className="h-3 w-3" />

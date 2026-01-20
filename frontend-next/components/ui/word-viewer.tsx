@@ -105,7 +105,7 @@ export function WordViewer({
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30 shrink-0">
         <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-blue-600" />
+          <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <span className="text-sm font-medium truncate max-w-[200px]">
             {filename || "Document"}
           </span>
@@ -124,7 +124,7 @@ export function WordViewer({
           >
             {copied ? (
               <>
-                <Check className="h-3 w-3 mr-1 text-green-600" />
+                <Check className="h-3 w-3 mr-1 text-green-600 dark:text-green-400" />
                 Copied
               </>
             ) : (
@@ -200,7 +200,7 @@ function escapeHtml(text: string): string {
 export function WordViewerLoading({ className }: { className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center h-full", className)}>
-      <Spinner size={32} className="mb-2 text-blue-600" />
+      <Spinner size={32} className="mb-2 text-blue-600 dark:text-blue-400" />
       <p className="text-sm text-muted-foreground">Loading document...</p>
     </div>
   );
@@ -217,7 +217,7 @@ export function WordViewerError({
   return (
     <div className={cn("flex flex-col items-center justify-center h-full", className)}>
       <FileText className="h-12 w-12 text-red-400 mb-2" />
-      <p className="text-sm text-red-600 font-medium">Failed to load document</p>
+      <p className="text-sm text-red-600 dark:text-red-400 font-medium">Failed to load document</p>
       <p className="text-xs text-muted-foreground mt-1">{error}</p>
     </div>
   );

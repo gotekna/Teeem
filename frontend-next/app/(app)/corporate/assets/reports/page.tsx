@@ -559,10 +559,10 @@ export default function AssetReportsPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
-                  <TrendingDown className="h-4 w-4 text-red-500" />
+                  <TrendingDown className="h-4 w-4 text-red-500 dark:text-red-400" />
                   <span className="text-sm text-muted-foreground">Total Depreciation</span>
                 </div>
-                <p className="text-3xl font-bold mt-2 text-red-600">{formatCurrencyWhole(summary.financials.total_depreciation)}</p>
+                <p className="text-3xl font-bold mt-2 text-red-600 dark:text-red-400">{formatCurrencyWhole(summary.financials.total_depreciation)}</p>
               </CardContent>
             </Card>
           </div>
@@ -623,13 +623,13 @@ export default function AssetReportsPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Book Depreciation</span>
-                    <span className="font-bold text-red-600">
+                    <span className="font-bold text-red-600 dark:text-red-400">
                       {formatCurrencyWhole(summary.current_fy_depreciation.book_depreciation)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Tax Depreciation</span>
-                    <span className="font-bold text-red-600">
+                    <span className="font-bold text-red-600 dark:text-red-400">
                       {formatCurrencyWhole(summary.current_fy_depreciation.tax_depreciation)}
                     </span>
                   </div>
@@ -646,7 +646,7 @@ export default function AssetReportsPage() {
             <CardContent>
               <div className="grid gap-4 md:grid-cols-5">
                 <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold text-green-600">{summary.insurance.insured_count}</p>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.insurance.insured_count}</p>
                   <p className="text-sm text-muted-foreground">Insured</p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
@@ -654,11 +654,11 @@ export default function AssetReportsPage() {
                   <p className="text-sm text-muted-foreground">Uninsured</p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold text-red-600">{summary.insurance.expired_count}</p>
+                  <p className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.insurance.expired_count}</p>
                   <p className="text-sm text-muted-foreground">Expired</p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold text-yellow-600">{summary.insurance.expiring_soon_count}</p>
+                  <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{summary.insurance.expiring_soon_count}</p>
                   <p className="text-sm text-muted-foreground">Expiring Soon</p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
@@ -751,11 +751,11 @@ export default function AssetReportsPage() {
                 <div className="grid grid-cols-4 gap-4 text-sm">
                   <div>
                     <p className="text-muted-foreground">Total Book Depreciation</p>
-                    <p className="text-lg font-bold text-red-600">{formatCurrencyWhole(depreciationSummary.total_book_depreciation)}</p>
+                    <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrencyWhole(depreciationSummary.total_book_depreciation)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Total Tax Depreciation</p>
-                    <p className="text-lg font-bold text-red-600">{formatCurrencyWhole(depreciationSummary.total_tax_depreciation)}</p>
+                    <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrencyWhole(depreciationSummary.total_tax_depreciation)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Total Book WDV</p>
@@ -806,10 +806,10 @@ export default function AssetReportsPage() {
                         <TableCell className="text-right">{formatCurrencyWhole(asset.depreciable_cost)}</TableCell>
                         <TableCell className="text-right">{asset.effective_life_years || "-"}</TableCell>
                         <TableCell className="text-right">{formatCurrencyWhole(asset.schedule?.book_opening_wdv)}</TableCell>
-                        <TableCell className="text-right text-red-600">{formatCurrencyWhole(asset.schedule?.book_depreciation)}</TableCell>
+                        <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrencyWhole(asset.schedule?.book_depreciation)}</TableCell>
                         <TableCell className="text-right">{formatCurrencyWhole(asset.schedule?.book_closing_wdv)}</TableCell>
                         <TableCell className="text-right">{formatCurrencyWhole(asset.schedule?.tax_opening_wdv)}</TableCell>
-                        <TableCell className="text-right text-red-600">{formatCurrencyWhole(asset.schedule?.tax_depreciation)}</TableCell>
+                        <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrencyWhole(asset.schedule?.tax_depreciation)}</TableCell>
                         <TableCell className="text-right">{formatCurrencyWhole(asset.schedule?.tax_closing_wdv)}</TableCell>
                       </TableRow>
                     ))}

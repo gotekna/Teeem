@@ -200,7 +200,7 @@ export default function PeriodLocksTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{lockedCount}</div>
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{lockedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">fully locked</p>
           </CardContent>
         </Card>
@@ -212,7 +212,7 @@ export default function PeriodLocksTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{softLockedCount}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{softLockedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">adjustments allowed</p>
           </CardContent>
         </Card>
@@ -224,7 +224,7 @@ export default function PeriodLocksTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {status?.periods_available_to_lock?.length || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">periods ready</p>

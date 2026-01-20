@@ -318,9 +318,9 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
                   variant="secondary"
                   className={
                     contact.alignment === "friendly"
-                      ? "bg-green-100 text-green-700"
+                      ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
                       : contact.alignment === "opposing"
-                      ? "bg-red-100 text-red-700"
+                      ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
                       : ""
                   }
                 >
@@ -365,7 +365,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
             variant="ghost"
             size="sm"
             onClick={() => handleDeleteContact(contact.contact_id, contact.contact_name)}
-            className="text-red-600 hover:text-red-700"
+            className="text-red-600 dark:text-red-400 hover:text-red-700"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -471,7 +471,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <User className="h-4 w-4" />
-              <span className="text-green-600">Friendly</span> Contacts
+              <span className="text-green-600 dark:text-green-400">Friendly</span> Contacts
               <span className="text-muted-foreground text-sm">
                 ({friendlyContacts.length})
               </span>
@@ -489,7 +489,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
             ) : (
               <div className="divide-y">
                 {friendlyContacts.map((contact) =>
-                  renderContactCard(contact, "text-green-600", "bg-green-100")
+                  renderContactCard(contact, "text-green-600 dark:text-green-400", "bg-green-100")
                 )}
               </div>
             )}
@@ -527,7 +527,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <User className="h-4 w-4" />
-              <span className="text-red-600">Opposing</span> Contacts
+              <span className="text-red-600 dark:text-red-400">Opposing</span> Contacts
               <span className="text-muted-foreground text-sm">
                 ({opposingContacts.length})
               </span>
@@ -541,7 +541,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
             ) : (
               <div className="divide-y">
                 {opposingContacts.map((contact) =>
-                  renderContactCard(contact, "text-red-600", "bg-red-100")
+                  renderContactCard(contact, "text-red-600 dark:text-red-400", "bg-red-100")
                 )}
               </div>
             )}
@@ -573,7 +573,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
                     className="py-3 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded text-blue-600">
+                      <div className="p-2 bg-blue-100 rounded text-blue-600 dark:text-blue-400">
                         <Building2 className="h-4 w-4" />
                       </div>
                       <div>
@@ -709,7 +709,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
 
             <div className="space-y-2">
               <Label htmlFor="contact_reason">
-                Reason <span className="text-red-500">*</span>
+                Reason <span className="text-red-500 dark:text-red-400">*</span>
               </Label>
               <Textarea
                 id="contact_reason"
@@ -720,7 +720,7 @@ export function CaseEntitiesTab({ caseId, caseData }: CaseEntitiesTabProps) {
                 className={!contactReason.trim() ? "border-red-300" : ""}
               />
               {!contactReason.trim() && (
-                <p className="text-xs text-red-500">Reason is required</p>
+                <p className="text-xs text-red-500 dark:text-red-400">Reason is required</p>
               )}
             </div>
 

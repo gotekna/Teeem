@@ -409,7 +409,7 @@ export default function DataImportPage() {
                   className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
                 >
                   <div className="flex items-center gap-3">
-                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
+                    <FileSpreadsheet className="h-5 w-5 text-green-600 dark:text-green-400" />
                     <div>
                       <p className="font-medium">{uf.file.name}</p>
                       <p className="text-sm text-muted-foreground">
@@ -528,7 +528,7 @@ function StatusItem({
     <div className="text-center p-4 bg-muted/50 rounded-lg">
       <div className="flex items-center justify-center gap-2 mb-1">
         {hasData ? (
-          <CheckCircle2 className="h-4 w-4 text-green-500" />
+          <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
         ) : (
           <AlertCircle className="h-4 w-4 text-muted-foreground" />
         )}
@@ -546,10 +546,10 @@ function FileStatus({ status }: { status: UploadedFile["status"] }) {
       return <Spinner size={16} />;
     case "valid":
     case "imported":
-      return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+      return <CheckCircle2 className="h-5 w-5 text-green-500 dark:text-green-400" />;
     case "invalid":
     case "error":
-      return <AlertCircle className="h-5 w-5 text-red-500" />;
+      return <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
     default:
       return <Badge variant="secondary">Pending</Badge>;
   }

@@ -97,11 +97,11 @@ interface CorporateCompany {
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-foreground dark:bg-muted/50 dark:text-muted-foreground",
-  pending_approval: "bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500",
-  approved: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
-  submitted: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
+  pending_approval: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  approved: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-400/10 dark:text-green-400",
+  submitted: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-400/10 dark:text-blue-400",
   completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-400",
-  cancelled: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
+  cancelled: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-400/10 dark:text-red-400",
 };
 
 export default function PaymentBatchesPage() {
@@ -437,7 +437,7 @@ export default function PaymentBatchesPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-green-600"
+                          className="text-green-600 dark:text-green-400"
                           onClick={() => handleApprove(batch.id)}
                           title="Approve"
                         >

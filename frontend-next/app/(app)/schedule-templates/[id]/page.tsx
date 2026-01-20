@@ -808,7 +808,7 @@ export default function ScheduleTemplateDetailPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         {row.require_photo ? (
-                          <Camera className="h-4 w-4 mx-auto text-blue-500" />
+                          <Camera className="h-4 w-4 mx-auto text-blue-500 dark:text-blue-400" />
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
@@ -1261,9 +1261,9 @@ export default function ScheduleTemplateDetailPage() {
                           <Badge
                             variant="secondary"
                             className={
-                              comp.status === "will_create" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
-                              comp.status === "will_update" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" :
-                              comp.status === "will_skip" ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" :
+                              comp.status === "will_create" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900 dark:text-green-300" :
+                              comp.status === "will_update" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300" :
+                              comp.status === "will_skip" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900 dark:text-amber-300" :
                               "bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground"
                             }
                           >
@@ -1284,9 +1284,9 @@ export default function ScheduleTemplateDetailPage() {
                               {Object.entries(comp.differences).slice(0, 3).map(([field, diff]) => (
                                 <div key={field} className="flex gap-1">
                                   <span className="font-medium">{field}:</span>
-                                  <span className="text-red-500 line-through">{String(diff.task ?? "-")}</span>
+                                  <span className="text-red-500 dark:text-red-400 line-through">{String(diff.task ?? "-")}</span>
                                   <span>→</span>
-                                  <span className="text-green-600">{String(diff.template)}</span>
+                                  <span className="text-green-600 dark:text-green-400">{String(diff.template)}</span>
                                 </div>
                               ))}
                               {Object.keys(comp.differences).length > 3 && (

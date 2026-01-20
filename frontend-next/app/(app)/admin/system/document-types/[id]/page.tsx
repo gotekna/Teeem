@@ -1749,11 +1749,11 @@ export default function DocumentTypeDetailPage() {
                         className={cn(
                           "font-mono text-xs px-3 py-1.5 select-none",
                           getTokenColor(token.value) === "purple" &&
-                            "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+                            "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
                           getTokenColor(token.value) === "orange" &&
-                            "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+                            "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
                           getTokenColor(token.value) === "blue" &&
-                            "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-700"
+                            "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-700"
                         )}
                       >
                         <GripVertical className="h-3 w-3 mr-1 inline" />
@@ -1814,7 +1814,7 @@ export default function DocumentTypeDetailPage() {
                 </span>
               )}
               {parseTokens(documentType.file_name || "").length === 0 && draggedFromField && (
-                <span className="text-sm text-green-600 font-medium animate-pulse">
+                <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-pulse">
                   Drop here!
                 </span>
               )}
@@ -1933,11 +1933,11 @@ export default function DocumentTypeDetailPage() {
                         className={cn(
                           "font-mono text-xs px-3 py-1.5 select-none",
                           getTokenColor(token.value) === "purple" &&
-                            "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
+                            "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
                           getTokenColor(token.value) === "orange" &&
-                            "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
+                            "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
                           getTokenColor(token.value) === "blue" &&
-                            "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-700"
+                            "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-700"
                         )}
                       >
                         <GripVertical className="h-3 w-3 mr-1 inline" />
@@ -1998,7 +1998,7 @@ export default function DocumentTypeDetailPage() {
                 </span>
               )}
               {parseTokens(documentType.display_name || "").length === 0 && !displayNameSameAsFileName && draggedFromField && (
-                <span className="text-sm text-green-600 font-medium animate-pulse">
+                <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-pulse">
                   Drop here!
                 </span>
               )}

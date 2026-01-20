@@ -283,7 +283,7 @@ export function CostTab() {
           <Card className="border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <Users className="h-8 w-8 text-blue-500" />
+                <Users className="h-8 w-8 text-blue-500 dark:text-blue-400" />
                 <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
                   20%
                 </Badge>
@@ -302,7 +302,7 @@ export function CostTab() {
           <Card className="border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-white dark:from-purple-950/20 dark:to-background">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <Users className="h-8 w-8 text-purple-500" />
+                <Users className="h-8 w-8 text-purple-500 dark:text-purple-400" />
                 <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
                   10%
                 </Badge>
@@ -405,15 +405,15 @@ export function CostTab() {
                 <h4 className="text-sm font-semibold">Level 1: Your Support (20%)</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2">
-                    <span className="text-blue-500 font-bold">•</span>
+                    <span className="text-blue-500 dark:text-blue-400 font-bold">•</span>
                     <span>Eligibility: $10k in total fees (yours + network)</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-blue-500 font-bold">•</span>
+                    <span className="text-blue-500 dark:text-blue-400 font-bold">•</span>
                     <span>Must actively support your referrals for life</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-blue-500 font-bold">•</span>
+                    <span className="text-blue-500 dark:text-blue-400 font-bold">•</span>
                     <span>Potential bonuses count towards $10k threshold</span>
                   </li>
                 </ul>
@@ -423,15 +423,15 @@ export function CostTab() {
                 <h4 className="text-sm font-semibold">Level 2: Their Support (10%)</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2">
-                    <span className="text-purple-500 font-bold">•</span>
+                    <span className="text-purple-500 dark:text-purple-400 font-bold">•</span>
                     <span>Eligibility: $50k in total fees (yours + network)</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-purple-500 font-bold">•</span>
+                    <span className="text-purple-500 dark:text-purple-400 font-bold">•</span>
                     <span>Same rules apply — support your network</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-purple-500 font-bold">•</span>
+                    <span className="text-purple-500 dark:text-purple-400 font-bold">•</span>
                     <span>Potential bonuses count towards $50k threshold</span>
                   </li>
                 </ul>

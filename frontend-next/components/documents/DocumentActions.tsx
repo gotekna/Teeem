@@ -136,7 +136,7 @@ export function DocumentActions({
           disabled={!document.fileUrl}
         >
           {copied ? (
-            <Check className="h-4 w-4 text-green-500" />
+            <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
           ) : (
             <Copy className="h-4 w-4" />
           )}
@@ -178,7 +178,7 @@ export function DocumentActions({
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleCopyLink} disabled={!document.fileUrl}>
           {copied ? (
-            <Check className="mr-2 h-4 w-4 text-green-500" />
+            <Check className="mr-2 h-4 w-4 text-green-500 dark:text-green-400" />
           ) : (
             <Link className="mr-2 h-4 w-4" />
           )}

@@ -1897,8 +1897,8 @@ export default function ContactDetailPage() {
   if (error || !contact) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <AlertTriangle className="h-12 w-12 text-red-500" />
-        <p className="text-red-600">{error || "Contact not found"}</p>
+        <AlertTriangle className="h-12 w-12 text-red-500 dark:text-red-400" />
+        <p className="text-red-600 dark:text-red-400">{error || "Contact not found"}</p>
         <BackButton fallbackHref="/contacts" label="Go Back" variant="outline" />
       </div>
     );

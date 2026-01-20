@@ -139,21 +139,21 @@ export function ContactComparisonCard({
     switch (status) {
       case "match":
         return (
-          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+          <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300">
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Match
           </Badge>
         );
       case "add":
         return (
-          <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300">
             <Plus className="h-3 w-3 mr-1" />
             Add
           </Badge>
         );
       case "different":
         return (
-          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+          <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-300">
             <RefreshCw className="h-3 w-3 mr-1" />
             Update
           </Badge>
@@ -169,7 +169,7 @@ export function ContactComparisonCard({
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-blue-600" />
+              <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               Contact Enrichment
             </CardTitle>
             <CardDescription>
@@ -177,7 +177,7 @@ export function ContactComparisonCard({
             </CardDescription>
           </div>
           {has_updates && updateableFields.length > 0 && (
-            <Badge variant="secondary" className="text-blue-600">
+            <Badge variant="secondary" className="text-blue-600 dark:text-blue-400">
               {updateableFields.length} update{updateableFields.length !== 1 ? "s" : ""} available
             </Badge>
           )}
@@ -283,7 +283,7 @@ export function ContactComparisonCard({
 
         {/* All fields match message */}
         {updateableFields.length === 0 && (
-          <div className="flex items-center justify-center gap-2 py-2 text-green-600">
+          <div className="flex items-center justify-center gap-2 py-2 text-green-600 dark:text-green-400">
             <CheckCircle2 className="h-5 w-5" />
             <span className="font-medium">All extracted fields match stored contact</span>
           </div>

@@ -1276,7 +1276,7 @@ export function ViewManagerSheet({
                             disabled={!isEditing}
                           />
                           <Label htmlFor="global-switch" className={cn("text-sm flex items-center gap-1", !isEditing && "text-muted-foreground")}>
-                            {editIsGlobal ? <Globe className="h-3 w-3 text-blue-500" /> : <User className="h-3 w-3" />}
+                            {editIsGlobal ? <Globe className="h-3 w-3 text-blue-500 dark:text-blue-400" /> : <User className="h-3 w-3" />}
                             {editIsGlobal ? "Global" : "Personal"}
                           </Label>
                         </div>
@@ -1994,7 +1994,7 @@ export function ViewManagerSheet({
                     <SelectItem key={view.id} value={String(view.id)}>
                       <span className="flex items-center gap-2">
                         {view.is_global ? (
-                          <Globe className="h-4 w-4 text-blue-500" />
+                          <Globe className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                         ) : (
                           <User className="h-4 w-4 text-muted-foreground" />
                         )}
@@ -2009,7 +2009,7 @@ export function ViewManagerSheet({
               <div className="space-y-1">
                 <Label htmlFor="new-view-global" className="text-sm font-medium flex items-center gap-2">
                   {newViewIsGlobal ? (
-                    <Globe className="h-4 w-4 text-blue-500" />
+                    <Globe className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                   ) : (
                     <User className="h-4 w-4 text-muted-foreground" />
                   )}

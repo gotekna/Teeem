@@ -111,7 +111,7 @@ export function OfflineIndicator({ className }: { className?: string }) {
       className={cn(
         "inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium",
         isOnline
-          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+          ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/50 dark:text-amber-300"
           : "bg-slate-700 text-white dark:bg-slate-800",
         className
       )}

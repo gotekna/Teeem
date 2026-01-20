@@ -209,7 +209,7 @@ export default function DepositsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {formatCurrency(summary?.unapplied_amount || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">available to apply</p>
@@ -223,7 +223,7 @@ export default function DepositsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(summary?.applied_amount || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">to invoices</p>
@@ -362,7 +362,7 @@ export default function DepositsTab() {
                     <TableCell className="text-right text-muted-foreground">
                       {formatCurrency(deposit.applied_amount)}
                     </TableCell>
-                    <TableCell className={`text-right font-medium ${deposit.balance > 0 ? "text-yellow-600" : ""}`}>
+                    <TableCell className={`text-right font-medium ${deposit.balance > 0 ? "text-yellow-600 dark:text-yellow-400" : ""}`}>
                       {formatCurrency(deposit.balance)}
                     </TableCell>
                     <TableCell className="text-center">

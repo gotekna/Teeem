@@ -317,7 +317,7 @@ export function GanttToolbar({
             title={showCriticalPath ? 'Hide Critical Path (C)' : 'Show Critical Path (C)'}
             className="h-8 w-8"
           >
-            <Activity className={cn('h-4 w-4', showCriticalPath && 'text-red-500')} />
+            <Activity className={cn('h-4 w-4', showCriticalPath && 'text-red-500 dark:text-red-400')} />
           </Button>
         )}
 
@@ -330,7 +330,7 @@ export function GanttToolbar({
             title={showBaseline ? 'Hide Baseline (B)' : 'Show Baseline (B)'}
             className="h-8 w-8"
           >
-            <Layers className={cn('h-4 w-4', showBaseline && 'text-blue-500')} />
+            <Layers className={cn('h-4 w-4', showBaseline && 'text-blue-500 dark:text-blue-400')} />
           </Button>
         )}
 
@@ -453,7 +453,7 @@ export function GanttToolbar({
                   <div className="flex items-center gap-2">
                     <div className="flex items-center">
                       <div className="w-6 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #ef4444 3px, #ef4444 6px)' }} />
-                      <span className="text-red-500 text-[10px] font-bold">✕</span>
+                      <span className="text-red-500 dark:text-red-400 text-[10px] font-bold">✕</span>
                     </div>
                     <span className="text-muted-foreground">Broken dependency</span>
                   </div>

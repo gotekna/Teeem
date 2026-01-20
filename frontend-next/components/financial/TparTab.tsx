@@ -234,7 +234,7 @@ export default function TparTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{lodgedCount}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{lodgedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">with ATO</p>
           </CardContent>
         </Card>
@@ -246,7 +246,7 @@ export default function TparTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{draftCount}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{draftCount}</div>
             <p className="text-xs text-muted-foreground mt-1">pending review</p>
           </CardContent>
         </Card>
@@ -497,7 +497,7 @@ export default function TparTab() {
                       <TableCell>{contractor.tpar_industry_code || "-"}</TableCell>
                       <TableCell className="text-center">
                         {contractor.tpar_required ? (
-                          <CheckCircle className="h-5 w-5 text-green-600 mx-auto" />
+                          <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mx-auto" />
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}

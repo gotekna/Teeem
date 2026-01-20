@@ -90,14 +90,14 @@ export default function SystemPerformancePage() {
   const getStatusBadge = (status: string | undefined) => {
     if (status === "healthy" || status === "connected") {
       return (
-        <Badge className="gap-1.5 bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400">
+        <Badge className="gap-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-500/10 dark:text-green-400">
           <CheckCircleIcon className="h-4 w-4" />
           Healthy
         </Badge>
       );
     }
     return (
-      <Badge className="gap-1.5 bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400">
+      <Badge className="gap-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-500/10 dark:text-red-400">
         <ExclamationTriangleIcon className="h-4 w-4" />
         Issue
       </Badge>

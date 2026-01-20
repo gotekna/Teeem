@@ -279,7 +279,7 @@ export function InspiringQuotesTab() {
         <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-purple-200 dark:border-purple-800">
           <CardContent className="pt-6">
             <div className="flex items-start gap-4">
-              <Quote className="h-8 w-8 text-purple-500 flex-shrink-0 mt-1" />
+              <Quote className="h-8 w-8 text-purple-500 dark:text-purple-400 flex-shrink-0 mt-1" />
               <div className="flex-1">
                 <p className="text-lg font-medium text-purple-900 dark:text-purple-200 italic">
                   &ldquo;{randomQuote.quote}&rdquo;

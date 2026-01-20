@@ -217,7 +217,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
       <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 dark:border-blue-900">
         <CardContent className="py-8">
           <div className="flex items-center justify-center gap-3">
-            <Spinner size={20} className="text-blue-600" />
+            <Spinner size={20} className="text-blue-600 dark:text-blue-400" />
             <span className="text-sm text-muted-foreground">Loading setup status...</span>
           </div>
         </CardContent>
@@ -309,7 +309,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
                   {step.status === "completed" ? (
                     <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                   ) : step.status === "in_progress" || (isCurrentStep && syncing) ? (
-                    <Spinner size={20} className="text-blue-600" />
+                    <Spinner size={20} className="text-blue-600 dark:text-blue-400" />
                   ) : (
                     <StepIcon className={cn(
                       "h-5 w-5",
@@ -368,7 +368,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
 
                 {/* Completed Badge */}
                 {step.status === "completed" && (
-                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 shrink-0">
+                  <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/50 dark:text-green-300 shrink-0">
                     <CheckCircle className="h-3 w-3 mr-1" />
                     Done
                   </Badge>

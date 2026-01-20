@@ -235,7 +235,7 @@ function PhoneRow({
 
         {/* Status indicators */}
         {saving && <Spinner className="h-4 w-4 shrink-0" />}
-        {showSuccess && <Check className="h-4 w-4 text-green-500 shrink-0" />}
+        {showSuccess && <Check className="h-4 w-4 text-green-500 dark:text-green-400 shrink-0" />}
 
         {/* Actions */}
         {!isNew && (
@@ -246,7 +246,7 @@ function PhoneRow({
               size="sm"
               className={cn(
                 "h-7 w-7 p-0",
-                phone.is_primary && "text-yellow-500"
+                phone.is_primary && "text-yellow-500 dark:text-yellow-400"
               )}
               onClick={async (e) => {
                 e.stopPropagation();
@@ -291,7 +291,7 @@ function PhoneRow({
 
         {/* Error display */}
         {error && (
-          <span className="text-[11px] text-red-500 absolute -bottom-4 left-28">
+          <span className="text-[11px] text-red-500 dark:text-red-400 absolute -bottom-4 left-28">
             {error}
           </span>
         )}
@@ -321,11 +321,11 @@ function PhoneRow({
 
       {/* Primary indicator */}
       {phone.is_primary && (
-        <Star className="h-4 w-4 text-yellow-500 fill-current shrink-0" />
+        <Star className="h-4 w-4 text-yellow-500 dark:text-yellow-400 fill-current shrink-0" />
       )}
 
       {/* Success indicator */}
-      {showSuccess && <Check className="h-4 w-4 text-green-500 shrink-0" />}
+      {showSuccess && <Check className="h-4 w-4 text-green-500 dark:text-green-400 shrink-0" />}
 
       {/* Hover actions */}
       <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 shrink-0">

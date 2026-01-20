@@ -201,7 +201,7 @@ export default function ReportsPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrencyWhole(report?.summary.total_margin || 0)}
             </div>
             <p className="text-xs text-muted-foreground">Your profit this period</p>
@@ -257,7 +257,7 @@ export default function ReportsPage() {
                     <TableCell className="text-right text-muted-foreground">
                       {formatCurrencyWhole(sub.wholesale ?? 0)}
                     </TableCell>
-                    <TableCell className="text-right text-green-600">
+                    <TableCell className="text-right text-green-600 dark:text-green-400">
                       {formatCurrencyWhole(sub.margin ?? 0)}
                     </TableCell>
                     <TableCell className="text-right">{(sub.margin_percentage ?? 0).toFixed(1)}%</TableCell>
@@ -279,7 +279,7 @@ export default function ReportsPage() {
                   <TableCell className="text-right font-bold text-muted-foreground">
                     {formatCurrencyWhole(report.summary.total_wholesale)}
                   </TableCell>
-                  <TableCell className="text-right font-bold text-green-600">
+                  <TableCell className="text-right font-bold text-green-600 dark:text-green-400">
                     {formatCurrencyWhole(report.summary.total_margin)}
                   </TableCell>
                   <TableCell className="text-right font-bold">
@@ -314,7 +314,7 @@ export default function ReportsPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Projected Annual Profit</p>
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {formatCurrencyWhole(report.summary.total_margin * 12)}
                 </p>
               </div>

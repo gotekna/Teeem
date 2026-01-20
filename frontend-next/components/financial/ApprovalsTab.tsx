@@ -188,7 +188,7 @@ export default function ApprovalsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{pendingCount}</div>
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{pendingCount}</div>
             <p className="text-xs text-muted-foreground mt-1">awaiting your review</p>
           </CardContent>
         </Card>
@@ -214,7 +214,7 @@ export default function ApprovalsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{activeWorkflows}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{activeWorkflows}</div>
             <p className="text-xs text-muted-foreground mt-1">of {workflows.length} total</p>
           </CardContent>
         </Card>
@@ -263,7 +263,7 @@ export default function ApprovalsTab() {
             <CardContent>
               {pendingApprovals.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
-                  <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500" />
+                  <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500 dark:text-green-400" />
                   <p className="text-lg font-medium">All caught up!</p>
                   <p className="text-sm mt-1">No pending approvals</p>
                 </div>

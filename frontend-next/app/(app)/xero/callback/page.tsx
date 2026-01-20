@@ -140,7 +140,7 @@ export default function XeroCallbackPage() {
             ) : status.success ? (
               <>
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-500/10">
-                  <CheckCircleIcon className="h-10 w-10 text-green-600 dark:text-green-500" />
+                  <CheckCircleIcon className="h-10 w-10 text-green-600 dark:text-green-400" />
                 </div>
                 <h2 className="mt-6 text-xl font-semibold">Successfully Connected!</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -150,7 +150,7 @@ export default function XeroCallbackPage() {
             ) : (
               <>
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/10">
-                  <XCircleIcon className="h-10 w-10 text-red-600 dark:text-red-500" />
+                  <XCircleIcon className="h-10 w-10 text-red-600 dark:text-red-400" />
                 </div>
                 <h2 className="mt-6 text-xl font-semibold">Connection Failed</h2>
                 <p className="mt-2 text-sm text-muted-foreground">{status.error}</p>

@@ -227,7 +227,7 @@ export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
       <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+            <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
             <div>
               <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
                 About Budget Tracking

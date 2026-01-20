@@ -259,7 +259,7 @@ function HoldReasonsTab() {
                       variant="secondary"
                       className={
                         reason.is_active
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                          ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
                           : ""
                       }
                     >
@@ -271,7 +271,7 @@ function HoldReasonsTab() {
                   {editingId === reason.id ? (
                     <div className="flex items-center justify-end gap-2">
                       <Button variant="ghost" size="icon" onClick={handleSave}>
-                        <CheckIcon className="h-4 w-4 text-green-600" />
+                        <CheckIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => setEditingId(null)}>
                         <XMarkIcon className="h-4 w-4" />
@@ -526,7 +526,7 @@ function TemplatesTab() {
                     variant="ghost"
                     size="icon"
                     onClick={() => handleSetDefault(template.id)}
-                    className={template.is_default ? "text-yellow-500" : "text-muted-foreground"}
+                    className={template.is_default ? "text-yellow-500 dark:text-yellow-400" : "text-muted-foreground"}
                     title={template.is_default ? "Default template" : "Set as default"}
                   >
                     {template.is_default ? (

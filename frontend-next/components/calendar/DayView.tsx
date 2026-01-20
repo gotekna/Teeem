@@ -128,13 +128,13 @@ export function DayView() {
                     {/* Event name and icons */}
                     <div className="flex items-center gap-2">
                       {event.is_hold && (
-                        <Pause className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+                        <Pause className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
                       )}
                       {event.lock_type && (
                         <Lock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       )}
                       {event.is_overdue && (
-                        <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400 flex-shrink-0" />
                       )}
                       <h3 className="text-sm font-medium truncate">{event.name}</h3>
                     </div>

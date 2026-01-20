@@ -515,8 +515,8 @@ export default function BudgetingTab() {
                           <span
                             className={
                               scenario.revenue_adjustment_pct >= 0
-                                ? "text-green-600"
-                                : "text-red-600"
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
                             }
                           >
                             {formatPercentChangeWithFallback(scenario.revenue_adjustment_pct, "-")}
@@ -529,8 +529,8 @@ export default function BudgetingTab() {
                           <span
                             className={
                               scenario.expense_adjustment_pct <= 0
-                                ? "text-green-600"
-                                : "text-red-600"
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
                             }
                           >
                             {formatPercentChangeWithFallback(scenario.expense_adjustment_pct, "-")}
@@ -716,7 +716,7 @@ export default function BudgetingTab() {
                             <TableCell className="text-right">
                               <span
                                 className={`flex items-center justify-end gap-1 ${
-                                  item.variance >= 0 ? "text-green-600" : "text-red-600"
+                                  item.variance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                                 }`}
                               >
                                 {item.variance >= 0 ? (
@@ -730,7 +730,7 @@ export default function BudgetingTab() {
                             <TableCell className="text-right">
                               <span
                                 className={
-                                  item.variance_pct >= 0 ? "text-green-600" : "text-red-600"
+                                  item.variance_pct >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                                 }
                               >
                                 {formatPercentChangeWithFallback(item.variance_pct, "-")}
@@ -778,13 +778,13 @@ export default function BudgetingTab() {
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Revenue</span>
-                          <span className="font-medium text-green-600">
+                          <span className="font-medium text-green-600 dark:text-green-400">
                             {formatCurrency(comparisonData.scenario1.summary.total_revenue)}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Expenses</span>
-                          <span className="font-medium text-red-600">
+                          <span className="font-medium text-red-600 dark:text-red-400">
                             {formatCurrency(comparisonData.scenario1.summary.total_expenses)}
                           </span>
                         </div>
@@ -793,8 +793,8 @@ export default function BudgetingTab() {
                           <span
                             className={`font-bold ${
                               comparisonData.scenario1.summary.net_income >= 0
-                                ? "text-green-600"
-                                : "text-red-600"
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
                             }`}
                           >
                             {formatCurrency(comparisonData.scenario1.summary.net_income)}
@@ -817,13 +817,13 @@ export default function BudgetingTab() {
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Revenue</span>
-                          <span className="font-medium text-green-600">
+                          <span className="font-medium text-green-600 dark:text-green-400">
                             {formatCurrency(comparisonData.scenario2.summary.total_revenue)}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Expenses</span>
-                          <span className="font-medium text-red-600">
+                          <span className="font-medium text-red-600 dark:text-red-400">
                             {formatCurrency(comparisonData.scenario2.summary.total_expenses)}
                           </span>
                         </div>
@@ -832,8 +832,8 @@ export default function BudgetingTab() {
                           <span
                             className={`font-bold ${
                               comparisonData.scenario2.summary.net_income >= 0
-                                ? "text-green-600"
-                                : "text-red-600"
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
                             }`}
                           >
                             {formatCurrency(comparisonData.scenario2.summary.net_income)}
@@ -885,7 +885,7 @@ export default function BudgetingTab() {
                           </TableCell>
                           <TableCell className="text-right">
                             <span
-                              className={data.difference >= 0 ? "text-green-600" : "text-red-600"}
+                              className={data.difference >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
                             >
                               {formatCurrency(data.difference)}
                             </span>
@@ -893,7 +893,7 @@ export default function BudgetingTab() {
                           <TableCell className="text-right">
                             <span
                               className={
-                                data.difference_pct >= 0 ? "text-green-600" : "text-red-600"
+                                data.difference_pct >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                               }
                             >
                               {formatPercentChangeWithFallback(data.difference_pct, "-")}
@@ -1121,7 +1121,7 @@ export default function BudgetingTab() {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
               <Trash2 className="h-5 w-5" />
               Delete Scenario
             </DialogTitle>

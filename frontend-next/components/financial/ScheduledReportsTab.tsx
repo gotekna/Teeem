@@ -179,7 +179,7 @@ export default function ScheduledReportsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{activeCount}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{activeCount}</div>
             <p className="text-xs text-muted-foreground mt-1">running schedules</p>
           </CardContent>
         </Card>
@@ -191,7 +191,7 @@ export default function ScheduledReportsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{reports.length - activeCount}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{reports.length - activeCount}</div>
             <p className="text-xs text-muted-foreground mt-1">paused schedules</p>
           </CardContent>
         </Card>
@@ -261,7 +261,7 @@ export default function ScheduledReportsTab() {
                     <TableCell>
                       <div className="font-medium">{report.name}</div>
                       {report.last_error && (
-                        <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                        <div className="text-xs text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" />
                           {report.last_error}
                         </div>

@@ -1350,7 +1350,7 @@ export default function NewJobPage() {
                 {/* Referral & Sales */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <User className="h-4 w-4 text-green-500" />
+                    <User className="h-4 w-4 text-green-500 dark:text-green-400" />
                     Referral & Sales
                   </h3>
                   <div className="space-y-2">
@@ -1396,7 +1396,7 @@ export default function NewJobPage() {
                 {/* Internal Team */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Users className="h-4 w-4 text-orange-500" />
+                    <Users className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                     Internal Team
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
@@ -1546,7 +1546,7 @@ export default function NewJobPage() {
                 {proposal.extracted_data.description && (
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-500" />
+                      <FileText className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                       Description
                     </h3>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
@@ -1572,7 +1572,7 @@ export default function NewJobPage() {
                 {proposal.extracted_data.scope_of_work && (
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <CheckSquare className="h-4 w-4 text-green-500" />
+                      <CheckSquare className="h-4 w-4 text-green-500 dark:text-green-400" />
                       Scope of Work
                     </h3>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
@@ -1585,7 +1585,7 @@ export default function NewJobPage() {
                 {proposal.extracted_data.special_requirements && (
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-orange-500" />
+                      <AlertTriangle className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                       Special Requirements
                     </h3>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
@@ -1598,7 +1598,7 @@ export default function NewJobPage() {
                 {proposal.extracted_data.timeline_notes && (
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-purple-500" />
+                      <Clock className="h-4 w-4 text-purple-500 dark:text-purple-400" />
                       Timeline
                     </h3>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
@@ -1624,7 +1624,7 @@ export default function NewJobPage() {
                 {proposal.extracted_data.risk_factors && (
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                      <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
                       Risk Factors
                     </h3>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
@@ -1637,7 +1637,7 @@ export default function NewJobPage() {
                 {proposal.extracted_data.communication_preferences && (
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 text-blue-500" />
+                      <MessageSquare className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                       Communication Preferences
                     </h3>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">

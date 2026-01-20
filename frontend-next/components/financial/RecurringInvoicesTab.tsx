@@ -421,7 +421,7 @@ export default function RecurringInvoicesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{summary.active_count}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.active_count}</div>
             </CardContent>
           </Card>
           <Card>
@@ -431,7 +431,7 @@ export default function RecurringInvoicesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{summary.paused_count}</div>
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{summary.paused_count}</div>
             </CardContent>
           </Card>
           <Card>
@@ -441,7 +441,7 @@ export default function RecurringInvoicesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{summary.due_today}</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{summary.due_today}</div>
             </CardContent>
           </Card>
           <Card>
@@ -571,7 +571,7 @@ export default function RecurringInvoicesTab() {
                           {invoice.status !== "cancelled" && invoice.status !== "completed" && (
                             <DropdownMenuItem
                               onClick={() => handleAction(invoice, "cancel")}
-                              className="text-red-600"
+                              className="text-red-600 dark:text-red-400"
                             >
                               <XCircle className="h-4 w-4 mr-2" />
                               Cancel
@@ -579,7 +579,7 @@ export default function RecurringInvoicesTab() {
                           )}
                           <DropdownMenuItem
                             onClick={() => handleDelete(invoice)}
-                            className="text-red-600"
+                            className="text-red-600 dark:text-red-400"
                           >
                             <XCircle className="h-4 w-4 mr-2" />
                             Delete
@@ -821,7 +821,7 @@ export default function RecurringInvoicesTab() {
                       onClick={() => removeLineItem(index)}
                       disabled={formData.line_items_template.length <= 1}
                     >
-                      <XCircle className="h-4 w-4 text-red-500" />
+                      <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
                     </Button>
                   </div>
                 </div>

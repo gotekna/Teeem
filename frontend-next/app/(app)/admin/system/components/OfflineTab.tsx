@@ -48,10 +48,10 @@ export function OfflineTab() {
         <CardContent className="flex items-center gap-4 py-4">
           {isOnline ? (
             <>
-              <Cloud className="h-8 w-8 text-green-600" />
+              <Cloud className="h-8 w-8 text-green-600 dark:text-green-400" />
               <div>
                 <div className="font-semibold text-green-700 dark:text-green-400">You are Online</div>
-                <div className="text-sm text-green-600 dark:text-green-500">All features available. Data syncing normally.</div>
+                <div className="text-sm text-green-600 dark:text-green-400">All features available. Data syncing normally.</div>
               </div>
             </>
           ) : (
@@ -86,21 +86,21 @@ export function OfflineTab() {
 
           <div className="grid gap-4 md:grid-cols-3">
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-              <Calendar className="h-5 w-5 text-blue-600 mt-0.5" />
+              <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
               <div>
                 <div className="font-medium text-sm">Gantt Schedules</div>
                 <div className="text-xs text-muted-foreground">View job schedules offline</div>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-              <FileText className="h-5 w-5 text-purple-600 mt-0.5" />
+              <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400 mt-0.5" />
               <div>
                 <div className="font-medium text-sm">Documents</div>
                 <div className="text-xs text-muted-foreground">Access synced PDFs & files</div>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-              <Camera className="h-5 w-5 text-green-600 mt-0.5" />
+              <Camera className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
               <div>
                 <div className="font-medium text-sm">Photo Capture</div>
                 <div className="text-xs text-muted-foreground">Take photos that auto-sync</div>
@@ -188,28 +188,28 @@ export function OfflineTab() {
           {/* Test 1: Gantt Offline */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">Test 1</Badge>
+              <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/50 dark:text-blue-300">Test 1</Badge>
               <span className="font-medium">Gantt Schedule Offline</span>
             </div>
             <ol className="space-y-2 text-sm ml-4">
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Go to any Job → Schedule → Gantt</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Wait for "Synced" indicator in top right</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Turn on <strong>Airplane Mode</strong> on your device</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Refresh the page - Gantt should still load from cache</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Status should show "Offline • Last synced X mins ago"</span>
               </li>
             </ol>
@@ -220,28 +220,28 @@ export function OfflineTab() {
           {/* Test 2: Documents Offline */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">Test 2</Badge>
+              <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/50 dark:text-purple-300">Test 2</Badge>
               <span className="font-medium">Documents Offline</span>
             </div>
             <ol className="space-y-2 text-sm ml-4">
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Go to Portal → Offline tab (or click button below)</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Click <strong>Sync</strong> on a job to download its documents</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Wait for sync to complete (shows progress bar)</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Turn on <strong>Airplane Mode</strong></span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Go to that job's Documents tab - files should open from cache</span>
               </li>
             </ol>
@@ -256,32 +256,32 @@ export function OfflineTab() {
           {/* Test 3: Photo Capture */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">Test 3</Badge>
+              <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/50 dark:text-green-300">Test 3</Badge>
               <span className="font-medium">Photo Capture Offline</span>
             </div>
             <ol className="space-y-2 text-sm ml-4">
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Go to any Job → Field tab</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Select a task, then tap the <strong>Photos</strong> tab</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Turn on <strong>Airplane Mode</strong></span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Tap <strong>Open Camera</strong> and take a photo</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Photo saves locally with "Pending" badge</span>
               </li>
               <li className="flex gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 <span>Turn off Airplane Mode - photo auto-syncs, badge changes to "Synced"</span>
               </li>
             </ol>

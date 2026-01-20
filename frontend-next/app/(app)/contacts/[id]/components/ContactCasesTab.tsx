@@ -57,7 +57,7 @@ function CaseRelationshipCard({ relationship: rel }: CaseRelationshipCardProps) 
         <div className="flex-1">
           <Link
             href={`/cases/${rel.case_id}`}
-            className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
+            className="font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
           >
             {rel.case_number}: {rel.case_title}
             <ExternalLink className="h-3 w-3" />

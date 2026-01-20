@@ -307,7 +307,7 @@ export default function EofyTab() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className={`text-2xl font-bold ${dashboard.key_figures.net_profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    <div className={`text-2xl font-bold ${dashboard.key_figures.net_profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                       {formatCurrency(dashboard.key_figures.net_profit)}
                     </div>
                   </CardContent>
@@ -345,7 +345,7 @@ export default function EofyTab() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-orange-600">
+                    <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                       {formatCurrency(dashboard.key_figures.estimated_tax)}
                     </div>
                   </CardContent>
@@ -366,7 +366,7 @@ export default function EofyTab() {
                       {dashboard.due_dates.map((dd, idx) => (
                         <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${dd.is_past ? "bg-red-50 dark:bg-red-900/20" : "bg-muted"}`}>
                           <span className="text-sm font-medium">{dd.label}</span>
-                          <span className={`text-sm ${dd.is_past ? "text-red-600" : "text-muted-foreground"}`}>
+                          <span className={`text-sm ${dd.is_past ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>
                             {formatDate(dd.date)}
                           </span>
                         </div>
@@ -474,9 +474,9 @@ export default function EofyTab() {
                         </div>
                       </div>
                       {item.completed ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                       ) : item.critical ? (
-                        <AlertCircle className="h-5 w-5 text-red-500" />
+                        <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
                       ) : null}
                     </div>
                   ))}
@@ -564,7 +564,7 @@ export default function EofyTab() {
                   </div>
                   <div className="p-4 rounded-lg bg-muted">
                     <div className="text-sm text-muted-foreground">Estimated Tax (25%)</div>
-                    <div className="text-xl font-bold text-orange-600">{formatCurrency(dashboard.key_figures.estimated_tax)}</div>
+                    <div className="text-xl font-bold text-orange-600 dark:text-orange-400">{formatCurrency(dashboard.key_figures.estimated_tax)}</div>
                   </div>
                   <div className="p-4 rounded-lg bg-muted">
                     <div className="text-sm text-muted-foreground">Effective Rate</div>

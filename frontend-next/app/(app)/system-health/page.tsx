@@ -438,7 +438,7 @@ export default function SystemHealthPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif flex items-center gap-2">
-            <Heart className="h-6 w-6 text-red-500" />
+            <Heart className="h-6 w-6 text-red-500 dark:text-red-400" />
             TEEEM System Health
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -447,7 +447,7 @@ export default function SystemHealthPage() {
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="text-sm py-1 px-3">
-            <Trophy className="h-3.5 w-3.5 mr-1.5 text-yellow-500" />
+            <Trophy className="h-3.5 w-3.5 mr-1.5 text-yellow-500 dark:text-yellow-400" />
             {userKudos} Kudos
           </Badge>
           <Button

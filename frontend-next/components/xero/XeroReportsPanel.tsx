@@ -299,15 +299,15 @@ function XeroPdfReportsCard({
                     <td className="py-2 px-3">{getStatusBadge(report.status)}</td>
                     {reportType === "profit_loss" && (
                       <>
-                        <td className="py-2 px-3 text-right font-mono text-green-600">
+                        <td className="py-2 px-3 text-right font-mono text-green-600 dark:text-green-400">
                           {report.total_revenue ? formatCurrency(report.total_revenue) : "—"}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono text-red-600">
+                        <td className="py-2 px-3 text-right font-mono text-red-600 dark:text-red-400">
                           {report.total_expenses ? formatCurrency(report.total_expenses) : "—"}
                         </td>
                         <td className="py-2 px-3 text-right font-mono font-semibold">
                           {report.net_profit !== undefined ? (
-                            <span className={report.net_profit >= 0 ? "text-green-600" : "text-red-600"}>
+                            <span className={report.net_profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                               {formatCurrency(report.net_profit)}
                             </span>
                           ) : "—"}
@@ -316,13 +316,13 @@ function XeroPdfReportsCard({
                     )}
                     {reportType === "balance_sheet" && (
                       <>
-                        <td className="py-2 px-3 text-right font-mono text-green-600">
+                        <td className="py-2 px-3 text-right font-mono text-green-600 dark:text-green-400">
                           {report.total_assets ? formatCurrency(report.total_assets) : "—"}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono text-red-600">
+                        <td className="py-2 px-3 text-right font-mono text-red-600 dark:text-red-400">
                           {report.total_liabilities ? formatCurrency(report.total_liabilities) : "—"}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono font-semibold text-blue-600">
+                        <td className="py-2 px-3 text-right font-mono font-semibold text-blue-600 dark:text-blue-400">
                           {report.net_assets !== undefined ? formatCurrency(report.net_assets) : "—"}
                         </td>
                       </>

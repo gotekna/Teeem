@@ -140,9 +140,9 @@ export default function PlanSelectionPage() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     {tier.id === "shared" ? (
-                      <Building2 className="h-8 w-8 text-blue-500" />
+                      <Building2 className="h-8 w-8 text-blue-500 dark:text-blue-400" />
                     ) : (
-                      <Server className="h-8 w-8 text-purple-500" />
+                      <Server className="h-8 w-8 text-purple-500 dark:text-purple-400" />
                     )}
                     <div>
                       <CardTitle>{tier.name}</CardTitle>
@@ -164,7 +164,7 @@ export default function PlanSelectionPage() {
                 <ul className="space-y-2">
                   {tier.features.map((feature, idx) => (
                     <li key={idx} className="flex items-center gap-2">
-                      <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                      <Check className="h-4 w-4 text-green-500 dark:text-green-400 flex-shrink-0" />
                       <span className="text-sm">{feature}</span>
                     </li>
                   ))}

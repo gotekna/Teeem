@@ -126,9 +126,9 @@ export default function DocumentTypesPage() {
     if (columnKey === "scope") {
       const value = entry.scope || "company";
       const scopeConfig = {
-        company: { label: "Company", className: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
-        job: { label: "Job", className: "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
-        both: { label: "Both", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" }
+        company: { label: "Company", className: "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300" },
+        job: { label: "Job", className: "bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-300" },
+        both: { label: "Both", className: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300" }
       };
       const config = scopeConfig[value as keyof typeof scopeConfig] || scopeConfig.company;
       return (
@@ -181,7 +181,7 @@ export default function DocumentTypesPage() {
       const value = entry[columnKey as keyof DocumentType] as string | undefined;
       if (!value) return <span className="text-muted-foreground">-</span>;
       return (
-        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300">
           {value}
         </Badge>
       );

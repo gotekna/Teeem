@@ -180,7 +180,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
         );
       case "warning":
         return (
-          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-300">
+          <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-300">
             <AlertTriangle className="h-3 w-3 mr-1" />
             Stale
           </Badge>
@@ -286,7 +286,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
             }
             lastSync={data.stage1_data_sync?.last_synced_at}
             schedule={data.stage1_data_sync?.schedule}
-            color="bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400"
+            color="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400"
           />
 
           {/* Stage 2: PDF Download */}
@@ -299,7 +299,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
             percentage={data.stage2_pdf_download?.progress_percentage || 0}
             lastSync={data.stage2_pdf_download?.last_synced_at}
             schedule={data.stage2_pdf_download?.schedule}
-            color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+            color="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"
           />
 
           {/* Stage 3: SharePoint Upload */}
@@ -324,7 +324,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
               percentage={data.stage3_sharepoint?.progress_percentage || 0}
               lastSync={data.stage3_sharepoint?.last_synced_at}
               schedule="Uploads with PDF sync"
-              color="bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+              color="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
             />
           </div>
         </div>

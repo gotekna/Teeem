@@ -275,7 +275,7 @@ export function EmailPlansModal({
                       </span>
                     )}
                     {!plan.current_revision?.has_file && (
-                      <span className="text-xs text-red-500">(no file)</span>
+                      <span className="text-xs text-red-500 dark:text-red-400">(no file)</span>
                     )}
                   </Badge>
                 ))}
@@ -372,7 +372,7 @@ export function EmailPlansModal({
                     <button
                       type="button"
                       onClick={() => toggleRecipient(email)}
-                      className="ml-1 hover:text-red-500"
+                      className="ml-1 hover:text-red-500 dark:text-red-400"
                     >
                       <X className="h-3 w-3" />
                     </button>

@@ -4613,7 +4613,7 @@ export default function TeeemTableView({
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
                 {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
-                {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
+                {isFullyLoaded && <span className="ml-1 text-green-600 dark:text-green-400">✓</span>}
               </span>
               {hasPartialData && !isLoadingThisGroup && (
                 <button
@@ -4930,7 +4930,7 @@ export default function TeeemTableView({
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
                 {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
-                {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
+                {isFullyLoaded && <span className="ml-1 text-green-600 dark:text-green-400">✓</span>}
               </span>
             </div>
           </TableCell>

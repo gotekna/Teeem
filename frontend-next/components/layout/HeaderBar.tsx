@@ -217,11 +217,11 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const getStatusColors = (status: ConnectionStatus) => {
     switch (status) {
       case 'connected':
-        return "text-green-500 hover:text-green-600";
+        return "text-green-500 dark:text-green-400 hover:text-green-600 dark:text-green-400";
       case 'degraded':
-        return "text-orange-500 hover:text-orange-600";
+        return "text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:text-orange-400";
       case 'error':
-        return "text-red-500 hover:text-red-600";
+        return "text-red-500 dark:text-red-400 hover:text-red-600 dark:text-red-400";
       default:
         return "text-muted-foreground hover:text-muted-foreground dark:text-muted-foreground dark:hover:text-muted-foreground";
     }
@@ -322,7 +322,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             href="/admin/system/teeem-xl"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 text-muted-foreground hover:text-green-500 dark:hover:text-green-400 rounded-md"
+            className="p-1.5 text-muted-foreground hover:text-green-500 dark:text-green-400 dark:hover:text-green-400 rounded-md"
             title="TeeemXL - New Spreadsheet (opens in new tab)"
           >
             <span className="sr-only">TeeemXL</span>
@@ -336,7 +336,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             href="/admin/system/teeem-word"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 text-muted-foreground hover:text-blue-500 dark:hover:text-blue-400 rounded-md"
+            className="p-1.5 text-muted-foreground hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-400 rounded-md"
             title="TeeemWord - New Document (opens in new tab)"
           >
             <span className="sr-only">TeeemWord</span>
@@ -350,7 +350,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             href="/admin/system/teeem-powerpoint"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 text-muted-foreground hover:text-orange-500 dark:hover:text-orange-400 rounded-md"
+            className="p-1.5 text-muted-foreground hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-400 rounded-md"
             title="TeeemPowerPoint - New Presentation (opens in new tab)"
           >
             <span className="sr-only">TeeemPowerPoint</span>
@@ -364,7 +364,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             href="/admin/system/teeem-pdf"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 rounded-md"
+            className="p-1.5 text-muted-foreground hover:text-red-500 dark:text-red-400 dark:hover:text-red-400 rounded-md"
             title="TeeemPDF - New PDF Document (opens in new tab)"
           >
             <span className="sr-only">TeeemPDF</span>
@@ -446,7 +446,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* Data Warehouse */}
           <Link prefetch={false}
             href="/data-warehouse"
-            className="p-1.5 text-red-500 hover:text-red-600 rounded-md transition-colors"
+            className="p-1.5 text-red-500 dark:text-red-400 hover:text-red-600 dark:text-red-400 rounded-md transition-colors"
             title="Data Warehouse"
           >
             <span className="sr-only">Data Warehouse</span>
@@ -459,7 +459,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             className="p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md transition-colors"
             title="System Health"
           >
-            <HeartPulse className="h-4 w-4 text-red-500" />
+            <HeartPulse className="h-4 w-4 text-red-500 dark:text-red-400" />
           </Link>
 
           {/* Inspiring Banner - centered */}

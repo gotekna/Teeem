@@ -280,7 +280,7 @@ export function XeroContactsTable({
         {contact.xero_linked_count ? (
           <Badge
             variant="outline"
-            className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800"
+            className="text-xs bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800"
           >
             <span className="mr-1">✓</span>
             {contact.xero_linked_count}/10
@@ -374,8 +374,8 @@ export function XeroContactsTable({
       <Card>
         <CardContent className="p-6">
           <div className="flex flex-col items-center justify-center text-center">
-            <AlertCircle className="h-8 w-8 text-red-500 mb-2" />
-            <p className="font-medium text-red-600">{error}</p>
+            <AlertCircle className="h-8 w-8 text-red-500 dark:text-red-400 mb-2" />
+            <p className="font-medium text-red-600 dark:text-red-400">{error}</p>
             <Button
               variant="outline"
               size="sm"
@@ -441,7 +441,7 @@ export function XeroContactsTable({
         </Button>
 
         {/* Record Count Badge */}
-        <Badge variant="outline" className="text-green-600 border-green-300 dark:border-green-700">
+        <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-300 dark:border-green-700">
           {filteredContacts.length} records
         </Badge>
 
@@ -495,8 +495,8 @@ export function XeroContactsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {renderGroup("person", "Person", <User className="h-4 w-4 text-blue-500" />)}
-          {renderGroup("company", "Company", <Building2 className="h-4 w-4 text-green-500" />)}
+          {renderGroup("person", "Person", <User className="h-4 w-4 text-blue-500 dark:text-blue-400" />)}
+          {renderGroup("company", "Company", <Building2 className="h-4 w-4 text-green-500 dark:text-green-400" />)}
           {renderGroup("other", "Other", null)}
         </TableBody>
       </Table>

@@ -68,7 +68,7 @@ function CompletionItem({ label, completed, value }: { label: string; completed?
   return (
     <div className="flex items-center space-x-2">
       {completed ? (
-        <CheckCircle className="h-5 w-5 text-green-500" />
+        <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
       ) : (
         <XCircle className="h-5 w-5 text-red-400" />
       )}
@@ -238,19 +238,19 @@ export function HealthTab({ company, onUpdate }: HealthTabProps) {
               <div className="text-xs text-muted-foreground">Total</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-green-600">{healthData.summary.excellent}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{healthData.summary.excellent}</div>
               <div className="text-xs text-muted-foreground">Excellent</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-blue-600">{healthData.summary.good}</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{healthData.summary.good}</div>
               <div className="text-xs text-muted-foreground">Good</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-yellow-600">{healthData.summary.needs_attention}</div>
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{healthData.summary.needs_attention}</div>
               <div className="text-xs text-muted-foreground">Needs Attention</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-red-600">{healthData.summary.critical}</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{healthData.summary.critical}</div>
               <div className="text-xs text-muted-foreground">Critical</div>
             </div>
           </div>

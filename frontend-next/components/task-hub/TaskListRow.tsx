@@ -153,7 +153,7 @@ export function TaskListRow({
             </Badge>
           )}
           {task.locked && (
-            <Lock className="h-3 w-3 text-orange-500 shrink-0" />
+            <Lock className="h-3 w-3 text-orange-500 dark:text-orange-400 shrink-0" />
           )}
           {task.is_following && (
             <Badge variant="outline" className={cn("h-4 px-1 text-[10px] gap-0.5 shrink-0", getTaskColorClasses('following').text)}>

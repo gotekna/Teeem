@@ -157,7 +157,7 @@ export default function BillingMilestonesTab() {
         );
       case "invoiced":
         return (
-          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <Badge className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400">
             <FileText className="h-3 w-3 mr-1" />
             Invoiced
           </Badge>
@@ -247,7 +247,7 @@ export default function BillingMilestonesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{completedMilestones.length}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{completedMilestones.length}</div>
             <p className="text-xs text-muted-foreground mt-1">ready for billing</p>
           </CardContent>
         </Card>
@@ -260,7 +260,7 @@ export default function BillingMilestonesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {formatCurrency(totalBillable)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -277,7 +277,7 @@ export default function BillingMilestonesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
               {milestones.filter((m) => m.days_until_target !== null && m.days_until_target < 0 && m.status !== "completed").length}
             </div>
             <p className="text-xs text-muted-foreground mt-1">past target date</p>

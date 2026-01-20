@@ -676,9 +676,9 @@ export default function PriceBookItemDetailPage() {
 
   const getStatusBadge = (color: string) => {
     const colorClasses: Record<string, string> = {
-      green: "bg-green-100 text-green-700",
+      green: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
       yellow: "bg-status-warning text-status-warning-foreground",
-      red: "bg-red-100 text-red-700",
+      red: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
       gray: "bg-muted text-muted-foreground",
     };
     return colorClasses[color] || colorClasses.gray;
@@ -1272,7 +1272,7 @@ export default function PriceBookItemDetailPage() {
                             className="h-8 w-8"
                             onClick={handleAddNewPrice}
                           >
-                            <Plus className="h-4 w-4 text-green-600" />
+                            <Plus className="h-4 w-4 text-green-600 dark:text-green-400" />
                           </Button>
                         )}
                       </TableCell>

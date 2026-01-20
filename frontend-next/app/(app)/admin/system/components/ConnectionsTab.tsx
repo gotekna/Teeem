@@ -298,7 +298,7 @@ function OutlookConnection() {
           </div>
           <Badge
             variant={status?.connected ? (status?.needs_refresh ? "outline" : "default") : "secondary"}
-            className={cn(status?.needs_refresh && "border-orange-500 text-orange-600")}
+            className={cn(status?.needs_refresh && "border-orange-500 text-orange-600 dark:text-orange-400")}
           >
             {status?.connected ? (
               status?.needs_refresh ? (
@@ -792,7 +792,7 @@ function S3StorageConnection() {
                     <p className="text-xs text-muted-foreground">{cred.bucket} • {cred.region}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="text-red-600">
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="text-red-600 dark:text-red-400">
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -898,7 +898,7 @@ function S3StorageConnection() {
             {testResult && (
               <div className={cn(
                 "p-2 rounded text-sm",
-                testResult.success ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                testResult.success ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400" : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
               )}>
                 {testResult.success ? <Check className="h-4 w-4 inline mr-1" /> : <X className="h-4 w-4 inline mr-1" />}
                 {testResult.message}
@@ -1180,9 +1180,9 @@ function DocumentStorageProvider() {
                   <SelectItem key={cred.id} value={cred.id.toString()}>
                     <div className="flex items-center gap-2">
                       {cred.status === "connected" ? (
-                        <Check className="h-3 w-3 text-green-600" />
+                        <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
                       ) : (
-                        <X className="h-3 w-3 text-red-600" />
+                        <X className="h-3 w-3 text-red-600 dark:text-red-400" />
                       )}
                       {cred.name} ({cred.bucket})
                     </div>
@@ -1230,7 +1230,7 @@ function DocumentStorageProvider() {
                   <span className="text-sm">{cred.name}</span>
                   <span className="text-xs text-muted-foreground">{cred.bucket}</span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="h-6 w-6 p-0 text-red-600">
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="h-6 w-6 p-0 text-red-600 dark:text-red-400">
                   <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
@@ -1326,7 +1326,7 @@ function DocumentStorageProvider() {
             {testResult && (
               <div className={cn(
                 "p-2 rounded text-xs",
-                testResult.success ? "bg-green-50 text-green-700 dark:bg-green-900/30" : "bg-red-50 text-red-700 dark:bg-red-900/30"
+                testResult.success ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30" : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 dark:bg-red-900/30"
               )}>
                 {testResult.success ? <Check className="h-3 w-3 inline mr-1" /> : <X className="h-3 w-3 inline mr-1" />}
                 {testResult.message}
@@ -1578,7 +1578,7 @@ function EmailMigrationCard() {
             <AccordionItem value="pending-mailboxes" className="border-none">
               <AccordionTrigger className="py-2 hover:no-underline">
                 <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-orange-500" />
+                  <Mail className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                   <span className="text-sm font-medium">Pending by Mailbox</span>
                   <Badge variant="outline" className="ml-1">
                     {storageUpload.pending_by_mailbox.length}
@@ -1954,8 +1954,8 @@ function DocumentMigrationCard() {
             <div className="flex gap-4 text-xs text-muted-foreground">
               <span>Pending: {status?.status_counts.pending || 0}</span>
               <span>In Progress: {status?.status_counts.in_progress || 0}</span>
-              <span className="text-green-600">Completed: {status?.status_counts.completed || 0}</span>
-              {hasFailures && <span className="text-red-600">Failed: {status?.status_counts.failed || 0}</span>}
+              <span className="text-green-600 dark:text-green-400">Completed: {status?.status_counts.completed || 0}</span>
+              {hasFailures && <span className="text-red-600 dark:text-red-400">Failed: {status?.status_counts.failed || 0}</span>}
             </div>
           </div>
         )}
@@ -1974,7 +1974,7 @@ function DocumentMigrationCard() {
         {hasFailures && status?.recent_failures && status.recent_failures.length > 0 && (
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="failures" className="border-none">
-              <AccordionTrigger className="py-2 text-sm text-red-600 hover:no-underline">
+              <AccordionTrigger className="py-2 text-sm text-red-600 dark:text-red-400 hover:no-underline">
                 {status.status_counts.failed} failed migrations
               </AccordionTrigger>
               <AccordionContent>

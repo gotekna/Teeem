@@ -81,14 +81,14 @@ const CATEGORIES: {
     label: "Team",
     icon: Users,
     shortcut: "2",
-    color: "text-blue-500",
+    color: "text-blue-500 dark:text-blue-400",
   },
   {
     key: "newsletters",
     label: "Newsletters",
     icon: Newspaper,
     shortcut: "3",
-    color: "text-purple-500",
+    color: "text-purple-500 dark:text-purple-400",
   },
   {
     key: "other",

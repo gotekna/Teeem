@@ -61,23 +61,23 @@ function getFileIcon(fileName: string) {
     case "rvt":
     case "rfa":
     case "rte":
-      return <FileCog className="h-5 w-5 text-orange-500" />;
+      return <FileCog className="h-5 w-5 text-orange-500 dark:text-orange-400" />;
     case "dwg":
     case "dxf":
-      return <FileCode className="h-5 w-5 text-blue-500" />;
+      return <FileCode className="h-5 w-5 text-blue-500 dark:text-blue-400" />;
     case "skp":
-      return <FileCode className="h-5 w-5 text-red-500" />;
+      return <FileCode className="h-5 w-5 text-red-500 dark:text-red-400" />;
     case "jpg":
     case "jpeg":
     case "png":
     case "gif":
     case "bmp":
-      return <FileImage className="h-5 w-5 text-green-500" />;
+      return <FileImage className="h-5 w-5 text-green-500 dark:text-green-400" />;
     case "pdf":
-      return <File className="h-5 w-5 text-red-600" />;
+      return <File className="h-5 w-5 text-red-600 dark:text-red-400" />;
     case "udatasmith":
     case "datasmith":
-      return <FileCog className="h-5 w-5 text-purple-500" />;
+      return <FileCog className="h-5 w-5 text-purple-500 dark:text-purple-400" />;
     default:
       return <File className="h-5 w-5 text-muted-foreground" />;
   }
@@ -484,7 +484,7 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
                 onClick={() => handleFolderClick(folder)}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Folder className="h-5 w-5 text-yellow-500 shrink-0" />
+                  <Folder className="h-5 w-5 text-yellow-500 dark:text-yellow-400 shrink-0" />
                   <span className="truncate font-medium">{folder.name}</span>
                   {folder.folder?.childCount !== undefined && (
                     <span className="text-xs text-muted-foreground">

@@ -77,10 +77,10 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
   const confidenceScore = data.confidence_score || 0;
   const confidencePercent = Math.round(confidenceScore * 100);
   const confidenceColor = confidencePercent >= 80
-    ? "text-green-600"
+    ? "text-green-600 dark:text-green-400"
     : confidencePercent >= 60
-    ? "text-yellow-600"
-    : "text-orange-600";
+    ? "text-yellow-600 dark:text-yellow-400"
+    : "text-orange-600 dark:text-orange-400";
 
   return (
     <>

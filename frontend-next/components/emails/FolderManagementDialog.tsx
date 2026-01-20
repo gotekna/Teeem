@@ -181,7 +181,7 @@ export function DeleteFolderDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <Trash2 className="h-5 w-5 text-red-500" />
+            <Trash2 className="h-5 w-5 text-red-500 dark:text-red-400" />
             Delete Folder
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -193,7 +193,7 @@ export function DeleteFolderDialog({
               <>
                 Are you sure you want to delete <strong>&quot;{folderName}&quot;</strong>?
                 <br />
-                <span className="text-red-500 font-medium">
+                <span className="text-red-500 dark:text-red-400 font-medium">
                   This action cannot be undone. Emails in this folder may be permanently deleted.
                 </span>
               </>

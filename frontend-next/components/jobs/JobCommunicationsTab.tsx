@@ -402,7 +402,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDismissSuggestion(suggestion)}
-                      className="text-xs text-muted-foreground hover:text-red-500"
+                      className="text-xs text-muted-foreground hover:text-red-500 dark:text-red-400"
                       title="Not relevant to this job"
                     >
                       ✕

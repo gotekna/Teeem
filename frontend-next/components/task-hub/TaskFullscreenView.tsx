@@ -422,7 +422,7 @@ function SortableQuestionItem({
             title="Include Q&A in response email"
           />
         )}
-        <HelpCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+        <HelpCircle className="h-4 w-4 text-blue-500 dark:text-blue-400 mt-0.5 shrink-0" />
         {editingItemId === item.id ? (
           <Input
             value={editingItemText}
@@ -458,7 +458,7 @@ function SortableQuestionItem({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 text-muted-foreground hover:text-green-600"
+          className="h-6 w-6 p-0 text-muted-foreground hover:text-green-600 dark:text-green-400"
           onClick={() => fileInputRef.current?.click()}
           title="Attach file to this question"
         >
@@ -582,18 +582,18 @@ function SortableQuestionItem({
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
               return (
                 <div key={att.id} className="flex items-center gap-2 text-xs">
-                  <Paperclip className="h-3 w-3 text-green-600 shrink-0" />
+                  <Paperclip className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
                   {url ? (
                     <a
                       href={url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-green-600 hover:text-green-700 hover:underline font-medium"
+                      className="text-green-600 dark:text-green-400 hover:text-green-700 hover:underline font-medium"
                     >
                       {fileName}
                     </a>
                   ) : (
-                    <span className="text-green-600 font-medium">{fileName}</span>
+                    <span className="text-green-600 dark:text-green-400 font-medium">{fileName}</span>
                   )}
                 </div>
               );
@@ -603,10 +603,10 @@ function SortableQuestionItem({
               const subject = att.email.subject || '(No subject)';
               return (
                 <div key={att.id} className="flex items-center gap-2 text-xs">
-                  <Mail className="h-3 w-3 text-green-600 shrink-0" />
+                  <Mail className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
                   <button
                     onClick={() => setSelectedEmailId?.(att.email!.id)}
-                    className="text-green-600 hover:text-green-700 hover:underline font-medium text-left"
+                    className="text-green-600 dark:text-green-400 hover:text-green-700 hover:underline font-medium text-left"
                   >
                     {subject}
                   </button>
@@ -674,7 +674,7 @@ function SortableQuestionItem({
           <Button
             variant="ghost"
             size="sm"
-            className="h-5 text-xs p-0 text-muted-foreground hover:text-green-600"
+            className="h-5 text-xs p-0 text-muted-foreground hover:text-green-600 dark:text-green-400"
             onClick={() => onCreateAction?.(item.text)}
           >
             → Action
@@ -3149,7 +3149,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     )}>
                       <CalendarIcon className={cn(
                         "h-3 w-3",
-                        task.is_overdue && task.status !== TASK_STATUS.COMPLETED ? "text-red-500" : "text-muted-foreground"
+                        task.is_overdue && task.status !== TASK_STATUS.COMPLETED ? "text-red-500 dark:text-red-400" : "text-muted-foreground"
                       )} />
                       <span>{task.required_by ? format(new Date(task.required_by), 'dd MMM yyyy') : 'Not set'}</span>
                       <Pencil className="h-3 w-3 text-muted-foreground" />
@@ -3543,7 +3543,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       <div className="p-2 rounded-md border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-sm shadow-lg border-2 border-primary">
                         <div className="flex items-center gap-2">
                           <GripVertical className="h-4 w-4 text-muted-foreground" />
-                          <HelpCircle className="h-4 w-4 text-blue-500" />
+                          <HelpCircle className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                           <span>{activeItem.text}</span>
                         </div>
                       </div>
@@ -3561,8 +3561,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             {responseAttachments.length > 0 && (
               <div className="mt-3 pt-3 border-t shrink-0">
                 <div className="flex items-center gap-2 mb-2">
-                  <Paperclip className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-medium text-green-600">See attached:</span>
+                  <Paperclip className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <span className="text-sm font-medium text-green-600 dark:text-green-400">See attached:</span>
                 </div>
                 <div className="space-y-1">
                   {responseAttachments.map((att) => (
@@ -3577,7 +3577,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     >
                       {att.email ? (
                         <>
-                          <Mail className="h-4 w-4 text-green-600 shrink-0" />
+                          <Mail className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
                           <button
                             onClick={() => setSelectedEmailId(att.email!.id)}
                             className="flex-1 truncate font-medium text-left hover:underline"
@@ -3587,7 +3587,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         </>
                       ) : (
                         <>
-                          <FileText className="h-4 w-4 text-green-600 shrink-0" />
+                          <FileText className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
                           <span className="flex-1 truncate font-medium">
                             {att.document?.display_name || att.document?.file_name}
                           </span>
@@ -4381,7 +4381,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           >
                             <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50">
                               {emailTreeExpanded.thread ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                              <Mail className="h-3 w-3 text-blue-500" />
+                              <Mail className="h-3 w-3 text-blue-500 dark:text-blue-400" />
                               <span className="text-xs font-medium">Thread</span>
                               <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1.5">
                                 {filteredCategories.thread.length}
@@ -4458,7 +4458,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
+                                                className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500 dark:text-blue-400"
                                                 onClick={(e) => {
                                                   e.stopPropagation();
                                                   handleCopyShareLink(att.id);
@@ -4470,7 +4470,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="h-5 w-5 p-0 text-muted-foreground hover:text-green-500"
+                                                className="h-5 w-5 p-0 text-muted-foreground hover:text-green-500 dark:text-green-400"
                                                 onClick={(e) => {
                                                   e.stopPropagation();
                                                   if (att.email?.id) {
@@ -4485,7 +4485,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                                 <Button
                                                   variant="ghost"
                                                   size="sm"
-                                                  className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
+                                                  className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500 dark:text-blue-400"
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setPendingAttachmentForQuestion(att.id);
@@ -4514,7 +4514,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               <>
                                                 <ContextMenuSub>
                                                   <ContextMenuSubTrigger>
-                                                    <HelpCircle className="h-4 w-4 mr-2 text-blue-500" />
+                                                    <HelpCircle className="h-4 w-4 mr-2 text-blue-500 dark:text-blue-400" />
                                                     Link to Question
                                                   </ContextMenuSubTrigger>
                                                   <ContextMenuSubContent className="max-w-[350px] max-h-[300px] overflow-y-auto">
@@ -4673,7 +4673,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         <Button
                                           variant="ghost"
                                           size="sm"
-                                          className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
+                                          className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500 dark:text-blue-400"
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             handleCopyShareLink(att.id);
@@ -4730,7 +4730,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           >
                             <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50">
                               {emailTreeExpanded.linked ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                              <Link2 className="h-3 w-3 text-green-500" />
+                              <Link2 className="h-3 w-3 text-green-500 dark:text-green-400" />
                               <span className="text-xs font-medium">Linked</span>
                               <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1.5">
                                 {filteredCategories.linked.length}
@@ -4801,7 +4801,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         <Button
                                           variant="ghost"
                                           size="sm"
-                                          className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500"
+                                          className="h-5 w-5 p-0 text-muted-foreground hover:text-blue-500 dark:text-blue-400"
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             handleCopyShareLink(att.id);

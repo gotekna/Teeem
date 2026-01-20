@@ -43,7 +43,7 @@ export function CopyButton({ value, className, size = "sm" }: CopyButtonProps) {
       title="Copy to clipboard"
     >
       {copied ? (
-        <Check className={cn(iconSize, "text-green-500")} />
+        <Check className={cn(iconSize, "text-green-500 dark:text-green-400")} />
       ) : (
         <Copy className={cn(iconSize, "text-muted-foreground")} />
       )}

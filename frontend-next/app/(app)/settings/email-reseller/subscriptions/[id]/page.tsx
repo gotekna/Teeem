@@ -67,12 +67,12 @@ const STATUS_COLORS: Record<SubscriptionStatus, string> = {
 };
 
 const MAILBOX_STATUS_COLORS: Record<MailboxStatus, string> = {
-  active: "bg-green-500/10 text-green-600",
-  pending: "bg-yellow-500/10 text-yellow-600",
-  provisioning: "bg-blue-500/10 text-blue-600",
-  suspended: "bg-red-500/10 text-red-600",
-  deleted: "bg-gray-500/10 text-gray-600",
-  failed: "bg-red-500/10 text-red-600",
+  active: "bg-green-500/10 text-green-600 dark:text-green-400 dark:bg-green-500/20 dark:text-green-400",
+  pending: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 dark:bg-yellow-500/20 dark:text-yellow-400",
+  provisioning: "bg-blue-500/10 text-blue-600 dark:text-blue-400 dark:bg-blue-500/20 dark:text-blue-400",
+  suspended: "bg-red-500/10 text-red-600 dark:text-red-400 dark:bg-red-500/20 dark:text-red-400",
+  deleted: "bg-gray-500/10 text-gray-600 dark:bg-gray-500/20 dark:text-gray-400",
+  failed: "bg-red-500/10 text-red-600 dark:text-red-400 dark:bg-red-500/20 dark:text-red-400",
 };
 
 interface SubscriptionDetail extends EmailSubscription {
@@ -243,7 +243,7 @@ export default function SubscriptionDetailPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrencyWhole(margin)}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrencyWhole(margin)}</div>
             <p className="text-xs text-muted-foreground">{marginPercent}% margin</p>
           </CardContent>
         </Card>
@@ -470,7 +470,7 @@ export default function SubscriptionDetailPage() {
                   <span className="text-muted-foreground">Wholesale Cost</span>
                   <span>{formatCurrencyWhole(monthlyWholesale)}</span>
                 </div>
-                <div className="flex justify-between font-medium text-green-600">
+                <div className="flex justify-between font-medium text-green-600 dark:text-green-400">
                   <span>Your Margin</span>
                   <span>{formatCurrencyWhole(margin)}/mo</span>
                 </div>

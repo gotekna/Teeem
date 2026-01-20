@@ -2021,7 +2021,7 @@ export default function TeeemXLPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                  className="w-full text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
                   onClick={() => {
                     setSelectedJobId(null);
                     setSelectedJobName(null);

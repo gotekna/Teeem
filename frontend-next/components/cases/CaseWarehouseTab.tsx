@@ -123,11 +123,11 @@ export function CaseWarehouseTab({ caseId }: CaseWarehouseTabProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Job Income</p>
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {formatCurrency(warehouseSummary.total_job_income || 0)}
                 </p>
               </div>
-              <TrendingUp className="h-8 w-8 text-green-500" />
+              <TrendingUp className="h-8 w-8 text-green-500 dark:text-green-400" />
             </div>
           </CardContent>
         </Card>
@@ -136,11 +136,11 @@ export function CaseWarehouseTab({ caseId }: CaseWarehouseTabProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Job Expenses</p>
-                <p className="text-2xl font-bold text-red-600">
+                <p className="text-2xl font-bold text-red-600 dark:text-red-400">
                   {formatCurrency(warehouseSummary.total_job_expenses || 0)}
                 </p>
               </div>
-              <TrendingDown className="h-8 w-8 text-red-500" />
+              <TrendingDown className="h-8 w-8 text-red-500 dark:text-red-400" />
             </div>
           </CardContent>
         </Card>
@@ -153,7 +153,7 @@ export function CaseWarehouseTab({ caseId }: CaseWarehouseTabProps) {
                   {(warehouseSummary.total_hours_logged || 0).toFixed(1)}
                 </p>
               </div>
-              <Clock className="h-8 w-8 text-blue-500" />
+              <Clock className="h-8 w-8 text-blue-500 dark:text-blue-400" />
             </div>
           </CardContent>
         </Card>
@@ -185,7 +185,7 @@ export function CaseWarehouseTab({ caseId }: CaseWarehouseTabProps) {
               <p className="text-sm text-muted-foreground">Contacts</p>
             </div>
             <div className="text-center p-4 bg-muted/30 rounded-lg">
-              <Building2 className="h-6 w-6 mx-auto mb-2 text-blue-600" />
+              <Building2 className="h-6 w-6 mx-auto mb-2 text-blue-600 dark:text-blue-400" />
               <p className="text-2xl font-bold">{warehouseSummary.related_companies}</p>
               <p className="text-sm text-muted-foreground">Companies</p>
             </div>
@@ -288,9 +288,9 @@ export function CaseWarehouseTab({ caseId }: CaseWarehouseTabProps) {
                         <Badge
                           className={cn(
                             issue.severity === "high"
-                              ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                              ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900 dark:text-red-300"
                               : issue.severity === "medium"
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+                              ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900 dark:text-amber-300"
                               : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"
                           )}
                         >

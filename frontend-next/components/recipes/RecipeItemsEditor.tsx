@@ -517,7 +517,7 @@ function RecipeItemRow({
             checked={editedItem.uses_formula}
             onCheckedChange={(v) => setEditedItem({ ...editedItem, uses_formula: v })}
           />
-          <Calculator className={cn("h-3 w-3", editedItem.uses_formula ? "text-blue-500" : "text-muted-foreground")} />
+          <Calculator className={cn("h-3 w-3", editedItem.uses_formula ? "text-blue-500 dark:text-blue-400" : "text-muted-foreground")} />
         </div>
         <Input
           type="number"
@@ -560,13 +560,13 @@ function RecipeItemRow({
       <span className="text-muted-foreground">{item.unit_of_measure}</span>
       <span className="text-right font-mono">
         {item.uses_formula ? (
-          <span className="text-blue-500 text-xs">{item.quantity_formula}</span>
+          <span className="text-blue-500 dark:text-blue-400 text-xs">{item.quantity_formula}</span>
         ) : (
           item.base_quantity
         )}
       </span>
       <div className="flex justify-center">
-        {item.uses_formula && <Calculator className="h-4 w-4 text-blue-500" />}
+        {item.uses_formula && <Calculator className="h-4 w-4 text-blue-500 dark:text-blue-400" />}
       </div>
       <span className="text-right">
         ${(item.effective_unit_price || item.unit_price_override || 0).toFixed(2)}

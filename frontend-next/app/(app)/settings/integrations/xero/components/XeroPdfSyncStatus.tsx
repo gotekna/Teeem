@@ -285,7 +285,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
         );
       case "warning":
         return (
-          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">
+          <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 hover:bg-orange-100">
             <AlertTriangle className="h-3 w-3 mr-1" />
             Stale
           </Badge>
@@ -390,8 +390,8 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
         {nextSync && (
           <span className={`font-medium ${
             formatNextSync(nextSync)?.startsWith("overdue")
-              ? "text-red-600"
-              : "text-blue-600"
+              ? "text-red-600 dark:text-red-400"
+              : "text-blue-600 dark:text-blue-400"
           }`}>
             Next: {formatNextSync(nextSync)}
           </span>
@@ -441,7 +441,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
-              <FileText className="h-5 w-5 text-blue-600" />
+              <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <CardTitle className="text-base">Xero Document Sync</CardTitle>
@@ -475,7 +475,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
             lastSync={data.stage1_data_sync?.last_synced_at || data.stage1_data_sync?.last_sync_at || null}
             nextSync={data.stage1_data_sync?.next_sync_at}
             schedule={data.stage1_data_sync?.schedule}
-            color="bg-purple-100 text-purple-600"
+            color="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
             blocker={data.stage1_data_sync?.blocker}
           />
 
@@ -490,7 +490,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
             lastSync={data.stage2_pdf_download?.last_synced_at || data.stage2_pdf_download?.last_sync_at || data.last_synced_at || data.last_sync_at || null}
             nextSync={data.stage2_pdf_download?.next_sync_at}
             schedule={data.stage2_pdf_download?.schedule}
-            color="bg-blue-100 text-blue-600"
+            color="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300"
             blocker={data.stage2_pdf_download?.blocker}
           />
 
@@ -516,7 +516,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
               percentage={data.stage3_sharepoint?.progress_percentage || 0}
               lastSync={data.stage3_sharepoint?.last_synced_at || null}
               schedule="Uploads with PDF sync"
-              color="bg-green-100 text-green-600"
+              color="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
               blocker={data.stage3_sharepoint?.blocker}
             />
             {/* SSoT Violations Display */}
@@ -559,10 +559,10 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
                       <Badge
                         className={`text-[10px] ${
                           violation.severity === "error"
-                            ? "bg-red-100 text-red-700"
+                            ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
                             : violation.severity === "warning"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-blue-100 text-blue-700"
+                            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                            : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                         }`}
                       >
                         {violation.severity}
@@ -591,7 +591,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
               <FileText className="h-3 w-3" />
               PDFs Downloaded
             </div>
-            <div className="text-lg font-semibold text-blue-600">
+            <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
               {data.pdfs_synced.toLocaleString()}
             </div>
           </div>
@@ -600,7 +600,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
               <Cloud className="h-3 w-3" />
               On SharePoint
             </div>
-            <div className="text-lg font-semibold text-green-600">
+            <div className="text-lg font-semibold text-green-600 dark:text-green-400">
               {data.sharepoint_uploads.toLocaleString()}
             </div>
           </div>
@@ -671,18 +671,18 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="relative">
-                <Activity className="h-5 w-5 text-blue-600" />
+                <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-green-500 rounded-full animate-pulse" />
               </div>
               <span className="font-semibold text-blue-900">Smart Rate-Limited Sync</span>
-              <Badge className="bg-blue-100 text-blue-700 text-xs">
+              <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs">
                 Live • 5s refresh
               </Badge>
             </div>
             {rateLimits && (
               <div className="text-sm text-blue-700">
                 <span className="font-semibold">{rateLimits.aggregate.daily_requests}</span>
-                <span className="text-blue-500"> / {rateLimits.limits.daily} API calls today</span>
+                <span className="text-blue-500 dark:text-blue-400"> / {rateLimits.limits.daily} API calls today</span>
               </div>
             )}
           </div>
@@ -697,13 +697,13 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
                     <>
                       <Clock className="h-4 w-4 text-amber-600" />
                       <span className="font-medium text-amber-900">Rate Limited</span>
-                      <Badge className="bg-amber-100 text-amber-700 text-xs">
+                      <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs">
                         {data.stage2_pdf_download?.blocker?.daily_percentage?.toFixed(0)}% daily used
                       </Badge>
                     </>
                   ) : data.pending > 100 ? (
                     <>
-                      <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
+                      <RefreshCw className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
                       <span className="font-medium text-blue-900">Catching Up Mode</span>
                       <Badge className="bg-blue-500 text-white text-xs">
                         Max speed
@@ -711,7 +711,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
                     </>
                   ) : data.pending > 0 ? (
                     <>
-                      <RefreshCw className="h-4 w-4 text-green-600 animate-spin" />
+                      <RefreshCw className="h-4 w-4 text-green-600 dark:text-green-400 animate-spin" />
                       <span className="font-medium text-green-900">Almost Caught Up</span>
                       <Badge className="bg-green-500 text-white text-xs">
                         Slowing down
@@ -719,9 +719,9 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                       <span className="font-medium text-green-900">Near-Live</span>
-                      <Badge className="bg-green-100 text-green-700 text-xs">
+                      <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs">
                         30min checks
                       </Badge>
                     </>
@@ -751,7 +751,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
           {isAtLimit && (
             <div className="p-2 mb-3 bg-red-100 border border-red-300 rounded text-sm">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
                 <span className="font-medium text-red-800">
                   Rate limit reached - syncing paused until reset
                 </span>
@@ -780,14 +780,14 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
                       {/* SSoT: Show credential status FIRST (priority over rate limits) */}
                       {tenant.needs_reauth || tenant.status === 'degraded' || tenant.status === 'disconnected' ? (
                         <>
-                          <Badge className="bg-orange-100 text-orange-700 text-xs">
+                          <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs">
                             <AlertTriangle className="h-3 w-3 mr-1" />
                             Needs Re-auth
                           </Badge>
                           <Button
                             variant="outline"
                             size="sm"
-                            className="h-6 px-2 text-xs text-orange-600 border-orange-300 hover:bg-orange-50"
+                            className="h-6 px-2 text-xs text-orange-600 dark:text-orange-400 border-orange-300 hover:bg-orange-50"
                             onClick={async () => {
                               try {
                                 const response = await api.xero.getAuthUrl();
@@ -805,12 +805,12 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
                           </Button>
                         </>
                       ) : !tenant.can_make_request ? (
-                        <Badge className="bg-red-100 text-red-700 text-xs">
+                        <Badge className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs">
                           <AlertTriangle className="h-3 w-3 mr-1" />
                           Throttled
                         </Badge>
                       ) : (
-                        <Badge className="bg-green-100 text-green-700 text-xs">
+                        <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs">
                           <CheckCircle2 className="h-3 w-3 mr-1" />
                           Ready
                         </Badge>

@@ -179,7 +179,7 @@ export function XeroSyncFromModal({
       <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5 text-blue-500" />
+            <Download className="h-5 w-5 text-blue-500 dark:text-blue-400" />
             Sync from Xero
           </DialogTitle>
           <DialogDescription>
@@ -216,7 +216,7 @@ export function XeroSyncFromModal({
             <div className="overflow-y-auto -mx-6 px-6" style={{ maxHeight: "400px" }}>
               {contactsWithDifferences.length === 0 && contactsWithErrors.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <Check className="h-12 w-12 text-green-500 mb-3" />
+                  <Check className="h-12 w-12 text-green-500 dark:text-green-400 mb-3" />
                   <p className="text-lg font-medium">All contacts are in sync!</p>
                   <p className="text-sm">No differences found between TEEEM and Xero</p>
                 </div>
@@ -229,11 +229,11 @@ export function XeroSyncFromModal({
                           key={comp.link_id}
                           className="p-3 border rounded-lg bg-red-50 dark:bg-red-950/30"
                         >
-                          <div className="flex items-center gap-2 text-red-600">
+                          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
                             <AlertTriangle className="h-4 w-4" />
                             <span className="font-medium">{comp.teeem_name}</span>
                           </div>
-                          <p className="text-sm text-red-600 mt-1">{comp.error}</p>
+                          <p className="text-sm text-red-600 dark:text-red-400 mt-1">{comp.error}</p>
                         </div>
                       );
                     }
@@ -277,7 +277,7 @@ export function XeroSyncFromModal({
                                   </div>
                                   {diff.field === "email" && diff.teeem_value ? (
                                     <div className="text-sm">
-                                      <span className="text-green-600 font-medium">
+                                      <span className="text-green-600 dark:text-green-400 font-medium">
                                         + {diff.xero_value}
                                       </span>
                                       <span className="text-muted-foreground text-xs ml-2">
@@ -286,11 +286,11 @@ export function XeroSyncFromModal({
                                     </div>
                                   ) : (
                                     <div className="flex items-center gap-2 text-sm">
-                                      <span className="text-red-600 line-through truncate max-w-[200px]">
+                                      <span className="text-red-600 dark:text-red-400 line-through truncate max-w-[200px]">
                                         {diff.teeem_value || "(empty)"}
                                       </span>
                                       <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                      <span className="text-green-600 font-medium truncate max-w-[200px]">
+                                      <span className="text-green-600 dark:text-green-400 font-medium truncate max-w-[200px]">
                                         {diff.xero_value}
                                       </span>
                                     </div>

@@ -61,10 +61,10 @@ interface ESignatureResponse {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   draft: { label: "Draft", color: "bg-muted text-foreground", icon: <FileText className="h-3 w-3" /> },
-  sent: { label: "Sent", color: "bg-blue-100 text-blue-700", icon: <Send className="h-3 w-3" /> },
-  in_progress: { label: "In Progress", color: "bg-amber-100 text-amber-700", icon: <Clock className="h-3 w-3" /> },
-  completed: { label: "Completed", color: "bg-green-100 text-green-700", icon: <CheckCircle2 className="h-3 w-3" /> },
-  declined: { label: "Declined", color: "bg-red-100 text-red-700", icon: <XCircle className="h-3 w-3" /> },
+  sent: { label: "Sent", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300", icon: <Send className="h-3 w-3" /> },
+  in_progress: { label: "In Progress", color: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300", icon: <Clock className="h-3 w-3" /> },
+  completed: { label: "Completed", color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300", icon: <CheckCircle2 className="h-3 w-3" /> },
+  declined: { label: "Declined", color: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300", icon: <XCircle className="h-3 w-3" /> },
   expired: { label: "Expired", color: "bg-muted text-muted-foreground", icon: <AlertCircle className="h-3 w-3" /> },
   cancelled: { label: "Cancelled", color: "bg-muted text-muted-foreground", icon: <XCircle className="h-3 w-3" /> },
 };
@@ -133,7 +133,7 @@ export default function ESignaturePage() {
             <div className="text-sm text-muted-foreground">Awaiting Signatures</div>
           </Card>
           <Card className="p-4">
-            <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.completed}</div>
             <div className="text-sm text-muted-foreground">Completed</div>
           </Card>
           <Card className="p-4">

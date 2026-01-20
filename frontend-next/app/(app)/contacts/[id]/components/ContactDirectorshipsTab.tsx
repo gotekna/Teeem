@@ -26,7 +26,7 @@ export function ContactDirectorshipsTab({
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
+              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
               Current Directorships
             </CardTitle>
           </CardHeader>

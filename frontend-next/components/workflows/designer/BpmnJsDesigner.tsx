@@ -1041,12 +1041,12 @@ export default function BpmnJsDesigner({
                             </span>
                             {/* Show actual contact details if job is selected */}
                             {signer.contact_key && getContactDetails(signer.contact_key) && (
-                              <span className="text-xs text-green-600">
+                              <span className="text-xs text-green-600 dark:text-green-400">
                                 {getContactDetails(signer.contact_key)?.display_name} - {getContactDetails(signer.contact_key)?.email}
                               </span>
                             )}
                             {signer.contact_key && !getContactDetails(signer.contact_key) && selectedJobId && !loadingJobContacts && (
-                              <span className="text-xs text-orange-500">
+                              <span className="text-xs text-orange-500 dark:text-orange-400">
                                 Not set on selected job
                               </span>
                             )}

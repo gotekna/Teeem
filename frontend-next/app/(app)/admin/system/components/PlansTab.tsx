@@ -390,7 +390,7 @@ export function CategoriesSection() {
                       {deleting === category.id ? (
                         <Spinner size={16} />
                       ) : (
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                       )}
                     </Button>
                   </div>
@@ -821,7 +821,7 @@ export function TypesSection() {
                         {deleting === type.id ? (
                           <Spinner size={16} />
                         ) : (
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                         )}
                       </Button>
                     </div>
@@ -1247,7 +1247,7 @@ export function RevisionFormatsSection() {
                       {deleting === format.id ? (
                         <Spinner size={16} />
                       ) : (
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                       )}
                     </Button>
                   </div>

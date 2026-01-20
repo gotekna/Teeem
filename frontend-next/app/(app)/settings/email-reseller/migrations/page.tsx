@@ -30,13 +30,13 @@ import type { EmailMigration, MigrationStatus } from "@/lib/email-reseller-types
 import { formatFileSize } from "@/utils/formatters";
 
 const STATUS_COLORS: Record<MigrationStatus, string> = {
-  pending: "bg-gray-500/10 text-gray-600",
-  queued: "bg-blue-500/10 text-blue-600",
-  in_progress: "bg-yellow-500/10 text-yellow-600",
-  paused: "bg-orange-500/10 text-orange-600",
-  completed: "bg-green-500/10 text-green-600",
-  failed: "bg-red-500/10 text-red-600",
-  cancelled: "bg-gray-500/10 text-gray-600",
+  pending: "bg-gray-500/10 text-gray-600 dark:bg-gray-500/20 dark:text-gray-400",
+  queued: "bg-blue-500/10 text-blue-600 dark:text-blue-400 dark:bg-blue-500/20 dark:text-blue-400",
+  in_progress: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 dark:bg-yellow-500/20 dark:text-yellow-400",
+  paused: "bg-orange-500/10 text-orange-600 dark:text-orange-400 dark:bg-orange-500/20 dark:text-orange-400",
+  completed: "bg-green-500/10 text-green-600 dark:text-green-400 dark:bg-green-500/20 dark:text-green-400",
+  failed: "bg-red-500/10 text-red-600 dark:text-red-400 dark:bg-red-500/20 dark:text-red-400",
+  cancelled: "bg-gray-500/10 text-gray-600 dark:bg-gray-500/20 dark:text-gray-400",
 };
 
 const STATUS_ICONS: Record<MigrationStatus, React.ReactNode> = {
@@ -253,7 +253,7 @@ export default function MigrationsPage() {
                       </div>
                       <div>
                         <p className="text-muted-foreground">Failed</p>
-                        <p className={cn("font-medium", migration.failed_items > 0 && "text-red-600")}>
+                        <p className={cn("font-medium", migration.failed_items > 0 && "text-red-600 dark:text-red-400")}>
                           {migration.failed_items}
                         </p>
                       </div>
@@ -299,7 +299,7 @@ export default function MigrationsPage() {
                       <TableCell>
                         {migration.processed_items.toLocaleString()}
                         {migration.failed_items > 0 && (
-                          <span className="text-red-600 ml-1">
+                          <span className="text-red-600 dark:text-red-400 ml-1">
                             ({migration.failed_items} failed)
                           </span>
                         )}

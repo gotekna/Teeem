@@ -584,7 +584,7 @@ export default function CompanyInfoTab() {
                     onClick={() => saveTradingName(newTradingName)}
                     disabled={!newTradingName.name?.trim() || savingTradingName}
                   >
-                    {savingTradingName ? <Spinner size={14} /> : <Check className="h-4 w-4 text-green-600" />}
+                    {savingTradingName ? <Spinner size={14} /> : <Check className="h-4 w-4 text-green-600 dark:text-green-400" />}
                   </Button>
                   <Button
                     type="button"
@@ -628,7 +628,7 @@ export default function CompanyInfoTab() {
                           onClick={() => saveTradingName(editingTradingName)}
                           disabled={!editingTradingName.name?.trim() || savingTradingName}
                         >
-                          {savingTradingName ? <Spinner size={14} /> : <Check className="h-4 w-4 text-green-600" />}
+                          {savingTradingName ? <Spinner size={14} /> : <Check className="h-4 w-4 text-green-600 dark:text-green-400" />}
                         </Button>
                         <Button
                           type="button"
@@ -684,7 +684,7 @@ export default function CompanyInfoTab() {
                             className="h-7 w-7 p-0"
                             onClick={() => deleteTradingName(tn.id)}
                           >
-                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                            <Trash2 className="h-3.5 w-3.5 text-red-500 dark:text-red-400" />
                           </Button>
                         </div>
                       </>

@@ -255,7 +255,7 @@ export function IconPicker({
                               )}
                               {/* SSoT: Small globe indicator for global usage */}
                               {!isSelected && hasGlobalUsage && (
-                                <Globe className="h-2 w-2 absolute top-0.5 right-0.5 text-blue-500" />
+                                <Globe className="h-2 w-2 absolute top-0.5 right-0.5 text-blue-500 dark:text-blue-400" />
                               )}
                               <IconComponent className="h-4 w-4" />
                             </button>
@@ -263,14 +263,14 @@ export function IconPicker({
                           <TooltipContent side="bottom" className="max-w-xs">
                             <p className="font-medium">{iconName}</p>
                             {isUsed && user && (
-                              <p className="text-xs text-orange-500">
+                              <p className="text-xs text-orange-500 dark:text-orange-400">
                                 Used in this scope: {user.display_name}
                               </p>
                             )}
                             {/* SSoT: Show global usage for consistency */}
                             {hasGlobalUsage && (
                               <div className="mt-1 pt-1 border-t border-border/50">
-                                <p className="text-xs text-blue-500 flex items-center gap-1">
+                                <p className="text-xs text-blue-500 dark:text-blue-400 flex items-center gap-1">
                                   <Globe className="h-3 w-3" />
                                   Used elsewhere:
                                 </p>
@@ -312,7 +312,7 @@ export function IconPicker({
               {showGlobalUsage && (
                 <span className="inline-flex items-center gap-1">
                   <span className="w-3 h-3 border border-blue-300 rounded relative">
-                    <Globe className="h-2 w-2 absolute -top-0.5 -right-0.5 text-blue-500" />
+                    <Globe className="h-2 w-2 absolute -top-0.5 -right-0.5 text-blue-500 dark:text-blue-400" />
                   </span>
                   Used elsewhere (for consistency)
                 </span>

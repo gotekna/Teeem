@@ -566,7 +566,7 @@ export function AddSubscriptionDialog({
                   <span>Wholesale Cost</span>
                   <span>{formatCurrency(totals.wholesale)}</span>
                 </div>
-                <div className="flex justify-between pt-2 border-t font-medium text-green-600">
+                <div className="flex justify-between pt-2 border-t font-medium text-green-600 dark:text-green-400">
                   <span>Your Margin</span>
                   <span>{formatCurrency(totals.margin)}/mo</span>
                 </div>

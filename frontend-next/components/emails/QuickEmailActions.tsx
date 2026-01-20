@@ -192,7 +192,7 @@ export function QuickEmailActions({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 hover:bg-red-500/10 hover:text-red-500"
+              className="h-6 w-6 hover:bg-red-500/10 hover:text-red-500 dark:text-red-400"
               onClick={handleDelete}
               disabled={loading !== null}
             >
@@ -274,7 +274,7 @@ export function QuickEmailActions({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 hover:bg-orange-500/10 hover:text-orange-500"
+              className="h-6 w-6 hover:bg-orange-500/10 hover:text-orange-500 dark:text-orange-400"
               onClick={handleSpam}
               disabled={loading !== null}
             >

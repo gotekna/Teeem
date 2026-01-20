@@ -101,7 +101,7 @@ export function ScheduledJobsTab() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <AlertCircle className="h-12 w-12 mx-auto text-red-500 mb-2" />
+          <AlertCircle className="h-12 w-12 mx-auto text-red-500 dark:text-red-400 mb-2" />
           <p className="text-muted-foreground">{error}</p>
           <Button variant="outline" className="mt-4" onClick={loadData}>
             Retry

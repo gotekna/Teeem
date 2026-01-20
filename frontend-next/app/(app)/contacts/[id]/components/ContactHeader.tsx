@@ -151,13 +151,13 @@ export function ContactHeader({
             </h1>
             {/* Xero Customer/Supplier badges (from Xero sync) */}
             {contact.xero_customer && (
-              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+              <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300">
                 <ShieldCheck className="h-3 w-3 mr-1" />
                 Xero Customer
               </Badge>
             )}
             {contact.xero_supplier && (
-              <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+              <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900 dark:text-purple-300">
                 <ShieldCheck className="h-3 w-3 mr-1" />
                 Xero Supplier
               </Badge>
@@ -174,7 +174,7 @@ export function ContactHeader({
               </Badge>
             )}
             {contact.is_family_member && (
-              <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+              <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900 dark:text-green-300">
                 Family
               </Badge>
             )}
@@ -208,7 +208,7 @@ export function ContactHeader({
                         >
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             {linked ? (
-                              <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+                              <Check className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
                             ) : (
                               <div className="h-4 w-4 flex-shrink-0" />
                             )}

@@ -422,7 +422,7 @@ export default function ASICEdgeTab() {
                   </TableCell>
                   <TableCell>
                     {form.available ? (
-                      <Badge variant="outline" className="text-green-600 border-green-600">
+                      <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-600">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Available
                       </Badge>
@@ -522,7 +522,7 @@ export default function ASICEdgeTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <Clock className="h-5 w-5 text-blue-600" />
+                <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 <h4 className="text-sm font-medium">Faster Processing</h4>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -531,7 +531,7 @@ export default function ASICEdgeTab() {
             </div>
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="h-5 w-5 text-green-600" />
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                 <h4 className="text-sm font-medium">Validation</h4>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -540,7 +540,7 @@ export default function ASICEdgeTab() {
             </div>
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <Users className="h-5 w-5 text-purple-600" />
+                <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                 <h4 className="text-sm font-medium">Bulk Lodgement</h4>
               </div>
               <p className="text-sm text-muted-foreground">

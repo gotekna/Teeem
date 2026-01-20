@@ -161,7 +161,7 @@ export function StartWorkflowButton({ jobId, jobName }: StartWorkflowButtonProps
         {success ? (
           <div className="flex flex-col items-center justify-center py-8 gap-3">
             <div className="p-3 bg-green-100 rounded-full">
-              <CheckCircle className="h-8 w-8 text-green-600" />
+              <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
             <p className="font-medium">Workflow Started!</p>
             <p className="text-sm text-muted-foreground">Check Tasks for pending actions.</p>

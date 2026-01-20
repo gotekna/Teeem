@@ -1592,7 +1592,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Folder className="h-5 w-5 text-yellow-500" />
+                    <Folder className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
                     {activeCategory?.name}
                     {activeCategory?.folder_path && (
                       <span className="text-xs text-muted-foreground font-normal">
@@ -1847,7 +1847,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       return (
         <Card>
           <CardContent className="py-12 text-center">
-            <Folder className="h-16 w-16 text-yellow-500 mx-auto" />
+            <Folder className="h-16 w-16 text-yellow-500 dark:text-yellow-400 mx-auto" />
             <h3 className="mt-4 text-lg font-semibold">Create Folder Structure</h3>
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
               Create the folder structure in SharePoint for {jobTitle || "this job"}.
@@ -1887,7 +1887,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                   <h3 className="text-sm font-semibold">SharePoint Connected</h3>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -1969,12 +1969,12 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                         {item.folder ? (
                           <>
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            <Folder className="h-5 w-5 text-yellow-500" />
+                            <Folder className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
                           </>
                         ) : (
                           <>
                             <div className="w-4" />
-                            <File className="h-5 w-5 text-blue-500" />
+                            <File className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                           </>
                         )}
                         <div>
@@ -2021,7 +2021,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     >
                       <div className="flex items-center gap-3">
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        <Folder className="h-5 w-5 text-yellow-500" />
+                        <Folder className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
                         <div>
                           <p className="text-sm font-medium">{folder.name}</p>
                           {folder.lastModifiedDateTime && (
@@ -2180,19 +2180,19 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             </Card>
             <Card className="bg-green-50 dark:bg-green-950/30">
               <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-green-600">{aiStats.analyzed}</div>
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{aiStats.analyzed}</div>
                 <div className="text-xs text-muted-foreground">Analyzed</div>
               </CardContent>
             </Card>
             <Card className="bg-yellow-50 dark:bg-yellow-950/30">
               <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-yellow-600">{aiStats.pending_review}</div>
+                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{aiStats.pending_review}</div>
                 <div className="text-xs text-muted-foreground">Pending Review</div>
               </CardContent>
             </Card>
             <Card className="bg-blue-50 dark:bg-blue-950/30">
               <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-blue-600">{aiStats.approved}</div>
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{aiStats.approved}</div>
                 <div className="text-xs text-muted-foreground">Approved</div>
               </CardContent>
             </Card>
@@ -2212,7 +2212,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <h4 className="text-sm font-medium flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-purple-600" />
+                    <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                     Bulk Categorize
                   </h4>
                   <p className="text-sm text-muted-foreground">
@@ -2261,7 +2261,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-yellow-600" />
+                <Sparkles className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                 AI Suggested Renames ({filesWithSuggestions.length})
               </CardTitle>
             </CardHeader>
@@ -2274,9 +2274,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   >
                     <div className="flex-1 min-w-0 mr-4">
                       <div className="flex items-center gap-2 text-sm">
-                        <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                        <File className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                         <span className="truncate text-muted-foreground">{item.name}</span>
-                        <ArrowRight className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+                        <ArrowRight className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
                         <span className="truncate font-medium text-foreground">{item.ai_proposed_name}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
@@ -2286,12 +2286,12 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           </Badge>
                         )}
                         {item.ai_confidence && (
-                          <span className={`${item.ai_confidence >= 80 ? "text-green-600" : item.ai_confidence >= 50 ? "text-yellow-600" : "text-red-600"}`}>
+                          <span className={`${item.ai_confidence >= 80 ? "text-green-600 dark:text-green-400" : item.ai_confidence >= 50 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
                             {item.ai_confidence}% confidence
                           </span>
                         )}
                         {item.folder_path && (
-                          <span className="text-blue-600">{item.folder_path}</span>
+                          <span className="text-blue-600 dark:text-blue-400">{item.folder_path}</span>
                         )}
                       </div>
                     </div>
@@ -2299,7 +2299,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                        className="h-8 w-8 p-0 text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-100"
                         onClick={() => item.document_id && handleApproveRename(item.document_id, "approve")}
                         disabled={approvingDoc === item.document_id}
                         title="Approve rename"
@@ -2313,7 +2313,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
+                        className="h-8 w-8 p-0 text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-100"
                         onClick={() => item.document_id && handleApproveRename(item.document_id, "reject")}
                         disabled={approvingDoc === item.document_id}
                         title="Reject rename"
@@ -2411,7 +2411,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                   ) : (
                                     <div className="w-5" /> // Spacer for alignment
                                   )}
-                                  <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                  <File className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                                   <div className="min-w-0">
                                     <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
                                     {item.original_name && item.name !== item.original_name && (
@@ -2712,7 +2712,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               <ChevronRight
                 className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`}
               />
-              <Folder className={`h-4 w-4 ${node.color ? "" : "text-yellow-500"}`} style={node.color ? { color: node.color } : {}} />
+              <Folder className={`h-4 w-4 ${node.color ? "" : "text-yellow-500 dark:text-yellow-400"}`} style={node.color ? { color: node.color } : {}} />
               <span className="font-medium">{node.name}</span>
               <Badge variant="secondary" className="ml-2 text-xs">
                 {fileCount} {fileCount === 1 ? "file" : "files"}
@@ -2865,7 +2865,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   return (
                     <div key={folder.id} className="space-y-2">
                       <h3 className="text-sm font-medium flex items-center gap-2">
-                        <Folder className="h-4 w-4 text-yellow-500" />
+                        <Folder className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
                         {folder.name}
                         <Badge variant="secondary" className="text-xs">{folderImages.length} photos</Badge>
                       </h3>
@@ -3041,7 +3041,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       {error && (
         <Card className="bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800">
           <CardContent className="p-4 flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-red-600" />
+            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
             <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
           </CardContent>
         </Card>
@@ -3053,9 +3053,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         }>
           <CardContent className="p-4 flex items-center gap-2">
             {message.type === "info" ? (
-              <Spinner size={20} className="text-blue-600" />
+              <Spinner size={20} className="text-blue-600 dark:text-blue-400" />
             ) : (
-              <CheckCircle className="h-5 w-5 text-green-600" />
+              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
             )}
             <p className={message.type === "info"
               ? "text-sm text-blue-700 dark:text-blue-300"
@@ -3176,7 +3176,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                         onCheckedChange={() => toggleFileSelection(item.id)}
                         onClick={(e) => e.stopPropagation()}
                       />
-                      <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                      <File className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{item.name}</p>
                         <p className="text-xs text-muted-foreground">
@@ -3413,7 +3413,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-purple-600" />
+              <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               {categorizeResult?.dry_run ? "Categorization Preview" : "Categorization Complete"}
             </DialogTitle>
             <DialogDescription>
@@ -3442,7 +3442,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   onClick={() => setCategorizeFilter("new")}
                 >
                   <CardContent className="p-2 text-center">
-                    <div className="text-lg font-bold text-green-600">{categorizeResult.stats.categorized || 0}</div>
+                    <div className="text-lg font-bold text-green-600 dark:text-green-400">{categorizeResult.stats.categorized || 0}</div>
                     <div className="text-xs text-muted-foreground">
                       {categorizeResult.dry_run ? "New" : "Categorized"}
                     </div>
@@ -3453,7 +3453,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   onClick={() => setCategorizeFilter("fixed")}
                 >
                   <CardContent className="p-2 text-center">
-                    <div className="text-lg font-bold text-orange-600">{categorizeResult.stats.recategorized || 0}</div>
+                    <div className="text-lg font-bold text-orange-600 dark:text-orange-400">{categorizeResult.stats.recategorized || 0}</div>
                     <div className="text-xs text-muted-foreground">
                       {categorizeResult.dry_run ? "Fix" : "Fixed"}
                     </div>
@@ -3464,7 +3464,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   onClick={() => setCategorizeFilter("correct")}
                 >
                   <CardContent className="p-2 text-center">
-                    <div className="text-lg font-bold text-blue-600">{categorizeResult.stats.already_correct || 0}</div>
+                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{categorizeResult.stats.already_correct || 0}</div>
                     <div className="text-xs text-muted-foreground">Correct</div>
                   </CardContent>
                 </Card>
@@ -3473,7 +3473,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   onClick={() => setCategorizeFilter("skipped")}
                 >
                   <CardContent className="p-2 text-center">
-                    <div className="text-lg font-bold text-yellow-600">{categorizeResult.stats.skipped}</div>
+                    <div className="text-lg font-bold text-yellow-600 dark:text-yellow-400">{categorizeResult.stats.skipped}</div>
                     <div className="text-xs text-muted-foreground">Skipped</div>
                   </CardContent>
                 </Card>
@@ -3482,7 +3482,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   onClick={() => setCategorizeFilter("failed")}
                 >
                   <CardContent className="p-2 text-center">
-                    <div className="text-lg font-bold text-red-600">{categorizeResult.stats.failed}</div>
+                    <div className="text-lg font-bold text-red-600 dark:text-red-400">{categorizeResult.stats.failed}</div>
                     <div className="text-xs text-muted-foreground">Failed</div>
                   </CardContent>
                 </Card>
@@ -3557,7 +3557,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                 }
                                 className={
                                   item.status.includes("recategorize")
-                                    ? "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
+                                    ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900 dark:text-orange-100"
                                     : item.status === "already_correct"
                                     ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-100"
                                     : item.status.includes("categorize")
@@ -3578,7 +3578,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                               {item.document_type ? (
                                 <div>
                                   {item.old_type && (
-                                    <div className="text-xs text-red-500 line-through">{item.old_type}</div>
+                                    <div className="text-xs text-red-500 dark:text-red-400 line-through">{item.old_type}</div>
                                   )}
                                   <div className="font-medium">{item.document_type}</div>
                                   {item.entity_tab && (

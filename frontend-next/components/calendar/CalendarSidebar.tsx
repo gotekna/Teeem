@@ -105,7 +105,7 @@ function EventDetail({ event }: { event: CalendarEvent }) {
           <span className="text-sm text-muted-foreground">Job:</span>
           <Link
             href={`/jobs/${event.job_id}`}
-            className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+            className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
           >
             {event.job_code} - {event.job_name}
             <ExternalLink className="h-3 w-3" />
@@ -194,7 +194,7 @@ function EventDetail({ event }: { event: CalendarEvent }) {
       {/* Hold info */}
       {event.is_hold && (
         <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded-md">
-          <span className="text-sm font-medium text-yellow-700 dark:text-yellow-500">
+          <span className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
             On Hold
           </span>
           {event.hold_reason && (

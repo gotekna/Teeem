@@ -169,12 +169,12 @@ export default function CashFlowTab() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ArrowUpRight className="h-4 w-4 text-green-600" />
+              <ArrowUpRight className="h-4 w-4 text-green-600 dark:text-green-400" />
               Expected Inflows
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(forecast?.summary?.total_inflows || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">90-day forecast</p>
@@ -184,12 +184,12 @@ export default function CashFlowTab() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <ArrowDownRight className="h-4 w-4 text-red-600" />
+              <ArrowDownRight className="h-4 w-4 text-red-600 dark:text-red-400" />
               Expected Outflows
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
               {formatCurrency(forecast?.summary?.total_outflows || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">90-day forecast</p>
@@ -204,7 +204,7 @@ export default function CashFlowTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${(forecast?.summary?.lowest_balance || 0) < 0 ? "text-red-600" : ""}`}>
+            <div className={`text-2xl font-bold ${(forecast?.summary?.lowest_balance || 0) < 0 ? "text-red-600 dark:text-red-400" : ""}`}>
               {formatCurrency(forecast?.summary?.lowest_balance || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -220,7 +220,7 @@ export default function CashFlowTab() {
       {forecast?.warnings && forecast.warnings.length > 0 && (
         <Card className="border-orange-200 dark:border-orange-800">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-orange-600">
+            <CardTitle className="text-sm font-medium flex items-center gap-2 text-orange-600 dark:text-orange-400">
               <AlertTriangle className="h-4 w-4" />
               Cash Flow Warnings
             </CardTitle>
@@ -296,8 +296,8 @@ export default function CashFlowTab() {
                     <TableRow>
                       <TableHead>Week</TableHead>
                       <TableHead className="text-right">Opening</TableHead>
-                      <TableHead className="text-right text-green-600">Inflows</TableHead>
-                      <TableHead className="text-right text-red-600">Outflows</TableHead>
+                      <TableHead className="text-right text-green-600 dark:text-green-400">Inflows</TableHead>
+                      <TableHead className="text-right text-red-600 dark:text-red-400">Outflows</TableHead>
                       <TableHead className="text-right">Net</TableHead>
                       <TableHead className="text-right">Closing</TableHead>
                       <TableHead className="text-right">Lowest</TableHead>
@@ -313,13 +313,13 @@ export default function CashFlowTab() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">{formatCurrency(week.opening_balance)}</TableCell>
-                        <TableCell className="text-right text-green-600">+{formatCurrency(week.inflows)}</TableCell>
-                        <TableCell className="text-right text-red-600">-{formatCurrency(week.outflows)}</TableCell>
-                        <TableCell className={`text-right font-medium ${week.net_flow >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <TableCell className="text-right text-green-600 dark:text-green-400">+{formatCurrency(week.inflows)}</TableCell>
+                        <TableCell className="text-right text-red-600 dark:text-red-400">-{formatCurrency(week.outflows)}</TableCell>
+                        <TableCell className={`text-right font-medium ${week.net_flow >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                           {week.net_flow >= 0 ? "+" : ""}{formatCurrency(week.net_flow)}
                         </TableCell>
                         <TableCell className="text-right font-bold">{formatCurrency(week.closing_balance)}</TableCell>
-                        <TableCell className={`text-right ${week.lowest_balance < 0 ? "text-red-600" : ""}`}>
+                        <TableCell className={`text-right ${week.lowest_balance < 0 ? "text-red-600 dark:text-red-400" : ""}`}>
                           {formatCurrency(week.lowest_balance)}
                         </TableCell>
                       </TableRow>
@@ -348,7 +348,7 @@ export default function CashFlowTab() {
                     <Card className="flex-1">
                       <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Expected Collection</div>
-                        <div className="text-xl font-bold text-green-600">{formatCurrency(collections.totals.expected_collection)}</div>
+                        <div className="text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(collections.totals.expected_collection)}</div>
                       </CardContent>
                     </Card>
                   </div>
@@ -372,7 +372,7 @@ export default function CashFlowTab() {
                             <Badge variant="secondary">{week.invoices_count}</Badge>
                           </TableCell>
                           <TableCell className="text-right">{formatCurrency(week.total_due)}</TableCell>
-                          <TableCell className="text-right text-green-600">{formatCurrency(week.expected_collection)}</TableCell>
+                          <TableCell className="text-right text-green-600 dark:text-green-400">{formatCurrency(week.expected_collection)}</TableCell>
                           <TableCell className="text-center">
                             <Badge variant={week.average_probability >= 80 ? "default" : week.average_probability >= 50 ? "secondary" : "outline"}>
                               {week.average_probability}%
@@ -405,7 +405,7 @@ export default function CashFlowTab() {
                     <Card className="flex-1">
                       <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Overdue</div>
-                        <div className="text-xl font-bold text-red-600">{formatCurrency(payments.totals.overdue)}</div>
+                        <div className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(payments.totals.overdue)}</div>
                       </CardContent>
                     </Card>
                   </div>
@@ -434,7 +434,7 @@ export default function CashFlowTab() {
                               <Badge variant="destructive">{week.critical_count}</Badge>
                             )}
                           </TableCell>
-                          <TableCell className="text-right text-orange-600">{formatCurrency(week.high_priority_total)}</TableCell>
+                          <TableCell className="text-right text-orange-600 dark:text-orange-400">{formatCurrency(week.high_priority_total)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -456,7 +456,7 @@ export default function CashFlowTab() {
                   <Card className={aging.net_position >= 0 ? "border-green-200 dark:border-green-800" : "border-red-200 dark:border-red-800"}>
                     <CardContent className="pt-4 text-center">
                       <div className="text-sm text-muted-foreground">Net Position (AR - AP)</div>
-                      <div className={`text-3xl font-bold ${aging.net_position >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      <div className={`text-3xl font-bold ${aging.net_position >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                         {formatCurrency(aging.net_position)}
                       </div>
                     </CardContent>
@@ -466,7 +466,7 @@ export default function CashFlowTab() {
                     {/* Receivables */}
                     <div>
                       <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4 text-green-600" />
+                        <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
                         Receivables (AR)
                       </h3>
                       <div className="space-y-2">
@@ -480,15 +480,15 @@ export default function CashFlowTab() {
                         </div>
                         <div className="flex justify-between p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
                           <span>31-60 days</span>
-                          <span className="font-medium text-yellow-600">{formatCurrency(aging.receivables.days_31_60)}</span>
+                          <span className="font-medium text-yellow-600 dark:text-yellow-400">{formatCurrency(aging.receivables.days_31_60)}</span>
                         </div>
                         <div className="flex justify-between p-2 bg-orange-50 dark:bg-orange-900/20 rounded">
                           <span>61-90 days</span>
-                          <span className="font-medium text-orange-600">{formatCurrency(aging.receivables.days_61_90)}</span>
+                          <span className="font-medium text-orange-600 dark:text-orange-400">{formatCurrency(aging.receivables.days_61_90)}</span>
                         </div>
                         <div className="flex justify-between p-2 bg-red-50 dark:bg-red-900/20 rounded">
                           <span>90+ days</span>
-                          <span className="font-medium text-red-600">{formatCurrency(aging.receivables.days_90_plus)}</span>
+                          <span className="font-medium text-red-600 dark:text-red-400">{formatCurrency(aging.receivables.days_90_plus)}</span>
                         </div>
                         <div className="flex justify-between p-2 border-t font-bold">
                           <span>Total</span>
@@ -500,7 +500,7 @@ export default function CashFlowTab() {
                     {/* Payables */}
                     <div>
                       <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                        <TrendingDown className="h-4 w-4 text-red-600" />
+                        <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                         Payables (AP)
                       </h3>
                       <div className="space-y-2">
@@ -514,15 +514,15 @@ export default function CashFlowTab() {
                         </div>
                         <div className="flex justify-between p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
                           <span>31-60 days</span>
-                          <span className="font-medium text-yellow-600">{formatCurrency(aging.payables.days_31_60)}</span>
+                          <span className="font-medium text-yellow-600 dark:text-yellow-400">{formatCurrency(aging.payables.days_31_60)}</span>
                         </div>
                         <div className="flex justify-between p-2 bg-orange-50 dark:bg-orange-900/20 rounded">
                           <span>61-90 days</span>
-                          <span className="font-medium text-orange-600">{formatCurrency(aging.payables.days_61_90)}</span>
+                          <span className="font-medium text-orange-600 dark:text-orange-400">{formatCurrency(aging.payables.days_61_90)}</span>
                         </div>
                         <div className="flex justify-between p-2 bg-red-50 dark:bg-red-900/20 rounded">
                           <span>90+ days</span>
-                          <span className="font-medium text-red-600">{formatCurrency(aging.payables.days_90_plus)}</span>
+                          <span className="font-medium text-red-600 dark:text-red-400">{formatCurrency(aging.payables.days_90_plus)}</span>
                         </div>
                         <div className="flex justify-between p-2 border-t font-bold">
                           <span>Total</span>

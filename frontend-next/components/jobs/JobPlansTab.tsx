@@ -1031,7 +1031,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               />
               {selectedFile ? (
                 <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30">
-                  <FileText className="h-8 w-8 text-red-600" />
+                  <FileText className="h-8 w-8 text-red-600 dark:text-red-400" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{selectedFile.name}</p>
                     <p className="text-xs text-muted-foreground">

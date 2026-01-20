@@ -358,7 +358,7 @@ export default function FinanceSettingsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-red-600"
+                        className="text-red-600 dark:text-red-400"
                         onClick={() => handleDelete(rule.id)}
                       >
                         <Trash2 className="h-4 w-4" />

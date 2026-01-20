@@ -319,11 +319,11 @@ export default function FinancialReportsPage() {
                     </span>
                   </div>
                   {balanceSheet.balanced ? (
-                    <p className="mt-2 text-center text-sm text-green-600">
+                    <p className="mt-2 text-center text-sm text-green-600 dark:text-green-400">
                       ✓ Balance Sheet is balanced
                     </p>
                   ) : (
-                    <p className="mt-2 text-center text-sm text-red-600">
+                    <p className="mt-2 text-center text-sm text-red-600 dark:text-red-400">
                       ✗ Balance Sheet does not balance
                     </p>
                   )}
@@ -388,13 +388,13 @@ export default function FinancialReportsPage() {
                     ([category, amount]) => (
                       <div key={category} className="flex justify-between px-4 py-2 text-sm">
                         <span className="text-muted-foreground">{category}</span>
-                        <span className="font-medium text-green-600">{formatCurrency(amount)}</span>
+                        <span className="font-medium text-green-600 dark:text-green-400">{formatCurrency(amount)}</span>
                       </div>
                     )
                   )}
                   <div className="mt-2 flex justify-between border-t px-4 py-2 font-bold">
                     <span>Total Revenue</span>
-                    <span className="text-green-600">
+                    <span className="text-green-600 dark:text-green-400">
                       {formatCurrency(profitLoss.revenue?.total)}
                     </span>
                   </div>
@@ -409,13 +409,13 @@ export default function FinancialReportsPage() {
                     ([category, amount]) => (
                       <div key={category} className="flex justify-between px-4 py-2 text-sm">
                         <span className="text-muted-foreground">{category}</span>
-                        <span className="font-medium text-red-600">{formatCurrency(amount)}</span>
+                        <span className="font-medium text-red-600 dark:text-red-400">{formatCurrency(amount)}</span>
                       </div>
                     )
                   )}
                   <div className="mt-2 flex justify-between border-t px-4 py-2 font-bold">
                     <span>Total Expenses</span>
-                    <span className="text-red-600">
+                    <span className="text-red-600 dark:text-red-400">
                       {formatCurrency(profitLoss.expenses?.total)}
                     </span>
                   </div>
@@ -428,8 +428,8 @@ export default function FinancialReportsPage() {
                     <span
                       className={
                         (profitLoss.net_profit || 0) >= 0
-                          ? "text-green-600"
-                          : "text-red-600"
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-600 dark:text-red-400"
                       }
                     >
                       {formatCurrency(profitLoss.net_profit)}
@@ -440,8 +440,8 @@ export default function FinancialReportsPage() {
                     <span
                       className={
                         (profitLoss.profit_margin || 0) >= 0
-                          ? "text-green-600"
-                          : "text-red-600"
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-600 dark:text-red-400"
                       }
                     >
                       {profitLoss.profit_margin}%
@@ -506,22 +506,22 @@ export default function FinancialReportsPage() {
                   {jobProfitability.map((job) => (
                     <TableRow key={job.construction_id}>
                       <TableCell className="font-medium">{job.job_name}</TableCell>
-                      <TableCell className="text-right text-green-600">
+                      <TableCell className="text-right text-green-600 dark:text-green-400">
                         {formatCurrency(job.income)}
                       </TableCell>
-                      <TableCell className="text-right text-red-600">
+                      <TableCell className="text-right text-red-600 dark:text-red-400">
                         {formatCurrency(job.expenses)}
                       </TableCell>
                       <TableCell
                         className={`text-right font-medium ${
-                          (job.net_profit || 0) >= 0 ? "text-green-600" : "text-red-600"
+                          (job.net_profit || 0) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                         }`}
                       >
                         {formatCurrency(job.net_profit)}
                       </TableCell>
                       <TableCell
                         className={`text-right ${
-                          (job.profit_margin || 0) >= 0 ? "text-green-600" : "text-red-600"
+                          (job.profit_margin || 0) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                         }`}
                       >
                         {job.profit_margin}%

@@ -214,7 +214,7 @@ export default function XeroSyncPage() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3">
-            <CheckCircleIcon className="h-6 w-6 text-green-500" />
+            <CheckCircleIcon className="h-6 w-6 text-green-500 dark:text-green-400" />
             <div>
               <p className="font-medium">Connected to Xero</p>
               {connectionStatus.organizationName && (
@@ -246,7 +246,7 @@ export default function XeroSyncPage() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
-                <DocumentTextIcon className="h-8 w-8 text-green-600" />
+                <DocumentTextIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
                 <div className="ml-5">
                   <p className="text-sm font-medium text-muted-foreground">Invoices Matched</p>
                   <p className="mt-1 text-3xl font-semibold">{syncStatus?.invoices_matched || 0}</p>
@@ -258,7 +258,7 @@ export default function XeroSyncPage() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
-                <BanknotesIcon className="h-8 w-8 text-blue-600" />
+                <BanknotesIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                 <div className="ml-5">
                   <p className="text-sm font-medium text-muted-foreground">Payments Synced</p>
                   <p className="mt-1 text-3xl font-semibold">{syncStatus?.payments_synced || 0}</p>
@@ -270,7 +270,7 @@ export default function XeroSyncPage() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center">
-                <ChartBarIcon className="h-8 w-8 text-purple-600" />
+                <ChartBarIcon className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                 <div className="ml-5">
                   <p className="text-sm font-medium text-muted-foreground">Last Sync</p>
                   <p className="mt-1 text-sm font-semibold">
@@ -313,7 +313,7 @@ export default function XeroSyncPage() {
           <Link href="/contacts">
             <Button variant="outline" className="h-auto w-full justify-start px-6 py-5">
               <div className="flex items-center gap-3">
-                <DocumentTextIcon className="h-6 w-6 text-green-600" />
+                <DocumentTextIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
                 <div className="text-left">
                   <p className="font-medium">Match Invoices</p>
                   <p className="text-sm text-muted-foreground">Link POs to Xero invoices</p>
@@ -325,7 +325,7 @@ export default function XeroSyncPage() {
           <Link href="/jobs">
             <Button variant="outline" className="h-auto w-full justify-start px-6 py-5">
               <div className="flex items-center gap-3">
-                <BanknotesIcon className="h-6 w-6 text-blue-600" />
+                <BanknotesIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 <div className="text-left">
                   <p className="font-medium">View Payments</p>
                   <p className="text-sm text-muted-foreground">See synced payments</p>
@@ -360,10 +360,10 @@ export default function XeroSyncPage() {
                       <Icon
                         className={`h-5 w-5 flex-shrink-0 ${
                           entry.status === "success"
-                            ? "text-green-600"
+                            ? "text-green-600 dark:text-green-400"
                             : entry.status === "failed"
-                            ? "text-red-600"
-                            : "text-blue-600"
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-blue-600 dark:text-blue-400"
                         }`}
                       />
                       <div className="min-w-0 flex-1">

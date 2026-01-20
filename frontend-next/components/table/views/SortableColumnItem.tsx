@@ -173,9 +173,9 @@ export function SortableColumnItem({
             variant="outline"
             className={cn(
               "text-[9px] px-1 py-0 h-4",
-              priority === 'essential' && "bg-green-50 text-green-700 border-green-300 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800",
-              priority === 'supporting' && "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800",
-              priority === 'technical' && "bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800"
+              priority === 'essential' && "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-300 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800",
+              priority === 'supporting' && "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800",
+              priority === 'technical' && "bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800"
             )}
           >
             {priority === 'essential' && '⭐ Key'}

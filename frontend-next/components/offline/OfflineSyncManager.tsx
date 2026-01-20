@@ -117,7 +117,7 @@ export function OfflineSyncManager() {
         </div>
         <div className="flex items-center gap-2">
           {isOnline ? (
-            <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-950/50">
+            <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-200 bg-green-50 dark:bg-green-950/50">
               <Cloud className="h-3 w-3 mr-1" />
               Online
             </Badge>
@@ -203,11 +203,11 @@ export function OfflineSyncManager() {
                 <div className="text-xs text-muted-foreground">Pending</div>
               </div>
               <div>
-                <div className="text-xl font-bold text-green-600">{photoStats.syncedCount}</div>
+                <div className="text-xl font-bold text-green-600 dark:text-green-400">{photoStats.syncedCount}</div>
                 <div className="text-xs text-muted-foreground">Synced</div>
               </div>
               <div>
-                <div className="text-xl font-bold text-red-600">{photoStats.errorCount}</div>
+                <div className="text-xl font-bold text-red-600 dark:text-red-400">{photoStats.errorCount}</div>
                 <div className="text-xs text-muted-foreground">Failed</div>
               </div>
               <div>
@@ -324,7 +324,7 @@ export function OfflineSyncManager() {
       {syncedJobs.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
             Available Offline ({syncedJobs.length})
           </h3>
           {syncedJobs.map(job => (
@@ -404,7 +404,7 @@ function JobSyncCard({ job, onSync, onUnsync, isSyncing, isOnline }: JobSyncCard
             job.isSynced ? "bg-green-100 dark:bg-green-900/50" : "bg-muted"
           )}>
             {job.isSynced ? (
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
             ) : (
               <FileText className="h-5 w-5 text-muted-foreground" />
             )}
@@ -423,7 +423,7 @@ function JobSyncCard({ job, onSync, onUnsync, isSyncing, isOnline }: JobSyncCard
                     </Badge>
                   )}
                   {job.syncInfo.status === "error" && (
-                    <Badge variant="outline" className="ml-2 text-red-600 border-red-200 text-[10px] py-0">
+                    <Badge variant="outline" className="ml-2 text-red-600 dark:text-red-400 border-red-200 text-[10px] py-0">
                       Error
                     </Badge>
                   )}

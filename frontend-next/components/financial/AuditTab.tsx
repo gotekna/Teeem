@@ -224,7 +224,7 @@ export default function AuditTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{summary?.today || 0}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary?.today || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">actions</p>
           </CardContent>
         </Card>
@@ -236,7 +236,7 @@ export default function AuditTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{summary?.this_week || 0}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{summary?.this_week || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">actions</p>
           </CardContent>
         </Card>

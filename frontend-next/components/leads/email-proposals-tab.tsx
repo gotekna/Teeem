@@ -215,7 +215,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
     } else if (percentage >= 60) {
       className = "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400";
     } else if (percentage >= 30) {
-      className = "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400";
+      className = "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400";
     } else {
       className = "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400";
     }
@@ -281,10 +281,10 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-yellow-600" />
+              <Clock className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
               <span className="text-xs text-muted-foreground">Pending</span>
             </div>
-            <div className="text-2xl font-bold font-mono text-yellow-600 mt-1">
+            <div className="text-2xl font-bold font-mono text-yellow-600 dark:text-yellow-400 mt-1">
               {pendingProposals.length}
             </div>
           </CardContent>
@@ -295,10 +295,10 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
+              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
               <span className="text-xs text-muted-foreground">Approved</span>
             </div>
-            <div className="text-2xl font-bold font-mono text-green-600 mt-1">
+            <div className="text-2xl font-bold font-mono text-green-600 dark:text-green-400 mt-1">
               {proposals.filter((p) => p.status === "approved").length}
             </div>
           </CardContent>
@@ -309,10 +309,10 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         >
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-red-600" />
+              <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
               <span className="text-xs text-muted-foreground">Rejected</span>
             </div>
-            <div className="text-2xl font-bold font-mono text-red-600 mt-1">
+            <div className="text-2xl font-bold font-mono text-red-600 dark:text-red-400 mt-1">
               {proposals.filter((p) => p.status === "rejected" || p.status === "error").length}
             </div>
           </CardContent>
@@ -543,7 +543,7 @@ function ProposalCard({
                     Existing
                   </Badge>
                 ) : (
-                  <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 text-xs">
+                  <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400 text-xs">
                     Create New
                   </Badge>
                 )}
@@ -586,7 +586,7 @@ function ProposalCard({
               </div>
             )}
             {email.has_attachments && (
-              <div className="flex items-center gap-1 text-blue-600">
+              <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
                 <Paperclip className="w-4 h-4" />
                 {email.pdf_count && email.attachment_count && email.attachment_count > email.pdf_count
                   ? `${email.pdf_count} PDF${email.pdf_count !== 1 ? "s" : ""} / ${email.attachment_count} total`
@@ -609,7 +609,7 @@ function ProposalCard({
                 {data.referral_contact.contact_exists ? (
                   <Badge className="bg-status-success text-status-success-foreground text-xs">Existing</Badge>
                 ) : (
-                  <Badge className="bg-orange-100 text-orange-800 text-xs">Create New</Badge>
+                  <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs">Create New</Badge>
                 )}
               </div>
             </div>
@@ -631,7 +631,7 @@ function ProposalCard({
                   {sales.contact_exists ? (
                     <Badge className="bg-status-success text-status-success-foreground text-xs">Existing</Badge>
                   ) : (
-                    <Badge className="bg-orange-100 text-orange-800 text-xs">Create New</Badge>
+                    <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs">Create New</Badge>
                   )}
                 </div>
               ))}
@@ -646,7 +646,7 @@ function ProposalCard({
               <AlertTriangle className="w-4 h-4" />
               Missing Information
             </div>
-            <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-500">
+            <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-400">
               {data.missing_info.map((item, idx) => (
                 <li key={idx}>{item}</li>
               ))}
@@ -658,7 +658,7 @@ function ProposalCard({
         {proposal.error_message && (
           <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-md">
             <div className="text-sm font-medium text-red-800 dark:text-red-400 mb-1">Error</div>
-            <p className="text-sm text-red-700 dark:text-red-500">{proposal.error_message}</p>
+            <p className="text-sm text-red-700 dark:text-red-400">{proposal.error_message}</p>
           </div>
         )}
 
@@ -675,7 +675,7 @@ function ProposalCard({
           <div className="mt-4 pt-4 border-t">
             <a
               href={`/jobs/${proposal.job_id}`}
-              className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
             >
               View Job #{proposal.job_id}
             </a>

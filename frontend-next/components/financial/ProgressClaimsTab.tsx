@@ -195,7 +195,7 @@ export default function ProgressClaimsTab() {
         );
       case "invoiced":
         return (
-          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <Badge className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400">
             <FileText className="h-3 w-3 mr-1" />
             Invoiced
           </Badge>
@@ -243,7 +243,7 @@ export default function ProgressClaimsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
               {formatCurrency(retainage?.total_held || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -260,7 +260,7 @@ export default function ProgressClaimsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {formatCurrency(retainage?.total_outstanding || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -369,7 +369,7 @@ export default function ProgressClaimsTab() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="text-orange-600">
+                      <span className="text-orange-600 dark:text-orange-400">
                         {formatCurrency(claim.retainage_amount - claim.retainage_released)}
                       </span>
                     </TableCell>

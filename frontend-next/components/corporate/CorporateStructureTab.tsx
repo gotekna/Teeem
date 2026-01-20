@@ -146,22 +146,22 @@ function getEntityTypeBadgeColor(type: string) {
       return "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
     case "company":
     default:
-      return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+      return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300";
   }
 }
 
 function getMembershipTypeBadgeColor(type: string) {
   switch (type) {
     case "director":
-      return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300";
+      return "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300";
     case "shareholder":
-      return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+      return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-300";
     case "secretary":
-      return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+      return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300";
     case "public_officer":
     case "corporate_officer":
     case "officer":
-      return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
+      return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300";
     default:
       return "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
   }
@@ -344,7 +344,7 @@ export function CorporateStructureTab({
             <Card>
               <CardContent className="py-4">
                 <div className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-blue-600" />
+                  <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   <div>
                     <p className="text-2xl font-bold">{structureData.stats.total_companies}</p>
                     <p className="text-xs text-muted-foreground">Total Entities</p>
@@ -355,7 +355,7 @@ export function CorporateStructureTab({
             <Card>
               <CardContent className="py-4">
                 <div className="flex items-center gap-2">
-                  <GitBranch className="h-5 w-5 text-purple-600" />
+                  <GitBranch className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                   <div>
                     <p className="text-2xl font-bold">{structureData.stats.top_level_count}</p>
                     <p className="text-xs text-muted-foreground">Top Level</p>
@@ -402,7 +402,7 @@ export function CorporateStructureTab({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
               <CardTitle className="text-base flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-blue-600" />
+                <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 Companies & Trusts Hierarchy
               </CardTitle>
               <div className="flex items-center gap-4 flex-wrap">
@@ -487,7 +487,7 @@ export function CorporateStructureTab({
                           ) : isTrustee ? (
                             <Building2 className="h-4 w-4 text-indigo-500 flex-shrink-0" />
                           ) : (
-                            <Building2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                            <Building2 className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                           )}
                           <span className={entryIsTrust ? "text-rose-700 dark:text-rose-400" : isTrustee ? "text-indigo-700 dark:text-indigo-400" : ""}>
                             {entry.name as string}
@@ -612,7 +612,7 @@ export function CorporateStructureTab({
         <div className="fixed inset-0 z-50 bg-background">
           <div className="absolute top-0 left-0 right-0 h-16 bg-background border-b flex items-center justify-between px-6 z-10">
             <div className="flex items-center gap-4">
-              <Building2 className="h-6 w-6 text-blue-600" />
+              <Building2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               <h2 className="text-xl font-semibold">{structureData.group.name} - Structure Chart</h2>
             </div>
             <div className="flex items-center gap-4">
@@ -703,7 +703,7 @@ function FilterCheckboxes({ filters, onChange }: FilterCheckboxesProps) {
           type="checkbox"
           checked={filters.directors}
           onChange={(e) => onChange({ ...filters, directors: e.target.checked })}
-          className="h-4 w-4 rounded border-border text-purple-600 focus:ring-purple-500"
+          className="h-4 w-4 rounded border-border text-purple-600 dark:text-purple-400 focus:ring-purple-500"
         />
         <span className="text-sm text-purple-700 dark:text-purple-400">Directors</span>
       </label>
@@ -712,7 +712,7 @@ function FilterCheckboxes({ filters, onChange }: FilterCheckboxesProps) {
           type="checkbox"
           checked={filters.secretary}
           onChange={(e) => onChange({ ...filters, secretary: e.target.checked })}
-          className="h-4 w-4 rounded border-border text-blue-600 focus:ring-blue-500"
+          className="h-4 w-4 rounded border-border text-blue-600 dark:text-blue-400 focus:ring-blue-500"
         />
         <span className="text-sm text-blue-700 dark:text-blue-400">Secretary</span>
       </label>
@@ -721,7 +721,7 @@ function FilterCheckboxes({ filters, onChange }: FilterCheckboxesProps) {
           type="checkbox"
           checked={filters.corporateOfficer}
           onChange={(e) => onChange({ ...filters, corporateOfficer: e.target.checked })}
-          className="h-4 w-4 rounded border-border text-green-600 focus:ring-green-500"
+          className="h-4 w-4 rounded border-border text-green-600 dark:text-green-400 focus:ring-green-500"
         />
         <span className="text-sm text-green-700 dark:text-green-400">Officer</span>
       </label>

@@ -719,7 +719,7 @@ export default function GanttPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <PlayCircle className="h-5 w-5 text-green-600" />
+              <PlayCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
               Start Task
             </DialogTitle>
             <DialogDescription>
@@ -792,7 +792,7 @@ export default function GanttPage() {
                   gantt.setStartTaskDialog({ ...gantt.startTaskDialog, isOpen: false });
                 }}
               >
-                <GitBranch className="h-5 w-5 text-orange-600" />
+                <GitBranch className="h-5 w-5 text-orange-600 dark:text-orange-400" />
                 <div className="text-left">
                   <div className="font-medium">Break dependencies</div>
                   <div className="text-xs text-muted-foreground">
@@ -865,7 +865,7 @@ export default function GanttPage() {
           <div className="space-y-4 py-4">
             {gantt.cascadeDialog.unlockedSuccessors.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-sm font-medium text-green-600">
+                <h4 className="text-sm font-medium text-green-600 dark:text-green-400">
                   Will Move ({gantt.cascadeDialog.unlockedSuccessors.length})
                 </h4>
                 <div className="text-sm text-muted-foreground">
@@ -943,7 +943,7 @@ export default function GanttPage() {
           href={`/jobs/${jobId}/schedule`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-500 hover:underline"
+          className="text-blue-500 dark:text-blue-400 hover:underline"
         >
           Compare with old Gantt
         </a>
