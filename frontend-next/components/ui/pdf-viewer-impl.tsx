@@ -135,8 +135,8 @@ export function PDFViewerImpl({
         const response = await fetch(url, {
           // Don't send credentials for cross-origin presigned URLs
           credentials: isPresignedS3 ? "omit" : "include",
-          // Must use "cors" mode for cross-origin requests
-          mode: isPresignedS3 ? "cors" : "same-origin",
+          // Must use "cors" mode for cross-origin requests (backend is different origin)
+          mode: "cors",
           headers,
         });
 

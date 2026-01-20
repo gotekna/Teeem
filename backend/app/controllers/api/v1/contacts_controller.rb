@@ -1379,9 +1379,10 @@ module Api
 
         # Eager load associations for show action to avoid N+1 queries
         # This reduces the show action from ~500ms to ~50ms
+        # Note: :corporate_group removed - Contact uses :corporate_groups_via_membership (has_many through)
         eager_load_associations = if action_name == "show"
           [:contact_emails, :contact_phones, :contact_persons, :contact_addresses,
-           :contact_groups, :portal_user, :corporate_group]
+           :contact_groups, :portal_user]
         else
           []
         end

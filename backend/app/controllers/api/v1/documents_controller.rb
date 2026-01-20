@@ -938,11 +938,11 @@ module Api
         end
       end
 
-      # Email scope: {{Mailbox}}/Email Body/{{Year}}/{{Month}}
-      # Level 0: Mailboxes (group by mailbox_owner_email)
-      # Level 1: "Email Body" static folder
-      # Level 2: Years (group by YEAR(received_at))
-      # Level 3: Months (group by MONTH(received_at))
+      # Email structure: {{Mailbox}}/{{Year}}/Email Body|Attachments/{{Month}}/files
+      # Level 0: Mailboxes
+      # Level 1: Years
+      # Level 2: "Email Body" and "Attachments" folders
+      # Level 3: Months
       # Level 4: Files
       def build_email_live_tree(path_segments)
         depth = path_segments.size
@@ -961,17 +961,8 @@ module Api
           { folders: folders, files: [] }
 
         when 1
-          # Level 1: Mailbox selected, show "Email Body" static folder
+          # Level 1: Mailbox selected, show years
           mailbox = path_segments[0]
-          count = SyncedEmail.where(mailbox_owner_email: mailbox).count
-
-          folders = [{ name: "Email Body", path: "#{mailbox}/Email Body", count: count }]
-          { folders: folders, files: [] }
-
-        when 2
-          # Level 2: Show years
-          mailbox = path_segments[0]
-          # path_segments[1] is "Email Body" - skip it
 
           years = SyncedEmail.where(mailbox_owner_email: mailbox)
                              .where.not(received_at: nil)
@@ -980,54 +971,111 @@ module Api
 
           folders = years.map do |year, count|
             year_str = year.to_i.to_s
-            { name: year_str, path: "#{mailbox}/Email Body/#{year_str}", count: count }
+            { name: year_str, path: "#{mailbox}/#{year_str}", count: count }
           end.sort_by { |f| -f[:name].to_i }  # Newest first
 
           { folders: folders, files: [] }
 
-        when 3
-          # Level 3: Show months for selected year
+        when 2
+          # Level 2: Year selected, show "Email Body" and "Attachments" folders
           mailbox = path_segments[0]
-          year = path_segments[2].to_i
+          year = path_segments[1].to_i
 
-          months = SyncedEmail.where(mailbox_owner_email: mailbox)
-                              .where("EXTRACT(YEAR FROM received_at) = ?", year)
-                              .group("EXTRACT(MONTH FROM received_at)::INTEGER")
-                              .count
+          email_count = SyncedEmail.where(mailbox_owner_email: mailbox)
+                                   .where("EXTRACT(YEAR FROM received_at) = ?", year)
+                                   .count
+
+          # Count attachments from synced_email_attachments
+          attachment_count = SyncedEmailAttachment.joins(:synced_email)
+                                                  .where(synced_emails: { mailbox_owner_email: mailbox })
+                                                  .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                                  .count
+
+          folders = [
+            { name: "Email Body", path: "#{mailbox}/#{year}/Email Body", count: email_count },
+            { name: "Attachments", path: "#{mailbox}/#{year}/Attachments", count: attachment_count }
+          ]
+
+          { folders: folders, files: [] }
+
+        when 3
+          # Level 3: Show months for selected year and folder type
+          mailbox = path_segments[0]
+          year = path_segments[1].to_i
+          folder_type = path_segments[2]  # "Email Body" or "Attachments"
+
+          if folder_type == "Attachments"
+            # Count attachments by month
+            months = SyncedEmailAttachment.joins(:synced_email)
+                                          .where(synced_emails: { mailbox_owner_email: mailbox })
+                                          .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                          .group("EXTRACT(MONTH FROM synced_emails.received_at)::INTEGER")
+                                          .count
+          else
+            # Count emails by month
+            months = SyncedEmail.where(mailbox_owner_email: mailbox)
+                                .where("EXTRACT(YEAR FROM received_at) = ?", year)
+                                .group("EXTRACT(MONTH FROM received_at)::INTEGER")
+                                .count
+          end
 
           month_names = %w[Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec]
           folders = months.map do |month, count|
             month_name = month_names[month.to_i - 1] || month.to_s.rjust(2, "0")
             month_str = month.to_s.rjust(2, "0")
-            { name: "#{month_str} - #{month_name}", path: "#{mailbox}/Email Body/#{year}/#{month_str}", count: count }
+            { name: "#{month_str} - #{month_name}", path: "#{mailbox}/#{year}/#{folder_type}/#{month_str}", count: count }
           end.sort_by { |f| -f[:name].to_i }  # Newest first
 
           { folders: folders, files: [] }
 
         else
-          # Level 4+: Show actual emails as files
+          # Level 4+: Show actual files
           mailbox = path_segments[0]
-          year = path_segments[2].to_i
+          year = path_segments[1].to_i
+          folder_type = path_segments[2]  # "Email Body" or "Attachments"
           month = path_segments[3].to_i
 
-          emails = SyncedEmail.where(mailbox_owner_email: mailbox)
-                              .where("EXTRACT(YEAR FROM received_at) = ?", year)
-                              .where("EXTRACT(MONTH FROM received_at) = ?", month)
-                              .order(received_at: :desc)
-                              .limit(500)
+          if folder_type == "Attachments"
+            # Show email attachments
+            attachments = SyncedEmailAttachment.joins(:synced_email)
+                                               .where(synced_emails: { mailbox_owner_email: mailbox })
+                                               .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                               .where("EXTRACT(MONTH FROM synced_emails.received_at) = ?", month)
+                                               .order("synced_emails.received_at DESC")
+                                               .limit(500)
 
-          files = emails.map do |email|
-            {
-              id: email.id,
-              name: email.subject || "(No Subject)",
-              type: "email",
-              mimeType: "message/rfc822",
-              receivedAt: email.received_at&.iso8601,
-              from: email.from_email,
-              fromName: email.from_name,
-              hasAttachments: email.has_attachments,
-              attachmentCount: email.attachment_count
-            }
+            files = attachments.map do |att|
+              {
+                id: att.id,
+                name: att.filename || "(Unknown)",
+                type: "attachment",
+                mimeType: att.content_type || "application/octet-stream",
+                fileSize: att.file_size,
+                receivedAt: att.synced_email&.received_at&.iso8601,
+                emailSubject: att.synced_email&.subject
+              }
+            end
+          else
+            # Show emails
+            emails = SyncedEmail.where(mailbox_owner_email: mailbox)
+                                .where("EXTRACT(YEAR FROM received_at) = ?", year)
+                                .where("EXTRACT(MONTH FROM received_at) = ?", month)
+                                .order(received_at: :desc)
+                                .limit(500)
+
+            files = emails.map do |email|
+              {
+                id: email.id,
+                name: email.subject || "(No Subject)",
+                type: "email",
+                mimeType: "message/rfc822",
+                receivedAt: email.received_at&.iso8601,
+                from: email.from_email,
+                fromName: email.from_name,
+                hasAttachments: email.has_attachments,
+                attachmentCount: email.attachment_count
+              }
+            end
           end
 
           { folders: [], files: files }

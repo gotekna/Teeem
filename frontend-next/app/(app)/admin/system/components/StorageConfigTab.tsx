@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,9 +30,18 @@ import {
   FolderOpen,
   ChevronRight,
   ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Pencil,
   FileText,
   Link2,
+  Eye,
+  Mail,
+  Briefcase,
+  Users,
+  Building2,
+  FileBox,
+  ClipboardList,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -163,6 +173,12 @@ interface FolderTreeNode {
 // Build tree structure from flat scope folders
 function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   const root: FolderTreeNode[] = [];
+
+  // DEBUG: Log what we receive
+  console.log('[buildFolderTree] Input scope_folders:', Object.keys(scopeFolders).length, 'entries');
+  console.log('[buildFolderTree] task:', scopeFolders['task']);
+  console.log('[buildFolderTree] job:', scopeFolders['job']);
+  console.log('[buildFolderTree] contact:', scopeFolders['contact']);
 
   // Sort entries by path for consistent tree building
   const entries = Object.entries(scopeFolders).sort(([, a], [, b]) => a.localeCompare(b));
@@ -845,7 +861,7 @@ function TreeNode({
                   );
 
                   // Render the remaining parts for each scope
-                  for (const { parts, filename } of items) {
+                  for (const { parts, scopeKey, filename } of items) {
                     const remainingParts = parts.slice(1);
                     let currentLevel = level + 2;
                     for (let idx = 0; idx < remainingParts.length; idx++) {
@@ -853,7 +869,7 @@ function TreeNode({
                       const isLast = idx === remainingParts.length - 1;
                       rendered.push(
                         <div
-                          key={`${parts.join('-')}-${idx}`}
+                          key={`${scopeKey}-${parts.join('-')}-${idx}`}
                           className="flex items-center gap-1 py-0.5 px-1"
                           style={{ paddingLeft: `${currentLevel++ * 16 + 4}px` }}
                         >
@@ -1132,6 +1148,41 @@ export function StorageConfigTab() {
   const [entityTabs, setEntityTabs] = React.useState<Record<string, EntityTab[]>>({});
   const [loadingTabs, setLoadingTabs] = React.useState(false);
 
+  // Warehouse stats for live preview
+  interface WarehouseStats {
+    warehouse_total: number;
+    warehouse_by_source: Record<string, number>;
+    counts: Record<string, number>;  // All counts including tasks, templates, etc.
+  }
+  const [warehouseStats, setWarehouseStats] = React.useState<WarehouseStats | null>(null);
+  const [loadingWarehouse, setLoadingWarehouse] = React.useState(false);
+  const [showLivePreview, setShowLivePreview] = React.useState(false);
+
+  // Load warehouse stats
+  const loadWarehouseStats = async () => {
+    setLoadingWarehouse(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          counts: Record<string, number>;
+        }
+      }>("/api/v1/documents/all");
+      if (response?.success && response.data?.counts) {
+        const counts = response.data.counts;
+        setWarehouseStats({
+          warehouse_total: counts.warehouse_total || 0,
+          warehouse_by_source: (counts.warehouse_by_source as unknown as Record<string, number>) || {},
+          counts: counts,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load warehouse stats:", error);
+    } finally {
+      setLoadingWarehouse(false);
+    }
+  };
+
   // Fetch entity tabs for all scopes
   const loadEntityTabs = async () => {
     setLoadingTabs(true);
@@ -1345,24 +1396,30 @@ export function StorageConfigTab() {
     }
   }, [toast]);
 
-  // Expand all nodes initially (folders with children or tabs)
-  React.useEffect(() => {
-    if (Object.keys(formData.scope_folders).length > 0 && expandedPaths.size === 0) {
-      // Collect all paths that have children or tabs
-      const allPaths = new Set<string>();
-      const collectPaths = (nodes: FolderTreeNode[]) => {
-        nodes.forEach(node => {
-          const hasExpandableContent = node.children.length > 0 || (node.tabs && node.tabs.length > 0);
-          if (hasExpandableContent) {
-            allPaths.add(node.path);
-            collectPaths(node.children);
-          }
-        });
-      };
-      collectPaths(folderTree);
-      setExpandedPaths(allPaths);
-    }
-  }, [formData.scope_folders, folderTree, expandedPaths.size]);
+  // Collect all expandable paths (for expand/collapse all)
+  const allExpandablePaths = React.useMemo(() => {
+    const allPaths = new Set<string>();
+    const collectPaths = (nodes: FolderTreeNode[]) => {
+      nodes.forEach(node => {
+        const hasExpandableContent = node.children.length > 0 || (node.tabs && node.tabs.length > 0);
+        if (hasExpandableContent) {
+          allPaths.add(node.path);
+          collectPaths(node.children);
+        }
+      });
+    };
+    collectPaths(folderTree);
+    return allPaths;
+  }, [folderTree]);
+
+  // Expand/collapse all handlers
+  const expandAll = React.useCallback(() => {
+    setExpandedPaths(new Set(allExpandablePaths));
+  }, [allExpandablePaths]);
+
+  const collapseAll = React.useCallback(() => {
+    setExpandedPaths(new Set());
+  }, []);
 
   // Load storage config and entity tabs on mount
   React.useEffect(() => {
@@ -1377,6 +1434,12 @@ export function StorageConfigTab() {
         "/api/v1/storage_configuration"
       );
       if (response?.success && response.data) {
+        // DEBUG: Log raw API response
+        console.log('[loadConfig] API response scope_folders count:', Object.keys(response.data.scope_folders || {}).length);
+        console.log('[loadConfig] task in API response:', response.data.scope_folders?.task);
+        console.log('[loadConfig] job in API response:', response.data.scope_folders?.job);
+        console.log('[loadConfig] All keys:', Object.keys(response.data.scope_folders || {}).sort().join(', '));
+
         setConfig(response.data);
         setFormData({
           // Provider type - normalize legacy values (wasabi/s3 → s3_compatible)
@@ -1538,6 +1601,22 @@ export function StorageConfigTab() {
         </Badge>
       </div>
 
+      {/* Tabs: Configuration vs Live Preview */}
+      <Tabs defaultValue="config" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="config" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Configuration
+          </TabsTrigger>
+          <TabsTrigger value="preview" className="flex items-center gap-2" onClick={() => {
+            if (!warehouseStats) loadWarehouseStats();
+          }}>
+            <Eye className="h-4 w-4" />
+            Live Preview
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="config" className="space-y-6 mt-4">
       {/* Provider Selection */}
       <Card>
         <CardHeader>
@@ -1804,10 +1883,34 @@ export function StorageConfigTab() {
       {/* Scope Folders - Tree View */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <FolderTree className="h-4 w-4" />
-            Scope Folders
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FolderTree className="h-4 w-4" />
+              Scope Folders
+            </CardTitle>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={expandAll}
+                className="h-7 px-2 text-xs"
+                title="Expand all"
+              >
+                <ChevronsUpDown className="h-3.5 w-3.5 mr-1" />
+                Expand
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={collapseAll}
+                className="h-7 px-2 text-xs"
+                title="Collapse all"
+              >
+                <ChevronsDownUp className="h-3.5 w-3.5 mr-1" />
+                Collapse
+              </Button>
+            </div>
+          </div>
           <CardDescription>
             Folder structure for each entity type. Click a scope label to edit its path.
           </CardDescription>
@@ -1906,6 +2009,175 @@ export function StorageConfigTab() {
           )}
         </Button>
       </div>
+        </TabsContent>
+
+        {/* Live Preview Tab */}
+        <TabsContent value="preview" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Warehouse Contents
+              </CardTitle>
+              <CardDescription>
+                Live view of what&apos;s stored in the File Warehouse
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingWarehouse ? (
+                <div className="flex items-center justify-center py-8">
+                  <Spinner size={24} className="text-muted-foreground" />
+                </div>
+              ) : warehouseStats ? (
+                <div className="space-y-6">
+                  {/* Total count */}
+                  <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                    <FileBox className="h-8 w-8 text-primary" />
+                    <div>
+                      <div className="text-2xl font-bold">{warehouseStats.warehouse_total.toLocaleString()}</div>
+                      <div className="text-sm text-muted-foreground">Total documents in warehouse</div>
+                    </div>
+                  </div>
+
+                  {/* By source type - from WarehouseDocument table */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">Warehouse Documents (Phase 3 SSoT)</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {Object.entries(warehouseStats.warehouse_by_source)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([source, count]) => {
+                          const icons: Record<string, React.ReactNode> = {
+                            email: <Mail className="h-4 w-4" />,
+                            job: <Briefcase className="h-4 w-4" />,
+                            contact: <Users className="h-4 w-4" />,
+                            corporate: <Building2 className="h-4 w-4" />,
+                            task: <ClipboardList className="h-4 w-4" />,
+                          };
+                          return (
+                            <div
+                              key={source}
+                              className="flex items-center gap-3 p-3 border rounded-lg bg-card"
+                            >
+                              <div className="text-muted-foreground">
+                                {icons[source] || <FileText className="h-4 w-4" />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium capitalize truncate">{source}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {count.toLocaleString()} docs
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+
+                  {/* Other storage counts - from legacy tables */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">Other Storage (Legacy / Links)</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                      {[
+                        { key: 'tasks', label: 'Task Attachments', icon: <ClipboardList className="h-3.5 w-3.5" /> },
+                        { key: 'templates', label: 'Templates', icon: <FileText className="h-3.5 w-3.5" /> },
+                        { key: 'notes', label: 'Notes', icon: <FileText className="h-3.5 w-3.5" /> },
+                        { key: 'excel_documents', label: 'Excel Docs', icon: <FileText className="h-3.5 w-3.5" /> },
+                        { key: 'word_documents', label: 'Word Docs', icon: <FileText className="h-3.5 w-3.5" /> },
+                        { key: 'pricebook_photos', label: 'Pricebook Photos', icon: <FileText className="h-3.5 w-3.5" /> },
+                        { key: 'active_storage', label: 'Active Storage', icon: <Database className="h-3.5 w-3.5" /> },
+                      ].map(({ key, label, icon }) => {
+                        const count = warehouseStats.counts[key] || 0;
+                        if (count === 0) return null;
+                        return (
+                          <div key={key} className="flex items-center gap-2 p-2 border rounded bg-muted/30">
+                            <span className="text-muted-foreground">{icon}</span>
+                            <span className="text-xs truncate">{label}</span>
+                            <span className="ml-auto text-xs font-medium">{count.toLocaleString()}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Task attachments link to existing documents. Templates and notes are stored separately.
+                    </p>
+                  </div>
+
+                  {/* Folder structure preview */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-medium">Folder Structure Preview</h3>
+                    <div className="border rounded-lg p-4 bg-muted/20 font-mono text-sm space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Folder className="h-4 w-4 text-amber-500" />
+                        <span className="font-medium">{formData.root_path || "/"}</span>
+                        <span className="text-muted-foreground text-xs">(root)</span>
+                      </div>
+                      {/* Render configured scopes with their computed paths */}
+                      {Object.entries(formData.scope_folders)
+                        .filter(([, path]) => path)
+                        .sort(([, a], [, b]) => a.localeCompare(b))
+                        .map(([scopeKey, basePath]) => {
+                          const template = formData.scope_templates[scopeKey] || DEFAULT_FOLDER_TEMPLATES[scopeKey] || '';
+                          const count = warehouseStats.warehouse_by_source[scopeKey] || 0;
+                          const icons: Record<string, React.ReactNode> = {
+                            email: <Mail className="h-3.5 w-3.5 text-blue-500" />,
+                            email_attachments: <Mail className="h-3.5 w-3.5 text-blue-500" />,
+                            job: <Briefcase className="h-3.5 w-3.5 text-green-500" />,
+                            contact: <Users className="h-3.5 w-3.5 text-purple-500" />,
+                            corporate: <Building2 className="h-3.5 w-3.5 text-orange-500" />,
+                            corporate_entity: <Building2 className="h-3.5 w-3.5 text-orange-500" />,
+                            task: <ClipboardList className="h-3.5 w-3.5 text-red-500" />,
+                            task_attachments: <ClipboardList className="h-3.5 w-3.5 text-red-500" />,
+                            task_responses: <ClipboardList className="h-3.5 w-3.5 text-red-500" />,
+                          };
+                          return (
+                            <div key={scopeKey} className="ml-4 space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <FolderOpen className="h-4 w-4 text-amber-500" />
+                                <span>{basePath}</span>
+                                <Badge variant="outline" className="h-5 text-[10px] px-1.5">
+                                  {getScopeLabel(scopeKey)}
+                                </Badge>
+                                {count > 0 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    ({count.toLocaleString()} docs)
+                                  </span>
+                                )}
+                              </div>
+                              {template && (
+                                <div className="ml-6 flex items-center gap-2 text-muted-foreground">
+                                  {icons[scopeKey] || <Folder className="h-3.5 w-3.5 text-amber-500/60" />}
+                                  <span className="italic">{template}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This shows your configured folder structure. Tokens like {`{{Mailbox}}`} and {`{{Year}}`} are replaced with actual values.
+                    </p>
+                  </div>
+
+                  {/* Refresh button */}
+                  <div className="flex justify-end">
+                    <Button variant="outline" size="sm" onClick={loadWarehouseStats} disabled={loadingWarehouse}>
+                      <RefreshCw className={cn("h-4 w-4 mr-2", loadingWarehouse && "animate-spin")} />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Click to load warehouse statistics</p>
+                  <Button variant="outline" size="sm" onClick={loadWarehouseStats} className="mt-2">
+                    Load Preview
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
