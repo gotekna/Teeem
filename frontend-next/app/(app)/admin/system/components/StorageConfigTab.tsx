@@ -1074,7 +1074,11 @@ function TabNode({
             </div>
           </div>
         ) : (
-          <div className="ml-4 space-y-1 text-[11px] text-muted-foreground">
+          <div
+            className="ml-4 space-y-1 text-[11px] text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-2 py-1 -ml-2"
+            onClick={() => onStartEdit(tab.id)}
+            title="Click to edit"
+          >
             <div className="flex items-center gap-2">
               <span className="font-medium w-20">Path:</span>
               <span className="font-mono">{tab.sharepoint_folder_path || '(none)'}</span>
