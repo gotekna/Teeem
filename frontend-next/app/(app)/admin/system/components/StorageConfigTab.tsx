@@ -238,21 +238,26 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
       let node = current.find(n => n.name === part);
 
       if (!node) {
+        // Only add main scope keys to scopeKeys (prevents duplicate badges from legacy variants like email-attachments)
+        const shouldAddAsScopeKey = shouldSetScopeKey && mainScopeKeys.includes(key);
         node = {
           name: part,
           path: currentPath,
-          scopeKey: shouldSetScopeKey ? key : null,
-          scopeKeys: shouldSetScopeKey ? [key] : [],
+          scopeKey: shouldAddAsScopeKey ? key : null,
+          scopeKeys: shouldAddAsScopeKey ? [key] : [],
           children: [],
         };
         current.push(node);
-      } else if (shouldSetScopeKey) {
+      } else if (shouldSetScopeKey && mainScopeKeys.includes(key)) {
         // Multiple scopes share this path - add to scopeKeys array
+        // Only add main scope keys (prevents duplicate badges from legacy variants)
         if (!node.scopeKeys.includes(key)) {
           node.scopeKeys.push(key);
         }
-        // Set primary scopeKey if not already set
-        if (!node.scopeKey) {
+        // SSoT: Main scope keys (email, job, task, etc.) should ALWAYS be the primary scopeKey
+        // because warehouse_root_folders only has entries for main scopes
+        // Without this, 'email-attachments' (alphabetically first) would steal primary from 'email'
+        if (!node.scopeKey || (isMainScope && !mainScopeKeys.includes(node.scopeKey))) {
           node.scopeKey = key;
         }
       }
@@ -313,6 +318,8 @@ interface TreeNodeProps {
   // Phase 4: Virtual scopes
   virtualScopes: Record<string, boolean>;
   onToggleVirtual: (scopeKey: string, isVirtual: boolean) => Promise<void>;
+  // SSoT: warehouse_root_folders - full path patterns like Jobs/{{JobCode}}
+  scopeRootFolders: Record<string, string>;
 }
 
 function TreeNode({
@@ -337,6 +344,7 @@ function TreeNode({
   onSaveTemplates,
   virtualScopes,
   onToggleVirtual,
+  scopeRootFolders,
 }: TreeNodeProps) {
   const hasChildren = node.children.length > 0;
   const hasTabs = node.tabs && node.tabs.length > 0;
@@ -576,14 +584,24 @@ function TreeNode({
             ({node.tabs!.length} tabs)
           </span>
         )}
-
-        {/* Full path preview (on hover) */}
-        {!isEditingThisNode && (
-          <span className="ml-auto text-[10px] text-muted-foreground font-mono opacity-0 group-hover:opacity-100 transition-opacity">
-            {fullPath}
-          </span>
-        )}
       </div>
+
+      {/* SSoT: Show warehouse_root_folders path pattern under folder name */}
+      {(() => {
+        const scopeKey = node.scopeKey || node.scopeKeys?.[0];
+        const rootFolderPath = scopeKey ? scopeRootFolders[scopeKey] : null;
+        if (!isEditingThisNode && rootFolderPath) {
+          return (
+            <div
+              className="text-[10px] text-muted-foreground font-mono"
+              style={{ paddingLeft: `${level * 16 + 28}px` }}
+            >
+              {rootFolderPath}
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* Editing panel for any scope folder */}
       {editingKey && node.scopeKeys?.includes(editingKey) && (
@@ -966,6 +984,7 @@ function TreeNode({
                 onSaveTemplates={onSaveTemplates}
                 virtualScopes={virtualScopes}
                 onToggleVirtual={onToggleVirtual}
+                scopeRootFolders={scopeRootFolders}
               />
             ))
           )}
@@ -1248,6 +1267,14 @@ export function StorageConfigTab() {
       results.forEach(({ scopeKey, tabs }) => {
         // Include all tabs (no parent_id filter - warehouse tabs may have parent)
         tabsByScope[scopeKey] = tabs;
+        // Debug: log raw API response for email tabs
+        if (scopeKey === 'email') {
+          console.log('[DEBUG API] email tabs from API:', tabs.map(t => ({
+            tab_key: t.tab_key,
+            has_storage_folder: t.has_storage_folder,
+            raw: JSON.stringify(t)
+          })));
+        }
       });
 
       setEntityTabs(tabsByScope);
@@ -1265,11 +1292,14 @@ export function StorageConfigTab() {
     const tree = buildFolderTree(scopeFolders);
 
     // Attach tabs to scope nodes
-    // SSoT: Only show tabs where has_storage_folder is true (filter out overview/non-storage tabs)
+    // SSoT: Only show tabs that have storage folders (warehouse_enabled=true in database)
     const attachTabs = (nodes: FolderTreeNode[]) => {
       nodes.forEach(node => {
         if (node.scopeKey && entityTabs[node.scopeKey]) {
-          node.tabs = entityTabs[node.scopeKey].filter(tab => tab.has_storage_folder === true);
+          const allTabs = entityTabs[node.scopeKey];
+          // Filter: has_storage_folder=true (SSoT from database warehouse_enabled column)
+          const filteredTabs = allTabs.filter(tab => tab.has_storage_folder === true);
+          node.tabs = filteredTabs;
         }
         if (node.children.length > 0) {
           attachTabs(node.children);
@@ -1491,6 +1521,8 @@ export function StorageConfigTab() {
           s3_region: response.data.region || "",
           // Root path
           root_path: response.data.root_path || "",
+          // SSoT: warehouse_root_folders contains full patterns like Jobs/{{JobCode}}
+          warehouse_root_folders: response.data.warehouse_root_folders || response.data.scope_root_folders || {},
           // SSoT: Warehouse folders from StorageConfiguration (new naming with legacy fallback)
           warehouse_folders: response.data.warehouse_folders || response.data.scope_folders || {},
           // SSoT: Templates from StorageConfiguration
@@ -2077,6 +2109,7 @@ export function StorageConfigTab() {
                     onSaveTemplates={saveScopeTemplates}
                     virtualScopes={formData.virtual_warehouses}
                     onToggleVirtual={toggleVirtualScope}
+                    scopeRootFolders={formData.warehouse_root_folders || {}}
                   />
                 ))}
               </div>

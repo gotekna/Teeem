@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_20_150000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_20_190109) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9177,7 +9177,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_150000) do
     t.string "status", default: "disconnected", null: false
     t.jsonb "connection_config", default: {}, null: false
     t.string "root_path", default: "/Shared Documents", null: false
-    t.jsonb "warehouse_folder_templates", default: {"job"=>"{{JobCode}}/{{Category}}", "task"=>"Task-{{TaskId}}/{{Category}}", "people"=>"{{ContactName}}/{{Category}}", "account"=>"{{Source}}/{{ContactName}}/{{Category}}", "contacts"=>"{{ContactName}}/{{Category}}", "corporate"=>"{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"}, null: false
     t.string "credential_type"
     t.bigint "credential_id"
     t.datetime "created_at", null: false

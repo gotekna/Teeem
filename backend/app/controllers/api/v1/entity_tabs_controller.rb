@@ -22,12 +22,14 @@ module Api
           tab_group: params[:tab_group]
         )
 
+        tabs = service.nested_tabs
+
         render json: {
           success: true,
           data: {
             warehouse_type: warehouse_type,
             scope: warehouse_type,  # Legacy backwards compat
-            tabs: service.nested_tabs,
+            tabs: tabs,
             groups: EntityTab::TAB_GROUPS,
             primary_xero_name: EntityTab.primary_xero_name  # SSoT: Name of primary Xero account
           }

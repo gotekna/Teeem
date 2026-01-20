@@ -129,8 +129,6 @@ module Api
         end
 
         if storage_config.update(update_attrs)
-          enqueue_folder_reorganization_jobs(old_templates, new_templates) if new_templates
-
           render json: {
             success: true,
             data: storage_config.to_config_hash
