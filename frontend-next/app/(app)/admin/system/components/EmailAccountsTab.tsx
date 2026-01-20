@@ -949,7 +949,7 @@ export function EmailAccountsTab() {
         <Card>
           <CardContent className="py-12 text-center">
             <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h4 className="font-medium mb-2">No email accounts connected</h4>
+            <h4 className="text-sm font-medium mb-2">No email accounts connected</h4>
             <p className="text-sm text-muted-foreground mb-4">
               Add an email account to start syncing and sending emails from TEEEM.
             </p>

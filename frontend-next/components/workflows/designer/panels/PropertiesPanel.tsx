@@ -231,7 +231,7 @@ function UserTaskProperties({
 }) {
   return (
     <div className="space-y-3 border-t pt-3">
-      <h4 className="text-sm font-medium">Assignment</h4>
+      <h4 className="text-sm font-medium text-muted-foreground">Assignment</h4>
 
       <div>
         <Label>Assignee Type</Label>
@@ -315,7 +315,7 @@ function ServiceTaskProperties({
 
   return (
     <div className="space-y-3 border-t pt-3">
-      <h4 className="text-sm font-medium">Service Task</h4>
+      <h4 className="text-sm font-medium text-muted-foreground">Service Task</h4>
 
       <div>
         <Label>Task Type</Label>
@@ -511,7 +511,7 @@ function TimerEventProperties({
 }) {
   return (
     <div className="space-y-3 border-t pt-3">
-      <h4 className="text-sm font-medium">Timer</h4>
+      <h4 className="text-sm font-medium text-muted-foreground">Timer</h4>
 
       <div>
         <Label>Duration (ISO 8601)</Label>
@@ -537,7 +537,7 @@ function IntermediateEventProperties({
 }) {
   return (
     <div className="space-y-3 border-t pt-3">
-      <h4 className="text-sm font-medium">Intermediate Event</h4>
+      <h4 className="text-sm font-medium text-muted-foreground">Intermediate Event</h4>
 
       <div>
         <Label>Event Type</Label>

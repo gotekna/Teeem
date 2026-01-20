@@ -4,7 +4,7 @@
 # Impact: 150+ queries per page → 5 queries per page
 #
 # Usage:
-#   emails = EmailWarehouse.includes(:job).limit(50)
+#   emails = SyncedEmail.includes(:job).limit(50)
 #   preloader = EmailPreloaderService.new(emails).preload_all
 #
 #   emails.map { |e| email_json(e, preloader: preloader) }
@@ -103,7 +103,7 @@ class EmailPreloaderService
     conversation_ids = @emails.map(&:conversation_id).compact.uniq
     return if conversation_ids.empty?
 
-    @cache[:thread_counts] = EmailWarehouse.where(conversation_id: conversation_ids)
+    @cache[:thread_counts] = SyncedEmail.where(conversation_id: conversation_ids)
                                            .group(:conversation_id)
                                            .count
   end
@@ -116,8 +116,8 @@ class EmailPreloaderService
     return if email_ids.empty?
 
     @cache[:user_states] = EmailUserState.where(
-      email_warehouse_id: email_ids,
+      synced_email_id: email_ids,
       user_id: user.id
-    ).index_by(&:email_warehouse_id)
+    ).index_by(&:synced_email_id)
   end
 end

@@ -182,7 +182,7 @@ export default function EofyTab() {
   const getStatusBadge = (status: string, isClosed: boolean) => {
     if (isClosed) {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           <Lock className="h-3 w-3 mr-1" />
           Closed
         </Badge>
@@ -194,14 +194,14 @@ export default function EofyTab() {
         return <Badge variant="secondary">Not Started</Badge>;
       case "in_progress":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
             <AlertCircle className="h-3 w-3 mr-1" />
             In Progress
           </Badge>
         );
       case "ready_to_close":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Ready to Close
           </Badge>
@@ -504,7 +504,7 @@ export default function EofyTab() {
                       <report.icon className="h-6 w-6 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-medium">{report.label}</h3>
+                      <h3 className="text-sm font-medium">{report.label}</h3>
                       <p className="text-xs text-muted-foreground">{selectedYear}</p>
                     </div>
                     <Button size="sm" variant="ghost">

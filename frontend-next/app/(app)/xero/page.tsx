@@ -535,7 +535,7 @@ export default function XeroPage() {
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-medium">{report.title}</h3>
+                        <h3 className="text-sm font-medium">{report.title}</h3>
                         <p className="text-sm text-muted-foreground">{report.description}</p>
                       </div>
                       <Button variant="ghost" size="sm">

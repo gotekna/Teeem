@@ -151,7 +151,7 @@ const FIELD_MATRIX: Record<string, Record<string, "required" | "optional" | "com
 function FieldStatusBadge({ status }: { status: "required" | "optional" | "computed" | "na" }) {
   switch (status) {
     case "required":
-      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">Required</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-100">Required</Badge>;
     case "optional":
       return <Badge variant="outline" className="text-blue-600 border-blue-300">Optional</Badge>;
     case "computed":
@@ -188,7 +188,7 @@ function EntityTypesReferenceCard() {
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Info className="h-5 w-5 text-muted-foreground" />
-          <h3 className="font-semibold">Entity Types Reference</h3>
+          <h3 className="text-sm font-semibold">Entity Types Reference</h3>
         </div>
         <p className="text-sm text-muted-foreground">
           This table shows which fields are used for each entity type. The database column updated depends on the entity type.
@@ -198,7 +198,7 @@ function EntityTypesReferenceCard() {
         {/* Legend */}
         <div className="flex flex-wrap gap-4 text-sm border-b pb-3">
           <div className="flex items-center gap-1.5">
-            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 text-xs">Required</Badge>
+            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-100 text-xs">Required</Badge>
             <span className="text-muted-foreground">Must be filled</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -223,7 +223,7 @@ function EntityTypesReferenceCard() {
               <div key={entityType.value} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-medium">{entityType.label}</h4>
+                    <h4 className="text-sm font-medium">{entityType.label}</h4>
                     <p className="text-xs text-muted-foreground">{entityType.description}</p>
                   </div>
                   <Badge variant="outline" className="text-xs">
@@ -275,7 +275,7 @@ function EntityTypesReferenceCard() {
 
         {/* Full Matrix Table */}
         <div className="pt-4 border-t">
-          <h4 className="font-medium mb-3">Full Field Matrix</h4>
+          <h4 className="text-sm font-medium mb-3">Full Field Matrix</h4>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -605,7 +605,7 @@ export function ContactTypesTab() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <FolderOpen className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Contact Documents Path</h3>
+            <h3 className="text-sm font-semibold">Contact Documents Path</h3>
           </div>
           <p className="text-sm text-muted-foreground">
             Select the SharePoint folder where documents associated with contacts should be stored.
@@ -645,7 +645,7 @@ export function ContactTypesTab() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Contact Folder Naming</h3>
+            <h3 className="text-sm font-semibold">Contact Folder Naming</h3>
           </div>
           <p className="text-sm text-muted-foreground">
             Choose how contact folders are named. Using the Contact ID ensures all documents for a supplier
@@ -679,7 +679,7 @@ export function ContactTypesTab() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Employee-Company Relationships</h3>
+            <h3 className="text-sm font-semibold">Employee-Company Relationships</h3>
           </div>
           <p className="text-sm text-muted-foreground">
             Search your email warehouse to find people who have communicated with specific email addresses.

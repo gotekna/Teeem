@@ -397,7 +397,7 @@ export function XeroContactsTable({
       <Card>
         <CardContent className="p-6">
           <div className="text-center text-muted-foreground">
-            <p className="font-medium mb-2">No Contacts Linked</p>
+            <p className="text-sm font-medium mb-2">No Contacts Linked</p>
             <p className="text-sm">No contacts are linked to this Xero account yet.</p>
             <p className="text-sm mt-2">Link contacts to Xero in the Contacts module.</p>
           </div>

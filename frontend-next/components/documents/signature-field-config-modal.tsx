@@ -379,7 +379,7 @@ export function SignatureFieldConfigModal({
           {/* Field List Panel */}
           <div className="w-64 flex flex-col border rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium">Signature Fields</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">Signature Fields</h3>
               <Button variant="ghost" size="icon" onClick={handleAddField}>
                 <Plus className="h-4 w-4" />
               </Button>

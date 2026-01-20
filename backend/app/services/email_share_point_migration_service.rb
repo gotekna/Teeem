@@ -29,7 +29,7 @@ class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCam
     # Find emails that have SharePoint file IDs but not Wasabi paths
     # Wasabi paths start with /Emails/ (uppercase, leading slash)
     # SharePoint paths are like emails/eml/... (lowercase, no leading slash)
-    emails = EmailWarehouse
+    emails = SyncedEmail
       .where("sharepoint_email_file_id IS NOT NULL AND sharepoint_email_file_id != ''")
       .where("sharepoint_email_file_id NOT LIKE '/%'")  # Exclude Wasabi paths (start with /)
       .where("sharepoint_email_file_id NOT LIKE 'Emails/%'")  # Exclude Wasabi paths

@@ -1,4 +1,10 @@
-class EmailWarehouse < ApplicationRecord
+# Renamed from EmailWarehouse (Jan 2026)
+# Part of the "Warehouse" table rename initiative - these are synced email records
+# from Microsoft 365/IMAP, not part of the File Warehouse system.
+class SyncedEmail < ApplicationRecord
+  # Keep table name explicit during transition (after migration, this can be removed)
+  self.table_name = "synced_emails"
+
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
 
@@ -7,8 +13,6 @@ class EmailWarehouse < ApplicationRecord
   # Searchable columns for full-text search (GIN index)
   # Note: Uses custom update_searchable_vector callback instead of trigger
   searchable_columns :subject, :from_email, :body_text
-
-  # Table renamed from email_warehouse to email_warehouses (Rails convention)
 
   # SSoT: Email attachments use email_attachments → StorageBlob chain (Jan 2026)
   # ActiveStorage has_many_attached :files was REMOVED - it violated SSoT by
@@ -62,6 +66,8 @@ class EmailWarehouse < ApplicationRecord
   after_destroy_commit :broadcast_email_deleted
   # Phase 4: Update warehouse_document.folder on relevant field changes
   after_save :update_warehouse_document_folder, if: :should_update_virtual_folder?
+  # Phase 4: Ensure warehouse_document exists when storage_path is set
+  after_save :ensure_warehouse_document, if: :saved_change_to_storage_path?
 
   # Scopes
   scope :unassigned, -> { where(job_id: nil) }
@@ -221,12 +227,12 @@ class EmailWarehouse < ApplicationRecord
               PARTITION BY conversation_id
               ORDER BY received_at DESC NULLS LAST
             ) as rn
-            FROM email_warehouse
+            FROM synced_emails
             WHERE conversation_id IS NOT NULL
           ) ranked
           WHERE rn = 1
         ) latest
-        WHERE email_warehouse.id = latest.id
+        WHERE synced_email.id = latest.id
       SQL
 
       # Also mark emails with no conversation_id as latest (they are their own thread)
@@ -261,12 +267,12 @@ class EmailWarehouse < ApplicationRecord
               PARTITION BY conversation_id
               ORDER BY received_at DESC NULLS LAST
             ) as rn
-            FROM email_warehouse
+            FROM synced_emails
             WHERE conversation_id = ANY(ARRAY[?]::text[])
           ) ranked
           WHERE rn = 1
         ) latest
-        WHERE email_warehouse.id = latest.id
+        WHERE synced_email.id = latest.id
       SQL
     end
   end
@@ -433,7 +439,7 @@ class EmailWarehouse < ApplicationRecord
     # 2. THREAD INHERITANCE: If another email in this conversation is assigned to a job, inherit it
     # Only applies when no explicit job ID in subject (e.g., repeat client like Pam with multiple jobs)
     if conversation_id.present?
-      thread_job = EmailWarehouse
+      thread_job = SyncedEmail
         .where(conversation_id: conversation_id)
         .where.not(job_id: nil)
         .where.not(id: id)
@@ -836,7 +842,7 @@ class EmailWarehouse < ApplicationRecord
     return false if email_attachments.any?
 
     # Find related emails with synced attachments
-    related = EmailWarehouse.where.not(id: id)
+    related = SyncedEmail.where.not(id: id)
       .where(has_attachments: true)
       .joins(:email_attachments)
       .where.not(email_attachments: { storage_blob_id: nil })
@@ -845,7 +851,7 @@ class EmailWarehouse < ApplicationRecord
     if internet_message_id.present?
       source = related.find_by(internet_message_id: internet_message_id)
       if source
-        Rails.logger.info "[EmailWarehouse] Linking attachments from email #{source.id} (same internet_message_id)"
+        Rails.logger.info "[SyncedEmail] Linking attachments from email #{source.id} (same internet_message_id)"
         return copy_attachments_from!(source)
       end
     end
@@ -854,7 +860,7 @@ class EmailWarehouse < ApplicationRecord
     if conversation_id.present?
       source = related.where(conversation_id: conversation_id).first
       if source
-        Rails.logger.info "[EmailWarehouse] Linking attachments from email #{source.id} (same conversation_id)"
+        Rails.logger.info "[SyncedEmail] Linking attachments from email #{source.id} (same conversation_id)"
         return copy_attachments_from!(source)
       end
     end
@@ -871,14 +877,14 @@ class EmailWarehouse < ApplicationRecord
       next_id = (EmailAttachment.maximum(:id) || 0) + 1
       ea = EmailAttachment.create!(
         id: next_id,
-        email_warehouse_id: id,
+        synced_email_id: id,
         filename: src_att.filename,
         storage_blob_id: src_att.storage_blob_id
       )
 
       # Increment blob reference count
       src_att.storage_blob&.increment!(:reference_count)
-      Rails.logger.debug "[EmailWarehouse] Linked attachment: #{src_att.filename} → blob #{src_att.storage_blob_id}"
+      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_att.filename} → blob #{src_att.storage_blob_id}"
     end
 
     # Update attachment count
@@ -897,7 +903,7 @@ class EmailWarehouse < ApplicationRecord
     return if link_existing_attachments!
 
     unless microsoft_credential_id.present? && outlook_id.present? && mailbox_owner_email.present?
-      Rails.logger.warn "[EmailWarehouse] Cannot sync attachments for #{id} - missing credential/outlook_id/mailbox"
+      Rails.logger.warn "[SyncedEmail] Cannot sync attachments for #{id} - missing credential/outlook_id/mailbox"
       return
     end
 
@@ -907,7 +913,7 @@ class EmailWarehouse < ApplicationRecord
     client = MicrosoftAppGraphClient.new(cred)
     attachments = client.get_email_attachments(mailbox_owner_email, outlook_id)
 
-    Rails.logger.info "[EmailWarehouse] Syncing #{attachments.count} attachments for email #{id}"
+    Rails.logger.info "[SyncedEmail] Syncing #{attachments.count} attachments for email #{id}"
 
     attachments.each do |att|
       next if att["contentBytes"].blank?
@@ -930,9 +936,9 @@ class EmailWarehouse < ApplicationRecord
 
       # Store content via StorageBlob (handles deduplication)
       ea.store_content!(content, filename: filename, content_type: content_type)
-      Rails.logger.debug "[EmailWarehouse] Synced attachment: #{filename}"
+      Rails.logger.debug "[SyncedEmail] Synced attachment: #{filename}"
     rescue StandardError => e
-      Rails.logger.error "[EmailWarehouse] Failed to sync attachment #{filename}: #{e.message}"
+      Rails.logger.error "[SyncedEmail] Failed to sync attachment #{filename}: #{e.message}"
     end
 
     # Update attachment count
@@ -967,9 +973,45 @@ class EmailWarehouse < ApplicationRecord
     return if warehouse_document.folder == new_folder
 
     warehouse_document.update_column(:folder, new_folder)
-    Rails.logger.debug "[EmailWarehouse] Updated warehouse_document folder to: #{new_folder}"
+    Rails.logger.debug "[SyncedEmail] Updated warehouse_document folder to: #{new_folder}"
   rescue StandardError => e
-    Rails.logger.error "[EmailWarehouse] Failed to update warehouse_document folder: #{e.message}"
+    Rails.logger.error "[SyncedEmail] Failed to update warehouse_document folder: #{e.message}"
+  end
+
+  # Phase 4: Ensure warehouse_document exists when storage_path is set
+  # This is a safety net - EmailStorageUploadService should create it, but if
+  # storage_path is set via other means (migration, manual update), this ensures
+  # the WarehouseDocument exists for virtual folder rendering.
+  def ensure_warehouse_document
+    return if warehouse_document.present?
+    return unless storage_path.present?
+
+    # Find or create StorageBlob for this path
+    blob = StorageBlob.find_or_create_by!(storage_path: storage_path) do |b|
+      b.content_hash = Digest::SHA256.hexdigest("#{id}-#{storage_path}")
+      b.original_filename = "#{id}.eml"
+      b.content_type = "message/rfc822"
+      b.reference_count = 0
+    end
+
+    create_warehouse_document!(
+      source_type: "email",
+      folder: virtual_folder_path,
+      display_name: subject.presence || "No Subject",
+      original_filename: "#{id}.eml",
+      storage_blob: blob,
+      metadata: {
+        subject: subject,
+        from_email: from_email,
+        received_at: received_at&.iso8601,
+        mailbox: mailbox_owner_email
+      }
+    )
+
+    blob.increment!(:reference_count)
+    Rails.logger.debug "[SyncedEmail] Created WarehouseDocument for email #{id} in folder: #{virtual_folder_path}"
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.error "[SyncedEmail] Failed to create WarehouseDocument: #{e.message}"
   end
 
   def update_searchable_vector
@@ -1027,14 +1069,14 @@ class EmailWarehouse < ApplicationRecord
             match_confidence: 1.0,
             matched_at: Time.current
           )
-          Rails.logger.info "[EmailWarehouse] Auto-assigned email #{id} to job #{job.id} via explicit ID in subject"
+          Rails.logger.info "[SyncedEmail] Auto-assigned email #{id} to job #{job.id} via explicit ID in subject"
           return
         end
       end
     end
 
     # Find job from another email in the same thread
-    thread_job_id = EmailWarehouse
+    thread_job_id = SyncedEmail
       .where(conversation_id: conversation_id)
       .where.not(job_id: nil)
       .where.not(id: id)
@@ -1050,9 +1092,9 @@ class EmailWarehouse < ApplicationRecord
       matched_at: Time.current
     )
 
-    Rails.logger.info "[EmailWarehouse] Auto-assigned email #{id} to job #{thread_job_id} via thread inheritance"
+    Rails.logger.info "[SyncedEmail] Auto-assigned email #{id} to job #{thread_job_id} via thread inheritance"
   rescue StandardError => e
-    Rails.logger.error "[EmailWarehouse] Failed to inherit job from thread: #{e.message}"
+    Rails.logger.error "[SyncedEmail] Failed to inherit job from thread: #{e.message}"
   end
 
   # Broadcast email deletion to the owner via ActionCable

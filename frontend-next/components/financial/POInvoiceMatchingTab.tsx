@@ -232,7 +232,7 @@ export default function POInvoiceMatchingTab() {
   const getConfidenceBadge = (confidence: number) => {
     if (confidence >= 90) {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           <Target className="h-3 w-3 mr-1" />
           {confidence}%
         </Badge>
@@ -240,7 +240,7 @@ export default function POInvoiceMatchingTab() {
     }
     if (confidence >= 70) {
       return (
-        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
           <TrendingUp className="h-3 w-3 mr-1" />
           {confidence}%
         </Badge>
@@ -248,7 +248,7 @@ export default function POInvoiceMatchingTab() {
     }
     if (confidence >= 50) {
       return (
-        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+        <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400">
           <AlertCircle className="h-3 w-3 mr-1" />
           {confidence}%
         </Badge>
@@ -514,7 +514,7 @@ export default function POInvoiceMatchingTab() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-3">
                           {idx === 0 && (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                               Best Match
                             </Badge>
                           )}

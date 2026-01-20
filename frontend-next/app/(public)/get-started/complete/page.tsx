@@ -99,7 +99,7 @@ export default function GetStartedCompletePage() {
             <div className="flex items-start gap-4">
               <Mail className="h-6 w-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="font-semibold mb-1">Check Your Email</h3>
+                <h3 className="text-sm font-semibold mb-1">Check Your Email</h3>
                 <p className="text-sm text-muted-foreground">
                   We&apos;ve sent a welcome email to <span className="font-medium">{admin?.email}</span> with
                   your temporary password and login instructions.
@@ -179,7 +179,7 @@ function NextStep({
         {icon}
       </div>
       <div>
-        <h4 className="font-medium">{title}</h4>
+        <h4 className="text-sm font-medium">{title}</h4>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
     </div>

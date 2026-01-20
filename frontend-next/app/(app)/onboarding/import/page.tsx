@@ -402,7 +402,7 @@ export default function DataImportPage() {
           {/* Uploaded Files List */}
           {uploadedFiles.length > 0 && (
             <div className="space-y-2">
-              <h4 className="font-medium">Files to Import</h4>
+              <h4 className="text-sm font-medium">Files to Import</h4>
               {uploadedFiles.map((uf, index) => (
                 <div
                   key={index}

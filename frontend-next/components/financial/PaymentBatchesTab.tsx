@@ -228,7 +228,7 @@ export default function PaymentBatchesTab() {
         );
       case "completed":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Completed
           </Badge>
@@ -518,7 +518,7 @@ export default function PaymentBatchesTab() {
 
               {selectedBatch.items && selectedBatch.items.length > 0 && (
                 <div>
-                  <h4 className="font-medium mb-2">Payment Items ({selectedBatch.items.length})</h4>
+                  <h4 className="text-sm font-medium mb-2">Payment Items ({selectedBatch.items.length})</h4>
                   <Table>
                     <TableHeader>
                       <TableRow>

@@ -252,7 +252,7 @@ export function XeroConnectionCard({
               </svg>
             </div>
             <div>
-              <h3 className="font-medium">
+              <h3 className="text-sm font-medium">
                 Xero Integration
                 {status?.connected && status.xero_tenant_name && (
                   <span className="ml-2 text-sm font-normal text-muted-foreground">

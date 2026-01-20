@@ -272,9 +272,9 @@ export default function AnomalyDetectionTab() {
 
   const getScoreBadge = (score: number) => {
     const colorClass = score >= 80
-      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+      ? "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400"
       : score >= 50
-      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+      ? "bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400"
       : "bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground";
 
     return (

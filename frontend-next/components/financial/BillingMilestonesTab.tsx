@@ -143,14 +143,14 @@ export default function BillingMilestonesTab() {
         );
       case "in_progress":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <Play className="h-3 w-3 mr-1" />
             In Progress
           </Badge>
         );
       case "completed":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Completed
           </Badge>
@@ -164,7 +164,7 @@ export default function BillingMilestonesTab() {
         );
       case "paid":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             <DollarSign className="h-3 w-3 mr-1" />
             Paid
           </Badge>
@@ -196,7 +196,7 @@ export default function BillingMilestonesTab() {
         );
       } else if (milestone.days_until_target <= 7) {
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
             <Clock className="h-3 w-3 mr-1" />
             Due Soon ({milestone.days_until_target}d)
           </Badge>

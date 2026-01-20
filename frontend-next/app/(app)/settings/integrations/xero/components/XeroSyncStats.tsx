@@ -272,7 +272,7 @@ export function XeroSyncStats() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-2xl font-bold">{global.totals.contacts_with_links.toLocaleString()}</span>
-                <Badge className="bg-blue-100 text-blue-800">
+                <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
                   {global.totals.total_links.toLocaleString()} links
                 </Badge>
               </div>
@@ -304,7 +304,7 @@ export function XeroSyncStats() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-2xl font-bold">{global.totals.all_documents.toLocaleString()}</span>
-                <Badge className="bg-green-100 text-green-800">
+                <Badge className="bg-status-success text-status-success-foreground">
                   {global.recent_activity.invoice_syncs_24h} synced today
                 </Badge>
               </div>
@@ -344,7 +344,7 @@ export function XeroSyncStats() {
                     ? Math.round(((global.match_breakdown.exact_abn + global.match_breakdown.exact_email) / global.match_breakdown.total) * 100)
                     : 0}%
                 </span>
-                <Badge className="bg-purple-100 text-purple-800">
+                <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
                   auto-matched
                 </Badge>
               </div>
@@ -433,7 +433,7 @@ export function XeroSyncStats() {
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Building2 className="h-5 w-5 text-muted-foreground" />
-          <h3 className="font-semibold">Xero Organizations</h3>
+          <h3 className="text-sm font-semibold">Xero Organizations</h3>
           <Badge className="bg-muted text-muted-foreground">{tenants.length} connected</Badge>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -465,8 +465,8 @@ export function XeroSyncStats() {
                     <Badge
                       className={`text-xs ${
                         tenant.status === "connected"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-amber-100 text-amber-800"
+                          ? "bg-status-success text-status-success-foreground"
+                          : "bg-status-warning text-status-warning-foreground"
                       }`}
                     >
                       {tenant.status === "connected" ? (

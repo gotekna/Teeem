@@ -149,7 +149,7 @@ export default function DocumentListPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">{doc.name}</h3>
+                  <h3 className="text-sm font-medium truncate">{doc.name}</h3>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     {doc.jobName && (
                       <span className="truncate max-w-32">{doc.jobName}</span>

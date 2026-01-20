@@ -30,7 +30,7 @@ namespace :tenant do
       PublicHoliday,
       SmScheduleMaster,
       SmScheduleMasterTemplate,
-      EmailWarehouse,
+      SyncedEmail,
       EntityTab
     ]
 

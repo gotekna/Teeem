@@ -16,7 +16,7 @@ class SmTask < ApplicationRecord
   # Virtual attribute for delegation response (set in controller, used in callback)
   attr_accessor :delegation_response
 
-  # SSoT: Task attachments use SmTaskAttachment → EmailWarehouse → email_attachments chain
+  # SSoT: Task attachments use SmTaskAttachment → SyncedEmail → email_attachments chain
   # ActiveStorage has_many_attached :files was REMOVED (Jan 2026) - it violated SSoT by
   # duplicating email attachments instead of linking to existing EmailAttachment records.
 
@@ -184,7 +184,7 @@ class SmTask < ApplicationRecord
 
   # Task Attachments (emails, documents, uploads)
   has_many :sm_task_attachments, dependent: :destroy
-  has_many :attached_emails, through: :sm_task_attachments, source: :attachable, source_type: "EmailWarehouse"
+  has_many :attached_emails, through: :sm_task_attachments, source: :attachable, source_type: "SyncedEmail"
   has_many :attached_documents, through: :sm_task_attachments, source: :attachable, source_type: "CorporateCompanyDocument"
 
   # Task Followers (for notifications)

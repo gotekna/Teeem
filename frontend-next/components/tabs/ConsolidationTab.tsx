@@ -498,7 +498,7 @@ export function ConsolidationTab({ company, onUpdate }: ConsolidationTabProps) {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Building2 className="h-5 w-5 text-muted-foreground" />
-                <h4 className="font-medium">{groupStructure.group.name} Structure</h4>
+                <h4 className="text-sm font-medium">{groupStructure.group.name} Structure</h4>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -604,7 +604,7 @@ export function ConsolidationTab({ company, onUpdate }: ConsolidationTabProps) {
                     <TableCell className="px-4 py-3 text-sm text-muted-foreground">{c.acn || "-"}</TableCell>
                     <TableCell className="px-4 py-3 text-sm text-muted-foreground">{c.entity_type || "Company"}</TableCell>
                     <TableCell className="px-4 py-3">
-                      <Badge variant={c.status === "active" ? "default" : "secondary"} className={c.status === "active" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : ""}>
+                      <Badge variant={c.status === "active" ? "default" : "secondary"} className={c.status === "active" ? "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300" : ""}>
                         {c.status || "active"}
                       </Badge>
                     </TableCell>

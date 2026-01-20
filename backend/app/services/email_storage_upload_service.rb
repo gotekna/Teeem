@@ -43,7 +43,7 @@ class EmailStorageUploadService
     # Must have outlook_id (to fetch from Graph API) and mailbox_owner_email (to know which mailbox)
     # Check both storage_path (new) and sharepoint_email_path (legacy) columns
     # Order by ID to ensure consistent ordering across batches
-    emails = EmailWarehouse
+    emails = SyncedEmail
       .where(storage_path: [nil, ""])
       .where(sharepoint_email_path: [nil, ""])
       .where.not(outlook_id: [nil, ""])
@@ -184,7 +184,7 @@ class EmailStorageUploadService
   end
 
   def upload_single_email(email_id)
-    email = EmailWarehouse.find_by(id: email_id)
+    email = SyncedEmail.find_by(id: email_id)
     unless email
       Rails.logger.warn "[EmailUpload] Email #{email_id} not found"
       return
@@ -247,6 +247,10 @@ class EmailStorageUploadService
       sharepoint_email_file_id: result[:id]
     )
 
+    # SSoT: Create WarehouseDocument for virtual folder rendering (Phase 4)
+    # This enables the File Warehouse to show emails in folder structure
+    create_warehouse_document_for_email(email, result[:path], mime_content.bytesize)
+
     Rails.logger.info "[EmailUpload] Email #{email_id} - SUCCESS: #{result[:path]}"
     increment_uploaded!
     @progress&.increment!(success: true)
@@ -274,6 +278,50 @@ class EmailStorageUploadService
     increment_skipped!
     @progress&.increment!(success: true) # Skipped counts as success
     Rails.logger.debug "[EmailUpload] Skipping email #{email.id}: #{reason}"
+  end
+
+  # SSoT: Create WarehouseDocument for email (Phase 4: Virtual File Warehouse)
+  # This enables emails to appear in the File Warehouse folder structure.
+  # The folder column is set to the virtual_folder_path, enabling instant reorganization.
+  #
+  # @param email [SyncedEmail] The email record
+  # @param storage_path [String] The S3 path where the .eml file is stored
+  # @param file_size [Integer] Size of the .eml file in bytes
+  def create_warehouse_document_for_email(email, storage_path, file_size)
+    # Skip if warehouse_document already exists
+    return if email.warehouse_document.present?
+
+    # Find or create StorageBlob for this file
+    blob = StorageBlob.find_or_create_by!(storage_path: storage_path) do |b|
+      b.content_hash = Digest::SHA256.hexdigest("#{email.id}-#{storage_path}")
+      b.file_size = file_size
+      b.original_filename = "#{email.id}.eml"
+      b.content_type = "message/rfc822"
+      b.reference_count = 0
+    end
+
+    # Create WarehouseDocument with virtual folder path
+    WarehouseDocument.create!(
+      documentable: email,
+      storage_blob: blob,
+      source_type: "email",
+      folder: email.virtual_folder_path,
+      display_name: email.subject.presence || "No Subject",
+      original_filename: "#{email.id}.eml",
+      metadata: {
+        subject: email.subject,
+        from_email: email.from_email,
+        received_at: email.received_at&.iso8601,
+        mailbox: email.mailbox_owner_email
+      }
+    )
+
+    # Increment blob reference count
+    blob.increment!(:reference_count)
+
+    Rails.logger.debug "[EmailUpload] Created WarehouseDocument for email #{email.id} in folder: #{email.virtual_folder_path}"
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.error "[EmailUpload] Failed to create WarehouseDocument for email #{email.id}: #{e.message}"
   end
 
   # Progress tracking helpers

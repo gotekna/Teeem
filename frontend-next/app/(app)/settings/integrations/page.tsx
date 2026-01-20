@@ -174,7 +174,7 @@ export default function IntegrationsPage() {
                 </div>
                 {!loading && (
                   xeroStatus?.connected ? (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                    <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       Connected
                     </Badge>

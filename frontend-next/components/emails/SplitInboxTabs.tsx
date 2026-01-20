@@ -125,7 +125,7 @@ async function fetchSplitInbox(): Promise<SplitInboxData> {
   // If network is slow, we'll show cached/empty state rather than waiting 30s
   // SSoT: Uses API_TIMEOUT_EMAIL_OFFLINE from timeout-constants.ts
   const response = await api.get<SplitInboxResponse>(
-    "/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true",
+    "/api/v1/synced_email?split_inbox=true&my_emails=true&latest_only=true",
     { timeout: API_TIMEOUT_EMAIL_OFFLINE }
   );
   return (response as SplitInboxResponse).data;
@@ -147,7 +147,7 @@ async function fetchCategoryEmails(
   // Use shorter timeout for category emails
   // SSoT: Uses API_TIMEOUT_EMAIL_OFFLINE from timeout-constants.ts
   const response = await api.get<CategoryEmailsResponse>(
-    `/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true&category=${category}&page=${page}&per_page=${perPage}`,
+    `/api/v1/synced_email?split_inbox=true&my_emails=true&latest_only=true&category=${category}&page=${page}&per_page=${perPage}`,
     { timeout: API_TIMEOUT_EMAIL_OFFLINE }
   );
   return (response as CategoryEmailsResponse).data;

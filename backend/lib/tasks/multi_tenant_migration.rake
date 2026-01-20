@@ -153,7 +153,7 @@ namespace :tenants do
       { model: PurchaseOrder, name: "PurchaseOrder" },
       { model: Estimate, name: "Estimate" },
       { model: Asset, name: "Asset" },
-      { model: EmailWarehouse, name: "EmailWarehouse" }
+      { model: SyncedEmail, name: "SyncedEmail" }
     ]
 
     puts "\nBusiness data tables:"
@@ -239,7 +239,7 @@ namespace :tenants do
       counts[:jobs] = Job.where(company_group_id: tenant.id).count if Job.table_exists?
       counts[:contacts] = Contact.where(company_group_id: tenant.id).count if Contact.table_exists?
       counts[:job_types] = JobType.where(company_group_id: tenant.id).count if JobType.table_exists?
-      counts[:emails] = EmailWarehouse.where(company_group_id: tenant.id).count if EmailWarehouse.table_exists?
+      counts[:emails] = SyncedEmail.where(company_group_id: tenant.id).count if SyncedEmail.table_exists?
 
       puts "  Records:"
       counts.each do |type, count|
@@ -330,7 +330,7 @@ namespace :tenants do
     assign_to_tenant(Asset, tenant, :company_group_id)
 
     # Email
-    assign_to_tenant(EmailWarehouse, tenant, :company_group_id)
+    assign_to_tenant(SyncedEmail, tenant, :company_group_id)
 
     # Timesheets (if exists)
     if defined?(Timesheet) && Timesheet.table_exists?

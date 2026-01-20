@@ -31,7 +31,7 @@ module ExternalSyncConstants
   # ═══════════════════════════════════════════════════════════════
   # RECORD SYNC DIRECTIONS (THE ONE definition)
   # ═══════════════════════════════════════════════════════════════
-  # Per-record sync directions (ExternalInvoice, ContactExternalLink, WarehouseContact)
+  # Per-record sync directions (ExternalInvoice, ContactExternalLink, XeroContact)
   # import_only   = Only pull data from external system to TEEEM
   # export_only   = Only push data from TEEEM to external system
   # bidirectional = Sync both ways (most recent change wins)

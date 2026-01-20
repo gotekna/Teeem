@@ -150,7 +150,7 @@ export default function PresentationListPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">{pres.name}</h3>
+                  <h3 className="text-sm font-medium truncate">{pres.name}</h3>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <Layers className="h-3 w-3" />

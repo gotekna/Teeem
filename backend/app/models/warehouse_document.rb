@@ -271,7 +271,7 @@ class WarehouseDocument < ApplicationRecord
 
     # Fallback: model-specific legacy paths
     case documentable_type
-    when "EmailWarehouse"
+    when "SyncedEmail"
       email = documentable
       # Try various path fields in order of preference
       email.storage_path.presence ||

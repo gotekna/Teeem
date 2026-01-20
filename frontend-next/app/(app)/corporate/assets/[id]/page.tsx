@@ -477,11 +477,11 @@ export default function AssetDetailPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground">Active</Badge>;
       case "disposed":
         return <Badge className="bg-muted text-foreground">Disposed</Badge>;
       case "under_repair":
-        return <Badge className="bg-yellow-100 text-yellow-800">Under Repair</Badge>;
+        return <Badge className="bg-status-warning text-status-warning-foreground">Under Repair</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -802,9 +802,9 @@ export default function AssetDetailPage() {
                   {asset.asset_insurance.expired ? (
                     <Badge variant="destructive">Expired</Badge>
                   ) : asset.asset_insurance.expiring_soon ? (
-                    <Badge className="bg-yellow-100 text-yellow-800">Expiring Soon</Badge>
+                    <Badge className="bg-status-warning text-status-warning-foreground">Expiring Soon</Badge>
                   ) : (
-                    <Badge className="bg-green-100 text-green-800">Active</Badge>
+                    <Badge className="bg-status-success text-status-success-foreground">Active</Badge>
                   )}
                 </div>
 
@@ -1122,13 +1122,13 @@ export default function AssetDetailPage() {
                   {depreciationProfile.in_low_value_pool && (
                     <div className="space-y-2">
                       <Label>Low Value Pool</Label>
-                      <Badge className="bg-blue-100 text-blue-800">Active</Badge>
+                      <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">Active</Badge>
                     </div>
                   )}
                   {depreciationProfile.instant_writeoff_applied && (
                     <div className="space-y-2">
                       <Label>Instant Write-off</Label>
-                      <Badge className="bg-green-100 text-green-800">Applied</Badge>
+                      <Badge className="bg-status-success text-status-success-foreground">Applied</Badge>
                     </div>
                   )}
                 </div>
@@ -1179,7 +1179,7 @@ export default function AssetDetailPage() {
                           <TableCell className="text-right">{formatCurrency(schedule.tax_closing_wdv)}</TableCell>
                           <TableCell>
                             {schedule.status === "finalized" ? (
-                              <Badge className="bg-green-100 text-green-800">
+                              <Badge className="bg-status-success text-status-success-foreground">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Finalized
                               </Badge>

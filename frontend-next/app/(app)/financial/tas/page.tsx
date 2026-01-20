@@ -505,10 +505,10 @@ export default function GlPage() {
 
   const getAccountTypeBadge = (type: string) => {
     const colors: Record<string, string> = {
-      asset: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-      liability: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
-      equity: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-      revenue: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+      asset: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300",
+      liability: "bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300",
+      equity: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900 dark:text-purple-300",
+      revenue: "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300",
       expense: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
     };
     return colors[type] || "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";

@@ -181,7 +181,7 @@ export type StarColor = "yellow" | "blue" | "green" | "red" | "purple" | "orange
  */
 export interface EmailUserState {
   id: number;
-  email_warehouse_id: number;
+  synced_email_id: number;
   user_id: number;
   is_pinned: boolean;
   is_starred: boolean;

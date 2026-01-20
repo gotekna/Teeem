@@ -171,7 +171,7 @@ export function useEmailThreads(): UseEmailThreadsReturn {
     try {
       // Fetch email with include_thread=true
       const response = await api.get<EmailWithThread | { email: EmailWithThread }>(
-        `/api/v1/email_warehouse/${emailId}?include_thread=true`
+        `/api/v1/synced_email/${emailId}?include_thread=true`
       );
 
       // Handle both wrapped and unwrapped response formats

@@ -75,7 +75,7 @@ export default function DuplicatesPage() {
       {scanSummary && (
         <Alert className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10">
           <AlertDescription>
-            <div className="font-medium mb-2">Scan complete!</div>
+            <div className="text-sm font-medium mb-2">Scan complete!</div>
             <div className="text-sm space-y-1">
               <div>Total groups: {scanSummary.total_groups}</div>
               <div>Pending review: {scanSummary.pending}</div>

@@ -94,7 +94,7 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
             <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
               <Link2Off className="h-6 w-6 text-muted-foreground" />
             </div>
-            <h3 className="font-medium mb-2">Xero Not Connected</h3>
+            <h3 className="text-sm font-medium mb-2">Xero Not Connected</h3>
             <p className="text-sm text-muted-foreground mb-4">
               Connect your Xero organization to view financial data.
             </p>

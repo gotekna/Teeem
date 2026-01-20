@@ -3,8 +3,8 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabbedSettingsPage } from "@/components/ui/page-wrappers";
 import { useSettingsAccess } from "@/lib/hooks/useSettingsAccess";
-import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import {
   User,
   Bell,
@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   Building,
   Building2,
-  FileText,
   Server,
   Code,
   Wrench,
@@ -50,7 +49,6 @@ export default function SettingsLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { isAdmin } = useSettingsAccess();
-  const { mode } = useLayoutMode();
 
   // Extract current tab from path
   // /settings/profile → "profile"
@@ -59,41 +57,38 @@ export default function SettingsLayout({
   const pathParts = pathname.replace("/settings", "").split("/").filter(Boolean);
   const currentTab = pathParts[0] || "profile";
 
-  // Determine which section the current tab belongs to
-  const isPersonalTab = PERSONAL_TABS.some((t) => t.id === currentTab);
-  const isOrgTab = ORGANIZATION_TABS.some((t) => t.id === currentTab);
-
   const handleTabChange = (value: string) => {
     router.push(`/settings/${value}`);
   };
 
-  // All tabs for value matching
-  const allTabs = [...PERSONAL_TABS, ...(isAdmin ? ORGANIZATION_TABS : [])];
-
-  // SSoT: Respect layout mode from child pages (e.g., TablePage, ScheduleMasterTab)
-  // When mode is "full-height" or "fullscreen", use flex layout with proper heights
-  const isFullHeight = mode === "full-height" || mode === "fullscreen" || mode === "edge-to-edge";
-
   return (
-    <div className={isFullHeight ? "flex flex-col h-full" : "space-y-6"}>
-      {/* Header */}
-      <div className={isFullHeight ? "shrink-0" : ""}>
-        <h1 className="text-2xl font-bold tracking-tight font-serif">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage your account and organization settings
-        </p>
-      </div>
+    <TabbedSettingsPage
+      title="Settings"
+      description="Manage your account and organization settings"
+    >
+      {/* Personal Section */}
+      <TabbedSettingsPage.TabSection label="Personal">
+        <Tabs value={currentTab} onValueChange={handleTabChange}>
+          <TabsList>
+            {PERSONAL_TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+                  <Icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </Tabs>
+      </TabbedSettingsPage.TabSection>
 
-      {/* Tab Navigation with Sections */}
-      <Tabs value={currentTab} onValueChange={handleTabChange} className={isFullHeight ? "shrink-0" : ""}>
-        <div className="space-y-4">
-          {/* Personal Section */}
-          <div>
-            <h3 className="text-xs font-medium uppercase text-muted-foreground mb-2 tracking-wider">
-              Personal
-            </h3>
-            <TabsList>
-              {PERSONAL_TABS.map((tab) => {
+      {/* Organization Section - Admin Only */}
+      {isAdmin && (
+        <TabbedSettingsPage.TabSection label="Organization">
+          <Tabs value={currentTab} onValueChange={handleTabChange}>
+            <TabsList className="flex-wrap h-auto gap-1">
+              {ORGANIZATION_TABS.map((tab) => {
                 const Icon = tab.icon;
                 return (
                   <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
@@ -103,32 +98,14 @@ export default function SettingsLayout({
                 );
               })}
             </TabsList>
-          </div>
+          </Tabs>
+        </TabbedSettingsPage.TabSection>
+      )}
 
-          {/* Organization Section - Admin Only */}
-          {isAdmin && (
-            <div>
-              <h3 className="text-xs font-medium uppercase text-muted-foreground mb-2 tracking-wider">
-                Organization
-              </h3>
-              <TabsList className="flex-wrap h-auto gap-1">
-                {ORGANIZATION_TABS.map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
-                      <Icon className="h-4 w-4" />
-                      <span className="hidden sm:inline">{tab.label}</span>
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-            </div>
-          )}
-        </div>
-      </Tabs>
-
-      {/* Content - flex-1 when full-height to fill remaining space */}
-      <div className={isFullHeight ? "flex-1 min-h-0" : ""}>{children}</div>
-    </div>
+      {/* Content */}
+      <TabbedSettingsPage.Content>
+        {children}
+      </TabbedSettingsPage.Content>
+    </TabbedSettingsPage>
   );
 }

@@ -203,7 +203,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
   const getMatchBadge = (matchType: string, score: number) => {
     if (matchType === "exact" || score === 100) {
       return (
-        <Badge className="bg-green-100 text-green-800 text-xs">
+        <Badge className="bg-status-success text-status-success-foreground text-xs">
           <Check className="h-3 w-3 mr-1" />
           Exact
         </Badge>
@@ -211,12 +211,12 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
     }
     if (matchType === "company_exact" || score >= 90) {
       return (
-        <Badge className="bg-blue-100 text-blue-800 text-xs">Company Match</Badge>
+        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">Company Match</Badge>
       );
     }
     if (score >= 50) {
       return (
-        <Badge className="bg-amber-100 text-amber-800 text-xs">Partial</Badge>
+        <Badge className="bg-status-warning text-status-warning-foreground text-xs">Partial</Badge>
       );
     }
     return <Badge variant="secondary" className="text-xs">Possible</Badge>;
@@ -325,8 +325,8 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                             <Badge
                               className={`text-xs ${
                                 contact.best_match.score === 100
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-blue-100 text-blue-800"
+                                  ? "bg-status-success text-status-success-foreground"
+                                  : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                               }`}
                             >
                               {contact.potential_matches.length} match

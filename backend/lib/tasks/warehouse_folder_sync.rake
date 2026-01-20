@@ -47,10 +47,10 @@ namespace :warehouse do
     end
     puts "   Updated: #{stats[:corporate]} corporate documents"
 
-    # 3. Sync EmailWarehouse (if it has virtual_folder_path)
-    puts "\n[3/3] Syncing EmailWarehouse..."
-    if defined?(EmailWarehouse) && EmailWarehouse.instance_methods.include?(:virtual_folder_path)
-      EmailWarehouse.includes(:warehouse_document).find_each do |doc|
+    # 3. Sync SyncedEmail (if it has virtual_folder_path)
+    puts "\n[3/3] Syncing SyncedEmail..."
+    if defined?(SyncedEmail) && SyncedEmail.instance_methods.include?(:virtual_folder_path)
+      SyncedEmail.includes(:warehouse_document).find_each do |doc|
         next unless doc.warehouse_document.present?
 
         begin
@@ -62,7 +62,7 @@ namespace :warehouse do
             stats[:skipped] += 1
           end
         rescue => e
-          stats[:errors] << "EmailWarehouse #{doc.id}: #{e.message}"
+          stats[:errors] << "SyncedEmail #{doc.id}: #{e.message}"
         end
       end
       puts "   Updated: #{stats[:email]} email documents"

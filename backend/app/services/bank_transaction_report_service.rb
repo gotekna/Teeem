@@ -126,7 +126,7 @@ class BankTransactionReportService
       end
     end
 
-    scope = WarehouseBankTransaction.order(transaction_date: :asc, created_at: :asc)
+    scope = XeroBankTransaction.order(transaction_date: :asc, created_at: :asc)
 
     scope = scope.where(bank_account_id: @bank_account_id) if @bank_account_id.present?
     scope = scope.where(financial_year: @financial_year) if @financial_year.present?
@@ -2031,7 +2031,7 @@ class BankTransactionReportService
 
     # Add bank account name if we can get it
     if @bank_account_id.present?
-      txn = WarehouseBankTransaction.where(bank_account_id: @bank_account_id).first
+      txn = XeroBankTransaction.where(bank_account_id: @bank_account_id).first
       if txn&.bank_account_name.present?
         # Sanitize account name for filename
         safe_name = txn.bank_account_name.gsub(/[^a-zA-Z0-9\-]/, "_").squeeze("_")

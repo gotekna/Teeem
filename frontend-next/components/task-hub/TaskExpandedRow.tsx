@@ -997,7 +997,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             </PopoverTrigger>
             <PopoverContent className="w-64" align="start">
               <div className="space-y-3">
-                <div className="font-medium text-sm">Share with</div>
+                <div className="text-sm font-medium text-muted-foreground">Share with</div>
 
                 {followersLoading ? (
                   <div className="flex justify-center py-4">
@@ -1630,7 +1630,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-background rounded-lg shadow-lg p-4 w-full max-w-md mx-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium">Paste Questions from Email</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">Paste Questions from Email</h3>
                 <button
                   onClick={() => {
                     setShowBulkPaste(false);

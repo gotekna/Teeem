@@ -399,7 +399,7 @@ export default function ReportsBuilderTab() {
                       <CardContent className="pt-6">
                         <div className="flex items-start justify-between">
                           <div>
-                            <h3 className="font-medium">{report.name}</h3>
+                            <h3 className="text-sm font-medium">{report.name}</h3>
                             <p className="text-sm text-muted-foreground mt-1">{report.base_entity}</p>
                           </div>
                           <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
@@ -446,7 +446,7 @@ export default function ReportsBuilderTab() {
                       <CardContent className="pt-6">
                         <div className="flex items-start justify-between">
                           <div>
-                            <h3 className="font-medium flex items-center gap-2">
+                            <h3 className="text-sm font-medium flex items-center gap-2">
                               {dashboard.name}
                               {dashboard.is_default && (
                                 <Badge variant="outline" className="text-xs">Default</Badge>
@@ -492,7 +492,7 @@ export default function ReportsBuilderTab() {
                     <Card key={template.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
                       <CardContent className="pt-6">
                         <div>
-                          <h3 className="font-medium">{template.name}</h3>
+                          <h3 className="text-sm font-medium">{template.name}</h3>
                           <p className="text-sm text-muted-foreground mt-1">{template.description}</p>
                         </div>
                         <div className="flex items-center gap-2 mt-3">

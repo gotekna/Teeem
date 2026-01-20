@@ -89,7 +89,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
           {/* Header with Mail icon badge */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 text-[10px] px-1.5">
+              <Badge variant="outline" className="bg-status-warning text-status-warning-foreground border-yellow-300 text-[10px] px-1.5">
                 <Mail className="h-3 w-3 mr-1" />
                 Email
               </Badge>

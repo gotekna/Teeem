@@ -132,7 +132,7 @@ export function EntityNotesPanel({
     return (
       <div className={cn("flex flex-col items-center justify-center h-64 text-center", className)}>
         <Notebook className="h-12 w-12 mb-4 text-muted-foreground/50" />
-        <h3 className="font-medium mb-1">No notes yet</h3>
+        <h3 className="text-sm font-medium mb-1">No notes yet</h3>
         <p className="text-sm text-muted-foreground mb-4">
           Create a notebook to start taking notes for this {entityType.toLowerCase()}
         </p>
@@ -157,7 +157,7 @@ export function EntityNotesPanel({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <h3 className="font-medium">Notes</h3>
+          <h3 className="text-sm font-medium text-muted-foreground">Notes</h3>
           <span className="text-sm text-muted-foreground">
             {notebooks.length} notebook{notebooks.length !== 1 ? "s" : ""}
           </span>

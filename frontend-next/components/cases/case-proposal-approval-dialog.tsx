@@ -444,8 +444,8 @@ export function CaseProposalApprovalDialog({
           <DialogTitle className="flex items-center gap-3">
             <span>Review & Approve Case Proposal</span>
             <Badge className={
-              confidencePercent >= 80 ? "bg-green-100 text-green-800" :
-              confidencePercent >= 60 ? "bg-yellow-100 text-yellow-800" :
+              confidencePercent >= 80 ? "bg-status-success text-status-success-foreground" :
+              confidencePercent >= 60 ? "bg-status-warning text-status-warning-foreground" :
               "bg-orange-100 text-orange-800"
             }>
               <Sparkles className="w-3 h-3 mr-1" />
@@ -934,7 +934,7 @@ export function CaseProposalApprovalDialog({
               {/* Related Jobs */}
               <Card>
                 <CardContent className="pt-4">
-                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                  <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
                     <Briefcase className="w-4 h-4" />
                     Related Jobs
                   </h4>
@@ -1006,7 +1006,7 @@ export function CaseProposalApprovalDialog({
               {/* Related Companies/Trusts */}
               <Card>
                 <CardContent className="pt-4">
-                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                  <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
                     <Building2 className="w-4 h-4" />
                     Related Companies & Trusts
                   </h4>
@@ -1114,14 +1114,14 @@ export function CaseProposalApprovalDialog({
               {data.key_dates && data.key_dates.length > 0 && (
                 <Card>
                   <CardContent className="pt-4">
-                    <h4 className="font-medium mb-3">Key Dates</h4>
+                    <h4 className="text-sm font-medium mb-3">Key Dates</h4>
                     <div className="space-y-2">
                       {data.key_dates.map((date, idx) => (
                         <div key={idx} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
                           <span className="font-mono">{date.date}</span>
                           <span className="text-muted-foreground">- {date.description}</span>
                           {date.is_deadline && (
-                            <Badge className="bg-red-100 text-red-800 text-xs">Deadline</Badge>
+                            <Badge className="bg-status-error text-status-error-foreground text-xs">Deadline</Badge>
                           )}
                         </div>
                       ))}
@@ -1134,7 +1134,7 @@ export function CaseProposalApprovalDialog({
               {data.document_requests && data.document_requests.length > 0 && (
                 <Card>
                   <CardContent className="pt-4">
-                    <h4 className="font-medium mb-3">Documents Requested</h4>
+                    <h4 className="text-sm font-medium mb-3">Documents Requested</h4>
                     <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
                       {data.document_requests.map((doc, idx) => (
                         <li key={idx}>{doc}</li>
@@ -1352,7 +1352,7 @@ function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
               </div>
 
               {party.contact_exists ? (
-                <Badge className="bg-green-100 text-green-800 text-xs">
+                <Badge className="bg-status-success text-status-success-foreground text-xs">
                   <CheckCircle className="w-3 h-3 mr-1" />
                   Existing Contact
                 </Badge>
@@ -1363,14 +1363,14 @@ function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
               )}
 
               {party.company && !party.contact_exists && (
-                <Badge className="bg-blue-100 text-blue-800 text-xs">
+                <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">
                   <Building2 className="w-3 h-3 mr-1" />
                   + Company
                 </Badge>
               )}
 
               {party.seen_before && (
-                <Badge className="bg-purple-100 text-purple-800 text-xs" title={`Seen in ${party.seen_count} previous case${party.seen_count === 1 ? '' : 's'}`}>
+                <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 text-xs" title={`Seen in ${party.seen_count} previous case${party.seen_count === 1 ? '' : 's'}`}>
                   <User className="w-3 h-3 mr-1" />
                   Seen {party.seen_count}x
                 </Badge>

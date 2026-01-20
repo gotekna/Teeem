@@ -112,7 +112,7 @@ export function XeroCommonContacts() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+              <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 hover:bg-purple-100">
                 {totalCount} {totalCount === 1 ? 'Contact' : 'Contacts'}
               </Badge>
               <Button variant="ghost" size="sm" onClick={fetchCommonContacts}>
@@ -165,7 +165,7 @@ export function XeroCommonContacts() {
                         </div>
                       </div>
                     </div>
-                    <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+                    <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 hover:bg-purple-100">
                       {contact.tenant_count} Xero Orgs
                     </Badge>
                   </div>
@@ -193,7 +193,7 @@ export function XeroCommonContacts() {
                               </Badge>
                             )}
                             {tenant.sync_enabled ? (
-                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">
+                              <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100 text-xs">
                                 <CheckCircle2 className="h-3 w-3 mr-1" />
                                 Syncing
                               </Badge>

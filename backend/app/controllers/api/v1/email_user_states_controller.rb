@@ -17,7 +17,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
     when "archived"
       emails = EmailUserState.archived_emails_for(current_user)
     when "reminders"
-      states = current_user.email_user_states.with_reminders.includes(:email_warehouse)
+      states = current_user.email_user_states.with_reminders.includes(:synced_email)
       return render json: {
         success: true,
         data: {
@@ -25,7 +25,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
         }
       }
     else
-      emails = EmailWarehouse.none
+      emails = SyncedEmail.none
     end
 
     render json: {
@@ -41,7 +41,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
   # GET /api/v1/email_user_states/for_email/:email_id
   # Get state for a specific email
   def show
-    state = EmailUserState.find_by(email_warehouse: @email, user: current_user)
+    state = EmailUserState.find_by(synced_email: @email, user: current_user)
 
     render json: {
       success: true,
@@ -161,7 +161,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
 
     # Find all unread emails in this folder
     # SSoT: Column is mailbox_owner_email, not mailbox_email
-    emails = EmailWarehouse.where(mailbox_owner_email: mailbox_email)
+    emails = SyncedEmail.where(mailbox_owner_email: mailbox_email)
                            .where("folder_name ILIKE ?", folder_name)
 
     affected = 0
@@ -201,7 +201,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
     affected = 0
 
     email_ids.each do |email_id|
-      email = EmailWarehouse.find_by(id: email_id)
+      email = SyncedEmail.find_by(id: email_id)
       next unless email
 
       state = EmailUserState.for(email, current_user)
@@ -242,7 +242,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
   private
 
   def set_email
-    @email = EmailWarehouse.find(params[:email_id])
+    @email = SyncedEmail.find(params[:email_id])
   end
 
   def state_params
@@ -291,18 +291,18 @@ class Api::V1::EmailUserStatesController < ApplicationController
     {
       **state.as_json,
       email: {
-        id: state.email_warehouse.id,
-        subject: state.email_warehouse.subject,
-        from_email: state.email_warehouse.from_email,
-        from_name: state.email_warehouse.from_name,
-        received_at: state.email_warehouse.received_at,
-        snippet: state.email_warehouse.preview_body(length: 150)
+        id: state.synced_email.id,
+        subject: state.synced_email.subject,
+        from_email: state.synced_email.from_email,
+        from_name: state.synced_email.from_name,
+        received_at: state.synced_email.received_at,
+        snippet: state.synced_email.preview_body(length: 150)
       }
     }
   end
 
   # Sync read status back to Office 365 (fire-and-forget)
-  # @param email [EmailWarehouse] The email record
+  # @param email [SyncedEmail] The email record
   # @param is_read [Boolean] The read status to sync
   def sync_read_status_to_office365(email, is_read)
     return unless email.outlook_id.present? && email.mailbox_owner_email.present?
@@ -328,7 +328,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
   end
 
   # Sync read status back to IMAP server (fire-and-forget)
-  # @param email [EmailWarehouse] The email record
+  # @param email [SyncedEmail] The email record
   # @param is_read [Boolean] The read status to sync
   def sync_read_status_to_imap(email, is_read)
     return unless email.imap_credential_id.present?

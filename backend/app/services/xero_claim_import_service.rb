@@ -272,16 +272,8 @@ class XeroClaimImportService
     xero_id = xero_contact["ContactID"]
     return nil unless xero_id
 
-    # Get tenant_id from current Xero credential
-    tenant_id = XeroCredential.current&.tenant_id
-
-    # Try to find via WarehouseContact first (SSoT for Xero contact linking)
-    if tenant_id.present?
-      warehouse_contact = WarehouseContact.find_by(xero_id: xero_id, tenant_id: tenant_id)
-      return warehouse_contact.contact if warehouse_contact&.contact
-    end
-
-    # Fallback: Try to find via contact_external_links (SSoT)
+    # LIM (Jan 2026): XeroContact removed - ContactExternalLink is THE ONE SSoT
+    # Find via ContactExternalLink (1,018 records linking Xero contacts to TEEEM contacts)
     link = ContactExternalLink.xero.find_by(external_contact_id: xero_id)
     return link.contact if link&.contact
 

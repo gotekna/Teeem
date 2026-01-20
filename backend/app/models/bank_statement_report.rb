@@ -326,7 +326,7 @@ class BankStatementReport < ApplicationRecord
   end
 
   # Calculate fiscal year for a given date (Australian FY: July-June)
-  # Returns short format (FY24) to match WarehouseBankTransaction.financial_year
+  # Returns short format (FY24) to match XeroBankTransaction.financial_year
   def self.fiscal_year_for_date(date)
     year = date.month >= 7 ? date.year + 1 : date.year
     "FY#{year.to_s[-2..]}"
@@ -338,7 +338,7 @@ class BankStatementReport < ApplicationRecord
     return true if generated_at.nil?
 
     # Check if any transactions were updated after generation
-    latest_transaction = WarehouseBankTransaction
+    latest_transaction = XeroBankTransaction
       .where(bank_account_id: bank_account_id)
       .where(financial_year: financial_year)
       .where(month.present? ? { transaction_month: month } : {})
@@ -453,7 +453,7 @@ class BankStatementReport < ApplicationRecord
 
   def calculate_totals(result)
     # Get totals from transactions
-    transactions = WarehouseBankTransaction
+    transactions = XeroBankTransaction
       .where(bank_account_id: bank_account_id)
       .where(financial_year: financial_year)
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { TabbedPage } from '@/components/ui/page-wrappers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -151,13 +152,10 @@ export default function WorkflowsDashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Workflows</h1>
-          <p className="text-muted-foreground">Monitor and manage workflow executions</p>
-        </div>
+    <TabbedPage
+      title="Workflows"
+      description="Monitor and manage workflow executions"
+      actions={
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={loadData}>
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -170,8 +168,8 @@ export default function WorkflowsDashboardPage() {
             </Button>
           </Link>
         </div>
-      </div>
-
+      }
+    >
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -430,6 +428,6 @@ export default function WorkflowsDashboardPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </TabbedPage>
   );
 }

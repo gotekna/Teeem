@@ -129,9 +129,9 @@ export default function AdvancedReportingTab() {
   const getKpiStatusBadge = (status: string) => {
     switch (status) {
       case "good":
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Good</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Good</Badge>;
       case "warning":
-        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Warning</Badge>;
+        return <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">Warning</Badge>;
       case "critical":
         return <Badge variant="destructive">Critical</Badge>;
       default:
@@ -339,7 +339,7 @@ export default function AdvancedReportingTab() {
                         </TableCell>
                         <TableCell className="text-center">
                           {dept.active ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</Badge>
+                            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Active</Badge>
                           ) : (
                             <Badge variant="secondary">Inactive</Badge>
                           )}
@@ -380,7 +380,7 @@ export default function AdvancedReportingTab() {
                         <TableCell>{tc.parent?.name || "-"}</TableCell>
                         <TableCell className="text-center">
                           {tc.active ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</Badge>
+                            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Active</Badge>
                           ) : (
                             <Badge variant="secondary">Inactive</Badge>
                           )}
@@ -426,7 +426,7 @@ export default function AdvancedReportingTab() {
                         <TableCell>{formatDate(snapshot.created_at)}</TableCell>
                         <TableCell className="text-center">
                           {snapshot.finalized ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                               <CheckCircle className="h-3 w-3 mr-1" />
                               Finalized
                             </Badge>

@@ -17,7 +17,7 @@ class BankStatementReportGenerationJob < ApplicationJob
     }
 
     # Get all unique bank account + FY + month combinations
-    combinations = WarehouseBankTransaction
+    combinations = XeroBankTransaction
       .select(:bank_account_id, :bank_account_name, :financial_year, :transaction_month, :transaction_year)
       .distinct
       .where.not(financial_year: nil)

@@ -262,13 +262,13 @@ const STATUS_OPTIONS = [
 
 const STATUS_BADGE_VARIANTS: Record<string, string> = {
   draft: "bg-muted text-foreground border-border",
-  pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
-  approved: "bg-blue-100 text-blue-800 border-blue-300",
-  sent: "bg-purple-100 text-purple-800 border-purple-300",
-  received: "bg-green-100 text-green-800 border-green-300",
+  pending: "bg-status-warning text-status-warning-foreground border-yellow-300",
+  approved: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300",
+  sent: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300",
+  received: "bg-status-success text-status-success-foreground border-green-300",
   invoiced: "bg-indigo-100 text-indigo-800 border-indigo-300",
   paid: "bg-emerald-100 text-emerald-800 border-emerald-300",
-  cancelled: "bg-red-100 text-red-800 border-red-300",
+  cancelled: "bg-status-error text-status-error-foreground border-red-300",
 };
 
 /**
@@ -1692,7 +1692,7 @@ export default function PurchaseOrderDetailPage() {
                     <div key={task.id} className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-semibold flex items-center gap-2">
+                          <h4 className="text-sm font-semibold flex items-center gap-2">
                             #{task.task_number} {task.name}
                             {task.locked && (
                               <Badge variant="outline" className="text-amber-600 border-amber-300">

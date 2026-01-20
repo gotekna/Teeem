@@ -170,7 +170,7 @@ export default function TemplateSelectionPage() {
           <Card className="mb-8">
             <CardContent className="pt-6 text-center">
               <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="font-semibold mb-2">No Templates Available</h3>
+              <h3 className="text-sm font-semibold mb-2">No Templates Available</h3>
               <p className="text-sm text-muted-foreground">
                 You can configure your settings manually after signup.
               </p>
@@ -181,7 +181,7 @@ export default function TemplateSelectionPage() {
         {/* What's Included Info */}
         <Card className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 mb-8">
           <CardContent className="pt-6">
-            <h3 className="font-semibold mb-2">What&apos;s in a Template Pack?</h3>
+            <h3 className="text-sm font-semibold mb-2">What&apos;s in a Template Pack?</h3>
             <ul className="text-sm text-muted-foreground space-y-1">
               <li>• <strong>Job Types</strong> - New Build, Renovation, Extension, etc.</li>
               <li>• <strong>Job Statuses</strong> - Active, On Hold, Complete, etc.</li>

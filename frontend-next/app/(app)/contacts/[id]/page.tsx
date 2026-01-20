@@ -960,13 +960,13 @@ export default function ContactDetailPage() {
     }
   };
 
-  // Load emails from EmailWarehouse for this contact
+  // Load emails from SyncedEmail for this contact
   const loadEmails = async (page = 1) => {
     if (!contact?.email) return;
     try {
       setLoadingEmails(true);
       const response = await api.get<{ emails: EmailMessage[]; pagination: EmailsPagination }>(
-        "/api/v1/email_warehouse",
+        "/api/v1/synced_email",
         {
           // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
           params: {

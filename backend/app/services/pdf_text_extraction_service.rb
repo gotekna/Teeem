@@ -5,7 +5,7 @@
 # Consolidates all PDF::Reader usage from:
 # - DocumentVerificationService
 # - InvoiceParsingService
-# - EmailWarehouse
+# - SyncedEmail
 # - AsicConnectService
 #
 # Usage:

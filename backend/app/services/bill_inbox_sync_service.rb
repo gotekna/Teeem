@@ -172,7 +172,7 @@ class BillInboxSyncService
   end
 
   def store_email_in_warehouse(email)
-    EmailWarehouse.find_or_create_by(internet_message_id: email["internetMessageId"]) do |e|
+    SyncedEmail.find_or_create_by(internet_message_id: email["internetMessageId"]) do |e|
       e.outlook_id = email["id"]
       e.subject = email["subject"]
       e.from_email = email.dig("from", "emailAddress", "address")
@@ -193,7 +193,7 @@ class BillInboxSyncService
     bill = BillInbox.create!(
       source: "email",
       email_message_id: email["internetMessageId"],
-      email_warehouse_id: warehouse_email.id,
+      synced_email_id: warehouse_email.id,
       status: "pending",
       original_filename: attachment["name"],
       content_type: attachment["contentType"],

@@ -942,7 +942,7 @@ export default function BpmnJsDesigner({
             <div className="space-y-6 mt-6">
               {/* E-Signature Configuration */}
               <div className="space-y-4">
-                <h4 className="font-medium flex items-center gap-2">
+                <h4 className="text-sm font-medium flex items-center gap-2">
                   <PenTool className="h-4 w-4" />
                   E-Signature Settings
                 </h4>
@@ -987,7 +987,7 @@ export default function BpmnJsDesigner({
               {/* Signers List */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium flex items-center gap-2">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
                     <Users className="h-4 w-4" />
                     Default Signers
                   </h4>
@@ -1172,7 +1172,7 @@ export default function BpmnJsDesigner({
               {/* Additional Documents Section */}
               <div className="space-y-4 pt-6 border-t">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium flex items-center gap-2">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
                     <FileText className="h-4 w-4" />
                     Document Package
                   </h4>
@@ -1290,7 +1290,7 @@ export default function BpmnJsDesigner({
         {/* Properties Panel */}
         <div className="w-80 border-l bg-background overflow-auto">
           <div className="p-4">
-            <h3 className="font-semibold mb-4">Properties</h3>
+            <h3 className="text-sm font-semibold mb-4">Properties</h3>
 
             {!isLoaded ? (
               <div className="text-sm text-muted-foreground">Loading...</div>

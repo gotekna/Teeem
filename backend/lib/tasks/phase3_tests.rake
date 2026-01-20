@@ -134,9 +134,9 @@ namespace :phase3 do
       # Test 2: Email document with Subject template
       puts "2. Testing email document Send Name..."
 
-      email_doc = WarehouseDocument.joins("INNER JOIN email_warehouses ON warehouse_documents.documentable_id = email_warehouses.id")
-                                   .where(documentable_type: "EmailWarehouse")
-                                   .where.not("email_warehouses.subject" => [nil, ""])
+      email_doc = WarehouseDocument.joins("INNER JOIN synced_emails ON warehouse_documents.documentable_id = synced_emails.id")
+                                   .where(documentable_type: "SyncedEmail")
+                                   .where.not("synced_emails.subject" => [nil, ""])
                                    .first
 
       if email_doc

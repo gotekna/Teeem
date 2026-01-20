@@ -195,11 +195,11 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
   const getSeverityBadge = (severity: string | null) => {
     switch (severity) {
       case "light":
-        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Light</Badge>;
+        return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Light</Badge>;
       case "moderate":
-        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Moderate</Badge>;
+        return <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">Moderate</Badge>;
       case "heavy":
-        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Heavy</Badge>;
+        return <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400">Heavy</Badge>;
       default:
         return <span className="text-muted-foreground">-</span>;
     }

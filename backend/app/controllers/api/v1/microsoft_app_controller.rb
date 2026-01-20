@@ -702,7 +702,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
   end
 
   # POST /api/v1/microsoft_app/sync_to_sharepoint
-  # Sync emails to EmailWarehouse and attachments to SharePoint for a specific organization
+  # Sync emails to SyncedEmail and attachments to SharePoint for a specific organization
   def sync_to_sharepoint
     unless current_user_admin?
       return render json: { error: "Only admins can trigger SharePoint sync" }, status: :forbidden

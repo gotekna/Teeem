@@ -823,7 +823,7 @@ function S3StorageConnection() {
         {showForm && preset && (
           <div className="space-y-4 p-4 rounded-lg border bg-muted/20">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium">{preset.name} Configuration</h4>
+              <h4 className="text-sm font-medium">{preset.name} Configuration</h4>
               <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); setSelectedProvider(""); }}>
                 <X className="h-4 w-4" />
               </Button>
@@ -2112,7 +2112,7 @@ function IntegrationsSubTab() {
                 </div>
                 {!loading && (
                   xeroStatus?.connected ? (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                    <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       Connected
                     </Badge>
@@ -2154,7 +2154,7 @@ function IntegrationsSubTab() {
                 </div>
                 {!loading && (
                   cloudflareStatus?.connected ? (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                    <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       Connected
                     </Badge>

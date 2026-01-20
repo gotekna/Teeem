@@ -286,7 +286,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
       case "source":
         if (doc.source === "sharepoint") {
           return (
-            <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+            <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300">
               <Cloud className="h-3 w-3 mr-1" />
               SharePoint
             </Badge>

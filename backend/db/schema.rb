@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_20_062804) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2759,7 +2759,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
     t.bigint "organization_id", null: false
     t.bigint "imap_credential_id"
     t.string "from_address"
-    t.text "to_addresses", null: false
+    t.text "to_addresses"
     t.text "cc_addresses"
     t.text "bcc_addresses"
     t.string "subject", limit: 998, null: false
@@ -3079,91 +3079,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
     t.index ["user_id"], name: "index_email_user_states_on_user_id"
   end
 
-  create_table "email_warehouses", force: :cascade do |t|
-    t.string "internet_message_id", null: false
-    t.string "outlook_id"
-    t.string "conversation_id"
-    t.string "subject"
-    t.text "body_text"
-    t.text "body_html"
-    t.string "from_email"
-    t.string "from_name"
-    t.text "to_emails", default: [], array: true
-    t.text "cc_emails", default: [], array: true
-    t.text "bcc_emails", default: [], array: true
-    t.datetime "received_at"
-    t.datetime "sent_at"
-    t.boolean "has_attachments", default: false
-    t.integer "attachment_count", default: 0
-    t.string "importance"
-    t.boolean "is_read", default: false
-    t.string "folder_name"
-    t.string "in_reply_to"
-    t.text "references", default: [], array: true
-    t.boolean "is_latest_in_thread", default: true
-    t.bigint "job_id"
-    t.string "match_type"
-    t.float "match_confidence"
-    t.datetime "matched_at"
-    t.bigint "synced_by_user_id"
-    t.datetime "first_synced_at"
-    t.datetime "last_synced_at"
-    t.tsvector "searchable"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.jsonb "internet_headers", default: {}
-    t.jsonb "email_classification", default: {}
-    t.string "user_classification"
-    t.datetime "user_classification_at"
-    t.bigint "user_classification_by_id"
-    t.bigint "ssot_owner_id"
-    t.string "body_preview", limit: 500
-    t.text "ai_summary"
-    t.jsonb "extracted_contacts", default: {}
-    t.jsonb "extracted_entities", default: {}
-    t.jsonb "action_items", default: []
-    t.bigint "microsoft_credential_id"
-    t.string "mailbox_owner_email"
-    t.string "sharepoint_email_file_id"
-    t.string "sharepoint_email_path"
-    t.bigint "contact_ids", default: [], array: true
-    t.bigint "primary_contact_id"
-    t.datetime "contacts_matched_at"
-    t.string "source_type", default: "outlook"
-    t.bigint "imap_credential_id"
-    t.string "labels", default: [], array: true
-    t.bigint "uid"
-    t.string "direction"
-    t.integer "dismissed_from_job_ids", default: [], array: true
-    t.string "storage_path"
-    t.string "storage_file_id"
-    t.bigint "email_mailbox_id"
-    t.bigint "tenant_id"
-    t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
-    t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
-    t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
-    t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
-    t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
-    t.index ["direction"], name: "index_email_warehouses_on_direction"
-    t.index ["email_mailbox_id"], name: "index_email_warehouses_on_email_mailbox_id"
-    t.index ["from_email"], name: "idx_email_warehouse_from_email"
-    t.index ["id"], name: "idx_email_warehouse_unassigned", where: "(job_id IS NULL)"
-    t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
-    t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
-    t.index ["internet_message_id"], name: "idx_email_warehouse_internet_message_id"
-    t.index ["is_latest_in_thread"], name: "idx_email_warehouse_latest_in_thread", where: "(is_latest_in_thread = true)"
-    t.index ["job_id", "received_at"], name: "idx_email_warehouse_job_received", order: { received_at: :desc }
-    t.index ["labels"], name: "index_email_warehouses_on_labels", using: :gin
-    t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"
-    t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"
-    t.index ["received_at"], name: "idx_email_warehouse_received_at", order: :desc
-    t.index ["searchable"], name: "idx_email_warehouse_searchable_gin", using: :gin
-    t.index ["storage_path"], name: "index_email_warehouses_on_storage_path"
-    t.index ["synced_by_user_id"], name: "idx_email_warehouse_synced_by_user"
-    t.index ["tenant_id"], name: "index_email_warehouses_on_tenant_id"
-    t.index ["to_emails"], name: "idx_email_warehouse_to_emails_gin", using: :gin
-  end
-
   create_table "entity_tab_document_types", force: :cascade do |t|
     t.bigint "entity_tab_id", null: false
     t.bigint "document_type_id", null: false
@@ -3323,7 +3238,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
     t.datetime "xero_updated_at"
     t.datetime "local_updated_at"
     t.boolean "sync_conflict", default: false, null: false
-    t.bigint "warehouse_contact_id"
     t.string "payment_link_token"
     t.boolean "payment_portal_enabled", default: true
     t.datetime "last_payment_reminder_at"
@@ -3346,7 +3260,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
     t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_external_invoices_pending_sync"
     t.index ["tenant_id"], name: "index_external_invoices_on_tenant_id"
     t.index ["tracking_data"], name: "index_external_invoices_on_tracking_data", using: :gin
-    t.index ["warehouse_contact_id"], name: "index_external_invoices_on_warehouse_contact_id"
   end
 
   create_table "fact_job_daily_snapshots", force: :cascade do |t|
@@ -9483,6 +9396,91 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
     t.index ["syncable_type", "syncable_id"], name: "index_sync_subscriptions_on_syncable_type_and_syncable_id"
   end
 
+  create_table "synced_emails", force: :cascade do |t|
+    t.string "internet_message_id", null: false
+    t.string "outlook_id"
+    t.string "conversation_id"
+    t.string "subject"
+    t.text "body_text"
+    t.text "body_html"
+    t.string "from_email"
+    t.string "from_name"
+    t.text "to_emails", default: [], array: true
+    t.text "cc_emails", default: [], array: true
+    t.text "bcc_emails", default: [], array: true
+    t.datetime "received_at"
+    t.datetime "sent_at"
+    t.boolean "has_attachments", default: false
+    t.integer "attachment_count", default: 0
+    t.string "importance"
+    t.boolean "is_read", default: false
+    t.string "folder_name"
+    t.string "in_reply_to"
+    t.text "references", default: [], array: true
+    t.boolean "is_latest_in_thread", default: true
+    t.bigint "job_id"
+    t.string "match_type"
+    t.float "match_confidence"
+    t.datetime "matched_at"
+    t.bigint "synced_by_user_id"
+    t.datetime "first_synced_at"
+    t.datetime "last_synced_at"
+    t.tsvector "searchable"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "internet_headers", default: {}
+    t.jsonb "email_classification", default: {}
+    t.string "user_classification"
+    t.datetime "user_classification_at"
+    t.bigint "user_classification_by_id"
+    t.bigint "ssot_owner_id"
+    t.string "body_preview", limit: 500
+    t.text "ai_summary"
+    t.jsonb "extracted_contacts", default: {}
+    t.jsonb "extracted_entities", default: {}
+    t.jsonb "action_items", default: []
+    t.bigint "microsoft_credential_id"
+    t.string "mailbox_owner_email"
+    t.string "sharepoint_email_file_id"
+    t.string "sharepoint_email_path"
+    t.bigint "contact_ids", default: [], array: true
+    t.bigint "primary_contact_id"
+    t.datetime "contacts_matched_at"
+    t.string "source_type", default: "outlook"
+    t.bigint "imap_credential_id"
+    t.string "labels", default: [], array: true
+    t.bigint "uid"
+    t.string "direction"
+    t.integer "dismissed_from_job_ids", default: [], array: true
+    t.string "storage_path"
+    t.string "storage_file_id"
+    t.bigint "email_mailbox_id"
+    t.bigint "tenant_id"
+    t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
+    t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
+    t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
+    t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
+    t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
+    t.index ["direction"], name: "index_synced_emails_on_direction"
+    t.index ["email_mailbox_id"], name: "index_synced_emails_on_email_mailbox_id"
+    t.index ["from_email"], name: "idx_email_warehouse_from_email"
+    t.index ["id"], name: "idx_email_warehouse_unassigned", where: "(job_id IS NULL)"
+    t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
+    t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
+    t.index ["internet_message_id"], name: "idx_email_warehouse_internet_message_id"
+    t.index ["is_latest_in_thread"], name: "idx_email_warehouse_latest_in_thread", where: "(is_latest_in_thread = true)"
+    t.index ["job_id", "received_at"], name: "idx_email_warehouse_job_received", order: { received_at: :desc }
+    t.index ["labels"], name: "index_synced_emails_on_labels", using: :gin
+    t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"
+    t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"
+    t.index ["received_at"], name: "idx_email_warehouse_received_at", order: :desc
+    t.index ["searchable"], name: "idx_email_warehouse_searchable_gin", using: :gin
+    t.index ["storage_path"], name: "index_synced_emails_on_storage_path"
+    t.index ["synced_by_user_id"], name: "idx_email_warehouse_synced_by_user"
+    t.index ["tenant_id"], name: "index_synced_emails_on_tenant_id"
+    t.index ["to_emails"], name: "idx_email_warehouse_to_emails_gin", using: :gin
+  end
+
   create_table "system_settings", force: :cascade do |t|
     t.string "setting_key", null: false
     t.text "setting_value"
@@ -10024,95 +10022,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
     t.index ["user_id"], name: "index_vip_senders_on_user_id"
   end
 
-  create_table "warehouse_bank_transactions", force: :cascade do |t|
-    t.string "xero_id", null: false
-    t.string "tenant_id"
-    t.string "source", default: "xero"
-    t.string "bank_account_id"
-    t.string "bank_account_code"
-    t.string "bank_account_name"
-    t.string "transaction_type"
-    t.date "transaction_date", null: false
-    t.string "reference"
-    t.string "status"
-    t.boolean "is_reconciled", default: false
-    t.string "xero_contact_id"
-    t.string "contact_name"
-    t.bigint "contact_id"
-    t.decimal "sub_total", precision: 15, scale: 2
-    t.decimal "total_tax", precision: 15, scale: 2
-    t.decimal "total", precision: 15, scale: 2
-    t.string "currency_code", default: "AUD"
-    t.jsonb "line_items", default: []
-    t.text "description"
-    t.integer "transaction_month"
-    t.integer "transaction_year"
-    t.string "financial_year"
-    t.boolean "has_attachments", default: false
-    t.datetime "last_synced_at"
-    t.datetime "xero_updated_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "warehouse_contact_id"
-    t.index ["bank_account_id"], name: "index_warehouse_bank_transactions_on_bank_account_id"
-    t.index ["contact_id"], name: "index_warehouse_bank_transactions_on_contact_id"
-    t.index ["financial_year"], name: "index_warehouse_bank_transactions_on_financial_year"
-    t.index ["tenant_id"], name: "index_warehouse_bank_transactions_on_tenant_id"
-    t.index ["transaction_date"], name: "index_warehouse_bank_transactions_on_transaction_date"
-    t.index ["transaction_year", "transaction_month"], name: "idx_on_transaction_year_transaction_month_398491194a"
-    t.index ["warehouse_contact_id"], name: "index_warehouse_bank_transactions_on_warehouse_contact_id"
-    t.index ["xero_contact_id"], name: "index_warehouse_bank_transactions_on_xero_contact_id"
-    t.index ["xero_id"], name: "index_warehouse_bank_transactions_on_xero_id", unique: true
-  end
-
-  create_table "warehouse_contacts", force: :cascade do |t|
-    t.string "xero_id", null: false
-    t.string "tenant_id", null: false
-    t.string "source", default: "xero", null: false
-    t.string "name"
-    t.string "first_name"
-    t.string "last_name"
-    t.string "email_address"
-    t.string "phone_number"
-    t.string "abn"
-    t.string "tax_number"
-    t.string "account_number"
-    t.string "contact_status"
-    t.string "currency_code"
-    t.boolean "is_customer", default: false
-    t.boolean "is_supplier", default: false
-    t.jsonb "addresses", default: []
-    t.jsonb "phones", default: []
-    t.string "bank_account_details"
-    t.string "batch_payments_bank_account_name"
-    t.string "batch_payments_bank_account_number"
-    t.string "batch_payments_bank_bsb"
-    t.bigint "contact_id"
-    t.datetime "xero_updated_at"
-    t.datetime "last_synced_at"
-    t.jsonb "raw_data"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "sync_enabled", default: true
-    t.string "sync_direction", default: "bidirectional"
-    t.text "sync_error"
-    t.jsonb "conflict_fields", default: {}
-    t.string "match_type"
-    t.decimal "match_confidence", precision: 5, scale: 4
-    t.boolean "needs_review", default: false
-    t.datetime "reviewed_at"
-    t.string "reviewed_by"
-    t.index ["contact_id"], name: "index_warehouse_contacts_on_contact_id"
-    t.index ["email_address"], name: "index_warehouse_contacts_on_email_address"
-    t.index ["is_customer", "tenant_id"], name: "idx_warehouse_contacts_customers"
-    t.index ["is_supplier", "tenant_id"], name: "idx_warehouse_contacts_suppliers"
-    t.index ["name"], name: "index_warehouse_contacts_on_name"
-    t.index ["needs_review"], name: "index_warehouse_contacts_on_needs_review"
-    t.index ["sync_enabled"], name: "index_warehouse_contacts_on_sync_enabled"
-    t.index ["tenant_id"], name: "index_warehouse_contacts_on_tenant_id"
-    t.index ["xero_id", "tenant_id"], name: "idx_warehouse_contacts_xero_tenant", unique: true
-  end
-
   create_table "warehouse_documents", force: :cascade do |t|
     t.string "documentable_type", null: false
     t.bigint "documentable_id", null: false
@@ -10537,6 +10446,45 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
     t.index ["xero_credential_id"], name: "index_xero_alerts_on_xero_credential_id"
   end
 
+  create_table "xero_bank_transactions", force: :cascade do |t|
+    t.string "xero_id", null: false
+    t.string "tenant_id"
+    t.string "source", default: "xero"
+    t.string "bank_account_id"
+    t.string "bank_account_code"
+    t.string "bank_account_name"
+    t.string "transaction_type"
+    t.date "transaction_date", null: false
+    t.string "reference"
+    t.string "status"
+    t.boolean "is_reconciled", default: false
+    t.string "xero_contact_id"
+    t.string "contact_name"
+    t.bigint "contact_id"
+    t.decimal "sub_total", precision: 15, scale: 2
+    t.decimal "total_tax", precision: 15, scale: 2
+    t.decimal "total", precision: 15, scale: 2
+    t.string "currency_code", default: "AUD"
+    t.jsonb "line_items", default: []
+    t.text "description"
+    t.integer "transaction_month"
+    t.integer "transaction_year"
+    t.string "financial_year"
+    t.boolean "has_attachments", default: false
+    t.datetime "last_synced_at"
+    t.datetime "xero_updated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bank_account_id"], name: "index_xero_bank_transactions_on_bank_account_id"
+    t.index ["contact_id"], name: "index_xero_bank_transactions_on_contact_id"
+    t.index ["financial_year"], name: "index_xero_bank_transactions_on_financial_year"
+    t.index ["tenant_id"], name: "index_xero_bank_transactions_on_tenant_id"
+    t.index ["transaction_date"], name: "index_xero_bank_transactions_on_transaction_date"
+    t.index ["transaction_year", "transaction_month"], name: "idx_on_transaction_year_transaction_month_ebe6682705"
+    t.index ["xero_contact_id"], name: "index_xero_bank_transactions_on_xero_contact_id"
+    t.index ["xero_id"], name: "index_xero_bank_transactions_on_xero_id", unique: true
+  end
+
   create_table "xero_chart_of_accounts", force: :cascade do |t|
     t.string "account_code", null: false
     t.string "account_name", null: false
@@ -10879,7 +10827,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
   add_foreign_key "email_drafts", "users"
   add_foreign_key "email_folder_preferences", "users"
   add_foreign_key "email_label_assignments", "email_labels"
-  add_foreign_key "email_label_assignments", "email_warehouses"
+  add_foreign_key "email_label_assignments", "synced_emails", column: "email_warehouse_id"
   add_foreign_key "email_labels", "users"
   add_foreign_key "email_mailbox_favorites", "users"
   add_foreign_key "email_mailboxes", "contacts"
@@ -10894,17 +10842,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
   add_foreign_key "email_rules", "imap_credentials"
   add_foreign_key "email_rules", "microsoft_credentials", on_delete: :cascade
   add_foreign_key "email_rules", "users"
-  add_foreign_key "email_snoozes", "email_warehouses"
+  add_foreign_key "email_snoozes", "synced_emails", column: "email_warehouse_id"
   add_foreign_key "email_snoozes", "users"
   add_foreign_key "email_subscription_invoices", "email_subscriptions"
   add_foreign_key "email_subscription_invoices", "gl_invoices"
   add_foreign_key "email_subscriptions", "contacts"
   add_foreign_key "email_subscriptions", "organizations"
   add_foreign_key "email_templates", "users"
-  add_foreign_key "email_user_states", "email_warehouses"
+  add_foreign_key "email_user_states", "synced_emails", column: "email_warehouse_id"
   add_foreign_key "email_user_states", "users"
-  add_foreign_key "email_warehouses", "email_mailboxes"
-  add_foreign_key "email_warehouses", "tenants"
   add_foreign_key "entity_tab_document_types", "document_types"
   add_foreign_key "entity_tab_document_types", "entity_tabs"
   add_foreign_key "entity_tabs", "entity_tabs", column: "parent_id"
@@ -10916,7 +10862,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
   add_foreign_key "estimates", "tenants"
   add_foreign_key "external_invoices", "contacts"
   add_foreign_key "external_invoices", "jobs"
-  add_foreign_key "external_invoices", "warehouse_contacts"
   add_foreign_key "fact_job_daily_snapshots", "jobs"
   add_foreign_key "feature_trackers", "feature_chapters"
   add_foreign_key "financial_transactions", "corporate_companies", column: "company_id"
@@ -11539,6 +11484,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
   add_foreign_key "sync_file_states", "desktop_clients"
   add_foreign_key "sync_file_states", "sync_subscriptions"
   add_foreign_key "sync_subscriptions", "desktop_clients"
+  add_foreign_key "synced_emails", "email_mailboxes"
+  add_foreign_key "synced_emails", "tenants"
   add_foreign_key "table_health_checks", "foundations"
   add_foreign_key "task_action_items", "sm_tasks"
   add_foreign_key "task_action_items", "sm_tasks", column: "delegated_task_id"
@@ -11593,9 +11540,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
   add_foreign_key "users", "tenants"
   add_foreign_key "users", "user_groups"
   add_foreign_key "vip_senders", "users"
-  add_foreign_key "warehouse_bank_transactions", "contacts"
-  add_foreign_key "warehouse_bank_transactions", "warehouse_contacts"
-  add_foreign_key "warehouse_contacts", "contacts"
   add_foreign_key "warehouse_documents", "storage_blobs"
   add_foreign_key "warehouse_documents", "warehouse_documents", column: "parent_document_id", on_delete: :nullify, validate: false
   add_foreign_key "whs_action_items", "sm_tasks"
@@ -11628,6 +11572,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_19_201651) do
   add_foreign_key "xero_alerts", "corporate_companies"
   add_foreign_key "xero_alerts", "users", column: "dismissed_by_id"
   add_foreign_key "xero_alerts", "xero_credentials"
+  add_foreign_key "xero_bank_transactions", "contacts"
   add_foreign_key "xero_chart_of_accounts", "tenants"
   add_foreign_key "xero_duplicate_items", "contacts"
   add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"

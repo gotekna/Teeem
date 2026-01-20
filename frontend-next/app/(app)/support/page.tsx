@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
-import { TablePage } from "@/components/ui/page-wrappers";
+import { ScrollablePage } from "@/components/ui/page-wrappers";
 import { TASK_STATUS } from "@/lib/constants/task-status";
 
 interface SupportTicket {
@@ -148,7 +148,7 @@ export default function SupportPage() {
   }
 
   return (
-    <TablePage>
+    <ScrollablePage>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -330,6 +330,6 @@ export default function SupportPage() {
           </CardContent>
         </Card>
       </div>
-    </TablePage>
+    </ScrollablePage>
   );
 }

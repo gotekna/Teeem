@@ -174,7 +174,7 @@ function WorkflowStep({
       </div>
       <div className={`pt-2 transition-all duration-500 ${isActive ? "opacity-100 translate-x-0" : "opacity-50 -translate-x-2"}`}>
         <div className="text-xs text-muted-foreground mb-1">Step {step}</div>
-        <h3 className="font-medium mb-1">{title}</h3>
+        <h3 className="text-sm font-medium mb-1">{title}</h3>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
     </div>
@@ -817,7 +817,7 @@ export default function LandingPage() {
             <div className="order-2 lg:order-1">
               <Card className="p-6 shadow-xl">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-medium">Project Profitability</h3>
+                  <h3 className="text-sm font-medium">Project Profitability</h3>
                   <span className="text-xs bg-status-success text-status-success-foreground px-2 py-1">Live</span>
                 </div>
 
@@ -1082,7 +1082,7 @@ export default function LandingPage() {
                       <benefit.icon className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-medium mb-1">{benefit.title}</h3>
+                      <h3 className="text-sm font-medium mb-1">{benefit.title}</h3>
                       <p className="text-sm text-muted-foreground">{benefit.description}</p>
                     </div>
                   </div>

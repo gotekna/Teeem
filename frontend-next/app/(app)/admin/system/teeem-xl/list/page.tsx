@@ -147,7 +147,7 @@ export default function SpreadsheetListPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">{spreadsheet.name}</h3>
+                  <h3 className="text-sm font-medium truncate">{spreadsheet.name}</h3>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span>{spreadsheet.sheetCount} sheet{spreadsheet.sheetCount !== 1 ? "s" : ""}</span>
                     <span className="flex items-center gap-1">

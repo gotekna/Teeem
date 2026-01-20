@@ -10,7 +10,7 @@ class BillInbox < ApplicationRecord
   belongs_to :matched_purchase_order, class_name: "PurchaseOrder", optional: true
   belongs_to :approved_by, class_name: "User", optional: true
   belongs_to :external_invoice, optional: true
-  belongs_to :email_warehouse, class_name: "EmailWarehouse", optional: true
+  belongs_to :synced_email, class_name: "SyncedEmail", optional: true
   belongs_to :bpmn_process_instance, class_name: "BpmnProcessInstance", optional: true
 
   # SSoT: Link to deduplicated file storage (Jan 2026)
@@ -105,9 +105,9 @@ class BillInbox < ApplicationRecord
   end
 
   def sender_domain
-    return nil unless email_warehouse.present?
+    return nil unless synced_email.present?
 
-    from_email = email_warehouse.from_email
+    from_email = synced_email.from_email
     return nil unless from_email.present?
 
     from_email.split("@").last&.downcase

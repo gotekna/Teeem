@@ -492,7 +492,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
   const StatusBadge = ({ status }: { status: "draft" | "approved" }) => {
     if (status === "approved") {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 whitespace-nowrap">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400 whitespace-nowrap">
           <CheckCircle className="h-3 w-3 mr-1" />
           {statusLabels.approved}
         </Badge>

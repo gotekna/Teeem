@@ -1521,7 +1521,7 @@ export function StorageConfigTab() {
           variant={config?.configured ? "default" : "secondary"}
           className={cn(
             "gap-1",
-            config?.configured && "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+            config?.configured && "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400"
           )}
         >
           {config?.configured ? (

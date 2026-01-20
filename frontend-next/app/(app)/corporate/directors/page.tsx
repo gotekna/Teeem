@@ -275,7 +275,7 @@ export default function DirectorsPage() {
 
                   {director.is_beneficial_owner && (
                     <div className="mt-3">
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                      <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300">
                         Beneficial Owner
                       </Badge>
                     </div>

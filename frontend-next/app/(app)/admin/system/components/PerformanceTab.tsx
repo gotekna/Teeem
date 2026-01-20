@@ -510,9 +510,9 @@ export function PerformanceTab() {
                 variant="secondary"
                 className={cn(
                   "text-sm font-bold",
-                  budgets.compliance_percent >= 90 && "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-                  budgets.compliance_percent >= 70 && budgets.compliance_percent < 90 && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-                  budgets.compliance_percent < 70 && "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                  budgets.compliance_percent >= 90 && "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-200",
+                  budgets.compliance_percent >= 70 && budgets.compliance_percent < 90 && "bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-200",
+                  budgets.compliance_percent < 70 && "bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-200"
                 )}
               >
                 {safePercent(budgets.compliance_percent, 0)} Compliant
@@ -640,9 +640,9 @@ export function PerformanceTab() {
                         variant="secondary"
                         className={cn(
                           "ml-auto text-xs",
-                          rating === "good" && "bg-green-100 text-green-800",
-                          rating === "needs-improvement" && "bg-yellow-100 text-yellow-800",
-                          rating === "poor" && "bg-red-100 text-red-800"
+                          rating === "good" && "bg-status-success text-status-success-foreground",
+                          rating === "needs-improvement" && "bg-status-warning text-status-warning-foreground",
+                          rating === "poor" && "bg-status-error text-status-error-foreground"
                         )}
                       >
                         {rating === "good" ? "Good" : rating === "needs-improvement" ? "Needs Work" : "Poor"}
@@ -888,8 +888,8 @@ export function PerformanceTab() {
                         variant="secondary"
                         className={cn(
                           "text-xs",
-                          slo.status === "met" && "bg-green-100 text-green-800",
-                          slo.status === "violated" && "bg-red-100 text-red-800",
+                          slo.status === "met" && "bg-status-success text-status-success-foreground",
+                          slo.status === "violated" && "bg-status-error text-status-error-foreground",
                           slo.status === "no_data" && "bg-muted text-muted-foreground"
                         )}
                       >

@@ -48,14 +48,14 @@ module Api
 
           if credential&.status == "connected"
             # Get email stats for this org
-            emails = EmailWarehouse.for_microsoft_credential(credential.id)
+            emails = SyncedEmail.for_microsoft_credential(credential.id)
             total_count = emails.count
             total_size = emails.sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
             linked_to_job = emails.where.not(job_id: nil).count
             size_by_job = emails.where.not(job_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
             # Per-mailbox (per-person) stats - include ALL mailboxes, even unknown
-            # SSoT: EmailWarehouse is the source of truth for all email data
+            # SSoT: SyncedEmail is the source of truth for all email data
             per_mailbox_base = emails
               .select("COALESCE(NULLIF(mailbox_owner_email, ''), 'Unknown') as mailbox_owner_email, COUNT(*) as email_count, MAX(last_synced_at) as last_sync, MAX(received_at) as last_email_received")
               .group("COALESCE(NULLIF(mailbox_owner_email, ''), 'Unknown')")
@@ -86,9 +86,9 @@ module Api
                                            .where("sharepoint_email_path IS NOT NULL AND sharepoint_email_path != ''")
                                            .sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
-            # Attachment storage breakdown - SSoT: EmailAttachment linked to EmailWarehouse
+            # Attachment storage breakdown - SSoT: EmailAttachment linked to SyncedEmail
             email_ids = emails.pluck(:id)
-            attachments = EmailAttachment.where(email_warehouse_id: email_ids)
+            attachments = EmailAttachment.where(synced_email_id: email_ids)
             total_attachments = attachments.count  # SSoT: total attachment count
             wasabi_attachments = attachments.where.not(storage_blob_id: nil).count
             sharepoint_attachments = attachments.where(storage_blob_id: nil)
@@ -110,17 +110,17 @@ module Api
 
             # Per-mailbox attachment counts - include ALL mailboxes
             per_mailbox_attachment_counts = attachments
-              .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
-              .group("COALESCE(NULLIF(email_warehouses.mailbox_owner_email, ''), 'Unknown')")
+              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.synced_email_id")
+              .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
               .count
 
             # Shared attachments per mailbox - include ALL mailboxes
             shared_per_mailbox = if defined?(StorageBlob)
               attachments
-                .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
+                .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.synced_email_id")
                 .joins("INNER JOIN storage_blobs ON storage_blobs.id = email_attachments.storage_blob_id")
                 .where("storage_blobs.reference_count > 1")
-                .group("COALESCE(NULLIF(email_warehouses.mailbox_owner_email, ''), 'Unknown')")
+                .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
                 .count
             else
               {}
@@ -140,16 +140,16 @@ module Api
 
             # Per-mailbox attachment storage counts - include ALL mailboxes
             per_mailbox_att_wasabi = attachments
-              .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
+              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.synced_email_id")
               .where.not(storage_blob_id: nil)
-              .group("COALESCE(NULLIF(email_warehouses.mailbox_owner_email, ''), 'Unknown')")
+              .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
               .count
 
             per_mailbox_att_sharepoint = attachments
-              .joins("INNER JOIN email_warehouses ON email_warehouses.id = email_attachments.email_warehouse_id")
+              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.synced_email_id")
               .where(storage_blob_id: nil)
               .where("email_attachments.sharepoint_path IS NOT NULL AND email_attachments.sharepoint_path != ''")
-              .group("COALESCE(NULLIF(email_warehouses.mailbox_owner_email, ''), 'Unknown')")
+              .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
               .count
 
             # Document storage breakdown (Tekna tenant only - org-wide)
@@ -292,7 +292,7 @@ module Api
           success: true,
           organizations: org_stats,
           total_connected: org_stats.count { |o| o[:connected] },
-          total_emails: EmailWarehouse.count,
+          total_emails: SyncedEmail.count,
           generated_at: Time.current
         }
       end
@@ -493,7 +493,7 @@ module Api
 
       # GET /api/v1/organization/data_stats
       # Returns organization-wide data warehouse statistics
-      # Performance: Cached for 10 minutes (expensive email_warehouse queries)
+      # Performance: Cached for 10 minutes (expensive synced_email queries)
       def data_stats
         # Skip cache only for admins (prevents DoS via forced cache refresh)
         skip_cache = params[:refresh] == "true" && current_user&.admin?
@@ -545,15 +545,15 @@ module Api
           .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.doc_count } }
 
         # Email statistics with detailed breakdown
-        # Note: email_warehouse table only has job_id for linking (no contact_id, company_id, etc.)
-        email_stats = if defined?(EmailWarehouse)
-          total_count = EmailWarehouse.count
-          total_size = EmailWarehouse.sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
-          linked_to_job = EmailWarehouse.where.not(job_id: nil).count
-          size_by_job = EmailWarehouse.where.not(job_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
+        # Note: synced_email table only has job_id for linking (no contact_id, company_id, etc.)
+        email_stats = if defined?(SyncedEmail)
+          total_count = SyncedEmail.count
+          total_size = SyncedEmail.sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
+          linked_to_job = SyncedEmail.where.not(job_id: nil).count
+          size_by_job = SyncedEmail.where.not(job_id: nil).sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
           # AI Classification breakdown - single GROUP BY query instead of 5 individual COUNTs
-          classification_counts = EmailWarehouse.group("email_classification->>'email_type'").count
+          classification_counts = SyncedEmail.group("email_classification->>'email_type'").count
           spam_count = classification_counts["spam"] || 0
           marketing_count = classification_counts["marketing"] || 0
           transactional_count = classification_counts["transactional"] || 0
@@ -563,12 +563,12 @@ module Api
           classified_count = total_count - unclassified_count
 
           # SSoT migration progress
-          with_direction = EmailWarehouse.where.not(direction: nil).count
-          with_body_preview = EmailWarehouse.where("body_preview IS NOT NULL AND body_preview != ''").count
+          with_direction = SyncedEmail.where.not(direction: nil).count
+          with_body_preview = SyncedEmail.where("body_preview IS NOT NULL AND body_preview != ''").count
 
           # Email Storage Upload Progress (SSoT: storage_path is new, sharepoint_email_path is legacy)
-          with_storage = EmailWarehouse.where("storage_path IS NOT NULL AND storage_path != ''").count
-          uploadable = EmailWarehouse.where.not(outlook_id: [nil, ""])
+          with_storage = SyncedEmail.where("storage_path IS NOT NULL AND storage_path != ''").count
+          uploadable = SyncedEmail.where.not(outlook_id: [nil, ""])
                                      .where.not(mailbox_owner_email: [nil, ""])
                                      .count
           remaining_to_upload = uploadable - with_storage
@@ -586,7 +586,7 @@ module Api
           files_saved = attachments_with_blob > unique_blobs ? attachments_with_blob - unique_blobs : 0
 
           # Pending emails by mailbox (for migration visibility)
-          pending_by_mailbox = EmailWarehouse.where(storage_path: nil)
+          pending_by_mailbox = SyncedEmail.where(storage_path: nil)
             .group(:mailbox_owner_email)
             .count
             .sort_by { |_, v| -v }
@@ -601,7 +601,7 @@ module Api
             linked_to_company_group: 0,  # Not tracked in email_warehouse
             junk_emails: spam_count,
             unprocessed: unclassified_count,
-            last_sync: EmailWarehouse.maximum(:last_synced_at) || EmailWarehouse.maximum(:created_at),
+            last_sync: SyncedEmail.maximum(:last_synced_at) || SyncedEmail.maximum(:created_at),
             # Size breakdown by category
             size_by_contact: 0,
             size_by_job: size_by_job,

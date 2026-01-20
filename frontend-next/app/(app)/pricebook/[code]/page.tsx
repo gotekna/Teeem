@@ -677,7 +677,7 @@ export default function PriceBookItemDetailPage() {
   const getStatusBadge = (color: string) => {
     const colorClasses: Record<string, string> = {
       green: "bg-green-100 text-green-700",
-      yellow: "bg-yellow-100 text-yellow-800",
+      yellow: "bg-status-warning text-status-warning-foreground",
       red: "bg-red-100 text-red-700",
       gray: "bg-muted text-muted-foreground",
     };
@@ -853,9 +853,9 @@ export default function PriceBookItemDetailPage() {
                       <Badge
                         variant="secondary"
                         className={cn(
-                          item.price_volatility === "stable" && "bg-green-100 text-green-800",
-                          item.price_volatility === "moderate" && "bg-yellow-100 text-yellow-800",
-                          item.price_volatility === "volatile" && "bg-red-100 text-red-800"
+                          item.price_volatility === "stable" && "bg-status-success text-status-success-foreground",
+                          item.price_volatility === "moderate" && "bg-status-warning text-status-warning-foreground",
+                          item.price_volatility === "volatile" && "bg-status-error text-status-error-foreground"
                         )}
                       >
                         {item.price_volatility || "Unknown"}
@@ -994,7 +994,7 @@ export default function PriceBookItemDetailPage() {
                               >
                                 {formatDate(history.date_effective || history.created_at)}
                                 {isActive && (
-                                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
+                                  <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">
                                     Active
                                   </Badge>
                                 )}

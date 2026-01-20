@@ -34,8 +34,8 @@ class FolderTemplateReorganizationService
     "people" => "PeopleDocument",
     "contact" => "PeopleDocument",
     "contacts" => "PeopleDocument",
-    "email" => "EmailWarehouse",
-    "emails" => "EmailWarehouse",
+    "email" => "SyncedEmail",
+    "emails" => "SyncedEmail",
     "task" => "SmTaskAttachment",
     "tasks" => "SmTaskAttachment"
   }.freeze
@@ -242,7 +242,7 @@ class FolderTemplateReorganizationService
       # PeopleDocument may not exist yet
       defined?(PeopleDocument) ? PeopleDocument.where.not(folder_path: [nil, ""]) : []
     when "email", "emails"
-      EmailWarehouse.where.not(sharepoint_email_path: [nil, ""])
+      SyncedEmail.where.not(sharepoint_email_path: [nil, ""])
     else
       []
     end

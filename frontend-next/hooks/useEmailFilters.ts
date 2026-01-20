@@ -183,7 +183,7 @@ const DEFAULT_FILTERS: EmailFilters = {
  * // Apply filters to API call
  * const params = toURLParams();
  * params.append("my_emails", "true");
- * const response = await api.get(`/api/v1/email_warehouse?${params.toString()}`);
+ * const response = await api.get(`/api/v1/synced_email?${params.toString()}`);
  */
 export function useEmailFilters(): UseEmailFiltersReturn {
   const [filters, setFilters] = useState<EmailFilters>(DEFAULT_FILTERS);

@@ -291,7 +291,7 @@ export function TrustsTab({ company, onUpdate }: TrustsTabProps) {
                       </button>
                       <div className="flex items-center gap-3 text-sm text-muted-foreground">
                         {trust.abn && <span>ABN: {trust.abn}</span>}
-                        <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                        <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300">
                           Trust
                         </Badge>
                       </div>

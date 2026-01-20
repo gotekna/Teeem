@@ -4,7 +4,7 @@ class ProcessNewEmailJob < ApplicationJob
   # Process a newly synced email for job matching and other post-sync actions
   # Called by ImapSyncJob after each new email is saved
   def perform(email_id)
-    email = EmailWarehouse.find_by(id: email_id)
+    email = SyncedEmail.find_by(id: email_id)
     return unless email
 
     # Skip if already assigned to a job

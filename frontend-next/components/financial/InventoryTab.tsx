@@ -339,21 +339,21 @@ export default function InventoryTab() {
     switch (status) {
       case "in_stock":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             In Stock
           </Badge>
         );
       case "low_stock":
         return (
-          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-300">
             <AlertTriangle className="h-3 w-3 mr-1" />
             Low Stock
           </Badge>
         );
       case "out_of_stock":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300">
             <XCircle className="h-3 w-3 mr-1" />
             Out of Stock
           </Badge>
@@ -374,21 +374,21 @@ export default function InventoryTab() {
         );
       case "in_progress":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300">
             <RefreshCw className="h-3 w-3 mr-1" />
             In Progress
           </Badge>
         );
       case "completed":
         return (
-          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             Pending Approval
           </Badge>
         );
       case "approved":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             Approved
           </Badge>

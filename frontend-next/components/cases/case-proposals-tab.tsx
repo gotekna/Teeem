@@ -239,17 +239,17 @@ export function CaseProposalsTab({ onPendingCountChange }: CaseProposalsTabProps
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { className: string; icon: typeof Clock; label: string }> = {
       pending: {
-        className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+        className: "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400",
         icon: Clock,
         label: "Pending Review",
       },
       approved: {
-        className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+        className: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400",
         icon: CheckCircle,
         label: "Approved",
       },
       rejected: {
-        className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+        className: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400",
         icon: XCircle,
         label: "Rejected",
       },
@@ -276,13 +276,13 @@ export function CaseProposalsTab({ onPendingCountChange }: CaseProposalsTabProps
     let className = "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
 
     if (percentage >= 80) {
-      className = "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+      className = "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400";
     } else if (percentage >= 60) {
-      className = "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+      className = "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400";
     } else if (percentage >= 30) {
       className = "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400";
     } else {
-      className = "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+      className = "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400";
     }
 
     return (
@@ -548,10 +548,10 @@ function CaseProposalCard({
                       {party.relationship_type?.replace(/_/g, " ")}
                     </Badge>
                     {party.is_primary && (
-                      <Badge className="bg-blue-100 text-blue-800 text-xs">Primary</Badge>
+                      <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">Primary</Badge>
                     )}
                     {party.contact_exists ? (
-                      <Badge className="bg-green-100 text-green-800 text-xs">Existing</Badge>
+                      <Badge className="bg-status-success text-status-success-foreground text-xs">Existing</Badge>
                     ) : (
                       <Badge className="bg-orange-100 text-orange-800 text-xs">Create New</Badge>
                     )}
@@ -609,7 +609,7 @@ function CaseProposalCard({
                   <span className="font-mono">{date.date}</span>
                   <span className="text-muted-foreground">- {date.description}</span>
                   {date.is_deadline && (
-                    <Badge className="bg-red-100 text-red-800 text-xs">Deadline</Badge>
+                    <Badge className="bg-status-error text-status-error-foreground text-xs">Deadline</Badge>
                   )}
                 </div>
               ))}

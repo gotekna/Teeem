@@ -103,11 +103,11 @@ async function toggleVip(emailAddress: string, name?: string): Promise<{ is_vip:
 }
 
 async function deleteEmail(emailId: number): Promise<void> {
-  await api.delete(`/api/v1/email_warehouse/${emailId}/delete_from_outlook`);
+  await api.delete(`/api/v1/synced_email/${emailId}/delete_from_outlook`);
 }
 
 async function markAsSpam(emailId: number, deleteFromOutlook: boolean = false): Promise<void> {
-  await api.post(`/api/v1/email_warehouse/${emailId}/mark_as_spam`, { delete_from_outlook: deleteFromOutlook });
+  await api.post(`/api/v1/synced_email/${emailId}/mark_as_spam`, { delete_from_outlook: deleteFromOutlook });
 }
 
 async function toggleRead(emailId: number): Promise<EmailUserState> {

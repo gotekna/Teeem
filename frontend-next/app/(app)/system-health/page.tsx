@@ -530,8 +530,8 @@ export default function SystemHealthPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-4">
-              <Brain className="h-4 w-4" />
-              <h3 className="font-medium">AI Pipeline</h3>
+              <Brain className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-medium text-muted-foreground">AI Pipeline</h3>
             </div>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="p-3 rounded-lg bg-secondary/50">

@@ -380,7 +380,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     attachments = build_attachments_from_params
 
     # Use unified EmailSendingService (SSoT)
-    # SSoT: Use send_and_log to immediately store sent email in EmailWarehouse
+    # SSoT: Use send_and_log to immediately store sent email in SyncedEmail
     # This ensures sent emails appear in Sent Items without waiting for sync
     result = EmailSendingService.send_and_log(
       account_type: account_type,
@@ -619,7 +619,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
     if service.move_email(uid.to_i, destination_folder, source_folder: source_folder)
       # Update local record if it exists
-      email = EmailWarehouse.find_by(imap_credential: @credential, uid: uid.to_i)
+      email = SyncedEmail.find_by(imap_credential: @credential, uid: uid.to_i)
       email&.update!(folder_name: destination_folder)
 
       render json: {

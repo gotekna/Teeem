@@ -224,7 +224,7 @@ export interface OwnershipNode {
   children?: OwnershipNode[];
 }
 
-// Email from EmailWarehouse
+// Email from SyncedEmail
 export interface EmailMessage {
   id: number;
   subject: string | null;

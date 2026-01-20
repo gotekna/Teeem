@@ -349,13 +349,13 @@ export default function CompanyDetailPage() {
   const getStatusColor = (status?: string) => {
     switch (status?.toLowerCase()) {
       case "active":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+        return "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300";
       case "inactive":
         return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
       case "deregistered":
-        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
+        return "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-300";
       default:
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300";
     }
   };
 

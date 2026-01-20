@@ -1,10 +1,11 @@
 module Api
   module V1
-    class WarehouseBankTransactionsController < ApplicationController
-      # GET /api/v1/warehouse_bank_transactions
+    # Renamed from XeroBankTransactionsController (Jan 2026)
+    class XeroBankTransactionsController < ApplicationController
+      # GET /api/v1/xero_bank_transactions
       # List bank transactions with filtering
       def index
-        transactions = WarehouseBankTransaction.active
+        transactions = XeroBankTransaction.active
 
         # Filter by bank account (single or multiple)
         if params[:bank_account_id].present?
@@ -72,9 +73,9 @@ module Api
         }
       end
 
-      # GET /api/v1/warehouse_bank_transactions/:id
+      # GET /api/v1/xero_bank_transactions/:id
       def show
-        transaction = WarehouseBankTransaction.find(params[:id])
+        transaction = XeroBankTransaction.find(params[:id])
 
         render json: {
           success: true,
@@ -84,10 +85,10 @@ module Api
         render json: { success: false, error: "Transaction not found" }, status: :not_found
       end
 
-      # GET /api/v1/warehouse_bank_transactions/bank_accounts
+      # GET /api/v1/xero_bank_transactions/bank_accounts
       # List distinct bank accounts
       def bank_accounts
-        accounts = WarehouseBankTransaction.bank_accounts
+        accounts = XeroBankTransaction.bank_accounts
 
         render json: {
           success: true,
@@ -95,10 +96,10 @@ module Api
         }
       end
 
-      # GET /api/v1/warehouse_bank_transactions/financial_years
+      # GET /api/v1/xero_bank_transactions/financial_years
       # List available financial years
       def financial_years
-        years = WarehouseBankTransaction.available_financial_years
+        years = XeroBankTransaction.available_financial_years
 
         render json: {
           success: true,
@@ -106,11 +107,11 @@ module Api
         }
       end
 
-      # GET /api/v1/warehouse_bank_transactions/monthly_summary
+      # GET /api/v1/xero_bank_transactions/monthly_summary
       # Get monthly totals
       def monthly_summary
         # Filter by bank account if provided
-        scope = WarehouseBankTransaction.active
+        scope = XeroBankTransaction.active
         scope = scope.for_bank_account(params[:bank_account_id]) if params[:bank_account_id].present?
         scope = scope.for_financial_year(params[:financial_year]) if params[:financial_year].present?
 
@@ -138,19 +139,19 @@ module Api
         }
       end
 
-      # GET /api/v1/warehouse_bank_transactions/sync_status
+      # GET /api/v1/xero_bank_transactions/sync_status
       def sync_status
         sync_record = XeroSyncStatus.find_by(sync_type: "bank_transactions")
 
         render json: {
           success: true,
           data: {
-            total_transactions: WarehouseBankTransaction.count,
-            receives_count: WarehouseBankTransaction.receives.count,
-            spends_count: WarehouseBankTransaction.spends.count,
-            reconciled_count: WarehouseBankTransaction.reconciled.count,
-            by_bank_account: WarehouseBankTransaction.group(:bank_account_name).count,
-            by_financial_year: WarehouseBankTransaction.group(:financial_year).count,
+            total_transactions: XeroBankTransaction.count,
+            receives_count: XeroBankTransaction.receives.count,
+            spends_count: XeroBankTransaction.spends.count,
+            reconciled_count: XeroBankTransaction.reconciled.count,
+            by_bank_account: XeroBankTransaction.group(:bank_account_name).count,
+            by_financial_year: XeroBankTransaction.group(:financial_year).count,
             last_synced_at: sync_record&.last_synced_at&.iso8601,
             next_sync_at: sync_record&.next_sync_at&.iso8601,
             sync_status: sync_record&.status
@@ -158,7 +159,7 @@ module Api
         }
       end
 
-      # POST /api/v1/warehouse_bank_transactions/trigger_sync
+      # POST /api/v1/xero_bank_transactions/trigger_sync
       def trigger_sync
         result = XeroBankTransactionSyncJob.perform_now
 
@@ -174,7 +175,7 @@ module Api
         }, status: :internal_server_error
       end
 
-      # GET /api/v1/warehouse_bank_transactions/download_report
+      # GET /api/v1/xero_bank_transactions/download_report
       # Generate and download a PDF transaction report
       def download_report
         service = BankTransactionReportService.new(

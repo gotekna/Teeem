@@ -85,11 +85,11 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
   const getComplexityVariant = (complexity?: string) => {
     switch (complexity?.toLowerCase()) {
       case "low":
-        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+        return "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400";
       case "medium":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+        return "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400";
       case "high":
-        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+        return "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400";
       default:
         return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
     }
@@ -136,7 +136,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
                 points
               </p>
               {analysis?.source === "pdf_extraction" && (
-                <div className="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                <div className="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                   <FileText className="h-4 w-4 mr-1" />
                   Auto-extracted from proposal PDFs
                 </div>
@@ -287,7 +287,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
                         <Badge
                           key={index}
                           variant="secondary"
-                          className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                          className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"
                         >
                           {trade}
                         </Badge>

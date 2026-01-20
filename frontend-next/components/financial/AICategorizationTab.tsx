@@ -333,13 +333,13 @@ export default function AICategorizationTab() {
     const pct = Math.round(confidence * 100);
     if (pct >= 90) {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           {pct}%
         </Badge>
       );
     } else if (pct >= 70) {
       return (
-        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+        <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400">
           {pct}%
         </Badge>
       );

@@ -277,15 +277,9 @@ module Api
                         status: :unprocessable_entity
         end
 
-        # Find the Xero contact ID for this client
-        warehouse_contact = WarehouseContact.find_by(contact_id: client.id, tenant_id: xero_credential.tenant_id)
-        external_contact_id = warehouse_contact&.xero_id
-
-        # If no warehouse contact, try legacy ContactExternalLink
-        unless external_contact_id
-          link = ContactExternalLink.find_by(contact_id: client.id, source: "xero", tenant_id: xero_credential.tenant_id)
-          external_contact_id = link&.external_contact_id
-        end
+        # LIM (Jan 2026): XeroContact removed - ContactExternalLink is THE ONE SSoT
+        link = ContactExternalLink.find_by(contact_id: client.id, source: "xero", tenant_id: xero_credential.tenant_id)
+        external_contact_id = link&.external_contact_id
 
         unless external_contact_id
           return render json: {

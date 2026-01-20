@@ -159,21 +159,21 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
     switch (data.health.status) {
       case "healthy":
         return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300">
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Up to Date
           </Badge>
         );
       case "in_progress":
         return (
-          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300">
             <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
             Syncing
           </Badge>
         );
       case "partial":
         return (
-          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300">
+          <Badge className="bg-status-warning text-status-warning-foreground hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300">
             <Clock className="h-3 w-3 mr-1" />
             Partial
           </Badge>

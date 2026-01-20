@@ -210,7 +210,7 @@ interface CaseDocument {
 
 interface CaseEmail {
   id: number;
-  email_warehouse_id: number;
+  synced_email_id: number;
   subject: string;
   from_email: string;
   to_emails: string[];
@@ -786,13 +786,13 @@ export default function CaseDetailPage() {
                                 {child.formatted_priority}
                               </Badge>
                               {child.overdue && (
-                                <Badge className="bg-red-100 text-red-800">
+                                <Badge className="bg-status-error text-status-error-foreground">
                                   <AlertTriangle className="h-3 w-3 mr-1" />
                                   Overdue
                                 </Badge>
                               )}
                             </div>
-                            <h4 className="font-medium truncate">{child.title}</h4>
+                            <h4 className="text-sm font-medium truncate">{child.title}</h4>
                             <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                               {child.assigned_to && (
                                 <span className="flex items-center gap-1">
@@ -1257,7 +1257,7 @@ export default function CaseDetailPage() {
                       key={email.id}
                       className="py-3 flex items-start justify-between gap-4 cursor-pointer hover:bg-muted/50 rounded-lg px-2 -mx-2 transition-colors"
                       onDoubleClick={() => {
-                        window.open(`/email?id=${email.email_warehouse_id}`, '_blank');
+                        window.open(`/email?id=${email.synced_email_id}`, '_blank');
                       }}
                     >
                       <div className="flex items-start gap-3">

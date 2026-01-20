@@ -123,7 +123,7 @@ export default function BudgetScenariosTab() {
   const getStatusBadge = (scenario: BudgetScenario) => {
     if (scenario.is_default) {
       return (
-        <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+        <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
           <Star className="h-3 w-3 mr-1" />
           Default
         </Badge>
@@ -133,7 +133,7 @@ export default function BudgetScenariosTab() {
     switch (scenario.status) {
       case "active":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Active
           </Badge>
@@ -158,21 +158,21 @@ export default function BudgetScenariosTab() {
         return <Badge variant="outline">Base</Badge>;
       case "optimistic":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <TrendingUp className="h-3 w-3 mr-1" />
             Optimistic
           </Badge>
         );
       case "pessimistic":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400">
             <TrendingDown className="h-3 w-3 mr-1" />
             Pessimistic
           </Badge>
         );
       case "stretch":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             Stretch
           </Badge>
         );

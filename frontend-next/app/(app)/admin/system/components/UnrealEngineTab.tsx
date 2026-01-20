@@ -171,9 +171,9 @@ const STATUS_CONFIG = {
 };
 
 const CATEGORY_CONFIG = {
-  core: { label: "Core MCP", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
-  visualization: { label: "Visualization", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
-  client: { label: "Client Experience", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
+  core: { label: "Core MCP", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-200" },
+  visualization: { label: "Visualization", color: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900 dark:text-purple-200" },
+  client: { label: "Client Experience", color: "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-200" },
   integration: { label: "TEEEM Integration", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
 };
 
@@ -289,7 +289,7 @@ export function UnrealEngineTab() {
           <div className="space-y-6">
             {(["core", "visualization", "client", "integration"] as const).map((category) => (
               <div key={category}>
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <Badge variant="secondary" className={CATEGORY_CONFIG[category].color}>
                     {CATEGORY_CONFIG[category].label}
                   </Badge>

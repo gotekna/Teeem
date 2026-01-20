@@ -98,7 +98,7 @@ export function DirectorsTab({ companyId, entityId }: DirectorsTabProps) {
                     <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</TableCell>
                     <TableCell className="px-4 py-3 text-sm">-</TableCell>
                     <TableCell className="px-4 py-3">
-                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Current</Badge>
+                      <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">Current</Badge>
                     </TableCell>
                   </TableRow>
                 ))}

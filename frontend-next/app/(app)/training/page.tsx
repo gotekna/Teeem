@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { TabbedPage } from "@/components/ui/page-wrappers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +13,6 @@ import {
   Play,
   CheckCircle2,
   Clock,
-  BookOpen,
-  Award,
   Video,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -142,17 +141,12 @@ export default function TrainingPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight font-serif">Training Center</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Courses and resources to help you get the most out of Teeem
-        </p>
-      </div>
-
+    <TabbedPage
+      title="Training Center"
+      description="Courses and resources to help you get the most out of Teeem"
+    >
       {/* Progress Overview */}
-      <Card>
+      <Card className="mb-6">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Overall Progress</span>
@@ -197,7 +191,7 @@ export default function TrainingPage() {
                       )}
                     </div>
 
-                    <h3 className="font-medium mb-1">{module.title}</h3>
+                    <h3 className="text-sm font-medium mb-1">{module.title}</h3>
                     <p className="text-sm text-muted-foreground mb-4">
                       {module.description}
                     </p>
@@ -259,7 +253,7 @@ export default function TrainingPage() {
                 <Card key={module.id} className="cursor-pointer hover:bg-accent/50">
                   <CardContent className="pt-6">
                     <Badge variant="secondary" className="mb-3">Required</Badge>
-                    <h3 className="font-medium mb-1">{module.title}</h3>
+                    <h3 className="text-sm font-medium mb-1">{module.title}</h3>
                     <p className="text-sm text-muted-foreground">{module.description}</p>
                   </CardContent>
                 </Card>
@@ -285,6 +279,6 @@ export default function TrainingPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </TabbedPage>
   );
 }

@@ -14,9 +14,9 @@
 class EmailToTaskService
   class TaskCreationError < StandardError; end
 
-  def initialize(email_warehouse, user: nil)
+  def initialize(synced_email, user: nil)
     @email = email_warehouse
-    @user = user || email_warehouse.synced_by_user || User.first
+    @user = user || synced_email.synced_by_user || User.first
   end
 
   # Main entry point - creates task directly from email
@@ -237,7 +237,7 @@ class EmailToTaskService
 
     # 1. Same conversation thread (email chain history)
     if @email.conversation_id.present?
-      emails += EmailWarehouse
+      emails += SyncedEmail
         .where(conversation_id: @email.conversation_id)
         .where.not(id: @email.id)
         .order(received_at: :desc)
@@ -250,7 +250,7 @@ class EmailToTaskService
     # so subject matching is the only way to link back to original emails.
     base_subject = normalize_subject(@email.subject)
     if base_subject.present? && emails.size < 10
-      subject_emails = EmailWarehouse
+      subject_emails = SyncedEmail
         .where("subject ILIKE ?", "%#{base_subject}%")
         .where("received_at > ?", 90.days.ago)
         .where.not(id: [@email.id] + emails.map(&:id))
@@ -266,7 +266,7 @@ class EmailToTaskService
     # FRC: Extended to 90 days to match subject matching window
     external_email = find_external_party
     if external_email.present? && emails.size < 10
-      party_emails = EmailWarehouse
+      party_emails = SyncedEmail
         .involving_email(external_email)
         .where("received_at > ?", 90.days.ago)
         .where.not(id: [@email.id] + emails.map(&:id))

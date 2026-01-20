@@ -175,7 +175,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
       return <Badge variant="destructive" className="ml-2">Issues</Badge>;
     }
     if (total > 0) {
-      return <Badge className="ml-2 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">OK</Badge>;
+      return <Badge className="ml-2 bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">OK</Badge>;
     }
     return null;
   };
@@ -400,7 +400,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
               <PieChart className="h-4 w-4 text-orange-600" />
               <span className="font-medium text-sm">Profit & Loss</span>
               {health.profit_loss.months_available > 0 && (
-                <Badge className="ml-2 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">OK</Badge>
+                <Badge className="ml-2 bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">OK</Badge>
               )}
             </div>
             <div className="text-3xl font-bold">{health.profit_loss.months_available}</div>
@@ -429,7 +429,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
               <BarChart3 className="h-4 w-4 text-indigo-600" />
               <span className="font-medium text-sm">Balance Sheet</span>
               {health.balance_sheet.reports_count > 0 && (
-                <Badge className="ml-2 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">OK</Badge>
+                <Badge className="ml-2 bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">OK</Badge>
               )}
             </div>
             <div className="text-3xl font-bold">{health.balance_sheet.reports_count}</div>

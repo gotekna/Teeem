@@ -218,7 +218,7 @@ export default function HealthReportPage() {
         <CardContent className="p-0">
           <div className="px-4 py-3 border-b flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            <h3 className="font-medium">All Companies ({filteredCompanies.length})</h3>
+            <h3 className="text-sm font-medium">All Companies ({filteredCompanies.length})</h3>
           </div>
           <div className="divide-y">
             {filteredCompanies.length === 0 ? (

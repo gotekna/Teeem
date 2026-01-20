@@ -198,11 +198,11 @@ function XeroPdfReportsCard({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
-        return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground">Completed</Badge>;
       case "generating":
-        return <Badge className="bg-yellow-100 text-yellow-800">Generating...</Badge>;
+        return <Badge className="bg-status-warning text-status-warning-foreground">Generating...</Badge>;
       case "failed":
-        return <Badge className="bg-red-100 text-red-800">Failed</Badge>;
+        return <Badge className="bg-status-error text-status-error-foreground">Failed</Badge>;
       default:
         return <Badge className="bg-muted text-foreground">Pending</Badge>;
     }

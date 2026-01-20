@@ -597,7 +597,7 @@ export function ViewTableView<T extends ViewTableRow>({
         {/* Right side: title + count + Filters button + Export */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold">{tableName}</h3>
+            <h3 className="text-sm font-semibold">{tableName}</h3>
             <span className="text-sm text-muted-foreground">
               {displayCount} {displayCount !== totalCount && `of ${totalCount}`} records
             </span>

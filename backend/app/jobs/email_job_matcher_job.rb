@@ -35,7 +35,7 @@ class EmailJobMatcherJob < ApplicationJob
     return if search_terms.empty?
 
     # Find unassigned emails from last 90 days that match
-    unassigned_emails = EmailWarehouse
+    unassigned_emails = SyncedEmail
       .where(job_id: nil)
       .where("received_at > ?", 90.days.ago)
 
@@ -79,7 +79,7 @@ class EmailJobMatcherJob < ApplicationJob
     linked_count = 0
 
     conversation_ids.each do |conv_id|
-      EmailWarehouse
+      SyncedEmail
         .where(conversation_id: conv_id, job_id: nil)
         .update_all(
           job_id: job.id,
@@ -88,7 +88,7 @@ class EmailJobMatcherJob < ApplicationJob
           matched_at: Time.current
         )
 
-      linked_count += EmailWarehouse.where(conversation_id: conv_id, job_id: job.id).count
+      linked_count += SyncedEmail.where(conversation_id: conv_id, job_id: job.id).count
     end
 
     Rails.logger.info "[EmailJobMatcherJob] Linked #{linked_count} thread emails to job #{job.id}"
@@ -100,7 +100,7 @@ class EmailJobMatcherJob < ApplicationJob
     email_lower = contact_email.downcase
 
     # Find unassigned emails involving this contact from last 90 days
-    unassigned_emails = EmailWarehouse
+    unassigned_emails = SyncedEmail
       .where(job_id: nil)
       .where("received_at > ?", 90.days.ago)
       .where(

@@ -307,7 +307,7 @@ module Api
           email_to_parent_companies = Hash.new { |h, k| h[k] = Set.new }
 
           # Step 1: Get unique from_email addresses using pluck (memory efficient)
-          base_query = EmailWarehouse.involving_email(email_patterns)
+          base_query = SyncedEmail.involving_email(email_patterns)
 
           from_emails = base_query
             .where.not(from_email: nil)
@@ -378,7 +378,7 @@ module Api
           unique_senders.each_slice(50) do |sender_batch|
             # For each sender, get up to 3 recent emails with body_text
             sender_batch.each do |sender|
-              bodies = EmailWarehouse.where("LOWER(from_email) = ?", sender)
+              bodies = SyncedEmail.where("LOWER(from_email) = ?", sender)
                 .where.not(body_text: nil)
                 .order(received_at: :desc)
                 .limit(3)

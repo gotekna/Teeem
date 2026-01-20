@@ -51,7 +51,7 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "[BulkSync] Sync years: #{sync_years}, Resume: #{resume}"
 
     begin
-      # Phase 1: Sync emails from Outlook to EmailWarehouse
+      # Phase 1: Sync emails from Outlook to SyncedEmail
       unless @progress["phase1_complete"]
         sync_emails_to_warehouse(sync_years)
         @progress["phase1_complete"] = true
@@ -129,7 +129,7 @@ class BulkEmailSyncJob < ApplicationJob
     @credential.update_column(:bulk_sync_progress, @progress)
   end
 
-  # Phase 1: Sync emails from Outlook to EmailWarehouse
+  # Phase 1: Sync emails from Outlook to SyncedEmail
   def sync_emails_to_warehouse(sync_years)
     Rails.logger.info "[BulkSync] Phase 1: Syncing emails to warehouse..."
 
@@ -149,7 +149,7 @@ class BulkEmailSyncJob < ApplicationJob
     else
       @progress["emails_synced"] = result[:total_synced]
     end
-    @progress["emails_total"] = EmailWarehouse.where(microsoft_credential_id: @credential.id).count
+    @progress["emails_total"] = SyncedEmail.where(microsoft_credential_id: @credential.id).count
     save_progress!
 
     Rails.logger.info "[BulkSync] Phase 1 complete: #{@progress["emails_synced"]} emails synced"
@@ -166,7 +166,7 @@ class BulkEmailSyncJob < ApplicationJob
     end
 
     # Get emails with unprocessed attachments
-    scope = EmailWarehouse
+    scope = SyncedEmail
       .where(microsoft_credential_id: @credential.id)
       .where(has_attachments: true)
       .where.not(mailbox_owner_email: nil)
@@ -176,7 +176,7 @@ class BulkEmailSyncJob < ApplicationJob
 
     # Resume from checkpoint if available
     if @progress["last_processed_attachment_email_id"]
-      scope = scope.where("email_warehouse.id > ?", @progress["last_processed_attachment_email_id"])
+      scope = scope.where("synced_email.id > ?", @progress["last_processed_attachment_email_id"])
     end
 
     total_to_process = scope.count
@@ -232,7 +232,7 @@ class BulkEmailSyncJob < ApplicationJob
       if existing_attachment
         # Deduplicate - just create link
         EmailAttachment.find_or_create_by(
-          email_warehouse: email,
+          synced_email: email,
           attachment: existing_attachment
         ) do |ea|
           ea.outlook_attachment_id = outlook_attachment_id
@@ -257,7 +257,7 @@ class BulkEmailSyncJob < ApplicationJob
         )
 
         EmailAttachment.create!(
-          email_warehouse: email,
+          synced_email: email,
           attachment: attachment,
           outlook_attachment_id: outlook_attachment_id,
           filename: filename,
@@ -312,7 +312,7 @@ class BulkEmailSyncJob < ApplicationJob
       return
     end
 
-    scope = EmailWarehouse
+    scope = SyncedEmail
       .where(microsoft_credential_id: @credential.id)
       .where(sharepoint_email_file_id: nil)
       .where.not(mailbox_owner_email: nil)

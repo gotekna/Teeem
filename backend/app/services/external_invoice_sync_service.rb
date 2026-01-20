@@ -284,12 +284,9 @@ class ExternalInvoiceSyncService
 
     is_new = invoice.new_record?
 
-    # Resolve external_contact_id to warehouse_contact_id (SSoT for contact linking)
+    # LIM (Jan 2026): XeroContact lookup removed - table had 0 records, never used
+    # ContactExternalLink is THE ONE SSoT for Xero contact linking (1,018 records)
     external_contact_id = invoice_data.dig("Contact", "ContactID")
-    warehouse_contact = nil
-    if external_contact_id.present?
-      warehouse_contact = WarehouseContact.find_by(xero_id: external_contact_id, tenant_id: tenant_id)
-    end
 
     # Map Xero data to our normalized format
     invoice.assign_attributes(
@@ -307,7 +304,6 @@ class ExternalInvoiceSyncService
       amount_paid: invoice_data["AmountPaid"],
       currency_code: invoice_data["CurrencyCode"] || "AUD",
       external_contact_id: external_contact_id,
-      warehouse_contact_id: warehouse_contact&.id,
       contact_name: invoice_data.dig("Contact", "Name"),
       line_items: invoice_data["LineItems"] || [],
       payments: extract_payments(invoice_data),
@@ -419,20 +415,8 @@ class ExternalInvoiceSyncService
 
     return if invoice.external_contact_id.blank?
 
-    # Second: Find via WarehouseContact (SSoT for Xero contact linking)
-    warehouse_contact = WarehouseContact.find_by(
-      xero_id: invoice.external_contact_id,
-      tenant_id: @tenant_id
-    )
-
-    if warehouse_contact&.contact
-      invoice.update!(contact: warehouse_contact.contact)
-      @stats[:linked_to_contacts] += 1
-      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{warehouse_contact.contact.display_name} via warehouse contact")
-      return
-    end
-
-    # Third: Check ContactExternalLink (for backwards compatibility during migration)
+    # LIM (Jan 2026): XeroContact lookup removed - ContactExternalLink is THE ONE SSoT
+    # Find via ContactExternalLink (1,018 records linking Xero contacts to TEEEM contacts)
     link = ContactExternalLink.find_by(
       source: @source,
       tenant_id: @tenant_id,
@@ -441,15 +425,13 @@ class ExternalInvoiceSyncService
 
     if link&.contact
       invoice.update!(contact: link.contact)
-      # Also update the WarehouseContact link if it exists but wasn't linked
-      warehouse_contact&.update!(contact_id: link.contact_id) if warehouse_contact && warehouse_contact.contact_id.nil?
       @stats[:linked_to_contacts] += 1
-      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{link.contact.display_name} via external link (legacy)")
+      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{link.contact.display_name} via external link")
       return
     end
 
     # Last resort: Auto-create contact if not found (new Xero contact)
-    contact = auto_create_contact_from_xero(invoice, warehouse_contact)
+    contact = auto_create_contact_from_xero(invoice)
     if contact
       invoice.update!(contact: contact)
       @stats[:linked_to_contacts] += 1
@@ -461,14 +443,15 @@ class ExternalInvoiceSyncService
   # Auto-create a TEEEM contact from Xero contact data embedded in invoice
   # BUG FIX: Added duplicate detection to prevent creating duplicate contacts
   # IMPROVED: Added fuzzy matching for similar names across Xero orgs
-  def auto_create_contact_from_xero(invoice, warehouse_contact = nil)
+  # LIM (Jan 2026): XeroContact references removed - ContactExternalLink is THE ONE SSoT
+  def auto_create_contact_from_xero(invoice)
     return nil if invoice.contact_name.blank?
 
     # Check for existing contact using smart matching BEFORE creating
     existing_contact, match_type = find_matching_contact(invoice.contact_name)
     if existing_contact
       Rails.logger.info("Found existing contact #{existing_contact.id} for '#{invoice.contact_name}' via #{match_type} - linking instead of creating")
-      link_existing_contact(existing_contact, invoice, warehouse_contact)
+      link_existing_contact(existing_contact, invoice)
       return existing_contact
     end
 
@@ -483,19 +466,15 @@ class ExternalInvoiceSyncService
       )
 
       if contact.save
-        # Link WarehouseContact to the new TEEEM Contact (SSoT)
-        if warehouse_contact
-          warehouse_contact.link_to_contact!(contact, match_type: "auto_created", confidence: 1.0)
-          Rails.logger.info("Linked WarehouseContact #{warehouse_contact.id} to new contact #{contact.id}")
-        elsif invoice.external_contact_id.present?
-          # If warehouse_contact doesn't exist yet, create ContactExternalLink for backwards compat
+        # Create ContactExternalLink for the new TEEEM Contact (SSoT)
+        if invoice.external_contact_id.present?
           ContactExternalLink.find_or_create_by!(
             contact: contact,
             source: @source,
             tenant_id: @tenant_id,
             external_contact_id: invoice.external_contact_id
           )
-          Rails.logger.info("Created ContactExternalLink for contact #{contact.id} (legacy)")
+          Rails.logger.info("Created ContactExternalLink for contact #{contact.id}")
         end
 
         Rails.logger.info("Successfully created contact #{contact.id}: #{contact.display_name}")
@@ -607,23 +586,21 @@ class ExternalInvoiceSyncService
     "REGEXP_REPLACE(LOWER(TRIM(#{column})), '\\s+\\d+\\s*$', '', 'g')"
   end
 
-  # Link an existing contact to WarehouseContact/ExternalLink (used when duplicate detected)
-  def link_existing_contact(contact, invoice, warehouse_contact)
-    if warehouse_contact && warehouse_contact.contact_id.nil?
-      warehouse_contact.link_to_contact!(contact, match_type: "matched_by_name", confidence: 0.95)
-      Rails.logger.info("Linked WarehouseContact #{warehouse_contact.id} to existing contact #{contact.id}")
-    elsif invoice.external_contact_id.present?
-      # Create ContactExternalLink if it doesn't exist
-      link = ContactExternalLink.find_or_initialize_by(
-        source: @source,
-        tenant_id: @tenant_id,
-        external_contact_id: invoice.external_contact_id
-      )
-      if link.new_record? || link.contact_id.nil?
-        link.contact = contact
-        link.save!
-        Rails.logger.info("Created/updated ContactExternalLink for existing contact #{contact.id}")
-      end
+  # Link an existing contact to XeroContact/ExternalLink (used when duplicate detected)
+  # LIM (Jan 2026): Simplified - ContactExternalLink is THE ONE SSoT for Xero contact linking
+  def link_existing_contact(contact, invoice)
+    return if invoice.external_contact_id.blank?
+
+    # Create ContactExternalLink if it doesn't exist
+    link = ContactExternalLink.find_or_initialize_by(
+      source: @source,
+      tenant_id: @tenant_id,
+      external_contact_id: invoice.external_contact_id
+    )
+    if link.new_record? || link.contact_id.nil?
+      link.contact = contact
+      link.save!
+      Rails.logger.info("Created/updated ContactExternalLink for existing contact #{contact.id}")
     end
   end
 
@@ -797,12 +774,8 @@ class ExternalInvoiceSyncService
 
     is_new = record.new_record?
 
-    # Resolve external_contact_id to warehouse_contact_id (SSoT for contact linking)
+    # LIM (Jan 2026): XeroContact lookup removed - ContactExternalLink is THE ONE SSoT
     external_contact_id = cn_data.dig("Contact", "ContactID")
-    warehouse_contact = nil
-    if external_contact_id.present?
-      warehouse_contact = WarehouseContact.find_by(xero_id: external_contact_id, tenant_id: tenant_id)
-    end
 
     record.assign_attributes(
       invoice_number: cn_data["CreditNoteNumber"],
@@ -818,7 +791,6 @@ class ExternalInvoiceSyncService
       amount_paid: (cn_data["Total"] || 0) - (cn_data["RemainingCredit"] || 0),
       currency_code: cn_data["CurrencyCode"] || "AUD",
       external_contact_id: external_contact_id,
-      warehouse_contact_id: warehouse_contact&.id,
       contact_name: cn_data.dig("Contact", "Name"),
       line_items: cn_data["LineItems"] || [],
       payments: [],
@@ -887,12 +859,8 @@ class ExternalInvoiceSyncService
 
     is_new = record.new_record?
 
-    # Resolve external_contact_id to warehouse_contact_id (SSoT for contact linking)
+    # LIM (Jan 2026): XeroContact lookup removed - ContactExternalLink is THE ONE SSoT
     external_contact_id = quote_data.dig("Contact", "ContactID")
-    warehouse_contact = nil
-    if external_contact_id.present?
-      warehouse_contact = WarehouseContact.find_by(xero_id: external_contact_id, tenant_id: tenant_id)
-    end
 
     record.assign_attributes(
       invoice_number: quote_data["QuoteNumber"],
@@ -908,7 +876,6 @@ class ExternalInvoiceSyncService
       amount_paid: 0,
       currency_code: quote_data["CurrencyCode"] || "AUD",
       external_contact_id: external_contact_id,
-      warehouse_contact_id: warehouse_contact&.id,
       contact_name: quote_data.dig("Contact", "Name"),
       line_items: quote_data["LineItems"] || [],
       payments: [],

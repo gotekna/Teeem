@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-# Phase 4: Virtual File Warehouse - Backfill EmailWarehouse virtual folders
+# Phase 4: Virtual File Warehouse - Backfill SyncedEmail virtual folders
 #
-# This job populates WarehouseDocument.folder for all EmailWarehouse records.
+# This job populates WarehouseDocument.folder for all SyncedEmail records.
 # After backfill, emails can be organized by mailbox in the File Warehouse:
 #   Emails/{{Mailbox}}/Email Body/{{Year}}/{{Month}}
 #
@@ -33,7 +33,7 @@ class BackfillEmailVirtualFoldersJob < ApplicationJob
     backfill_mailbox_ids
 
     # Process emails with warehouse_documents
-    EmailWarehouse.includes(:warehouse_document, :email_mailbox)
+    SyncedEmail.includes(:warehouse_document, :email_mailbox)
                   .find_each(batch_size: BATCH_SIZE) do |email|
       processed += 1
 
@@ -89,7 +89,7 @@ class BackfillEmailVirtualFoldersJob < ApplicationJob
 
     updated_count = 0
 
-    EmailWarehouse.where(email_mailbox_id: nil)
+    SyncedEmail.where(email_mailbox_id: nil)
                   .where.not(mailbox_owner_email: [nil, ""])
                   .find_each(batch_size: BATCH_SIZE) do |email|
       normalized_email = email.mailbox_owner_email.downcase.strip

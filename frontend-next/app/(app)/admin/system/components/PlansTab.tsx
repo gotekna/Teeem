@@ -328,7 +328,7 @@ export function CategoriesSection() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium">Plan Categories</h3>
+          <h3 className="text-sm font-medium">Plan Categories</h3>
           <p className="text-sm text-muted-foreground">
             Categories group plan types (e.g., Drawings, Certification, Cabinets)
           </p>
@@ -755,7 +755,7 @@ export function TypesSection() {
       {/* Plan Types List */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium">Plan Types</h3>
+          <h3 className="text-sm font-medium">Plan Types</h3>
           <p className="text-sm text-muted-foreground">
             Standard drawing types (e.g., 01-PERSPECTIVE, 07-SLAB PLAN)
           </p>
@@ -1177,7 +1177,7 @@ export function RevisionFormatsSection() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium">Revision Formats</h3>
+          <h3 className="text-sm font-medium">Revision Formats</h3>
           <p className="text-sm text-muted-foreground">
             Configure revision sequences (e.g., A, B, C or 1, 2, 3)
           </p>
@@ -1210,7 +1210,7 @@ export function RevisionFormatsSection() {
                       <div className="flex items-center gap-2">
                         <p className="font-medium">{format.name}</p>
                         {format.is_default && (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                             Default
                           </Badge>
                         )}

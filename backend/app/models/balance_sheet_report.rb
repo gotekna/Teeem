@@ -212,7 +212,7 @@ class BalanceSheetReport < ApplicationRecord
   end
 
   # Calculate fiscal year for a given date (Australian FY: July-June)
-  # Returns short format (FY24) to match WarehouseBankTransaction.financial_year
+  # Returns short format (FY24) to match XeroBankTransaction.financial_year
   # June 30, 2024 -> "FY24"
   # July 1, 2024 -> "FY25"
   def self.fiscal_year_for_date(date)

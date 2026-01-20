@@ -51,9 +51,9 @@ interface JobBudgetTabProps {
 
 const STATUS_VARIANTS: Record<string, { variant: string; label: string }> = {
   pending: { variant: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground", label: "Pending" },
-  part_payment: { variant: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400", label: "Part Payment" },
-  complete: { variant: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", label: "Complete" },
-  manual_review: { variant: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", label: "Needs Review" },
+  part_payment: { variant: "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400", label: "Part Payment" },
+  complete: { variant: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400", label: "Complete" },
+  manual_review: { variant: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400", label: "Needs Review" },
 };
 
 export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
@@ -121,7 +121,7 @@ export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
       <Card>
         <CardContent className="py-12 text-center">
           <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-          <h3 className="text-base font-semibold">Budget Tracking</h3>
+          <h3 className="text-sm font-semibold">Budget Tracking</h3>
           <p className="text-sm text-muted-foreground mt-1">
             No purchase orders yet. Create purchase orders to start tracking your budget.
           </p>

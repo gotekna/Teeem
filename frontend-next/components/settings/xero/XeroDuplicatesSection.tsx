@@ -105,7 +105,7 @@ function XeroDuplicateGroupCard({ group }: { group: XeroDuplicateGroup }) {
                 </div>
                 <div className="flex items-center gap-2">
                   {contact.has_teeem_link ? (
-                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                    <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-200">
                       <Link2 className="h-3 w-3 mr-1" />
                       {contact.teeem_contact_name}
                     </Badge>

@@ -168,9 +168,9 @@ export default function ConstructionTab() {
       case "requested":
         return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" />Requested</Badge>;
       case "received":
-        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"><FileCheck className="h-3 w-3 mr-1" />Received</Badge>;
+        return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"><FileCheck className="h-3 w-3 mr-1" />Received</Badge>;
       case "approved":
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -181,9 +181,9 @@ export default function ConstructionTab() {
       case "draft":
         return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" />Draft</Badge>;
       case "submitted":
-        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"><Send className="h-3 w-3 mr-1" />Submitted</Badge>;
+        return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"><Send className="h-3 w-3 mr-1" />Submitted</Badge>;
       case "approved":
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
       case "rejected":
         return <Badge variant="destructive">Rejected</Badge>;
       default:
@@ -481,7 +481,7 @@ export default function ConstructionTab() {
                         <TableCell className="text-right">{formatCurrency(item.hourly_rate)}/hr</TableCell>
                         <TableCell className="text-right">{formatCurrency(item.daily_rate)}/day</TableCell>
                         <TableCell className="text-center">
-                          <Badge className={item.status === "active" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : ""} variant={item.status === "active" ? "default" : "secondary"}>
+                          <Badge className={item.status === "active" ? "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400" : ""} variant={item.status === "active" ? "default" : "secondary"}>
                             {item.status}
                           </Badge>
                         </TableCell>

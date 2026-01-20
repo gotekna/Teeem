@@ -176,7 +176,7 @@ export function CaseTimelineTab({ caseId }: CaseTimelineTabProps) {
                             {event.event_type}
                           </Badge>
                         </div>
-                        <h4 className="font-medium">{event.title}</h4>
+                        <h4 className="text-sm font-medium">{event.title}</h4>
                         {event.description && (
                           <p className="text-sm text-muted-foreground mt-1">
                             {event.description}

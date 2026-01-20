@@ -6,7 +6,7 @@ namespace :emails do
     puts "=========================================\n"
 
     # Count total unclassified emails
-    total = EmailWarehouse.where(email_classification: {}).count
+    total = SyncedEmail.where(email_classification: {}).count
     puts "Found #{total} unclassified emails\n"
 
     return if total.zero?
@@ -15,7 +15,7 @@ namespace :emails do
     failed = 0
 
     # Process in batches of 100
-    EmailWarehouse.where(email_classification: {}).find_in_batches(batch_size: 100) do |batch|
+    SyncedEmail.where(email_classification: {}).find_in_batches(batch_size: 100) do |batch|
       batch.each do |email|
         begin
           EmailClassificationService.new(email).classify!
@@ -33,7 +33,7 @@ namespace :emails do
     puts "Failed: #{failed}"
 
     # Report stats
-    stats = EmailWarehouse.group("email_classification->>'email_type'").count
+    stats = SyncedEmail.group("email_classification->>'email_type'").count
     puts "\n========================================="
     puts "Classification Breakdown:"
     puts "=========================================\n"
@@ -49,8 +49,8 @@ namespace :emails do
     puts "Email Classification Statistics"
     puts "=========================================\n"
 
-    total = EmailWarehouse.count
-    classified = EmailWarehouse.where.not(email_classification: {}).count
+    total = SyncedEmail.count
+    classified = SyncedEmail.where.not(email_classification: {}).count
     unclassified = total - classified
 
     puts "Total emails: #{total}"
@@ -58,7 +58,7 @@ namespace :emails do
     puts "Unclassified: #{unclassified}\n\n"
 
     # Breakdown by type
-    stats = EmailWarehouse
+    stats = SyncedEmail
       .where.not(email_classification: {})
       .group("email_classification->>'email_type'")
       .count
@@ -71,7 +71,7 @@ namespace :emails do
 
     # Breakdown by method
     puts "\nBreakdown by classification method:"
-    method_stats = EmailWarehouse
+    method_stats = SyncedEmail
       .where.not(email_classification: {})
       .group("email_classification->>'method'")
       .count
@@ -92,10 +92,10 @@ namespace :cases do
     puts "=========================================\n"
 
     marketing_case_emails = CaseEmail
-      .joins(:email_warehouse)
-      .where("email_warehouse.email_classification->>'email_type' IN (?)",
+      .joins(:synced_email)
+      .where("synced_email.email_classification->>'email_type' IN (?)",
              [ "marketing", "spam" ])
-      .where("email_warehouse.email_classification->>'confidence' > ?", 0.5)
+      .where("synced_email.email_classification->>'confidence' > ?", 0.5)
 
     if marketing_case_emails.empty?
       puts "No marketing emails found in cases. All clean!"
@@ -110,7 +110,7 @@ namespace :cases do
         case_id: case_id,
         case_title: case_record.title,
         marketing_emails: emails.count,
-        subjects: emails.map { |e| e.email_warehouse.subject }
+        subjects: emails.map { |e| e.synced_email.subject }
       }
     end
 
@@ -147,10 +147,10 @@ namespace :cases do
     end
 
     marketing_case_emails = CaseEmail
-      .joins(:email_warehouse)
-      .where("email_warehouse.email_classification->>'email_type' IN (?)",
+      .joins(:synced_email)
+      .where("synced_email.email_classification->>'email_type' IN (?)",
              [ "marketing", "spam" ])
-      .where("email_warehouse.email_classification->>'confidence' > ?", 0.5)
+      .where("synced_email.email_classification->>'confidence' > ?", 0.5)
 
     if marketing_case_emails.empty?
       puts "No marketing emails found in cases"
@@ -175,7 +175,7 @@ namespace :cases do
       # Actually remove them
       count = 0
       marketing_case_emails.find_each do |case_email|
-        email_type = case_email.email_warehouse.email_classification["email_type"]
+        email_type = case_email.synced_email.email_classification["email_type"]
         case_email.update(
           relevance: "irrelevant",
           notes: "[AUTO-REMOVED] Classified as #{email_type} email by EmailClassificationService"
@@ -195,10 +195,10 @@ namespace :cases do
     puts "=========================================\n"
 
     results = CaseEmail
-      .joins(:email_warehouse)
-      .where("email_warehouse.email_classification->>'email_type' IN (?)",
+      .joins(:synced_email)
+      .where("synced_email.email_classification->>'email_type' IN (?)",
              [ "marketing", "spam" ])
-      .where("email_warehouse.email_classification->>'confidence' > ?", 0.5)
+      .where("synced_email.email_classification->>'confidence' > ?", 0.5)
       .group(:case_id)
       .count
       .sort_by { |_case_id, count| -count }
@@ -224,7 +224,7 @@ namespace :cases do
     puts "=========================================\n"
 
     # Show what's currently marked as ephemeral
-    ephemeral_emails = EmailWarehouse
+    ephemeral_emails = SyncedEmail
       .where("email_classification->>'ephemeral' = ?", "true")
 
     puts "Total ephemeral emails: #{ephemeral_emails.count}\n"
@@ -269,7 +269,7 @@ namespace :cases do
     puts "Reclassifying Spam Emails"
     puts "=========================================\n"
 
-    spam_emails = EmailWarehouse.spam
+    spam_emails = SyncedEmail.spam
     total = spam_emails.count
     puts "Found #{total} emails currently classified as spam\n"
 
@@ -306,7 +306,7 @@ namespace :cases do
     puts "\n========================================="
     puts "Updated Classification Breakdown:"
     puts "=========================================\n"
-    stats = EmailWarehouse.group("email_classification->>'email_type'").count
+    stats = SyncedEmail.group("email_classification->>'email_type'").count
     stats.each do |type, count|
       puts "  #{(type || 'unclassified').ljust(20)} #{count}"
     end

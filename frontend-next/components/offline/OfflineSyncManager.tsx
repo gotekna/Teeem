@@ -312,7 +312,7 @@ export function OfflineSyncManager() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-8 text-center">
             <Briefcase className="h-12 w-12 text-muted-foreground/50 mb-3" />
-            <h3 className="font-medium mb-1">No Assigned Jobs</h3>
+            <h3 className="text-sm font-medium mb-1">No Assigned Jobs</h3>
             <p className="text-sm text-muted-foreground">
               You don&apos;t have any active jobs assigned to sync.
             </p>

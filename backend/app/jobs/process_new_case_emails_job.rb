@@ -7,9 +7,9 @@ class ProcessNewCaseEmailsJob < ApplicationJob
     newcase_address = CorporateCompanySetting.monitored_mailbox_newcase
 
     # Find emails sent to newcase@ mailbox that don't have proposals yet
-    new_case_emails = EmailWarehouse
+    new_case_emails = SyncedEmail
       .where("? = ANY(to_emails)", newcase_address)
-      .where.not(id: EmailCaseProposal.select(:email_warehouse_id))
+      .where.not(id: EmailCaseProposal.select(:synced_email_id))
       .where("created_at > ?", 1.hour.ago) # Only process recent emails
       .order(received_at: :desc)
 

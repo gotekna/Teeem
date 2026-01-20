@@ -194,12 +194,12 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
           {/* Status badges */}
           <div className="flex gap-2 flex-wrap">
             {user.presence_status === "online" && (
-              <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+              <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                 Online
               </Badge>
             )}
             {user.status === "active" && user.presence_status !== "online" && (
-              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+              <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
                 Active
               </Badge>
             )}

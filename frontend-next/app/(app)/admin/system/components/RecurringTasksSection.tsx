@@ -136,9 +136,9 @@ interface UserOption {
 }
 
 const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  paused: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-  completed: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+  active: 'bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-200',
+  paused: 'bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-200',
+  completed: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-200',
   cancelled: 'bg-muted text-foreground dark:bg-background dark:text-muted-foreground',
 };
 
@@ -571,7 +571,7 @@ export function RecurringTasksSection() {
 
             {/* Schedule */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">Schedule</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">Schedule</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Frequency</Label>
@@ -698,7 +698,7 @@ export function RecurringTasksSection() {
 
             {/* Assignment */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">Assignment</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">Assignment</h3>
               <TaskAssignmentField
                 users={users}
                 assignedUserId={formData.assigned_user_id}
@@ -718,7 +718,7 @@ export function RecurringTasksSection() {
 
             {/* Task Defaults */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">Task Defaults</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">Task Defaults</h3>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Duration (days)</Label>
@@ -750,7 +750,7 @@ export function RecurringTasksSection() {
 
             {/* Skip Options */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">Skip Options</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">Skip Options</h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="skip_weekends" className="cursor-pointer">Skip weekends</Label>
@@ -781,7 +781,7 @@ export function RecurringTasksSection() {
 
             {/* Notifications */}
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">Notifications</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">Notifications</h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="notify_on_create" className="cursor-pointer">Notify when task is created</Label>

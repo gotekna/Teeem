@@ -165,7 +165,7 @@ export default function AITab() {
       case "high":
         return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">High</Badge>;
       case "medium":
-        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Medium</Badge>;
+        return <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">Medium</Badge>;
       case "low":
         return <Badge variant="outline">Low</Badge>;
       default:
@@ -175,9 +175,9 @@ export default function AITab() {
 
   const getConfidenceBadge = (confidence: number) => {
     if (confidence >= 0.9) {
-      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">High ({(confidence * 100).toFixed(0)}%)</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">High ({(confidence * 100).toFixed(0)}%)</Badge>;
     } else if (confidence >= 0.7) {
-      return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Medium ({(confidence * 100).toFixed(0)}%)</Badge>;
+      return <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">Medium ({(confidence * 100).toFixed(0)}%)</Badge>;
     } else {
       return <Badge variant="outline">Low ({(confidence * 100).toFixed(0)}%)</Badge>;
     }

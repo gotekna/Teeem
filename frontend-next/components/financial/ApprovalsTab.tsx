@@ -373,7 +373,7 @@ export default function ApprovalsTab() {
                         <TableCell className="text-right">{formatCurrency(item.amount)}</TableCell>
                         <TableCell>
                           {item.status === "approved" ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                               <CheckCircle className="h-3 w-3 mr-1" />
                               Approved
                             </Badge>
@@ -443,7 +443,7 @@ export default function ApprovalsTab() {
                         </TableCell>
                         <TableCell>
                           {workflow.is_active ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                               Active
                             </Badge>
                           ) : (

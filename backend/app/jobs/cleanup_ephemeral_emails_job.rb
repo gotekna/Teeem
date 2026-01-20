@@ -22,7 +22,7 @@ class CleanupEphemeralEmailsJob < ApplicationJob
     error_count = 0
 
     # Find emails marked as ephemeral that have expired
-    expired_emails = EmailWarehouse
+    expired_emails = SyncedEmail
       .where("email_classification->>'ephemeral' = ?", "true")
       .where("(email_classification->>'expires_at')::timestamp < ?", Time.current)
 

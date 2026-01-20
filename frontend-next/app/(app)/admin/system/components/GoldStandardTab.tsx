@@ -1062,7 +1062,7 @@ function GoldStandardTableTab() {
           </p>
           <Badge
             variant={error ? "secondary" : "default"}
-            className={cn("mt-2", error ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800")}
+            className={cn("mt-2", error ? "bg-status-warning text-status-warning-foreground" : "bg-status-success text-status-success-foreground")}
           >
             {dataSource}
           </Badge>
@@ -1985,9 +1985,9 @@ function SyncCheckTab() {
                       <Badge
                         variant="secondary"
                         className={cn(
-                          col.status === "system" && "bg-red-100 text-red-800",
-                          col.status === "match" && "bg-green-100 text-green-800",
-                          col.status === "mismatch" && "bg-yellow-100 text-yellow-800"
+                          col.status === "system" && "bg-status-error text-status-error-foreground",
+                          col.status === "match" && "bg-status-success text-status-success-foreground",
+                          col.status === "mismatch" && "bg-status-warning text-status-warning-foreground"
                         )}
                       >
                         {col.status}
@@ -2158,7 +2158,7 @@ function SetupTableDemo() {
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Briefcase className="h-5 w-5 text-muted-foreground" />
-              <h3 className="font-semibold">Job Types</h3>
+              <h3 className="text-sm font-semibold">Job Types</h3>
             </div>
             <Button size="sm" onClick={() => setShowAddDialog(true)}>
               <Plus className="h-4 w-4 mr-1" />

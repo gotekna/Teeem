@@ -128,7 +128,7 @@ export function XeroGroupBalanceSheetCard({ companyId }: XeroGroupBalanceSheetCa
         {!loading && rows.length === 0 && !error && (
           <div className="text-center py-12 text-muted-foreground">
             <Scale className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p className="font-medium mb-2">Select a date and click Load</p>
+            <p className="text-sm font-medium mb-2">Select a date and click Load</p>
             <p className="text-sm">The report will show Balance Sheet data from all group companies side-by-side.</p>
           </div>
         )}

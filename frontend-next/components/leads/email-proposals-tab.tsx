@@ -174,17 +174,17 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { className: string; icon: typeof Clock; label: string }> = {
       pending: {
-        className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+        className: "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400",
         icon: Clock,
         label: "Pending Review",
       },
       approved: {
-        className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+        className: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400",
         icon: CheckCircle,
         label: "Approved",
       },
       rejected: {
-        className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+        className: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400",
         icon: XCircle,
         label: "Rejected",
       },
@@ -211,13 +211,13 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
     let className = "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
 
     if (percentage >= 80) {
-      className = "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+      className = "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400";
     } else if (percentage >= 60) {
-      className = "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+      className = "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400";
     } else if (percentage >= 30) {
       className = "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400";
     } else {
-      className = "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+      className = "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400";
     }
 
     return (
@@ -539,7 +539,7 @@ function ProposalCard({
                 <User className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-medium">{customer.name}</span>
                 {customer.contact_exists ? (
-                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 text-xs">
+                  <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400 text-xs">
                     Existing
                   </Badge>
                 ) : (
@@ -607,7 +607,7 @@ function ProposalCard({
               <div className="flex items-center gap-2">
                 <span className="text-sm">{data.referral_contact.name}</span>
                 {data.referral_contact.contact_exists ? (
-                  <Badge className="bg-green-100 text-green-800 text-xs">Existing</Badge>
+                  <Badge className="bg-status-success text-status-success-foreground text-xs">Existing</Badge>
                 ) : (
                   <Badge className="bg-orange-100 text-orange-800 text-xs">Create New</Badge>
                 )}
@@ -629,7 +629,7 @@ function ProposalCard({
                 <div key={idx} className="flex items-center gap-2">
                   <span className="text-sm">{sales.name}</span>
                   {sales.contact_exists ? (
-                    <Badge className="bg-green-100 text-green-800 text-xs">Existing</Badge>
+                    <Badge className="bg-status-success text-status-success-foreground text-xs">Existing</Badge>
                   ) : (
                     <Badge className="bg-orange-100 text-orange-800 text-xs">Create New</Badge>
                   )}

@@ -20,6 +20,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { ScrollablePage } from "@/components/ui/page-wrappers";
 
 interface WHSStats {
   active_swms: number;
@@ -65,15 +66,15 @@ function getStatusBadge(status: string) {
   switch (status?.toLowerCase()) {
     case "active":
     case "approved":
-      return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">Active</Badge>;
     case "pending":
       return <Badge variant="secondary">Pending</Badge>;
     case "expired":
       return <Badge variant="destructive">Expired</Badge>;
     case "investigating":
-      return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Investigating</Badge>;
+      return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-100">Investigating</Badge>;
     case "resolved":
-      return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Resolved</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">Resolved</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -126,7 +127,7 @@ export default function WHSPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <ScrollablePage>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -162,7 +163,7 @@ export default function WHSPage() {
                   <ClipboardCheck className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="font-medium">SWMS Management</h3>
+                  <h3 className="text-sm font-medium">SWMS Management</h3>
                   <p className="text-sm text-muted-foreground">
                     Safe Work Method Statements
                   </p>
@@ -184,7 +185,7 @@ export default function WHSPage() {
                   <Users className="h-6 w-6 text-green-600" />
                 </div>
                 <div>
-                  <h3 className="font-medium">Site Inductions</h3>
+                  <h3 className="text-sm font-medium">Site Inductions</h3>
                   <p className="text-sm text-muted-foreground">
                     Worker induction records
                   </p>
@@ -206,7 +207,7 @@ export default function WHSPage() {
                   <ClipboardCheck className="h-6 w-6 text-orange-600" />
                 </div>
                 <div>
-                  <h3 className="font-medium">Site Inspections</h3>
+                  <h3 className="text-sm font-medium">Site Inspections</h3>
                   <p className="text-sm text-muted-foreground">
                     Safety audits & checklists
                   </p>
@@ -231,7 +232,7 @@ export default function WHSPage() {
                   <AlertTriangle className="h-6 w-6 text-red-600" />
                 </div>
                 <div>
-                  <h3 className="font-medium">Incident Reports</h3>
+                  <h3 className="text-sm font-medium">Incident Reports</h3>
                   <p className="text-sm text-muted-foreground">
                     Track & investigate incidents
                   </p>
@@ -253,7 +254,7 @@ export default function WHSPage() {
                   <HardHat className="h-6 w-6 text-purple-600" />
                 </div>
                 <div>
-                  <h3 className="font-medium">License Tracking</h3>
+                  <h3 className="text-sm font-medium">License Tracking</h3>
                   <p className="text-sm text-muted-foreground">
                     Worker certifications & licenses
                   </p>
@@ -275,7 +276,7 @@ export default function WHSPage() {
                   <Clock className="h-6 w-6 text-yellow-600" />
                 </div>
                 <div>
-                  <h3 className="font-medium">Action Items</h3>
+                  <h3 className="text-sm font-medium">Action Items</h3>
                   <p className="text-sm text-muted-foreground">
                     Outstanding safety actions
                   </p>
@@ -382,6 +383,6 @@ export default function WHSPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </ScrollablePage>
   );
 }

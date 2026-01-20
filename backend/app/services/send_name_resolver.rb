@@ -149,14 +149,14 @@ class SendNameResolver
     context[:document_date] = documentable.try(:created_at) || Time.current
     context[:file_name] = documentable.try(:file_name)
 
-    # Email-specific context (EmailWarehouse, EmailAttachment)
-    if documentable.respond_to?(:email_warehouse) && documentable.email_warehouse
+    # Email-specific context (SyncedEmail, EmailAttachment)
+    if documentable.respond_to?(:synced_email) && documentable.email_warehouse
       email = documentable.email_warehouse
       context[:subject] = email.subject
       context[:from_name] = email.from_name
       context[:from_email] = email.from_email
       context[:received_date] = email.received_at || email.created_at
-    elsif documentable.is_a?(EmailWarehouse) || documentable.class.name == "EmailWarehouse"
+    elsif documentable.is_a?(SyncedEmail) || documentable.class.name == "SyncedEmail"
       context[:subject] = documentable.subject
       context[:from_name] = documentable.from_name
       context[:from_email] = documentable.from_email
@@ -393,7 +393,7 @@ class SendNameResolver
   # Infer source type from documentable class
   def infer_source_type(documentable)
     case documentable.class.name
-    when "EmailAttachment", "EmailWarehouse"
+    when "EmailAttachment", "SyncedEmail"
       "email"
     when "JobDocument"
       "job"

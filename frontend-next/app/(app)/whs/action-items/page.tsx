@@ -47,16 +47,16 @@ interface TransformedActionItem {
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
-  high: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-  low: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  high: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400",
+  medium: "bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400",
+  low: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400",
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  open: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  in_progress: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-  completed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  overdue: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  open: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400",
+  in_progress: "bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400",
+  completed: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400",
+  overdue: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400",
 };
 
 export default function WhsActionItemsPage() {

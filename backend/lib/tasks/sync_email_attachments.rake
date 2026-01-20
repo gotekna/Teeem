@@ -6,7 +6,7 @@ namespace :email do
     email_id = args[:email_id]
     abort "Usage: rails email:sync_attachments[EMAIL_ID]" if email_id.blank?
 
-    email = EmailWarehouse.find(email_id)
+    email = SyncedEmail.find(email_id)
     puts "Email ##{email.id}: #{email.subject}"
     puts "  From: #{email.from_email}"
     puts "  has_attachments: #{email.has_attachments}"
@@ -48,11 +48,11 @@ namespace :email do
       end
 
       # Find existing or create new EmailAttachment
-      ea = EmailAttachment.find_by(email_warehouse_id: email.id, filename: filename)
+      ea = EmailAttachment.find_by(synced_email_id: email.id, filename: filename)
       if ea.nil?
         # Table was created without auto-increment, so manually assign ID
         next_id = (EmailAttachment.maximum(:id) || 0) + 1
-        ea = EmailAttachment.new(id: next_id, email_warehouse_id: email.id, filename: filename)
+        ea = EmailAttachment.new(id: next_id, synced_email_id: email.id, filename: filename)
         ea.save!
       end
 
@@ -72,7 +72,7 @@ namespace :email do
   task :sync_missing_batch, [:limit] => :environment do |_t, args|
     limit = (args[:limit] || 100).to_i
 
-    fixable = EmailWarehouse
+    fixable = SyncedEmail
       .where(has_attachments: true)
       .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
       .left_joins(:email_attachments)
@@ -103,7 +103,7 @@ namespace :email do
     puts "=" * 50
     puts "Batch complete: #{synced} synced, #{failed} failed"
 
-    remaining = EmailWarehouse
+    remaining = SyncedEmail
       .where(has_attachments: true)
       .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
       .left_joins(:email_attachments)
@@ -116,7 +116,7 @@ namespace :email do
   task :sync_missing_jobs, [:limit] => :environment do |_t, args|
     limit = (args[:limit] || 500).to_i
 
-    remaining = EmailWarehouse
+    remaining = SyncedEmail
       .where(has_attachments: true)
       .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
       .left_joins(:email_attachments)
@@ -140,13 +140,13 @@ namespace :email do
 
   desc "Check attachment sync status"
   task sync_status: :environment do
-    total_with_attachments = EmailWarehouse.where(has_attachments: true).count
-    synced = EmailWarehouse
+    total_with_attachments = SyncedEmail.where(has_attachments: true).count
+    synced = SyncedEmail
       .where(has_attachments: true)
       .joins(:email_attachments)
       .distinct
       .count
-    pending = EmailWarehouse
+    pending = SyncedEmail
       .where(has_attachments: true)
       .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
       .left_joins(:email_attachments)
@@ -180,7 +180,7 @@ namespace :email do
 
     loop do
       # Get all fixable email IDs
-      all_ids = EmailWarehouse
+      all_ids = SyncedEmail
         .where(has_attachments: true)
         .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
         .left_joins(:email_attachments)
@@ -202,7 +202,7 @@ namespace :email do
       failed = 0
 
       my_batch.each_with_index do |email_id, idx|
-        email = EmailWarehouse.find_by(id: email_id)
+        email = SyncedEmail.find_by(id: email_id)
         next unless email
 
         print "[#{idx + 1}/#{my_batch.size}] #{email_id}... "
@@ -226,7 +226,7 @@ namespace :email do
   task :link_existing, [:limit] => :environment do |_t, args|
     limit = (args[:limit] || 1000).to_i
 
-    pending = EmailWarehouse
+    pending = SyncedEmail
       .where(has_attachments: true)
       .left_joins(:email_attachments)
       .where(email_attachments: { id: nil })
@@ -252,7 +252,7 @@ namespace :email do
     puts "=" * 50
     puts "Done: #{linked} linked from existing, #{need_download} still need download"
 
-    remaining = EmailWarehouse
+    remaining = SyncedEmail
       .where(has_attachments: true)
       .left_joins(:email_attachments)
       .where(email_attachments: { id: nil })
@@ -264,7 +264,7 @@ namespace :email do
   task :sync_all, [:batch_size] => :environment do |_t, args|
     batch_size = (args[:batch_size] || 500).to_i
 
-    remaining = EmailWarehouse
+    remaining = SyncedEmail
       .where(has_attachments: true)
       .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
       .left_joins(:email_attachments)

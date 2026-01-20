@@ -137,14 +137,14 @@ export default function PeriodLocksTab() {
     switch (lock.status) {
       case "locked":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400">
             <Lock className="h-3 w-3 mr-1" />
             Locked
           </Badge>
         );
       case "soft_locked":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
             <ShieldCheck className="h-3 w-3 mr-1" />
             Soft Lock
           </Badge>

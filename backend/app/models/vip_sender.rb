@@ -68,9 +68,9 @@ class VipSender < ApplicationRecord
   # Get VIP emails for a user
   def self.vip_emails_for(user)
     vip_addresses = for_user(user).pluck(:email_address)
-    return EmailWarehouse.none if vip_addresses.empty?
+    return SyncedEmail.none if vip_addresses.empty?
 
-    EmailWarehouse.where("LOWER(from_email) IN (?)", vip_addresses)
+    SyncedEmail.where("LOWER(from_email) IN (?)", vip_addresses)
   end
 
   # Import VIP senders from contacts
@@ -102,7 +102,7 @@ class VipSender < ApplicationRecord
     # Find most frequent senders that aren't already VIP
     existing_vips = for_user(user).pluck(:email_address)
 
-    EmailWarehouse
+    SyncedEmail
       .where.not(from_email: nil)
       .where.not("LOWER(from_email) IN (?)", existing_vips.presence || [""])
       .group("LOWER(from_email)")
@@ -122,7 +122,7 @@ class VipSender < ApplicationRecord
 
   # Get recent emails from this VIP
   def recent_emails(limit: 10)
-    EmailWarehouse
+    SyncedEmail
       .where("LOWER(from_email) = ?", email_address.downcase)
       .order(received_at: :desc)
       .limit(limit)
@@ -130,7 +130,7 @@ class VipSender < ApplicationRecord
 
   # Get email count from this VIP
   def email_count
-    EmailWarehouse.where("LOWER(from_email) = ?", email_address.downcase).count
+    SyncedEmail.where("LOWER(from_email) = ?", email_address.downcase).count
   end
 
   # Display name (name or email)

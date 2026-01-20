@@ -8,7 +8,7 @@
 # Usage:
 #   rake phase3:migrate:corporate_documents
 #   rake phase3:migrate:email_attachments
-#   rake phase3:migrate:email_warehouses
+#   rake phase3:migrate:synced_emails
 #   rake phase3:migrate:job_documents
 #   rake phase3:migrate:people_documents
 #   rake phase3:migrate:contact_documents
@@ -79,7 +79,7 @@ namespace :phase3 do
       skipped = 0
       errors = []
 
-      EmailAttachment.includes(:storage_blob, :email_warehouse, :warehouse_document)
+      EmailAttachment.includes(:storage_blob, :synced_email, :warehouse_document)
                      .find_each.with_index do |att, index|
         # Skip if already has warehouse_document
         if att.warehouse_document.present?
@@ -126,19 +126,19 @@ namespace :phase3 do
       end
     end
 
-    desc "Migrate EmailWarehouses (email bodies) to warehouse_documents"
-    task email_warehouses: :environment do
+    desc "Migrate SyncedEmails (email bodies) to warehouse_documents"
+    task synced_emails: :environment do
       puts "=" * 60
-      puts "Migrating EmailWarehouses (email bodies) to WarehouseDocuments"
+      puts "Migrating SyncedEmails (email bodies) to WarehouseDocuments"
       puts "=" * 60
 
       # Only migrate emails that have storage (eml file stored)
-      total = EmailWarehouse.where.not(storage_path: [nil, ""]).count
+      total = SyncedEmail.where.not(storage_path: [nil, ""]).count
       migrated = 0
       skipped = 0
       errors = []
 
-      EmailWarehouse.where.not(storage_path: [nil, ""])
+      SyncedEmail.where.not(storage_path: [nil, ""])
                     .includes(:warehouse_document)
                     .find_each.with_index do |email, index|
         # Skip if already has warehouse_document
@@ -363,7 +363,7 @@ namespace :phase3 do
       puts ""
       Rake::Task["phase3:migrate:email_attachments"].invoke
       puts ""
-      Rake::Task["phase3:migrate:email_warehouses"].invoke
+      Rake::Task["phase3:migrate:synced_emails"].invoke
       puts ""
       Rake::Task["phase3:migrate:job_documents"].invoke
       puts ""
@@ -395,10 +395,10 @@ namespace :phase3 do
           migrated: WarehouseDocument.where(documentable_type: "EmailAttachment").count
         },
         {
-          name: "EmailWarehouse",
-          total: EmailWarehouse.count,
-          with_storage: EmailWarehouse.where.not(storage_path: [nil, ""]).count,
-          migrated: WarehouseDocument.where(documentable_type: "EmailWarehouse").count
+          name: "SyncedEmail",
+          total: SyncedEmail.count,
+          with_storage: SyncedEmail.where.not(storage_path: [nil, ""]).count,
+          migrated: WarehouseDocument.where(documentable_type: "SyncedEmail").count
         },
         {
           name: "JobDocument",

@@ -134,9 +134,9 @@ export default function JobCostingTab() {
 
   const getMarginBadge = (margin: number) => {
     if (margin >= 30) {
-      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Excellent</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Excellent</Badge>;
     } else if (margin >= 15) {
-      return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Good</Badge>;
+      return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Good</Badge>;
     } else if (margin >= 0) {
       return <Badge variant="secondary">Low</Badge>;
     } else {
@@ -147,7 +147,7 @@ export default function JobCostingTab() {
   const getVarianceStatus = (status: string) => {
     switch (status) {
       case "under":
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Under Budget</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Under Budget</Badge>;
       case "on_track":
         return <Badge variant="secondary">On Track</Badge>;
       case "over":

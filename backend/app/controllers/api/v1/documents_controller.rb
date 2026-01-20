@@ -25,10 +25,10 @@ module Api
         # Email counts - use warehouse_document counts (source_type: "email" covers both)
         email_total = warehouse_counts["email"] || 0
         # Split between EML files and attachments based on documentable_type
-        email_eml_count = WarehouseDocument.where(source_type: "email", documentable_type: "EmailWarehouse").count
+        email_eml_count = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail").count
         email_attachment_count = WarehouseDocument.where(source_type: "email", documentable_type: "EmailAttachment").count
         # Fallback to legacy counts if no warehouse documents
-        email_eml_count = EmailWarehouse.where.not(sharepoint_email_path: [nil, ""]).count if email_eml_count == 0
+        email_eml_count = SyncedEmail.where.not(sharepoint_email_path: [nil, ""]).count if email_eml_count == 0
         email_attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count if email_attachment_count == 0
 
         # Task attachment counts - documents uploaded against task IDs
@@ -148,7 +148,7 @@ module Api
       #   source_type: Filter by source (corporate, job, email, people, contact)
       #   folder: Filter by virtual folder path
       #   search: Full-text search on display_name
-      #   documentable_type: Filter by underlying model (EmailWarehouse, EmailAttachment, etc.)
+      #   documentable_type: Filter by underlying model (SyncedEmail, EmailAttachment, etc.)
       #   limit: Max results (default: 100)
       #   offset: Pagination offset
       def warehouse
@@ -1414,7 +1414,7 @@ module Api
             documentTypeId: documentable.document_type_id,
             documentTypeName: documentable.document_type&.name
           }
-        when EmailWarehouse
+        when SyncedEmail
           {
             emailSubject: documentable.subject,
             emailFrom: documentable.from_email,

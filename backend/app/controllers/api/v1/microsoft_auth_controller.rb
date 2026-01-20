@@ -225,7 +225,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     email_sync_status = EmailSyncStatus.find_by(user: current_user)
 
     # Count emails synced by this user
-    emails_synced_by_user = EmailWarehouse.where(synced_by_user_id: current_user.id).count
+    emails_synced_by_user = SyncedEmail.where(synced_by_user_id: current_user.id).count
 
     # Get user's email sync stats
     email_stats = {

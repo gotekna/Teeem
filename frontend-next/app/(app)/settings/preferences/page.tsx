@@ -286,7 +286,7 @@ export default function PreferencesPage() {
                     {module.is_required && <Badge variant="secondary">Required</Badge>}
                   </div>
 
-                  <h3 className="font-medium mb-1">{module.title}</h3>
+                  <h3 className="text-sm font-medium mb-1">{module.title}</h3>
                   <p className="text-sm text-muted-foreground mb-4">{module.description}</p>
 
                   <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">

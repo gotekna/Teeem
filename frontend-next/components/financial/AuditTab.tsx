@@ -143,13 +143,13 @@ export default function AuditTab() {
     switch (action) {
       case "create":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             Create
           </Badge>
         );
       case "update":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             Update
           </Badge>
         );
@@ -163,7 +163,7 @@ export default function AuditTab() {
         );
       case "approve":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             Approve
           </Badge>
         );
@@ -178,13 +178,13 @@ export default function AuditTab() {
         return <Badge variant="outline">Daily</Badge>;
       case "monthly":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             Monthly
           </Badge>
         );
       case "eofy":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             EOFY
           </Badge>
         );

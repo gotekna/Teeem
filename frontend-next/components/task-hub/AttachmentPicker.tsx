@@ -131,7 +131,7 @@ function EmailSearchPanel({
       if (jobId) params.append('job_id', jobId);
 
       const response = await api.get<{ emails?: EmailResult[] } | EmailResult[]>(
-        `/api/v1/email_warehouse?${params}`
+        `/api/v1/synced_email?${params}`
       );
       const emailList = Array.isArray(response) ? response : response?.emails || [];
       setEmails(emailList);

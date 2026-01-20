@@ -3,7 +3,8 @@ class ExternalInvoice < ApplicationRecord
 
   belongs_to :contact, optional: true
   belongs_to :job, optional: true
-  belongs_to :warehouse_contact, optional: true
+  # LIM (Jan 2026): xero_contact association removed - ContactExternalLink is THE ONE SSoT
+  # XeroContact table had 0 records, ContactExternalLink has 1,018 records
 
   # Documents attached to this invoice (PDF attachments from Xero, etc.)
   has_many :corporate_company_documents, as: :documentable, dependent: :nullify

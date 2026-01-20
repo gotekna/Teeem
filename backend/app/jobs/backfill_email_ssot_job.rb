@@ -1,4 +1,4 @@
-# Backfill job for existing email_warehouse records
+# Backfill job for existing synced_email records
 # Populates new SSoT fields: direction, ssot_owner_id, body_preview
 class BackfillEmailSsotJob < ApplicationJob
   queue_as :default
@@ -14,7 +14,7 @@ class BackfillEmailSsotJob < ApplicationJob
     Rails.logger.info "[BackfillEmailSsot] Starting backfill..."
 
     # Process in batches to avoid memory issues
-    EmailWarehouse.find_in_batches(batch_size: batch_size) do |batch|
+    SyncedEmail.find_in_batches(batch_size: batch_size) do |batch|
       batch.each do |email|
         result = backfill_email(email, skip_if_populated: skip_if_populated)
         case result

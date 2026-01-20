@@ -202,7 +202,7 @@ export default function BankRulesLearningTab() {
     const pct = Math.round(confidence * 100);
     if (pct >= 90) {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           <Target className="h-3 w-3 mr-1" />
           {pct}%
         </Badge>
@@ -210,7 +210,7 @@ export default function BankRulesLearningTab() {
     }
     if (pct >= 80) {
       return (
-        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
           <TrendingUp className="h-3 w-3 mr-1" />
           {pct}%
         </Badge>
@@ -218,7 +218,7 @@ export default function BankRulesLearningTab() {
     }
     if (pct >= 70) {
       return (
-        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+        <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400">
           <Lightbulb className="h-3 w-3 mr-1" />
           {pct}%
         </Badge>

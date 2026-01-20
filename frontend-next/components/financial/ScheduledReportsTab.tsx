@@ -289,7 +289,7 @@ export default function ScheduledReportsTab() {
                     <TableCell>{formatDateTime(report.next_send_at)}</TableCell>
                     <TableCell className="text-center">
                       {report.active ? (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                           <CheckCircle className="h-3 w-3 mr-1" />
                           Active
                         </Badge>

@@ -106,14 +106,14 @@ class ImapEmailService
   # Different mail servers use different names for sent folder
   SYNC_FOLDERS = ["INBOX", "Sent Items", "Sent", "INBOX.Sent"].freeze
 
-  # Sync emails to EmailWarehouse
+  # Sync emails to SyncedEmail
   # @param full_sync [Boolean] Whether to do a full sync (all emails) or incremental
   # @return [Hash] Sync results
   def sync_to_warehouse(full_sync: false)
     results = { synced: 0, skipped: 0, errors: 0, new_emails: [] }
 
     # SSoT: Set tenant context for multi-tenancy
-    # EmailWarehouse uses acts_as_tenant which requires corporate_group to be set
+    # SyncedEmail uses acts_as_tenant which requires corporate_group to be set
     corporate_group = credential.user&.corporate_group
     unless corporate_group
       Rails.logger.error "[ImapEmailService] Cannot sync: user #{credential.user&.id} has no corporate_group"
@@ -343,7 +343,7 @@ class ImapEmailService
       all_emails.each do |email_data|
         begin
           # Check for existing email by message ID
-          existing = EmailWarehouse.find_by(internet_message_id: email_data[:internet_message_id])
+          existing = SyncedEmail.find_by(internet_message_id: email_data[:internet_message_id])
 
           if existing
             # Update read status from server (in case it changed)
@@ -353,7 +353,7 @@ class ImapEmailService
           end
 
           # Create new email warehouse entry
-          email = EmailWarehouse.create!(
+          email = SyncedEmail.create!(
             internet_message_id: email_data[:internet_message_id],
             source_type: "imap",
             imap_credential: credential,
@@ -595,7 +595,7 @@ class ImapEmailService
   end
 
   def save_sent_email_to_warehouse(mail)
-    EmailWarehouse.create!(
+    SyncedEmail.create!(
       internet_message_id: mail.message_id.gsub(/[<>]/, ""),
       source_type: "imap",
       imap_credential: credential,

@@ -112,7 +112,7 @@ export function EmailDetailDialog({
       setError(null);
       try {
         const response = await api.get<EmailDetailData>(
-          `/api/v1/email_warehouse/${emailId}`,
+          `/api/v1/synced_email/${emailId}`,
           { params: { include_body: true, include_thread: true } }
         );
         setEmail(response);
@@ -152,7 +152,7 @@ export function EmailDetailDialog({
     if (!emailId) return;
     setAssigningJob(true);
     try {
-      await api.post(`/api/v1/email_warehouse/${emailId}/assign_to_job`, {
+      await api.post(`/api/v1/synced_email/${emailId}/assign_to_job`, {
         job_id: jobId,
       });
       // Update local state
@@ -424,7 +424,7 @@ export function EmailDetailDialog({
                 {email.thread && email.thread.length > 1 && (
                   <div className="mt-8 space-y-4">
                     <Separator />
-                    <h3 className="font-medium text-muted-foreground">
+                    <h3 className="text-sm font-medium text-muted-foreground">
                       Conversation ({email.thread.length} messages)
                     </h3>
                     {email.thread

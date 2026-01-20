@@ -9,7 +9,7 @@ class Api::V1::EmailSnoozesController < ApplicationController
     snoozes = current_user.email_snoozes.active.upcoming
 
     # Include email details
-    snoozes = snoozes.includes(:email_warehouse)
+    snoozes = snoozes.includes(:synced_email)
 
     render json: {
       success: true,
@@ -31,7 +31,7 @@ class Api::V1::EmailSnoozesController < ApplicationController
   # POST /api/v1/email_snoozes
   # Snooze an email
   def create
-    email = EmailWarehouse.find(params[:email_id])
+    email = SyncedEmail.find(params[:email_id])
 
     # Determine snooze time
     if params[:preset].present?
@@ -123,7 +123,7 @@ class Api::V1::EmailSnoozesController < ApplicationController
   # GET /api/v1/email_snoozes/for_email/:email_id
   # Check if an email is snoozed for current user
   def for_email
-    email = EmailWarehouse.find(params[:email_id])
+    email = SyncedEmail.find(params[:email_id])
     snooze = EmailSnooze.active_snooze_for(email, current_user)
 
     render json: {
@@ -158,7 +158,7 @@ class Api::V1::EmailSnoozesController < ApplicationController
     errors = []
 
     email_ids.each do |email_id|
-      email = EmailWarehouse.find_by(id: email_id)
+      email = SyncedEmail.find_by(id: email_id)
       next unless email
 
       begin
@@ -196,7 +196,7 @@ class Api::V1::EmailSnoozesController < ApplicationController
     end
 
     if email_ids.any?
-      current_user.email_snoozes.active.where(email_warehouse_id: email_ids).find_each do |snooze|
+      current_user.email_snoozes.active.where(synced_email_id: email_ids).find_each do |snooze|
         snooze.cancel!
         cancelled += 1
       end
@@ -220,13 +220,13 @@ class Api::V1::EmailSnoozesController < ApplicationController
 
     if include_email && snooze.email_warehouse
       json[:email] = {
-        id: snooze.email_warehouse.id,
-        subject: snooze.email_warehouse.subject,
-        from_email: snooze.email_warehouse.from_email,
-        from_name: snooze.email_warehouse.from_name,
-        received_at: snooze.email_warehouse.received_at,
-        has_attachments: snooze.email_warehouse.has_attachments,
-        snippet: snooze.email_warehouse.preview_body(length: 150)
+        id: snooze.synced_email.id,
+        subject: snooze.synced_email.subject,
+        from_email: snooze.synced_email.from_email,
+        from_name: snooze.synced_email.from_name,
+        received_at: snooze.synced_email.received_at,
+        has_attachments: snooze.synced_email.has_attachments,
+        snippet: snooze.synced_email.preview_body(length: 150)
       }
     end
 

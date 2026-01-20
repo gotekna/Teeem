@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { TabbedPage } from "@/components/ui/page-wrappers";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -228,16 +229,10 @@ export default function DesignSystemPage() {
   }, [router]);
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight font-serif">Teeem Design System</h1>
-        <p className="text-muted-foreground mt-2">
-          Component library and design guidelines for the Teeem construction management platform.
-          Built with Next.js 15, React 19, Tailwind CSS, and shadcn/ui.
-        </p>
-      </div>
-
+    <TabbedPage
+      title="Teeem Design System"
+      description="Component library and design guidelines for the Teeem construction management platform. Built with Next.js 15, React 19, Tailwind CSS, and shadcn/ui."
+    >
       <Tabs value={activeTab || "kanban"} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="kanban">Kanban & Pipeline</TabsTrigger>
@@ -312,7 +307,7 @@ export default function DesignSystemPage() {
 
                 {/* Specs */}
                 <div className="space-y-4 flex-1">
-                  <h4 className="font-medium">Column Specifications</h4>
+                  <h4 className="text-sm font-medium">Column Specifications</h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">Column Width</p>
@@ -340,7 +335,7 @@ export default function DesignSystemPage() {
                     </div>
                   </div>
 
-                  <h4 className="font-medium pt-4">Status Colors</h4>
+                  <h4 className="text-sm font-medium pt-4">Status Colors</h4>
                   <div className="space-y-2">
                     {PIPELINE_COLUMNS.map(col => (
                       <div key={col.status} className="flex items-center gap-3">
@@ -508,15 +503,15 @@ export default function DesignSystemPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge className="bg-muted text-foreground">New</Badge>
-                <Badge className="bg-blue-100 text-blue-800">Contacted</Badge>
-                <Badge className="bg-purple-100 text-purple-800">Qualified</Badge>
-                <Badge className="bg-yellow-100 text-yellow-800">Proposal</Badge>
+                <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">Contacted</Badge>
+                <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">Qualified</Badge>
+                <Badge className="bg-status-warning text-status-warning-foreground">Proposal</Badge>
                 <Badge className="bg-orange-100 text-orange-800">Contract Sent</Badge>
-                <Badge className="bg-green-100 text-green-800">
+                <Badge className="bg-status-success text-status-success-foreground">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   Won
                 </Badge>
-                <Badge className="bg-red-100 text-red-800">Lost</Badge>
+                <Badge className="bg-status-error text-status-error-foreground">Lost</Badge>
               </div>
             </CardContent>
           </Card>
@@ -747,6 +742,6 @@ export default function DesignSystemPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </TabbedPage>
   );
 }

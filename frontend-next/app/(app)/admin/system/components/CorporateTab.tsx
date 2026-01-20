@@ -301,7 +301,7 @@ function GroupsSubTab() {
                     <Badge
                       className={cn(
                         group.active !== false
-                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                          ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300"
                           : "bg-muted text-foreground dark:bg-background dark:text-muted-foreground"
                       )}
                     >
@@ -700,12 +700,12 @@ function CompaniesSubTab() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
+        return "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300";
       case "dormant":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300";
+        return "bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-300";
       case "struck_off":
       case "in_liquidation":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
+        return "bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300";
       default:
         return "";
     }

@@ -264,21 +264,21 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
     switch (data.health.status) {
       case "healthy":
         return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+          <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Up to Date
           </Badge>
         );
       case "in_progress":
         return (
-          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-100">
             <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
             Recently Active
           </Badge>
         );
       case "partial":
         return (
-          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+          <Badge className="bg-status-warning text-status-warning-foreground hover:bg-amber-100">
             <Clock className="h-3 w-3 mr-1" />
             Partial
           </Badge>

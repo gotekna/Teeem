@@ -1,8 +1,14 @@
-class WarehouseBankTransaction < ApplicationRecord
+# Renamed from WarehouseBankTransaction (Jan 2026)
+# Part of the "Warehouse" table rename initiative - this is Xero bank feed data,
+# not actually part of the File Warehouse system.
+class XeroBankTransaction < ApplicationRecord
+  # Keep table name explicit during transition (after migration, this can be removed)
+  self.table_name = "xero_bank_transactions"
   include ExternalSyncConstants
 
   belongs_to :contact, optional: true
-  belongs_to :warehouse_contact, optional: true
+  # LIM (Jan 2026): xero_contact association removed - ContactExternalLink is THE ONE SSoT
+  # XeroContact table had 0 records, ContactExternalLink has 1,018 records
 
   # SSoT: ACCOUNTING_SYSTEMS defined in ExternalSyncConstants concern
 

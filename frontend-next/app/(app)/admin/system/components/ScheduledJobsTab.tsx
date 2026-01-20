@@ -269,7 +269,7 @@ export function ScheduledJobsTab() {
                 variant="secondary"
                 className={cn(
                   "text-xs",
-                  job.queue_name === "default" && "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+                  job.queue_name === "default" && "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400",
                   job.queue_name === "low" && "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"
                 )}
               >
@@ -301,7 +301,7 @@ export function ScheduledJobsTab() {
           if (column.key === "status") {
             if (job.status === "ok") {
               return (
-                <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 text-xs">
+                <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400 text-xs">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   OK
                 </Badge>

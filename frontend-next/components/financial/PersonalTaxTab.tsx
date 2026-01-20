@@ -452,11 +452,11 @@ export default function PersonalTaxTab() {
               <CardContent>
                 <div className="space-y-4">
                   <div className="p-4 rounded-lg bg-muted">
-                    <div className="font-medium mb-2">Cents per km method</div>
+                    <div className="text-sm font-medium mb-2">Cents per km method</div>
                     <p className="text-sm text-muted-foreground">85 cents per km, max 5,000km = $4,250</p>
                   </div>
                   <div className="p-4 rounded-lg bg-muted">
-                    <div className="font-medium mb-2">Logbook method</div>
+                    <div className="text-sm font-medium mb-2">Logbook method</div>
                     <p className="text-sm text-muted-foreground">Actual expenses x business use %</p>
                   </div>
                   <Button variant="outline" className="w-full">
@@ -477,11 +477,11 @@ export default function PersonalTaxTab() {
               <CardContent>
                 <div className="space-y-4">
                   <div className="p-4 rounded-lg bg-muted">
-                    <div className="font-medium mb-2">Fixed rate method</div>
+                    <div className="text-sm font-medium mb-2">Fixed rate method</div>
                     <p className="text-sm text-muted-foreground">67 cents per hour worked from home</p>
                   </div>
                   <div className="p-4 rounded-lg bg-muted">
-                    <div className="font-medium mb-2">Actual cost method</div>
+                    <div className="text-sm font-medium mb-2">Actual cost method</div>
                     <p className="text-sm text-muted-foreground">Calculate actual running expenses</p>
                   </div>
                   <Button variant="outline" className="w-full">

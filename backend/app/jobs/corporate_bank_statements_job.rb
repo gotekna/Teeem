@@ -97,7 +97,7 @@ class CorporateBankStatementsJob < ApplicationJob
     account_name = bank_account.account_name || "Unknown"
 
     # Check if transactions exist for this period
-    transaction_count = WarehouseBankTransaction.where(
+    transaction_count = XeroBankTransaction.where(
       bank_account_id: bank_account.xero_account_id,
       transaction_date: month_start..month_end
     ).count
@@ -156,7 +156,7 @@ class CorporateBankStatementsJob < ApplicationJob
 
   def calculate_opening_balance(bank_account_id, month_start)
     # Sum all credits and subtract all debits before the month start
-    transactions = WarehouseBankTransaction.where(
+    transactions = XeroBankTransaction.where(
       bank_account_id: bank_account_id
     ).where("transaction_date < ?", month_start)
 

@@ -338,10 +338,10 @@ export default function ComplianceCalendarPage() {
                             className={cn(
                               "text-xs p-1 rounded cursor-pointer truncate",
                               item.is_overdue
-                                ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                                ? "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-300"
                                 : item.completed
-                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                                : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                                ? "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300"
+                                : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300"
                             )}
                             title={`${item.company_name}: ${item.title}`}
                           >
@@ -459,7 +459,7 @@ export default function ComplianceCalendarPage() {
                 >
                   <div className="flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="font-medium">{data.company_name}</h3>
+                    <h3 className="text-sm font-medium">{data.company_name}</h3>
                     {data.company_code && <span className="text-sm text-muted-foreground">({data.company_code})</span>}
                     {data.company_group && <Badge variant="outline">{data.company_group}</Badge>}
                   </div>

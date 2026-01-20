@@ -351,15 +351,15 @@ export default function ProgressBillingTab() {
   const getStatusBadge = (status: string) => {
     const config: Record<string, { className: string; icon: React.ReactNode }> = {
       draft: { className: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground", icon: <FileText className="h-3 w-3 mr-1" /> },
-      submitted: { className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400", icon: <Send className="h-3 w-3 mr-1" /> },
-      approved: { className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle className="h-3 w-3 mr-1" /> },
-      certified: { className: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400", icon: <CheckSquare className="h-3 w-3 mr-1" /> },
+      submitted: { className: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400", icon: <Send className="h-3 w-3 mr-1" /> },
+      approved: { className: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle className="h-3 w-3 mr-1" /> },
+      certified: { className: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400", icon: <CheckSquare className="h-3 w-3 mr-1" /> },
       invoiced: { className: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400", icon: <Receipt className="h-3 w-3 mr-1" /> },
       paid: { className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400", icon: <DollarSign className="h-3 w-3 mr-1" /> },
-      pending: { className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400", icon: <Clock className="h-3 w-3 mr-1" /> },
-      in_progress: { className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400", icon: <Play className="h-3 w-3 mr-1" /> },
-      completed: { className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle className="h-3 w-3 mr-1" /> },
-      cancelled: { className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", icon: <XCircle className="h-3 w-3 mr-1" /> },
+      pending: { className: "bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400", icon: <Clock className="h-3 w-3 mr-1" /> },
+      in_progress: { className: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400", icon: <Play className="h-3 w-3 mr-1" /> },
+      completed: { className: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400", icon: <CheckCircle className="h-3 w-3 mr-1" /> },
+      cancelled: { className: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400", icon: <XCircle className="h-3 w-3 mr-1" /> },
     };
     const c = config[status] || config.pending;
     return (

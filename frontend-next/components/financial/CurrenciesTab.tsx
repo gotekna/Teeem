@@ -239,7 +239,7 @@ export default function CurrenciesTab() {
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{currency.name}</span>
                         {currency.is_base_currency && (
-                          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
                             <Star className="h-3 w-3 mr-1" />
                             Base
                           </Badge>

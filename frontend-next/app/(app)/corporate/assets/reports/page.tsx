@@ -351,11 +351,11 @@ export default function AssetReportsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Active</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">Active</Badge>;
       case "disposed":
         return <Badge className="bg-muted text-foreground dark:bg-card dark:text-muted-foreground">Disposed</Badge>;
       case "under_repair":
-        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Under Repair</Badge>;
+        return <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-300">Under Repair</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -366,9 +366,9 @@ export default function AssetReportsPage() {
       return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" />Expired</Badge>;
     }
     if (insurance.expiring_soon) {
-      return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"><Clock className="h-3 w-3 mr-1" />Expiring Soon</Badge>;
+      return <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-300"><Clock className="h-3 w-3 mr-1" />Expiring Soon</Badge>;
     }
-    return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"><CheckCircle className="h-3 w-3 mr-1" />Active</Badge>;
+    return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300"><CheckCircle className="h-3 w-3 mr-1" />Active</Badge>;
   };
 
   const handleExportCSV = () => {
@@ -799,8 +799,8 @@ export default function AssetReportsPage() {
                           <div className="text-xs">
                             <p>Book: {asset.book_method?.replace(/_/g, " ")}</p>
                             <p>Tax: {asset.tax_method?.replace(/_/g, " ")}</p>
-                            {asset.is_division_43 && <Badge className="bg-blue-100 text-blue-800 text-xs">Div 43</Badge>}
-                            {asset.in_low_value_pool && <Badge className="bg-purple-100 text-purple-800 text-xs">LVP</Badge>}
+                            {asset.is_division_43 && <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">Div 43</Badge>}
+                            {asset.in_low_value_pool && <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 text-xs">LVP</Badge>}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">{formatCurrencyWhole(asset.depreciable_cost)}</TableCell>

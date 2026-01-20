@@ -594,7 +594,7 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
       {showAttachments && attachments.length > 0 && (
         <div className="border-b bg-muted/30 p-3">
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-medium">Attachments ({attachments.length})</h4>
+            <h4 className="text-sm font-medium text-muted-foreground">Attachments ({attachments.length})</h4>
             <Button
               variant="ghost"
               size="sm"

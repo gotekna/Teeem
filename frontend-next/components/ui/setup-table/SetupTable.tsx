@@ -105,7 +105,7 @@ export function SetupTable<T extends { id: string | number }>({
       <div className="px-4 py-3 border-b flex items-center justify-between">
         <div className="flex items-center gap-2">
           {Icon && <Icon className="h-5 w-5 text-muted-foreground" />}
-          <h3 className="font-semibold">{title}</h3>
+          <h3 className="text-sm font-semibold">{title}</h3>
           <Badge variant="secondary" className="text-xs">
             {items.length}
           </Badge>

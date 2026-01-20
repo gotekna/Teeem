@@ -35,13 +35,13 @@ class EmailBlacklistItem < ApplicationRecord
   def warehouse_match_count
     case pattern_type
     when "from_email"
-      EmailWarehouse.where("LOWER(from_email) LIKE ?", "%#{pattern.downcase}%").count
+      SyncedEmail.where("LOWER(from_email) LIKE ?", "%#{pattern.downcase}%").count
     when "subject"
-      EmailWarehouse.where("LOWER(subject) LIKE ?", "%#{pattern.downcase}%").count
+      SyncedEmail.where("LOWER(subject) LIKE ?", "%#{pattern.downcase}%").count
     when "domain"
-      EmailWarehouse.where("LOWER(from_email) LIKE ?", "%@#{pattern.downcase}").count
+      SyncedEmail.where("LOWER(from_email) LIKE ?", "%@#{pattern.downcase}").count
     when "sender_name"
-      EmailWarehouse.where("LOWER(from_name) LIKE ?", "%#{pattern.downcase}%").count
+      SyncedEmail.where("LOWER(from_name) LIKE ?", "%#{pattern.downcase}%").count
     else
       0
     end

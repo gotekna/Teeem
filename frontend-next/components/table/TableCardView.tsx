@@ -214,13 +214,13 @@ function TableCard({
     if (!statusValue || typeof statusValue !== "string") return null;
     const status = statusValue.toLowerCase();
     if (status.includes("complet") || status.includes("done") || status.includes("active")) {
-      return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+      return "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-200";
     }
     if (status.includes("pending") || status.includes("wait") || status.includes("progress")) {
-      return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
+      return "bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-200";
     }
     if (status.includes("cancel") || status.includes("fail") || status.includes("error")) {
-      return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+      return "bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-200";
     }
     return "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200";
   }, [statusValue]);

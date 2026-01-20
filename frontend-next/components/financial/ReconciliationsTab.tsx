@@ -134,14 +134,14 @@ export default function ReconciliationsTab() {
   const getStatusBadge = (recon: Reconciliation) => {
     if (recon.reconciled && recon.status === "completed") {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           <Lock className="h-3 w-3 mr-1" />
           Completed
         </Badge>
       );
     } else if (recon.difference === 0) {
       return (
-        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
           <CheckCircle className="h-3 w-3 mr-1" />
           Balanced
         </Badge>
@@ -383,7 +383,7 @@ export default function ReconciliationsTab() {
                     <TableCell className="text-right">{rule.times_used}</TableCell>
                     <TableCell className="text-center">
                       {rule.active ? (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</Badge>
+                        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Active</Badge>
                       ) : (
                         <Badge variant="secondary">Inactive</Badge>
                       )}

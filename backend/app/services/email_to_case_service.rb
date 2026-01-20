@@ -10,7 +10,7 @@ class EmailToCaseService
   class AIExtractionError < StandardError; end
   class CaseCreationError < StandardError; end
 
-  def initialize(email_warehouse, user:)
+  def initialize(synced_email, user:)
     @email = email_warehouse
     @user = user
   end
@@ -37,7 +37,7 @@ class EmailToCaseService
 
     # Create proposal record
     proposal = EmailCaseProposal.create!(
-      email_warehouse: @email,
+      synced_email: @email,
       created_by: @user,
       extracted_data: extracted_data,
       ai_prompt: prompt,
@@ -60,7 +60,7 @@ class EmailToCaseService
 
     # Create error proposal
     EmailCaseProposal.create!(
-      email_warehouse: @email,
+      synced_email: @email,
       created_by: @user,
       extracted_data: { error: e.message },
       status: "error",
@@ -92,7 +92,7 @@ class EmailToCaseService
       investigation_start_date: parse_date(case_data.dig("key_dates", 0, "date")),
       metadata: {
         source: "email_proposal",
-        email_warehouse_id: @email.id,
+        synced_email_id: @email.id,
         proposal_id: proposal.id
       }
     )
@@ -140,7 +140,7 @@ class EmailToCaseService
   def build_email_thread_context
     # Get all emails in the same conversation thread
     thread_emails = if @email.conversation_id.present?
-      EmailWarehouse
+      SyncedEmail
         .where(conversation_id: @email.conversation_id)
         .order(received_at: :asc)
     else
@@ -613,7 +613,7 @@ class EmailToCaseService
   def link_email_thread(case_record)
     return unless @email.conversation_id.present?
 
-    thread_emails = EmailWarehouse
+    thread_emails = SyncedEmail
       .where(conversation_id: @email.conversation_id)
       .where.not(id: @email.id)
 

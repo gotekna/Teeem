@@ -15,7 +15,7 @@ class SyncEmailAttachmentsJob < ApplicationJob
   retry_on Faraday::TooManyRequestsError, wait: :exponentially_longer, attempts: 5
 
   def perform(email_id)
-    email = EmailWarehouse.find_by(id: email_id)
+    email = SyncedEmail.find_by(id: email_id)
 
     unless email
       Rails.logger.warn "[SyncEmailAttachments] Email #{email_id} not found"

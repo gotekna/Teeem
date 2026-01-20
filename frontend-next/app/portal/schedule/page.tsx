@@ -118,7 +118,7 @@ const TaskCard = ({
     >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-foreground dark:text-white truncate">{task.name}</h3>
+          <h3 className="text-sm font-medium text-foreground dark:text-white truncate">{task.name}</h3>
           <p className="text-sm text-muted-foreground dark:text-muted-foreground mt-1">{task.trade}</p>
         </div>
         <StatusBadge status={task.status} />

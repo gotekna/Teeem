@@ -860,7 +860,7 @@ export function EmailToContactsModal({
 
               {results.errors.length > 0 && (
                 <div className="mt-4">
-                  <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 text-orange-600" />
                     Errors ({results.errors.length})
                   </h4>

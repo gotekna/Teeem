@@ -136,7 +136,7 @@ export function DayView() {
                       {event.is_overdue && (
                         <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
                       )}
-                      <h3 className="font-medium truncate">{event.name}</h3>
+                      <h3 className="text-sm font-medium truncate">{event.name}</h3>
                     </div>
 
                     {/* Job info */}

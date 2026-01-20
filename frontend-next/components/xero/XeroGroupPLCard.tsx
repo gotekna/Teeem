@@ -138,7 +138,7 @@ export function XeroGroupPLCard({ companyId }: XeroGroupPLCardProps) {
         {!loading && rows.length === 0 && !error && (
           <div className="text-center py-12 text-muted-foreground">
             <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p className="font-medium mb-2">Select a date range and click Load</p>
+            <p className="text-sm font-medium mb-2">Select a date range and click Load</p>
             <p className="text-sm">The report will show P&L data from all group companies side-by-side.</p>
           </div>
         )}

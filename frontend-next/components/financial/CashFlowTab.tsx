@@ -465,7 +465,7 @@ export default function CashFlowTab() {
                   <div className="grid grid-cols-2 gap-6">
                     {/* Receivables */}
                     <div>
-                      <h3 className="font-semibold mb-4 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                         <TrendingUp className="h-4 w-4 text-green-600" />
                         Receivables (AR)
                       </h3>
@@ -499,7 +499,7 @@ export default function CashFlowTab() {
 
                     {/* Payables */}
                     <div>
-                      <h3 className="font-semibold mb-4 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                         <TrendingDown className="h-4 w-4 text-red-600" />
                         Payables (AP)
                       </h3>

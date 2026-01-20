@@ -138,13 +138,13 @@ const getRoleConfig = (roleKey: string) => {
 const getRoleBadgeClasses = (color: string) => {
   const colorMap: Record<string, string> = {
     indigo: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400",
-    blue: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+    blue: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400",
     cyan: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400",
     slate: "bg-muted text-foreground dark:bg-slate-900/30 dark:text-muted-foreground",
     orange: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
-    amber: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-    green: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-    purple: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
+    amber: "bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400",
+    green: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400",
+    purple: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400",
     pink: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400",
     teal: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400",
     gray: "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground",

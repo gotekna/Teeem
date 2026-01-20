@@ -79,16 +79,16 @@ class EmailSnooze < ApplicationRecord
   # Class methods
 
   # Snooze an email for a user
-  # @param email [EmailWarehouse] The email to snooze
+  # @param email [SyncedEmail] The email to snooze
   # @param user [User] The user snoozing the email
   # @param until_time [DateTime] When to bring it back
   # @param reason [String] Optional reason/note
   def self.snooze!(email, user:, until_time:, reason: nil)
     # Cancel any existing active snooze for this email/user
-    active.where(email_warehouse: email, user: user).update_all(is_active: false)
+    active.where(synced_email: email, user: user).update_all(is_active: false)
 
     create!(
-      email_warehouse: email,
+      synced_email: email,
       user: user,
       snooze_until: until_time,
       reason: reason
@@ -119,7 +119,7 @@ class EmailSnooze < ApplicationRecord
 
   # Get all snoozed emails for a user
   def self.snoozed_emails_for(user)
-    EmailWarehouse
+    SyncedEmail
       .joins(:email_snoozes)
       .where(email_snoozes: { user: user, is_active: true })
       .order("email_snoozes.snooze_until ASC")
@@ -127,12 +127,12 @@ class EmailSnooze < ApplicationRecord
 
   # Check if an email is snoozed for a user
   def self.snoozed?(email, user)
-    active.exists?(email_warehouse: email, user: user)
+    active.exists?(synced_email: email, user: user)
   end
 
   # Get the active snooze for an email/user if any
   def self.active_snooze_for(email, user)
-    active.find_by(email_warehouse: email, user: user)
+    active.find_by(synced_email: email, user: user)
   end
 
   # Get preset options with calculated times
@@ -161,13 +161,13 @@ class EmailSnooze < ApplicationRecord
     )
 
     # Create in-app notification for wakeup
-    if email_warehouse.present?
+    if synced_email.present?
       Notification.create!(
         user: user,
-        notifiable: email_warehouse,
+        notifiable: synced_email,
         notification_type: "email_snooze_wakeup",
         title: "Snoozed Email",
-        message: "Back from snooze: #{email_warehouse.subject.to_s.truncate(100)}"
+        message: "Back from snooze: #{synced_email.subject.to_s.truncate(100)}"
       )
     end
 
@@ -212,7 +212,7 @@ class EmailSnooze < ApplicationRecord
   def as_json(options = {})
     {
       id: id,
-      email_id: email_warehouse_id,
+      email_id: synced_email_id,
       user_id: user_id,
       snooze_until: snooze_until,
       is_active: is_active,

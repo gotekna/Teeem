@@ -25,10 +25,19 @@ class SmTaskCompletionService
 
   # Complete a task with optional pass/fail for inspections
   # also_complete_task_ids: array of task IDs to cascade complete with this task
-  # Returns { success: bool, task: SmTask, spawned_tasks: [], cascade_completed_tasks: [], errors: [] }
+  # Returns { success: bool, task: SmTask, spawned_tasks: [], cascade_completed_tasks: [], errors: [], already_completed: bool }
+  #
+  # IDEMPOTENT: If task is already completed, returns success (not error).
+  # This handles double-clicks, multi-tab usage, network retries gracefully.
   def complete(passed: nil, also_complete_task_ids: [])
+    # Idempotent: already completed = success (no work to do)
+    if task.status_completed?
+      Rails.logger.info("[SmTaskCompletionService] Task #{task.id} already completed - returning idempotent success")
+      return idempotent_success_result
+    end
+
     ActiveRecord::Base.transaction do
-      # Validate task can be completed
+      # Validate task can be completed (hold status, required docs, etc.)
       unless can_complete?
         return failure_result
       end
@@ -80,11 +89,7 @@ class SmTaskCompletionService
   private
 
   def can_complete?
-    if task.status_completed?
-      @errors << "Task is already completed"
-      return false
-    end
-
+    # Note: already-completed check is handled earlier for idempotency
     if task.is_hold_task? && task.hold_active?
       @errors << "Cannot complete a hold task while hold is active"
       return false
@@ -471,7 +476,20 @@ class SmTaskCompletionService
       task: task.reload,
       spawned_tasks: @spawned_tasks,
       cascade_completed_tasks: @cascade_completed_tasks,
-      errors: []
+      errors: [],
+      already_completed: false
+    }
+  end
+
+  # Idempotent success - task was already completed, no work done
+  def idempotent_success_result
+    {
+      success: true,
+      task: task,
+      spawned_tasks: [],
+      cascade_completed_tasks: [],
+      errors: [],
+      already_completed: true
     }
   end
 

@@ -598,7 +598,7 @@ function SortableQuestionItem({
                 </div>
               );
             }
-            // Handle email attachments (EmailWarehouse)
+            // Handle email attachments (SyncedEmail)
             if (att.email) {
               const subject = att.email.subject || '(No subject)';
               return (
@@ -1753,7 +1753,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           {
             attachment_type: attachment.type,
             attachable_id: attachment.id,
-            attachable_type: attachment.type === 'email' ? 'EmailWarehouse' : 'CorporateCompanyDocument',
+            attachable_type: attachment.type === 'email' ? 'SyncedEmail' : 'CorporateCompanyDocument',
           }
         );
         if (response?.success && response.attachment) {
@@ -2651,7 +2651,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setPrepareEmailStatus(`Downloading email "${subject}"... (${processed + 1}/${totalToProcess})`);
         try {
           const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
-            `/api/v1/email_warehouse/${att.email?.id}/download_eml`
+            `/api/v1/synced_email/${att.email?.id}/download_eml`
           );
           if (response?.success) {
             const byteCharacters = atob(response.content);
@@ -4010,7 +4010,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   </PopoverTrigger>
                   <PopoverContent className="w-80 p-3" align="end">
                     <div className="space-y-3">
-                      <h4 className="text-sm font-medium">Link emails from:</h4>
+                      <h4 className="text-sm font-medium text-muted-foreground">Link emails from:</h4>
 
                       {/* Client Quick-Add Section */}
                       {(() => {
@@ -4989,8 +4989,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             {/* Response Files Section */}
             <div className="border-t pt-3">
               <div className="flex items-center gap-2 mb-2">
-                <Send className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Response Files</span>
+                <Send className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Response Files</span>
                 <Badge variant="secondary" className="text-xs">{responseAttachments.length}</Badge>
               </div>
 

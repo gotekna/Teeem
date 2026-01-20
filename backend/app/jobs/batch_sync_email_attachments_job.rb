@@ -20,7 +20,7 @@ class BatchSyncEmailAttachmentsJob < ApplicationJob
     # - have attachments
     # - have required Microsoft Graph info (outlook_id, mailbox, credential)
     # - don't have any email_attachments yet
-    emails_to_sync = EmailWarehouse
+    emails_to_sync = SyncedEmail
       .where(has_attachments: true)
       .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
       .left_joins(:email_attachments)
@@ -38,7 +38,7 @@ class BatchSyncEmailAttachmentsJob < ApplicationJob
     end
 
     # Log remaining count
-    remaining = EmailWarehouse
+    remaining = SyncedEmail
       .where(has_attachments: true)
       .where.not(outlook_id: nil, mailbox_owner_email: nil, microsoft_credential_id: nil)
       .left_joins(:email_attachments)

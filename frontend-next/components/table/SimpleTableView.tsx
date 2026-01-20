@@ -369,7 +369,7 @@ export function SimpleTableView<T extends Record<string, unknown>>({
             {leftActions}
             {tableName && (
               <>
-                <h3 className="font-semibold">{tableName}</h3>
+                <h3 className="text-sm font-semibold">{tableName}</h3>
                 <span className="text-sm text-muted-foreground">
                   {sortedEntries.length} records
                 </span>

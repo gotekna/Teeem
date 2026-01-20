@@ -537,7 +537,7 @@ export default function CompanyInfoTab() {
         <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold">Trading Names</h3>
+              <h3 className="text-sm font-semibold">Trading Names</h3>
               <p className="text-xs text-muted-foreground">
                 Different company names used on invoices and documents
               </p>
@@ -741,7 +741,7 @@ export default function CompanyInfoTab() {
         {/* Bank Details Section */}
         <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
           <div>
-            <h3 className="font-semibold mb-1">Bank Details</h3>
+            <h3 className="text-sm font-semibold mb-1">Bank Details</h3>
             <p className="text-xs text-muted-foreground">
               Used on invoices and payment requests
             </p>
@@ -793,7 +793,7 @@ export default function CompanyInfoTab() {
 
       {/* Template Tags Reference */}
       <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
-        <h3 className="font-semibold mb-3">Document Template Tags</h3>
+        <h3 className="text-sm font-semibold mb-3">Document Template Tags</h3>
         <p className="text-sm text-muted-foreground mb-4">
           Use these tags in your document templates. They will be replaced with
           the values above.

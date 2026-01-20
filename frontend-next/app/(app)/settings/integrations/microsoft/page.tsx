@@ -215,7 +215,7 @@ function SharePointDelegatedConnection() {
             </div>
           </div>
           <Badge className={status?.connected && isDelegated
-            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+            ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300"
             : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"}>
             {status?.connected && isDelegated ? (
               <>
@@ -464,7 +464,7 @@ export default function MicrosoftIntegrationPage() {
                 </CardDescription>
               </div>
             </div>
-            <Badge className={connectedCount > 0 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"}>
+            <Badge className={connectedCount > 0 ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300" : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"}>
               {connectedCount}/{AVAILABLE_ORGANIZATIONS.length} Connected
             </Badge>
           </div>
@@ -620,7 +620,7 @@ export default function MicrosoftIntegrationPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {isThisOneConnecting ? (
-                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                      <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300">
                         <Spinner size={12} className="mr-1" />
                         Connecting...
                       </Badge>
@@ -831,7 +831,7 @@ function OrganizationCard({
                     const hoursUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60);
                     if (hoursUntilExpiry < 1 && hoursUntilExpiry > 0) {
                       return (
-                        <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 text-xs">
+                        <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300 text-xs">
                           Expires in {Math.round(hoursUntilExpiry * 60)}m
                         </Badge>
                       );
@@ -850,7 +850,7 @@ function OrganizationCard({
                     const minutesSinceRefresh = (now.getTime() - lastRefresh.getTime()) / (1000 * 60);
                     if (minutesSinceRefresh < 5) {
                       return (
-                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 text-xs">
+                        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300 text-xs">
                           <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                           Self-healing
                         </Badge>
@@ -860,12 +860,12 @@ function OrganizationCard({
                   })()}
                   {/* Status badge */}
                   {org.status === "connected" ? (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-300">
+                    <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100 dark:bg-green-900 dark:text-green-300">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       Active
                     </Badge>
                   ) : org.status === "pending" ? (
-                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300">
+                    <Badge className="bg-status-warning text-status-warning-foreground hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Pending Consent
                     </Badge>

@@ -7,7 +7,7 @@ class EmailRuleService
 
   # Apply rules to a single email (called during sync)
   # SSoT: Works for both IMAP and MS365 emails - uses for_email scope
-  # @param email [EmailWarehouse] The email to apply rules to
+  # @param email [SyncedEmail] The email to apply rules to
   # @return [Boolean] Whether any rule matched
   def apply_rules(email)
     # SSoT: for_email scope handles both IMAP and MS365 credentials
@@ -32,7 +32,7 @@ class EmailRuleService
   def apply_rules_to_existing(credential_id: nil, microsoft_credential_id: nil, rule_id: nil)
     results = { matched: 0, processed: 0, errors: 0 }
 
-    emails = user.email_warehouses
+    emails = user.synced_emails
     emails = emails.where(imap_credential_id: credential_id) if credential_id
     emails = emails.where(microsoft_credential_id: microsoft_credential_id) if microsoft_credential_id
 
@@ -75,7 +75,7 @@ class EmailRuleService
   def test_rule(rule_params, limit: 100)
     rule = EmailRule.new(rule_params.merge(user: user))
 
-    emails = user.email_warehouses.limit(limit)
+    emails = user.synced_emails.limit(limit)
     matches = emails.select { |e| rule.matches?(e) }
 
     {

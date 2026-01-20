@@ -173,7 +173,7 @@ export default function ScheduleImporter({ constructionId, onImportSuccess, comp
       )}
 
       <div className="mt-8 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-6">
-        <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-2">What happens next?</h3>
+        <h3 className="text-sm font-medium text-indigo-900 dark:text-indigo-300 mb-2">What happens next?</h3>
         <ul className="text-sm text-indigo-800 dark:text-indigo-400 space-y-2">
           <li className="flex items-start">
             <span className="mr-2">1.</span>

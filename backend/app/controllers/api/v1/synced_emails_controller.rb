@@ -1,11 +1,12 @@
-class Api::V1::EmailWarehouseController < ApplicationController
+# Renamed from EmailWarehouseController (Jan 2026)
+class Api::V1::SyncedEmailsController < ApplicationController
   before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :download_attachment, :download_eml ]
   before_action :require_admin, only: [ :bulk_delete_spam ]
 
-  # GET /api/v1/email_warehouse
-  # List emails from warehouse with filtering
+  # GET /api/v1/synced_emails
+  # List synced emails with filtering
   def index
-    emails = EmailWarehouse.all
+    emails = SyncedEmail.all
 
     # Filter to only current user's emails (my_emails mode)
     # Skip this filter if microsoft_credential_id is provided (we'll filter by that instead)
@@ -131,14 +132,14 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = emails.in_folder(params[:folder_id])
     end
     if params[:folder_name].present?
-      Rails.logger.info "[EmailWarehouse] Filtering by folder_name: #{params[:folder_name].inspect}"
+      Rails.logger.info "[SyncedEmail] Filtering by folder_name: #{params[:folder_name].inspect}"
       emails = emails.in_folder(params[:folder_name])
-      Rails.logger.info "[EmailWarehouse] After folder filter, count: #{emails.count}"
+      Rails.logger.info "[SyncedEmail] After folder filter, count: #{emails.count}"
     end
 
     # Filter by direction (sent, received, cc, bcc)
     # Note: direction column may not exist yet (pending migration)
-    if params[:direction].present? && EmailWarehouse.column_names.include?("direction")
+    if params[:direction].present? && SyncedEmail.column_names.include?("direction")
       emails = emails.where(direction: params[:direction])
     end
 
@@ -163,7 +164,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
         if current_user.email.present?
           # Check if user's email exists in this tenant's synced emails (case-insensitive)
           # (Cheaper than calling list_tenant_users which is an API call)
-          user_email_exists = EmailWarehouse.where(microsoft_credential_id: org_cred.id)
+          user_email_exists = SyncedEmail.where(microsoft_credential_id: org_cred.id)
             .where("LOWER(mailbox_owner_email) = LOWER(?)", current_user.email)
             .exists?
           auto_mailboxes = [current_user.email.downcase] if user_email_exists
@@ -172,7 +173,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
         # Combine configured + auto-included mailboxes (case-insensitive dedup)
         user_mailboxes = (auto_mailboxes + configured_mailboxes).map(&:downcase).uniq
 
-        Rails.logger.info "[EmailWarehouse] MS365 filter: credential=#{org_cred.id}, user_mailboxes=#{user_mailboxes.inspect}"
+        Rails.logger.info "[SyncedEmail] MS365 filter: credential=#{org_cred.id}, user_mailboxes=#{user_mailboxes.inspect}"
 
         if user_mailboxes.any?
           emails = emails.where(microsoft_credential_id: params[:microsoft_credential_id])
@@ -184,7 +185,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
           end
         else
           # User has no access to this credential's mailboxes
-          Rails.logger.warn "[EmailWarehouse] User #{current_user.id} has no access to MS365 credential #{org_cred.id}"
+          Rails.logger.warn "[SyncedEmail] User #{current_user.id} has no access to MS365 credential #{org_cred.id}"
           emails = emails.none
         end
       else
@@ -211,7 +212,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
     all_email_ids = emails.map(&:id)
-    user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
+    user_states_cache = EmailUserState.where(synced_email_id: all_email_ids, user_id: current_user.id).index_by(&:synced_email_id)
 
     render json: {
       emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) },
@@ -224,12 +225,12 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # GET /api/v1/email_warehouse/:id
+  # GET /api/v1/synced_email/:id
   # Performance: Batch load all related data for email + thread to avoid N+1
   def show
     # Get conversation thread with eager loading (1 query)
     thread_emails = if @email.conversation_id.present?
-      EmailWarehouse.where(conversation_id: @email.conversation_id)
+      SyncedEmail.where(conversation_id: @email.conversation_id)
                     .includes(:job)
                     .order(received_at: :asc)
                     .to_a
@@ -239,8 +240,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     # Batch load all user states for thread (1 query)
     email_ids = thread_emails.map(&:id)
-    user_states_cache = EmailUserState.where(email_warehouse_id: email_ids, user_id: current_user.id)
-                                      .index_by(&:email_warehouse_id)
+    user_states_cache = EmailUserState.where(synced_email_id: email_ids, user_id: current_user.id)
+                                      .index_by(&:synced_email_id)
 
     # Batch load all contacts for thread (1 query)
     all_contact_ids = thread_emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
@@ -256,13 +257,13 @@ class Api::V1::EmailWarehouseController < ApplicationController
     )
   end
 
-  # GET /api/v1/email_warehouse/for_job/:job_id
+  # GET /api/v1/synced_email/for_job/:job_id
   # Get emails for a specific job with conversation threading
   def for_job
     job = Job.find(params[:job_id])
 
     # Get emails assigned to this job
-    emails = EmailWarehouse.for_job(job.id)
+    emails = SyncedEmail.for_job(job.id)
 
     # Show only latest in thread by default
     if params[:show_all_in_thread] != "true"
@@ -276,7 +277,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     # Performance: Batch thread count queries (N+1 → 1 query)
     conversation_ids = emails.map(&:conversation_id).compact.uniq
-    thread_counts_cache = EmailWarehouse.where(conversation_id: conversation_ids)
+    thread_counts_cache = SyncedEmail.where(conversation_id: conversation_ids)
                                         .group(:conversation_id)
                                         .count
 
@@ -294,10 +295,10 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # GET /api/v1/email_warehouse/unassigned
+  # GET /api/v1/synced_email/unassigned
   # Get unassigned emails for review
   def unassigned
-    emails = EmailWarehouse.unassigned.latest_in_thread.recent_first
+    emails = SyncedEmail.unassigned.latest_in_thread.recent_first
 
     # Optional search
     if params[:search].present?
@@ -325,7 +326,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # POST /api/v1/email_warehouse/:id/assign_to_job
+  # POST /api/v1/synced_email/:id/assign_to_job
   def assign_to_job
     job = Job.find(params[:job_id])
 
@@ -345,7 +346,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # POST /api/v1/email_warehouse/:id/unassign
+  # POST /api/v1/synced_email/:id/unassign
   def unassign
     @email.update!(job_id: nil, match_type: nil, match_confidence: nil, matched_at: nil)
 
@@ -356,7 +357,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # POST /api/v1/email_warehouse/:id/dismiss_suggestion
+  # POST /api/v1/synced_email/:id/dismiss_suggestion
   # Dismiss this email from showing as a suggestion for a specific job
   def dismiss_suggestion
     job_id = params[:job_id].to_i
@@ -374,7 +375,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # GET /api/v1/email_warehouse/sync_status
+  # GET /api/v1/synced_email/sync_status
   # Get sync status - org-wide sync runs automatically every 15 minutes
   def sync_status
     # SSoT: Use MicrosoftCredential
@@ -388,7 +389,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # POST /api/v1/email_warehouse/sync
+  # POST /api/v1/synced_email/sync
   # Trigger manual email sync from Office 365
   def sync
     # Trigger org-wide email sync in background
@@ -400,13 +401,13 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # GET /api/v1/email_warehouse/search
+  # GET /api/v1/synced_email/search
   # Search warehouse emails
   def search
     return render json: { error: "Search query required" }, status: :bad_request if params[:q].blank?
 
     # Performance: Eager load and batch contacts
-    emails = EmailWarehouse.search_text(params[:q]).includes(:job).latest_in_thread.recent_first.limit(100)
+    emails = SyncedEmail.search_text(params[:q]).includes(:job).latest_in_thread.recent_first.limit(100)
     all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
 
@@ -417,28 +418,28 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # GET /api/v1/email_warehouse/stats
+  # GET /api/v1/synced_email/stats
   # Get warehouse statistics
   def stats
     render json: {
-      total_emails: EmailWarehouse.count,
-      assigned_emails: EmailWarehouse.assigned.count,
-      unassigned_emails: EmailWarehouse.unassigned.count,
-      conversations: EmailWarehouse.distinct.count(:conversation_id),
-      oldest_email: EmailWarehouse.minimum(:received_at),
-      newest_email: EmailWarehouse.maximum(:received_at),
-      jobs_with_emails: EmailWarehouse.assigned.distinct.count(:job_id),
-      spam_emails: EmailWarehouse.spam.count,
-      with_ai_summary: EmailWarehouse.with_ai_summary.count
+      total_emails: SyncedEmail.count,
+      assigned_emails: SyncedEmail.assigned.count,
+      unassigned_emails: SyncedEmail.unassigned.count,
+      conversations: SyncedEmail.distinct.count(:conversation_id),
+      oldest_email: SyncedEmail.minimum(:received_at),
+      newest_email: SyncedEmail.maximum(:received_at),
+      jobs_with_emails: SyncedEmail.assigned.distinct.count(:job_id),
+      spam_emails: SyncedEmail.spam.count,
+      with_ai_summary: SyncedEmail.with_ai_summary.count
     }
   end
 
-  # GET /api/v1/email_warehouse/unread_counts
+  # GET /api/v1/synced_email/unread_counts
   # Get unread email counts for the sidebar badge
   def unread_counts
     begin
       # Get emails user has access to (same logic as index my_emails)
-      emails = EmailWarehouse.all
+      emails = SyncedEmail.all
       # SSoT: Use accessible_by scope which includes owned AND shared credentials
       user_imap_credentials = ImapCredential.accessible_by(current_user)
       user_imap_ids = user_imap_credentials.pluck(:id)
@@ -503,15 +504,15 @@ class Api::V1::EmailWarehouseController < ApplicationController
       }
     rescue StandardError => e
       # Graceful fallback - sidebar badge should not crash the page
-      Rails.logger.error "[EmailWarehouse#unread_counts] Error: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+      Rails.logger.error "[SyncedEmail#unread_counts] Error: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
       render json: { total: 0, by_account: [] }
     end
   end
 
-  # GET /api/v1/email_warehouse/spam
+  # GET /api/v1/synced_email/spam
   # List all spam emails
   def spam
-    emails = EmailWarehouse.spam.recent_first
+    emails = SyncedEmail.spam.recent_first
 
     # Pagination
     page = (params[:page] || 1).to_i
@@ -534,7 +535,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # POST /api/v1/email_warehouse/:id/mark_as_spam
+  # POST /api/v1/synced_email/:id/mark_as_spam
   # Mark a single email as spam
   def mark_as_spam
     delete_from_outlook = params[:delete_from_outlook] == "true"
@@ -560,7 +561,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # DELETE /api/v1/email_warehouse/:id/delete_from_outlook
+  # DELETE /api/v1/synced_email/:id/delete_from_outlook
   # Delete a single email from Outlook (without marking as spam)
   # SSoT: Uses org credentials (per-user Outlook removed)
   def delete_from_outlook
@@ -593,7 +594,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
   end
 
-  # POST /api/v1/email_warehouse/:id/move_to_folder
+  # POST /api/v1/synced_email/:id/move_to_folder
   # Move email to a different folder (Outlook/MS365)
   # SSoT: Uses org credentials (per-user Outlook removed)
   def move_to_folder
@@ -630,7 +631,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
   end
 
-  # POST /api/v1/email_warehouse/:id/summarize
+  # POST /api/v1/synced_email/:id/summarize
   # Generate AI summary for an email
   def summarize
     # Return existing summary if available and not forcing refresh
@@ -675,7 +676,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
   end
 
-  # POST /api/v1/email_warehouse/:id/link_contact
+  # POST /api/v1/synced_email/:id/link_contact
   # Link a contact to an email
   def link_contact
     contact = Contact.find(params[:contact_id])
@@ -704,7 +705,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     render json: { success: false, error: "Contact not found" }, status: :not_found
   end
 
-  # POST /api/v1/email_warehouse/:id/unlink_contact
+  # POST /api/v1/synced_email/:id/unlink_contact
   # Unlink a contact from an email
   def unlink_contact
     contact_id = params[:contact_id].to_i
@@ -727,7 +728,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # POST /api/v1/email_warehouse/:id/quick_create_contact
+  # POST /api/v1/synced_email/:id/quick_create_contact
   # Creates a contact from the email sender and links it to the email
   # Reuses EmailToContactExtractionService for company suggestion and creation
   def quick_create_contact
@@ -810,10 +811,10 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }, status: :internal_server_error
   end
 
-  # GET /api/v1/email_warehouse/:id/suggest_contacts
+  # GET /api/v1/synced_email/:id/suggest_contacts
   # Get contact suggestions for linking based on email addresses
   def suggest_contacts
-    email = EmailWarehouse.find(params[:id])
+    email = SyncedEmail.find(params[:id])
 
     # Extract all email addresses from the email
     email_addresses = [ email.from_email ]
@@ -847,7 +848,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     }
   end
 
-  # GET /api/v1/email_warehouse/:id/attachments/:attachment_id/download
+  # GET /api/v1/synced_email/:id/attachments/:attachment_id/download
   # Download an attachment - tries local storage first (SSoT), then SharePoint, then Outlook
   # attachment_id can be either local EmailAttachment ID or outlook_attachment_id
   def download_attachment
@@ -863,7 +864,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     # SSoT: Try email_attachments first (primary path since Jan 2026)
     # Priority 1: Use attachment found by ID if it's stored in Wasabi
     if email_attachment&.stored?
-      Rails.logger.info "[EmailWarehouse] Downloading attachment from Wasabi by ID: #{email_attachment.id} (#{email_attachment.filename})"
+      Rails.logger.info "[SyncedEmail] Downloading attachment from Wasabi by ID: #{email_attachment.id} (#{email_attachment.filename})"
       content = email_attachment.download
       # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
       content = content&.b
@@ -881,7 +882,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     if @email.email_attachments.any? && filename_hint.present?
       attachment = @email.email_attachments.find { |a| a.filename == filename_hint }
       if attachment&.stored?
-        Rails.logger.info "[EmailWarehouse] Downloading attachment from Wasabi by filename: #{filename_hint}"
+        Rails.logger.info "[SyncedEmail] Downloading attachment from Wasabi by filename: #{filename_hint}"
         content = attachment.download
         # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
         content = content&.b
@@ -901,7 +902,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
       sp_config = MicrosoftCredential.teeem_sharepoint_config
       if sp_config
         begin
-          Rails.logger.info "[EmailWarehouse] Downloading attachment from SharePoint: #{email_attachment.attachment.sharepoint_file_id}"
+          Rails.logger.info "[SyncedEmail] Downloading attachment from SharePoint: #{email_attachment.attachment.sharepoint_file_id}"
           teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
           content = teeem_client.get_drive_item_content(
             drive_id: sp_config[:drive_id],
@@ -923,7 +924,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
           end
         rescue StandardError => e
           # SharePoint download failed - fall back to Outlook
-          Rails.logger.warn "[EmailWarehouse] SharePoint download failed, falling back to Outlook: #{e.message}"
+          Rails.logger.warn "[SyncedEmail] SharePoint download failed, falling back to Outlook: #{e.message}"
         end
       end
     end
@@ -947,7 +948,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     # Fetch attachment from Microsoft Graph (Outlook)
-    Rails.logger.info "[EmailWarehouse] Downloading attachment from Outlook: #{outlook_attachment_id} for email #{@email.id} (outlook_id: #{@email.outlook_id})"
+    Rails.logger.info "[SyncedEmail] Downloading attachment from Outlook: #{outlook_attachment_id} for email #{@email.id} (outlook_id: #{@email.outlook_id})"
     client = MicrosoftAppGraphClient.new(credential)
     attachment_data = client.download_email_attachment(mailbox, @email.outlook_id, outlook_attachment_id)
     # Force binary encoding immediately after download to prevent UTF-8 errors
@@ -965,16 +966,16 @@ class Api::V1::EmailWarehouseController < ApplicationController
       )
     else
       # Attachment not found or unsupported type
-      Rails.logger.warn "[EmailWarehouse] Attachment not available: email_id=#{@email.id}, attachment_id=#{attachment_id}, outlook_attachment_id=#{outlook_attachment_id}"
+      Rails.logger.warn "[SyncedEmail] Attachment not available: email_id=#{@email.id}, attachment_id=#{attachment_id}, outlook_attachment_id=#{outlook_attachment_id}"
       render json: { error: "Attachment not available - it may have been deleted from email server" }, status: :not_found
     end
   rescue StandardError => e
-    Rails.logger.error "[EmailWarehouse] Attachment download failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
-    Rails.logger.error "[EmailWarehouse] Backtrace: #{e.backtrace.first(10).join("\n")}"
+    Rails.logger.error "[SyncedEmail] Attachment download failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
+    Rails.logger.error "[SyncedEmail] Backtrace: #{e.backtrace.first(10).join("\n")}"
     render json: { error: "Download failed: #{e.class} - #{e.message.truncate(100)}" }, status: :internal_server_error
   end
 
-  # GET /api/v1/email_warehouse/:id/download_eml
+  # GET /api/v1/synced_email/:id/download_eml
   # Download the entire email as .eml file (RFC 822 MIME format)
   # Used for attaching emails to response emails in Task Hub
   # Supports both Outlook (Microsoft Graph) and IMAP sourced emails
@@ -1008,8 +1009,8 @@ class Api::V1::EmailWarehouseController < ApplicationController
       render json: { error: "Failed to download email content" }, status: :not_found
     end
   rescue StandardError => e
-    Rails.logger.error "[EmailWarehouse] EML download failed: email_id=#{@email&.id}, error=#{e.class}: #{e.message}"
-    Rails.logger.error "[EmailWarehouse] Backtrace: #{e.backtrace.first(10).join("\n")}"
+    Rails.logger.error "[SyncedEmail] EML download failed: email_id=#{@email&.id}, error=#{e.class}: #{e.message}"
+    Rails.logger.error "[SyncedEmail] Backtrace: #{e.backtrace.first(10).join("\n")}"
     render json: { error: "Download failed: #{e.message.truncate(100)}" }, status: :internal_server_error
   end
 
@@ -1028,11 +1029,11 @@ class Api::V1::EmailWarehouseController < ApplicationController
     mailbox = @email.mailbox_owner_email
     return nil unless mailbox.present? && @email.outlook_id.present?
 
-    Rails.logger.info "[EmailWarehouse] Fetching EML from Outlook: email_id=#{@email.id}, outlook_id=#{@email.outlook_id}"
+    Rails.logger.info "[SyncedEmail] Fetching EML from Outlook: email_id=#{@email.id}, outlook_id=#{@email.outlook_id}"
     client = MicrosoftAppGraphClient.new(credential)
     client.get_email_mime_content(mailbox, @email.outlook_id)
   rescue StandardError => e
-    Rails.logger.warn "[EmailWarehouse] Outlook EML fetch failed: #{e.message}"
+    Rails.logger.warn "[SyncedEmail] Outlook EML fetch failed: #{e.message}"
     nil
   end
 
@@ -1042,7 +1043,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     return nil unless credential&.connected?
     return nil unless @email.uid.present?
 
-    Rails.logger.info "[EmailWarehouse] Fetching EML from IMAP: email_id=#{@email.id}, uid=#{@email.uid}"
+    Rails.logger.info "[SyncedEmail] Fetching EML from IMAP: email_id=#{@email.id}, uid=#{@email.uid}"
 
     # Use the IMAP service to fetch raw email
     service = ImapEmailService.new(credential)
@@ -1058,13 +1059,13 @@ class Api::V1::EmailWarehouseController < ApplicationController
       msg&.attr&.dig("BODY[]")
     end
   rescue StandardError => e
-    Rails.logger.warn "[EmailWarehouse] IMAP EML fetch failed: #{e.message}"
+    Rails.logger.warn "[SyncedEmail] IMAP EML fetch failed: #{e.message}"
     nil
   end
 
   # Reconstruct .eml from stored fields (fallback when server unavailable)
   def reconstruct_eml_from_fields
-    Rails.logger.info "[EmailWarehouse] Reconstructing EML from stored fields: email_id=#{@email.id}"
+    Rails.logger.info "[SyncedEmail] Reconstructing EML from stored fields: email_id=#{@email.id}"
 
     mail = Mail.new do |m|
       m.message_id = @email.internet_message_id if @email.internet_message_id.present?
@@ -1096,17 +1097,17 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     mail.to_s
   rescue StandardError => e
-    Rails.logger.error "[EmailWarehouse] EML reconstruction failed: #{e.message}"
+    Rails.logger.error "[SyncedEmail] EML reconstruction failed: #{e.message}"
     nil
   end
 
-  # GET /api/v1/email_warehouse/rules
+  # GET /api/v1/synced_email/rules
   # Get email classification rules and current user's email stats
   def rules
     user_email = current_user.email&.downcase
 
     # Get user's email stats
-    user_emails = EmailWarehouse.where("synced_by_user_id = ? OR LOWER(from_email) = ? OR ? = ANY(LOWER(to_emails::text)::text[])",
+    user_emails = SyncedEmail.where("synced_by_user_id = ? OR LOWER(from_email) = ? OR ? = ANY(LOWER(to_emails::text)::text[])",
                                        current_user.id, user_email, user_email)
 
     # Classification breakdown for user
@@ -1170,20 +1171,20 @@ class Api::V1::EmailWarehouseController < ApplicationController
         }
       },
       cleanup_preview: {
-        spam_pending_delete: EmailWarehouse.spam.count,
+        spam_pending_delete: SyncedEmail.spam.count,
         ephemeral_expired: expired_ephemeral
       }
     }
   end
 
-  # POST /api/v1/email_warehouse/bulk_delete_spam
+  # POST /api/v1/synced_email/bulk_delete_spam
   # Delete all spam emails from Outlook (and optionally from database)
   # SSoT: Uses org credentials (per-user Outlook removed)
   # Security: Requires admin (before_action), org isolation via credential grouping
   def bulk_delete_spam
     # Note: Org isolation is enforced via microsoft_credential_id grouping below
     # Each credential belongs to exactly one org, so deletions are org-scoped
-    spam_emails = EmailWarehouse.spam.where.not(outlook_id: nil).where.not(microsoft_credential_id: nil)
+    spam_emails = SyncedEmail.spam.where.not(outlook_id: nil).where.not(microsoft_credential_id: nil)
 
     deleted_count = 0
     failed_count = 0
@@ -1216,7 +1217,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     # Optionally delete from our database too
     if params[:delete_from_database] == "true"
-      EmailWarehouse.spam.where("email_classification->>'deleted_from_outlook' = ?", "true").destroy_all
+      SyncedEmail.spam.where("email_classification->>'deleted_from_outlook' = ?", "true").destroy_all
     end
 
     render json: {
@@ -1231,7 +1232,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
   private
 
   def set_email
-    @email = EmailWarehouse.includes(:job).find(params[:id])
+    @email = SyncedEmail.includes(:job).find(params[:id])
   end
 
   def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil, thread_counts_cache: nil, user_states_cache: nil, thread_emails: nil)
@@ -1239,7 +1240,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     user_state = if user_states_cache
       user_states_cache[email.id]
     else
-      EmailUserState.find_by(email_warehouse_id: email.id, user_id: current_user.id)
+      EmailUserState.find_by(synced_email_id: email.id, user_id: current_user.id)
     end
     # Default to unread if no state exists (new emails are unread)
     is_read = user_state&.is_read || false
@@ -1384,7 +1385,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
         }
       end
     rescue StandardError => e
-      Rails.logger.warn "[EmailWarehouse] Failed to fetch attachments from MS365: #{e.message}"
+      Rails.logger.warn "[SyncedEmail] Failed to fetch attachments from MS365: #{e.message}"
       []
     end
   end
@@ -1416,7 +1417,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     # Find unassigned emails involving these contacts (excluding dismissed)
     contact_emails.each do |email_addr|
-      EmailWarehouse.unassigned
+      SyncedEmail.unassigned
         .involving_email(email_addr)
         .where.not("? = ANY(dismissed_from_job_ids)", job.id)
         .latest_in_thread
@@ -1452,7 +1453,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     # Find emails mentioning job address (excluding dismissed)
     if job.title.present?
-      EmailWarehouse.unassigned
+      SyncedEmail.unassigned
         .search_text(job.title)
         .where.not("? = ANY(dismissed_from_job_ids)", job.id)
         .latest_in_thread
@@ -1520,7 +1521,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
       all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
       contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
       all_email_ids = emails.map(&:id)
-      user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
+      user_states_cache = EmailUserState.where(synced_email_id: all_email_ids, user_id: current_user.id).index_by(&:synced_email_id)
 
       return render json: {
         success: true,
@@ -1546,7 +1547,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     all_contact_ids = all_emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
     all_email_ids = all_emails.map(&:id)
-    user_states_cache = EmailUserState.where(email_warehouse_id: all_email_ids, user_id: current_user.id).index_by(&:email_warehouse_id)
+    user_states_cache = EmailUserState.where(synced_email_id: all_email_ids, user_id: current_user.id).index_by(&:synced_email_id)
 
     render json: {
       success: true,

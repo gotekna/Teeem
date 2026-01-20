@@ -175,7 +175,7 @@ class OrgEmailSyncJob < ApplicationJob
       break if emails.empty?
 
       emails.each do |email_data|
-        # Upsert into EmailWarehouse
+        # Upsert into SyncedEmail
         warehouse_email = upsert_email(email_data, user_email, folder[:name])
         synced += 1 if warehouse_email
       end
@@ -240,7 +240,7 @@ class OrgEmailSyncJob < ApplicationJob
 
     # Find or create - use internet_message_id as unique identifier
     # Each email is stored once globally, regardless of which mailbox synced it
-    email = EmailWarehouse.find_or_initialize_by(
+    email = SyncedEmail.find_or_initialize_by(
       internet_message_id: internet_message_id
     )
 
@@ -348,7 +348,7 @@ class OrgEmailSyncJob < ApplicationJob
 
   def auto_match_user_emails(user_email)
     # Find recently synced unassigned emails for this org
-    recent_unassigned = EmailWarehouse
+    recent_unassigned = SyncedEmail
       .where(microsoft_credential_id: @credential.id, job_id: nil)
       .where("last_synced_at > ?", 1.hour.ago)
 
@@ -363,7 +363,7 @@ class OrgEmailSyncJob < ApplicationJob
   end
 
   def find_matching_job(email)
-    # Use the sophisticated matching logic from EmailWarehouse model
+    # Use the sophisticated matching logic from SyncedEmail model
     # This includes: job ID patterns, contact matching, address matching, street matching
     # Plus: confidence scores and spam filtering
     matches = email.find_matching_jobs
@@ -455,14 +455,14 @@ class OrgEmailSyncJob < ApplicationJob
 
   # SSoT: Sync read status from Office 365 to EmailUserState
   # Office 365 is the source of truth - we mirror the isRead status to TEEEM
-  # @param email [EmailWarehouse] The email record
+  # @param email [SyncedEmail] The email record
   # @param is_read [Boolean] The read status from Office 365
   def sync_read_status_from_office365(email, is_read)
     user = email.synced_by_user
     return unless user
 
     # Get or create the user state and sync the read status from Office 365
-    state = EmailUserState.find_or_initialize_by(email_warehouse: email, user: user)
+    state = EmailUserState.find_or_initialize_by(synced_email: email, user: user)
 
     # Only update if Office 365 status differs (to preserve manual overrides when syncing older emails)
     # For new states, always sync from Office 365
@@ -487,9 +487,9 @@ class OrgEmailSyncJob < ApplicationJob
     # Method 1: Match by conversation_id (existing thread)
     if email.conversation_id.present?
       task_ids = SmTaskAttachment
-        .where(attachable_type: "EmailWarehouse")
-        .joins("INNER JOIN email_warehouses ON email_warehouses.id = sm_task_attachments.attachable_id")
-        .where("email_warehouses.conversation_id = ?", email.conversation_id)
+        .where(attachable_type: "SyncedEmail")
+        .joins("INNER JOIN synced_emails ON synced_emails.id = sm_task_attachments.attachable_id")
+        .where("synced_emails.conversation_id = ?", email.conversation_id)
         .distinct
         .pluck(:sm_task_id)
 
@@ -521,7 +521,7 @@ class OrgEmailSyncJob < ApplicationJob
 
     # Check if email is already attached
     already_attached = SmTaskAttachment
-      .where(sm_task_id: task_id, attachable_type: "EmailWarehouse", attachable_id: email.id)
+      .where(sm_task_id: task_id, attachable_type: "SyncedEmail", attachable_id: email.id)
       .exists?
     return false if already_attached
 

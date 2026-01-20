@@ -1428,7 +1428,7 @@ export default function CorporateDashboardPage() {
                               }}
                             >
                               <FolderOpen className="h-5 w-5 text-indigo-600" />
-                              <h3 className="font-medium">{group.name}</h3>
+                              <h3 className="text-sm font-medium">{group.name}</h3>
                               {group.active === false && (
                                 <Badge variant="secondary" className="text-xs">Inactive</Badge>
                               )}

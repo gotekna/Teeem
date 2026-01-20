@@ -32,7 +32,7 @@ module Api
           sm_task_attachments: [:added_by, :attachable]
         )
         # Note: :last_assigner is a method (queries activity_logs), not an association - cannot be eager loaded
-        # Note: For EmailWarehouse attachables, email_attachments + storage_blob are loaded separately below
+        # Note: For SyncedEmail attachables, email_attachments + storage_blob are loaded separately below
 
         # Privacy filter - only show tasks visible to current user
         @tasks = @tasks.visible_to(current_user)
@@ -67,22 +67,22 @@ module Api
         # Apply limit before preloading nested email_attachments
         tasks_to_render = @tasks.limit(500).to_a
 
-        # N+1 fix: Preload email_attachments + storage_blob for EmailWarehouse attachables
+        # N+1 fix: Preload email_attachments + storage_blob for SyncedEmail attachables
         # This is a separate preload because polymorphic associations don't support nested includes
-        email_warehouse_ids = tasks_to_render.flat_map do |task|
+        synced_email_ids = tasks_to_render.flat_map do |task|
           task.sm_task_attachments
-              .select { |a| a.attachable_type == "EmailWarehouse" }
+              .select { |a| a.attachable_type == "SyncedEmail" }
               .map(&:attachable_id)
         end.uniq
-        if email_warehouse_ids.any?
+        if synced_email_ids.any?
           # Preload in batch, then the attachment_to_json will use cached data
-          preloaded_emails = EmailWarehouse.where(id: email_warehouse_ids)
+          preloaded_emails = SyncedEmail.where(id: synced_email_ids)
                                            .includes(email_attachments: :storage_blob)
                                            .index_by(&:id)
           # Inject preloaded emails into attachables to avoid re-query
           tasks_to_render.each do |task|
             task.sm_task_attachments.each do |att|
-              if att.attachable_type == "EmailWarehouse" && preloaded_emails[att.attachable_id]
+              if att.attachable_type == "SyncedEmail" && preloaded_emails[att.attachable_id]
                 att.attachable = preloaded_emails[att.attachable_id]
               end
             end
@@ -546,10 +546,11 @@ module Api
         if result[:success]
           render json: {
             success: true,
-            message: "Task completed",
+            message: result[:already_completed] ? "Task was already completed" : "Task completed",
             sm_task: task_to_json(result[:task]),
             spawned_tasks: result[:spawned_tasks].map { |t| task_to_json(t) },
-            cascade_completed_tasks: (result[:cascade_completed_tasks] || []).map { |t| task_to_json(t) }
+            cascade_completed_tasks: (result[:cascade_completed_tasks] || []).map { |t| task_to_json(t) },
+            already_completed: result[:already_completed] || false
           }
         else
           render json: {
@@ -884,7 +885,7 @@ module Api
 
         attachable = case attachment_type
         when "email"
-          EmailWarehouse.find(attachable_id)
+          SyncedEmail.find(attachable_id)
         when "document"
           CorporateCompanyDocument.find(attachable_id)
         else
@@ -1114,7 +1115,7 @@ module Api
           file_id = attachable.sharepoint_file_id
           drive_id = credential.drive_id
 
-        when EmailWarehouse
+        when SyncedEmail
           # Emails use file_id from sharepoint_email_file_id or storage_file_id
           file_id = attachable.sharepoint_email_file_id || attachable.storage_file_id
           unless file_id.present?
@@ -1174,7 +1175,7 @@ module Api
         if @task.supplier.present?
           emails = @task.supplier.all_emails
           if emails.any?
-            email_count = EmailWarehouse.involving_email(emails).count
+            email_count = SyncedEmail.involving_email(emails).count
             options << {
               type: "contact",
               contact_id: @task.supplier.id,
@@ -1190,7 +1191,7 @@ module Api
         # Add task's assigned user
         if @task.assigned_user.present? && @task.assigned_user.email.present?
           emails = [ @task.assigned_user.email ]
-          email_count = EmailWarehouse.involving_email(emails).count
+          email_count = SyncedEmail.involving_email(emails).count
           options << {
             type: "user",
             user_id: @task.assigned_user.id,
@@ -1221,7 +1222,7 @@ module Api
             next if emails.empty?
 
             # Count emails in warehouse involving these addresses
-            email_count = EmailWarehouse.involving_email(emails).count
+            email_count = SyncedEmail.involving_email(emails).count
 
             # Get display name
             name = jc.contact&.name || jc.user&.name || "Unknown"
@@ -1263,7 +1264,7 @@ module Api
           emails = contact.all_emails
 
           # Count emails in warehouse (0 if contact has no emails)
-          email_count = emails.any? ? EmailWarehouse.involving_email(emails).count : 0
+          email_count = emails.any? ? SyncedEmail.involving_email(emails).count : 0
 
           {
             id: contact.id,
@@ -1335,11 +1336,11 @@ module Api
         return render json: { success: false, error: "No email addresses found" }, status: :unprocessable_entity if emails_to_search.empty?
 
         # Find all matching emails
-        matching_emails = EmailWarehouse.involving_email(emails_to_search)
+        matching_emails = SyncedEmail.involving_email(emails_to_search)
 
         # Get already attached email IDs
         existing_email_ids = @task.sm_task_attachments
-          .where(attachable_type: "EmailWarehouse")
+          .where(attachable_type: "SyncedEmail")
           .pluck(:attachable_id)
 
         # Filter to only new emails
@@ -1385,21 +1386,21 @@ module Api
         matching_emails = case search_type
         when 'subject'
           # Subject only - case insensitive LIKE
-          EmailWarehouse.where("subject ILIKE ?", "%#{keywords}%")
+          SyncedEmail.where("subject ILIKE ?", "%#{keywords}%")
         when 'body'
           # Body only - case insensitive LIKE
-          EmailWarehouse.where("body_text ILIKE ?", "%#{keywords}%")
+          SyncedEmail.where("body_text ILIKE ?", "%#{keywords}%")
         when 'exact'
           # Exact phrase in subject - case insensitive
-          EmailWarehouse.where("subject ILIKE ?", "%#{keywords}%")
+          SyncedEmail.where("subject ILIKE ?", "%#{keywords}%")
         else
           # Full text search (default)
-          EmailWarehouse.search_text(keywords)
+          SyncedEmail.search_text(keywords)
         end
 
         # Get already attached email IDs
         existing_email_ids = @task.sm_task_attachments
-          .where(attachable_type: "EmailWarehouse")
+          .where(attachable_type: "SyncedEmail")
           .pluck(:attachable_id)
 
         # Filter to only new emails
@@ -1447,7 +1448,7 @@ module Api
       def clear_matched_emails
         # Find attachments that have "Matched" in their notes (added by match_keywords)
         matched_attachments = @task.sm_task_attachments
-          .where(attachable_type: "EmailWarehouse")
+          .where(attachable_type: "SyncedEmail")
           .where("notes LIKE ?", "Matched %")
 
         count = matched_attachments.count
@@ -1468,7 +1469,7 @@ module Api
         email_id = params[:email_id]
         return render json: { success: false, error: "email_id required" }, status: :bad_request if email_id.blank?
 
-        email = EmailWarehouse.find_by(id: email_id)
+        email = SyncedEmail.find_by(id: email_id)
         return render json: { success: false, error: "Email not found" }, status: :not_found unless email
 
         # Get all emails in the conversation thread
@@ -1476,7 +1477,7 @@ module Api
 
         # Get already linked email IDs
         existing_ids = @task.sm_task_attachments
-          .where(attachable_type: "EmailWarehouse")
+          .where(attachable_type: "SyncedEmail")
           .pluck(:attachable_id)
 
         # Link emails that aren't already linked
@@ -1968,7 +1969,7 @@ module Api
       # Creates a standalone task from an email (same as forwarding to newtask@tekna.com.au)
       # Uses EmailToTaskService for consistent behavior
       def create_from_email
-        email = EmailWarehouse.find_by(id: params[:email_id])
+        email = SyncedEmail.find_by(id: params[:email_id])
 
         unless email
           return render json: {
@@ -2281,7 +2282,7 @@ module Api
         }
 
         case attachment.attachable_type
-        when "EmailWarehouse"
+        when "SyncedEmail"
           email = attachment.attachable
           # Defensive: attachable may be nil if email was deleted
           return base unless email
@@ -2299,7 +2300,7 @@ module Api
               thread_count: email.thread_count,
               body_preview: email.body_preview || email.body_text&.truncate(200),
               # SSoT: Return attachment metadata for display
-              # Download URL: /api/v1/email_warehouse/:email_id/attachments/:attachment_id/download
+              # Download URL: /api/v1/synced_email/:email_id/attachments/:attachment_id/download
               # Frontend constructs download URL from email_id + attachment.id (never expose storage_path)
               email_id: email.id,
               email_attachments: email.email_attachments.map do |ea|

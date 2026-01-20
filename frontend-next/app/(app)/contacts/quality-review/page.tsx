@@ -79,10 +79,10 @@ interface ScanResponse {
 
 const ISSUE_TYPE_COLORS: Record<string, string> = {
   misclassified_person: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-  misclassified_company: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  abn_mismatch: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-  needs_company_link: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  multiple_xero_links: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+  misclassified_company: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300",
+  abn_mismatch: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-300",
+  needs_company_link: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300",
+  multiple_xero_links: "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-300",
   admin_email_pattern: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
 };
 
@@ -97,9 +97,9 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
 function ConfidenceBadge({ score }: { score: number }) {
   const color =
     score >= 80
-      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+      ? "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300"
       : score >= 50
-        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+        ? "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-300"
         : "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground";
 
   return <Badge className={cn("font-mono", color)}>{score}%</Badge>;

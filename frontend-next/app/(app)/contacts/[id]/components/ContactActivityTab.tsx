@@ -113,11 +113,11 @@ function ActivityCard({ activity }: ActivityCardProps) {
   // Format activity type for display
   const getActivityTypeDisplay = (type: string) => {
     const typeMap: Record<string, { label: string; color: string }> = {
-      created: { label: "Created", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" },
-      updated: { label: "Updated", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300" },
-      synced_from_xero: { label: "Xero Sync", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300" },
+      created: { label: "Created", color: "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300" },
+      updated: { label: "Updated", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300" },
+      synced_from_xero: { label: "Xero Sync", color: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900 dark:text-purple-300" },
       synced_to_xero: { label: "Pushed to Xero", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300" },
-      purchase_order_created: { label: "PO Created", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300" },
+      purchase_order_created: { label: "PO Created", color: "bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-300" },
       supplier_linked: { label: "Supplier Linked", color: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300" },
       contact_merged: { label: "Merged", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300" },
       sms_sent: { label: "SMS Sent", color: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-300" },

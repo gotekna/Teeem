@@ -24,7 +24,7 @@ class CaseQaExtractionService
   def extract_all
     Rails.logger.info "[CaseQAExtraction] Starting for case #{case_record.id}"
 
-    case_record.case_emails.includes(:email_warehouse).each do |case_email|
+    case_record.case_emails.includes(:synced_email).each do |case_email|
       process_email(case_email)
     end
 
@@ -67,7 +67,7 @@ class CaseQaExtractionService
   def get_thread_context(email)
     return [ email ] unless email.conversation_id.present?
 
-    EmailWarehouse
+    SyncedEmail
       .where(conversation_id: email.conversation_id)
       .order(received_at: :asc)
       .limit(10)
@@ -176,7 +176,7 @@ class CaseQaExtractionService
     CaseEmailQa.create!(
       case: case_record,
       case_email: case_email,
-      email_warehouse: case_email.email_warehouse,
+      synced_email: case_email.synced_email,
       question: qa_data["question"],
       answer: qa_data["answer"],
       question_from: qa_data["question_from"],

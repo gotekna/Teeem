@@ -393,7 +393,7 @@ function PopoverDemo() {
       </PopoverTrigger>
       <PopoverContent className="w-80">
         <div className="space-y-2">
-          <h4 className="font-medium">Popover Title</h4>
+          <h4 className="text-sm font-medium">Popover Title</h4>
           <p className="text-sm text-muted-foreground">
             Use for small overlays with contextual content.
           </p>

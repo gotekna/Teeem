@@ -2,7 +2,7 @@
 
 # Phase 6: Backfill WarehouseDocument metadata from source tables
 #
-# Migrates metadata from source records (EmailWarehouse, JobDocument, etc.)
+# Migrates metadata from source records (SyncedEmail, JobDocument, etc.)
 # into WarehouseDocument.metadata JSONB column.
 #
 # After backfill, queries can use WarehouseDocument directly without JOINs.
@@ -88,7 +88,7 @@ class BackfillWarehouseDocumentMetadataJob < ApplicationJob
 
   def extract_metadata(wd)
     case wd.documentable_type
-    when "EmailWarehouse"
+    when "SyncedEmail"
       extract_email_metadata(wd.documentable)
     when "EmailAttachment"
       extract_attachment_metadata(wd.documentable)

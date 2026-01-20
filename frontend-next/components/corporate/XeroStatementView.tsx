@@ -228,9 +228,9 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
 
       // Load warehouse bank accounts, financial years, and sync status in parallel
       const [accountsRes, yearsRes, statusRes] = await Promise.all([
-        api.get<{ success: boolean; data: BankAccount[] }>("/api/v1/warehouse_bank_transactions/bank_accounts"),
-        api.get<{ success: boolean; data: string[] }>("/api/v1/warehouse_bank_transactions/financial_years"),
-        api.get<{ success: boolean; data: SyncStatus }>("/api/v1/warehouse_bank_transactions/sync_status"),
+        api.get<{ success: boolean; data: BankAccount[] }>("/api/v1/xero_bank_transactions/bank_accounts"),
+        api.get<{ success: boolean; data: string[] }>("/api/v1/xero_bank_transactions/financial_years"),
+        api.get<{ success: boolean; data: SyncStatus }>("/api/v1/xero_bank_transactions/sync_status"),
       ]);
 
       if (accountsRes?.success) {
@@ -306,7 +306,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
           per_page: number;
           total_pages: number;
         };
-      }>(`/api/v1/warehouse_bank_transactions?${params.toString()}`);
+      }>(`/api/v1/xero_bank_transactions?${params.toString()}`);
 
       if (response?.success) {
         setTransactions(response.data);
@@ -331,7 +331,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
       }
 
       const response = await api.get<{ success: boolean; data: MonthlySummaryItem[] }>(
-        `/api/v1/warehouse_bank_transactions/monthly_summary?${params.toString()}`
+        `/api/v1/xero_bank_transactions/monthly_summary?${params.toString()}`
       );
 
       if (response?.success) {
@@ -351,7 +351,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
   const handleSync = async () => {
     try {
       setSyncing(true);
-      await api.post("/api/v1/warehouse_bank_transactions/trigger_sync");
+      await api.post("/api/v1/xero_bank_transactions/trigger_sync");
       await Promise.all([loadInitialData(), loadTransactions()]);
     } catch (error) {
       console.error("Failed to sync:", error);
@@ -378,7 +378,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
 
       // Get the blob using api.getBlob (SSoT for authenticated requests)
       const blob = await api.getBlob(
-        "/api/v1/warehouse_bank_transactions/download_report",
+        "/api/v1/xero_bank_transactions/download_report",
         { params: queryParams }
       );
 
@@ -452,7 +452,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
       <Card>
         <CardContent className="p-8 text-center">
           <div className="text-muted-foreground">
-            <p className="font-medium mb-2">No Bank Accounts Linked to Xero</p>
+            <p className="text-sm font-medium mb-2">No Bank Accounts Linked to Xero</p>
             <p className="text-sm">
               To view Xero transactions, link a bank account to Xero in the Bank Accounts tab.
             </p>

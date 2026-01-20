@@ -691,7 +691,7 @@ export default function ScheduleTemplateDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {template.is_default && (
-            <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+            <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-200">
               Default
             </Badge>
           )}

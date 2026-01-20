@@ -402,7 +402,7 @@ export function CostTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div className="space-y-3">
-                <h4 className="font-semibold">Level 1: Your Support (20%)</h4>
+                <h4 className="text-sm font-semibold">Level 1: Your Support (20%)</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2">
                     <span className="text-blue-500 font-bold">•</span>
@@ -420,7 +420,7 @@ export function CostTab() {
               </div>
 
               <div className="space-y-3">
-                <h4 className="font-semibold">Level 2: Their Support (10%)</h4>
+                <h4 className="text-sm font-semibold">Level 2: Their Support (10%)</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2">
                     <span className="text-purple-500 font-bold">•</span>
@@ -443,7 +443,7 @@ export function CostTab() {
             </div>
 
             <div className="bg-muted rounded-lg p-4">
-              <h4 className="font-semibold mb-3">Example</h4>
+              <h4 className="text-sm font-semibold mb-3">Example</h4>
               <div className="space-y-2 text-sm">
                 <p>Support 5 businesses @ $500k turnover each:</p>
                 <div className="flex justify-between">

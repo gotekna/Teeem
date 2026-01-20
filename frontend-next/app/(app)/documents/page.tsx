@@ -1842,7 +1842,7 @@ export default function AllDocumentsPage() {
                   ) : (
                     // Normal display mode
                     <div className="flex items-center gap-2">
-                      <h3 className="font-medium truncate">
+                      <h3 className="text-sm font-medium truncate">
                         {previewDocument.displayName || previewDocument.fileName}
                       </h3>
                       <Button
@@ -2006,7 +2006,7 @@ export default function AllDocumentsPage() {
                 {/* Extension rules */}
                 {exclusionRules.filter(r => r.ruleType === "extension").length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="text-sm font-medium">File Extensions</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">File Extensions</h3>
                     <div className="space-y-2">
                       {exclusionRules
                         .filter((r) => r.ruleType === "extension")
@@ -2042,7 +2042,7 @@ export default function AllDocumentsPage() {
                 {/* Size rules */}
                 {exclusionRules.filter(r => r.ruleType === "size").length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="text-sm font-medium">File Size Limits</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">File Size Limits</h3>
                     <div className="space-y-2">
                       {exclusionRules
                         .filter((r) => r.ruleType === "size")

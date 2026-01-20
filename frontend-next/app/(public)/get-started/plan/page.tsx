@@ -186,7 +186,7 @@ export default function PlanSelectionPage() {
         {/* Info Box */}
         <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 mb-8">
           <CardContent className="pt-6">
-            <h3 className="font-semibold mb-2">No Payment Required Today</h3>
+            <h3 className="text-sm font-semibold mb-2">No Payment Required Today</h3>
             <p className="text-sm text-muted-foreground">
               You won&apos;t be charged until you receive your first job deposit. Start setting up
               your account and importing your data - billing only begins when you start

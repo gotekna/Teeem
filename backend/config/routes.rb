@@ -1256,8 +1256,40 @@ Rails.application.routes.draw do
       # REMOVED: Outlook integration routes - per-user Outlook credentials deprecated
       # Email sync now uses org-wide credentials via OrgEmailSyncJob
 
-      # Email Warehouse
-      resources :email_warehouse, only: [ :index, :show ] do
+      # Synced Emails (renamed from email_warehouse Jan 2026)
+      resources :synced_emails, only: [ :index, :show ] do
+        collection do
+          get :unassigned
+          get :search
+          get :stats
+          get :unread_counts
+          get :sync_status
+          post :sync
+          post :sync_for_job
+          get "for_job/:job_id", action: :for_job
+          get :spam
+          post :bulk_delete_spam
+          get :rules
+        end
+        member do
+          post :assign_to_job
+          post :unassign
+          post :dismiss_suggestion
+          post :mark_as_spam
+          delete :delete_from_outlook
+          post :move_to_folder
+          post :summarize
+          post :link_contact
+          post :unlink_contact
+          post :quick_create_contact
+          get :suggest_contacts
+          get "attachments/:attachment_id/download", action: :download_attachment
+          get :download_eml
+        end
+      end
+
+      # Legacy route alias for backwards compatibility (can be removed after frontend update)
+      resources :email_warehouse, only: [ :index, :show ], controller: "synced_emails" do
         collection do
           get :unassigned
           get :search
@@ -2430,8 +2462,9 @@ Rails.application.routes.draw do
         end
       end
 
-      # Warehouse Bank Transactions (Xero bank statement data)
-      resources :warehouse_bank_transactions, only: [ :index, :show ] do
+      # Xero Bank Transactions (Xero bank statement data)
+      # Renamed from warehouse_bank_transactions (Jan 2026)
+      resources :xero_bank_transactions, only: [ :index, :show ] do
         collection do
           get :bank_accounts
           get :financial_years
@@ -2442,21 +2475,21 @@ Rails.application.routes.draw do
         end
       end
 
-      # Warehouse Contacts (Xero contact data - SSoT for Xero↔TEEEM contact linking)
-      resources :warehouse_contacts, only: [ :index, :show ] do
+      # Legacy route alias for backwards compatibility (can be removed after frontend update)
+      resources :warehouse_bank_transactions, only: [ :index, :show ], controller: "xero_bank_transactions" do
         collection do
-          get :stats
-          get :tenants
+          get :bank_accounts
+          get :financial_years
+          get :monthly_summary
           get :sync_status
           post :trigger_sync
-        end
-        member do
-          post :link
-          delete :unlink
-          post :auto_link
+          get :download_report
         end
       end
-      get "warehouse_contacts/by_xero_id/:xero_id", to: "warehouse_contacts#by_xero_id", as: :warehouse_contact_by_xero_id
+
+      # LIM (Jan 2026): XeroContact table removed - ContactExternalLink is THE ONE SSoT
+      # XeroContact had 0 records, ContactExternalLink has 1,018 records
+      # All Xero contact sync functionality now uses ContactExternalLink
 
       # Bank Statement Reports (stored PDFs for ATO compliance)
       resources :bank_statement_reports, only: [ :index, :show ] do

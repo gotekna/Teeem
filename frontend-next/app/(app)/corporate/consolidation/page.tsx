@@ -408,7 +408,7 @@ export default function ConsolidationPage() {
                     </TableCell>
                     <TableCell className="text-center">
                       {rel.matched ? (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                        <Badge variant="secondary" className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">
                           <CheckCircle className="h-3 w-3 mr-1" />
                           Matched
                         </Badge>
@@ -449,14 +449,14 @@ export default function ConsolidationPage() {
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium">{group.name}</h4>
+                      <h4 className="text-sm font-medium">{group.name}</h4>
                       {group.latest_reconciliation && (
                         <Badge
                           variant="secondary"
                           className={cn(
                             group.latest_reconciliation.has_discrepancies
-                              ? "bg-red-100 text-red-800"
-                              : "bg-green-100 text-green-800"
+                              ? "bg-status-error text-status-error-foreground"
+                              : "bg-status-success text-status-success-foreground"
                           )}
                         >
                           {group.latest_reconciliation.health_score}%

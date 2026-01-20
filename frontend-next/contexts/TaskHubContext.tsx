@@ -1347,6 +1347,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       const response = await api.post<{
         success: boolean;
         cascade_completed_tasks?: SmTask[];
+        already_completed?: boolean;
       }>(`/api/v1/sm_tasks/${taskId}/complete`, {
         also_complete_task_ids: alsoCompleteTaskIds || [],
         delegation_response: delegationResponse,
@@ -1354,6 +1355,11 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
       if (!response?.success) {
         throw new Error('Failed to complete task');
+      }
+
+      // Idempotent: if already completed, state is already correct
+      if (response.already_completed) {
+        return { cascadeCompletedTasks: [] };
       }
 
       // Update local state with completion

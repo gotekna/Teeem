@@ -13,7 +13,7 @@ class SmTaskAttachment < ApplicationRecord
 
   # Validations
   validates :attachable_type, inclusion: {
-    in: %w[EmailWarehouse CorporateCompanyDocument]
+    in: %w[SyncedEmail CorporateCompanyDocument]
   }
   validates :attachment_type, inclusion: { in: ATTACHMENT_TYPES }, allow_blank: true
   validates :category, inclusion: { in: CATEGORIES }, allow_blank: true
@@ -22,7 +22,7 @@ class SmTaskAttachment < ApplicationRecord
   after_create :auto_populate_keywords
 
   # Scopes
-  scope :emails, -> { where(attachable_type: "EmailWarehouse") }
+  scope :emails, -> { where(attachable_type: "SyncedEmail") }
   scope :documents, -> { where(attachable_type: "CorporateCompanyDocument") }
   scope :recent, -> { order(created_at: :desc) }
   scope :info, -> { where(category: "info") }
@@ -32,7 +32,7 @@ class SmTaskAttachment < ApplicationRecord
 
   # Auto-populate task keywords from email subject when first email is attached
   def auto_populate_keywords
-    return unless attachable_type == "EmailWarehouse"
+    return unless attachable_type == "SyncedEmail"
     return unless attachable.present?
 
     sm_task.add_keywords_from_email(attachable)

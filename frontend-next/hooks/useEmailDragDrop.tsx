@@ -111,7 +111,7 @@ export function EmailDragDropProvider({
         } else {
           // For Outlook/MS365
           await api.post(
-            `/api/v1/email_warehouse/${draggedEmail.id}/move_to_folder`,
+            `/api/v1/synced_email/${draggedEmail.id}/move_to_folder`,
             {
               folder_id: folderData.folderId,
               folder_name: folderData.folderName,

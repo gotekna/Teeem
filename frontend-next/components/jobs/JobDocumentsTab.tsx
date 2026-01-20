@@ -603,9 +603,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const getVersionBadge = (status?: string) => {
     switch (status) {
       case "draft":
-        return { label: "Draft", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" };
+        return { label: "Draft", className: "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400" };
       case "signed":
-        return { label: "Signed", className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" };
+        return { label: "Signed", className: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400" };
       case "superseded":
         return { label: "Superseded", className: "bg-muted text-muted-foreground dark:bg-background/30 dark:text-muted-foreground" };
       default:
@@ -1490,10 +1490,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
-      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Validated</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Validated</Badge>;
     }
     if (task.has_document) {
-      return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"><Paperclip className="h-3 w-3 mr-1" />Attached</Badge>;
+      return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"><Paperclip className="h-3 w-3 mr-1" />Attached</Badge>;
     }
     return <Badge variant="secondary">Pending</Badge>;
   };
@@ -1888,7 +1888,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               <div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-600" />
-                  <h3 className="font-semibold">SharePoint Connected</h3>
+                  <h3 className="text-sm font-semibold">SharePoint Connected</h3>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Job folder found for {jobTitle || "this job"}
@@ -2100,7 +2100,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         {/* Header with refresh and open in SharePoint */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold">All Files</h3>
+            <h3 className="text-sm font-semibold">All Files</h3>
             <span className="text-sm text-muted-foreground">
               {loadingAllFiles ? "Loading..." : `${allFiles.length} files`}
               {allFilesDisplayMode === "gallery" && imagePhotos.length > 0 && (
@@ -2211,7 +2211,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <h4 className="font-medium flex items-center gap-2">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-purple-600" />
                     Bulk Categorize
                   </h4>
@@ -2459,7 +2459,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                               </TableCell>
                               <TableCell>
                                 {item.rename_status === "completed" ? (
-                                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                  <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                                     <CheckCircle className="h-3 w-3 mr-1" />
                                     Renamed
                                   </Badge>
@@ -2468,7 +2468,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                     Skipped
                                   </Badge>
                                 ) : item.ai_analyzed ? (
-                                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                  <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
                                     <Sparkles className="h-3 w-3 mr-1" />
                                     Pending
                                   </Badge>
@@ -2864,7 +2864,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
                   return (
                     <div key={folder.id} className="space-y-2">
-                      <h3 className="font-medium flex items-center gap-2">
+                      <h3 className="text-sm font-medium flex items-center gap-2">
                         <Folder className="h-4 w-4 text-yellow-500" />
                         {folder.name}
                         <Badge variant="secondary" className="text-xs">{folderImages.length} photos</Badge>
@@ -3559,9 +3559,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                   item.status.includes("recategorize")
                                     ? "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
                                     : item.status === "already_correct"
-                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-100"
                                     : item.status.includes("categorize")
-                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                                    ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-100"
                                     : ""
                                 }
                               >

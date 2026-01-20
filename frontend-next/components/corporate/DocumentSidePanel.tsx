@@ -144,7 +144,7 @@ export default function DocumentSidePanel({
                     variant="outline"
                     className={`text-xs font-medium ${
                       document.ocr_confidence >= 90
-                        ? "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700"
+                        ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700"
                         : document.ocr_confidence >= 70
                         ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-600"
                         : "bg-blue-50/50 text-blue-600 border-blue-200 dark:bg-blue-900/10 dark:text-blue-300 dark:border-blue-500"
@@ -156,7 +156,7 @@ export default function DocumentSidePanel({
                 ) : document.ocr_method === "vision" ? (
                   <Badge
                     variant="outline"
-                    className="text-xs font-medium bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-700"
+                    className="text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-700"
                     title="Document processed using AI vision (no text extraction)"
                   >
                     OCR Vision
@@ -169,10 +169,10 @@ export default function DocumentSidePanel({
                     variant="outline"
                     className={`text-xs font-medium ${
                       document.ai_confidence_score >= 90
-                        ? "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700"
+                        ? "bg-status-success text-status-success-foreground border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700"
                         : document.ai_confidence_score >= 70
-                        ? "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
-                        : "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700"
+                        ? "bg-status-warning text-status-warning-foreground border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
+                        : "bg-status-error text-status-error-foreground border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700"
                     }`}
                     title="AI classification confidence score"
                   >

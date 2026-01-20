@@ -1,10 +1,10 @@
-# SyncEmailsToSharePointJob - Sync emails to EmailWarehouse and upload emails + attachments to SharePoint
+# SyncEmailsToSharePointJob - Sync emails to SyncedEmail and upload emails + attachments to SharePoint
 #
 # Usage:
 #   SyncEmailsToSharePointJob.perform_later(credential_id)
 #
 # This job:
-# 1. Syncs all emails from the org's users to EmailWarehouse using OrgEmailSyncJob
+# 1. Syncs all emails from the org's users to SyncedEmail using OrgEmailSyncJob
 # 2. Uploads email attachments to SharePoint in folder structure: /emails/attachments/{org_name}/{year}/{month}/
 # 3. Uploads email messages (.eml) to SharePoint in folder structure: /Emails/{org_name}/{year}/{month}/
 
@@ -21,7 +21,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     Rails.logger.info "[SyncToSharePoint] Starting sync for #{@credential.name}"
 
-    # Step 1: Sync emails to EmailWarehouse (use 'full' to respect sync_days config)
+    # Step 1: Sync emails to SyncedEmail (use 'full' to respect sync_days config)
     # TEMPORARILY SKIPPED - there's a bug where running email sync before attachment processing
     # causes 404 errors even though manual tests work. Processing existing emails instead.
     # Rails.logger.info "[SyncToSharePoint] Step 1: Syncing emails to warehouse..."
@@ -69,7 +69,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     # Find emails with attachments that haven't been processed yet
     # Simple approach: process emails where has_attachments=true but no EmailAttachment records exist
-    emails_with_attachments = EmailWarehouse
+    emails_with_attachments = SyncedEmail
       .where(microsoft_credential_id: @credential.id)
       .where(has_attachments: true)
       .where.not(mailbox_owner_email: nil)  # Only emails with mailbox owner tracked
@@ -123,7 +123,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
           if existing_attachment
             # File already exists in SharePoint - just create link
             link = EmailAttachment.find_or_create_by(
-              email_warehouse: email,
+              synced_email: email,
               attachment: existing_attachment
             ) do |l|
               l.outlook_attachment_id = outlook_attachment_id
@@ -158,7 +158,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
             # Create link with denormalized fields for easy viewing
             EmailAttachment.create!(
-              email_warehouse: email,
+              synced_email: email,
               attachment: attachment,
               outlook_attachment_id: outlook_attachment_id,
               filename: filename,
@@ -265,7 +265,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
     # Get emails from this org that haven't been uploaded yet
     # Simple approach: process emails without sharepoint_email_file_id
-    emails_to_upload = EmailWarehouse
+    emails_to_upload = SyncedEmail
       .where(microsoft_credential_id: @credential.id)
       .where(sharepoint_email_file_id: nil)  # Not yet uploaded
       .where.not(mailbox_owner_email: nil)   # Only emails with mailbox owner tracked

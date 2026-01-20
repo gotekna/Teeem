@@ -363,21 +363,21 @@ export default function RecurringInvoicesTab() {
     switch (status) {
       case "active":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Active
           </Badge>
         );
       case "paused":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
             <Pause className="h-3 w-3 mr-1" />
             Paused
           </Badge>
         );
       case "cancelled":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400">
             <XCircle className="h-3 w-3 mr-1" />
             Cancelled
           </Badge>
@@ -676,7 +676,7 @@ export default function RecurringInvoicesTab() {
 
             {/* Schedule */}
             <div className="space-y-4">
-              <h4 className="font-medium">Schedule</h4>
+              <h4 className="text-sm font-medium text-muted-foreground">Schedule</h4>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="frequency">Frequency</Label>
@@ -768,7 +768,7 @@ export default function RecurringInvoicesTab() {
             {/* Line Items */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">Line Items</h4>
+                <h4 className="text-sm font-medium text-muted-foreground">Line Items</h4>
                 <Button variant="outline" size="sm" onClick={addLineItem}>
                   <Plus className="h-3 w-3 mr-1" />
                   Add Line
@@ -830,7 +830,7 @@ export default function RecurringInvoicesTab() {
 
             {/* Options */}
             <div className="space-y-4">
-              <h4 className="font-medium">Options</h4>
+              <h4 className="text-sm font-medium text-muted-foreground">Options</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="payment_terms_days">Payment Terms (days)</Label>

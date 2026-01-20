@@ -376,7 +376,7 @@ export default function XeroIntegrationPage() {
                       Token Expired
                     </Badge>
                   ) : (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                    <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       Connected
                     </Badge>
@@ -453,7 +453,7 @@ export default function XeroIntegrationPage() {
                     {tenants.length}
                   </Badge>
                   {hasExpiredTenants && (
-                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-xs">
+                    <Badge className="bg-status-error text-status-error-foreground hover:bg-red-100 text-xs">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Reconnection Required
                     </Badge>
@@ -517,12 +517,12 @@ export default function XeroIntegrationPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {isExpired(tenant) ? (
-                          <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                          <Badge className="bg-status-error text-status-error-foreground hover:bg-red-100">
                             <XCircle className="h-3 w-3 mr-1" />
                             Expired
                           </Badge>
                         ) : (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                          <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Active
                           </Badge>
@@ -564,7 +564,7 @@ export default function XeroIntegrationPage() {
                       TEEEM companies linked to Xero organizations
                     </CardDescription>
                   </div>
-                  <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                  <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-100">
                     {companyConnections.length} {companyConnections.length === 1 ? 'Company' : 'Companies'}
                   </Badge>
                 </div>
@@ -587,7 +587,7 @@ export default function XeroIntegrationPage() {
                           </p>
                         </div>
                       </div>
-                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                      <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         {connection.connection_status}
                       </Badge>
@@ -745,11 +745,11 @@ export default function XeroIntegrationPage() {
                   <span className="text-sm text-muted-foreground">Overall Status</span>
                   <Badge className={
                     pdfSyncHealth?.overall_status === "healthy"
-                      ? "bg-green-100 text-green-800"
+                      ? "bg-status-success text-status-success-foreground"
                       : pdfSyncHealth?.overall_status === "in_progress"
-                      ? "bg-blue-100 text-blue-800"
+                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                       : pdfSyncHealth?.overall_status === "warning"
-                      ? "bg-amber-100 text-amber-800"
+                      ? "bg-status-warning text-status-warning-foreground"
                       : "bg-muted text-foreground"
                   }>
                     {pdfSyncHealth?.overall_status === "healthy" && <CheckCircle2 className="h-3 w-3 mr-1" />}

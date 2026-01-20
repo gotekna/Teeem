@@ -202,7 +202,7 @@ export function XeroSyncFromModal({
                 {comparisons.length} contact{comparisons.length !== 1 ? "s" : ""} checked
               </Badge>
               {contactsWithDifferences.length > 0 && (
-                <Badge variant="secondary" className="text-sm bg-amber-100 text-amber-800">
+                <Badge variant="secondary" className="text-sm bg-status-warning text-status-warning-foreground">
                   {contactsWithDifferences.length} with differences
                 </Badge>
               )}
@@ -247,7 +247,7 @@ export function XeroSyncFromModal({
                         key={comp.link_id}
                         className="p-4 border rounded-lg bg-amber-50 dark:bg-amber-950/30"
                       >
-                        <div className="font-medium mb-3">{comp.teeem_name}</div>
+                        <div className="text-sm font-medium mb-3">{comp.teeem_name}</div>
                         <div className="space-y-2">
                           {comp.differences.map((diff) => {
                             const isSelected = selectedFields[comp.contact_id]?.[diff.field];

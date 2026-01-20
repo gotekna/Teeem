@@ -294,7 +294,7 @@ export default function ConsolidationTab() {
                         <TableCell className="text-right">{entity.ownership_percentage}%</TableCell>
                         <TableCell>{entity.currency}</TableCell>
                         <TableCell className="text-center">
-                          <Badge className={entity.status === "active" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : ""}>
+                          <Badge className={entity.status === "active" ? "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400" : ""}>
                             {entity.status}
                           </Badge>
                         </TableCell>

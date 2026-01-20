@@ -102,7 +102,7 @@ class EmailSendingService
       new(params).schedule_email
     end
 
-    # Send email and log to EmailWarehouse
+    # Send email and log to SyncedEmail
     # @param params [Hash] Email parameters
     # @return [Result] Send result
     def send_and_log(**params)
@@ -179,7 +179,7 @@ class EmailSendingService
     Result.new(success: false, error: e.message)
   end
 
-  # Log sent email to EmailWarehouse
+  # Log sent email to SyncedEmail
   # SSoT: Ensures sent emails appear immediately without waiting for sync
   def log_to_warehouse(result)
     return unless result.success?
@@ -187,7 +187,7 @@ class EmailSendingService
     # Determine the from email (used for mailbox_owner_email)
     from_email_addr = sender_email
 
-    EmailWarehouse.create!(
+    SyncedEmail.create!(
       internet_message_id: result.message_id || SecureRandom.uuid,
       source_type: @account_type,
       imap_credential_id: imap_credential_id,

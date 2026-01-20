@@ -1487,7 +1487,7 @@ function ReportsTab() {
                   <report.icon className="h-5 w-5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium">{report.title}</h3>
+                  <h3 className="text-sm font-medium">{report.title}</h3>
                   <p className="text-sm text-muted-foreground">{report.description}</p>
                   <Badge variant="outline" className="mt-2 text-xs">{report.category}</Badge>
                 </div>

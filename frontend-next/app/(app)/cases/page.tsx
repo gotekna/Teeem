@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { TabbedPage } from "@/components/ui/page-wrappers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -249,21 +250,16 @@ export default function CasesPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Cases</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Investigations, audits, and compliance reviews
-          </p>
-        </div>
+    <TabbedPage
+      title="Cases"
+      description="Investigations, audits, and compliance reviews"
+      actions={
         <Button onClick={() => router.push("/cases/new")}>
           <Plus className="h-4 w-4 mr-2" />
           New Case
         </Button>
-      </div>
-
+      }
+    >
       {/* Tabs for Cases and Proposals */}
       <Tabs value={activeTab || "cases"} onValueChange={setActiveTab} className="w-full">
         <TabsList>
@@ -379,7 +375,7 @@ export default function CasesPage() {
                               {c.formatted_priority}
                             </Badge>
                           </div>
-                          <h3 className="font-medium truncate">{c.title}</h3>
+                          <h3 className="text-sm font-medium truncate">{c.title}</h3>
                           <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                             {c.primary_entity_name && (
                               <span className="flex items-center gap-1">
@@ -431,6 +427,6 @@ export default function CasesPage() {
           <CaseProposalsTab onPendingCountChange={setPendingProposals} />
         </TabsContent>
       </Tabs>
-    </div>
+    </TabbedPage>
   );
 }

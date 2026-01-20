@@ -68,10 +68,10 @@ interface MeetingType {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  sales: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+  sales: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400",
   construction: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
-  board: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  safety: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  board: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400",
+  safety: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400",
   team: "bg-muted text-foreground dark:bg-muted dark:text-muted-foreground",
 };
 

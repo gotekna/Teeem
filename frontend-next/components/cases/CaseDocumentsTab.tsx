@@ -62,13 +62,13 @@ interface CaseDocumentsTabProps {
 function getRelevanceColor(relevance: string) {
   switch (relevance) {
     case "critical":
-      return "bg-red-100 text-red-800";
+      return "bg-status-error text-status-error-foreground";
     case "high":
       return "bg-orange-100 text-orange-800";
     case "medium":
-      return "bg-yellow-100 text-yellow-800";
+      return "bg-status-warning text-status-warning-foreground";
     case "low":
-      return "bg-green-100 text-green-800";
+      return "bg-status-success text-status-success-foreground";
     default:
       return "bg-muted text-foreground";
   }

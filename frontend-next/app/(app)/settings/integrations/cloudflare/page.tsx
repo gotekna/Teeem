@@ -219,7 +219,7 @@ export default function CloudflareSettingsPage() {
           <div className="flex items-center justify-between">
             <CardTitle>Connection Status</CardTitle>
             {isConnected ? (
-              <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+              <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-200">
                 <CheckCircle2 className="h-3 w-3 mr-1" />
                 Connected
               </Badge>

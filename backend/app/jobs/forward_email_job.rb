@@ -14,7 +14,7 @@ class ForwardEmailJob < ApplicationJob
   retry_on StandardError, wait: 5.seconds, attempts: 3
 
   def perform(email_id, forward_to_address)
-    email = EmailWarehouse.find_by(id: email_id)
+    email = SyncedEmail.find_by(id: email_id)
     unless email
       Rails.logger.warn("[ForwardEmailJob] Email #{email_id} not found, skipping")
       return

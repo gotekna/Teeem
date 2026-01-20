@@ -5,7 +5,7 @@ class Notification < ApplicationRecord
   belongs_to :notifiable, polymorphic: true, optional: true
 
   # Allowed polymorphic types for notifiable (security: prevents arbitrary type injection)
-  ALLOWED_NOTIFIABLE_TYPES = %w[SmTask EmailWarehouse EmailSnooze].freeze
+  ALLOWED_NOTIFIABLE_TYPES = %w[SmTask SyncedEmail EmailSnooze].freeze
 
   # Auto-generate link based on notifiable type
   before_save :generate_link_from_notifiable
@@ -57,13 +57,13 @@ class Notification < ApplicationRecord
                 when "SmTask"
                   # Link to tasks page with task expanded
                   "/tasks?taskId=#{notifiable_id}"
-                when "EmailWarehouse"
+                when "SyncedEmail"
                   # Link to email page with email selected
                   "/email?id=#{notifiable_id}"
                 when "EmailSnooze"
                   # Link to email page - find the email ID from the snooze
                   snooze = EmailSnooze.find_by(id: notifiable_id)
-                  snooze&.email_warehouse_id ? "/email?id=#{snooze.email_warehouse_id}" : nil
+                  snooze&.synced_email_id ? "/email?id=#{snooze.synced_email_id}" : nil
                 end
   end
 end

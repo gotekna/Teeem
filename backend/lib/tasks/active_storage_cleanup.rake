@@ -30,7 +30,7 @@ namespace :active_storage do
       CorporateCompanyDocument
       ChatMessage
       BillInbox
-      EmailWarehouse
+      SyncedEmail
       SmTask
     ]
 

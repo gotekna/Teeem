@@ -269,7 +269,7 @@ export function BackupSettingsTab() {
 
           {/* Schedule Section */}
           <div className="space-y-4 pt-4 border-t">
-            <h3 className="font-medium flex items-center gap-2">
+            <h3 className="text-sm font-medium flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Schedule
             </h3>
@@ -345,7 +345,7 @@ export function BackupSettingsTab() {
 
           {/* Storage Providers Section */}
           <div className="space-y-4 pt-4 border-t">
-            <h3 className="font-medium flex items-center gap-2">
+            <h3 className="text-sm font-medium flex items-center gap-2">
               <HardDrive className="h-4 w-4" />
               Storage Providers
             </h3>
@@ -434,7 +434,7 @@ export function BackupSettingsTab() {
 
           {/* Actions Section */}
           <div className="space-y-4 pt-4 border-t">
-            <h3 className="font-medium flex items-center gap-2">
+            <h3 className="text-sm font-medium flex items-center gap-2">
               <Play className="h-4 w-4" />
               Manual Backup
             </h3>

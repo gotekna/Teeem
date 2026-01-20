@@ -214,7 +214,7 @@ function ContactNode({ data }: { data: ContactNodeData }) {
         </div>
         <div className="flex flex-col items-end gap-1">
           {isPrimary && (
-            <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+            <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full">
               Primary
             </span>
           )}
@@ -344,7 +344,7 @@ function CompanyGroupNode({ data }: { data: CompanyGroupNodeData }) {
                 <div className="text-sm font-medium truncate flex items-center gap-2">
                   {employee.name}
                   {employee.is_primary && (
-                    <span className="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-800 rounded">
+                    <span className="px-1.5 py-0.5 text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded">
                       Primary
                     </span>
                   )}

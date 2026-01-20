@@ -85,7 +85,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     try {
       // SSoT: Include filename so backend can match local warehouse files
       const blob = await api.getBlob(
-        `/api/v1/email_warehouse/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
+        `/api/v1/synced_email/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
       );
       const url = window.URL.createObjectURL(blob);
 
@@ -111,7 +111,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     try {
       // SSoT: Include filename so backend can match local warehouse files
       const blob = await api.getBlob(
-        `/api/v1/email_warehouse/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
+        `/api/v1/synced_email/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
       );
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
