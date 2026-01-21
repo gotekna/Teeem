@@ -490,25 +490,10 @@ export default function ContactDetailPage() {
 
   // Fetch all companies for multi-select dropdown - load when contact is a person type
   useEffect(() => {
-    console.log('[Company Multi-Select] useEffect triggered:', {
-      hasContact: !!contact,
-      contactId: contact?.id,
-      entityType: contact?.entity_type,
-      availableCompaniesLength: availableCompanies.length,
-      canHaveEmployer: contact ? canHaveEmployer(contact.entity_type) : 'N/A',
-    });
-
     // Only fetch for person entity types that can have employers, and if not already loaded
-    if (!contact || availableCompanies.length > 0) {
-      console.log('[Company Multi-Select] Early return - contact:', !!contact, 'companies already loaded:', availableCompanies.length > 0);
-      return;
-    }
-    if (!canHaveEmployer(contact.entity_type)) {
-      console.log('[Company Multi-Select] Early return - entity type cannot have employer:', contact.entity_type);
-      return;
-    }
+    if (!contact || availableCompanies.length > 0) return;
+    if (!canHaveEmployer(contact.entity_type)) return;
 
-    console.log('[Company Multi-Select] Fetching companies...');
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
       try {
@@ -516,18 +501,14 @@ export default function ContactDetailPage() {
           params: { entity_type: "company" },
         });
         const companies = response.contacts || [];
-        console.log('[Company Multi-Select] Loaded companies:', companies.length);
         const companyOptions: Option[] = companies.map((c: CompanyListContact) => ({
           value: c.id.toString(),
           label: c.display_name || c.first_name || "Unknown Company",
         }));
-        console.log('[Company Multi-Select] Company options:', companyOptions);
         setAvailableCompanies(companyOptions);
-        console.log('[Company Multi-Select] Companies loaded successfully, count:', companyOptions.length);
       } catch (err) {
         console.error("[Company Multi-Select] Failed to fetch companies:", err);
       } finally {
-        console.log('[Company Multi-Select] Setting loadingCompanies to false');
         setLoadingCompanies(false);
       }
     };
@@ -599,23 +580,17 @@ export default function ContactDetailPage() {
 
   // Populate selected employees from contact.employees (for company contacts)
   useEffect(() => {
-    console.log('[Employee useEffect] Triggered. contact.employees:', contact?.employees);
     if (contact?.employees) {
       const selected: Option[] = contact.employees.map((emp) => ({
         value: emp.id.toString(),
         label: emp.display_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || "Unknown Person",
       }));
-      console.log('[Employee useEffect] Setting selectedEmployees to:', selected);
       setSelectedEmployees(selected);
 
       // Fetch roles for each employee by getting their relationships to this company
       const fetchEmployeeRoles = async () => {
-        if (!contact?.id) {
-          console.log('[Employee useEffect] Skipping fetchEmployeeRoles - no contact.id');
-          return;
-        }
+        if (!contact?.id) return;
 
-        console.log('[Employee useEffect] Fetching roles for contact.id:', contact.id);
         try {
           const response = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
           const incoming = response.relationships?.incoming || [];
@@ -636,15 +611,13 @@ export default function ContactDetailPage() {
             rolesMap[employeeId].push(rel.relationship_type);
           });
 
-          console.log('[Employee useEffect] Employee roles fetched:', rolesMap);
           setEmployeeRoles(rolesMap);
         } catch (err) {
-          console.error('[Employee useEffect] Failed to fetch employee roles for contact.id:', contact.id, 'Error:', err);
+          console.error('[Employee useEffect] Failed to fetch employee roles:', err);
         }
       };
       fetchEmployeeRoles();
     } else {
-      console.log('[Employee useEffect] No employees found on contact');
       setEmployeeRoles({});
     }
   }, [contact?.employees, contact?.id]);

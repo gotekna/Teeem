@@ -348,29 +348,6 @@ export function Sidebar() {
     }
   }, [tenantContext?.currentTenant?.environment]);
 
-  // DEBUG: Global click listener to see if ANY clicks are registered
-  useEffect(() => {
-    // Helper to safely get className as string (SVG elements have SVGAnimatedString, not string)
-    const getClassString = (el: EventTarget | null): string => {
-      if (!el || !(el instanceof Element)) return '';
-      const cn = el.className;
-      return typeof cn === 'string' ? cn : ((cn as SVGAnimatedString)?.baseVal ?? '');
-    };
-    const handleGlobalClick = (e: MouseEvent) => {
-      console.log('[DEBUG GLOBAL] Click detected on:', (e.target as Element)?.tagName, getClassString(e.target).slice(0, 50));
-    };
-    const handleGlobalPointerDown = (e: PointerEvent) => {
-      console.log('[DEBUG GLOBAL] PointerDown on:', (e.target as Element)?.tagName, getClassString(e.target).slice(0, 50));
-    };
-    document.addEventListener('click', handleGlobalClick, true); // capture phase
-    document.addEventListener('pointerdown', handleGlobalPointerDown, true);
-    console.log('[DEBUG] Global click listeners attached');
-    return () => {
-      document.removeEventListener('click', handleGlobalClick, true);
-      document.removeEventListener('pointerdown', handleGlobalPointerDown, true);
-    };
-  }, []);
-
   // Prevent duplicate fetches (React StrictMode double-mount)
   const badgeFetchingRef = useRef(false);
 

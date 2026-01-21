@@ -50,6 +50,7 @@ function evaluateVisibility(
   const { contact, xeroLinks, directorshipsCount, shareholdingsCount, trustRolesCount, membershipsCount, caseRelationshipsCount } = data;
 
   switch (rule) {
+    // Machine-readable codes (SSoT)
     case "has_corporate_data":
       // Visible when contact has any corporate relationships
       return directorshipsCount > 0 || shareholdingsCount > 0 || trustRolesCount > 0 || membershipsCount > 0;
@@ -78,9 +79,23 @@ function evaluateVisibility(
       // Visible when contact has directorships
       return directorshipsCount > 0;
 
+    // Human-readable strings (legacy from migration 20260115100000)
+    // These match machine codes but use readable text for admin UI display
+    case "Always visible":
+    case "Always visible (filtered by entity type)":
+      return true;
+
+    case "Has linked corporate":
+      return directorshipsCount > 0 || shareholdingsCount > 0 || trustRolesCount > 0 || membershipsCount > 0;
+
+    case "Has linked cases":
+      return caseRelationshipsCount > 0;
+
+    case "Has Primary Xero links":
+      return xeroLinks.length > 0;
+
     default:
-      // Unknown rule - default to visible
-      console.warn(`[ContactTabsRenderer] Unknown visibility_rule: ${rule}`);
+      // Unknown rule - default to visible (silent, not a warning)
       return true;
   }
 }
