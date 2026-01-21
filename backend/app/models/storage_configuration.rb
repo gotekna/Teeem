@@ -130,6 +130,18 @@ class StorageConfiguration < ApplicationRecord
     'warehouse' => 'Warehousing'
   }.freeze
 
+  # Key aliases for backward compatibility
+  # Maps commonly used keys to their SSoT key name
+  WAREHOUSE_KEY_ALIASES = {
+    'corporate' => 'corporate_entity',
+    'company' => 'corporate_entity',
+    'contacts' => 'contact',
+    'people' => 'contact',
+    'jobs' => 'job',
+    'emails' => 'email',
+    'tasks' => 'task'
+  }.freeze
+
   # Legacy alias for backward compatibility
   SCOPE_ROOT_DEFAULTS = WAREHOUSE_ROOT_DEFAULTS
 
@@ -169,13 +181,19 @@ class StorageConfiguration < ApplicationRecord
   # @param warehouse_type [String, Symbol] The warehouse type name (job, contact, task, etc.)
   # @return [String, nil] The root folder name for that warehouse type, or nil if disabled
   #
+  # Supports key aliases (e.g., :corporate → :corporate_entity, :contacts → :contact)
+  # See WAREHOUSE_KEY_ALIASES for all supported aliases.
+  #
   # Examples:
-  #   root_folder_for(:job)     # => "Jobs/{{JobCode}}"
-  #   root_folder_for(:contact) # => "Contacts/{{ContactName}}"
-  #   root_folder_for(:task)    # => nil (if disabled)
+  #   root_folder_for(:job)       # => "Jobs/{{JobCode}}"
+  #   root_folder_for(:contact)   # => "Contacts/{{ContactName}}"
+  #   root_folder_for(:corporate) # => "Corporate/{{CompanyGroup}}" (via alias)
+  #   root_folder_for(:task)      # => nil (if disabled)
   #
   def root_folder_for(warehouse_type)
     type_key = warehouse_type.to_s
+    # Resolve aliases (e.g., 'corporate' → 'corporate_entity')
+    type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
     # SSoT: Only use warehouse_root_folders column (initialized with defaults via after_initialize)
     path = warehouse_root_folders&.dig(type_key)
     return nil if path.blank? || path == "DISABLED"

@@ -309,10 +309,11 @@ class JobDocument < ApplicationRecord
 
   # Phase 4: Virtual folder path for File Warehouse (PUBLIC - used by FolderTemplateReorganizationService)
   # SSoT: Reads template from StorageConfiguration.virtual_template_for(:job)
-  # Default template: "{{JobCode}}/{{TabName}}"
+  # Default template: "Jobs/{{JobCode}}/{{TabName}}"
   def virtual_folder_path
     config = StorageConfiguration.instance
-    template = config&.virtual_template_for(:job) || "{{JobCode}}/{{TabName}}"
+    # SSoT: Fallback must include "Jobs/" prefix to match WAREHOUSE_ROOT_DEFAULTS
+    template = config&.virtual_template_for(:job) || "Jobs/{{JobCode}}/{{TabName}}"
 
     tokens = storage_tokens_for_virtual_path
     result = template.dup

@@ -61,100 +61,115 @@ namespace :warehouse do
     puts "Run 'rails warehouse:fix_folders' to normalize folder names"
   end
 
-  desc "Fix folder names - normalize case and re-parent orphaned folders"
+  desc "Fix folder names - recalculate all folders from documentable.virtual_folder_path"
   task fix_folders: :environment do
     puts "=" * 60
     puts "WAREHOUSE FOLDER FIX"
     puts "=" * 60
+    puts "Recalculating ALL folder values from documentable.virtual_folder_path"
 
-    stats = { case_fixed: 0, reparented: 0, errors: [] }
+    stats = { fixed: 0, skipped: 0, errors: [] }
 
-    # 1. Fix case mismatches (jobs → Jobs, etc.)
-    puts "\n[1/3] Fixing case mismatches..."
-    EXPECTED_ROOT_FOLDERS.each do |expected|
-      # Find all case variants
-      WarehouseDocument.where("folder ~* ?", "^#{expected.downcase}/").find_each do |doc|
-        old_folder = doc.folder
-        root = old_folder.split("/").first
-        next if root == expected # Already correct case
+    # Process all WarehouseDocuments with invalid root folders
+    # This recalculates the folder from the documentable's virtual_folder_path
+    total = WarehouseDocument.count
+    puts "\nProcessing #{total} documents..."
 
-        new_folder = old_folder.sub(/^#{Regexp.escape(root)}/, expected)
-        doc.update_column(:folder, new_folder)
-        stats[:case_fixed] += 1
-      end
+    WarehouseDocument.includes(:documentable).find_each.with_index do |doc, i|
+      print "." if (i + 1) % 1000 == 0
+      print "\n#{i + 1}/#{total} processed..." if (i + 1) % 10000 == 0
 
-      # Also fix root-only folders
-      WarehouseDocument.where("LOWER(folder) = ?", expected.downcase).where.not(folder: expected).find_each do |doc|
-        doc.update_column(:folder, expected)
-        stats[:case_fixed] += 1
-      end
-    end
-    puts "   Fixed #{stats[:case_fixed]} case mismatches"
-
-    # 2. Handle "Users" folder (removed in Jan 2026 - Users are auth only)
-    puts "\n[2/3] Handling 'Users' folder..."
-    users_count = WarehouseDocument.where("folder LIKE 'Users%'").count
-    if users_count > 0
-      # Re-parent to Contacts if possible via documentable
-      WarehouseDocument.where("folder LIKE 'Users%'").find_each do |doc|
-        begin
-          # Try to compute new path from documentable
-          if doc.documentable.respond_to?(:virtual_folder_path)
-            new_folder = doc.documentable.virtual_folder_path
-            doc.update_column(:folder, new_folder)
-            stats[:reparented] += 1
-          else
-            # Fallback: Move to Warehousing/Legacy
-            new_folder = "Warehousing/Legacy/Users/#{doc.folder.sub('Users/', '')}"
-            doc.update_column(:folder, new_folder)
-            stats[:reparented] += 1
-          end
-        rescue => e
-          stats[:errors] << "Doc #{doc.id}: #{e.message}"
+      begin
+        # Get the documentable and check if it can compute virtual_folder_path
+        documentable = doc.documentable
+        unless documentable
+          stats[:skipped] += 1
+          next
         end
-      end
-      puts "   Reparented #{stats[:reparented]} from Users folder"
-    else
-      puts "   No Users folder documents found"
-    end
 
-    # 3. Handle "Attachments" folder (legacy - should be under source folder)
-    puts "\n[3/3] Handling 'Attachments' folder..."
-    attachments_count = WarehouseDocument.where("folder LIKE 'Attachments%'").count
-    if attachments_count > 0
-      reparented_attachments = 0
-      WarehouseDocument.where("folder LIKE 'Attachments%'").find_each do |doc|
-        begin
-          if doc.documentable.respond_to?(:virtual_folder_path)
-            new_folder = doc.documentable.virtual_folder_path
-            doc.update_column(:folder, new_folder)
-            reparented_attachments += 1
-          else
-            # Fallback: Move to Warehousing/Legacy
-            new_folder = "Warehousing/Legacy/#{doc.folder}"
-            doc.update_column(:folder, new_folder)
-            reparented_attachments += 1
-          end
-        rescue => e
-          stats[:errors] << "Attachment doc #{doc.id}: #{e.message}"
+        unless documentable.respond_to?(:virtual_folder_path)
+          stats[:skipped] += 1
+          next
         end
+
+        new_folder = documentable.virtual_folder_path
+        if new_folder.blank?
+          stats[:skipped] += 1
+          next
+        end
+
+        # Only update if folder has changed
+        if doc.folder != new_folder
+          doc.update_column(:folder, new_folder)
+          stats[:fixed] += 1
+        else
+          stats[:skipped] += 1
+        end
+      rescue => e
+        stats[:errors] << "Doc #{doc.id}: #{e.message}"
       end
-      puts "   Reparented #{reparented_attachments} from Attachments folder"
-    else
-      puts "   No Attachments folder documents found"
     end
 
-    puts "\n" + "=" * 60
+    puts "\n\n" + "=" * 60
     puts "FIX COMPLETE"
     puts "=" * 60
-    puts "Case mismatches fixed: #{stats[:case_fixed]}"
-    puts "Documents reparented:  #{stats[:reparented]}"
-    puts "Errors:                #{stats[:errors].count}"
+    puts "Folders fixed:       #{stats[:fixed]}"
+    puts "Already correct:     #{stats[:skipped]}"
+    puts "Errors:              #{stats[:errors].count}"
     if stats[:errors].any?
       puts "\nFirst 10 errors:"
       stats[:errors].first(10).each { |e| puts "  - #{e}" }
     end
     puts "\nRun 'rails warehouse:audit' to verify results"
+  end
+
+  desc "Preview folder fixes without applying (dry run - shows first 50 changes)"
+  task fix_folders_preview: :environment do
+    puts "=" * 60
+    puts "WAREHOUSE FOLDER FIX - DRY RUN"
+    puts "=" * 60
+
+    changes = []
+    checked = 0
+
+    WarehouseDocument.includes(:documentable).find_each do |doc|
+      checked += 1
+      break if changes.count >= 50
+
+      begin
+        documentable = doc.documentable
+        next unless documentable&.respond_to?(:virtual_folder_path)
+
+        new_folder = documentable.virtual_folder_path
+        next if new_folder.blank?
+
+        if doc.folder != new_folder
+          changes << {
+            id: doc.id,
+            type: doc.documentable_type,
+            old: doc.folder || "(nil)",
+            new: new_folder
+          }
+        end
+      rescue => e
+        # Skip errors in preview
+      end
+    end
+
+    if changes.any?
+      puts "\nFirst #{changes.count} folder changes:"
+      puts "-" * 60
+      changes.each do |c|
+        puts "  Doc #{c[:id]} (#{c[:type]}):"
+        puts "    OLD: #{c[:old]}"
+        puts "    NEW: #{c[:new]}"
+        puts ""
+      end
+    else
+      puts "\nNo changes needed - all folders in sync!"
+    end
+
+    puts "\nRun 'rails warehouse:fix_folders' to apply changes."
   end
 
   desc "Sync all WarehouseDocument.folder values to match current StorageConfiguration templates"

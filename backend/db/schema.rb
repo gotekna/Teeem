@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_21_050000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -291,10 +291,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.datetime "synced_to_xero_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "storage_blob_id"
     t.index ["asset_id", "expense_date"], name: "idx_asset_expenses_asset_date"
     t.index ["asset_id"], name: "index_asset_expenses_on_asset_id"
     t.index ["expense_type"], name: "index_asset_expenses_on_expense_type"
     t.index ["financial_transaction_id"], name: "index_asset_expenses_on_financial_transaction_id"
+    t.index ["storage_blob_id"], name: "index_asset_expenses_on_storage_blob_id"
     t.index ["user_id"], name: "index_asset_expenses_on_user_id"
     t.index ["xero_invoice_id"], name: "index_asset_expenses_on_xero_invoice_id"
   end
@@ -331,9 +333,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "storage_blob_id"
     t.index ["asset_id", "reading_date"], name: "idx_asset_odometer_asset_date"
     t.index ["asset_id"], name: "index_asset_odometer_readings_on_asset_id"
     t.index ["reading_type"], name: "index_asset_odometer_readings_on_reading_type"
+    t.index ["storage_blob_id"], name: "index_asset_odometer_readings_on_storage_blob_id"
     t.index ["user_id"], name: "index_asset_odometer_readings_on_user_id"
   end
 
@@ -354,7 +358,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.string "document_url"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "invoice_blob_id"
+    t.bigint "document_blob_id"
     t.index ["asset_id"], name: "index_asset_service_histories_on_asset_id"
+    t.index ["document_blob_id"], name: "index_asset_service_histories_on_document_blob_id"
+    t.index ["invoice_blob_id"], name: "index_asset_service_histories_on_invoice_blob_id"
     t.index ["service_date"], name: "index_asset_service_histories_on_service_date"
     t.index ["service_type"], name: "index_asset_service_histories_on_service_type"
     t.index ["user_id"], name: "index_asset_service_histories_on_user_id"
@@ -390,6 +398,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.date "construction_date"
     t.jsonb "metadata", default: {}
     t.bigint "tenant_id"
+    t.jsonb "photo_blob_ids", default: [], null: false
     t.index ["abbreviation"], name: "index_assets_on_abbreviation"
     t.index ["asset_number"], name: "index_assets_on_asset_number", unique: true
     t.index ["assigned_user_id"], name: "index_assets_on_assigned_user_id"
@@ -1424,12 +1433,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.datetime "updated_at", null: false
     t.string "source", default: "manual"
     t.string "external_id"
+    t.bigint "storage_blob_id"
     t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
     t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
     t.index ["folder"], name: "index_contact_documents_on_folder"
     t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
     t.index ["source", "external_id"], name: "index_contact_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
     t.index ["source"], name: "index_contact_documents_on_source"
+    t.index ["storage_blob_id"], name: "index_contact_documents_on_storage_blob_id"
     t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
     t.index ["uploaded_by_id"], name: "index_contact_documents_on_uploaded_by_id"
   end
@@ -2424,7 +2435,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "sharepoint_url"
+    t.bigint "storage_blob_id"
     t.index ["job_id"], name: "index_document_tasks_on_job_id"
+    t.index ["storage_blob_id"], name: "index_document_tasks_on_storage_blob_id"
   end
 
   create_table "document_templates", force: :cascade do |t|
@@ -3352,6 +3365,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.datetime "updated_at", null: false
     t.string "sharepoint_file_id"
     t.string "storage_item_id"
+    t.bigint "storage_blob_id"
     t.index ["category"], name: "index_financial_transactions_on_category"
     t.index ["company_id", "status"], name: "index_financial_transactions_on_company_id_and_status"
     t.index ["company_id", "transaction_date"], name: "idx_on_company_id_transaction_date_f27cab6995"
@@ -3362,6 +3376,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.index ["keepr_journal_id"], name: "index_financial_transactions_on_keepr_journal_id"
     t.index ["sharepoint_file_id"], name: "index_financial_transactions_on_sharepoint_file_id"
     t.index ["status"], name: "index_financial_transactions_on_status"
+    t.index ["storage_blob_id"], name: "index_financial_transactions_on_storage_blob_id"
     t.index ["storage_item_id"], name: "index_financial_transactions_on_storage_item_id"
     t.index ["transaction_date"], name: "index_financial_transactions_on_transaction_date"
     t.index ["transaction_type"], name: "index_financial_transactions_on_transaction_type"
@@ -6199,6 +6214,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.integer "version_number", default: 1, null: false
     t.datetime "signed_at"
     t.bigint "signed_by_id"
+    t.bigint "storage_blob_id"
     t.index ["ai_analyzed_at"], name: "index_job_documents_on_ai_analyzed_at"
     t.index ["ai_suggested_type_id"], name: "index_job_documents_on_ai_suggested_type_id"
     t.index ["company_id"], name: "index_job_documents_on_company_id"
@@ -6220,6 +6236,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.index ["sharepoint_drive_id"], name: "index_job_documents_on_sharepoint_drive_id"
     t.index ["sharepoint_item_id"], name: "index_job_documents_on_sharepoint_item_id", unique: true
     t.index ["signed_by_id"], name: "index_job_documents_on_signed_by_id"
+    t.index ["storage_blob_id"], name: "index_job_documents_on_storage_blob_id"
     t.index ["storage_provider", "storage_item_id"], name: "index_job_documents_on_storage_provider_and_storage_item_id"
     t.index ["storage_provider"], name: "index_job_documents_on_storage_provider"
     t.index ["sync_status"], name: "index_job_documents_on_sync_status"
@@ -6963,7 +6980,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.integer "file_size"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "storage_blob_id"
     t.index ["page_id"], name: "index_notebook_page_attachments_on_page_id"
+    t.index ["storage_blob_id"], name: "index_notebook_page_attachments_on_storage_blob_id"
     t.index ["storage_key"], name: "index_notebook_page_attachments_on_storage_key", unique: true
     t.index ["uploaded_by_id"], name: "index_notebook_page_attachments_on_uploaded_by_id"
   end
@@ -7097,10 +7116,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.string "sharepoint_file_id"
     t.jsonb "proof_photos_sharepoint_ids", default: []
     t.string "storage_item_id"
+    t.bigint "invoice_blob_id"
+    t.jsonb "proof_photo_blob_ids", default: [], null: false
     t.index ["approved_by_builder_id"], name: "index_pay_now_requests_on_approved_by_builder_id"
     t.index ["contact_id", "status"], name: "index_pay_now_requests_on_contact_and_status"
     t.index ["contact_id"], name: "index_pay_now_requests_on_contact_id"
     t.index ["created_at"], name: "index_pay_now_requests_on_created_at"
+    t.index ["invoice_blob_id"], name: "index_pay_now_requests_on_invoice_blob_id"
     t.index ["pay_now_weekly_limit_id"], name: "index_pay_now_requests_on_pay_now_weekly_limit_id"
     t.index ["payment_id"], name: "index_pay_now_requests_on_payment_id"
     t.index ["purchase_order_id", "status"], name: "index_pay_now_requests_on_po_and_status"
@@ -7227,6 +7249,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.text "migration_error"
     t.string "source_provider"
     t.string "source_item_id"
+    t.bigint "storage_blob_id"
     t.index ["contact_id"], name: "index_people_documents_on_contact_id"
     t.index ["content_hash"], name: "index_people_documents_on_content_hash"
     t.index ["document_date"], name: "index_people_documents_on_document_date"
@@ -7236,6 +7259,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.index ["external_id"], name: "index_people_documents_on_external_id"
     t.index ["legacy_corporate_document_id"], name: "index_people_documents_on_legacy_corporate_document_id"
     t.index ["migration_status"], name: "index_people_documents_on_migration_status"
+    t.index ["storage_blob_id"], name: "index_people_documents_on_storage_blob_id"
     t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
     t.index ["storage_provider"], name: "index_people_documents_on_storage_provider"
   end
@@ -9892,9 +9916,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.datetime "migration_completed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "storage_blob_id"
     t.index ["category"], name: "index_user_documents_on_category"
     t.index ["document_type_id"], name: "index_user_documents_on_document_type_id"
     t.index ["migration_status"], name: "index_user_documents_on_migration_status"
+    t.index ["storage_blob_id"], name: "index_user_documents_on_storage_blob_id"
     t.index ["storage_provider"], name: "index_user_documents_on_storage_provider"
     t.index ["user_id", "category"], name: "index_user_documents_on_user_id_and_category"
     t.index ["user_id"], name: "index_user_documents_on_user_id"
@@ -9989,9 +10015,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
     t.string "qbcc_licence_number"
     t.string "qbcc_licence_class"
     t.bigint "tenant_id"
+    t.bigint "signature_blob_id"
+    t.bigint "photo_blob_id"
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["photo_blob_id"], name: "index_users_on_photo_blob_id"
+    t.index ["signature_blob_id"], name: "index_users_on_signature_blob_id"
     t.index ["tenant_id"], name: "index_users_on_tenant_id"
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
@@ -10646,11 +10676,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   add_foreign_key "asset_disposals", "users"
   add_foreign_key "asset_expenses", "assets"
   add_foreign_key "asset_expenses", "financial_transactions"
+  add_foreign_key "asset_expenses", "storage_blobs"
   add_foreign_key "asset_expenses", "users"
   add_foreign_key "asset_insurances", "assets"
   add_foreign_key "asset_odometer_readings", "assets"
+  add_foreign_key "asset_odometer_readings", "storage_blobs"
   add_foreign_key "asset_odometer_readings", "users"
   add_foreign_key "asset_service_histories", "assets"
+  add_foreign_key "asset_service_histories", "storage_blobs", column: "document_blob_id"
+  add_foreign_key "asset_service_histories", "storage_blobs", column: "invoice_blob_id"
   add_foreign_key "asset_service_histories", "users"
   add_foreign_key "assets", "corporate_companies", column: "company_id"
   add_foreign_key "assets", "tenants"
@@ -10737,6 +10771,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   add_foreign_key "contact_corporate_group_memberships", "tenants"
   add_foreign_key "contact_documents", "contacts"
   add_foreign_key "contact_documents", "document_types"
+  add_foreign_key "contact_documents", "storage_blobs"
   add_foreign_key "contact_documents", "users", column: "uploaded_by_id"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
@@ -10799,6 +10834,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
   add_foreign_key "document_folders", "document_folders", column: "parent_id"
   add_foreign_key "document_tasks", "jobs"
+  add_foreign_key "document_tasks", "storage_blobs"
   add_foreign_key "document_templates", "tenants"
   add_foreign_key "document_type_folders", "document_folders"
   add_foreign_key "document_type_folders", "document_types"
@@ -10861,6 +10897,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   add_foreign_key "feature_trackers", "feature_chapters"
   add_foreign_key "financial_transactions", "corporate_companies", column: "company_id"
   add_foreign_key "financial_transactions", "jobs"
+  add_foreign_key "financial_transactions", "storage_blobs"
   add_foreign_key "financial_transactions", "users"
   add_foreign_key "folder_template_items", "folder_template_items", column: "parent_id"
   add_foreign_key "folder_template_items", "folder_templates"
@@ -11169,6 +11206,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   add_foreign_key "job_documents", "document_types", column: "ai_suggested_type_id", on_delete: :nullify
   add_foreign_key "job_documents", "job_documents", column: "parent_document_id"
   add_foreign_key "job_documents", "jobs"
+  add_foreign_key "job_documents", "storage_blobs"
   add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
   add_foreign_key "job_documents", "users", column: "signed_by_id"
   add_foreign_key "job_people", "contacts"
@@ -11252,6 +11290,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   add_foreign_key "notebook_activities", "notebooks"
   add_foreign_key "notebook_activities", "users"
   add_foreign_key "notebook_page_attachments", "notebook_pages", column: "page_id"
+  add_foreign_key "notebook_page_attachments", "storage_blobs"
   add_foreign_key "notebook_page_attachments", "users", column: "uploaded_by_id"
   add_foreign_key "notebook_pages", "notebook_sections", column: "section_id"
   add_foreign_key "notebook_pages", "users", column: "created_by_id"
@@ -11269,6 +11308,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   add_foreign_key "pay_now_requests", "payments"
   add_foreign_key "pay_now_requests", "portal_users", column: "requested_by_portal_user_id"
   add_foreign_key "pay_now_requests", "purchase_orders"
+  add_foreign_key "pay_now_requests", "storage_blobs", column: "invoice_blob_id"
   add_foreign_key "pay_now_requests", "users", column: "approved_by_builder_id"
   add_foreign_key "pay_now_requests", "users", column: "reviewed_by_supervisor_id"
   add_foreign_key "pay_now_weekly_limits", "users", column: "set_by_id"
@@ -11276,6 +11316,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   add_foreign_key "payment_links", "external_invoices", column: "invoice_id"
   add_foreign_key "payments", "purchase_orders"
   add_foreign_key "payments", "users", column: "created_by_id"
+  add_foreign_key "people_documents", "storage_blobs"
   add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
   add_foreign_key "performance_requests", "organizations"
   add_foreign_key "performance_requests", "users"
@@ -11520,6 +11561,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   add_foreign_key "user_absences", "users"
   add_foreign_key "user_absences", "users", column: "approved_by_id"
   add_foreign_key "user_documents", "document_types"
+  add_foreign_key "user_documents", "storage_blobs"
   add_foreign_key "user_documents", "users"
   add_foreign_key "user_entity_tab_preferences", "users"
   add_foreign_key "user_job_tab_configs", "job_tabs"
@@ -11532,6 +11574,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   add_foreign_key "user_roles", "roles"
   add_foreign_key "user_roles", "users"
   add_foreign_key "users", "contacts"
+  add_foreign_key "users", "storage_blobs", column: "photo_blob_id"
+  add_foreign_key "users", "storage_blobs", column: "signature_blob_id"
   add_foreign_key "users", "tenants"
   add_foreign_key "users", "user_groups"
   add_foreign_key "vip_senders", "users"

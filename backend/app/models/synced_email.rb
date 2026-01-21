@@ -387,11 +387,12 @@ class SyncedEmail < ApplicationRecord
   end
 
   # Default templates if StorageConfiguration doesn't have one
+  # SSoT: Default templates must include "Emails/" prefix to match WAREHOUSE_ROOT_DEFAULTS
   def default_template_for(scope)
     case scope.to_sym
-    when :email then "{{Mailbox}}/Email Body/{{Year}}/{{Month}}"
-    when :email_attachments then "{{Mailbox}}/Attachments/{{Year}}/{{Month}}"
-    else "{{Year}}/{{Month}}"
+    when :email then "Emails/{{Mailbox}}/Email Body/{{Year}}/{{Month}}"
+    when :email_attachments then "Emails/{{Mailbox}}/Attachments/{{Year}}/{{Month}}"
+    else "Emails/{{Year}}/{{Month}}"
     end
   end
 

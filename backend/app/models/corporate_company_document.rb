@@ -278,10 +278,11 @@ class CorporateCompanyDocument < ApplicationRecord
 
   # Phase 4: Virtual folder path for File Warehouse (PUBLIC - used by FolderTemplateReorganizationService)
   # SSoT: Reads template from StorageConfiguration.virtual_template_for(:corporate)
-  # Default template: "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
+  # Default template: "Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
   def virtual_folder_path
     config = StorageConfiguration.instance
-    template = config&.virtual_template_for(:corporate) || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
+    # SSoT: Fallback must include "Corporate/" prefix to match WAREHOUSE_ROOT_DEFAULTS
+    template = config&.virtual_template_for(:corporate) || "Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
 
     tokens = storage_tokens_for_virtual_path
     result = template.dup
