@@ -1190,6 +1190,8 @@ export function StorageConfigTab() {
     s3_region: "",
     // Root path
     root_path: "",  // SSoT: Matches backend field name
+    // SSoT: warehouse_root_folders contains full patterns like Jobs/{{JobCode}}
+    warehouse_root_folders: {} as ScopeFolders,
     // SSoT: Warehouse folders loaded from StorageConfiguration via API
     warehouse_folders: {} as ScopeFolders,
     // SSoT: Templates for folder paths and filenames per warehouse type
