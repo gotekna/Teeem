@@ -1391,7 +1391,8 @@ module Api
       def documents
         # Query ContactDocument records (includes Xero invoice/bill PDFs)
         documents = ContactDocument.where(contact_id: @contact.id)
-                                   .includes(:document_type, :storage_blob)
+                                   .includes(:document_type)
+                                   .with_attached_file
                                    .order(created_at: :desc)
 
         # Filter by tab if tab_key provided
