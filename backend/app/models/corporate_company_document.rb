@@ -278,11 +278,11 @@ class CorporateCompanyDocument < ApplicationRecord
 
   # Phase 4: Virtual folder path for File Warehouse (PUBLIC - used by FolderTemplateReorganizationService)
   # SSoT: Reads template from StorageConfiguration.virtual_template_for(:corporate)
-  # Default template: "Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
+  # No fallback - if template is nil, that's a config error that should be fixed
   def virtual_folder_path
     config = StorageConfiguration.instance
-    # SSoT: Fallback must include "Corporate/" prefix to match WAREHOUSE_ROOT_DEFAULTS
-    template = config&.virtual_template_for(:corporate) || "Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
+    template = config&.virtual_template_for(:corporate)
+    raise "StorageConfiguration missing :corporate template - run rails warehouse:init" unless template
 
     tokens = storage_tokens_for_virtual_path
     result = template.dup

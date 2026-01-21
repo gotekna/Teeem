@@ -119,27 +119,26 @@ class StorageConfiguration < ApplicationRecord
 
   # Default warehouse root folders - used ONLY for initialization
   # After init, warehouse_root_folders column is THE ONE SSoT (no merging)
-  # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
+  #
+  # SSoT: These MUST include the root folder prefix (Jobs/, Corporate/, Emails/, etc.)
+  # Code uses these keys directly - if a key is missing, you get an error (no fallbacks!)
+  #
   # NOTE: 'user' removed - Users are auth only, Contacts are identity (no separate User storage)
   WAREHOUSE_ROOT_DEFAULTS = {
-    'job' => 'Jobs/{{JobCode}}',
-    'contact' => 'Contacts/{{ContactName}}',
-    'corporate_entity' => 'Corporate/{{CompanyGroup}}',
-    'task' => 'Jobs/{{JobCode}}/Tasks',
-    'email' => 'Emails/{{Mailbox}}',
+    # Job documents
+    'job' => 'Jobs/{{JobCode}}/{{TabName}}',
+    # Contact documents (SSoT for all individuals - Jan 2026 'people' merged into 'contact')
+    'contact' => 'Contacts/{{ContactName}}/{{TabName}}',
+    # Corporate documents (alias 'corporate' maps here)
+    'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
+    'corporate_entity' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
+    # Task documents
+    'task' => 'Jobs/{{JobCode}}/Tasks/{{TaskId}}',
+    # Email documents
+    'email' => 'Emails/{{Mailbox}}/Email Body/{{Year}}/{{Month}}',
+    'email_attachments' => 'Emails/{{Mailbox}}/Attachments/{{Year}}/{{Month}}',
+    # Warehousing (generic)
     'warehouse' => 'Warehousing'
-  }.freeze
-
-  # Key aliases for backward compatibility
-  # Maps commonly used keys to their SSoT key name
-  WAREHOUSE_KEY_ALIASES = {
-    'corporate' => 'corporate_entity',
-    'company' => 'corporate_entity',
-    'contacts' => 'contact',
-    'people' => 'contact',
-    'jobs' => 'job',
-    'emails' => 'email',
-    'tasks' => 'task'
   }.freeze
 
   # Legacy alias for backward compatibility
@@ -192,8 +191,6 @@ class StorageConfiguration < ApplicationRecord
   #
   def root_folder_for(warehouse_type)
     type_key = warehouse_type.to_s
-    # Resolve aliases (e.g., 'corporate' → 'corporate_entity')
-    type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
     # SSoT: Only use warehouse_root_folders column (initialized with defaults via after_initialize)
     path = warehouse_root_folders&.dig(type_key)
     return nil if path.blank? || path == "DISABLED"

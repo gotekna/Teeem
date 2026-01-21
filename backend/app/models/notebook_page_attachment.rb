@@ -18,8 +18,10 @@ class NotebookPageAttachment < ApplicationRecord
   has_one :section, through: :page
   has_one :notebook, through: :section
 
-  # ActiveStorage file attachment
-  has_one_attached :file
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  belongs_to :storage_blob, optional: true
+
+  # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT.
 
   # Validations
   validates :file_name, presence: true, length: { maximum: 255 }
@@ -73,6 +75,46 @@ class NotebookPageAttachment < ApplicationRecord
   # SSoT: Folder path computed by StorageConfiguration
   def warehouse_folder_path
     StorageConfiguration.instance.resolve_warehouse_path(self, scope: :notes)
+  end
+
+  # ========================================
+  # StorageBlob File Access (SSoT)
+  # ========================================
+
+  # Check if attachment has a file
+  def has_file?
+    storage_blob_id.present?
+  end
+
+  # Get presigned download URL for the file
+  def file_url(expires_in: 3600)
+    return nil unless storage_blob
+
+    storage_blob.presigned_url(expires_in: expires_in, filename: file_name)
+  end
+
+  # Download file content from storage
+  def download_file
+    return nil unless storage_blob
+
+    storage_blob.download
+  end
+
+  # Attach a file using StorageBlob
+  def attach_file(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    storage_blob&.decrement_reference! if storage_blob_id.present?
+    self.storage_blob = blob
+    blob.increment_reference!
+
+    self.file_name = filename
+    self.file_size = content.bytesize
+    self.content_type = content_type || blob.content_type
   end
 
   private

@@ -365,10 +365,12 @@ class SyncedEmail < ApplicationRecord
   private
 
   # Resolve virtual path using template from StorageConfiguration
+  # No fallback - if template is nil, that's a config error that should be fixed
   def resolve_virtual_path(scope)
     # Get template from StorageConfiguration (SSoT)
     config = StorageConfiguration.instance
-    template = config&.virtual_template_for(scope) || default_template_for(scope)
+    template = config&.virtual_template_for(scope)
+    raise "StorageConfiguration missing :#{scope} template - run rails warehouse:init" unless template
 
     # Build substitution values
     mailbox_name = email_mailbox&.email_address || mailbox_owner_email || "Unknown"
@@ -386,15 +388,6 @@ class SyncedEmail < ApplicationRecord
     result
   end
 
-  # Default templates if StorageConfiguration doesn't have one
-  # SSoT: Default templates must include "Emails/" prefix to match WAREHOUSE_ROOT_DEFAULTS
-  def default_template_for(scope)
-    case scope.to_sym
-    when :email then "Emails/{{Mailbox}}/Email Body/{{Year}}/{{Month}}"
-    when :email_attachments then "Emails/{{Mailbox}}/Attachments/{{Year}}/{{Month}}"
-    else "Emails/{{Year}}/{{Month}}"
-    end
-  end
 
   # Sanitize text for use in folder names
   def sanitize_for_folder(text)

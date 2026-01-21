@@ -10,8 +10,13 @@ class PeopleDocument < ApplicationRecord
   belongs_to :contact
   belongs_to :document_type_record, class_name: "DocumentType", foreign_key: "document_type_id", optional: true
 
-  # Active Storage for file upload
-  has_one_attached :file
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  # Same file = same StorageBlob, deduplication via content_hash
+  belongs_to :storage_blob, optional: true
+
+  # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT by
+  # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
+  # which deduplicates via content_hash and uses StorageConfiguration for provider-agnostic paths.
 
   # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
   has_one :warehouse_document, as: :documentable, dependent: :destroy
@@ -150,6 +155,54 @@ class PeopleDocument < ApplicationRecord
     self.storage_item_id = item_id
     self.storage_provider = provider
     self.storage_path = path
+  end
+
+  # ========================================
+  # StorageBlob File Access (SSoT)
+  # ========================================
+
+  # Check if document has an attached file
+  def has_file?
+    storage_blob_id.present?
+  end
+
+  # Get presigned download URL for the file
+  # @param expires_in [Integer] Expiry time in seconds (default: 3600)
+  # @return [String, nil] Presigned download URL or nil if no file
+  def file_url(expires_in: 3600)
+    return nil unless storage_blob
+
+    storage_blob.presigned_url(expires_in: expires_in, filename: file_name)
+  end
+
+  # Download file content from storage
+  # @return [String, nil] File content or nil if no file
+  def download_file
+    return nil unless storage_blob
+
+    storage_blob.download
+  end
+
+  # Attach a file using StorageBlob (deduplication via content_hash)
+  # @param content [String] File content
+  # @param filename [String] Original filename
+  # @param content_type [String] MIME type (optional)
+  def attach_file(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    # Update reference counts
+    storage_blob&.decrement_reference! if storage_blob_id.present?
+    self.storage_blob = blob
+    blob.increment_reference!
+
+    # Update document metadata
+    self.file_name = filename
+    self.file_size = content.bytesize
+    self.mime_type = content_type || blob.content_type
   end
 
   private

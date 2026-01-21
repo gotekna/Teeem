@@ -1,6 +1,39 @@
 # frozen_string_literal: true
 
 namespace :warehouse do
+  desc "Initialize/update StorageConfiguration with correct warehouse templates"
+  task init: :environment do
+    puts "=" * 60
+    puts "WAREHOUSE CONFIGURATION INIT"
+    puts "=" * 60
+
+    config = StorageConfiguration.instance
+    current = config.warehouse_root_folders || {}
+    defaults = StorageConfiguration::WAREHOUSE_ROOT_DEFAULTS
+
+    puts "\nCurrent warehouse_root_folders:"
+    current.each { |k, v| puts "  #{k}: #{v}" }
+
+    puts "\nMissing keys:"
+    missing = defaults.keys - current.keys
+    if missing.empty?
+      puts "  (none)"
+    else
+      missing.each { |k| puts "  #{k}: #{defaults[k]}" }
+    end
+
+    # Merge in missing keys
+    updated = current.merge(defaults) { |_key, old_val, _new_val| old_val } # Keep existing values
+    config.update!(warehouse_root_folders: updated)
+
+    puts "\nUpdated warehouse_root_folders:"
+    config.reload.warehouse_root_folders.each { |k, v| puts "  #{k}: #{v}" }
+
+    puts "\n" + "=" * 60
+    puts "INIT COMPLETE"
+    puts "=" * 60
+  end
+
   # SSoT: Expected root folders per StorageConfiguration::WAREHOUSE_ROOT_DEFAULTS
   # - Jobs (from job → 'Jobs/{{JobCode}}')
   # - Contacts (from contact → 'Contacts/{{ContactName}}')
