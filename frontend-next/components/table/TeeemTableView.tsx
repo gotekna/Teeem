@@ -68,7 +68,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import DOMPurify from "isomorphic-dompurify";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   Search,
   X,
@@ -1481,17 +1481,24 @@ export default function TeeemTableView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Clear search when foundationId changes (prevents stale search across different tables)
-  // This fixes the bug where search persists when switching between Financial sub-tabs
-  // (e.g., from contacts table to external-invoices table)
+  // Clear search when foundationId OR pathname changes (prevents stale search across different tables/pages)
+  // This fixes bugs where:
+  // 1. Search persists when switching between Financial sub-tabs (foundationId change)
+  // 2. Search persists when navigating to a different contact (pathname change)
+  const pathname = usePathname();
   const prevFoundationIdRef = useRef(effectiveFoundationId);
+  const prevPathnameRef = useRef(pathname);
   useEffect(() => {
-    if (prevFoundationIdRef.current !== effectiveFoundationId && prevFoundationIdRef.current !== null) {
-      // Foundation changed - clear search to prevent column mismatch errors
+    const foundationChanged = prevFoundationIdRef.current !== effectiveFoundationId && prevFoundationIdRef.current !== null;
+    const pathnameChanged = prevPathnameRef.current !== pathname && prevPathnameRef.current !== null;
+
+    if (foundationChanged || pathnameChanged) {
+      // Context changed - clear search to prevent stale queries
       searchHook.actions.clearQuery();
     }
     prevFoundationIdRef.current = effectiveFoundationId;
-  }, [effectiveFoundationId, searchHook.actions]);
+    prevPathnameRef.current = pathname;
+  }, [effectiveFoundationId, pathname, searchHook.actions]);
 
   // Wrap setSearch to also call onSearchChange callback, update URL, and save to session storage
   const setSearch = useCallback((value: string | ((prev: string) => string)) => {
