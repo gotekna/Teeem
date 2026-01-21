@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   FileText,
   Folder,
@@ -8,6 +8,8 @@ import {
   Calendar,
   ChevronRight,
   ChevronDown,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { api } from "@/lib/api";
 import { formatDate, formatFileSize } from "@/utils/formatters";
 import type { Contact } from "../types";
@@ -96,6 +104,9 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<ContactDocument | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadDocuments();
@@ -301,11 +312,32 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
     }
   };
 
-  const openDocument = (doc: ContactDocument) => {
+  // Single click: Open drawer to preview
+  // Double click: Open in new tab
+  const handleDocumentClick = useCallback((doc: ContactDocument) => {
+    if (clickTimeoutRef.current) {
+      // Double click detected - clear timeout and open in new tab
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+      if (doc.downloadUrl) {
+        window.open(doc.downloadUrl, "_blank");
+      }
+    } else {
+      // Single click - wait to see if double click follows
+      clickTimeoutRef.current = setTimeout(() => {
+        clickTimeoutRef.current = null;
+        // Single click confirmed - open drawer
+        setSelectedDoc(doc);
+        setDrawerOpen(true);
+      }, 250); // 250ms delay to detect double click
+    }
+  }, []);
+
+  const openDocumentInNewTab = useCallback((doc: ContactDocument) => {
     if (doc.downloadUrl) {
       window.open(doc.downloadUrl, "_blank");
     }
-  };
+  }, []);
 
   if (loading) {
     return (
@@ -474,7 +506,7 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
                                                           : ""
                                                       }
                                                       onClick={() =>
-                                                        openDocument(doc)
+                                                        handleDocumentClick(doc)
                                                       }
                                                     >
                                                       <TableCell className="pl-20">
@@ -556,6 +588,63 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Document Preview Drawer */}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent side="right" className="w-[600px] sm:w-[800px] sm:max-w-[80vw] p-0">
+          <SheetHeader className="p-4 border-b">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="flex items-center gap-2 truncate pr-4">
+                {selectedDoc && getFileIcon(selectedDoc.contentType)}
+                <span className="truncate">
+                  {selectedDoc?.displayName || selectedDoc?.name || "Document"}
+                </span>
+              </SheetTitle>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {selectedDoc?.downloadUrl && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openDocumentInNewTab(selectedDoc)}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open Full Page
+                  </Button>
+                )}
+              </div>
+            </div>
+            {selectedDoc && (
+              <div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
+                {getSourceBadge(selectedDoc.source)}
+                {selectedDoc.invoiceDate && (
+                  <span>Invoice: {formatDate(selectedDoc.invoiceDate)}</span>
+                )}
+                {selectedDoc.dueDate && (
+                  <span>Due: {formatDate(selectedDoc.dueDate)}</span>
+                )}
+                {selectedDoc.datePaid && (
+                  <span className="text-green-600 dark:text-green-400">
+                    Paid: {formatDate(selectedDoc.datePaid)}
+                  </span>
+                )}
+              </div>
+            )}
+          </SheetHeader>
+          <div className="flex-1 h-[calc(100vh-120px)]">
+            {selectedDoc?.downloadUrl ? (
+              <iframe
+                src={selectedDoc.downloadUrl}
+                className="w-full h-full border-0"
+                title={selectedDoc.displayName || selectedDoc.name}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                No preview available
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

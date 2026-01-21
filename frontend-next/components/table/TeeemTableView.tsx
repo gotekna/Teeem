@@ -1481,6 +1481,18 @@ export default function TeeemTableView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Clear search when foundationId changes (prevents stale search across different tables)
+  // This fixes the bug where search persists when switching between Financial sub-tabs
+  // (e.g., from contacts table to external-invoices table)
+  const prevFoundationIdRef = useRef(effectiveFoundationId);
+  useEffect(() => {
+    if (prevFoundationIdRef.current !== effectiveFoundationId && prevFoundationIdRef.current !== null) {
+      // Foundation changed - clear search to prevent column mismatch errors
+      searchHook.actions.clearQuery();
+    }
+    prevFoundationIdRef.current = effectiveFoundationId;
+  }, [effectiveFoundationId, searchHook.actions]);
+
   // Wrap setSearch to also call onSearchChange callback, update URL, and save to session storage
   const setSearch = useCallback((value: string | ((prev: string) => string)) => {
     const newValue = typeof value === 'function' ? value(search) : value;
