@@ -326,14 +326,10 @@ class EntityTab < ApplicationRecord
     effective_warehouse_path
   end
 
-  # Build hierarchy path - SSoT: Use warehouse_folder when set
+  # Build hierarchy path - SSoT: Static path first, then dynamic tokens
   def hierarchy_path
-    # For document tabs with warehouse paths, use the actual path (SSoT)
-    return warehouse_folder if warehouse_folder.present?
-
-    # Fallback for tabs without SharePoint paths (overview tabs, etc.)
     # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
-    warehouse_type_prefix = case warehouse_type
+    prefix = case warehouse_type
     when 'corporate_entity' then 'Corporate'
     when 'contact' then 'Contacts'
     when 'job' then 'Jobs'
@@ -350,7 +346,18 @@ class EntityTab < ApplicationRecord
       current = current.parent
     end
 
-    ([warehouse_type_prefix] + tab_parts).join('/')
+    static_path = ([prefix] + tab_parts).join('/')
+
+    # If warehouse_folder has dynamic tokens, append them after static path
+    if warehouse_folder.present? && warehouse_folder.include?('{{')
+      dynamic_parts = warehouse_folder.split('/').select { |p| p.include?('{{') }
+      return "#{static_path}/#{dynamic_parts.join('/')}" if dynamic_parts.any?
+    end
+
+    # For tabs with non-dynamic warehouse_folder (legacy paths), use as-is
+    return warehouse_folder if warehouse_folder.present?
+
+    static_path
   end
 
   # Convert to nested JSON for API

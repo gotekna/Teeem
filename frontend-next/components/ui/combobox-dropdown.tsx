@@ -29,10 +29,19 @@ export type ComboboxItem = {
   searchText?: string;
 };
 
+/** Group of items with a header label */
+export type ComboboxGroup<T> = {
+  label: string;
+  items: T[];
+};
+
 type Props<T> = {
   placeholder?: React.ReactNode;
   searchPlaceholder?: string;
-  items: T[];
+  /** Flat list of items (use this OR groups, not both) */
+  items?: T[];
+  /** Grouped items with section headers (use this OR items, not both) */
+  groups?: ComboboxGroup<T>[];
   onSelect: (item: T) => void;
   selectedItem?: T;
   renderSelectedItem?: (selectedItem: T) => React.ReactNode;
@@ -72,6 +81,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   placeholder,
   searchPlaceholder,
   items,
+  groups,
   onSelect,
   selectedItem: incomingSelectedItem,
   renderSelectedItem = (item) => item.label,
@@ -100,19 +110,84 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
   const selectedItem = incomingSelectedItem ?? internalSelectedItem;
 
-  // Defensive: ensure items is always an array
-  const safeItems = Array.isArray(items) ? items : [];
+  // Flatten groups to items array if groups are provided
+  const safeItems = React.useMemo(() => {
+    if (groups && groups.length > 0) {
+      return groups.flatMap(group => group.items);
+    }
+    return Array.isArray(items) ? items : [];
+  }, [items, groups]);
+
+  // Filter function for a single item
+  const itemMatchesSearch = React.useCallback((item: T, searchLower: string): boolean => {
+    const matchesLabel = item.label.toLowerCase().includes(searchLower);
+    const matchesSearchText = item.searchText?.toLowerCase().includes(searchLower) ?? false;
+    return matchesLabel || matchesSearchText;
+  }, []);
 
   // When disableInternalFilter is true, use all items (filtering done externally)
   // Otherwise filter by label AND searchText (for employee names, aliases, etc.)
-  const filteredItems = disableInternalFilter
-    ? safeItems
-    : safeItems.filter((item) => {
-        const searchLower = inputValue.toLowerCase();
-        const matchesLabel = item.label.toLowerCase().includes(searchLower);
-        const matchesSearchText = item.searchText?.toLowerCase().includes(searchLower) ?? false;
-        return matchesLabel || matchesSearchText;
-      });
+  const filteredItems = React.useMemo(() => {
+    if (disableInternalFilter) return safeItems;
+    const searchLower = inputValue.toLowerCase();
+    return safeItems.filter((item) => itemMatchesSearch(item, searchLower));
+  }, [safeItems, inputValue, disableInternalFilter, itemMatchesSearch]);
+
+  // Filter groups while preserving structure (hide empty groups after filtering)
+  // Hierarchy-aware: keeps parent labels if any descendants match
+  const filteredGroups = React.useMemo(() => {
+    if (!groups || groups.length === 0) return null;
+    if (disableInternalFilter) return groups;
+
+    const searchLower = inputValue.toLowerCase();
+
+    return groups
+      .map(group => {
+        // First pass: mark which items match
+        const itemsWithMatch = group.items.map(item => ({
+          item,
+          matches: itemMatchesSearch(item, searchLower),
+          // Check if this is a parent label (disabled with parent- id prefix)
+          isParent: item.disabled && item.id.startsWith('parent-')
+        }));
+
+        // Second pass: keep parents if any following descendants match
+        const filteredItems: T[] = [];
+        for (let i = 0; i < itemsWithMatch.length; i++) {
+          const { item, matches, isParent } = itemsWithMatch[i];
+
+          if (matches) {
+            filteredItems.push(item);
+          } else if (isParent) {
+            // Check if any following items (until next parent at same/lower depth) match
+            const parentDepth = (item as any).depth ?? 0;
+            let hasMatchingDescendant = false;
+
+            for (let j = i + 1; j < itemsWithMatch.length; j++) {
+              const descendant = itemsWithMatch[j];
+              const descendantDepth = (descendant.item as any).depth ?? 0;
+
+              // Stop when we hit another item at same or lower depth (sibling or uncle)
+              if (descendantDepth <= parentDepth && !descendant.isParent) {
+                break;
+              }
+
+              if (descendant.matches) {
+                hasMatchingDescendant = true;
+                break;
+              }
+            }
+
+            if (hasMatchingDescendant) {
+              filteredItems.push(item);
+            }
+          }
+        }
+
+        return { ...group, items: filteredItems };
+      })
+      .filter(group => group.items.length > 0);
+  }, [groups, inputValue, disableInternalFilter, itemMatchesSearch]);
 
   const showCreate = onCreate && Boolean(inputValue) && !filteredItems.length;
 
@@ -199,6 +274,108 @@ export function ComboboxDropdown<T extends ComboboxItem>({
     onClear?.();
   };
 
+  // Render a single item
+  const renderItem = (item: T, globalIndex: number) => {
+    const isChecked = selectedItem?.id === item.id;
+    const isHighlighted = globalIndex === highlightedIndex;
+
+    return (
+      <CommandItem
+        disabled={item.disabled}
+        className={cn(
+          "cursor-pointer whitespace-nowrap",
+          isHighlighted && "bg-blue-100 dark:bg-blue-900/40",
+          className
+        )}
+        key={item.id}
+        value={item.id}
+        onSelect={(id) => {
+          // cmdk lowercases the value, so we need case-insensitive comparison
+          const foundItem = safeItems.find((i) => i.id.toLowerCase() === id.toLowerCase());
+
+          if (!foundItem) {
+            return;
+          }
+
+          handleSelectItem(foundItem);
+        }}
+        onMouseEnter={() => setHighlightedIndex(globalIndex)}
+      >
+        {renderListItem ? (
+          renderListItem({ isChecked, item, searchTerm: inputValue })
+        ) : (
+          <>
+            <Check
+              className={cn(
+                "mr-2 h-4 w-4",
+                isChecked ? "opacity-100" : "opacity-0",
+              )}
+            />
+            {item.label}
+          </>
+        )}
+      </CommandItem>
+    );
+  };
+
+  // Render grouped items with section headers
+  // Flattened structure so sticky headers work properly within scroll container
+  const renderGroupedContent = () => {
+    if (!filteredGroups || filteredGroups.length === 0) {
+      return <CommandEmpty>{emptyResults ?? "No item found"}</CommandEmpty>;
+    }
+
+    let globalIndex = 0;
+    const elements: React.ReactNode[] = [];
+
+    filteredGroups.forEach((group, groupIdx) => {
+      // Add sticky group header
+      elements.push(
+        <div
+          key={`header-${group.label}`}
+          className="sticky top-0 z-10 bg-muted backdrop-blur-sm px-2 py-1.5 text-xs font-semibold text-muted-foreground border-b border-border"
+        >
+          {group.label}
+        </div>
+      );
+
+      // Add items for this group
+      group.items.forEach((item) => {
+        const idx = globalIndex++;
+        elements.push(renderItem(item, idx));
+      });
+    });
+
+    return <>{elements}</>;
+  };
+
+  // Render flat items (no groups)
+  const renderFlatContent = () => {
+    return (
+      <>
+        {filteredItems.map((item, index) => renderItem(item, index))}
+        <CommandEmpty>{emptyResults ?? "No item found"}</CommandEmpty>
+        {showCreate && (
+          <CommandItem
+            key={inputValue}
+            value={inputValue}
+            onSelect={() => {
+              onCreate(inputValue);
+              setOpen(false);
+              setInputValue("");
+            }}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+          >
+            {renderOnCreate ? renderOnCreate(inputValue) : null}
+          </CommandItem>
+        )}
+      </>
+    );
+  };
+
   const Component = (
     <Command loop shouldFilter={false} className="h-auto">
       {!searchInTrigger && (
@@ -210,80 +387,15 @@ export function ComboboxDropdown<T extends ComboboxItem>({
         />
       )}
 
-      <CommandGroup>
-        <CommandList ref={listRef} className="max-h-[300px] overflow-y-auto overflow-x-hidden">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <Spinner size={20} className="text-muted-foreground" />
-            </div>
-          ) : (
-            <>
-              {filteredItems.map((item, index) => {
-                const isChecked = selectedItem?.id === item.id;
-                const isHighlighted = index === highlightedIndex;
-
-                return (
-                  <CommandItem
-                    disabled={item.disabled}
-                    className={cn(
-                      "cursor-pointer whitespace-nowrap",
-                      isHighlighted && "bg-blue-100 dark:bg-blue-900/40",
-                      className
-                    )}
-                    key={item.id}
-                    value={item.id}
-                    onSelect={(id) => {
-                      // cmdk lowercases the value, so we need case-insensitive comparison
-                      const foundItem = safeItems.find((i) => i.id.toLowerCase() === id.toLowerCase());
-
-                      if (!foundItem) {
-                        return;
-                      }
-
-                      handleSelectItem(foundItem);
-                    }}
-                    onMouseEnter={() => setHighlightedIndex(index)}
-                  >
-                    {renderListItem ? (
-                      renderListItem({ isChecked, item, searchTerm: inputValue })
-                    ) : (
-                      <>
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            isChecked ? "opacity-100" : "opacity-0",
-                          )}
-                        />
-                        {item.label}
-                      </>
-                    )}
-                  </CommandItem>
-                );
-              })}
-
-              <CommandEmpty>{emptyResults ?? "No item found"}</CommandEmpty>
-
-              {showCreate && (
-                <CommandItem
-                  key={inputValue}
-                  value={inputValue}
-                  onSelect={() => {
-                    onCreate(inputValue);
-                    setOpen(false);
-                    setInputValue("");
-                  }}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                  }}
-                >
-                  {renderOnCreate ? renderOnCreate(inputValue) : null}
-                </CommandItem>
-              )}
-            </>
-          )}
-        </CommandList>
-      </CommandGroup>
+      <CommandList ref={listRef} className="max-h-[300px] overflow-y-auto overflow-x-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Spinner size={20} className="text-muted-foreground" />
+          </div>
+        ) : (
+          filteredGroups ? renderGroupedContent() : renderFlatContent()
+        )}
+      </CommandList>
     </Command>
   );
 
@@ -292,13 +404,10 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   }
 
   // Search in trigger mode - input is in the button area
-  // When closed: show selected value as display text
-  // When open: show empty input for searching (clears on open)
+  // When closed: show selected value (can be React elements like badges)
+  // When open: show search input for typing
   if (searchInTrigger) {
-    // Display value: when closed show selected item label, when open show search input
-    const displayValue = open
-      ? inputValue
-      : (selectedItem ? (typeof renderSelectedItem(selectedItem) === 'string' ? renderSelectedItem(selectedItem) as string : selectedItem.label) : "");
+    const showSelectedDisplay = !open && selectedItem;
 
     return (
       <Popover open={open} onOpenChange={(isOpen) => {
@@ -309,10 +418,11 @@ export function ComboboxDropdown<T extends ComboboxItem>({
       }}>
         <PopoverTrigger asChild disabled={disabled} className="w-full">
           <div className="relative w-full">
+            {/* Hidden input for search when open */}
             <input
               ref={inputRef}
               type="text"
-              value={displayValue}
+              value={inputValue}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               onFocus={() => {
@@ -327,9 +437,21 @@ export function ComboboxDropdown<T extends ComboboxItem>({
                 "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pr-8 text-sm shadow-sm",
                 "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                 "disabled:cursor-not-allowed disabled:opacity-50",
+                showSelectedDisplay && "text-transparent caret-transparent placeholder:text-transparent",
                 className
               )}
             />
+            {/* Overlay showing selected item when closed (supports React elements) */}
+            {showSelectedDisplay && (
+              <div
+                className="absolute inset-0 flex items-center px-3 pr-8 pointer-events-none overflow-hidden"
+                onClick={() => inputRef.current?.focus()}
+              >
+                <div className="truncate text-sm">
+                  {renderSelectedItem(selectedItem)}
+                </div>
+              </div>
+            )}
             {/* Icon: Loading > Clear > Search */}
             {isLoading ? (
               <Spinner size={16} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />

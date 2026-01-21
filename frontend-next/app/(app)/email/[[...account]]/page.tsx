@@ -196,6 +196,22 @@ function decodeHtmlEntities(text: string | null | undefined): string {
     }
   }
 
+  // Detect CSS selectors at the start of text (without braces)
+  // e.g., ".row-11 ...." or "#main-content ..." - CSS class/ID selectors
+  // Pattern: starts with . or # followed by identifier characters
+  if (/^\.[\w-]+/.test(decoded) || /^#[\w-]+/.test(decoded)) {
+    // Check if this looks like a CSS selector sequence (multiple selectors, or selector + dots)
+    // vs legitimate text that happens to start with a period (like "...more text")
+    if (
+      /^[.#][\w-]+\s+[.#]/.test(decoded) || // Multiple CSS selectors
+      /^[.#][\w-]+\s*\.{2,}/.test(decoded) || // Selector followed by ellipsis (truncated CSS)
+      /^\.row-\d+/.test(decoded) || // Common CSS pattern like .row-1, .row-11
+      /^[.#][\w-]+\s*,/.test(decoded) // Selector followed by comma (selector list)
+    ) {
+      decoded = "";
+    }
+  }
+
   // Clean up multiple spaces
   decoded = decoded.replace(/\s+/g, " ").trim();
 
@@ -440,7 +456,7 @@ const EmailListItem = memo(function EmailListItem({
       >
         <div className="flex items-start gap-0.5">
           {/* Thread expand/collapse chevron OR checkbox */}
-          <div className="shrink-0 pt-0.5 w-3.5 flex items-center justify-center">
+          <div className="shrink-0 pt-0.5 w-4 flex items-center justify-center">
             {hasThread && !hasSelections ? (
               <button
                 onClick={(e) => {
