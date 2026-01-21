@@ -459,7 +459,9 @@ module Api
         invoice = ExternalInvoice.find(params[:id])
 
         # Check warehouse for existing PDF linked to this invoice
+        # First try to find by document_type, then fallback to any PDF with storage_reference
         existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
+        existing_pdf ||= invoice.corporate_company_documents.where.not(storage_reference: [nil, ""]).where("file_name ILIKE ?", "%.pdf").first
 
         if existing_pdf&.storage_reference.present?
           content = fetch_from_sharepoint(existing_pdf.storage_reference)

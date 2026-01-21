@@ -450,9 +450,11 @@ export function XeroInvoicesListByTenant({
                               <TableHeader>
                                 <UITableRow>
                                   <TableHead className="pl-12 w-[100px]">Number</TableHead>
+                                  <TableHead className="w-[100px]">Reference</TableHead>
                                   {showTenantColumn && <TableHead className="w-[150px]">Company</TableHead>}
                                   <TableHead className="w-[100px]">Date</TableHead>
                                   <TableHead className="w-[100px]">Due Date</TableHead>
+                                  <TableHead className="w-[100px]">Paid Date</TableHead>
                                   <TableHead>Job</TableHead>
                                   <TableHead className="w-[100px]">Status</TableHead>
                                   <TableHead className="w-[100px] text-right">Total</TableHead>
@@ -469,6 +471,9 @@ export function XeroInvoicesListByTenant({
                                     <TableCell className="pl-12 font-medium">
                                       {invoice.invoice_number}
                                     </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {invoice.reference || "-"}
+                                    </TableCell>
                                     {showTenantColumn && (
                                       <TableCell className="text-sm">
                                         {getTenantName(invoice.tenant_id)}
@@ -479,6 +484,9 @@ export function XeroInvoicesListByTenant({
                                     </TableCell>
                                     <TableCell className="text-sm text-muted-foreground">
                                       {formatDate(invoice.due_date)}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {invoice.fully_paid_date ? formatDate(invoice.fully_paid_date) : "-"}
                                     </TableCell>
                                     <TableCell className="text-sm truncate max-w-[200px]" title={invoice.job_title || undefined}>
                                       {invoice.job_title || "-"}
