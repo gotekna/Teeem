@@ -2039,7 +2039,7 @@ export default function DocumentTypeDetailPage() {
                       htmlFor="hide-company"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      {documentType.scope === "contacts" ? "Hide Person" : documentType.scope === "job" ? "Hide Job" : "Hide Company"}
+                      {documentType.scope === "contacts" ? "Hide Contact" : documentType.scope === "job" ? "Hide Job" : "Hide Company"}
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
