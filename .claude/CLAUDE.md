@@ -499,14 +499,23 @@ staging → beta → production
 
 **Local:** Frontend port 3000, Backend port 3001
 
-### 🔴 CRITICAL: Hotfix Deployments (All Environments Share Same Database, NOT Same Code)
+### 🔴 CRITICAL: Hotfix Deployments (Remote Environments Share Same Database)
 
-**All environments share the production DATABASE but run SEPARATE CODE.**
+**Staging, Beta, and Production share the SAME production DATABASE but run SEPARATE CODE.**
+**Local development uses a SEPARATE local database.**
 
-| What | Shared? | Deploy needed? |
-|------|---------|----------------|
-| Database records, settings | ✅ Shared | No - changes appear everywhere |
-| Code (CORS, features, fixes) | ❌ Separate | Yes - each environment needs deploy |
+| Environment | Database | Code |
+|-------------|----------|------|
+| Local | Local PostgreSQL | Local |
+| Staging | Production DB (shared) | Separate |
+| Beta | Production DB (shared) | Separate |
+| Production | Production DB (shared) | Separate |
+
+| What | Shared (remote)? | Deploy needed? |
+|------|------------------|----------------|
+| Database records, settings | ✅ Shared across staging/beta/prod | No - changes appear on all remote envs |
+| Code (CORS, features, fixes) | ❌ Separate per environment | Yes - each environment needs deploy |
+| Local database | ❌ Separate | No - local only |
 
 **When deploying hotfixes (CORS, security, critical bugs), ALWAYS deploy to ALL THREE:**
 

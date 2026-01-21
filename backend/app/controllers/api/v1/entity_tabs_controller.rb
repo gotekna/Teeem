@@ -19,7 +19,8 @@ module Api
           warehouse_type: warehouse_type,
           entity_type: params[:entity_type],
           include_disabled: params[:include_disabled] == "true",
-          tab_group: params[:tab_group]
+          tab_group: params[:tab_group],
+          with_document_types: params[:with_document_types] == "true"
         )
 
         tabs = service.nested_tabs

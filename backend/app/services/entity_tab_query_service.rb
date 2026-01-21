@@ -13,12 +13,13 @@
 # 4. Build tree in Ruby memory (no recursive queries)
 #
 class EntityTabQueryService
-  def initialize(warehouse_type: nil, scope: nil, entity_type: nil, include_disabled: false, tab_group: nil)
+  def initialize(warehouse_type: nil, scope: nil, entity_type: nil, include_disabled: false, tab_group: nil, with_document_types: false)
     # Accept both warehouse_type and scope (scope for backwards compat)
     @warehouse_type = warehouse_type || scope
     @entity_type = entity_type
     @include_disabled = include_disabled
     @tab_group = tab_group
+    @with_document_types = with_document_types
   end
 
   # Returns nested tabs JSON matching EntityTab#as_nested_json format
@@ -43,12 +44,36 @@ class EntityTabQueryService
     # Step 6: Build parent lookup for hierarchy traversal
     @tabs_by_id = all_tabs.index_by(&:id)
 
-    # Step 7: Build nested structure from root tabs only
+    # Step 7: If filtering to tabs with document types, identify which tabs to keep
+    if @with_document_types
+      @tabs_with_documents = Set.new
+      # Find all tabs that have document types
+      all_tabs.each do |tab|
+        if tab.document_types.any?
+          # Mark this tab and all its ancestors as having documents
+          mark_ancestors_with_documents(tab)
+        end
+      end
+    end
+
+    # Step 8: Build nested structure from root tabs only
     root_tabs = @children_by_parent_id[nil] || []
-    root_tabs
+    result = root_tabs
       .select { |t| @include_disabled || t.enabled }
+      .select { |t| !@with_document_types || @tabs_with_documents.include?(t.id) }
       .sort_by(&:order_position)
       .map { |tab| build_tab_json(tab) }
+
+    result
+  end
+
+  # Mark tab and all ancestors as having document types
+  def mark_ancestors_with_documents(tab)
+    current = tab
+    while current
+      @tabs_with_documents.add(current.id)
+      current = @tabs_by_id[current.parent_id]
+    end
   end
 
   private
@@ -181,6 +206,7 @@ class EntityTabQueryService
     children = @children_by_parent_id[parent_id] || []
     children
       .select { |c| @include_disabled || c.enabled }
+      .select { |c| !@with_document_types || @tabs_with_documents&.include?(c.id) }
       .sort_by(&:order_position)
       .map { |child| build_tab_json(child) }
   end

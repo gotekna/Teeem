@@ -64,11 +64,10 @@ import {
   getShortToLongMap,
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
-import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { DOCUMENT_TYPE_SCOPES } from "@/lib/constants/document-types";
 import { getInitials as getInitialsSSoT } from "@/utils/formatters";
 
 // Re-export for local use (SSoT: @/lib/constants/document-types.ts)
-const FOLDER_OPTIONS = DOCUMENT_FOLDER_OPTIONS;
 const SCOPE_OPTIONS = DOCUMENT_TYPE_SCOPES;
 
 // Common file extensions for documents
@@ -169,8 +168,7 @@ export default function DocumentTypeDetailPage() {
   const [jobs, setJobs] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
-  const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
-  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // SSoT: EntityTab hierarchy for Additional Tabs
+  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // SSoT: EntityTab hierarchy for Xero tabs extraction
   // SSoT: Tabs grouped by scope for grouped dropdown display
   type TabNode = { id?: number; name: string; tab_key?: string; storage_path?: string; children: TabNode[] };
   type TabsByScope = {
@@ -360,16 +358,11 @@ export default function DocumentTypeDetailPage() {
   const urlScope = searchParams.get("scope") as "company" | "job" | "contacts" | null;
   const urlTabId = searchParams.get("tab");
 
-  // SSoT: Fetch available tabs from EntityTab API (replaces old document_folders)
+  // SSoT: Fetch available tabs from EntityTab API
+  // Shows ALL tabs so users can assign document types to any tab
   React.useEffect(() => {
     const fetchFolders = async () => {
       try {
-        // Use document type scope (for existing) or URL scope (for new), default to corporate_entity
-        const scope = (documentType?.scope || urlScope || "company").toLowerCase();
-        // Map document type scope to EntityTab scope
-        // SSoT: "contacts" maps to "contact" (Jan 2026 consolidation)
-        const entityTabScope = scope === "contacts" ? "contact" : scope === "job" || scope === "jobs" ? "job" : "corporate_entity";
-
         // Build folder hierarchy recursively for all depths
         const mapTabRecursive = (tab: any): any => ({
           id: tab.id,
@@ -380,18 +373,7 @@ export default function DocumentTypeDetailPage() {
           children: (tab.children || []).map(mapTabRecursive)
         });
 
-        // Fetch EntityTabs for the appropriate scope, documents group
-        // SSoT: Xero tabs are children of the Xero tab in corporate_entity scope
-        const data = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${entityTabScope}`);
-        let allDocumentTabs: any[] = [];
-
-        if (data.success && data.data?.tabs) {
-          // SSoT: Filter to tabs that can store documents (has_storage_folder: true OR tab_group: 'documents')
-          allDocumentTabs = data.data.tabs.filter((t: any) => t.has_storage_folder || t.tab_group === 'documents');
-        }
-
-        // SSoT: Fetch ALL tabs from ALL scopes, grouped by scope for dropdown display
-        // This ensures we can display tab names and group them by Corporate/Jobs/Contacts
+        // SSoT: Fetch tabs from ALL scopes
         const groupedTabs: TabsByScope = { corporate: [], jobs: [], contacts: [] };
 
         try {
@@ -417,22 +399,10 @@ export default function DocumentTypeDetailPage() {
 
         setTabsByScope(groupedTabs);
 
-        if (allDocumentTabs.length > 0) {
-          const hierarchy = allDocumentTabs.map(mapTabRecursive);
-          setFolderHierarchy(hierarchy);
-
-          // Extract root tab names for Folder/Primary Tab dropdowns (keep sorted)
-          const rootNames = allDocumentTabs.map((t: any) => t.display_name).sort();
-          setFolderOptions(rootNames);
-        } else {
-          // Fallback to hard-coded list if API fails
-          setFolderOptions([...DOCUMENT_FOLDER_OPTIONS]);
-          setFolderHierarchy([]);
-        }
+        // Set folderHierarchy for Xero tab extraction (use corporate tabs)
+        setFolderHierarchy(groupedTabs.corporate);
       } catch (error) {
         console.error("Failed to fetch folders:", error);
-        // Fallback to hard-coded list if API fails
-        setFolderOptions([...DOCUMENT_FOLDER_OPTIONS]);
         setFolderHierarchy([]);
       }
     };

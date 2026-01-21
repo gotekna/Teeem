@@ -94,6 +94,14 @@ function normalizeProviderType(apiValue: string | null | undefined): ProviderTyp
 // Keys and values come from the backend API
 type ScopeFolders = Record<string, string>;
 
+// Document type interface
+interface DocumentType {
+  id: number;
+  name: string;
+  code: string;
+  display_name?: string;
+}
+
 // Entity tab interface for tabs under each scope
 interface EntityTab {
   id: number;
@@ -107,6 +115,9 @@ interface EntityTab {
   enabled: boolean;
   order_position: number;
   icon_name: string | null;
+  warehouse_folder?: string | null;
+  children?: EntityTab[];
+  document_types?: DocumentType[];
 }
 
 // Scope to API scope mapping
@@ -1152,17 +1163,66 @@ function TabNode({
     );
   }
 
-  // For complex scopes - read-only preview (configured in separate tab)
+  // For complex scopes - show tab with folder path, document types, and children
+  const hasChildren = tab.children && tab.children.length > 0;
+  const hasDocTypes = tab.document_types && tab.document_types.length > 0;
+  const folderPath = tab.storage_folder_path || tab.warehouse_folder;
+
   return (
-    <div
-      className="flex items-center gap-1 py-1 px-1 rounded-sm hover:bg-muted/50 group"
-      style={{ paddingLeft: `${level * 16 + 24}px` }}
-    >
-      <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-      <span className="text-sm">{tab.display_name}</span>
-      <span className="ml-auto text-[10px] text-muted-foreground font-mono opacity-60">
-        {tab.storage_folder_path || '(no subfolder)'}
-      </span>
+    <div>
+      <div
+        className="flex items-center gap-1 py-1 px-1 rounded-sm hover:bg-muted/50 group"
+        style={{ paddingLeft: `${level * 16 + 24}px` }}
+      >
+        <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
+        <span className="text-sm">{tab.display_name}</span>
+        {/* Show document type count if has doc types */}
+        {hasDocTypes && (
+          <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">
+            {tab.document_types!.length} {tab.document_types!.length === 1 ? 'type' : 'types'}
+          </span>
+        )}
+      </div>
+      {/* Show folder path if set */}
+      {folderPath && (
+        <div
+          className="text-[10px] text-muted-foreground font-mono py-0.5"
+          style={{ paddingLeft: `${level * 16 + 44}px` }}
+        >
+          📁 {folderPath}
+        </div>
+      )}
+      {/* Show document types inline */}
+      {hasDocTypes && (
+        <div
+          className="flex flex-wrap gap-1 py-1"
+          style={{ paddingLeft: `${level * 16 + 44}px` }}
+        >
+          {tab.document_types!.map((dt) => (
+            <span
+              key={dt.id}
+              className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground rounded"
+            >
+              {dt.display_name || dt.name}
+            </span>
+          ))}
+        </div>
+      )}
+      {/* Recursively render children */}
+      {hasChildren && tab.children!.map((child) => (
+        <TabNode
+          key={child.id}
+          tab={child}
+          level={level + 1}
+          basePath={basePath}
+          rootPath={rootPath}
+          scope={scope}
+          editingTabId={editingTabId}
+          onStartEdit={onStartEdit}
+          onSaveEdit={onSaveEdit}
+          onCancelEdit={onCancelEdit}
+        />
+      ))}
     </div>
   );
 }
@@ -1289,15 +1349,60 @@ export function StorageConfigTab() {
     const scopeFolders = config?.warehouse_root_folders || {};
     const tree = buildFolderTree(scopeFolders);
 
+    // Helper: Check if tab has doc types directly
+    const tabHasDocTypes = (tab: EntityTab): boolean => {
+      return !!(tab.document_types && tab.document_types.length > 0);
+    };
+
+    // Helper: Check if tab or any descendants have doc types AND warehouse enabled
+    const hasDescendantWithDocTypes = (tab: EntityTab): boolean => {
+      // This tab has warehouse + doc types
+      if (tab.has_storage_folder && tabHasDocTypes(tab)) return true;
+      // Or any child has it
+      if (tab.children && tab.children.length > 0) {
+        return tab.children.some(child => hasDescendantWithDocTypes(child));
+      }
+      return false;
+    };
+
+    // Helper: Filter tabs recursively
+    // Keep a tab if: (has warehouse + doc types) OR (has children that qualify)
+    const filterTabsWithDocTypes = (tabs: EntityTab[]): EntityTab[] => {
+      return tabs
+        .filter(tab => hasDescendantWithDocTypes(tab))
+        .map(tab => ({
+          ...tab,
+          // Recursively filter children - only keep those with warehouse + doc types (or qualifying descendants)
+          children: tab.children ? filterTabsWithDocTypes(tab.children) : []
+        }));
+    };
+
+    // Scopes that don't use document types - show all warehouse-enabled tabs
+    const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse'];
+
+    // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
+    const filterWarehouseEnabledTabs = (tabs: EntityTab[]): EntityTab[] => {
+      return tabs
+        .filter(tab => tab.has_storage_folder === true)
+        .map(tab => ({
+          ...tab,
+          children: tab.children ? filterWarehouseEnabledTabs(tab.children) : []
+        }));
+    };
+
     // Attach tabs to scope nodes
-    // SSoT: Only show tabs that have storage folders (warehouse_enabled=true in database)
+    // SSoT: For doc-type scopes, show tabs with document types
+    // For other scopes (email, task, warehouse), show all warehouse-enabled tabs
     const attachTabs = (nodes: FolderTreeNode[]) => {
       nodes.forEach(node => {
         if (node.scopeKey && entityTabs[node.scopeKey]) {
           const allTabs = entityTabs[node.scopeKey];
-          // Filter: has_storage_folder=true (SSoT from database warehouse_enabled column)
-          const filteredTabs = allTabs.filter(tab => tab.has_storage_folder === true);
-          node.tabs = filteredTabs;
+          // Use different filter based on scope type
+          if (SCOPES_WITHOUT_DOC_TYPES.includes(node.scopeKey)) {
+            node.tabs = filterWarehouseEnabledTabs(allTabs);
+          } else {
+            node.tabs = filterTabsWithDocTypes(allTabs);
+          }
         }
         if (node.children.length > 0) {
           attachTabs(node.children);

@@ -542,12 +542,17 @@ const EmailListItem = memo(function EmailListItem({
               )}>
                 {email.subject || "(No subject)"}
               </p>
-              <p className={cn(
-                "text-xs truncate mt-0.5",
-                !email.is_read ? "font-semibold text-muted-foreground" : "font-normal text-muted-foreground/70"
-              )}>
-                {decodeHtmlEntities(email.snippet || email.body_preview)}
-              </p>
+              {(() => {
+                const snippetText = decodeHtmlEntities(email.snippet || email.body_preview);
+                return snippetText ? (
+                  <p className={cn(
+                    "text-xs truncate mt-0.5",
+                    !email.is_read ? "font-semibold text-muted-foreground" : "font-normal text-muted-foreground/70"
+                  )}>
+                    {snippetText}
+                  </p>
+                ) : null;
+              })()}
             </div>
             {/* Quick actions on hover */}
             <QuickEmailActions
@@ -591,12 +596,17 @@ const EmailListItem = memo(function EmailListItem({
                         <Paperclip className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
                       )}
                     </div>
-                    <p className={cn(
-                      "text-xs truncate",
-                      !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground/70"
-                    )}>
-                      {decodeHtmlEntities(threadEmail.snippet || threadEmail.body_preview)}
-                    </p>
+                    {(() => {
+                      const snippetText = decodeHtmlEntities(threadEmail.snippet || threadEmail.body_preview);
+                      return snippetText ? (
+                        <p className={cn(
+                          "text-xs truncate",
+                          !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground/70"
+                        )}>
+                          {snippetText}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                   <div className={cn(
                     "text-xs whitespace-nowrap shrink-0",
