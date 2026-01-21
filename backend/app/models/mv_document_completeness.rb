@@ -16,7 +16,6 @@ class MvDocumentCompleteness < ApplicationRecord
   scope :for_company_code, ->(code) { where(company_code: code) }
   scope :for_financial_year, ->(year) { where(financial_year: year) }
   scope :for_type, ->(type) { where(document_type: type) }
-  scope :for_category, ->(category) { where(document_category: category) }
   scope :for_entity_type, ->(entity_type) { where(entity_type: entity_type) }
   scope :pending_verification, -> { where(ai_verification_status: [ nil, "pending" ]) }
   scope :verified, -> { where(ai_verification_status: "verified") }
