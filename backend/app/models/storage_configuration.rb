@@ -43,7 +43,8 @@ class StorageConfiguration < ApplicationRecord
 
   # Warehouse types (SSoT - renamed from SCOPES)
   # Valid warehouse types that can have storage enabled
-  WAREHOUSE_TYPES = %w[corporate_entity people job document contact email warehouse task task_attachments task_responses xero].freeze
+  # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
+  WAREHOUSE_TYPES = %w[corporate_entity job document contact email warehouse task task_attachments task_responses xero].freeze
 
   # Legacy column aliases for backward compatibility
   # These allow code referencing old column names to continue working
@@ -118,11 +119,11 @@ class StorageConfiguration < ApplicationRecord
 
   # Default warehouse root folders - used ONLY for initialization
   # After init, warehouse_root_folders column is THE ONE SSoT (no merging)
+  # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
   WAREHOUSE_ROOT_DEFAULTS = {
     'job' => 'Jobs/{{JobCode}}',
     'contact' => 'Contacts/{{ContactName}}',
     'corporate_entity' => 'Corporate/{{CompanyGroup}}',
-    'people' => 'People/{{ContactName}}',
     'user' => 'Users/{{UserName}}',
     'task' => 'Jobs/{{JobCode}}/Tasks',
     'email' => 'Emails/{{Mailbox}}',

@@ -18,7 +18,8 @@ class EntityTab < ApplicationRecord
   #
   # Valid warehouse types (xero tabs are children of corporate_entity/xero tab)
   # System warehouse types (email, warehouse, task, task_attachments, task_responses) are read-only in UI - is_system_tab: true
-  WAREHOUSE_TYPES = %w[corporate_entity people job document contact email warehouse task task_attachments task_responses xero].freeze
+  # SSoT: 'contact' is THE ONE warehouse_type for all individuals (Jan 2026 - 'people' merged into 'contact')
+  WAREHOUSE_TYPES = %w[corporate_entity job document contact email warehouse task task_attachments task_responses xero].freeze
 
   # Legacy alias for backward compatibility
   SCOPES = WAREHOUSE_TYPES
@@ -120,7 +121,8 @@ class EntityTab < ApplicationRecord
   # Scopes
   scope :for_warehouse_type, ->(t) { where(warehouse_type: t) }
   scope :for_corporate, -> { for_warehouse_type('corporate_entity') }
-  scope :for_people, -> { for_warehouse_type('people') }
+  scope :for_contacts, -> { for_warehouse_type('contact') }
+  scope :for_people, -> { for_warehouse_type('contact') }  # DEPRECATED: Use for_contacts (Jan 2026)
   scope :for_jobs, -> { for_warehouse_type('job') }
   scope :for_documents, -> { for_warehouse_type('document') }
   # Note: Xero tabs are children of corporate_entity/xero tab, not a separate warehouse_type
@@ -248,10 +250,11 @@ class EntityTab < ApplicationRecord
     end
 
     # Fall back to warehouse_type-based mapping
+    # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
     case warehouse_type
     when 'job' then :job
     when 'corporate_entity' then :corporate
-    when 'people', 'contact' then :people
+    when 'contact' then :contact
     when 'email' then :email
     when 'warehouse' then :warehouse
     when 'task' then :task
@@ -329,9 +332,10 @@ class EntityTab < ApplicationRecord
     return warehouse_folder if warehouse_folder.present?
 
     # Fallback for tabs without SharePoint paths (overview tabs, etc.)
+    # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
     warehouse_type_prefix = case warehouse_type
     when 'corporate_entity' then 'Corporate'
-    when 'people' then 'People'
+    when 'contact' then 'Contacts'
     when 'job' then 'Jobs'
     when 'document' then 'Documents'
     when 'xero' then 'Corporate'
@@ -504,8 +508,8 @@ class EntityTab < ApplicationRecord
     # Corporate Entity tabs
     seed_corporate_entity_tabs!
 
-    # People tabs
-    seed_people_tabs!
+    # Contact tabs (SSoT: 'contact' is THE ONE for all individuals - Jan 2026)
+    seed_contact_tabs!
 
     # Job tabs
     seed_job_tabs!
@@ -607,23 +611,23 @@ class EntityTab < ApplicationRecord
     end
   end
 
-  # People tabs (contacts/persons)
-  # SSoT: Defines the folder structure for people documents
-  # Base folder: "Corporate/People" (stored on overview tab)
-  private_class_method def self.seed_people_tabs!
+  # Contact tabs (individuals: customers, suppliers, employees, users)
+  # SSoT: 'contact' is THE ONE warehouse_type for all individuals (Jan 2026 - 'people' merged into 'contact')
+  # Base folder: "Contacts" (stored on overview tab)
+  private_class_method def self.seed_contact_tabs!
     # Overview/root tab - defines the base folder for this warehouse_type
-    find_or_create_by!(warehouse_type: 'people', tab_key: 'overview') do |tab|
+    find_or_create_by!(warehouse_type: 'contact', tab_key: 'overview') do |tab|
       tab.display_name = 'Overview'
       tab.tab_group = 'overview'
       tab.order_position = 0
       tab.enabled = true
       tab.is_system_tab = true
       tab.warehouse_enabled = true
-      tab.warehouse_folder = 'Corporate/People'  # SSoT: Base folder for people warehouse_type
+      tab.warehouse_folder = 'Contacts'  # SSoT: Base folder for contact warehouse_type
     end
 
-    # Other people tabs (non-storage)
-    people_tabs = [
+    # Other contact tabs (non-storage)
+    contact_tabs = [
       { tab_key: 'documents', display_name: 'Documents', tab_group: 'documents', order: 1 },
       { tab_key: 'financial', display_name: 'Financial', tab_group: 'overview', order: 2 },
       { tab_key: 'communications', display_name: 'Communications', tab_group: 'overview', order: 3 },
@@ -633,8 +637,8 @@ class EntityTab < ApplicationRecord
       { tab_key: 'directorships', display_name: 'Directorships', tab_group: 'overview', order: 7 }
     ]
 
-    people_tabs.each do |attrs|
-      find_or_create_by!(warehouse_type: 'people', tab_key: attrs[:tab_key]) do |tab|
+    contact_tabs.each do |attrs|
+      find_or_create_by!(warehouse_type: 'contact', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = attrs[:tab_group]
         tab.order_position = attrs[:order]
@@ -642,6 +646,11 @@ class EntityTab < ApplicationRecord
         tab.is_system_tab = true
       end
     end
+  end
+
+  # DEPRECATED: Use seed_contact_tabs! (Jan 2026 - 'people' merged into 'contact')
+  private_class_method def self.seed_people_tabs!
+    seed_contact_tabs!
   end
 
   # Job tabs
