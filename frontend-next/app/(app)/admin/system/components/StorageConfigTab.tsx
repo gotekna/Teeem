@@ -173,7 +173,7 @@ interface FolderTreeNode {
 // These match WAREHOUSE_ROOT_DEFAULTS in StorageConfiguration (Jan 2026 consolidation)
 // Note: 'People' merged into 'Contacts', 'Users' removed (Users = auth only, Contacts = identity)
 const KNOWN_ROOT_FOLDERS = [
-  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Warehousing'
+  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Warehouse', 'Shared', 'System'
 ];
 
 // Build tree structure from flat scope folders
