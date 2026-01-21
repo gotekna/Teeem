@@ -85,29 +85,31 @@ module Api
             conversion_result = convert_word_to_pdf(file_content, original_file.original_filename)
 
             if conversion_result[:success]
-              # Attach the converted PDF instead
-              @document.file.attach(
-                io: StringIO.new(conversion_result[:pdf]),
+              # SSoT: Attach the converted PDF via StorageBlob (Jan 2026)
+              @document.attach_file(
+                conversion_result[:pdf],
                 filename: conversion_result[:filename],
                 content_type: "application/pdf"
               )
-              @document.file_name = conversion_result[:filename]
-              @document.file_size = conversion_result[:pdf].bytesize
               @document.mime_type = "application/pdf"
               @document.notes = "Auto-converted from Word document"
             else
-              # Conversion failed - attach original
+              # Conversion failed - attach original via StorageBlob
               Rails.logger.warn "[CorporateCompanyDocuments] Word→PDF conversion failed: #{conversion_result[:error]}"
-              @document.file.attach(original_file)
-              @document.file_name = original_file.original_filename
-              @document.file_size = original_file.size
+              @document.attach_file(
+                file_content,
+                filename: original_file.original_filename,
+                content_type: original_file.content_type
+              )
               @document.mime_type = original_file.content_type
             end
           else
-            # No conversion needed - attach original
-            @document.file.attach(original_file)
-            @document.file_name = original_file.original_filename
-            @document.file_size = original_file.size
+            # SSoT: No conversion needed - attach original via StorageBlob (Jan 2026)
+            @document.attach_file(
+              file_content,
+              filename: original_file.original_filename,
+              content_type: original_file.content_type
+            )
             @document.mime_type = original_file.content_type
           end
         end

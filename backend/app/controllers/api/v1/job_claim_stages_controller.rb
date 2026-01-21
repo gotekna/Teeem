@@ -477,9 +477,9 @@ module Api
             focus: "job"
           )
 
-          # Attach the PDF file
-          document.file.attach(
-            io: StringIO.new(result[:pdf_content]),
+          # SSoT: Attach the PDF via StorageBlob (Jan 2026)
+          document.attach_file(
+            result[:pdf_content],
             filename: result[:filename],
             content_type: "application/pdf"
           )
@@ -490,8 +490,8 @@ module Api
             success: true,
             data: {
               document_id: document.id,
-              filename: document.file.filename.to_s,
-              url: rails_blob_url(document.file),
+              filename: document.file_name,
+              url: document.file_url,
               template_name: template.name,
               message: "Invoice PDF generated successfully"
             }

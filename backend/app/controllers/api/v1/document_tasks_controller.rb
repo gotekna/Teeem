@@ -93,8 +93,12 @@ module Api
           Rails.logger.warn "Storage upload failed (will continue with local): #{e.message}"
         end
 
-        # Also attach to ActiveStorage as backup
-        task.document.attach(uploaded_file)
+        # SSoT: Attach to StorageBlob (Jan 2026 - replaces ActiveStorage)
+        task.attach_document(
+          uploaded_file.read,
+          filename: uploaded_file.original_filename,
+          content_type: uploaded_file.content_type
+        )
         task.update(
           has_document: true,
           uploaded_at: Time.current,
@@ -104,7 +108,7 @@ module Api
 
         render json: {
           message: "Document uploaded successfully",
-          document_url: storage_url || url_for(task.document),
+          document_url: storage_url || task.document_url,
           sharepoint_url: storage_url,
           uploaded_at: task.uploaded_at,
           provider: current_provider_type&.to_s
@@ -156,7 +160,7 @@ module Api
           category: task.category,
           has_document: task.has_document,
           is_validated: task.is_validated,
-          document_url: task.sharepoint_url || (task.document.attached? ? url_for(task.document) : nil),
+          document_url: task.sharepoint_url || task.document_url,
           sharepoint_url: task.sharepoint_url,
           uploaded_at: task.uploaded_at,
           validated_at: task.validated_at,

@@ -79,10 +79,14 @@ module Api
       def create
         @asset = Asset.new(asset_params)
 
-        # Handle photo uploads
+        # SSoT: Handle photo uploads via StorageBlob (Jan 2026)
         if params[:photos].present?
           params[:photos].each do |photo|
-            @asset.photos.attach(photo)
+            @asset.add_photo(
+              photo.read,
+              filename: photo.original_filename,
+              content_type: photo.content_type
+            )
           end
         end
 
@@ -102,10 +106,14 @@ module Api
 
       # PATCH/PUT /api/v1/assets/:id
       def update
-        # Handle photo uploads
+        # SSoT: Handle photo uploads via StorageBlob (Jan 2026)
         if params[:photos].present?
           params[:photos].each do |photo|
-            @asset.photos.attach(photo)
+            @asset.add_photo(
+              photo.read,
+              filename: photo.original_filename,
+              content_type: photo.content_type
+            )
           end
         end
 
@@ -152,9 +160,21 @@ module Api
         service = @asset.asset_service_histories.build(service_params)
         service.user = current_user
 
-        # Handle document uploads
-        service.invoice.attach(params[:invoice]) if params[:invoice].present?
-        service.document.attach(params[:document]) if params[:document].present?
+        # SSoT: Handle document uploads via StorageBlob (Jan 2026)
+        if params[:invoice].present?
+          service.attach_invoice(
+            params[:invoice].read,
+            filename: params[:invoice].original_filename,
+            content_type: params[:invoice].content_type
+          )
+        end
+        if params[:document].present?
+          service.attach_document(
+            params[:document].read,
+            filename: params[:document].original_filename,
+            content_type: params[:document].content_type
+          )
+        end
 
         if service.save
           render json: {
@@ -377,7 +397,14 @@ module Api
         expense = @asset.expenses.build(expense_params)
         expense.user = current_user
 
-        expense.receipt.attach(params[:receipt]) if params[:receipt].present?
+        # SSoT: Handle receipt upload via StorageBlob (Jan 2026)
+        if params[:receipt].present?
+          expense.attach_receipt(
+            params[:receipt].read,
+            filename: params[:receipt].original_filename,
+            content_type: params[:receipt].content_type
+          )
+        end
 
         if expense.save
           render json: {
@@ -420,7 +447,14 @@ module Api
         reading = @asset.odometer_readings.build(odometer_reading_params)
         reading.user = current_user
 
-        reading.photo.attach(params[:photo]) if params[:photo].present?
+        # SSoT: Handle photo upload via StorageBlob (Jan 2026)
+        if params[:photo].present?
+          reading.attach_photo(
+            params[:photo].read,
+            filename: params[:photo].original_filename,
+            content_type: params[:photo].content_type
+          )
+        end
 
         if reading.save
           render json: {

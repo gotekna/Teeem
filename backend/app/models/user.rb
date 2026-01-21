@@ -31,11 +31,11 @@ class User < ApplicationRecord
   has_many :teeem_presentations, dependent: :destroy
   has_many :teeem_pdfs, dependent: :destroy
 
-  # Digital signature for certificates (Form 43, contracts, etc.)
-  has_one_attached :signature
+  # SSoT: Links to deduplicated file storage (Jan 2026)
+  belongs_to :signature_blob, class_name: "StorageBlob", optional: true
+  belongs_to :photo_blob, class_name: "StorageBlob", optional: true
 
-  # Profile photo
-  has_one_attached :photo
+  # ActiveStorage has_one_attached :signature/:photo was REMOVED (Jan 2026) - it violated SSoT.
 
   # Signature usage register - tracks every time signature is used
   has_many :signature_usages, dependent: :destroy
@@ -136,18 +136,64 @@ class User < ApplicationRecord
     name.split.map { |n| n[0] }.join.upcase[0..2]
   end
 
+  # ========================================
+  # StorageBlob Signature/Photo Access (SSoT)
+  # ========================================
+
+  def has_signature?
+    signature_blob_id.present?
+  end
+
+  def signature_url(expires_in: 3600)
+    return nil unless signature_blob
+    signature_blob.presigned_url(expires_in: expires_in)
+  end
+
+  def attach_signature(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    signature_blob&.decrement_reference! if signature_blob_id.present?
+    self.signature_blob = blob
+    blob.increment_reference!
+  end
+
   # Get signature URL for PDF generation (base64 data URL for embedding)
   def signature_data_url
-    return nil unless signature.attached?
-    content_type = signature.content_type
-    blob_data = signature.download
+    return nil unless signature_blob
+    content_type = signature_blob.content_type
+    blob_data = signature_blob.download
     base64_data = Base64.strict_encode64(blob_data)
     "data:#{content_type};base64,#{base64_data}"
   end
 
+  def has_photo?
+    photo_blob_id.present?
+  end
+
+  def photo_url(expires_in: 3600)
+    return nil unless photo_blob
+    photo_blob.presigned_url(expires_in: expires_in)
+  end
+
+  def attach_photo(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    photo_blob&.decrement_reference! if photo_blob_id.present?
+    self.photo_blob = blob
+    blob.increment_reference!
+  end
+
   # Check if user has complete QBCC credentials for certificate signing
   def can_sign_certificates?
-    signature.attached? && qbcc_licence_number.present? && qbcc_licence_class.present?
+    has_signature? && qbcc_licence_number.present? && qbcc_licence_class.present?
   end
 
   # SSoT: God View access (internal staff sees everything)

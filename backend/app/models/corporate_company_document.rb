@@ -263,6 +263,42 @@ class CorporateCompanyDocument < ApplicationRecord
 
   # SSoT: storage_reference is now defined in StorableDocument concern
 
+  # ========================================
+  # StorageBlob File Access (SSoT - Jan 2026)
+  # ========================================
+
+  def has_file?
+    storage_blob_id.present?
+  end
+
+  def file_url(expires_in: 3600)
+    return nil unless storage_blob
+    storage_blob.presigned_url(expires_in: expires_in, filename: file_name)
+  end
+
+  def attach_file(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    storage_blob&.decrement_reference! if storage_blob_id.present?
+    self.storage_blob = blob
+    blob.increment_reference!
+
+    # Update document metadata
+    self.file_name = filename
+    self.file_size = content.bytesize
+    self.content_type = content_type || blob.content_type
+    self.content_hash = blob.content_hash
+  end
+
+  def download_file
+    return nil unless storage_blob
+    storage_blob.download
+  end
+
   # Sets both provider-agnostic and SharePoint-specific fields
   # for backwards compatibility during migration
   def set_storage_reference(item_id, provider: 'sharepoint', path: nil)

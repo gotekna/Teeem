@@ -3,8 +3,10 @@ class AssetOdometerReading < ApplicationRecord
   belongs_to :asset
   belongs_to :user, optional: true
 
-  # Active Storage for odometer photo
-  has_one_attached :photo
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  belongs_to :storage_blob, optional: true
+
+  # ActiveStorage has_one_attached :photo was REMOVED (Jan 2026) - it violated SSoT.
 
   # Reading types
   READING_TYPES = %w[photo manual service fuel inspection].freeze
@@ -50,6 +52,32 @@ class AssetOdometerReading < ApplicationRecord
     return nil unless previous && hours && previous.hours
 
     hours - previous.hours
+  end
+
+  # ========================================
+  # StorageBlob Photo Access (SSoT)
+  # ========================================
+
+  def has_photo?
+    storage_blob_id.present?
+  end
+
+  def photo_url(expires_in: 3600)
+    return nil unless storage_blob
+
+    storage_blob.presigned_url(expires_in: expires_in)
+  end
+
+  def attach_photo(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    storage_blob&.decrement_reference! if storage_blob_id.present?
+    self.storage_blob = blob
+    blob.increment_reference!
   end
 
   private

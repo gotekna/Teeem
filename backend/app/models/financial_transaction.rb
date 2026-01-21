@@ -5,8 +5,10 @@ class FinancialTransaction < ApplicationRecord
   belongs_to :corporate_company, foreign_key: "company_id"
   belongs_to :keepr_journal, class_name: "Keepr::Journal", optional: true
 
-  # File attachment for receipts
-  has_one_attached :receipt
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  belongs_to :storage_blob, optional: true
+
+  # ActiveStorage has_one_attached :receipt was REMOVED (Jan 2026) - it violated SSoT.
 
   # Enums
   enum :transaction_type, {
@@ -41,7 +43,6 @@ class FinancialTransaction < ApplicationRecord
 
   # Callbacks
   before_validation :set_default_status, on: :create
-  after_commit :upload_receipt_to_storage, on: [:create, :update], if: :should_upload_to_storage?
 
   # Instance Methods
   def income?
@@ -114,6 +115,42 @@ class FinancialTransaction < ApplicationRecord
     end
   end
 
+  # ========================================
+  # StorageBlob Receipt Access (SSoT)
+  # ========================================
+
+  def has_receipt?
+    storage_blob_id.present?
+  end
+
+  def receipt_url(expires_in: 3600)
+    return nil unless storage_blob
+
+    storage_blob.presigned_url(expires_in: expires_in)
+  end
+
+  def attach_receipt(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    storage_blob&.decrement_reference! if storage_blob_id.present?
+    self.storage_blob = blob
+    blob.increment_reference!
+  end
+
+  # Provider-agnostic storage reference (SSoT: storage_item_id)
+  # Falls back to sharepoint_file_id for backwards compatibility
+  def storage_reference
+    storage_item_id.presence || sharepoint_file_id
+  end
+
+  def set_storage_reference(item_id, provider: "sharepoint")
+    self.storage_item_id = item_id
+  end
+
   private
 
   def set_default_status
@@ -130,23 +167,5 @@ class FinancialTransaction < ApplicationRecord
 
   def can_sync?
     status_posted? && !synced?
-  end
-
-  def should_upload_to_storage?
-    receipt.attached? && sharepoint_file_id.blank?
-  end
-
-  def upload_receipt_to_storage
-    FinancialTransactionStorageUploadJob.perform_later(id)
-  end
-
-  # Provider-agnostic storage reference (SSoT: storage_item_id)
-  # Falls back to sharepoint_file_id for backwards compatibility
-  def storage_reference
-    storage_item_id.presence || sharepoint_file_id
-  end
-
-  def set_storage_reference(item_id, provider: "sharepoint")
-    self.storage_item_id = item_id
   end
 end

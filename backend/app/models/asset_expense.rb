@@ -4,8 +4,10 @@ class AssetExpense < ApplicationRecord
   belongs_to :user, optional: true
   belongs_to :financial_transaction, optional: true
 
-  # Active Storage for receipt
-  has_one_attached :receipt
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  belongs_to :storage_blob, optional: true
+
+  # ActiveStorage has_one_attached :receipt was REMOVED (Jan 2026) - it violated SSoT.
 
   # Expense types
   EXPENSE_TYPES = %w[fuel repair registration toll parking insurance service parts cleaning other].freeze
@@ -58,6 +60,32 @@ class AssetExpense < ApplicationRecord
   # Mark as synced to Xero
   def mark_synced!(invoice_id)
     update!(xero_invoice_id: invoice_id, synced_to_xero_at: Time.current)
+  end
+
+  # ========================================
+  # StorageBlob Receipt Access (SSoT)
+  # ========================================
+
+  def has_receipt?
+    storage_blob_id.present?
+  end
+
+  def receipt_url(expires_in: 3600)
+    return nil unless storage_blob
+
+    storage_blob.presigned_url(expires_in: expires_in)
+  end
+
+  def attach_receipt(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    storage_blob&.decrement_reference! if storage_blob_id.present?
+    self.storage_blob = blob
+    blob.increment_reference!
   end
 
   private

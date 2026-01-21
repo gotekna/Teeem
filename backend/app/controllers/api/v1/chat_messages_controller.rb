@@ -141,17 +141,22 @@ class Api::V1::ChatMessagesController < ApplicationController
     @message = ChatMessage.new(message_params)
     @message.user = current_user
 
-    # Handle file attachment if present
+    # SSoT: Handle file attachment via StorageBlob (Jan 2026)
     if params[:chat_message][:file].present?
-      @message.file.attach(params[:chat_message][:file])
-      @message.file_name = params[:chat_message][:file].original_filename
+      uploaded_file = params[:chat_message][:file]
+      @message.attach_file(
+        uploaded_file.read,
+        filename: uploaded_file.original_filename,
+        content_type: uploaded_file.content_type
+      )
+      @message.file_name = uploaded_file.original_filename
       @message.message_type ||= "file"
     end
 
     if @message.save
       # SharePoint upload happens via after_commit callback
       response_data = @message.as_json(include: { user: {} }, methods: [ :formatted_timestamp, :file_url ])
-      if @message.file.attached?
+      if @message.has_file?
         # File is being uploaded to SharePoint async
         response_data[:has_file] = true
         response_data[:file_name] = @message.file_name

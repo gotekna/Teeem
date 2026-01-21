@@ -72,7 +72,23 @@ class ChatMessage < ApplicationRecord
   end
 
   def has_file?
-    storage_reference.present?
+    storage_blob_id.present? || storage_reference.present?
+  end
+
+  # ========================================
+  # StorageBlob File Access (SSoT - Jan 2026)
+  # ========================================
+
+  def attach_file(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    storage_blob&.decrement_reference! if storage_blob_id.present?
+    self.storage_blob = blob
+    blob.increment_reference!
   end
 
   # Provider-agnostic storage reference (SSoT: storage_item_id)

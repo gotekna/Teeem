@@ -123,6 +123,29 @@ class ContactDocument < ApplicationRecord
     self.content_type = content_type || blob.content_type
   end
 
+  # Phase 4: Virtual folder path for File Warehouse
+  # SSoT: Reads template from StorageConfiguration.virtual_template_for(:contact)
+  # No fallback - if template is nil, that's a config error that should be fixed
+  def virtual_folder_path
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(:contact)
+    raise "StorageConfiguration missing :contact template - run rails warehouse:init" unless template
+
+    tokens = default_storage_tokens
+    result = template.dup
+    result.gsub!("{{ContactName}}", tokens[:ContactName].to_s)
+    result.gsub!("{{ContactId}}", contact&.id.to_s)
+    result.gsub!("{{TabName}}", tokens[:TabName].to_s)
+    result.gsub!("{{Category}}", folder.to_s)
+    result.gsub!("{{Folder}}", folder.to_s)
+
+    # Clean up empty tokens and extra slashes
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    result.gsub!(%r{//+}, "/")
+    result.gsub!(%r{^/|/$}, "")
+    result
+  end
+
   private
 
   # SSoT: Default tokens for storage path template
