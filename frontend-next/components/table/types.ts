@@ -203,6 +203,20 @@ export interface TeeemTableViewProps {
   autoFetchLimit?: number; // Maximum records to auto-fetch before stopping (default: unlimited). Search still searches ALL records via server API.
   initialFilters?: CascadeFilter[]; // Initial cascade filters to apply (e.g., for template-specific views)
 
+  /**
+   * Documents why this table uses `entries` instead of `autoFetchRecords`.
+   * Setting this prop suppresses the deprecation warning.
+   *
+   * Valid reasons (per CLAUDE.md):
+   * - "custom-api": Custom API endpoint with special params (e.g., include_inactive=true)
+   * - "non-foundation": Data comes from non-Foundation source (e.g., Xero API)
+   * - "client-filter": Complex client-side filtering that can't be done server-side
+   * - "no-model": Rails model without Foundation backing
+   *
+   * Example: legacyDataSource="custom-api: /api/v1/document_types with include_inactive"
+   */
+  legacyDataSource?: string;
+
   // Data Health widget
   showDataHealth?: boolean;
   onDataHealthIssueClick?: (item: unknown, check: unknown) => void;

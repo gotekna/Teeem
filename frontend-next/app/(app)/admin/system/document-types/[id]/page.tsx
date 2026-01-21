@@ -458,8 +458,8 @@ export default function DocumentTypeDetailPage() {
   const loadCompanies = async () => {
     try {
       const response = await api.get<any>('/api/v1/companies');
-      // Handle response format: {success: true, companies: [...], total: N}
-      const companiesData = response.data?.companies || response.companies || response.data?.data || response.data || response;
+      // SSoT: Backend returns { success: true, companies: [...], total: N }
+      const companiesData = response?.companies || response?.data?.companies || response?.data || [];
 
       if (Array.isArray(companiesData)) {
         // Filter to only show corporate-linked companies (those with a company_group_id)
@@ -473,25 +473,27 @@ export default function DocumentTypeDetailPage() {
           setPreviewCompanyId(defaultCompany ? defaultCompany.id : corporateLinkedCompanies[0].id);
         }
       } else {
-        console.warn("Companies data is not an array:", companiesData);
         setCompanies([]);
       }
     } catch (error) {
-      console.error("Failed to load companies:", error);
+      // Non-critical - preview can still work without companies dropdown
+      console.warn("[loadCompanies] Failed to load companies for preview dropdown:", error instanceof Error ? error.message : error);
+      setCompanies([]);
     }
   };
 
   const loadPeople = async () => {
     try {
       const response = await api.get<any>('/api/v1/contacts');
-      const peopleData = response.data?.data || response.data || response;
+      // SSoT: Backend returns { success: true, contacts: [...] }
+      const peopleData = response?.contacts || response?.data?.contacts || response?.data || [];
 
       if (Array.isArray(peopleData)) {
         // Map contacts to people with code (initials)
         const mappedPeople = peopleData.map((p: any) => ({
           id: p.id,
-          name: p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
-          code: p.code || getInitials(p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim())
+          name: p.name || p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+          code: p.code || getInitials(p.name || p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim())
         }));
         setPeople(mappedPeople);
 
@@ -507,14 +509,17 @@ export default function DocumentTypeDetailPage() {
         setPeople([]);
       }
     } catch (error) {
-      console.error("Failed to load people:", error);
+      // Non-critical - preview can still work without people dropdown
+      console.warn("[loadPeople] Failed to load contacts for preview dropdown:", error instanceof Error ? error.message : error);
+      setPeople([]);
     }
   };
 
   const loadJobs = async () => {
     try {
       const response = await api.get<any>('/api/v1/jobs');
-      const jobsData = response.data?.data || response.data?.jobs || response.data || response;
+      // SSoT: Backend returns { jobs: [...], ... }
+      const jobsData = response?.jobs || response?.data?.jobs || response?.data || [];
 
       if (Array.isArray(jobsData)) {
         const mappedJobs = jobsData.map((j: any) => ({
@@ -527,7 +532,9 @@ export default function DocumentTypeDetailPage() {
         setJobs([]);
       }
     } catch (error) {
-      console.error("Failed to load jobs:", error);
+      // Non-critical - preview can still work without jobs dropdown
+      console.warn("[loadJobs] Failed to load jobs for preview dropdown:", error instanceof Error ? error.message : error);
+      setJobs([]);
     }
   };
 
@@ -1432,12 +1439,9 @@ export default function DocumentTypeDetailPage() {
                         className="text-sm"
                         style={{ paddingLeft: `${8 + (depth * 16)}px` }}
                       >
-                        {depth > 0 && (
-                          <span className="text-muted-foreground mr-1">
-                            {isLast ? '└─' : '├─'}
-                          </span>
-                        )}
-                        {depth === 0 && <span className="mr-1">📁</span>}
+                        <span className="text-muted-foreground mr-1">
+                          {isLast ? '└─' : '├─'}
+                        </span>
                         {tab.name}
                       </SelectItem>
                     );
@@ -1470,7 +1474,20 @@ export default function DocumentTypeDetailPage() {
                   >
                     <SelectTrigger className="text-sm">
                       <SelectValue placeholder="Select primary tab">
-                        {selectedId ? findTabPath(selectedId) || `Tab ${selectedId}` : "Select..."}
+                        {selectedId ? (
+                          <div className="flex items-center gap-1">
+                            {(findTabPath(selectedId) || `Tab ${selectedId}`).split('/').map((part, idx, arr) => (
+                              <span key={idx} className="flex items-center gap-1">
+                                <Badge variant="secondary" className="text-xs font-normal">
+                                  {part}
+                                </Badge>
+                                {idx < arr.length - 1 && (
+                                  <span className="text-muted-foreground text-xs">›</span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        ) : "Select..."}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent className="max-h-[400px]">
@@ -1521,7 +1538,32 @@ export default function DocumentTypeDetailPage() {
               {(() => {
                 const primaryId = documentType.entity_tab_ids?.[0];
                 const secondaryIds = (documentType.entity_tab_ids || []).slice(1);
-                const excludeIds = [primaryId, ...secondaryIds].filter(Boolean) as number[];
+                // Only exclude already-selected secondary tabs (show primary as disabled)
+                const alreadySelectedIds = secondaryIds.filter(Boolean) as number[];
+
+                // DEBUG: Log primary ID and available tab IDs
+                const getAllTabIds = (tabs: TabNode[]): number[] => {
+                  const ids: number[] = [];
+                  const collect = (t: TabNode) => {
+                    if (t.id) ids.push(t.id);
+                    t.children?.forEach(collect);
+                  };
+                  tabs.forEach(collect);
+                  return ids;
+                };
+                const allCorporateIds = getAllTabIds(tabsByScope.corporate);
+                const allJobIds = getAllTabIds(tabsByScope.jobs);
+                const allContactIds = getAllTabIds(tabsByScope.contacts);
+                console.log('[DEBUG Tab IDs]', {
+                  primaryId,
+                  secondaryIds,
+                  corporateTabIds: allCorporateIds,
+                  jobTabIds: allJobIds,
+                  contactTabIds: allContactIds,
+                  primaryInCorporate: allCorporateIds.includes(primaryId as number),
+                  primaryInJobs: allJobIds.includes(primaryId as number),
+                  primaryInContacts: allContactIds.includes(primaryId as number),
+                });
 
                 const addSecondaryTab = (tabId: number) => {
                   if (!secondaryIds.includes(tabId) && tabId !== primaryId) {
@@ -1533,40 +1575,57 @@ export default function DocumentTypeDetailPage() {
                   updateField("entity_tab_ids", [primaryId, ...secondaryIds.filter(id => id !== tabId)].filter(Boolean));
                 };
 
-                // SSoT: Render tree structure for secondary tabs (excludes already-selected)
-                const renderTreeForSecondary = (tabs: TabNode[]) => {
+                // SSoT: Render tree structure for secondary tabs (shows primary as disabled)
+                const renderTreeForSecondary = (tabs: TabNode[], scopeName: string = 'unknown') => {
                   const elements: React.ReactNode[] = [];
+                  // DEBUG: Log what root tabs we're starting with
+                  console.log(`[DEBUG renderTreeForSecondary] Starting ${scopeName}:`, tabs.map(t => ({ id: t.id, name: t.name, hasChildren: !!t.children?.length })));
 
                   const renderTab = (tab: TabNode, depth: number = 0, isLast: boolean = false) => {
-                    if (!tab.id || excludeIds.includes(tab.id)) return;
+                    if (!tab.id) return;
+                    // Skip already-selected secondary tabs
+                    if (alreadySelectedIds.includes(tab.id)) return;
+
+                    const isPrimary = tab.id === primaryId;
+                    // DEBUG: Log each tab being rendered
+                    if (tab.id === 335 || tab.id === primaryId) {
+                      console.log('[DEBUG renderTab]', {
+                        tabId: tab.id,
+                        tabIdType: typeof tab.id,
+                        primaryId,
+                        primaryIdType: typeof primaryId,
+                        isPrimary,
+                        strictEquals: tab.id === primaryId,
+                        looseEquals: tab.id == primaryId,
+                      });
+                    }
 
                     elements.push(
                       <SelectItem
                         key={tab.id}
                         value={tab.id.toString()}
-                        className="text-sm"
+                        className={`text-sm ${isPrimary ? 'opacity-50' : ''}`}
                         style={{ paddingLeft: `${8 + (depth * 16)}px` }}
+                        disabled={isPrimary}
                       >
-                        {depth > 0 && (
-                          <span className="text-muted-foreground mr-1">
-                            {isLast ? '└─' : '├─'}
-                          </span>
-                        )}
-                        {depth === 0 && <span className="mr-1">📁</span>}
+                        <span className="text-muted-foreground mr-1">
+                          {isLast ? '└─' : '├─'}
+                        </span>
                         {tab.name}
+                        {isPrimary && <span className="ml-1 text-xs text-muted-foreground">(Primary)</span>}
                       </SelectItem>
                     );
 
                     // Render children recursively
                     if (tab.children?.length) {
-                      const validChildren = tab.children.filter(c => c.id && !excludeIds.includes(c.id!));
+                      const validChildren = tab.children.filter(c => c.id && !alreadySelectedIds.includes(c.id!));
                       validChildren.forEach((child, idx) => {
                         renderTab(child, depth + 1, idx === validChildren.length - 1);
                       });
                     }
                   };
 
-                  const validTabs = tabs.filter(t => t.id && !excludeIds.includes(t.id!));
+                  const validTabs = tabs.filter(t => t.id && !alreadySelectedIds.includes(t.id!));
                   validTabs.forEach((tab, idx) => {
                     renderTab(tab, 0, idx === validTabs.length - 1);
                   });
@@ -1574,11 +1633,11 @@ export default function DocumentTypeDetailPage() {
                   return elements;
                 };
 
-                // Check if any tabs available in each scope
+                // Check if any tabs available in each scope (excluding already selected secondaries)
                 const hasAvailableTabs = (tabs: TabNode[]): boolean => {
                   for (const tab of tabs) {
-                    if (tab.id && !excludeIds.includes(tab.id)) return true;
-                    if (tab.children?.some(c => c.id && !excludeIds.includes(c.id!))) return true;
+                    if (tab.id && !alreadySelectedIds.includes(tab.id)) return true;
+                    if (tab.children?.some(c => c.id && !alreadySelectedIds.includes(c.id!))) return true;
                   }
                   return false;
                 };
@@ -1613,7 +1672,7 @@ export default function DocumentTypeDetailPage() {
                             <SelectLabel className="font-semibold text-xs px-2 py-1.5 bg-muted/50">
                               Corporate
                             </SelectLabel>
-                            {renderTreeForSecondary(tabsByScope.corporate)}
+                            {renderTreeForSecondary(tabsByScope.corporate, 'corporate')}
                           </SelectGroup>
                         )}
 
@@ -1625,7 +1684,7 @@ export default function DocumentTypeDetailPage() {
                               <SelectLabel className="font-semibold text-xs px-2 py-1.5 bg-muted/50">
                                 Jobs
                               </SelectLabel>
-                              {renderTreeForSecondary(tabsByScope.jobs)}
+                              {renderTreeForSecondary(tabsByScope.jobs, 'jobs')}
                             </SelectGroup>
                           </>
                         )}
@@ -1638,7 +1697,7 @@ export default function DocumentTypeDetailPage() {
                               <SelectLabel className="font-semibold text-xs px-2 py-1.5 bg-muted/50">
                                 Contacts
                               </SelectLabel>
-                              {renderTreeForSecondary(tabsByScope.contacts)}
+                              {renderTreeForSecondary(tabsByScope.contacts, 'contacts')}
                             </SelectGroup>
                           </>
                         )}

@@ -621,19 +621,23 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           foundationId="document_types"
           tableName={`Document Types (${filteredDocTypes.length}${scopeFilter !== "all" ? ` - ${scopeFilter}` : ""})`}
           entries={filteredDocTypes}
-          // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
+          // ⚠️ legacyDataSource: Documented exception to autoFetchRecords (per CLAUDE.md)
+          // Reasons:
+          // 1. Custom API: /api/v1/document_types with include_inactive=true param
+          // 2. Client-side OR filtering: scope="company" OR scope="both" (complex filter logic)
+          // 3. Computed grouping: Groups by primary_tab (not a database column)
+          legacyDataSource="custom-api: /api/v1/document_types?include_inactive=true + client-side scope OR filtering"
           onEdit={handleEdit}
           onRowUpdate={handleRowUpdate}
           onRowDoubleClick={handleRowDoubleClick}
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
-          onRefresh={loadData}  // SSoT: Refresh local data when records are added/deleted via built-in modal
+          onRefresh={loadData}
           enableExport={true}
           enableSchemaEditor={true}
           customCellRenderer={customCellRenderer}
           onColumnUpdate={fetchColumns}
           initialGroupByColumn="primary_tab"
-          // SSoT: Use TeeemTableView's built-in "Add Record" button (no custom leftActions needed)
         />
 
         </TabsContent>

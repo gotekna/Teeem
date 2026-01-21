@@ -560,6 +560,7 @@ export default function TeeemTableView({
   autoFetchRecords = false,
   autoFetchLimit, // Maximum records to auto-fetch before stopping (search still searches all)
   initialFilters,
+  legacyDataSource, // Documents why entries is used instead of autoFetchRecords (suppresses deprecation warning)
   showDataHealth = false,
   onDataHealthIssueClick,
   initialShowTotals = true,
@@ -639,7 +640,8 @@ export default function TeeemTableView({
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       // Only warn if entries is used with a Foundation-backed table and autoFetchRecords is off
-      if (entries && entries.length > 0 && effectiveFoundationId && !autoFetchRecords) {
+      // Skip warning if legacyDataSource is documented (intentional use of entries)
+      if (entries && entries.length > 0 && effectiveFoundationId && !autoFetchRecords && !legacyDataSource) {
         console.warn(
           `[TeeemTableView DEPRECATION] The \`entries\` prop is deprecated for Foundation-backed tables.\n` +
           `Foundation: ${effectiveFoundationId}\n` +
@@ -653,7 +655,9 @@ export default function TeeemTableView({
           `  - Built-in caching (instant back navigation)\n` +
           `  - Server-side search\n\n` +
           `For embedded tables with filters, use:\n` +
-          `  <TeeemTableView foundationId="..." autoFetchRecords={true} initialFilters={[...]} />`
+          `  <TeeemTableView foundationId="..." autoFetchRecords={true} initialFilters={[...]} />\n\n` +
+          `If this table intentionally uses entries (custom API, client-side filtering), add:\n` +
+          `  legacyDataSource="custom-api: reason here"`
         );
       }
     }
@@ -1879,6 +1883,9 @@ export default function TeeemTableView({
   // Collapsed hierarchy headers (for "Header Hierarchy" display mode)
   const [collapsedHierarchyHeaders, setCollapsedHierarchyHeaders] = useState<Set<number>>(new Set());
 
+  // Track which invalid groupBy columns we've already warned about (to prevent spam)
+  const loggedInvalidGroupColumnsRef = useRef<Set<string>>(new Set());
+
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors
   // effectiveColumns comes from Foundation API which only has database columns
@@ -1893,8 +1900,11 @@ export default function TeeemTableView({
       (col) => col.key === groupByColumn && col.key !== 'select' && col.key !== 'actions'
     );
     if (!isValidDbColumn) {
-      // Don't log for every render, just when the value changes
-      console.debug(`[TeeemTableView] groupByColumn "${groupByColumn}" is not a database column, skipping API call`);
+      // Only log once per unique column name to prevent console spam
+      if (!loggedInvalidGroupColumnsRef.current.has(groupByColumn)) {
+        loggedInvalidGroupColumnsRef.current.add(groupByColumn);
+        console.debug(`[TeeemTableView] groupByColumn "${groupByColumn}" is not a database column, skipping API call`);
+      }
       return null;
     }
     return groupByColumn;

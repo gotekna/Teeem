@@ -296,8 +296,9 @@ module Api
         director_fields = params[:is_director] == "true" ? [ :place_of_birth, :birth_state, :birth_country, :residential_address ] : []
 
         # Performance: Eager load associations to avoid N+1 queries
-        # portal_user and corporate_group are always included in as_json response
-        @contacts = @contacts.includes(:portal_user, :corporate_group)
+        # portal_user and corporate_groups_via_membership are always included in as_json response
+        # FRC (Jan 2026): Fixed from :corporate_group (doesn't exist) to :corporate_groups_via_membership (has_many through)
+        @contacts = @contacts.includes(:portal_user, :corporate_groups_via_membership)
 
         # Conditional eager loading for company relationships
         if include_companies
@@ -321,7 +322,7 @@ module Api
         contacts_json = @contacts.as_json(
           include: {
             portal_user: {},
-            corporate_group: {}
+            corporate_groups_via_membership: {}
           },
           methods: [ :is_sales?, :is_land_agent?, :display_name, :xero_linked_count, :xero_customer?, :xero_supplier? ]
         )
