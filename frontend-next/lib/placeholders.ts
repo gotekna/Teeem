@@ -495,6 +495,12 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Company code",
   },
   {
+    code: "{{CompanyName}}",
+    example: "Teeem Homes Pty Ltd",
+    color: "purple",
+    description: "Company name (full)",
+  },
+  {
     code: "{{TabName}}",
     example: "Finance",
     color: "blue",
@@ -758,6 +764,7 @@ export function resolveSharePointPath(template: string): string {
     // Double brace format - Company examples
     "{{CompanyGroup}}": "Teeem Group",
     "{{CompanyCode}}": "TH",
+    "{{CompanyName}}": "Teeem Homes Pty Ltd",
     "{{TabName}}": "Finance",
     "{{SubTabName}}": "Photos",
     "{{ContactName}}": "Robert Harder",
@@ -772,6 +779,7 @@ export function resolveSharePointPath(template: string): string {
     "{SubTabName}": "Photos",
     "{CompanyGroup}": "Teeem Group",
     "{CompanyCode}": "TH",
+    "{CompanyName}": "Teeem Homes Pty Ltd",
   };
 
   // Replace all placeholders with examples

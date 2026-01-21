@@ -10,6 +10,9 @@ import {
   ChevronDown,
   ExternalLink,
   X,
+  DollarSign,
+  Hash,
+  ClipboardList,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +32,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { formatDate, formatFileSize } from "@/utils/formatters";
 import type { Contact } from "../types";
@@ -73,6 +82,35 @@ interface ContactDocumentsTabProps {
   contact: Contact;
 }
 
+// Invoice data from ExternalInvoice for comparison view
+// NOTE: Backend uses snake_case - we use snake_case to match API response
+interface ExternalInvoiceData {
+  id: number;
+  invoice_number: string;
+  invoice_type: string;
+  status: string;
+  invoice_date: string | null;
+  due_date: string | null;
+  fully_paid_date: string | null;
+  subtotal: number | null;
+  total_tax: number | null;
+  total: number | null;
+  amount_due: number | null;
+  amount_paid: number | null;
+  currency_code: string;
+  contact_name: string | null;
+  job_title: string | null;
+  reference: string | null;
+  line_items?: Array<{
+    description: string;
+    quantity: number;
+    unit_amount: number;
+    line_amount: number;
+    account_code: string | null;
+    tax_type: string | null;
+  }>;
+}
+
 // Group documents by Year → Month → Folder
 interface YearGroup {
   year: number;
@@ -106,6 +144,9 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<ContactDocument | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [fullPageOpen, setFullPageOpen] = useState(false);
+  const [invoiceData, setInvoiceData] = useState<ExternalInvoiceData | null>(null);
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -314,24 +355,59 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
 
   // Single click: Open drawer to preview
   // Double click: Open in new tab
+  // Fetch invoice data for comparison view
+  const fetchInvoiceData = useCallback(async (doc: ContactDocument) => {
+    if (!doc.externalId || doc.source !== "xero") {
+      setInvoiceData(null);
+      return;
+    }
+
+    // Parse external_id: "xero:{invoice_id}:pdf" → extract invoice_id
+    const parts = doc.externalId.split(":");
+    if (parts.length < 2) {
+      setInvoiceData(null);
+      return;
+    }
+    const xeroInvoiceId = parts[1];
+
+    setLoadingInvoice(true);
+    try {
+      const response = await api.get<{ success: boolean; data: ExternalInvoiceData }>(
+        `/api/v1/external_invoices/by_external_id/${xeroInvoiceId}`
+      );
+      if (response?.success && response.data) {
+        setInvoiceData(response.data);
+      } else {
+        setInvoiceData(null);
+      }
+    } catch (err) {
+      console.error("Failed to fetch invoice data:", err);
+      setInvoiceData(null);
+    } finally {
+      setLoadingInvoice(false);
+    }
+  }, []);
+
+  // Single click: Open drawer with just PDF
+  // Double click: Open full page with invoice + PDF side by side
   const handleDocumentClick = useCallback((doc: ContactDocument) => {
     if (clickTimeoutRef.current) {
-      // Double click detected - clear timeout and open in new tab
+      // Double click detected - open full page comparison view
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;
-      if (doc.downloadUrl) {
-        window.open(doc.downloadUrl, "_blank");
-      }
+      setSelectedDoc(doc);
+      fetchInvoiceData(doc);
+      setFullPageOpen(true);
     } else {
       // Single click - wait to see if double click follows
       clickTimeoutRef.current = setTimeout(() => {
         clickTimeoutRef.current = null;
-        // Single click confirmed - open drawer
+        // Single click confirmed - open drawer with just PDF
         setSelectedDoc(doc);
         setDrawerOpen(true);
       }, 250); // 250ms delay to detect double click
     }
-  }, []);
+  }, [fetchInvoiceData]);
 
   const openDocumentInNewTab = useCallback((doc: ContactDocument) => {
     if (doc.downloadUrl) {
@@ -645,6 +721,221 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Full Page Comparison Dialog - Invoice + PDF side by side */}
+      <Dialog open={fullPageOpen} onOpenChange={(open) => {
+        setFullPageOpen(open);
+        if (!open) {
+          setInvoiceData(null);
+        }
+      }}>
+        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col">
+          <DialogHeader className="p-4 border-b flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2">
+                {selectedDoc && getFileIcon(selectedDoc.contentType)}
+                <span className="truncate max-w-[600px]">
+                  {selectedDoc?.displayName || selectedDoc?.name || "Document"}
+                </span>
+                {invoiceData && (
+                  <Badge variant="outline" className="ml-2">
+                    {invoiceData.invoice_number}
+                  </Badge>
+                )}
+              </DialogTitle>
+              <div className="flex items-center gap-2">
+                {selectedDoc?.downloadUrl && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openDocumentInNewTab(selectedDoc)}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open in New Tab
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 flex gap-0 overflow-hidden min-h-0">
+            {/* Left Side: Invoice Details */}
+            <div className="w-[400px] flex-shrink-0 border-r overflow-y-auto bg-muted/20">
+              {loadingInvoice ? (
+                <div className="flex items-center justify-center h-full">
+                  <Spinner size={24} className="text-muted-foreground" />
+                </div>
+              ) : invoiceData ? (
+                <div className="p-4 space-y-6">
+                  {/* Invoice Header */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Hash className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">Invoice Number</span>
+                    </div>
+                    <p className="text-lg font-semibold">{invoiceData.invoice_number}</p>
+                  </div>
+
+                  {/* Status */}
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      className={
+                        invoiceData.status === "paid" || invoiceData.status === "PAID"
+                          ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                          : invoiceData.status === "authorised" || invoiceData.status === "AUTHORISED"
+                          ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                          : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                      }
+                    >
+                      {invoiceData.status}
+                    </Badge>
+                    <Badge variant="outline">
+                      {invoiceData.invoice_type === "bill" ? "Bill" : "Invoice"}
+                    </Badge>
+                  </div>
+
+                  {/* Contact & Job */}
+                  {(invoiceData.contact_name || invoiceData.job_title) && (
+                    <div className="space-y-2 pt-2 border-t">
+                      {invoiceData.contact_name && (
+                        <div>
+                          <span className="text-xs text-muted-foreground uppercase">Contact</span>
+                          <p className="font-medium">{invoiceData.contact_name}</p>
+                        </div>
+                      )}
+                      {invoiceData.job_title && (
+                        <div>
+                          <span className="text-xs text-muted-foreground uppercase">Job</span>
+                          <p className="font-medium">{invoiceData.job_title}</p>
+                        </div>
+                      )}
+                      {invoiceData.reference && (
+                        <div>
+                          <span className="text-xs text-muted-foreground uppercase">Reference</span>
+                          <p className="font-medium">{invoiceData.reference}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Dates */}
+                  <div className="space-y-2 pt-2 border-t">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Dates</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Invoice Date</span>
+                        <p>{formatDate(invoiceData.invoice_date)}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Due Date</span>
+                        <p>{formatDate(invoiceData.due_date)}</p>
+                      </div>
+                      {invoiceData.fully_paid_date && (
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground">Paid Date</span>
+                          <p className="text-green-600 dark:text-green-400">
+                            {formatDate(invoiceData.fully_paid_date)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Amounts */}
+                  <div className="space-y-2 pt-2 border-t">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Amounts</span>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      {invoiceData.subtotal !== null && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span>${invoiceData.subtotal?.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {invoiceData.total_tax !== null && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">GST</span>
+                          <span>${invoiceData.total_tax?.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-semibold text-base pt-1 border-t">
+                        <span>Total</span>
+                        <span>${invoiceData.total?.toFixed(2)}</span>
+                      </div>
+                      {invoiceData.amount_paid !== null && invoiceData.amount_paid > 0 && (
+                        <div className="flex justify-between text-green-600 dark:text-green-400">
+                          <span>Paid</span>
+                          <span>${invoiceData.amount_paid?.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {invoiceData.amount_due !== null && invoiceData.amount_due > 0 && (
+                        <div className="flex justify-between text-amber-600 dark:text-amber-400 font-medium">
+                          <span>Amount Due</span>
+                          <span>${invoiceData.amount_due?.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Line Items */}
+                  {invoiceData.line_items && invoiceData.line_items.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <div className="flex items-center gap-2">
+                        <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Line Items ({invoiceData.line_items.length})</span>
+                      </div>
+                      <div className="space-y-2">
+                        {invoiceData.line_items.map((item, idx) => (
+                          <div key={idx} className="p-2 bg-background rounded border text-sm">
+                            <p className="font-medium truncate" title={item.description}>
+                              {item.description || "(No description)"}
+                            </p>
+                            <div className="flex justify-between text-muted-foreground mt-1">
+                              <span>{item.quantity} × ${item.unit_amount?.toFixed(2)}</span>
+                              <span className="font-medium text-foreground">
+                                ${item.line_amount?.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
+                  <FileText className="h-8 w-8 mb-2" />
+                  <p className="text-center">
+                    {selectedDoc?.source === "xero"
+                      ? "Invoice details not found"
+                      : "This document is not linked to a Xero invoice"}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Right Side: PDF Preview */}
+            <div className="flex-1 bg-muted/10 min-w-0">
+              {selectedDoc?.downloadUrl ? (
+                <iframe
+                  src={selectedDoc.downloadUrl}
+                  className="w-full h-full border-0"
+                  title={selectedDoc.displayName || selectedDoc.name}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  No preview available
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

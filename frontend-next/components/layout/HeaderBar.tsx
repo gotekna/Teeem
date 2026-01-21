@@ -111,8 +111,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     };
 
     const fetchIntegrationStatus = async () => {
-      // Check Xero connection
-      // TEEEM Rule: Xero must ALWAYS be connected - self-heal, never show disconnected/error
+      // Check Xero connection - SSoT: show actual status to user
       try {
         const xeroResponse = await api.get<{
           connected?: boolean;
@@ -134,28 +133,21 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           // Fully connected and healthy
           setXeroStatus('connected');
           setXeroTooltip(`Xero: Connected${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
-          // Clear any self-heal flag on successful connection
-          if (typeof window !== 'undefined') {
-            sessionStorage.removeItem('xero_self_heal_attempted');
-          }
         } else if (xeroData?.status === 'degraded' || needsReauth) {
-          // Show as "needs attention" but DON'T auto-redirect (causes infinite loop)
-          // User must manually click to reconnect on the Xero settings page
+          // Token expired or needs attention
           setXeroStatus('degraded');
           setXeroTooltip('Xero: Token expired - click to reconnect');
-
-          // Log for debugging but don't auto-redirect
           console.info('[Xero] Token issue detected - user should reconnect via settings');
         } else {
-          // Default: always show as connected (TEEEM rule - never disconnected)
-          setXeroStatus('connected');
-          setXeroTooltip(`Xero: Connected${xeroData?.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
+          // Not connected - show actual disconnected state
+          setXeroStatus('disconnected');
+          setXeroTooltip('Xero: Not Connected - click to set up');
         }
       } catch (error) {
         console.debug("Failed to fetch Xero status:", error);
-        // TEEEM Rule: Even on API error, show as connected (never disconnected)
-        setXeroStatus('connected');
-        setXeroTooltip('Xero: Connected');
+        // On API error, show disconnected (honest about status)
+        setXeroStatus('disconnected');
+        setXeroTooltip('Xero: Not Connected');
       }
 
       // Check organization-wide Microsoft 365 connection status
@@ -431,12 +423,15 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           >
             <span className="sr-only">Xero Connections</span>
             <XeroIcon className="h-4 w-4" />
-            {/* Status indicator dot */}
+            {/* Status indicator dot - shows actual connection status */}
             {xeroStatus === 'connected' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-border" />
             )}
             {xeroStatus === 'degraded' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-border" />
+            )}
+            {xeroStatus === 'disconnected' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-muted-foreground border border-white dark:border-border" />
             )}
             {xeroStatus === 'error' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-border" />
