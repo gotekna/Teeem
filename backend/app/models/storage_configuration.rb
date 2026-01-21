@@ -185,6 +185,15 @@ class StorageConfiguration < ApplicationRecord
   # Legacy alias for backward compatibility
   alias_method :path_for, :root_folder_for
 
+  # SSoT: template_for returns the folder template pattern with tokens (e.g., "Jobs/{{JobCode}}")
+  # This is an alias for root_folder_for since warehouse_root_folders stores the full template
+  alias_method :template_for, :root_folder_for
+
+  # SSoT: virtual_template_for returns folder template for virtual warehouse paths
+  # Used by Phase 4 Virtual File Warehouse for organizing documents by virtual folder
+  # Falls back to root_folder_for since templates are stored in warehouse_root_folders
+  alias_method :virtual_template_for, :root_folder_for
+
   # Get all warehouse root folders
   # SSoT: warehouse_root_folders column is THE ONE source (no merging)
   def effective_warehouse_root_folders

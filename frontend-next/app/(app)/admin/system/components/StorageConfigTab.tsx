@@ -1283,18 +1283,18 @@ export function StorageConfigTab() {
   const loadWarehouseStats = async () => {
     setLoadingWarehouse(true);
     try {
+      // Note: Backend returns counts at root level, not inside data
       const response = await api.get<{
         success: boolean;
-        data: {
-          counts: Record<string, number>;
-        }
+        data: Record<string, unknown>;
+        counts: Record<string, number | Record<string, number>>;
       }>("/api/v1/documents/all");
-      if (response?.success && response.data?.counts) {
-        const counts = response.data.counts;
+      if (response?.success && response.counts) {
+        const counts = response.counts;
         setWarehouseStats({
-          warehouse_total: counts.warehouse_total || 0,
-          warehouse_by_source: (counts.warehouse_by_source as unknown as Record<string, number>) || {},
-          counts: counts,
+          warehouse_total: (counts.warehouse_total as number) || 0,
+          warehouse_by_source: (counts.warehouse_by_source as Record<string, number>) || {},
+          counts: counts as Record<string, number>,
         });
       }
     } catch (error) {

@@ -1108,6 +1108,58 @@ class Api::V1::SyncedEmailsController < ApplicationController
     render json: { error: "Download failed: #{e.message.truncate(100)}" }, status: :internal_server_error
   end
 
+  # POST /api/v1/synced_email/bulk_delete_spam
+  # Delete all spam emails from Outlook (and optionally from database)
+  # SSoT: Uses org credentials (per-user Outlook removed)
+  # Security: Requires admin (before_action), org isolation via credential grouping
+  def bulk_delete_spam
+    # Note: Org isolation is enforced via microsoft_credential_id grouping below
+    # Each credential belongs to exactly one org, so deletions are org-scoped
+    spam_emails = SyncedEmail.spam.where.not(outlook_id: nil).where.not(microsoft_credential_id: nil)
+
+    deleted_count = 0
+    failed_count = 0
+    errors = []
+
+    # SSoT: Group by credential to minimize client creation
+    spam_emails.group_by(&:microsoft_credential_id).each do |cred_id, emails|
+      org_cred = MicrosoftCredential.find_by(id: cred_id)
+      next unless org_cred&.connected?
+
+      graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
+
+      emails.each do |email|
+        result = graph_client.delete_user_email(email.mailbox_owner_email, email.outlook_id)
+        if result
+          # Mark as deleted in our database
+          email.update!(
+            email_classification: (email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
+          )
+          deleted_count += 1
+        else
+          failed_count += 1
+          errors << "Failed to delete email #{email.id}"
+        end
+      rescue StandardError => e
+        failed_count += 1
+        errors << "Error deleting email #{email.id}: #{e.message}"
+      end
+    end
+
+    # Optionally delete from our database too
+    if params[:delete_from_database] == "true"
+      SyncedEmail.spam.where("email_classification->>'deleted_from_outlook' = ?", "true").destroy_all
+    end
+
+    render json: {
+      success: failed_count == 0,
+      message: "Deleted #{deleted_count} spam emails from Outlook",
+      deleted_count: deleted_count,
+      failed_count: failed_count,
+      errors: errors.first(10)  # Limit errors in response
+    }
+  end
+
   private
 
   # Fetch MIME content from Outlook via Microsoft Graph
@@ -1268,58 +1320,6 @@ class Api::V1::SyncedEmailsController < ApplicationController
         spam_pending_delete: SyncedEmail.spam.count,
         ephemeral_expired: expired_ephemeral
       }
-    }
-  end
-
-  # POST /api/v1/synced_email/bulk_delete_spam
-  # Delete all spam emails from Outlook (and optionally from database)
-  # SSoT: Uses org credentials (per-user Outlook removed)
-  # Security: Requires admin (before_action), org isolation via credential grouping
-  def bulk_delete_spam
-    # Note: Org isolation is enforced via microsoft_credential_id grouping below
-    # Each credential belongs to exactly one org, so deletions are org-scoped
-    spam_emails = SyncedEmail.spam.where.not(outlook_id: nil).where.not(microsoft_credential_id: nil)
-
-    deleted_count = 0
-    failed_count = 0
-    errors = []
-
-    # SSoT: Group by credential to minimize client creation
-    spam_emails.group_by(&:microsoft_credential_id).each do |cred_id, emails|
-      org_cred = MicrosoftCredential.find_by(id: cred_id)
-      next unless org_cred&.connected?
-
-      graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
-
-      emails.each do |email|
-        result = graph_client.delete_user_email(email.mailbox_owner_email, email.outlook_id)
-        if result
-          # Mark as deleted in our database
-          email.update!(
-            email_classification: (email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
-          )
-          deleted_count += 1
-        else
-          failed_count += 1
-          errors << "Failed to delete email #{email.id}"
-        end
-      rescue StandardError => e
-        failed_count += 1
-        errors << "Error deleting email #{email.id}: #{e.message}"
-      end
-    end
-
-    # Optionally delete from our database too
-    if params[:delete_from_database] == "true"
-      SyncedEmail.spam.where("email_classification->>'deleted_from_outlook' = ?", "true").destroy_all
-    end
-
-    render json: {
-      success: failed_count == 0,
-      message: "Deleted #{deleted_count} spam emails from Outlook",
-      deleted_count: deleted_count,
-      failed_count: failed_count,
-      errors: errors.first(10)  # Limit errors in response
     }
   end
 
