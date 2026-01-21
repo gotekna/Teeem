@@ -458,10 +458,8 @@ module Api
       def pdf
         invoice = ExternalInvoice.find(params[:id])
 
-        # Check warehouse for existing PDF linked to this invoice
-        # First try to find by document_type, then fallback to any PDF with storage_reference
+        # SSoT: Find PDF by document_type (matches XeroAttachmentSyncService)
         existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
-        existing_pdf ||= invoice.corporate_company_documents.where.not(storage_reference: [nil, ""]).where("file_name ILIKE ?", "%.pdf").first
 
         if existing_pdf&.storage_reference.present?
           content = fetch_from_sharepoint(existing_pdf.storage_reference)
@@ -593,15 +591,14 @@ module Api
 
       private
 
-      # Maps invoice_type to the document_type used in CorporateCompanyDocument
-      # Must match XeroAttachmentSyncService.document_type_for_invoice
+      # SSoT: Maps invoice_type to document_type - MUST match XeroAttachmentSyncService.document_type_for_invoice
       def document_type_for(invoice_type)
         case invoice_type
-        when "sales_invoice" then "Sales Document"
-        when "bill" then "Purchases"
-        when "quote" then "Estimation"
-        when "credit_note" then "other"
-        else "other"
+        when "sales_invoice" then "Xero Invoice"
+        when "bill" then "Xero Bill"
+        when "credit_note" then "Xero Credit Note"
+        when "quote" then "Xero Invoice"
+        else "Xero Invoice"
         end
       end
 
