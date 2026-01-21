@@ -3,7 +3,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :internal_messages]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :internal_messages, :documents]
 
       def read_only_fields
         render json: {
@@ -1380,6 +1380,52 @@ module Api
         render json: {
           success: false,
           error: "Failed to fetch messages: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/:id/documents
+      # Returns ContactDocument records for this contact (including migrated Xero PDFs)
+
+      def documents
+        # Query ContactDocument records (includes Xero invoice/bill PDFs)
+        documents = ContactDocument.where(contact_id: @contact.id)
+                                   .includes(:document_type)
+                                   .order(created_at: :desc)
+
+        # Group by folder for UI display
+        by_folder = documents.group_by(&:folder)
+
+        # Format response
+        docs_json = documents.map do |doc|
+          {
+            id: doc.id,
+            name: doc.file_name,
+            displayName: doc.display_name || doc.file_name,
+            folder: doc.folder,
+            fileSize: doc.file_size,
+            contentType: doc.content_type,
+            source: doc.source,
+            externalId: doc.external_id,
+            storagePath: doc.storage_path,
+            storageProvider: doc.storage_provider,
+            documentType: doc.document_type&.name,
+            createdAt: doc.created_at&.iso8601,
+            updatedAt: doc.updated_at&.iso8601
+          }
+        end
+
+        render json: {
+          success: true,
+          exists: documents.any?,
+          total: documents.count,
+          folders: by_folder.keys.compact.sort,
+          documents: docs_json
+        }
+      rescue => e
+        Rails.logger.error("[ContactsController#documents] Error: #{e.message}")
+        render json: {
+          success: false,
+          error: "Failed to fetch documents: #{e.message}"
         }, status: :internal_server_error
       end
 
