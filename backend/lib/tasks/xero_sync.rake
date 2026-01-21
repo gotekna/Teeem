@@ -331,11 +331,10 @@ namespace :xero do
 
     # Find invoices that DON'T already have PDFs synced
     # This avoids unnecessary API calls for already-synced invoices
-    already_synced_ids = CompanyDocument
+    already_synced_ids = CorporateCompanyDocument
       .where(source: "xero")
-      .where("external_id LIKE ?", "xero:%:pdf")
       .where(documentable_type: "ExternalInvoice")
-      .pluck(:documentable_id)
+      .distinct.pluck(:documentable_id)
 
     invoices_needing_pdfs = ExternalInvoice
       .where.not(contact_id: nil)
