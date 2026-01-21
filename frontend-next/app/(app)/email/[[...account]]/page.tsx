@@ -1422,6 +1422,8 @@ export default function EmailPage() {
       return;
     }
 
+    console.log("[EmailClick] Starting - email.id:", email.id, "body_html:", !!email.body_html, "body_text:", !!email.body_text);
+
     // Set selected email immediately so UI updates
     if (openPopout) {
       setPopoutEmail(email);
@@ -1451,10 +1453,13 @@ export default function EmailPage() {
 
     // Fetch full email content if not loaded
     if (!email.body_html && !email.body_text) {
+      console.log("[EmailClick] Fetching full email content for id:", email.id);
       try {
         const response = await api.get<Email | { email: Email }>(`/api/v1/synced_emails/${email.id}`);
+        console.log("[EmailClick] API response:", response);
         // Handle both wrapped and unwrapped response formats
         const fullEmail = (response as { email?: Email }).email || response as Email;
+        console.log("[EmailClick] fullEmail.id:", fullEmail?.id, "body_html length:", fullEmail?.body_html?.length, "body_text length:", fullEmail?.body_text?.length);
         if (fullEmail && fullEmail.id) {
           // Keep is_read as true since we just marked it
           fullEmail.is_read = true;
@@ -1462,12 +1467,17 @@ export default function EmailPage() {
             setPopoutEmail(fullEmail);
           } else {
             setSelectedEmail(fullEmail);
+            console.log("[EmailClick] setSelectedEmail called with full email");
           }
+        } else {
+          console.error("[EmailClick] Invalid fullEmail - missing id:", fullEmail);
         }
       } catch (error) {
-        console.error("Failed to fetch email:", error);
+        console.error("[EmailClick] Failed to fetch email:", error);
         // Keep showing the preview data even if full fetch fails
       }
+    } else {
+      console.log("[EmailClick] Skipping fetch - already has body_html:", !!email.body_html, "body_text:", !!email.body_text);
     }
   }, []);
 
@@ -2334,6 +2344,8 @@ To: ${email.to_emails?.join(", ") || ""}
             />
 
             {/* Email Body */}
+            {/* DEBUG: Log body state on render */}
+            {(() => { console.log("[Render] body_html:", !!selectedEmail.body_html, "length:", selectedEmail.body_html?.length, "body_text:", !!selectedEmail.body_text, "snippet:", !!selectedEmail.snippet); return null; })()}
             <div className="flex-1 overflow-auto px-4 py-4">
               {selectedEmail.body_html ? (
                 <div

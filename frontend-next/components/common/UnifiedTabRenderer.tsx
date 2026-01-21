@@ -52,7 +52,7 @@ export function isUnifiedTabsEnabled(): boolean {
 // ============================================
 
 interface UnifiedTabRendererProps {
-  /** Tab scope (corporate_entity, job, people) */
+  /** Tab scope (corporate_entity, job, contact) */
   scope: EntityTabScope;
 
   /** Entity ID for data fetching */

@@ -120,11 +120,11 @@ class StorageConfiguration < ApplicationRecord
   # Default warehouse root folders - used ONLY for initialization
   # After init, warehouse_root_folders column is THE ONE SSoT (no merging)
   # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
+  # NOTE: 'user' removed - Users are auth only, Contacts are identity (no separate User storage)
   WAREHOUSE_ROOT_DEFAULTS = {
     'job' => 'Jobs/{{JobCode}}',
     'contact' => 'Contacts/{{ContactName}}',
     'corporate_entity' => 'Corporate/{{CompanyGroup}}',
-    'user' => 'Users/{{UserName}}',
     'task' => 'Jobs/{{JobCode}}/Tasks',
     'email' => 'Emails/{{Mailbox}}',
     'warehouse' => 'Warehousing'

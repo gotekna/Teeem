@@ -29,11 +29,12 @@ class DocumentType < ApplicationRecord
 
   # SSoT: Derive scope from primary EntityTab's warehouse_type
   # This is THE ONE place scope is determined
+  # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
   def derived_scope
     case primary_entity_tab&.warehouse_type
     when 'corporate_entity' then 'company'
     when 'job' then 'job'
-    when 'people', 'contact' then 'contacts'
+    when 'contact' then 'contacts'
     else 'company'
     end
   end
@@ -148,7 +149,7 @@ class DocumentType < ApplicationRecord
   attr_accessor :naming_format_change_info
 
   # Validations
-  # Name must be unique within each scope (company, job, people, both)
+  # Name must be unique within each scope (company, job, contacts, both)
   # This allows the same name in different scopes (e.g., "Invoice" for both company and job)
   validates :name, presence: true, uniqueness: { scope: [:tenant_id, :scope], message: "has already been taken for this scope" }
   # Note: category field is deprecated - tabs/folders (EntityTab) are now the primary organization method
@@ -167,8 +168,8 @@ class DocumentType < ApplicationRecord
   scope :by_scope, ->(scope_name) { where(scope: scope_name) }
   scope :for_company, -> { where(scope: %w[company both]) }
   scope :for_job, -> { where(scope: %w[job both]) }
-  # SSoT: "contacts" is the canonical scope, "people" is legacy - include both for backwards compatibility
-  scope :for_contacts, -> { where(scope: %w[contacts people]) }
+  # SSoT: "contacts" is THE ONE scope for all individuals (Jan 2026 consolidation)
+  scope :for_contacts, -> { where(scope: 'contacts') }
   scope :requiring_filing, -> { where(requires_filing: true) }
   scope :supporting_versioning, -> { where(supports_versioning: true) }
 

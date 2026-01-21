@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_20_190109) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_21_040000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1687,6 +1687,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_190109) do
     t.string "stripe_customer_id"
     t.string "contact_code", null: false
     t.bigint "tenant_id"
+    t.boolean "is_user_cached", default: false, null: false
     t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -1704,6 +1705,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_190109) do
     t.index ["is_supplier_cached"], name: "index_contacts_on_is_supplier_cached"
     t.index ["is_team_contact", "is_active"], name: "idx_contacts_team_contact_active"
     t.index ["is_team_contact"], name: "index_contacts_on_is_team_contact"
+    t.index ["is_user_cached"], name: "index_contacts_on_is_user_cached"
     t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
@@ -2467,15 +2469,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_190109) do
     t.string "name", null: false
     t.string "folder"
     t.text "description"
-    t.string "category"
     t.boolean "requires_filing", default: false
     t.integer "retention_years"
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.jsonb "tabs", default: []
-    t.string "primary_tab"
-    t.string "name_format"
     t.string "file_name"
     t.string "abbreviation"
     t.jsonb "aliases", default: []
@@ -2493,11 +2491,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_20_190109) do
     t.bigint "tenant_id"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
-    t.index ["category"], name: "index_document_types_on_category"
     t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin
     t.index ["filename_patterns"], name: "index_document_types_on_filename_patterns", using: :gin
     t.index ["folder"], name: "index_document_types_on_folder"
-    t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
     t.index ["scope"], name: "index_document_types_on_scope"
     t.index ["supports_versioning"], name: "index_document_types_on_supports_versioning"
     t.index ["tenant_id"], name: "index_document_types_on_tenant_id"

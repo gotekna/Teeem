@@ -259,11 +259,11 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   const [signatureModalPdf, setSignatureModalPdf] = React.useState<string | undefined>(undefined);
 
   // Filter document types by scope
+  // SSoT: "contacts" is THE ONE scope for all individuals (Jan 2026 consolidation)
   const filteredDocTypes = React.useMemo(() => {
     if (scopeFilter === "all") return documentTypes;
-    // SSoT: "contacts" scope includes legacy "people" scope for backwards compatibility
     if (scopeFilter === "contacts") {
-      return documentTypes.filter(dt => dt.scope === "contacts" || dt.scope === "people");
+      return documentTypes.filter(dt => dt.scope === "contacts");
     }
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
@@ -610,7 +610,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           </TabsTrigger>
           <TabsTrigger value="contacts" className="gap-2">
             <Users className="h-4 w-4" />
-            Contacts ({documentTypes.filter(dt => dt.scope === "contacts" || dt.scope === "people").length})
+            Contacts ({documentTypes.filter(dt => dt.scope === "contacts").length})
           </TabsTrigger>
         </TabsList>
 

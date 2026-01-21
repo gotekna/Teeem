@@ -14,8 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { User, Mail, Phone, Shield, Calendar, Clock, Sun, Moon, Link2, Briefcase } from "lucide-react";
-import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -24,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
+import Link from "next/link";
 
 interface Role {
   id: number;
@@ -37,10 +37,9 @@ interface UserData {
   email: string;
   role: string;
   role_ids?: Array<{ id: number; display_value: string; name: string }>;
-  mobile_phone?: string;
   job_title?: string;
   contact_id?: number | null;
-  contact?: { id: number; name: string } | null;
+  contact?: { id: number; display_name?: string; first_name?: string; last_name?: string } | null;
   last_login_at?: string;
   created_at?: string;
   status?: string;
@@ -57,17 +56,9 @@ interface UserDetailSheetProps {
   onSave: () => void;
 }
 
-interface ContactOption {
-  id: number;
-  display_name?: string;
-  first_name?: string;
-  last_name?: string;
-}
-
 export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailSheetProps) {
   const [editData, setEditData] = useState<Partial<UserData>>({});
   const [roles, setRoles] = useState<Role[]>([]);
-  const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
@@ -88,32 +79,13 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
     }
   }, [isOpen]);
 
-  // Load contacts for linking
-  useEffect(() => {
-    const loadContacts = async () => {
-      try {
-        const response = await api.get<{ records: ContactOption[] }>("/api/v1/foundations/contacts/records?per_page=1000");
-        if (response?.records) {
-          setContacts(response.records);
-        }
-      } catch (err) {
-        console.error("Failed to load contacts:", err);
-      }
-    };
-    if (isOpen) {
-      loadContacts();
-    }
-  }, [isOpen]);
-
   // Initialize edit data when user changes
+  // Phase 5: User sheet focuses on auth - profile info managed via Contact
   useEffect(() => {
     if (user) {
       setEditData({
-        name: user.name,
         email: user.email,
-        mobile_phone: user.mobile_phone || "",
         job_title: user.job_title || "",
-        contact_id: user.contact_id || null,
         // SSoT: Always ensure role_ids is an array to prevent .map errors
         role_ids: Array.isArray(user.role_ids) ? user.role_ids : [],
         preferred_theme: user.preferred_theme || "light",
@@ -131,15 +103,14 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
       const roleIdsData = Array.isArray(editData.role_ids) ? editData.role_ids : [];
       const roleIds = roleIdsData.map((r: { id: number }) => r.id);
 
+      // Phase 5: User sheet only edits auth fields
+      // Name/mobile/address managed via Contact (linked automatically)
       const response = await api.patch<{ success: boolean }>(
         `/api/v1/users/${user.id}`,
         {
           user: {
-            name: editData.name,
             email: editData.email,
-            mobile_phone: editData.mobile_phone,
             job_title: editData.job_title,
-            contact_id: editData.contact_id,
             role_ids: roleIds,
             preferred_theme: editData.preferred_theme,
           },
@@ -178,6 +149,12 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   const selectedRoleIds = roleIdsArray.map((r: { id: number }) => String(r.id));
   const selectedOptions = roleOptions.filter((opt) => selectedRoleIds.includes(opt.value));
 
+  // Get Contact display name for header
+  const contactDisplayName = user?.contact?.display_name
+    || (user?.contact?.first_name && user?.contact?.last_name
+      ? `${user.contact.first_name} ${user.contact.last_name}`
+      : user?.name) || "Unknown User";
+
   if (!user) return null;
 
   return (
@@ -186,11 +163,29 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
-            User Details
+            User Account
           </SheetTitle>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
+          {/* Contact Profile Card - SSoT: Contact is identity, User is auth */}
+          <div className="p-4 rounded-lg border bg-muted/30 dark:bg-muted/10">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-lg font-semibold">{contactDisplayName}</p>
+                <p className="text-sm text-muted-foreground">Profile managed via Contact</p>
+              </div>
+              {user.contact_id && (
+                <Link href={`/contacts/${user.contact_id}`}>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <ExternalLink className="h-4 w-4" />
+                    View Profile
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </div>
+
           {/* Status badges */}
           <div className="flex gap-2 flex-wrap">
             {user.presence_status === "online" && (
@@ -214,24 +209,11 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             )}
           </div>
 
-          {/* Name */}
-          <div className="space-y-2">
-            <Label htmlFor="name" className="flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" />
-              Name
-            </Label>
-            <Input
-              id="name"
-              value={editData.name || ""}
-              onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-            />
-          </div>
-
-          {/* Email */}
+          {/* Login Email */}
           <div className="space-y-2">
             <Label htmlFor="email" className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
-              Email
+              Login Email
             </Label>
             <Input
               id="email"
@@ -239,24 +221,12 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
               value={editData.email || ""}
               onChange={(e) => setEditData({ ...editData, email: e.target.value })}
             />
+            <p className="text-xs text-muted-foreground">
+              Used for login. Changes sync to Contact record.
+            </p>
           </div>
 
-          {/* Mobile */}
-          <div className="space-y-2">
-            <Label htmlFor="mobile" className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              Mobile
-            </Label>
-            <Input
-              id="mobile"
-              type="tel"
-              value={editData.mobile_phone || ""}
-              onChange={(e) => setEditData({ ...editData, mobile_phone: e.target.value })}
-              placeholder="04XX XXX XXX"
-            />
-          </div>
-
-          {/* Job Title */}
+          {/* Job Title - kept for email signature */}
           <div className="space-y-2">
             <Label htmlFor="job_title" className="flex items-center gap-2">
               <Briefcase className="h-4 w-4 text-muted-foreground" />
@@ -270,36 +240,6 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             />
             <p className="text-xs text-muted-foreground">
               Used in email signature. Leave blank to hide from signature.
-            </p>
-          </div>
-
-          {/* Linked Contact */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Link2 className="h-4 w-4 text-muted-foreground" />
-              Linked Contact
-            </Label>
-            <ComboboxDropdown
-              items={contacts.map((c) => ({
-                id: String(c.id),
-                label: c.display_name || `${c.first_name || ""} ${c.last_name || ""}`.trim() || `Contact #${c.id}`
-              })).filter((c) => c.label)}
-              selectedItem={editData.contact_id ? {
-                id: String(editData.contact_id),
-                label: (() => {
-                  const contact = contacts.find((c) => c.id === editData.contact_id);
-                  return contact?.display_name || `${contact?.first_name || ""} ${contact?.last_name || ""}`.trim() || "";
-                })()
-              } : undefined}
-              onSelect={(item) => setEditData({ ...editData, contact_id: item ? Number(item.id) : null })}
-              placeholder="Select contact..."
-              searchPlaceholder="Search contacts..."
-              emptyResults={<p className="text-center text-sm text-muted-foreground py-2">No contacts found</p>}
-              clearable={true}
-              onClear={() => setEditData({ ...editData, contact_id: null })}
-            />
-            <p className="text-xs text-muted-foreground">
-              Link to a contact record. Mobile phone will sync bidirectionally.
             </p>
           </div>
 

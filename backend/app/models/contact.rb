@@ -271,6 +271,28 @@ class Contact < ApplicationRecord
   # Clear cached email (call after modifying contact_emails)
   def clear_email_cache!
     @primary_email = nil
+    @login_email = nil
+    @work_email = nil
+    @personal_email = nil
+  end
+
+  # Phase 4: Email label helpers
+  # SSoT: contact_emails.label is THE ONE for email categorization
+  # Labels: 'login' (User login email), 'work', 'personal', 'other'
+
+  # Login email - synced from User.email (label='login')
+  def login_email
+    @login_email ||= contact_emails.find_by(label: 'login')&.email
+  end
+
+  # Work email - either labeled 'work' or primary (default work email)
+  def work_email
+    @work_email ||= contact_emails.find_by(label: 'work')&.email || primary_email
+  end
+
+  # Personal email - labeled 'personal'
+  def personal_email
+    @personal_email ||= contact_emails.find_by(label: 'personal')&.email
   end
 
   # ============================================
@@ -514,6 +536,9 @@ class Contact < ApplicationRecord
   # If invoice.contact_name matches contact.display_name exactly, link them
   after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
 
+  # Phase 3: Prevent deletion of Contacts that have linked Users
+  before_destroy :prevent_destruction_if_has_user
+
   # SSoT: Legacy phone/email columns removed - data now in contact_phones/contact_emails tables
   # These callbacks are disabled as the columns no longer exist
   # after_save :sync_mobile_to_user, if: -> { saved_change_to_mobile_phone? && user.present? }
@@ -551,8 +576,17 @@ class Contact < ApplicationRecord
   scope :team_contacts, -> { where(is_team_contact: true) }
   scope :individual_contacts, -> { where(is_team_contact: false) }
 
+  # User scopes (Phase 3: is_user_cached flag)
+  # SSoT: is_user_cached is a cached flag, updated by User model callbacks
+  # Use this scope to find Contacts that have a linked User account
+  scope :users, -> { where(is_user_cached: true) }
+  scope :non_users, -> { where(is_user_cached: false) }
+
   # Active status scope (SSoT: is_active column)
+  # is_active: true = visible/active contact
+  # is_active: false = archived (not visible in normal lists, but data preserved)
   scope :active, -> { where(is_active: true) }
+  scope :archived, -> { where(is_active: false) }
 
   # ============================================
   # SaaS Customer Scopes
@@ -825,7 +859,8 @@ class Contact < ApplicationRecord
                           pricebook_items.exists? ||
                           price_histories.exists? ||
                           external_invoices.bills.exists?,
-      is_director_cached: current_directorships.exists?
+      is_director_cached: current_directorships.exists?,
+      is_user_cached: user.present?  # Phase 3: Contact Consolidation
     )
   end
 
@@ -847,6 +882,12 @@ class Contact < ApplicationRecord
   # Refresh only director flag (called by CorporateCompanyDirector callbacks)
   def refresh_director_flag!
     update_column(:is_director_cached, current_directorships.exists?)
+  end
+
+  # Refresh only user flag (Phase 3: Contact Consolidation)
+  # SSoT: Check if this Contact has a linked User account
+  def refresh_user_flag!
+    update_column(:is_user_cached, user.present?)
   end
 
   def director_companies
@@ -1872,6 +1913,91 @@ class Contact < ApplicationRecord
     end
   rescue StandardError => e
     Rails.logger.error("Contact##{id}: Auto-link invoices failed - #{e.message}")
+  end
+
+  # Phase 3: Prevent deletion if Contact has a linked User
+  # User must be unlinked or deleted first
+  def prevent_destruction_if_has_user
+    return true unless user.present?
+
+    errors.add(:base, "Cannot delete contact that has a linked user account (#{user.email}). " \
+                      "This contact can login to the system. To remove: either archive the contact, " \
+                      "or delete the user account first.")
+    throw(:abort)
+  end
+
+  # ============================================
+  # Archive System (SSoT: is_active column)
+  # ============================================
+  # Use archive instead of delete to preserve data while hiding from normal views
+
+  # Archive this contact (set is_active: false)
+  # Safe alternative to deletion - preserves all data and relationships
+  def archive!
+    update!(is_active: false)
+    Rails.logger.info "[Contact#archive!] Archived Contact##{id} (#{display_name})"
+  end
+
+  # Restore an archived contact
+  def restore!
+    update!(is_active: true)
+    Rails.logger.info "[Contact#restore!] Restored Contact##{id} (#{display_name})"
+  end
+
+  # Check if this contact can be safely deleted (not archived)
+  # Returns hash with { can_delete: boolean, warnings: [], blockers: [] }
+  def deletion_check
+    result = { can_delete: true, warnings: [], blockers: [] }
+
+    # Blocker: Has linked User account
+    if user.present?
+      result[:can_delete] = false
+      result[:blockers] << {
+        type: "has_user",
+        message: "This contact has a linked user account (#{user.email}) that can login to the system.",
+        action: "Delete or unlink the user account first, or archive the contact instead."
+      }
+    end
+
+    # Warning: Has corporate roles (director, shareholder, etc.)
+    corporate_roles = []
+    corporate_roles << "director" if directorships.any?
+    corporate_roles << "shareholder" if shareholdings.any?
+    corporate_roles << "secretary" if company_secretary_roles.any? rescue nil
+    if corporate_roles.any?
+      result[:warnings] << {
+        type: "corporate_roles",
+        message: "This contact has corporate roles: #{corporate_roles.join(', ')}.",
+        action: "These roles will need to be reassigned."
+      }
+    end
+
+    # Warning: Has documents
+    doc_count = contact_documents.count rescue 0
+    if doc_count > 0
+      result[:warnings] << {
+        type: "has_documents",
+        message: "This contact has #{doc_count} document(s) attached.",
+        action: "Documents will be orphaned if contact is deleted."
+      }
+    end
+
+    # Warning: Has relationships
+    rel_count = (contact_relationships.count + incoming_relationships.count) rescue 0
+    if rel_count > 0
+      result[:warnings] << {
+        type: "has_relationships",
+        message: "This contact has #{rel_count} relationship(s) with other contacts.",
+        action: "Relationships will be removed if contact is deleted."
+      }
+    end
+
+    result
+  end
+
+  # Check if archived
+  def archived?
+    !is_active?
   end
 
   # SSoT: Auto-generate contact_code on create (e.g., "C1310")

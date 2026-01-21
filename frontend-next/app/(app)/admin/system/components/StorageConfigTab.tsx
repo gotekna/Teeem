@@ -165,9 +165,10 @@ interface FolderTreeNode {
 }
 
 // SSoT: Known scope root folder names (first segment of paths that should appear at root)
-// These match SCOPE_ROOT_DEFAULTS in StorageConfiguration
+// These match WAREHOUSE_ROOT_DEFAULTS in StorageConfiguration (Jan 2026 consolidation)
+// Note: 'People' merged into 'Contacts', 'Users' removed (Users = auth only, Contacts = identity)
 const KNOWN_ROOT_FOLDERS = [
-  'Jobs', 'Contacts', 'Corporate', 'People', 'Tasks', 'Emails', 'Warehousing', 'Users'
+  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Warehousing'
 ];
 
 // Build tree structure from flat scope folders
@@ -192,14 +193,16 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     if (!KNOWN_ROOT_FOLDERS.includes(firstSegment)) {
       // Exception: Keep scope root entries themselves (overview tabs for each scope)
       // These have keys like 'email', 'warehouse', 'job', etc.
-      const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'people', 'task', 'corporate_entity', 'corporate'].includes(key);
+      // SSoT: 'people' merged into 'contact', 'user' removed (Jan 2026 consolidation)
+      const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate'].includes(key);
       if (!isOverviewTab) return false;
     }
     return true;
   });
 
   // Main scope keys that should have scopeKey on their first folder, not the leaf
-  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'people', 'user', 'task', 'corporate_entity', 'corporate'];
+  // SSoT: 'people' merged into 'contact', 'user' removed (Jan 2026 consolidation)
+  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate'];
 
   filteredEntries.forEach(([key, path]) => {
     if (!path) return;
@@ -1991,7 +1994,6 @@ export function StorageConfigTab() {
                     {scope === 'job' && <Briefcase className="h-4 w-4 text-blue-500" />}
                     {scope === 'contact' && <Users className="h-4 w-4 text-green-500" />}
                     {scope === 'corporate_entity' && <Building2 className="h-4 w-4 text-purple-500" />}
-                    {scope === 'people' && <Users className="h-4 w-4 text-teal-500" />}
                     {scope === 'task' && <ClipboardList className="h-4 w-4 text-orange-500" />}
                     {scope === 'email' && <Mail className="h-4 w-4 text-red-500" />}
                     {scope === 'warehouse' && <FileBox className="h-4 w-4 text-amber-500" />}

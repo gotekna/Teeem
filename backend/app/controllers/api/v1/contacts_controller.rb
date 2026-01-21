@@ -793,6 +793,22 @@ module Api
       def destroy
         # Comprehensive safety checks before deletion
 
+        # BLOCKER: Check for linked User account (this person can login!)
+        if @contact.user.present?
+          return render json: {
+            success: false,
+            error: "Cannot delete contact with linked user account.",
+            reason: "has_user_account",
+            details: {
+              user_id: @contact.user.id,
+              user_email: @contact.user.email,
+              message: "This contact has a linked user account (#{@contact.user.email}) that can login to the system. " \
+                       "To remove this contact: either archive it (data preserved), or delete the user account first."
+            },
+            can_archive: true
+          }, status: :unprocessable_entity
+        end
+
         # Check for Company Group links (SSoT protection)
         if @contact.link_to_cg
           if @contact.linked_company_id.present?
@@ -941,6 +957,115 @@ module Api
         render json: {
           success: false,
           error: "Failed to delete contact: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/:id/deletion_check
+      # Pre-flight check before attempting delete - returns warnings and blockers
+      def deletion_check
+        check = @contact.deletion_check
+
+        # Add controller-level checks not in model
+        # Check for Company Group links
+        if @contact.link_to_cg
+          if @contact.linked_company_id.present?
+            company = CorporateCompany.find_by(id: @contact.linked_company_id)
+            check[:can_delete] = false
+            check[:blockers] << {
+              type: "linked_to_company",
+              message: "This contact is linked to Company '#{company&.name || 'Unknown'}'.",
+              action: "Unlink from Company Group first."
+            }
+          else
+            membership_count = ContactCorporateGroupMembership.where(contact_id: @contact.id).count
+            if membership_count > 0
+              check[:can_delete] = false
+              check[:blockers] << {
+                type: "has_company_group_memberships",
+                message: "This contact has #{membership_count} Company Group membership(s).",
+                action: "Remove memberships first."
+              }
+            end
+          end
+        end
+
+        # Check for Xero links
+        xero_links = @contact.external_links.where(source: "xero")
+        if xero_links.any?
+          check[:can_delete] = false
+          check[:blockers] << {
+            type: "has_xero_links",
+            message: "This contact has #{xero_links.count} active Xero link(s).",
+            action: "Unlink from Xero first."
+          }
+        end
+
+        render json: {
+          success: true,
+          data: {
+            contact_id: @contact.id,
+            display_name: @contact.display_name,
+            is_user: @contact.is_user_cached?,
+            is_archived: @contact.archived?,
+            **check
+          }
+        }
+      end
+
+      # POST /api/v1/contacts/:id/archive
+      # Archive contact instead of delete - preserves all data
+      def archive
+        if @contact.archived?
+          return render json: {
+            success: false,
+            error: "Contact is already archived"
+          }, status: :unprocessable_entity
+        end
+
+        @contact.archive!
+
+        render json: {
+          success: true,
+          message: "Contact archived successfully. Data preserved but hidden from normal views.",
+          data: {
+            id: @contact.id,
+            display_name: @contact.display_name,
+            is_active: @contact.is_active,
+            archived_at: Time.current
+          }
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to archive contact: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/:id/restore
+      # Restore an archived contact
+      def restore
+        unless @contact.archived?
+          return render json: {
+            success: false,
+            error: "Contact is not archived"
+          }, status: :unprocessable_entity
+        end
+
+        @contact.restore!
+
+        render json: {
+          success: true,
+          message: "Contact restored successfully.",
+          data: {
+            id: @contact.id,
+            display_name: @contact.display_name,
+            is_active: @contact.is_active
+          }
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to restore contact: #{e.message}"
         }, status: :internal_server_error
       end
 

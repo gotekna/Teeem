@@ -2,7 +2,10 @@ class User < ApplicationRecord
   has_secure_password validations: false  # Disable default validations to make password optional for OAuth
 
   belongs_to :user_group, optional: true
-  belongs_to :contact, optional: true  # Link user to their contact record for data sync
+  # SSoT: Every User MUST have a Contact (User is auth ONLY, Contact is identity)
+  # Contact stores all personal info: name, emails, phones, addresses
+  # User.email is the login email, synced to Contact.contact_emails with label='login'
+  belongs_to :contact  # REQUIRED - User must have a Contact (Jan 2026 consolidation)
   belongs_to :tenant, optional: true  # Multi-tenancy: User's assigned tenant (SSoT)
   belongs_to :corporate_group, optional: true  # DEPRECATED: Use tenant instead for multi-tenancy
   has_many :grok_plans, dependent: :destroy
@@ -63,8 +66,13 @@ class User < ApplicationRecord
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
 
-  # SSoT: Sync mobile_phone to linked contact when user is updated
+  # SSoT: Sync User data to linked Contact when user is updated
   after_save :sync_mobile_to_contact, if: -> { saved_change_to_mobile_phone? && contact.present? }
+  after_save :sync_email_to_contact, if: -> { saved_change_to_email? && contact.present? }
+  after_save :sync_name_to_contact, if: -> { saved_change_to_name? && contact.present? }
+  # Phase 3: Update Contact.is_user_cached flag when User is created/destroyed
+  after_save :update_contact_user_flag, if: :contact_id
+  after_destroy :clear_contact_user_flag
 
   # Role helper methods
   # SSoT: ONLY use user_roles join table - legacy role column is deprecated
@@ -358,6 +366,79 @@ class User < ApplicationRecord
     Rails.logger.info "[User#sync_mobile_to_contact] Synced mobile_phone '#{mobile_phone}' to Contact##{contact.id}"
   rescue StandardError => e
     Rails.logger.error "[User#sync_mobile_to_contact] Failed to sync: #{e.message}"
+  end
+
+  # SSoT: Sync login email to Contact.contact_emails (label='login')
+  def sync_email_to_contact
+    return unless contact.present?
+
+    # Find or create login email in contact_emails table
+    login_email = contact.contact_emails.find_by(label: 'login')
+
+    if login_email
+      # Update existing login email
+      return if login_email.email == email  # No change needed
+      login_email.update(email: email)
+      Rails.logger.info "[User#sync_email_to_contact] Updated login email to '#{email}' for Contact##{contact.id}"
+    else
+      # Create new login email record
+      contact.contact_emails.create!(
+        email: email,
+        label: 'login',
+        is_primary: contact.contact_emails.empty?,  # Primary only if no other emails exist
+        position: contact.contact_emails.maximum(:position).to_i + 1
+      )
+      Rails.logger.info "[User#sync_email_to_contact] Created login email '#{email}' for Contact##{contact.id}"
+    end
+  rescue StandardError => e
+    Rails.logger.error "[User#sync_email_to_contact] Failed to sync: #{e.message}"
+  end
+
+  # SSoT: Sync name to Contact.display_name and first_name/last_name
+  def sync_name_to_contact
+    return unless contact.present?
+    return if contact.display_name == name && !saved_change_to_name?
+
+    # Parse name into first/last
+    parts = name.to_s.strip.split(/\s+/)
+    first_name = parts[0]
+    last_name = parts.length > 1 ? parts[-1] : nil
+
+    contact.update(
+      display_name: name,
+      first_name: first_name,
+      last_name: last_name
+    )
+    Rails.logger.info "[User#sync_name_to_contact] Synced name '#{name}' to Contact##{contact.id}"
+  rescue StandardError => e
+    Rails.logger.error "[User#sync_name_to_contact] Failed to sync: #{e.message}"
+  end
+
+  # Phase 3: Update Contact.is_user_cached flag when User is saved
+  def update_contact_user_flag
+    return unless contact.present?
+    return unless contact.respond_to?(:is_user_cached)
+
+    # Set is_user_cached = true since this User is linked to the Contact
+    contact.update_column(:is_user_cached, true) unless contact.is_user_cached?
+    Rails.logger.info "[User#update_contact_user_flag] Set is_user_cached=true for Contact##{contact.id}"
+  rescue StandardError => e
+    Rails.logger.error "[User#update_contact_user_flag] Failed: #{e.message}"
+  end
+
+  # Phase 3: Clear Contact.is_user_cached flag when User is destroyed
+  def clear_contact_user_flag
+    return unless contact_id.present?
+
+    contact_record = Contact.find_by(id: contact_id)
+    return unless contact_record
+    return unless contact_record.respond_to?(:is_user_cached)
+
+    # Clear is_user_cached since no User is linked anymore
+    contact_record.update_column(:is_user_cached, false)
+    Rails.logger.info "[User#clear_contact_user_flag] Cleared is_user_cached for Contact##{contact_id}"
+  rescue StandardError => e
+    Rails.logger.error "[User#clear_contact_user_flag] Failed: #{e.message}"
   end
 
   def password_required?

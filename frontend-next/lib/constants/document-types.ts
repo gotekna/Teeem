@@ -2,7 +2,7 @@
  * SSoT: Document Type Constants
  *
  * Backend SSoT: DocumentType model scopes (for_company, for_job, for_contacts)
- * - "contacts" is the canonical scope (replaces legacy "people")
+ * - "contacts" is THE ONE scope for all individuals (Jan 2026 consolidation)
  * - "both" applies to company AND job documents
  */
 

@@ -81,8 +81,8 @@ const FILE_EXTENSION_OPTIONS = [
 const getBasePlaceholders = (scope: string): PlaceholderToken[] => {
   if (scope === "job") {
     return [...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
-  } else if (scope === "contacts" || scope === "people") {
-    // SSoT: "contacts" is canonical, "people" is legacy
+  } else if (scope === "contacts") {
+    // SSoT: "contacts" is THE ONE scope for all individuals (Jan 2026 consolidation)
     return [...COMPANY_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
   } else if (scope === "both") {
     return [...COMPANY_PLACEHOLDERS, ...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
@@ -215,7 +215,7 @@ export default function DocumentTypeDetailPage() {
   const documentTypeId = params.id as string;
   const isNew = documentTypeId === "new";
   const searchParams = useSearchParams();
-  const urlScope = searchParams.get("scope") as "company" | "job" | "contacts" | "people" | null;
+  const urlScope = searchParams.get("scope") as "company" | "job" | "contacts" | null;
   const urlTabId = searchParams.get("tab");
 
   // SSoT: Fetch available tabs from EntityTab API (replaces old document_folders)
@@ -225,9 +225,8 @@ export default function DocumentTypeDetailPage() {
         // Use document type scope (for existing) or URL scope (for new), default to corporate_entity
         const scope = (documentType?.scope || urlScope || "company").toLowerCase();
         // Map document type scope to EntityTab scope
-        // SSoT: Map document type scope to EntityTab scope
-        // "contacts" maps to "contact" (migrations create tabs there), "people" also to "contact"
-        const entityTabScope = (scope === "contacts" || scope === "people") ? "contact" : scope === "job" || scope === "jobs" ? "job" : "corporate_entity";
+        // SSoT: "contacts" maps to "contact" (Jan 2026 consolidation)
+        const entityTabScope = scope === "contacts" ? "contact" : scope === "job" || scope === "jobs" ? "job" : "corporate_entity";
 
         // Build folder hierarchy recursively for all depths
         const mapTabRecursive = (tab: any): any => ({
@@ -252,7 +251,7 @@ export default function DocumentTypeDetailPage() {
         // SSoT: Fetch ALL tabs from ALL scopes for name lookups
         // This ensures we can display tab names even for tabs from other scopes
         // (e.g., a company doc type referencing a job or contact tab)
-        const allScopes = ['corporate_entity', 'job', 'contact', 'people'];
+        const allScopes = ['corporate_entity', 'job', 'contact'];
         const allTabsFromAllScopes: any[] = [];
         for (const scope of allScopes) {
           try {
@@ -365,8 +364,8 @@ export default function DocumentTypeDetailPage() {
 
   // Get default file name template based on scope
   const getDefaultFileNameForScope = (scope: string) => {
-    // SSoT: "contacts" is canonical, "people" is legacy - both use same default pattern
-    if (scope === "contacts" || scope === "people") return "{PersonCode} {DocTypeCode} {FY}";
+    // SSoT: "contacts" is THE ONE scope for all individuals (Jan 2026 consolidation)
+    if (scope === "contacts") return "{PersonCode} {DocTypeCode} {FY}";
     if (scope === "job") return "{JobCode} {DocTypeCode} {FY}";
     return "{CompanyCode} {DocTypeCode} {FY}";
   };
@@ -509,8 +508,8 @@ export default function DocumentTypeDetailPage() {
       const scope = documentType.scope || "company";
       let defaultTemplate = "{CompanyCode} {DocTypeCode} {FY}";
 
-      // SSoT: "contacts" is canonical, "people" is legacy
-      if (scope === "contacts" || scope === "people") {
+      // SSoT: "contacts" is THE ONE scope for all individuals
+      if (scope === "contacts") {
         defaultTemplate = "{PersonCode} {DocTypeCode} {FY}";
       } else if (scope === "job") {
         defaultTemplate = "{JobCode} {DocTypeCode} {FY}";
@@ -561,8 +560,8 @@ export default function DocumentTypeDetailPage() {
       // Remove entity placeholder based on scope if the checkbox is checked
       if (removeCompanyName) {
         const scope = documentType.scope || "company";
-        // SSoT: "contacts" is canonical, "people" is legacy
-        if (scope === "contacts" || scope === "people") {
+        // SSoT: "contacts" is THE ONE scope for all individuals
+        if (scope === "contacts") {
           // Remove person placeholders for contacts scope
           fileName = fileName.replace(/\{PersonName\}\s*/g, '').replace(/\{PersonCode\}\s*/g, '').replace(/\{Person\}\s*/g, '');
         } else if (scope === "job") {
@@ -1853,7 +1852,7 @@ export default function DocumentTypeDetailPage() {
                       htmlFor="hide-company"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      {(documentType.scope === "contacts" || documentType.scope === "people") ? "Hide Person" : documentType.scope === "job" ? "Hide Job" : "Hide Company"}
+                      {documentType.scope === "contacts" ? "Hide Person" : documentType.scope === "job" ? "Hide Job" : "Hide Company"}
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">

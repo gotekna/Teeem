@@ -1015,6 +1015,10 @@ Rails.application.routes.draw do
         member do
           get :internal_messages
           get :activities
+          # Archive system (Phase 3 Contact Consolidation)
+          get :deletion_check  # Pre-flight check before delete - returns warnings/blockers
+          post :archive        # Archive instead of delete - preserves data
+          post :restore        # Restore an archived contact
         end
 
         # Contact relationships (nested under contacts)
