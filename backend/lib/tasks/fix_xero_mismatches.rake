@@ -1,4 +1,70 @@
 namespace :xero do
+  desc "Fix links pointing to inactive contacts - redirect to active SSoT contact"
+  task fix_inactive_links: :environment do
+    puts "=" * 80
+    puts "Fixing Links Pointing to Inactive Contacts"
+    puts "=" * 80
+    puts ""
+    puts "Root Cause: Migration 20260104064741 deactivated duplicate contacts"
+    puts "but didn't update ContactExternalLinks to point to the kept (active) contact."
+    puts ""
+
+    # Find all Xero links pointing to inactive contacts
+    inactive_links = ContactExternalLink
+      .joins("LEFT JOIN contacts ON contacts.id = contact_external_links.contact_id")
+      .where(source: 'xero')
+      .where("contacts.is_active = false")
+
+    puts "Found #{inactive_links.count} links pointing to inactive contacts"
+    puts ""
+
+    fixed_count = 0
+    unfixable = []
+
+    inactive_links.find_each do |link|
+      inactive_contact = Contact.find_by(id: link.contact_id)
+      next unless inactive_contact
+
+      # Find active contact with same normalized display_name
+      active_contact = Contact
+        .where(is_active: true)
+        .where(entity_type: inactive_contact.entity_type)
+        .where("LOWER(TRIM(display_name)) = LOWER(TRIM(?))", inactive_contact.display_name)
+        .first
+
+      if active_contact
+        puts "Link ##{link.id} (#{link.external_name}):"
+        puts "  FROM: Contact ##{inactive_contact.id} (#{inactive_contact.display_name}) [INACTIVE]"
+        puts "  TO:   Contact ##{active_contact.id} (#{active_contact.display_name}) [ACTIVE]"
+
+        link.update!(contact_id: active_contact.id)
+        fixed_count += 1
+      else
+        unfixable << {
+          link_id: link.id,
+          external_name: link.external_name,
+          contact_id: inactive_contact.id,
+          display_name: inactive_contact.display_name
+        }
+      end
+    end
+
+    puts ""
+    puts "=" * 80
+    puts "Summary:"
+    puts "  Fixed: #{fixed_count} links"
+    puts "  Unfixable: #{unfixable.count} links (no active equivalent found)"
+
+    if unfixable.any?
+      puts ""
+      puts "Unfixable links (need manual review):"
+      unfixable.each do |u|
+        puts "  Link ##{u[:link_id]}: #{u[:external_name]} -> Contact ##{u[:contact_id]} (#{u[:display_name]})"
+      end
+    end
+    puts "=" * 80
+  end
+
   desc "Fix Xero contact mismatches - links internal team members to correct company contacts"
   task fix_mismatches: :environment do
     puts "=" * 80
