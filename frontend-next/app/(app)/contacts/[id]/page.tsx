@@ -93,6 +93,7 @@ import {
   ContactPurchaseOrdersTab,
   ContactTabsRenderer,
   ContactDocumentsTab,
+  ContactTabDocuments,
   ContactCommunicationsTab,
   ContactPortalTab,
 } from "./components";
@@ -2099,36 +2100,70 @@ export default function ContactDetailPage() {
 
         {/* Invoices Tab - SSoT: visibility_rule = "Has Primary Xero links" - PRIMARY Xero only */}
         <TabsContent value="invoices" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Invoices {primaryXeroName && <span className="text-sm font-normal text-muted-foreground">({primaryXeroName})</span>}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <XeroInvoicesListByTenant
-                contactId={contact.id}
-                type="ACCREC"
-                onViewInvoiceDetail={handleViewInvoiceDetail}
-                linkedTenants={primaryXeroLink ? [primaryXeroLink] : []}
-              />
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            {/* Invoice Records from Xero */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Invoices {primaryXeroName && <span className="text-sm font-normal text-muted-foreground">({primaryXeroName})</span>}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <XeroInvoicesListByTenant
+                  contactId={contact.id}
+                  type="ACCREC"
+                  onViewInvoiceDetail={handleViewInvoiceDetail}
+                  linkedTenants={primaryXeroLink ? [primaryXeroLink] : []}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Invoice Documents (PDFs) - filtered by document types linked to Invoices tab */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Invoice Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ContactTabDocuments
+                  contactId={contact.id}
+                  tabKey="invoices"
+                  title="Invoice Documents"
+                />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Bills Tab - SSoT: visibility_rule = "Has Primary Xero links" - PRIMARY Xero only */}
         <TabsContent value="bills" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Bills {primaryXeroName && <span className="text-sm font-normal text-muted-foreground">({primaryXeroName})</span>}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <XeroInvoicesListByTenant
-                contactId={contact.id}
-                type="ACCPAY"
-                onViewInvoiceDetail={handleViewInvoiceDetail}
-                linkedTenants={primaryXeroLink ? [primaryXeroLink] : []}
-              />
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            {/* Bill Records from Xero */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Bills {primaryXeroName && <span className="text-sm font-normal text-muted-foreground">({primaryXeroName})</span>}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <XeroInvoicesListByTenant
+                  contactId={contact.id}
+                  type="ACCPAY"
+                  onViewInvoiceDetail={handleViewInvoiceDetail}
+                  linkedTenants={primaryXeroLink ? [primaryXeroLink] : []}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Bill Documents (PDFs) - filtered by document types linked to Bills tab */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Bill Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ContactTabDocuments
+                  contactId={contact.id}
+                  tabKey="bills"
+                  title="Bill Documents"
+                />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Purchase Orders Tab - SSoT: visibility_rule = "is_supplier" - ROOT level for suppliers */}

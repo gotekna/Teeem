@@ -15,6 +15,7 @@ export { ContactPortalTab } from "./ContactPortalTab";
 export { ContactInvoicesTab } from "./ContactInvoicesTab";
 export { ContactBillsTab } from "./ContactBillsTab";
 export { ContactDocumentsTab } from "./ContactDocumentsTab";
+export { ContactTabDocuments } from "./ContactTabDocuments";
 export { ContactTabsRenderer } from "./ContactTabsRenderer";
 
 // Re-export types for convenience

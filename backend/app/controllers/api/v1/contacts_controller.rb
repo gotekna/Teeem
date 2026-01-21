@@ -1385,12 +1385,24 @@ module Api
 
       # GET /api/v1/contacts/:id/documents
       # Returns ContactDocument records for this contact (including migrated Xero PDFs)
+      # Optional params:
+      #   - tab_key: Filter by EntityTab (returns docs where document_type is linked to tab via primary or also_show_in)
 
       def documents
         # Query ContactDocument records (includes Xero invoice/bill PDFs)
         documents = ContactDocument.where(contact_id: @contact.id)
                                    .includes(:document_type, :storage_blob)
                                    .order(created_at: :desc)
+
+        # Filter by tab if tab_key provided
+        if params[:tab_key].present?
+          entity_tab = EntityTab.find_by(tab_key: params[:tab_key], warehouse_type: "contact")
+          if entity_tab
+            # Get all document_type_ids linked to this tab (primary + also_show_in)
+            doc_type_ids = entity_tab.document_type_ids
+            documents = documents.where(document_type_id: doc_type_ids) if doc_type_ids.any?
+          end
+        end
 
         # Generate download URLs in batch
         storage_service = DocumentStorageService.new
