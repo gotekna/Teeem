@@ -663,6 +663,8 @@ export default function EmailPage() {
   // Performance: Infinite scroll for auto-loading more emails
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Ref to track if we should skip the next auto-fetch (prevents flashing on account/folder change)
+  const skipNextAutoFetchRef = useRef(false);
 
   // Folder/account state (SSoT: atoms)
   const [showAllMailboxes, setShowAllMailboxes] = useAtom(showAllMailboxesAtom);
@@ -1106,27 +1108,37 @@ export default function EmailPage() {
   }, [toURLParams, selectedAccount, selectedFolder]);
 
   // Performance: Infinite scroll - auto-load more emails when scrolling near bottom
+  // Use refs to store latest state to avoid effect re-running on every state change
+  const infiniteScrollStateRef = useRef({ hasMorePages, page: pagination.page, isLoadingMore, loading });
+  infiniteScrollStateRef.current = { hasMorePages, page: pagination.page, isLoadingMore, loading };
+
   useEffect(() => {
     // Only enable infinite scroll in folder view (split view uses different pagination)
     if (viewMode !== "folders") return;
     if (!loadMoreRef.current) return;
-    if (isLoadingMore || loading) return;
-    if (!hasMorePages) return;
 
+    // Create observer once, check conditions inside callback using refs
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMorePages && !isLoadingMore && !loading) {
-          console.log("[Email] Infinite scroll triggered - loading page", pagination.page + 1);
-          fetchEmails(pagination.page + 1, true, undefined, true); // append = true
+        const state = infiniteScrollStateRef.current;
+        if (
+          entries[0].isIntersecting &&
+          state.hasMorePages &&
+          !state.isLoadingMore &&
+          !state.loading &&
+          !skipNextAutoFetchRef.current
+        ) {
+          console.log("[Email] Infinite scroll triggered - loading page", state.page + 1);
+          fetchEmails(state.page + 1, true, undefined, true); // append = true
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1, rootMargin: "100px" } // rootMargin gives buffer before triggering
     );
 
     observer.observe(loadMoreRef.current);
 
     return () => observer.disconnect();
-  }, [viewMode, hasMorePages, isLoadingMore, loading, pagination.page, fetchEmails]);
+  }, [viewMode, fetchEmails]); // Only recreate observer when viewMode or fetchEmails function changes
 
   const fetchFolders = async (accountId: string, account?: EmailAccount, forceSelectInbox = false) => {
     // Check length > 0, not just truthy - empty array [] from previous errors should re-fetch
@@ -1319,6 +1331,10 @@ export default function EmailPage() {
     if (accountParam && accounts.length > 0) {
       const matchingAccount = accounts.find(a => a.email_address === accountParam || String(a.id) === accountParam);
       if (matchingAccount && String(matchingAccount.id) !== selectedAccount) {
+        // Skip auto-fetch during account transition to prevent flashing
+        skipNextAutoFetchRef.current = true;
+        setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+
         const accountId = String(matchingAccount.id);
         setSelectedAccount(accountId);
         // Immediately set folder to Inbox when switching accounts via URL
@@ -1329,6 +1345,8 @@ export default function EmailPage() {
       }
     } else if (!accountParam && accounts.length > 0 && selectedAccount !== "all") {
       // No account param but we have a specific account selected - switch to All Inbox
+      skipNextAutoFetchRef.current = true;
+      setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
       setSelectedAccount("all");
     }
   }, [accountParam, accounts]);
@@ -1731,6 +1749,10 @@ To: ${email.to_emails?.join(", ") || ""}
   };
 
   const selectAccountFolder = useCallback((accountId: string, folder: EmailFolder) => {
+    // Skip auto-fetch during folder transition to prevent flashing
+    skipNextAutoFetchRef.current = true;
+    setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+
     // Update folder selection immediately for instant UI feedback
     setSelectedFolderId(folder.id);
     setSelectedFolder(folder.name);
@@ -1884,6 +1906,10 @@ To: ${email.to_emails?.join(", ") || ""}
           {/* All Inbox - Combined view from all accounts */}
           <button
             onClick={() => {
+              // Skip auto-fetch during account transition to prevent flashing
+              skipNextAutoFetchRef.current = true;
+              setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+
               setSelectedAccount("all");
               setSelectedFolder("Inbox");
               setSelectedFolderId("ALL_INBOX");
@@ -1946,6 +1972,10 @@ To: ${email.to_emails?.join(", ") || ""}
                   </button>
                   <button
                     onClick={() => {
+                      // Skip auto-fetch during account transition to prevent flashing
+                      skipNextAutoFetchRef.current = true;
+                      setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+
                       const accountId = String(account.id);
                       setSelectedAccount(accountId);
                       // Immediately set folder to Inbox when switching accounts
