@@ -227,7 +227,43 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
   # GET /api/v1/synced_email/:id
   # Performance: Batch load all related data for email + thread to avoid N+1
+  # Supports thread_summary=true for lightweight thread expansion (~70% smaller payload)
   def show
+    # Performance: Thread summary mode returns lightweight data (no bodies)
+    # Used for thread expansion in email list - bodies fetched on-demand
+    if params[:thread_summary].present? && params[:include_thread].present? && @email.conversation_id.present?
+      thread_emails = SyncedEmail.where(conversation_id: @email.conversation_id)
+                                 .select(:id, :from_email, :from_name, :subject, :received_at, :snippet, :has_attachments, :conversation_id)
+                                 .order(received_at: :asc)
+
+      # Batch load user states for read status
+      email_ids = thread_emails.map(&:id)
+      user_states_cache = EmailUserState.where(synced_email_id: email_ids, user_id: current_user.id)
+                                        .index_by(&:synced_email_id)
+
+      return render json: {
+        email: email_json(@email, include_body: true),
+        thread: thread_emails.map do |e|
+          user_state = user_states_cache[e.id]
+          {
+            id: e.id,
+            subject: e.subject,
+            from_email: e.from_email,
+            from_name: e.from_name,
+            from_address: e.from_email,
+            received_at: e.received_at,
+            snippet: e.respond_to?(:preview_body) ? e.preview_body(length: 200) : e.snippet,
+            body_preview: e.respond_to?(:preview_body) ? e.preview_body(length: 200) : e.snippet,
+            has_attachments: e.has_attachments,
+            is_read: user_state&.is_read || false,
+            conversation_id: e.conversation_id
+          }
+        end,
+        thread_count: thread_emails.count
+      }
+    end
+
+    # Full thread mode (existing behavior)
     # Get conversation thread with eager loading (1 query)
     thread_emails = if @email.conversation_id.present?
       SyncedEmail.where(conversation_id: @email.conversation_id)

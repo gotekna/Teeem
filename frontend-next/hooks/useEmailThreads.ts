@@ -169,15 +169,20 @@ export function useEmailThreads(): UseEmailThreadsReturn {
 
   const fetchThread = useCallback(async (emailId: number): Promise<ThreadEmail[]> => {
     try {
-      // Fetch email with include_thread=true
-      const response = await api.get<EmailWithThread | { email: EmailWithThread }>(
-        `/api/v1/synced_emails/${emailId}?include_thread=true`
+      // Performance: Use thread_summary=true to fetch lightweight thread data (~70% smaller payload)
+      // This returns only summary fields (no body_html/body_text) for thread emails
+      // Bodies are fetched on-demand when user clicks to view individual email
+      const response = await api.get<EmailWithThread | { email: EmailWithThread; thread?: ThreadEmail[]; thread_count?: number }>(
+        `/api/v1/synced_emails/${emailId}?include_thread=true&thread_summary=true`
       );
 
       // Handle both wrapped and unwrapped response formats
-      const emailData = (response as { email?: EmailWithThread }).email || response as EmailWithThread;
+      // thread_summary mode returns { email, thread, thread_count }
+      const wrappedResponse = response as { email?: EmailWithThread; thread?: ThreadEmail[]; thread_count?: number };
+      const emailData = wrappedResponse.email || response as EmailWithThread;
       const conversationId = emailData.conversation_id;
-      const thread = emailData.thread || [];
+      // Use top-level thread for summary mode, or emailData.thread for full mode
+      const thread = wrappedResponse.thread || emailData.thread || [];
 
       if (conversationId) {
         // Mark as loading

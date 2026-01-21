@@ -146,6 +146,42 @@ interface UseOfflineEmailsResult {
 }
 
 // =============================================================================
+// Performance: In-memory cache to prevent redundant API calls
+// =============================================================================
+
+// Cache split inbox responses in memory with TTL (prevents re-fetch on rapid tab switches)
+const MEMORY_CACHE_TTL_MS = 30000; // 30 seconds
+let memoryCache: {
+  data: SplitInboxAPIResponse['data'] | null;
+  timestamp: number;
+  accountId: string | undefined;
+} = {
+  data: null,
+  timestamp: 0,
+  accountId: undefined,
+};
+
+function getMemoryCache(accountId: string | undefined): SplitInboxAPIResponse['data'] | null {
+  const now = Date.now();
+  if (
+    memoryCache.data &&
+    memoryCache.accountId === accountId &&
+    now - memoryCache.timestamp < MEMORY_CACHE_TTL_MS
+  ) {
+    return memoryCache.data;
+  }
+  return null;
+}
+
+function setMemoryCache(data: SplitInboxAPIResponse['data'], accountId: string | undefined): void {
+  memoryCache = {
+    data,
+    timestamp: Date.now(),
+    accountId,
+  };
+}
+
+// =============================================================================
 // Hook Implementation
 // =============================================================================
 
@@ -158,6 +194,7 @@ interface UseOfflineEmailsResult {
  * - Shows stale indicator instead of errors on timeout
  * - Works offline (read cached emails)
  * - Syncs when back online
+ * - In-memory cache prevents re-fetch on rapid tab switches (30s TTL)
  *
  * @example
  * ```tsx
@@ -268,8 +305,39 @@ export function useOfflineEmails(
   }, [isCacheAvailable, selectedCategory]);
 
   // Fetch from API and update cache
-  const fetchFromAPI = useCallback(async () => {
+  const fetchFromAPI = useCallback(async (forceRefresh = false) => {
     if (!enabled || fetchingRef.current) return;
+
+    // Performance: Check in-memory cache first (prevents re-fetch on rapid tab switches)
+    if (!forceRefresh) {
+      const cached = getMemoryCache(accountId);
+      if (cached) {
+        console.log("[useOfflineEmails] Using memory cache (< 30s old)");
+        // Update state from memory cache without API call
+        const now = Date.now();
+        setCounts({
+          vip: cached.categories.vip.count,
+          team: cached.categories.team.count,
+          newsletters: cached.categories.newsletters.count,
+          other: cached.categories.other.count,
+        });
+        setUnreadCounts({
+          vip: cached.categories.vip.unread_count,
+          team: cached.categories.team.unread_count,
+          newsletters: cached.categories.newsletters.unread_count,
+          other: cached.categories.other.unread_count,
+        });
+        const selectedEmails = cached.categories[selectedCategory].emails.map((email): CachedEmail => ({
+          ...email,
+          _cachedAt: now,
+          _category: selectedCategory,
+        }));
+        setEmails(selectedEmails);
+        setTeamDomains(cached.team_domains);
+        setIsStale(false);
+        return;
+      }
+    }
 
     // Performance: Cancel any pending request
     if (abortControllerRef.current) {
@@ -384,6 +452,9 @@ export function useOfflineEmails(
       setIsStale(false);
       setError(null);
 
+      // Performance: Store in memory cache to prevent re-fetch on rapid tab switches
+      setMemoryCache(data, accountId);
+
       console.log("[useOfflineEmails] Fetched and cached split inbox data");
     } catch (err) {
       // Ignore abort errors
@@ -406,13 +477,13 @@ export function useOfflineEmails(
     }
   }, [enabled, isCacheAvailable, selectedCategory, accountId]);
 
-  // Manual refresh (always fetches)
+  // Manual refresh (always fetches, bypasses memory cache)
   const refresh = useCallback(async () => {
     if (!isOnline) {
       console.log("[useOfflineEmails] Cannot refresh while offline");
       return;
     }
-    await fetchFromAPI();
+    await fetchFromAPI(true); // forceRefresh = true to bypass memory cache
   }, [isOnline, fetchFromAPI]);
 
   // Refetch when account changes

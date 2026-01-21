@@ -380,7 +380,7 @@ module Api
       def document_type_summary
         {
           total: DocumentType.count,
-          by_category: DocumentType.group(:category).count,
+          # SSoT: category column removed (Jan 2026) - use folder for grouping
           by_folder: DocumentType.group(:folder).count,
           requiring_filing: DocumentType.requiring_filing.count
         }

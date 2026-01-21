@@ -655,10 +655,14 @@ export default function EmailPage() {
   // Performance: Request deduplication and staleness tracking
   const fetchAbortControllerRef = useRef<AbortController | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
-  const FETCH_DEBOUNCE_MS = 500; // Prevent rapid re-fetches within 500ms
+  const FETCH_DEBOUNCE_MS = 1500; // Prevent fetch spam on rapid folder switches
 
   // Virtual scrolling for email list performance
   const emailListScrollRef = useRef<HTMLDivElement>(null);
+
+  // Performance: Infinite scroll for auto-loading more emails
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Folder/account state (SSoT: atoms)
   const [showAllMailboxes, setShowAllMailboxes] = useAtom(showAllMailboxesAtom);
@@ -913,6 +917,9 @@ export default function EmailPage() {
     overscan: 5, // Render 5 extra rows above/below viewport for smooth scrolling
   });
 
+  // Performance: Infinite scroll helper - check if more pages available
+  const hasMorePages = pagination.page < pagination.total_pages;
+
   // Handle thread toggle
   const handleToggleThread = useCallback(async (email: Email) => {
     if (!email.conversation_id) return;
@@ -1019,21 +1026,26 @@ export default function EmailPage() {
   // Extract stable function reference to prevent infinite loops
   const toURLParams = emailFilters.toURLParams;
 
-  const fetchEmails = useCallback(async (page = 1, force = false, folderOverride?: string) => {
-    // Performance: Debounce rapid re-fetches (unless forced)
+  const fetchEmails = useCallback(async (page = 1, force = false, folderOverride?: string, append = false) => {
+    // Performance: Debounce rapid re-fetches (unless forced or appending for infinite scroll)
     const now = Date.now();
-    if (!force && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
+    if (!force && !append && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
       console.log("[Email] Skipping fetch - too soon since last fetch");
       return;
     }
 
-    // Performance: Cancel any pending request
-    if (fetchAbortControllerRef.current) {
+    // Performance: Cancel any pending request (but not for append operations)
+    if (!append && fetchAbortControllerRef.current) {
       fetchAbortControllerRef.current.abort();
     }
     fetchAbortControllerRef.current = new AbortController();
 
-    setLoading(true);
+    // Use different loading states for initial load vs infinite scroll
+    if (append) {
+      setIsLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
     lastFetchTimeRef.current = now;
 
     try {
@@ -1071,7 +1083,12 @@ export default function EmailPage() {
         return;
       }
 
-      setEmails(response.emails || []);
+      // Performance: Append emails for infinite scroll, replace for initial/refresh
+      if (append) {
+        setEmails((prev: Email[]) => [...prev, ...(response.emails || [])]);
+      } else {
+        setEmails(response.emails || []);
+      }
       setPagination(response.pagination);
     } catch (error) {
       // Ignore abort errors
@@ -1080,9 +1097,36 @@ export default function EmailPage() {
       }
       console.error("Failed to fetch emails:", error);
     } finally {
-      setLoading(false);
+      if (append) {
+        setIsLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
   }, [toURLParams, selectedAccount, selectedFolder]);
+
+  // Performance: Infinite scroll - auto-load more emails when scrolling near bottom
+  useEffect(() => {
+    // Only enable infinite scroll in folder view (split view uses different pagination)
+    if (viewMode !== "folders") return;
+    if (!loadMoreRef.current) return;
+    if (isLoadingMore || loading) return;
+    if (!hasMorePages) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMorePages && !isLoadingMore && !loading) {
+          console.log("[Email] Infinite scroll triggered - loading page", pagination.page + 1);
+          fetchEmails(pagination.page + 1, true, undefined, true); // append = true
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => observer.disconnect();
+  }, [viewMode, hasMorePages, isLoadingMore, loading, pagination.page, fetchEmails]);
 
   const fetchFolders = async (accountId: string, account?: EmailAccount, forceSelectInbox = false) => {
     // Check length > 0, not just truthy - empty array [] from previous errors should re-fetch
@@ -1422,8 +1466,6 @@ export default function EmailPage() {
       return;
     }
 
-    console.log("[EmailClick] Starting - email.id:", email.id, "body_html:", !!email.body_html, "body_text:", !!email.body_text);
-
     // Set selected email immediately so UI updates
     if (openPopout) {
       setPopoutEmail(email);
@@ -1453,13 +1495,10 @@ export default function EmailPage() {
 
     // Fetch full email content if not loaded
     if (!email.body_html && !email.body_text) {
-      console.log("[EmailClick] Fetching full email content for id:", email.id);
       try {
         const response = await api.get<Email | { email: Email }>(`/api/v1/synced_emails/${email.id}`);
-        console.log("[EmailClick] API response:", response);
         // Handle both wrapped and unwrapped response formats
         const fullEmail = (response as { email?: Email }).email || response as Email;
-        console.log("[EmailClick] fullEmail.id:", fullEmail?.id, "body_html length:", fullEmail?.body_html?.length, "body_text length:", fullEmail?.body_text?.length);
         if (fullEmail && fullEmail.id) {
           // Keep is_read as true since we just marked it
           fullEmail.is_read = true;
@@ -1467,17 +1506,12 @@ export default function EmailPage() {
             setPopoutEmail(fullEmail);
           } else {
             setSelectedEmail(fullEmail);
-            console.log("[EmailClick] setSelectedEmail called with full email");
           }
-        } else {
-          console.error("[EmailClick] Invalid fullEmail - missing id:", fullEmail);
         }
       } catch (error) {
-        console.error("[EmailClick] Failed to fetch email:", error);
+        console.error("Failed to fetch full email:", error);
         // Keep showing the preview data even if full fetch fails
       }
-    } else {
-      console.log("[EmailClick] Skipping fetch - already has body_html:", !!email.body_html, "body_text:", !!email.body_text);
     }
   }, []);
 
@@ -1836,10 +1870,9 @@ To: ${email.to_emails?.join(", ") || ""}
           </DropdownMenu>
         </div>
 
-        {/* Drafts Section */}
+        {/* Local Drafts - only shows when there are unsent drafts in browser storage */}
         <DraftsList
           compact
-          className="border-b"
           onResume={(draft) => {
             setResumeDraft(draft);
             setReplyTo(null);
@@ -2192,33 +2225,29 @@ To: ${email.to_emails?.join(", ") || ""}
           )}
         </div>
 
-        {/* Pagination - Only in folder mode */}
-        {viewMode === "folders" && pagination.total_pages > 1 && (
-          <div className="flex items-center justify-between px-3 py-2 border-t shrink-0">
-            <p className="text-xs text-muted-foreground">
-              {pagination.page}/{pagination.total_pages}
-            </p>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                disabled={pagination.page === 1}
-                onClick={() => fetchEmails(pagination.page - 1, true)}
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                disabled={pagination.page === pagination.total_pages}
-                onClick={() => fetchEmails(pagination.page + 1, true)}
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
+        {/* Infinite Scroll Trigger - Only in folder mode */}
+        {viewMode === "folders" && (
+          <>
+            {/* Invisible trigger element for intersection observer */}
+            <div
+              ref={loadMoreRef}
+              className="h-10 shrink-0"
+              aria-hidden="true"
+            />
+            {/* Loading indicator for infinite scroll */}
+            {isLoadingMore && (
+              <div className="flex items-center justify-center py-4 shrink-0">
+                <Spinner className="h-5 w-5" />
+                <span className="ml-2 text-sm text-muted-foreground">Loading more...</span>
+              </div>
+            )}
+            {/* End of list indicator */}
+            {!hasMorePages && currentEmails.length > 0 && (
+              <div className="flex items-center justify-center py-3 text-xs text-muted-foreground shrink-0">
+                {currentEmails.length} of {pagination.total} emails
+              </div>
+            )}
+          </>
         )}
       </ResizablePanel>
 
@@ -2344,8 +2373,6 @@ To: ${email.to_emails?.join(", ") || ""}
             />
 
             {/* Email Body */}
-            {/* DEBUG: Log body state on render */}
-            {(() => { console.log("[Render] body_html:", !!selectedEmail.body_html, "length:", selectedEmail.body_html?.length, "body_text:", !!selectedEmail.body_text, "snippet:", !!selectedEmail.snippet); return null; })()}
             <div className="flex-1 overflow-auto px-4 py-4">
               {selectedEmail.body_html ? (
                 <div

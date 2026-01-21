@@ -135,9 +135,8 @@ interface StorageConfig {
   // Root path and warehouse folders
   root_path: string;
   // SSoT: warehouse_root_folders is THE ONE place for warehouse type roots
+  // warehouse_folders REMOVED (Jan 2026 SSoT fix) - use warehouse_root_folders only
   warehouse_root_folders: ScopeFolders;
-  // All warehouse folders (warehouse roots + tab paths)
-  warehouse_folders: ScopeFolders;
   // SSoT: Templates for folder paths and filenames per warehouse type
   warehouse_folder_templates: Record<string, string>;
   file_name_templates: Record<string, string>;
@@ -1188,10 +1187,9 @@ export function StorageConfigTab() {
     s3_region: "",
     // Root path
     root_path: "",  // SSoT: Matches backend field name
-    // SSoT: warehouse_root_folders contains full patterns like Jobs/{{JobCode}}
+    // SSoT: warehouse_root_folders is THE ONE source for warehouse type roots
+    // warehouse_folders REMOVED (Jan 2026 SSoT fix)
     warehouse_root_folders: {} as ScopeFolders,
-    // SSoT: Warehouse folders loaded from StorageConfiguration via API
-    warehouse_folders: {} as ScopeFolders,
     // SSoT: Templates for folder paths and filenames per warehouse type
     warehouse_folder_templates: {} as Record<string, string>,
     file_name_templates: {} as Record<string, string>,
@@ -1285,10 +1283,10 @@ export function StorageConfigTab() {
     }
   };
 
-  // Build folder tree from warehouse_folders, attaching tabs to scope nodes
+  // Build folder tree from warehouse_root_folders, attaching tabs to scope nodes
   // SSoT: Use config from API (not formData which may have stale initial state)
   const folderTree = React.useMemo(() => {
-    const scopeFolders = config?.warehouse_folders || {};
+    const scopeFolders = config?.warehouse_root_folders || {};
     const tree = buildFolderTree(scopeFolders);
 
     // Attach tabs to scope nodes
@@ -1309,7 +1307,7 @@ export function StorageConfigTab() {
 
     attachTabs(tree);
     return tree;
-  }, [config?.warehouse_folders, entityTabs]);
+  }, [config?.warehouse_root_folders, entityTabs]);
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
@@ -1327,7 +1325,7 @@ export function StorageConfigTab() {
 
     // When collapsing, also close any edit panels for scopes at or under this path
     if (isCollapsing && editingKey) {
-      const scopesAtPath = Object.entries(formData.warehouse_folders)
+      const scopesAtPath = Object.entries(formData.warehouse_root_folders)
         .filter(([, folderPath]) => folderPath === path || folderPath.startsWith(path + '/'))
         .map(([scopeKey]) => scopeKey);
       if (scopesAtPath.includes(editingKey)) {
@@ -1414,7 +1412,7 @@ export function StorageConfigTab() {
           }
           return {
             ...prev,
-            warehouse_folders: { ...prev.warehouse_folders, [scopeKey]: baseFolder },
+            warehouse_root_folders: { ...prev.warehouse_root_folders, [scopeKey]: baseFolder },
             warehouse_folder_templates: { ...prev.warehouse_folder_templates, [scopeKey]: folderTemplate },
             file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
             config_links: newConfigLinks,
@@ -1521,10 +1519,9 @@ export function StorageConfigTab() {
           s3_region: response.data.region || "",
           // Root path
           root_path: response.data.root_path || "",
-          // SSoT: warehouse_root_folders contains full patterns like Jobs/{{JobCode}}
+          // SSoT: warehouse_root_folders is THE ONE source for warehouse type roots
+          // warehouse_folders REMOVED (Jan 2026 SSoT fix)
           warehouse_root_folders: response.data.warehouse_root_folders || {},
-          // SSoT: Warehouse folders from StorageConfiguration
-          warehouse_folders: response.data.warehouse_folders || {},
           // SSoT: Templates from StorageConfiguration
           warehouse_folder_templates: response.data.warehouse_folder_templates || {},
           file_name_templates: response.data.file_name_templates || {},
@@ -2091,12 +2088,12 @@ export function StorageConfigTab() {
                     onSaveEdit={(key, value) => {
                       setFormData(prev => ({
                         ...prev,
-                        warehouse_folders: { ...prev.warehouse_folders, [key]: value }
+                        warehouse_root_folders: { ...prev.warehouse_root_folders, [key]: value }
                       }));
                       setEditingKey(null);
                     }}
                     onCancelEdit={() => setEditingKey(null)}
-                    currentPath={formData.warehouse_folders}
+                    currentPath={formData.warehouse_root_folders}
                     rootPath={formData.root_path}
                     editingTabId={editingTabId}
                     onStartTabEdit={setEditingTabId}
@@ -2260,7 +2257,7 @@ export function StorageConfigTab() {
                         <span className="text-muted-foreground text-xs">(root)</span>
                       </div>
                       {/* Render configured scopes with their computed paths */}
-                      {Object.entries(formData.warehouse_folders)
+                      {Object.entries(formData.warehouse_root_folders)
                         .filter(([, path]) => path)
                         .sort(([, a], [, b]) => a.localeCompare(b))
                         .map(([scopeKey, basePath]) => {

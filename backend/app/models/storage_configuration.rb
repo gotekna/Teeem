@@ -675,9 +675,8 @@ class StorageConfiguration < ApplicationRecord
       # Root path and warehouse folders
       root_path: root_path,
       # SSoT: warehouse_root_folders is THE ONE place for warehouse roots (includes identifier patterns)
+      # warehouse_folders REMOVED (Jan 2026 SSoT fix) - use warehouse_root_folders only
       warehouse_root_folders: effective_warehouse_root_folders,
-      # All warehouse folders (includes roots + tab paths for backward compatibility)
-      warehouse_folders: effective_warehouse_folders,
       # File name templates for document downloads
       file_name_templates: file_name_templates || {},
       # Config links for warehouse folders (URL to external config page)

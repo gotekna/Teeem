@@ -42,6 +42,21 @@ import {
   Rocket,
   Target,
   Wrench,
+  HardDrive,
+  Folder,
+  FileBox,
+  Link2,
+  Mail,
+  Briefcase,
+  Building2,
+  ClipboardList,
+  Archive,
+  Hash,
+  RefreshCw,
+  Eye,
+  Download,
+  Copy,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -202,7 +217,7 @@ export default function ArchitectureMap() {
 
       {/* View Tabs */}
       <Tabs value={activeView} onValueChange={setActiveView}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="beginner" className="gap-2">
             <BookOpen className="h-4 w-4" />
             <span className="hidden sm:inline">Beginner</span>
@@ -214,6 +229,10 @@ export default function ArchitectureMap() {
           <TabsTrigger value="architect" className="gap-2">
             <Layers className="h-4 w-4" />
             <span className="hidden sm:inline">Architect</span>
+          </TabsTrigger>
+          <TabsTrigger value="warehouse" className="gap-2">
+            <HardDrive className="h-4 w-4" />
+            <span className="hidden sm:inline">Warehouse</span>
           </TabsTrigger>
           <TabsTrigger value="ssot" className="gap-2">
             <Search className="h-4 w-4" />
@@ -998,6 +1017,524 @@ export default function JobsPage() {
                       <span className="text-muted-foreground">+ edit, add, delete</span>
                     </div>
                   </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Warehouse Architecture */}
+        <TabsContent value="warehouse" className="space-y-6 mt-6">
+          {/* Intro */}
+          <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <HardDrive className="h-6 w-6 text-primary" />
+                File Warehouse Architecture
+              </CardTitle>
+              <CardDescription>
+                How TEEEM stores, organizes, and retrieves documents across the entire system
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                The File Warehouse is a universal document storage system that handles all files in TEEEM -
+                from email attachments to job documents to corporate files. It uses content-hash deduplication
+                to save storage space and virtual folders for instant reorganization.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* High-Level Architecture Diagram */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Layers className="h-5 w-5" />
+                High-Level Architecture
+              </CardTitle>
+              <CardDescription>
+                Three-layer system: Metadata → Blobs → Physical Storage
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Visual Diagram */}
+              <div className="relative p-6 bg-muted/30 rounded-xl border">
+                {/* Layer 1: Document Metadata */}
+                <div className="mb-4">
+                  <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+                    Layer 1: Document Metadata
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border-2 border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FileBox className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="font-semibold text-sm text-blue-700 dark:text-blue-300">WarehouseDocument</span>
+                      </div>
+                      <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+                        <li>• display_name (what user sees)</li>
+                        <li>• send_name (download filename)</li>
+                        <li>• folder (virtual path)</li>
+                        <li>• source_type (email, job, etc.)</li>
+                      </ul>
+                    </div>
+                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border-2 border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="font-semibold text-sm text-blue-700 dark:text-blue-300">EmailWarehouse</span>
+                      </div>
+                      <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+                        <li>• subject, from, to</li>
+                        <li>• received_at</li>
+                        <li>• mailbox</li>
+                        <li>• Links to WarehouseDocument</li>
+                      </ul>
+                    </div>
+                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/40 border-2 border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Briefcase className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="font-semibold text-sm text-blue-700 dark:text-blue-300">JobDocument</span>
+                      </div>
+                      <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+                        <li>• job_id, document_type</li>
+                        <li>• uploaded_by</li>
+                        <li>• Links to WarehouseDocument</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Arrow */}
+                <div className="flex justify-center py-2">
+                  <div className="flex flex-col items-center text-muted-foreground">
+                    <ArrowDown className="h-5 w-5" />
+                    <span className="text-xs">storage_blob_id</span>
+                  </div>
+                </div>
+
+                {/* Layer 2: Blob Storage */}
+                <div className="mb-4">
+                  <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                    Layer 2: Content-Addressed Blobs
+                  </div>
+                  <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/40 border-2 border-green-200 dark:border-green-800">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Hash className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      <span className="font-semibold text-green-700 dark:text-green-300">StorageBlob (Deduplication Layer)</span>
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-4 text-sm">
+                      <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded">
+                        <p className="font-mono text-xs text-green-800 dark:text-green-200">content_hash</p>
+                        <p className="text-xs text-green-600 dark:text-green-400">SHA256 fingerprint</p>
+                      </div>
+                      <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded">
+                        <p className="font-mono text-xs text-green-800 dark:text-green-200">storage_path</p>
+                        <p className="text-xs text-green-600 dark:text-green-400">Blobs/ab/abc123.pdf</p>
+                      </div>
+                      <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded">
+                        <p className="font-mono text-xs text-green-800 dark:text-green-200">reference_count</p>
+                        <p className="text-xs text-green-600 dark:text-green-400">How many docs use this</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Arrow */}
+                <div className="flex justify-center py-2">
+                  <div className="flex flex-col items-center text-muted-foreground">
+                    <ArrowDown className="h-5 w-5" />
+                    <span className="text-xs">S3 API / SharePoint</span>
+                  </div>
+                </div>
+
+                {/* Layer 3: Physical Storage */}
+                <div>
+                  <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-purple-500" />
+                    Layer 3: Physical Storage
+                  </div>
+                  <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950/40 border-2 border-purple-200 dark:border-purple-800">
+                    <div className="flex items-center justify-center gap-8 flex-wrap">
+                      <div className="text-center">
+                        <div className="w-16 h-16 rounded-lg bg-purple-200 dark:bg-purple-800 flex items-center justify-center mb-2">
+                          <HardDrive className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">Wasabi S3</p>
+                        <p className="text-xs text-purple-600 dark:text-purple-400">Primary</p>
+                      </div>
+                      <div className="text-center">
+                        <div className="w-16 h-16 rounded-lg bg-purple-200 dark:bg-purple-800 flex items-center justify-center mb-2">
+                          <Folder className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">SharePoint</p>
+                        <p className="text-xs text-purple-600 dark:text-purple-400">Optional</p>
+                      </div>
+                      <div className="text-center opacity-50">
+                        <div className="w-16 h-16 rounded-lg bg-purple-200 dark:bg-purple-800 flex items-center justify-center mb-2">
+                          <Server className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <p className="text-xs font-semibold text-purple-700 dark:text-purple-300">Local</p>
+                        <p className="text-xs text-purple-600 dark:text-purple-400">Dev only</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Deduplication Explained */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Copy className="h-5 w-5" />
+                Content-Hash Deduplication
+              </CardTitle>
+              <CardDescription>
+                Same file stored ONCE, referenced by MANY documents
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Before */}
+                <div className="p-4 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
+                  <div className="flex items-center gap-2 mb-3">
+                    <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    <span className="font-semibold text-red-700 dark:text-red-300">Without Deduplication</span>
+                  </div>
+                  <div className="space-y-2 font-mono text-xs">
+                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded">📄 invoice.pdf (500KB)</div>
+                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded">📄 invoice.pdf (500KB) - copy</div>
+                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded">📄 invoice.pdf (500KB) - copy</div>
+                  </div>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-3">= 1.5MB total storage</p>
+                </div>
+
+                {/* After */}
+                <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <span className="font-semibold text-green-700 dark:text-green-300">With Deduplication</span>
+                  </div>
+                  <div className="space-y-2 font-mono text-xs">
+                    <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded flex items-center gap-2">
+                      <Hash className="h-3 w-3" />
+                      StorageBlob (500KB)
+                    </div>
+                    <div className="flex gap-2 ml-4">
+                      <div className="p-1.5 bg-green-200 dark:bg-green-800 rounded text-xs">Doc 1 →</div>
+                      <div className="p-1.5 bg-green-200 dark:bg-green-800 rounded text-xs">Doc 2 →</div>
+                      <div className="p-1.5 bg-green-200 dark:bg-green-800 rounded text-xs">Doc 3 →</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-3">= 500KB total storage (67% savings!)</p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-700">
+                <div className="flex items-start gap-2">
+                  <Lightbulb className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
+                  <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                    <strong>How it works:</strong> When a file is uploaded, we compute its SHA256 hash.
+                    If a blob with that hash already exists, we just create a new pointer to it instead of
+                    storing the file again.
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Virtual vs Physical Folders */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Folder className="h-5 w-5" />
+                Virtual vs Physical Folders
+              </CardTitle>
+              <CardDescription>
+                Virtual folders enable instant reorganization without moving files
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Physical */}
+                <div className="p-4 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <HardDrive className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <span className="font-semibold">Physical Storage</span>
+                  </div>
+                  <div className="font-mono text-xs bg-muted p-3 rounded">
+                    <p className="text-muted-foreground"># Blobs are stored by hash</p>
+                    <p className="text-purple-600 dark:text-purple-400">/Blobs/</p>
+                    <p className="text-purple-600 dark:text-purple-400 ml-2">/ab/abc123def456.pdf</p>
+                    <p className="text-purple-600 dark:text-purple-400 ml-2">/cd/cde789ghi012.docx</p>
+                    <p className="text-muted-foreground mt-2"># Files NEVER move!</p>
+                  </div>
+                </div>
+
+                {/* Virtual */}
+                <div className="p-4 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FolderTree className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <span className="font-semibold">Virtual Folders (Database)</span>
+                  </div>
+                  <div className="font-mono text-xs bg-muted p-3 rounded">
+                    <p className="text-muted-foreground"># User sees organized structure</p>
+                    <p className="text-blue-600 dark:text-blue-400">/Jobs/JOB-001/Plans/</p>
+                    <p className="text-blue-600 dark:text-blue-400 ml-2">→ site-plan.pdf</p>
+                    <p className="text-blue-600 dark:text-blue-400">/Jobs/JOB-001/Invoices/</p>
+                    <p className="text-blue-600 dark:text-blue-400 ml-2">→ invoice.pdf</p>
+                    <p className="text-muted-foreground mt-2"># Reorganize = DB update!</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+                <p className="text-sm font-semibold text-green-700 dark:text-green-300 mb-2">
+                  Why Virtual Folders?
+                </p>
+                <div className="grid md:grid-cols-3 gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                    <Zap className="h-4 w-4 shrink-0" />
+                    <span>Instant moves (just update DB)</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                    <RefreshCw className="h-4 w-4 shrink-0" />
+                    <span>Bulk reorganization</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                    <Archive className="h-4 w-4 shrink-0" />
+                    <span>No S3 copy operations</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Warehouse Scopes */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FolderTree className="h-5 w-5" />
+                Warehouse Scopes
+              </CardTitle>
+              <CardDescription>
+                Documents are organized into scopes based on their source
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  { scope: "job", icon: Briefcase, path: "Jobs/{{JobCode}}", color: "green", desc: "Job documents, plans, photos" },
+                  { scope: "contact", icon: Users, path: "Contacts/{{ContactName}}", color: "purple", desc: "Client/supplier docs" },
+                  { scope: "corporate_entity", icon: Building2, path: "Corporate/{{CompanyGroup}}", color: "orange", desc: "Company-level docs" },
+                  { scope: "task", icon: ClipboardList, path: "Tasks/{{TaskId}}", color: "red", desc: "Task attachments" },
+                  { scope: "email", icon: Mail, path: "Emails/{{Mailbox}}", color: "blue", desc: "Synced emails" },
+                  { scope: "warehouse", icon: Archive, path: "Warehousing/{{UserName}}", color: "gray", desc: "General storage" },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const colorClasses = {
+                    green: "bg-green-50 dark:bg-green-950/40 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300",
+                    purple: "bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300",
+                    orange: "bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300",
+                    red: "bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300",
+                    blue: "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300",
+                    gray: "bg-muted border-border text-muted-foreground",
+                  };
+                  return (
+                    <div key={item.scope} className={cn("p-3 rounded-lg border-2", colorClasses[item.color as keyof typeof colorClasses])}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Icon className="h-4 w-4" />
+                        <span className="font-semibold text-sm">{item.scope}</span>
+                      </div>
+                      <code className="text-xs block bg-background/50 px-2 py-1 rounded mb-2">{item.path}</code>
+                      <p className="text-xs opacity-80">{item.desc}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 p-3 rounded-lg bg-muted">
+                <p className="text-xs text-muted-foreground">
+                  <strong>SSoT:</strong> Scope paths are configured in{" "}
+                  <code className="bg-background px-1 rounded">StorageConfiguration.warehouse_root_folders</code>.
+                  Configure at: Settings → Company → Entity Config → Storage Config
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Two Names Per Document */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                Two Names Per Document
+              </CardTitle>
+              <CardDescription>
+                display_name vs send_name - what users see vs what they download
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Eye className="h-5 w-5 text-blue-500" />
+                    <span className="font-semibold">display_name</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    What the user SEES in the UI (file browser, tables, search results)
+                  </p>
+                  <div className="bg-muted p-3 rounded text-sm">
+                    <p className="font-mono">📄 RE: Invoice Question</p>
+                    <p className="font-mono">📄 Site Plans - Draft v2</p>
+                    <p className="font-mono">📄 Quote from Supplier</p>
+                  </div>
+                </div>
+                <div className="p-4 rounded-lg border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Download className="h-5 w-5 text-green-500" />
+                    <span className="font-semibold">send_name</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    The filename when downloaded (generated from template)
+                  </p>
+                  <div className="bg-muted p-3 rounded text-sm">
+                    <p className="font-mono">📄 RE Invoice Question - 2026-01-17.eml</p>
+                    <p className="font-mono">📄 JOB-001 Plans 2026-01-17.pdf</p>
+                    <p className="font-mono">📄 ACME Quote 2026-01-17.pdf</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-muted">
+                <p className="text-xs font-semibold mb-2">Send Name Templates</p>
+                <div className="grid md:grid-cols-2 gap-2 text-xs font-mono">
+                  <div><span className="text-muted-foreground">email →</span> {"{Subject} - {ReceivedDate}.eml"}</div>
+                  <div><span className="text-muted-foreground">job →</span> {"{JobCode} {DocTypeName} {Date}"}</div>
+                  <div><span className="text-muted-foreground">corporate →</span> {"{CompanyCode} {DocTypeName} {Date}"}</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Data Flow Diagram */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="h-5 w-5" />
+                Document Upload Flow
+              </CardTitle>
+              <CardDescription>
+                What happens when a document is uploaded
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { step: 1, title: "File Upload", desc: "User uploads file via UI or API", icon: Monitor },
+                  { step: 2, title: "Hash Computation", desc: "SHA256 hash computed from file content", icon: Hash },
+                  { step: 3, title: "Dedup Check", desc: "Check if StorageBlob with this hash exists", icon: Search },
+                  { step: 4, title: "Storage Decision", desc: "If new: upload to S3. If exists: reuse blob.", icon: HardDrive },
+                  { step: 5, title: "Create Records", desc: "Create WarehouseDocument + source record (JobDocument, etc.)", icon: Database },
+                  { step: 6, title: "Index Update", desc: "Update reference counts and search index", icon: RefreshCw },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.step} className="flex items-center gap-4">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm shrink-0">
+                        {item.step}
+                      </div>
+                      <div className="flex items-center gap-3 flex-1 p-3 rounded-lg border">
+                        <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
+                        <div>
+                          <p className="font-semibold text-sm">{item.title}</p>
+                          <p className="text-xs text-muted-foreground">{item.desc}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Key Models Reference */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Code2 className="h-5 w-5" />
+                Key Models & Files
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-xs text-muted-foreground">
+                      <th className="py-2 pr-4 text-left">Model/Service</th>
+                      <th className="py-2 pr-4 text-left">File</th>
+                      <th className="py-2 text-left">Purpose</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono text-xs">
+                    <tr className="border-b">
+                      <td className="py-2 pr-4 font-semibold">WarehouseDocument</td>
+                      <td className="py-2 pr-4 text-muted-foreground">app/models/warehouse_document.rb</td>
+                      <td className="py-2">Universal document metadata table</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 pr-4 font-semibold">StorageBlob</td>
+                      <td className="py-2 pr-4 text-muted-foreground">app/models/storage_blob.rb</td>
+                      <td className="py-2">Deduplicated content storage</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 pr-4 font-semibold">StorageConfiguration</td>
+                      <td className="py-2 pr-4 text-muted-foreground">app/models/storage_configuration.rb</td>
+                      <td className="py-2">Provider config & folder paths</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 pr-4 font-semibold">SendNameResolver</td>
+                      <td className="py-2 pr-4 text-muted-foreground">app/services/send_name_resolver.rb</td>
+                      <td className="py-2">Template expansion for filenames</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 pr-4 font-semibold">DisplayValueResolver</td>
+                      <td className="py-2 pr-4 text-muted-foreground">app/services/display_value_resolver.rb</td>
+                      <td className="py-2">Lookup display values</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Maintenance Commands */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Terminal className="h-5 w-5" />
+                Maintenance Commands
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 font-mono text-xs">
+                <div className="p-2 bg-muted rounded">
+                  <p className="text-muted-foreground"># Full health check</p>
+                  <p>rails blob:health</p>
+                </div>
+                <div className="p-2 bg-muted rounded">
+                  <p className="text-muted-foreground"># Fix reference count mismatches</p>
+                  <p>rails blob:audit:integrity[fix]</p>
+                </div>
+                <div className="p-2 bg-muted rounded">
+                  <p className="text-muted-foreground"># Clean up orphaned blobs (30-day safety)</p>
+                  <p>rails blob:cleanup:orphaned[execute,30]</p>
+                </div>
+                <div className="p-2 bg-muted rounded">
+                  <p className="text-muted-foreground"># Audit warehouse document links</p>
+                  <p>rails blob:audit:warehouse</p>
                 </div>
               </div>
             </CardContent>

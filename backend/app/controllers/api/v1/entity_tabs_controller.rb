@@ -312,11 +312,18 @@ module Api
           document_type_ids: []  # SSoT: Link document types to this tab
         )
 
-        # Map old param names to new ones
-        permitted[:warehouse_type] ||= permitted.delete(:scope)
-        permitted[:warehouse_enabled] ||= permitted.delete(:has_storage_folder) || permitted.delete(:has_sharepoint_folder)
-        permitted[:warehouse_folder] ||= permitted.delete(:storage_folder_path) || permitted.delete(:sharepoint_folder_path)
-        permitted[:warehouse_type_override] ||= permitted.delete(:storage_path_type) || permitted.delete(:sharepoint_path_type)
+        # Map old param names to new ones (only if present, to avoid overwriting existing values on PATCH)
+        scope_value = permitted.delete(:scope)
+        permitted[:warehouse_type] ||= scope_value if scope_value.present?
+
+        storage_enabled = permitted.delete(:has_storage_folder) || permitted.delete(:has_sharepoint_folder)
+        permitted[:warehouse_enabled] ||= storage_enabled unless storage_enabled.nil?
+
+        folder_path = permitted.delete(:storage_folder_path) || permitted.delete(:sharepoint_folder_path)
+        permitted[:warehouse_folder] ||= folder_path if folder_path.present?
+
+        path_type = permitted.delete(:storage_path_type) || permitted.delete(:sharepoint_path_type)
+        permitted[:warehouse_type_override] ||= path_type if path_type.present?
 
         permitted
       end
