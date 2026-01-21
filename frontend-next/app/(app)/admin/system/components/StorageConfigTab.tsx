@@ -556,9 +556,18 @@ function TreeNode({
                 <Badge
                   variant="outline"
                   className={cn(
-                    "h-5 text-[10px] px-1.5 bg-background",
+                    "h-5 text-[10px] px-1.5 bg-background cursor-pointer hover:bg-muted transition-colors",
                     editingKey === sk && "ring-2 ring-primary"
                   )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Auto-expand folder to show edit panel and children
+                    if (!expandedPaths.has(node.path)) {
+                      onToggle(node.path);
+                    }
+                    onStartEdit(sk);
+                  }}
+                  title="Click to edit path"
                 >
                   {getScopeLabel(sk)}
                 </Badge>
