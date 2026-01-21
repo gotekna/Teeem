@@ -1495,10 +1495,26 @@ export default function EmailPage() {
     if (!email.is_read) {
       try {
         await apiClient.post(`/api/v1/email_user_states/for_email/${email.id}/toggle_read`);
-        // Update email in list to show as read
+
+        // Update email in folder list
         setEmails(prev => prev.map(e =>
           e.id === email.id ? { ...e, is_read: true } : e
         ));
+
+        // Update IndexedDB cache for split inbox offline mode
+        if (isIndexedDBAvailable()) {
+          try {
+            await emailCache.updateEmail(email.id, { is_read: true });
+          } catch (cacheErr) {
+            console.error("[Email] Failed to update cache:", cacheErr);
+          }
+        }
+
+        // Update split inbox state if in split mode
+        if (viewMode === "split" && splitInbox.updateEmail) {
+          splitInbox.updateEmail(email.id, { is_read: true });
+        }
+
         // Update the email object itself
         email.is_read = true;
         if (openPopout) {
@@ -1531,7 +1547,7 @@ export default function EmailPage() {
         // Keep showing the preview data even if full fetch fails
       }
     }
-  }, []);
+  }, [viewMode, splitInbox]);
 
   // Handle email row click with shift+click support for range selection
   const handleEmailRowClick = useCallback((email: Email, event: React.MouseEvent) => {

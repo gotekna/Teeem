@@ -353,6 +353,9 @@ export function useSplitInbox(options?: { accountId?: string; enabled?: boolean 
     isOffline: offlineEmails.isOffline,
     lastFetched: offlineEmails.lastFetched,
     isCacheAvailable: offlineEmails.isCacheAvailable,
+
+    // Update single email (for mark read, star, etc.)
+    updateEmail: offlineEmails.updateEmail,
   };
 }
 

@@ -143,6 +143,12 @@ interface UseOfflineEmailsResult {
    * Team email domains from API.
    */
   teamDomains: string[];
+
+  /**
+   * Update a single email in local state (for marking read, star, etc.)
+   * This updates the displayed list without requiring a full refresh.
+   */
+  updateEmail: (emailId: number, changes: Partial<CachedEmail>) => void;
 }
 
 // =============================================================================
@@ -550,6 +556,32 @@ export function useOfflineEmails(
     }
   }, [wasOffline, enabled, fetchFromAPI]);
 
+  // Update a single email in local state (for marking read, star, etc.)
+  const updateEmail = useCallback((emailId: number, changes: Partial<CachedEmail>) => {
+    setEmails(prev => prev.map(e =>
+      e.id === emailId ? { ...e, ...changes } : e
+    ));
+
+    // Update unread count if is_read changed
+    if (changes.is_read !== undefined) {
+      setUnreadCounts(prev => {
+        const email = emails.find(e => e.id === emailId);
+        if (!email) return prev;
+
+        const category = email._category;
+        if (!category) return prev;
+
+        // If marking as read, decrement unread count
+        // If marking as unread, increment unread count
+        const delta = changes.is_read ? -1 : 1;
+        return {
+          ...prev,
+          [category]: Math.max(0, (prev[category] || 0) + delta),
+        };
+      });
+    }
+  }, [emails]);
+
   return {
     emails,
     counts,
@@ -565,6 +597,7 @@ export function useOfflineEmails(
     isCacheAvailable,
     refresh,
     teamDomains,
+    updateEmail,
   };
 }
 
