@@ -166,7 +166,18 @@ export default function DocumentTypeDetailPage() {
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
   const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // SSoT: EntityTab hierarchy for Additional Tabs
-  const [allTabsForLookup, setAllTabsForLookup] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // All tabs (any group) for name lookups
+  // SSoT: Tabs grouped by scope for grouped dropdown display
+  type TabNode = { id?: number; name: string; tab_key?: string; storage_path?: string; children: TabNode[] };
+  type TabsByScope = {
+    corporate: TabNode[];
+    jobs: TabNode[];
+    contacts: TabNode[];
+  };
+  const [tabsByScope, setTabsByScope] = React.useState<TabsByScope>({
+    corporate: [],
+    jobs: [],
+    contacts: []
+  });
   const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
@@ -186,12 +197,12 @@ export default function DocumentTypeDetailPage() {
 
   // SSoT: THE ONE function for tab name resolution in this component
   // Searches recursively through tabs and their children
-  const findTabName = React.useCallback((items: any[], id: number | undefined): string | null => {
+  const findTabNameInArray = React.useCallback((items: any[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
       if (item.id === id) return item.name;
       if (item.children?.length) {
-        const found = findTabName(item.children, id);
+        const found = findTabNameInArray(item.children, id);
         if (found) return found;
       }
     }
@@ -199,17 +210,37 @@ export default function DocumentTypeDetailPage() {
   }, []);
 
   // SSoT: Returns storage_path for display (shows full folder path)
-  const findTabPath = React.useCallback((items: any[], id: number | undefined): string | null => {
+  const findTabPathInArray = React.useCallback((items: any[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
       if (item.id === id) return item.storage_path || item.name;
       if (item.children?.length) {
-        const found = findTabPath(item.children, id);
+        const found = findTabPathInArray(item.children, id);
         if (found) return found;
       }
     }
     return null;
   }, []);
+
+  // Search across all scope groups for tab name
+  const findTabName = React.useCallback((id: number | undefined): string | null => {
+    if (!id) return null;
+    // Search all scope groups
+    const result = findTabNameInArray(tabsByScope.corporate, id) ||
+                   findTabNameInArray(tabsByScope.jobs, id) ||
+                   findTabNameInArray(tabsByScope.contacts, id);
+    return result;
+  }, [tabsByScope, findTabNameInArray]);
+
+  // Search across all scope groups for tab path
+  const findTabPath = React.useCallback((id: number | undefined): string | null => {
+    if (!id) return null;
+    // Search all scope groups
+    const result = findTabPathInArray(tabsByScope.corporate, id) ||
+                   findTabPathInArray(tabsByScope.jobs, id) ||
+                   findTabPathInArray(tabsByScope.contacts, id);
+    return result;
+  }, [tabsByScope, findTabPathInArray]);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -251,22 +282,32 @@ export default function DocumentTypeDetailPage() {
           allDocumentTabs = data.data.tabs.filter((t: any) => t.has_storage_folder || t.tab_group === 'documents');
         }
 
-        // SSoT: Fetch ALL tabs from ALL scopes for name lookups
-        // This ensures we can display tab names even for tabs from other scopes
-        // (e.g., a company doc type referencing a job or contact tab)
-        const allScopes = ['corporate_entity', 'job', 'contact'];
-        const allTabsFromAllScopes: any[] = [];
-        for (const scope of allScopes) {
-          try {
-            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${scope}`);
-            if (scopeData.success && scopeData.data?.tabs) {
-              allTabsFromAllScopes.push(...scopeData.data.tabs.map(mapTabRecursive));
-            }
-          } catch {
-            // Continue if one scope fails
+        // SSoT: Fetch ALL tabs from ALL scopes, grouped by scope for dropdown display
+        // This ensures we can display tab names and group them by Corporate/Jobs/Contacts
+        const groupedTabs: TabsByScope = { corporate: [], jobs: [], contacts: [] };
+
+        try {
+          const corporateData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=corporate_entity`);
+          if (corporateData.success && corporateData.data?.tabs) {
+            groupedTabs.corporate = corporateData.data.tabs.map(mapTabRecursive);
           }
-        }
-        setAllTabsForLookup(allTabsFromAllScopes);
+        } catch { /* Continue if scope fails */ }
+
+        try {
+          const jobData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=job`);
+          if (jobData.success && jobData.data?.tabs) {
+            groupedTabs.jobs = jobData.data.tabs.map(mapTabRecursive);
+          }
+        } catch { /* Continue if scope fails */ }
+
+        try {
+          const contactData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=contact`);
+          if (contactData.success && contactData.data?.tabs) {
+            groupedTabs.contacts = contactData.data.tabs.map(mapTabRecursive);
+          }
+        } catch { /* Continue if scope fails */ }
+
+        setTabsByScope(groupedTabs);
 
         if (allDocumentTabs.length > 0) {
           const hierarchy = allDocumentTabs.map(mapTabRecursive);
@@ -1376,6 +1417,48 @@ export default function DocumentTypeDetailPage() {
               <Label>Primary Tab</Label>
               {(() => {
                 const selectedId = documentType.entity_tab_ids?.[0];
+
+                // SSoT: Render tree structure for a scope's tabs
+                const renderTreeForScope = (tabs: TabNode[], excludeIds: number[] = []) => {
+                  const elements: React.ReactNode[] = [];
+
+                  const renderTab = (tab: TabNode, depth: number = 0, isLast: boolean = false) => {
+                    if (!tab.id || excludeIds.includes(tab.id)) return;
+
+                    elements.push(
+                      <SelectItem
+                        key={tab.id}
+                        value={tab.id.toString()}
+                        className="text-sm"
+                        style={{ paddingLeft: `${8 + (depth * 16)}px` }}
+                      >
+                        {depth > 0 && (
+                          <span className="text-muted-foreground mr-1">
+                            {isLast ? '└─' : '├─'}
+                          </span>
+                        )}
+                        {depth === 0 && <span className="mr-1">📁</span>}
+                        {tab.name}
+                      </SelectItem>
+                    );
+
+                    // Render children recursively
+                    if (tab.children?.length) {
+                      const validChildren = tab.children.filter(c => c.id && !excludeIds.includes(c.id!));
+                      validChildren.forEach((child, idx) => {
+                        renderTab(child, depth + 1, idx === validChildren.length - 1);
+                      });
+                    }
+                  };
+
+                  const validTabs = tabs.filter(t => t.id && !excludeIds.includes(t.id!));
+                  validTabs.forEach((tab, idx) => {
+                    renderTab(tab, 0, idx === validTabs.length - 1);
+                  });
+
+                  return elements;
+                };
+
                 return (
                   <Select
                     value={selectedId?.toString() || ""}
@@ -1387,38 +1470,45 @@ export default function DocumentTypeDetailPage() {
                   >
                     <SelectTrigger className="text-sm">
                       <SelectValue placeholder="Select primary tab">
-                        {selectedId ? findTabPath(allTabsForLookup, selectedId) || findTabPath(folderHierarchy, selectedId) || `Tab ${selectedId}` : "Select..."}
+                        {selectedId ? findTabPath(selectedId) || `Tab ${selectedId}` : "Select..."}
                       </SelectValue>
                     </SelectTrigger>
-                    <SelectContent>
-                      {folderHierarchy.filter(p => p.id).map((parent, idx) => (
-                        <SelectGroup key={parent.id}>
-                          {idx > 0 && <SelectSeparator />}
-                          <SelectLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
-                            📁 {parent.name}
-                            {parent.storage_path && parent.storage_path !== parent.name && (
-                              <span className="ml-1 opacity-60">({parent.storage_path})</span>
-                            )}
+                    <SelectContent className="max-h-[400px]">
+                      {/* Corporate Section */}
+                      {tabsByScope.corporate.length > 0 && (
+                        <SelectGroup>
+                          <SelectLabel className="font-semibold text-xs px-2 py-1.5 bg-muted/50">
+                            Corporate
                           </SelectLabel>
-                          {/* Parent folder as selectable root option */}
-                          <SelectItem value={parent.id!.toString()} className="pl-4">
-                            <span className="text-muted-foreground">├─</span>
-                            <span className="ml-1">(root)</span>
-                          </SelectItem>
-                          {/* Children with tree connectors */}
-                          {(parent.children || []).filter((c: any) => c.id).map((child: any, childIdx: number, arr: any[]) => (
-                            <SelectItem key={child.id} value={child.id.toString()} className="pl-4">
-                              <span className="text-muted-foreground">
-                                {childIdx === arr.length - 1 ? '└─' : '├─'}
-                              </span>
-                              <span className="ml-1">{child.name}</span>
-                              {child.storage_path && child.storage_path !== child.name && (
-                                <span className="text-xs text-muted-foreground ml-1">({child.storage_path})</span>
-                              )}
-                            </SelectItem>
-                          ))}
+                          {renderTreeForScope(tabsByScope.corporate)}
                         </SelectGroup>
-                      ))}
+                      )}
+
+                      {/* Jobs Section */}
+                      {tabsByScope.jobs.length > 0 && (
+                        <>
+                          {tabsByScope.corporate.length > 0 && <SelectSeparator />}
+                          <SelectGroup>
+                            <SelectLabel className="font-semibold text-xs px-2 py-1.5 bg-muted/50">
+                              Jobs
+                            </SelectLabel>
+                            {renderTreeForScope(tabsByScope.jobs)}
+                          </SelectGroup>
+                        </>
+                      )}
+
+                      {/* Contacts Section */}
+                      {tabsByScope.contacts.length > 0 && (
+                        <>
+                          {(tabsByScope.corporate.length > 0 || tabsByScope.jobs.length > 0) && <SelectSeparator />}
+                          <SelectGroup>
+                            <SelectLabel className="font-semibold text-xs px-2 py-1.5 bg-muted/50">
+                              Contacts
+                            </SelectLabel>
+                            {renderTreeForScope(tabsByScope.contacts)}
+                          </SelectGroup>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 );
@@ -1431,6 +1521,7 @@ export default function DocumentTypeDetailPage() {
               {(() => {
                 const primaryId = documentType.entity_tab_ids?.[0];
                 const secondaryIds = (documentType.entity_tab_ids || []).slice(1);
+                const excludeIds = [primaryId, ...secondaryIds].filter(Boolean) as number[];
 
                 const addSecondaryTab = (tabId: number) => {
                   if (!secondaryIds.includes(tabId) && tabId !== primaryId) {
@@ -1442,6 +1533,56 @@ export default function DocumentTypeDetailPage() {
                   updateField("entity_tab_ids", [primaryId, ...secondaryIds.filter(id => id !== tabId)].filter(Boolean));
                 };
 
+                // SSoT: Render tree structure for secondary tabs (excludes already-selected)
+                const renderTreeForSecondary = (tabs: TabNode[]) => {
+                  const elements: React.ReactNode[] = [];
+
+                  const renderTab = (tab: TabNode, depth: number = 0, isLast: boolean = false) => {
+                    if (!tab.id || excludeIds.includes(tab.id)) return;
+
+                    elements.push(
+                      <SelectItem
+                        key={tab.id}
+                        value={tab.id.toString()}
+                        className="text-sm"
+                        style={{ paddingLeft: `${8 + (depth * 16)}px` }}
+                      >
+                        {depth > 0 && (
+                          <span className="text-muted-foreground mr-1">
+                            {isLast ? '└─' : '├─'}
+                          </span>
+                        )}
+                        {depth === 0 && <span className="mr-1">📁</span>}
+                        {tab.name}
+                      </SelectItem>
+                    );
+
+                    // Render children recursively
+                    if (tab.children?.length) {
+                      const validChildren = tab.children.filter(c => c.id && !excludeIds.includes(c.id!));
+                      validChildren.forEach((child, idx) => {
+                        renderTab(child, depth + 1, idx === validChildren.length - 1);
+                      });
+                    }
+                  };
+
+                  const validTabs = tabs.filter(t => t.id && !excludeIds.includes(t.id!));
+                  validTabs.forEach((tab, idx) => {
+                    renderTab(tab, 0, idx === validTabs.length - 1);
+                  });
+
+                  return elements;
+                };
+
+                // Check if any tabs available in each scope
+                const hasAvailableTabs = (tabs: TabNode[]): boolean => {
+                  for (const tab of tabs) {
+                    if (tab.id && !excludeIds.includes(tab.id)) return true;
+                    if (tab.children?.some(c => c.id && !excludeIds.includes(c.id!))) return true;
+                  }
+                  return false;
+                };
+
                 return (
                   <div className="space-y-2">
                     {/* Display selected secondary tabs */}
@@ -1449,7 +1590,7 @@ export default function DocumentTypeDetailPage() {
                       <div className="flex flex-wrap gap-1">
                         {secondaryIds.map((tabId) => (
                           <Badge key={tabId} variant="secondary" className="text-xs">
-                            {findTabPath(allTabsForLookup, tabId) || findTabPath(folderHierarchy, tabId) || `Tab ${tabId}`}
+                            {findTabPath(tabId) || `Tab ${tabId}`}
                             <button onClick={() => removeSecondaryTab(tabId)} className="ml-1 hover:text-destructive">
                               <X className="h-2 w-2" />
                             </button>
@@ -1465,42 +1606,42 @@ export default function DocumentTypeDetailPage() {
                       <SelectTrigger className="text-sm h-8">
                         <SelectValue placeholder="+ Add tab..." />
                       </SelectTrigger>
-                      <SelectContent>
-                        {folderHierarchy.filter(p => p.id).map((parent, idx) => {
-                          // Get available children (not already selected)
-                          const availableChildren = (parent.children || []).filter((c: any) =>
-                            c.id && c.id !== primaryId && !secondaryIds.includes(c.id)
-                          );
-                          const parentAvailable = parent.id !== primaryId && !secondaryIds.includes(parent.id!);
+                      <SelectContent className="max-h-[400px]">
+                        {/* Corporate Section */}
+                        {hasAvailableTabs(tabsByScope.corporate) && (
+                          <SelectGroup>
+                            <SelectLabel className="font-semibold text-xs px-2 py-1.5 bg-muted/50">
+                              Corporate
+                            </SelectLabel>
+                            {renderTreeForSecondary(tabsByScope.corporate)}
+                          </SelectGroup>
+                        )}
 
-                          // Skip group if nothing available
-                          if (!parentAvailable && availableChildren.length === 0) return null;
-
-                          return (
-                            <SelectGroup key={parent.id}>
-                              {idx > 0 && <SelectSeparator />}
-                              <SelectLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
-                                📁 {parent.name}
+                        {/* Jobs Section */}
+                        {hasAvailableTabs(tabsByScope.jobs) && (
+                          <>
+                            {hasAvailableTabs(tabsByScope.corporate) && <SelectSeparator />}
+                            <SelectGroup>
+                              <SelectLabel className="font-semibold text-xs px-2 py-1.5 bg-muted/50">
+                                Jobs
                               </SelectLabel>
-                              {/* Parent folder root option */}
-                              {parentAvailable && (
-                                <SelectItem value={parent.id!.toString()} className="pl-4">
-                                  <span className="text-muted-foreground">├─</span>
-                                  <span className="ml-1">(root)</span>
-                                </SelectItem>
-                              )}
-                              {/* Children with tree connectors */}
-                              {availableChildren.map((child: any, childIdx: number) => (
-                                <SelectItem key={child.id} value={child.id.toString()} className="pl-4">
-                                  <span className="text-muted-foreground">
-                                    {childIdx === availableChildren.length - 1 && !parentAvailable ? '└─' : '├─'}
-                                  </span>
-                                  <span className="ml-1">{child.name}</span>
-                                </SelectItem>
-                              ))}
+                              {renderTreeForSecondary(tabsByScope.jobs)}
                             </SelectGroup>
-                          );
-                        })}
+                          </>
+                        )}
+
+                        {/* Contacts Section */}
+                        {hasAvailableTabs(tabsByScope.contacts) && (
+                          <>
+                            {(hasAvailableTabs(tabsByScope.corporate) || hasAvailableTabs(tabsByScope.jobs)) && <SelectSeparator />}
+                            <SelectGroup>
+                              <SelectLabel className="font-semibold text-xs px-2 py-1.5 bg-muted/50">
+                                Contacts
+                              </SelectLabel>
+                              {renderTreeForSecondary(tabsByScope.contacts)}
+                            </SelectGroup>
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                     <p className="text-[10px] text-muted-foreground">

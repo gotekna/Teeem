@@ -38,14 +38,17 @@ class SyncedEmail < ApplicationRecord
   has_many :attachments, through: :email_attachments
 
   # Email Labels (Gmail-style multi-label system)
-  has_many :email_label_assignments, dependent: :destroy
+  # Note: email_label_assignments uses email_warehouse_id FK (historical naming)
+  has_many :email_label_assignments, foreign_key: :email_warehouse_id, dependent: :destroy
   has_many :email_labels, through: :email_label_assignments
 
   # Email Snooze (temporarily hide and bring back later)
-  has_many :email_snoozes, dependent: :destroy
+  # Note: email_snoozes uses email_warehouse_id FK (historical naming)
+  has_many :email_snoozes, foreign_key: :email_warehouse_id, dependent: :destroy
 
   # Email User State (per-user pin, star, archive, reminders)
-  has_many :email_user_states, dependent: :destroy
+  # Note: email_user_states uses email_warehouse_id FK (historical naming - email_warehouse was renamed to synced_email)
+  has_many :email_user_states, foreign_key: :email_warehouse_id, dependent: :destroy
 
   # Task attachments
   has_many :sm_task_attachments, as: :attachable, dependent: :destroy
