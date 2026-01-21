@@ -199,7 +199,7 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   });
 
   // Main scope keys that should have scopeKey on their first folder, not the leaf
-  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'people', 'task', 'corporate_entity', 'corporate'];
+  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'people', 'user', 'task', 'corporate_entity', 'corporate'];
 
   filteredEntries.forEach(([key, path]) => {
     if (!path) return;

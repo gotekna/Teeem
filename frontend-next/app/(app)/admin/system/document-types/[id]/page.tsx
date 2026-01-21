@@ -1339,11 +1339,12 @@ export default function DocumentTypeDetailPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="scope">Scope</Label>
+                {/* SSoT: Scope is derived from Primary Tab's warehouse_type - read-only display */}
                 <Select
                   value={documentType.scope || "company"}
-                  onValueChange={(value) => updateField("scope", value)}
+                  disabled
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-muted/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1352,6 +1353,7 @@ export default function DocumentTypeDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
+                <p className="text-xs text-muted-foreground">Auto-set by Primary Tab</p>
               </div>
             </div>
 

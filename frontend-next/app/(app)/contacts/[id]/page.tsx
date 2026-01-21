@@ -966,7 +966,7 @@ export default function ContactDetailPage() {
     try {
       setLoadingEmails(true);
       const response = await api.get<{ emails: EmailMessage[]; pagination: EmailsPagination }>(
-        "/api/v1/synced_email",
+        "/api/v1/synced_emails",
         {
           // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
           params: {

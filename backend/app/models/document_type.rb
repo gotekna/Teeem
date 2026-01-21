@@ -22,6 +22,57 @@ class DocumentType < ApplicationRecord
     primary_join&.entity_tab || entity_tabs.ordered.first
   end
 
+  # ══════════════════════════════════════════════════════════════════════════════
+  # SSoT: Derived attributes from primary EntityTab
+  # These methods are THE ONE source of truth - columns are kept only for migration fallback
+  # ══════════════════════════════════════════════════════════════════════════════
+
+  # SSoT: Derive scope from primary EntityTab's warehouse_type
+  # This is THE ONE place scope is determined
+  def derived_scope
+    case primary_entity_tab&.warehouse_type
+    when 'corporate_entity' then 'company'
+    when 'job' then 'job'
+    when 'people', 'contact' then 'contacts'
+    else 'company'
+    end
+  end
+
+  # Override scope getter to use derived value (fallback to column during migration)
+  def scope
+    primary_entity_tab.present? ? derived_scope : read_attribute(:scope)
+  end
+
+  # SSoT: folder = primary tab's display name
+  def folder
+    primary_entity_tab&.display_name || read_attribute(:folder)
+  end
+
+  # SSoT: target_folder = primary tab's hierarchy path
+  def target_folder
+    primary_entity_tab&.hierarchy_path || read_attribute(:target_folder)
+  end
+
+  # SSoT: primary_tab = primary tab's display name (for backward compatibility)
+  # Used by ContactDocument, SmTaskPhoto for filename token resolution
+  def primary_tab
+    primary_entity_tab&.display_name || read_attribute(:primary_tab)
+  end
+
+  # SSoT: category is DEPRECATED (Jan 2026)
+  # Was used for legacy folder organization, now superseded by EntityTab hierarchy
+  # Returns nil - callers use .presence with "General" fallback
+  def category
+    nil
+  end
+
+  # SSoT: tabs is DEPRECATED (Jan 2026)
+  # Was a jsonb array, now superseded by entity_tab_document_types join table
+  # Returns empty array for backward compatibility with API serialization
+  def tabs
+    []
+  end
+
   # Set tabs by EntityTab IDs (SSoT: replaces old folder_ids=)
   def entity_tab_ids=(ids)
     ids = Array(ids).map(&:to_i).reject(&:zero?)
@@ -62,13 +113,24 @@ class DocumentType < ApplicationRecord
       end
     end
 
-    # SSoT: Update primary_tab column to match first EntityTab (backup for display)
-    primary_tab_id = ids.first
-    if primary_tab_id.present?
-      primary_tab_record = EntityTab.find_by(id: primary_tab_id)
-      update_column(:primary_tab, primary_tab_record&.display_name)
-    else
-      update_column(:primary_tab, nil)
+    # NOTE: primary_tab column is DEPRECATED (Jan 2026)
+    # scope, folder, target_folder are now derived from primary_entity_tab
+    # Keeping column sync for backward compatibility during migration
+    if respond_to?(:has_attribute?) && has_attribute?(:primary_tab)
+      primary_tab_id = ids.first
+      if primary_tab_id.present?
+        primary_tab_record = EntityTab.find_by(id: primary_tab_id)
+        update_column(:primary_tab, primary_tab_record&.display_name) if primary_tab_record
+      else
+        update_column(:primary_tab, nil)
+      end
+    end
+
+    # SSoT: Sync scope column to match derived_scope (for uniqueness validation)
+    # This keeps the column value in sync with the computed value
+    if has_attribute?(:scope)
+      new_scope = derived_scope
+      update_column(:scope, new_scope) if read_attribute(:scope) != new_scope
     end
   end
 
@@ -93,8 +155,15 @@ class DocumentType < ApplicationRecord
 
   # Scopes
   scope :active, -> { where(active: true) }
-  scope :by_folder, ->(folder) { where(folder: folder) }
-  scope :by_category, ->(category) { where(category: category) }
+  # SSoT: by_folder queries through primary EntityTab (folder column is derived)
+  scope :by_folder, ->(folder) {
+    joins(:entity_tab_document_types)
+      .joins("INNER JOIN entity_tabs ON entity_tabs.id = entity_tab_document_types.entity_tab_id")
+      .where(entity_tab_document_types: { is_primary: true })
+      .where(entity_tabs: { display_name: folder })
+  }
+  # DEPRECATED: category column removed (Jan 2026) - returns no results
+  scope :by_category, ->(_category) { none }
   scope :by_scope, ->(scope_name) { where(scope: scope_name) }
   scope :for_company, -> { where(scope: %w[company both]) }
   scope :for_job, -> { where(scope: %w[job both]) }
@@ -275,9 +344,15 @@ class DocumentType < ApplicationRecord
     ([ name ] + db_aliases + default_aliases).uniq
   end
 
-  # Group document types by folder
+  # Group document types by folder (derived from primary EntityTab)
+  # SSoT: folder is computed from primary_entity_tab.display_name
   def self.grouped_by_folder
-    active.order(:folder, :name).group_by(&:folder)
+    # Eager load entity_tabs to prevent N+1, then group by computed folder
+    active.includes(entity_tab_document_types: :entity_tab)
+          .order(:name)
+          .group_by(&:folder)
+          .sort_by { |folder, _| folder || "" }
+          .to_h
   end
 
   # Generate a preview title showing what the document will look like when named

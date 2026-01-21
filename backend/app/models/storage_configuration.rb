@@ -123,6 +123,7 @@ class StorageConfiguration < ApplicationRecord
     'contact' => 'Contacts/{{ContactName}}',
     'corporate_entity' => 'Corporate/{{CompanyGroup}}',
     'people' => 'People/{{ContactName}}',
+    'user' => 'Users/{{UserName}}',
     'task' => 'Jobs/{{JobCode}}/Tasks',
     'email' => 'Emails/{{Mailbox}}',
     'warehouse' => 'Warehousing'

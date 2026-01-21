@@ -1162,6 +1162,60 @@ module Api
         end
       end
 
+      # GET /api/v1/documents/presigned_url
+      # Returns a presigned URL for direct download (no Rails streaming)
+      # SSoT: Used by PDFViewerImpl for fast PDF loading, ImageLightbox for fast image loading
+      # Why: Avoids double transfer (S3 → Rails → Browser), browser fetches directly from S3
+      # Params:
+      #   - file_id: Direct storage reference (S3 key or SharePoint item ID)
+      #   - document_id: JobDocument ID (will lookup storage_reference from the model)
+      def presigned_url
+        file_id = params[:file_id]
+        document_id = params[:document_id]
+
+        # Support both file_id (direct storage ID) and document_id (JobDocument lookup)
+        if document_id.present?
+          document = JobDocument.find_by(id: document_id)
+          unless document
+            return render json: { success: false, error: "Document not found" }, status: :not_found
+          end
+
+          # SSoT: Use storage_reference from StorableDocument concern
+          file_id = document.storage_reference
+          unless file_id.present?
+            return render json: { success: false, error: "Document has no storage reference" }, status: :unprocessable_entity
+          end
+        elsif !file_id.present?
+          return render json: { success: false, error: "No file_id or document_id provided" }, status: :bad_request
+        end
+
+        begin
+          # SSoT: Check storage provider to route to correct method
+          storage_config = StorageConfiguration.instance
+          provider_type = storage_config&.provider_type || "sharepoint"
+
+          if provider_type.to_s.in?(%w[wasabi s3 s3_compatible])
+            # S3/Wasabi: file_id is the S3 key
+            presigned_url_for_s3(file_id)
+          else
+            # SharePoint: file_id is the Graph API item ID
+            presigned_url_for_sharepoint(file_id)
+          end
+
+        rescue DocumentProviders::NotFoundError => e
+          render json: { success: false, error: "File not found: #{e.message}" }, status: :not_found
+        rescue DocumentProviders::NotConnectedError => e
+          render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
+          render json: { success: false, error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
+          render json: { success: false, error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to get presigned URL: #{e.message}"
+          render json: { success: false, error: "Failed to get presigned URL: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # DELETE /api/v1/documents/delete_file
       # Delete a file from SharePoint/OneDrive
       def delete_file
@@ -2455,6 +2509,77 @@ module Api
         when ".xlsx" then "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         when ".txt" then "text/plain"
         else "application/octet-stream"
+        end
+      end
+
+      # Generate presigned URL for S3/Wasabi files
+      # SSoT: Used by presigned_url action for PDF performance optimization
+      def presigned_url_for_s3(s3_key)
+        credential = S3CompatibleCredential.active.connected.first
+
+        unless credential
+          raise DocumentProviders::NotConnectedError, "S3 storage not configured"
+        end
+
+        provider = DocumentProviders::S3Compatible.new(credential)
+        url = provider.download_url(s3_key, expires_in: 900)  # 15 minutes
+
+        render json: {
+          success: true,
+          url: url,
+          expires_in: 900
+        }
+      end
+
+      # Generate presigned URL for SharePoint files
+      # SSoT: Uses SharePoint's @microsoft.graph.downloadUrl for direct browser access
+      def presigned_url_for_sharepoint(file_id)
+        credential = MicrosoftCredential.sharepoint_credential
+
+        unless credential&.valid_access_token
+          raise DocumentProviders::NotConnectedError, "SharePoint not connected"
+        end
+
+        is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+
+        if is_app_credential
+          client = MicrosoftAppGraphClient.new(credential)
+          storage_config = StorageConfiguration.instance
+
+          unless storage_config&.connected?
+            raise DocumentProviders::NotConnectedError, "SharePoint not configured"
+          end
+
+          # Get file metadata with download URL
+          item_data = client.get_drive_item(storage_config.drive_id, file_id)
+          download_url_value = item_data[:download_url]
+
+          unless download_url_value.present?
+            raise DocumentProviders::NotFoundError, "Download URL not available for this file"
+          end
+
+          render json: {
+            success: true,
+            url: download_url_value,
+            expires_in: 1800  # SharePoint URLs typically valid ~30 min
+          }
+        else
+          client = MicrosoftGraphClient.new(credential)
+          drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+
+          # Get file info including download URL
+          file_info = client.get("#{drive_path}/items/#{file_id}?$select=id,name,@microsoft.graph.downloadUrl")
+          download_url_value = file_info["@microsoft.graph.downloadUrl"]
+
+          unless download_url_value.present?
+            raise DocumentProviders::NotFoundError, "Download URL not available for this file"
+          end
+
+          render json: {
+            success: true,
+            url: download_url_value,
+            expires_in: 1800
+          }
         end
       end
 

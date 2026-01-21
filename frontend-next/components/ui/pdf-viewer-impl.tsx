@@ -56,6 +56,8 @@ export function PDFViewerImpl({
   // Zoom state: 100 = 100%, "page-fit" = fit to width
   // Default to 100% for sharp, readable text (page-fit causes blurriness)
   const [zoom, setZoom] = React.useState<number | "page-fit">(100);
+  // Download progress (0-100) - null when not tracking (e.g., cached or unknown size)
+  const [downloadProgress, setDownloadProgress] = React.useState<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Store onError in ref to avoid re-fetching when callback changes
@@ -91,6 +93,7 @@ export function PDFViewerImpl({
       setDisplayedPage(1);
       setIsPageTransitioning(false);
       setPageCount(1);
+      setDownloadProgress(null);
 
       try {
         let blob: Blob;
@@ -106,19 +109,59 @@ export function PDFViewerImpl({
           setBlobUrl(currentBlobUrl);
           setIsCached(true);
 
-          // Get page count async
-          const pages = await getPageCount(blob);
-          if (mounted) setPageCount(pages);
+          // Get page count async (non-blocking)
+          getPageCount(blob).then(pages => {
+            if (mounted) setPageCount(pages);
+          });
 
           setIsLoading(false);
           return;
         }
 
-        // 2. Fetch from server
-        // For presigned S3 URLs (contain X-Amz-Signature), don't send auth headers
-        // Presigned URLs are self-authenticating and extra headers break the signature
-        const isPresignedS3 = url.includes("X-Amz-Signature=") || url.includes("wasabisys.com");
+        // 2. Determine the fetch URL
+        // SMART DETECTION: If this is our backend streaming URL, upgrade to presigned URL
+        // This avoids double transfer (S3 → Rails → Browser) for much faster PDF loading
+        let fetchUrl = url;
+        let isPresignedS3 = url.includes("X-Amz-Signature=") || url.includes("wasabisys.com");
 
+        // Detect our backend download URL pattern and upgrade to presigned URL
+        if (url.includes("/api/v1/documents/download") && !isPresignedS3) {
+          try {
+            const urlObj = new URL(url, window.location.origin);
+            const fileId = urlObj.searchParams.get("file_id");
+
+            if (fileId) {
+              // Get auth token
+              const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+
+              if (token) {
+                // Fetch presigned URL from backend (skips Rails streaming)
+                const presignedResponse = await fetch(
+                  `${urlObj.origin}/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`,
+                  {
+                    headers: { Authorization: `Bearer ${token}` },
+                    credentials: "include",
+                    mode: "cors",
+                  }
+                );
+
+                if (presignedResponse.ok) {
+                  const data = await presignedResponse.json();
+                  if (data.success && data.url) {
+                    fetchUrl = data.url;
+                    isPresignedS3 = true;  // Now we have a presigned URL
+                    console.log("[PDF] Upgraded to presigned URL for faster loading");
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            // Fall back to original URL on any error
+            console.warn("[PDF] Presigned URL upgrade failed, using original:", e);
+          }
+        }
+
+        // 3. Build headers for the fetch
         const headers: Record<string, string> = {
           Accept: "application/pdf",
         };
@@ -132,7 +175,8 @@ export function PDFViewerImpl({
           }
         }
 
-        const response = await fetch(url, {
+        // 4. Fetch the PDF with progress tracking
+        const response = await fetch(fetchUrl, {
           // Don't send credentials for cross-origin presigned URLs
           credentials: isPresignedS3 ? "omit" : "include",
           // Must use "cors" mode for cross-origin requests (backend is different origin)
@@ -147,7 +191,40 @@ export function PDFViewerImpl({
           throw new Error(`Failed to fetch PDF: ${errorText}`);
         }
 
-        const rawBlob = await response.blob();
+        // Track download progress using ReadableStream
+        const contentLength = response.headers.get("Content-Length");
+        const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+
+        let rawBlob: Blob;
+
+        // Only track progress if we know the total size and have a readable stream
+        if (totalBytes > 0 && response.body) {
+          const reader = response.body.getReader();
+          const chunks: Uint8Array[] = [];
+          let receivedBytes = 0;
+
+          // Read chunks and update progress
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) break;
+
+            chunks.push(value);
+            receivedBytes += value.length;
+
+            // Update progress (only if still mounted)
+            if (mounted) {
+              const progress = Math.round((receivedBytes / totalBytes) * 100);
+              setDownloadProgress(progress);
+            }
+          }
+
+          // Combine chunks into a single blob
+          rawBlob = new Blob(chunks as BlobPart[]);
+        } else {
+          // Fallback: no progress tracking (unknown size or no stream support)
+          rawBlob = await response.blob();
+        }
 
         // Ensure correct MIME type for PDF display in iframe
         // Some servers return application/octet-stream which causes browser to download
@@ -155,21 +232,21 @@ export function PDFViewerImpl({
           ? rawBlob
           : new Blob([rawBlob], { type: "application/pdf" });
 
-        // 3. Cache for next time (async, don't wait)
+        // 5. Cache for next time (async, don't wait)
         cachePdf(url, blob).catch(() => {
           // Ignore cache errors - not critical
         });
 
-        // 4. Create blob URL and display
+        // 6. Create blob URL and display IMMEDIATELY
         if (mounted) {
           currentBlobUrl = URL.createObjectURL(blob);
           setBlobUrl(currentBlobUrl);
+          setIsLoading(false);  // Show PDF NOW
 
-          // Get page count async
-          const pages = await getPageCount(blob);
-          if (mounted) setPageCount(pages);
-
-          setIsLoading(false);
+          // Get page count in background (non-blocking)
+          getPageCount(blob).then(pages => {
+            if (mounted) setPageCount(pages);
+          });
         }
       } catch (err) {
         const errorMessage =
@@ -249,7 +326,7 @@ export function PDFViewerImpl({
     };
   }, [blobUrl]);
 
-  // Loading state
+  // Loading state with progress indicator
   if (isLoading) {
     return (
       <div
@@ -259,7 +336,20 @@ export function PDFViewerImpl({
         )}
       >
         <Spinner size={32} className="mb-2" />
-        <p className="text-sm text-muted-foreground">Loading PDF...</p>
+        <p className="text-sm text-muted-foreground">
+          {downloadProgress !== null
+            ? `Downloading PDF... ${downloadProgress}%`
+            : "Loading PDF..."}
+        </p>
+        {/* Progress bar when downloading */}
+        {downloadProgress !== null && (
+          <div className="w-48 h-1.5 bg-muted rounded-full mt-2 overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-150 ease-out"
+              style={{ width: `${downloadProgress}%` }}
+            />
+          </div>
+        )}
       </div>
     );
   }

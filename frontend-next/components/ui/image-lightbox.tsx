@@ -72,7 +72,22 @@ export interface ImageLightboxProps {
 // Check if URL needs authenticated fetch (backend proxy URLs)
 function needsAuthenticatedFetch(url: string): boolean {
   // Backend proxy URLs that require authentication
-  return url.includes("/api/v1/documents/download");
+  return url.includes("/api/v1/documents/download") || url.includes("/api/v1/documents/job_document_download");
+}
+
+// Check if URL is already a presigned URL (S3/SharePoint direct)
+function isPresignedUrl(url: string): boolean {
+  return url.includes("X-Amz-Signature") || url.includes("sharepoint.com/personal") || url.includes("blob.core.windows.net");
+}
+
+// Extract document_id from backend proxy URL
+function extractDocumentId(url: string): string | null {
+  try {
+    const urlObj = new URL(url, window.location.origin);
+    return urlObj.searchParams.get("document_id");
+  } catch {
+    return null;
+  }
 }
 
 // Extract the endpoint path from a full URL for api.getBlob
@@ -111,6 +126,8 @@ export function ImageLightbox({
   const [failedUrls, setFailedUrls] = React.useState<Set<string>>(new Set());
   // Cache for authenticated blob URLs (photoId -> object URL)
   const [blobUrls, setBlobUrls] = React.useState<Record<string, string>>({});
+  // Cache for presigned URLs (photoId -> presigned URL)
+  const [presignedUrls, setPresignedUrls] = React.useState<Record<string, string>>({});
   // Track URLs currently being fetched
   const fetchingRef = React.useRef<Set<string>>(new Set());
   // Ref for cleanup to avoid stale closure issue
@@ -155,6 +172,45 @@ export function ImageLightbox({
     }
   }, [open, currentIndex, resolveFullUrl, resolveCurrentPhotoUrl]);
 
+  // Fetch presigned URL for a photo (used by current image fetch and prefetch)
+  const fetchPresignedUrl = React.useCallback(async (photo: PhotoItem): Promise<string | null> => {
+    // If URL is already a presigned URL or external URL, use directly
+    if (isPresignedUrl(photo.url) || !needsAuthenticatedFetch(photo.url)) {
+      return photo.url;
+    }
+
+    // Already have a presigned URL cached
+    if (presignedUrls[photo.id]) {
+      return presignedUrls[photo.id];
+    }
+
+    // Extract document_id from the proxy URL
+    const documentId = extractDocumentId(photo.url);
+    if (!documentId) {
+      console.warn("[ImageLightbox] No document_id in URL, falling back to proxy");
+      return null;
+    }
+
+    try {
+      // Get presigned URL from backend (SSoT: same endpoint as PDF viewer)
+      const response = await api.get(`/api/v1/documents/presigned_url?document_id=${documentId}`) as {
+        success?: boolean;
+        url?: string;
+        error?: string;
+      };
+
+      if (response.success && response.url) {
+        // Cache the presigned URL
+        setPresignedUrls((prev) => ({ ...prev, [photo.id]: response.url as string }));
+        return response.url;
+      }
+    } catch (err) {
+      console.warn("[ImageLightbox] Presigned URL failed, will use proxy:", err);
+    }
+
+    return null;
+  }, [presignedUrls]);
+
   // Fetch authenticated image for current photo
   React.useEffect(() => {
     if (!open) return;
@@ -165,13 +221,19 @@ export function ImageLightbox({
     // Determine which URL to use
     const resolvedUrl = resolvedUrls[photo.id];
     const hasFailed = failedUrls.has(photo.id);
-    const urlToUse = (resolvedUrl && !hasFailed) ? resolvedUrl : photo.url;
+    const cachedPresignedUrl = presignedUrls[photo.id];
+
+    // Priority: presigned URL > resolved URL > photo.url
+    const urlToUse = cachedPresignedUrl || ((resolvedUrl && !hasFailed) ? resolvedUrl : photo.url);
 
     // Skip if we already have a blob URL for this photo
     if (blobUrls[photo.id]) return;
 
-    // Skip if URL doesn't need auth
-    if (!needsAuthenticatedFetch(urlToUse)) return;
+    // Skip if URL doesn't need auth (and we have no presigned URL to try)
+    if (!needsAuthenticatedFetch(urlToUse) && !cachedPresignedUrl) {
+      // URL is already external/direct, just let the img tag load it
+      return;
+    }
 
     // Skip if already fetching
     if (fetchingRef.current.has(photo.id)) return;
@@ -182,13 +244,26 @@ export function ImageLightbox({
 
     const fetchImage = async () => {
       try {
+        // Step 1: Try to get a presigned URL (fast path - no double transfer!)
+        const presignedUrl = await fetchPresignedUrl(photo);
+
+        if (presignedUrl) {
+          // SSoT: Use presigned URL directly - browser fetches from S3/SharePoint
+          // This avoids the double transfer (S3 → Rails → Browser)
+          setBlobUrls((prev) => ({ ...prev, [photo.id]: presignedUrl }));
+          setLoading(false);
+          return;
+        }
+
+        // Step 2: Fall back to api.getBlob() proxy (slow path)
+        console.log("[ImageLightbox] Using proxy fallback for:", photo.name);
         const endpoint = getEndpointFromUrl(urlToUse);
         const blob = await api.getBlob(endpoint, { skipAuthRedirect: true });
         const objectUrl = URL.createObjectURL(blob);
         setBlobUrls((prev) => ({ ...prev, [photo.id]: objectUrl }));
         setLoading(false);
       } catch (err) {
-        console.error("[ImageLightbox] Failed to fetch authenticated image:", err);
+        console.error("[ImageLightbox] Failed to fetch image:", err);
         setLoading(false);
         setError(true);
       } finally {
@@ -197,7 +272,40 @@ export function ImageLightbox({
     };
 
     fetchImage();
-  }, [open, currentIndex, photos, resolvedUrls, failedUrls, blobUrls]);
+  }, [open, currentIndex, photos, resolvedUrls, failedUrls, blobUrls, presignedUrls, fetchPresignedUrl]);
+
+  // Prefetch adjacent images when lightbox is open
+  React.useEffect(() => {
+    if (!open || photos.length <= 1) return;
+
+    const prefetchImage = async (index: number) => {
+      const photo = photos[index];
+      if (!photo) return;
+
+      // Skip if already have URL cached
+      if (blobUrls[photo.id] || presignedUrls[photo.id]) return;
+
+      // Skip if already fetching
+      if (fetchingRef.current.has(photo.id)) return;
+
+      // Try to get presigned URL (don't block on this)
+      fetchPresignedUrl(photo).catch(() => {
+        // Silent fail for prefetch
+      });
+    };
+
+    // Prefetch prev and next images
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : photos.length - 1;
+    const nextIndex = currentIndex < photos.length - 1 ? currentIndex + 1 : 0;
+
+    // Use setTimeout to not block the current image load
+    const timeoutId = setTimeout(() => {
+      prefetchImage(prevIndex);
+      prefetchImage(nextIndex);
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [open, currentIndex, photos, blobUrls, presignedUrls, fetchPresignedUrl]);
 
   // Keep ref in sync with state for cleanup
   React.useEffect(() => {
@@ -250,13 +358,18 @@ export function ImageLightbox({
   const currentPhoto = photos[currentIndex];
 
   // Determine the URL to display
-  // Priority: 1) blob URL (authenticated), 2) resolved URL (SharePoint direct), 3) photo.url (fallback)
+  // Priority: 1) blobUrls (presigned URL or object URL), 2) resolved URL, 3) photo.url
   const currentImageUrl = React.useMemo(() => {
     if (!currentPhoto) return "";
 
-    // If we have a blob URL (authenticated fetch completed), use it
+    // If we have a cached URL (presigned or blob object URL), use it
     if (blobUrls[currentPhoto.id]) {
       return blobUrls[currentPhoto.id];
+    }
+
+    // If we have a presigned URL cached (not yet in blobUrls), use it
+    if (presignedUrls[currentPhoto.id]) {
+      return presignedUrls[currentPhoto.id];
     }
 
     // If we have a resolved URL that hasn't failed, use it (but it may fail due to CORS)
@@ -266,7 +379,7 @@ export function ImageLightbox({
 
     // Fall back to photo.url (may be a proxy URL that needs auth fetch)
     return currentPhoto.url;
-  }, [currentPhoto, blobUrls, resolvedUrls, failedUrls]);
+  }, [currentPhoto, blobUrls, presignedUrls, resolvedUrls, failedUrls]);
 
   const goToPrev = () => {
     setLoading(true);
@@ -315,9 +428,22 @@ export function ImageLightbox({
 
     try {
       let blob: Blob;
+      let downloadUrl: string | null = null;
 
-      // Use authenticated fetch for backend proxy URLs
-      if (needsAuthenticatedFetch(currentPhoto.url)) {
+      // Priority: Use presigned URL if available (fast path)
+      if (presignedUrls[currentPhoto.id]) {
+        downloadUrl = presignedUrls[currentPhoto.id];
+      } else if (needsAuthenticatedFetch(currentPhoto.url)) {
+        // Try to get a presigned URL for download
+        downloadUrl = await fetchPresignedUrl(currentPhoto);
+      }
+
+      if (downloadUrl && isPresignedUrl(downloadUrl)) {
+        // Fast path: Fetch directly from presigned URL
+        const response = await fetch(downloadUrl);
+        blob = await response.blob();
+      } else if (needsAuthenticatedFetch(currentPhoto.url)) {
+        // Fallback: Use authenticated fetch through backend proxy
         const endpoint = getEndpointFromUrl(currentPhoto.url);
         blob = await api.getBlob(endpoint, { skipAuthRedirect: true });
       } else {
@@ -485,9 +611,9 @@ export function ImageLightbox({
           {(loading || resolving) && (
             <div className="absolute inset-0 flex items-center justify-center flex-col gap-2">
               <Spinner size={40} className="text-white" />
-              {resolving && (
-                <p className="text-white/60 text-sm">Loading full image...</p>
-              )}
+              <p className="text-white/60 text-sm">
+                {resolving ? "Loading full image..." : "Fetching image..."}
+              </p>
             </div>
           )}
 

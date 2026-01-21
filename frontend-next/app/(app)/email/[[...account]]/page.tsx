@@ -1063,7 +1063,7 @@ export default function EmailPage() {
         params.append("folder_name", folderToUse);
       }
 
-      const url = `/api/v1/synced_email?${params.toString()}`;
+      const url = `/api/v1/synced_emails?${params.toString()}`;
       const response = await api.get<{ emails: Email[]; pagination: Pagination }>(url);
 
       // Check if request was aborted

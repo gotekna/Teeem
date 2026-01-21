@@ -283,7 +283,7 @@ export function useOfflineEmails(
 
     try {
       // Build URL with optional account filter
-      let url = "/api/v1/synced_email?split_inbox=true&my_emails=true&latest_only=true";
+      let url = "/api/v1/synced_emails?split_inbox=true&my_emails=true&latest_only=true";
 
       // Add account filter if provided
       if (accountId) {

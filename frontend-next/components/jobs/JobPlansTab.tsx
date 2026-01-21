@@ -45,6 +45,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { API_TIMEOUT_FILE_UPLOAD } from "@/lib/constants/timeout-constants";
+import { cachePdf, getCachedPdf } from "@/lib/pdf-cache";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { uploadPhoto } from "@/lib/storage-upload";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
@@ -315,12 +317,112 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     !plans.some(p => p.job_plan_tab_id === t.id)
   );
 
+  // Preload ALL PDFs in background for instant navigation
+  // When first plan is selected, start preloading entire plan set
+  useEffect(() => {
+    if (!selectedPlan || filteredPlans.length === 0) return;
+
+    // Get all plans except the currently selected one (it's already loading)
+    const plansToPreload = filteredPlans.filter(p => p.id !== selectedPlan.id);
+    if (plansToPreload.length === 0) return;
+
+    let cancelled = false;
+
+    // Preload function for a single plan
+    const preloadPlan = async (plan: JobPlan): Promise<boolean> => {
+      if (cancelled) return false;
+
+      const revision = plan.current_revision;
+      const fileId = revision?.storage_item_id || revision?.sharepoint_file_id;
+      if (!fileId || !revision) return false;
+
+      // Must match getPdfPreviewUrl format (includes rev= for cache-busting)
+      const pdfUrl = `${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}&preview=true&rev=${revision.id}`;
+
+      // Skip if already cached
+      const cached = await getCachedPdf(pdfUrl);
+      if (cached) return true;
+
+      try {
+        // Get presigned URL for faster download
+        const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+        if (!token) return false;
+
+        const presignedResponse = await fetch(
+          `${getApiBaseUrl()}/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
+            mode: "cors",
+          }
+        );
+
+        if (!presignedResponse.ok) return false;
+        const data = await presignedResponse.json();
+        if (!data.success || !data.url) return false;
+
+        // Fetch PDF from presigned URL (direct from S3 - fast)
+        const pdfResponse = await fetch(data.url, {
+          credentials: "omit",
+          mode: "cors",
+        });
+
+        if (!pdfResponse.ok) return false;
+
+        const blob = await pdfResponse.blob();
+        // Cache under the original URL so PDFViewerImpl finds it
+        await cachePdf(pdfUrl, blob);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    // Preload in batches of 2 to avoid overwhelming the network
+    // Prioritize adjacent plans first, then load rest
+    const preloadAll = async () => {
+      const currentIndex = filteredPlans.findIndex(p => p.id === selectedPlan.id);
+
+      // Sort plans by distance from current selection (adjacent first)
+      const sortedPlans = [...plansToPreload].sort((a, b) => {
+        const aIndex = filteredPlans.findIndex(p => p.id === a.id);
+        const bIndex = filteredPlans.findIndex(p => p.id === b.id);
+        return Math.abs(aIndex - currentIndex) - Math.abs(bIndex - currentIndex);
+      });
+
+      let loaded = 0;
+      const batchSize = 2;
+
+      for (let i = 0; i < sortedPlans.length; i += batchSize) {
+        if (cancelled) break;
+
+        const batch = sortedPlans.slice(i, i + batchSize);
+        const results = await Promise.all(batch.map(preloadPlan));
+        loaded += results.filter(Boolean).length;
+      }
+
+      if (!cancelled && loaded > 0) {
+        console.log(`[Plans] Preloaded ${loaded}/${plansToPreload.length} plans`);
+      }
+    };
+
+    // Start preloading after a short delay to let the selected plan load first
+    const timeoutId = setTimeout(preloadAll, 500);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [selectedPlan?.id, filteredPlans]);
+
   // Get PDF preview URL
   // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
+  // Cache-busting: revision.id changes when file is updated, invalidating old cache
   const getPdfPreviewUrl = (revision: Revision | null) => {
     const fileId = revision?.storage_item_id || revision?.sharepoint_file_id;
     if (!fileId) return null;
-    return `${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}&preview=true`;
+    // Include revision.id as cache-buster - new revision = new URL = fresh cache
+    return `${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}&preview=true&rev=${revision.id}`;
   };
 
   // Get thumbnail URL for instant preview (if available)

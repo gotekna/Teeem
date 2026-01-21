@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Paperclip,
   FileText,
@@ -13,6 +13,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { formatFileSize } from "@/utils/formatters";
+
+// Cache for presigned URLs (attachment key -> url)
+const presignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
+// Check if URL is a presigned URL
+function isPresignedUrl(url: string): boolean {
+  return url.includes("X-Amz-Signature") || url.includes("blob.core.windows.net");
+}
 
 export interface Attachment {
   id?: number | null;
@@ -76,6 +84,61 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     return null;
   }
 
+  // Get presigned URL for attachment (with caching)
+  const getPresignedUrl = useCallback(async (attachment: Attachment): Promise<string | null> => {
+    const attachmentId = attachment.id || attachment.outlook_attachment_id;
+    if (!emailId || !attachmentId) return null;
+
+    const cacheKey = `${emailId}-${attachmentId}`;
+    const cached = presignedUrlCache.get(cacheKey);
+
+    // Return cached URL if not expired (with 60s buffer)
+    if (cached && cached.expiresAt > Date.now() + 60000) {
+      return cached.url;
+    }
+
+    try {
+      // Try to get presigned URL (fast path - direct S3 download)
+      const response = await api.get(
+        `/api/v1/synced_emails/${emailId}/attachments/${attachmentId}/presigned_url?filename=${encodeURIComponent(attachment.name)}`
+      ) as { success?: boolean; url?: string; expires_in?: number; fallback_to_proxy?: boolean };
+
+      if (response.success && response.url) {
+        // Cache the presigned URL
+        const expiresIn = response.expires_in || 900;
+        presignedUrlCache.set(cacheKey, {
+          url: response.url,
+          expiresAt: Date.now() + expiresIn * 1000,
+        });
+        return response.url;
+      }
+    } catch (err) {
+      console.warn("[AttachmentList] Presigned URL failed, will use proxy:", err);
+    }
+
+    return null;
+  }, [emailId]);
+
+  // Fetch attachment content (presigned URL or proxy fallback)
+  const fetchAttachmentBlob = useCallback(async (attachment: Attachment): Promise<Blob> => {
+    const attachmentId = attachment.id || attachment.outlook_attachment_id;
+
+    // Step 1: Try presigned URL (fast path - no double transfer!)
+    const presignedUrl = await getPresignedUrl(attachment);
+    if (presignedUrl && isPresignedUrl(presignedUrl)) {
+      const response = await fetch(presignedUrl);
+      if (response.ok) {
+        return response.blob();
+      }
+    }
+
+    // Step 2: Fall back to api.getBlob() proxy (slow path)
+    console.log("[AttachmentList] Using proxy fallback for:", attachment.name);
+    return api.getBlob(
+      `/api/v1/synced_emails/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
+    );
+  }, [emailId, getPresignedUrl]);
+
   // Open attachment in new window (double-click action)
   const handleOpenInNewWindow = async (attachment: Attachment) => {
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
@@ -83,10 +146,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
     setLoading(attachment.name);
     try {
-      // SSoT: Include filename so backend can match local warehouse files
-      const blob = await api.getBlob(
-        `/api/v1/synced_emails/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
-      );
+      const blob = await fetchAttachmentBlob(attachment);
       const url = window.URL.createObjectURL(blob);
 
       // Always open in new tab
@@ -109,10 +169,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
     setLoading(attachment.name);
     try {
-      // SSoT: Include filename so backend can match local warehouse files
-      const blob = await api.getBlob(
-        `/api/v1/synced_emails/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
-      );
+      const blob = await fetchAttachmentBlob(attachment);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

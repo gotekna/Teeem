@@ -45,6 +45,7 @@ Rails.application.routes.draw do
       post "documents/upload", to: "document_storage#upload"
       get "documents/download", to: "document_storage#download"
       get "documents/download_url", to: "document_storage#download_url"
+      get "documents/presigned_url", to: "document_storage#presigned_url"
       delete "documents/delete_file", to: "document_storage#delete_file"
       get "documents/folder_contents", to: "document_storage#folder_contents"
       get "documents/sharepoint_sites", to: "document_storage#sharepoint_sites"
@@ -1289,6 +1290,7 @@ Rails.application.routes.draw do
           post :quick_create_contact
           get :suggest_contacts
           get "attachments/:attachment_id/download", action: :download_attachment
+          get "attachments/:attachment_id/presigned_url", action: :attachment_presigned_url
           get :download_eml
         end
       end

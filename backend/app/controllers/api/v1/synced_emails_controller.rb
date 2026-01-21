@@ -975,6 +975,63 @@ class Api::V1::SyncedEmailsController < ApplicationController
     render json: { error: "Download failed: #{e.class} - #{e.message.truncate(100)}" }, status: :internal_server_error
   end
 
+  # GET /api/v1/synced_emails/:id/attachments/:attachment_id/presigned_url
+  # Returns a presigned URL for direct download (no Rails streaming)
+  # SSoT: Same pattern as document_storage_controller#presigned_url
+  # Why: Avoids double transfer (S3 → Rails → Browser), browser fetches directly from S3
+  def attachment_presigned_url
+    attachment_id = params[:attachment_id]
+    filename_param = params[:filename]
+
+    # Try to find local EmailAttachment first
+    email_attachment = @email.email_attachments.find_by(id: attachment_id)
+
+    # Priority 1: Use attachment found by ID if it has storage_blob
+    if email_attachment&.storage_blob.present?
+      url = email_attachment.storage_blob.presigned_url(
+        expires_in: 900,  # 15 minutes
+        filename: email_attachment.filename
+      )
+
+      return render json: {
+        success: true,
+        url: url,
+        filename: email_attachment.filename,
+        content_type: email_attachment.storage_blob.content_type,
+        expires_in: 900
+      }
+    end
+
+    # Priority 2: Search by filename if ID lookup didn't find a blob
+    if @email.email_attachments.any? && filename_param.present?
+      attachment = @email.email_attachments.find { |a| a.filename == filename_param && a.storage_blob.present? }
+      if attachment&.storage_blob.present?
+        url = attachment.storage_blob.presigned_url(
+          expires_in: 900,
+          filename: attachment.filename
+        )
+
+        return render json: {
+          success: true,
+          url: url,
+          filename: attachment.filename,
+          content_type: attachment.storage_blob.content_type,
+          expires_in: 900
+        }
+      end
+    end
+
+    # No local storage - fall back to proxy download (SharePoint/Outlook)
+    render json: {
+      success: false,
+      error: "Attachment not in local storage - use download endpoint",
+      fallback_to_proxy: true
+    }, status: :not_found
+  rescue StandardError => e
+    Rails.logger.error "[SyncedEmail] Presigned URL failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
+    render json: { success: false, error: "Failed to get presigned URL: #{e.message}" }, status: :internal_server_error
+  end
+
   # GET /api/v1/synced_email/:id/download_eml
   # Download the entire email as .eml file (RFC 822 MIME format)
   # Used for attaching emails to response emails in Task Hub

@@ -162,11 +162,12 @@ class JobDocumentAiAnalyzer
   end
 
   def build_document_types_section
-    doc_types = DocumentType.where(scope: %w[job both]).active.order(:folder, :name)
+    # folder is computed from primary EntityTab - group in Ruby after query
+    doc_types = DocumentType.where(scope: %w[job both]).active.includes(entity_tab_document_types: :entity_tab).order(:name)
 
     if doc_types.any?
       lines = []
-      grouped = doc_types.group_by(&:folder)
+      grouped = doc_types.group_by(&:folder).sort_by { |folder, _| folder || "" }.to_h
 
       grouped.each do |folder, types|
         lines << "### #{folder || 'GENERAL'}"

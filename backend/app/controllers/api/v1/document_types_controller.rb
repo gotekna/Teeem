@@ -29,19 +29,21 @@ module Api
 
         # Optionally group by folder
         if params[:grouped] == "true"
-          # PERFORMANCE: Use eager-loaded @document_types instead of ungrouped_by_folder
-          # to prevent N+1 queries when serializing
-          grouped = @document_types.active.order(:folder, :name).group_by(&:folder)
+          # SSoT: folder is computed from primary EntityTab - group in Ruby after query
+          # Include entity_tabs association for folder computation
+          types = @document_types.active.includes(entity_tab_document_types: :entity_tab).order(:name)
+          grouped = types.group_by(&:folder).sort_by { |folder, _| folder || "" }.to_h
           render json: {
             success: true,
-            data: grouped.transform_values { |types|
-              types.map { |t| serialize_document_type(t) }
+            data: grouped.transform_values { |doc_types|
+              doc_types.map { |t| serialize_document_type(t) }
             }
           }
         else
+          # SSoT: folder is computed - sort by name only, frontend can re-sort if needed
           render json: {
             success: true,
-            data: @document_types.order(:folder, :name).map { |t| serialize_document_type(t) },
+            data: @document_types.order(:name).map { |t| serialize_document_type(t) },
             summary: document_type_summary,
             available_tabs: all_available_tabs
           }

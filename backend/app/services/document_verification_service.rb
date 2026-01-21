@@ -784,12 +784,12 @@ class DocumentVerificationService
   end
 
   def build_document_types_section
-    # Get document types from database
-    doc_types = DocumentType.active.order(:folder, :name)
+    # Get document types from database (folder is computed from primary EntityTab)
+    doc_types = DocumentType.active.includes(entity_tab_document_types: :entity_tab).order(:name)
 
     if doc_types.any?
-      # Group by folder for better organization
-      grouped = doc_types.group_by(&:folder)
+      # Group by computed folder for better organization
+      grouped = doc_types.group_by(&:folder).sort_by { |folder, _| folder || "" }.to_h
       lines = []
 
       grouped.each do |folder, types|
