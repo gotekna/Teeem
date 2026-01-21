@@ -58,7 +58,20 @@ export function ContactFinancialTab({
   handleViewInvoiceDetail,
   xeroLinks,
 }: ContactFinancialTabProps) {
-  const hasXeroLinks = xeroLinks.length > 0;
+  // Deduplicate xeroLinks by tenant_id (a contact may have multiple Xero contacts in same tenant)
+  // Show one tab per unique tenant, not one tab per external link
+  const uniqueXeroLinks = useMemo(() => {
+    const seenTenantIds = new Set<string>();
+    return xeroLinks.filter((link) => {
+      if (seenTenantIds.has(link.xero_tenant_id)) {
+        return false;
+      }
+      seenTenantIds.add(link.xero_tenant_id);
+      return true;
+    });
+  }, [xeroLinks]);
+
+  const hasXeroLinks = uniqueXeroLinks.length > 0;
 
   // Parse the activeFinancialSubTab to get connection and sub-tab
   // Format: "connection-{index}" or "connection-{index}-{subtab}"
@@ -122,7 +135,7 @@ export function ContactFinancialTab({
         }}
       >
         <TabsList className="mb-4">
-          {xeroLinks.map((link, index) => (
+          {uniqueXeroLinks.map((link, index) => (
             <TabsTrigger key={link.xero_tenant_id} value={`connection-${index}`}>
               <Building2 className="h-3.5 w-3.5 mr-1" />
               {link.xero_tenant_name}
@@ -131,7 +144,7 @@ export function ContactFinancialTab({
         </TabsList>
 
         {/* Content for each Xero connection */}
-        {xeroLinks.map((link, index) => (
+        {uniqueXeroLinks.map((link, index) => (
           <TabsContent key={link.xero_tenant_id} value={`connection-${index}`}>
             {/* Level 2: Sub-tabs within this connection */}
             <XeroConnectionSubTabs
