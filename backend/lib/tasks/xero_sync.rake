@@ -435,66 +435,59 @@ namespace :xero do
     puts "Total synced (including previous runs): #{already_synced + pdf_count}"
   end
 
-  desc "Fix mislabeled attachments - distinguish main PDFs from attachments by external_id pattern"
-  task fix_attachment_labels: :environment do
+  desc "Fix document types - migrate legacy types to SSoT Xero types"
+  task fix_document_types: :environment do
     puts "=" * 70
-    puts "FIX MISLABELED ATTACHMENTS (SSoT)"
+    puts "FIX XERO DOCUMENT TYPES (SSoT)"
     puts "=" * 70
     puts ""
     puts "SSoT Pattern:"
-    puts "  Main PDF:    external_id ends with ':pdf'"
-    puts "  Attachment:  external_id ends with UUID (not ':pdf')"
+    puts "  Main PDF:    external_id ends with ':pdf' → 'Xero Bill' / 'Xero Invoice'"
+    puts "  Attachment:  external_id ends with UUID   → 'Xero Bill Attachment' / etc."
     puts ""
 
-    # SSoT document types for main invoices
-    main_doc_types = ["Xero Bill", "Xero Invoice", "Xero Credit Note"]
-
-    # Find mislabeled attachments: have main doc type but external_id doesn't end with ':pdf'
-    mislabeled = CorporateCompanyDocument
-      .where(source: "xero")
-      .where(document_type: main_doc_types)
-      .where.not("external_id LIKE ?", "%:pdf")
-
-    total = mislabeled.count
-    puts "Found #{total} mislabeled attachments"
-    puts ""
-
-    if total == 0
-      puts "✓ All documents have correct labels!"
-      exit 0
-    end
-
-    # Show breakdown before fix
-    puts "Before fix:"
-    main_doc_types.each do |doc_type|
-      count = mislabeled.where(document_type: doc_type).count
-      puts "  #{doc_type} → #{doc_type} Attachment: #{count}"
+    # Current state
+    puts "Current document types:"
+    CorporateCompanyDocument.where(source: "xero")
+      .group(:document_type).count.sort_by { |_, v| -v }.first(10).each do |type, count|
+      puts "  #{type}: #{count}"
     end
     puts ""
+
+    # SSoT: Legacy type → New type mapping
+    # "Purchases" was used for bills, "Sales Document" for invoices
+    legacy_to_ssot = {
+      "Purchases" => { main: "Xero Bill", attachment: "Xero Bill Attachment" },
+      "Sales Document" => { main: "Xero Invoice", attachment: "Xero Invoice Attachment" }
+    }
 
     fixed = 0
     errors = []
 
-    mislabeled.find_each do |doc|
-      begin
-        # Map to attachment type
-        new_type = case doc.document_type
-                   when "Xero Bill" then "Xero Bill Attachment"
-                   when "Xero Invoice" then "Xero Invoice Attachment"
-                   when "Xero Credit Note" then "Xero Credit Note Attachment"
-                   else doc.document_type
-                   end
+    legacy_to_ssot.each do |legacy_type, ssot_types|
+      docs = CorporateCompanyDocument.where(source: "xero", document_type: legacy_type)
+      count = docs.count
+      next if count == 0
 
-        doc.update_column(:document_type, new_type)
-        fixed += 1
+      puts "Migrating #{count} '#{legacy_type}' docs..."
 
-        print "." if fixed % 100 == 0
-      rescue StandardError => e
-        errors << "ID #{doc.id}: #{e.message}"
+      docs.find_each do |doc|
+        begin
+          # Determine if main PDF or attachment by external_id pattern
+          is_main_pdf = doc.external_id&.end_with?(":pdf")
+          new_type = is_main_pdf ? ssot_types[:main] : ssot_types[:attachment]
+
+          doc.update_column(:document_type, new_type)
+          fixed += 1
+
+          print "." if fixed % 500 == 0
+        rescue StandardError => e
+          errors << "ID #{doc.id}: #{e.message}"
+        end
       end
+      puts ""
     end
 
-    puts ""
     puts ""
     puts "=" * 70
     puts "COMPLETE!"
