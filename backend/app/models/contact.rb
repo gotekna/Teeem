@@ -539,6 +539,10 @@ class Contact < ApplicationRecord
   # Phase 3: Prevent deletion of Contacts that have linked Users
   before_destroy :prevent_destruction_if_has_user
 
+  # SSoT: Handle Xero links when contact is deactivated
+  # If deactivating a contact with Xero links, try to transfer them to an active duplicate
+  before_update :handle_xero_links_on_deactivation, if: :deactivating?
+
   # SSoT: Legacy phone/email columns removed - data now in contact_phones/contact_emails tables
   # These callbacks are disabled as the columns no longer exist
   # after_save :sync_mobile_to_user, if: -> { saved_change_to_mobile_phone? && user.present? }
@@ -1924,6 +1928,45 @@ class Contact < ApplicationRecord
                       "This contact can login to the system. To remove: either archive the contact, " \
                       "or delete the user account first.")
     throw(:abort)
+  end
+
+  # SSoT: Check if contact is being deactivated (is_active: true → false)
+  def deactivating?
+    is_active_changed? && is_active_was == true && is_active == false
+  end
+
+  # SSoT: Handle Xero links when deactivating a contact
+  # If there's an active contact with the same name, transfer links to it
+  # Otherwise, flag the links for review
+  def handle_xero_links_on_deactivation
+    return if xero_links.empty?
+
+    # Find an active contact with the same display_name
+    active_duplicate = Contact.where(is_active: true)
+      .where.not(id: id)
+      .where("LOWER(display_name) = ?", display_name&.downcase)
+      .first
+
+    if active_duplicate
+      # Transfer all Xero links to the active duplicate
+      xero_links.each do |link|
+        # Check if duplicate already has a link to this Xero tenant
+        existing = active_duplicate.xero_links.find_by(tenant_id: link.tenant_id)
+        if existing
+          # Duplicate already linked to this tenant - mark ours for review
+          link.update_columns(needs_review: true, sync_error: "Deactivated - duplicate link exists on Contact##{active_duplicate.id}")
+          Rails.logger.warn "[Contact#deactivation] Xero link ##{link.id} marked for review - duplicate exists"
+        else
+          # Transfer link to active contact
+          link.update_columns(contact_id: active_duplicate.id)
+          Rails.logger.info "[Contact#deactivation] Transferred Xero link ##{link.id} to Contact##{active_duplicate.id} (#{active_duplicate.display_name})"
+        end
+      end
+    else
+      # No active duplicate - flag all links for review
+      xero_links.update_all(needs_review: true, sync_error: "Contact deactivated - no active duplicate found")
+      Rails.logger.warn "[Contact#deactivation] #{xero_links.count} Xero links flagged for review - no active duplicate for '#{display_name}'"
+    end
   end
 
   # ============================================
