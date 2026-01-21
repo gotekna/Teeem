@@ -104,6 +104,7 @@ import type {
 } from "@/lib/types/entity-tabs";
 import { SCOPE_LABELS, GROUP_LABELS } from "@/lib/types/entity-tabs";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
+import { useAuth } from "@/contexts/AuthContext";
 
 // SSoT: Warehouse Sub-Scope Configuration
 // All warehouse sub-scopes defined once, used for both initialization and rendering
@@ -277,6 +278,9 @@ export function EntityTabsConfig({
     saving: entityTypesSaving,
     updateEntityTypes,
   } = useEntityTypes();
+
+  // Auth context for guarding API calls
+  const { isAuthenticated } = useAuth();
 
   // Fetch used icons for icon picker (SSoT: unique icons per root tab)
   const { usedIcons, refetch: refetchUsedIcons } = useUsedIcons(scope);
@@ -626,8 +630,10 @@ export function EntityTabsConfig({
   // All document types for linking (SSoT)
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; display_name?: string }>>([]);
 
-  // Fetch all document types on mount
+  // Fetch all document types when authenticated
   React.useEffect(() => {
+    if (!isAuthenticated) return;
+
     const fetchDocumentTypes = async () => {
       try {
         const response = await api.get<{ success: boolean; data: any[] }>('/api/v1/document_types');
@@ -643,7 +649,7 @@ export function EntityTabsConfig({
       }
     };
     fetchDocumentTypes();
-  }, []);
+  }, [isAuthenticated]);
 
   // Form state for create/edit
   const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams & { sharepoint_path_type?: 'corporate' | 'contacts'; display_mode?: TabDisplayMode; hidden_by_default?: boolean }>>({});

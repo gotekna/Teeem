@@ -18,6 +18,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
+  SelectSeparator,
 } from "@/components/ui/select";
 import {
   Save,
@@ -1388,26 +1391,34 @@ export default function DocumentTypeDetailPage() {
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {folderHierarchy.filter(p => p.id).flatMap(parent => [
-                        <SelectItem key={parent.id} value={parent.id!.toString()}>
-                          <div className="flex flex-col">
-                            <span className="font-medium">📁 {parent.name}</span>
+                      {folderHierarchy.filter(p => p.id).map((parent, idx) => (
+                        <SelectGroup key={parent.id}>
+                          {idx > 0 && <SelectSeparator />}
+                          <SelectLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
+                            📁 {parent.name}
                             {parent.storage_path && parent.storage_path !== parent.name && (
-                              <span className="text-xs text-muted-foreground">{parent.storage_path}</span>
+                              <span className="ml-1 opacity-60">({parent.storage_path})</span>
                             )}
-                          </div>
-                        </SelectItem>,
-                        ...(parent.children || []).filter((c: any) => c.id).map((child: any) => (
-                          <SelectItem key={child.id} value={child.id.toString()} className="pl-6">
-                            <div className="flex flex-col">
-                              <span>└─ {child.name}</span>
-                              {child.storage_path && child.storage_path !== child.name && (
-                                <span className="text-xs text-muted-foreground ml-4">{child.storage_path}</span>
-                              )}
-                            </div>
+                          </SelectLabel>
+                          {/* Parent folder as selectable root option */}
+                          <SelectItem value={parent.id!.toString()} className="pl-4">
+                            <span className="text-muted-foreground">├─</span>
+                            <span className="ml-1">(root)</span>
                           </SelectItem>
-                        ))
-                      ])}
+                          {/* Children with tree connectors */}
+                          {(parent.children || []).filter((c: any) => c.id).map((child: any, childIdx: number, arr: any[]) => (
+                            <SelectItem key={child.id} value={child.id.toString()} className="pl-4">
+                              <span className="text-muted-foreground">
+                                {childIdx === arr.length - 1 ? '└─' : '├─'}
+                              </span>
+                              <span className="ml-1">{child.name}</span>
+                              {child.storage_path && child.storage_path !== child.name && (
+                                <span className="text-xs text-muted-foreground ml-1">({child.storage_path})</span>
+                              )}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
                     </SelectContent>
                   </Select>
                 );
@@ -1455,35 +1466,40 @@ export default function DocumentTypeDetailPage() {
                         <SelectValue placeholder="+ Add tab..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {folderHierarchy.filter(p => p.id).flatMap(parent => {
-                          const items = [];
-                          // Only show if not already selected
-                          if (parent.id !== primaryId && !secondaryIds.includes(parent.id!)) {
-                            items.push(
-                              <SelectItem key={parent.id} value={parent.id!.toString()}>
-                                <div className="flex flex-col">
-                                  <span className="font-medium">📁 {parent.name}</span>
-                                  {parent.storage_path && parent.storage_path !== parent.name && (
-                                    <span className="text-xs text-muted-foreground">{parent.storage_path}</span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            );
-                          }
-                          // Add children
-                          (parent.children || []).filter((c: any) => c.id && c.id !== primaryId && !secondaryIds.includes(c.id)).forEach((child: any) => {
-                            items.push(
-                              <SelectItem key={child.id} value={child.id.toString()} className="pl-6">
-                                <div className="flex flex-col">
-                                  <span>└─ {child.name}</span>
-                                  {child.storage_path && child.storage_path !== child.name && (
-                                    <span className="text-xs text-muted-foreground ml-4">{child.storage_path}</span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            );
-                          });
-                          return items;
+                        {folderHierarchy.filter(p => p.id).map((parent, idx) => {
+                          // Get available children (not already selected)
+                          const availableChildren = (parent.children || []).filter((c: any) =>
+                            c.id && c.id !== primaryId && !secondaryIds.includes(c.id)
+                          );
+                          const parentAvailable = parent.id !== primaryId && !secondaryIds.includes(parent.id!);
+
+                          // Skip group if nothing available
+                          if (!parentAvailable && availableChildren.length === 0) return null;
+
+                          return (
+                            <SelectGroup key={parent.id}>
+                              {idx > 0 && <SelectSeparator />}
+                              <SelectLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
+                                📁 {parent.name}
+                              </SelectLabel>
+                              {/* Parent folder root option */}
+                              {parentAvailable && (
+                                <SelectItem value={parent.id!.toString()} className="pl-4">
+                                  <span className="text-muted-foreground">├─</span>
+                                  <span className="ml-1">(root)</span>
+                                </SelectItem>
+                              )}
+                              {/* Children with tree connectors */}
+                              {availableChildren.map((child: any, childIdx: number) => (
+                                <SelectItem key={child.id} value={child.id.toString()} className="pl-4">
+                                  <span className="text-muted-foreground">
+                                    {childIdx === availableChildren.length - 1 && !parentAvailable ? '└─' : '├─'}
+                                  </span>
+                                  <span className="ml-1">{child.name}</span>
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          );
                         })}
                       </SelectContent>
                     </Select>

@@ -252,8 +252,9 @@ class Api::V1::SyncedEmailsController < ApplicationController
             from_name: e.from_name,
             from_address: e.from_email,
             received_at: e.received_at,
-            snippet: e.respond_to?(:preview_body) ? e.preview_body(length: 200) : e.snippet,
-            body_preview: e.respond_to?(:preview_body) ? e.preview_body(length: 200) : e.snippet,
+            # Use snippet directly since body_text wasn't loaded (for lightweight response)
+            snippet: e.snippet,
+            body_preview: e.snippet,
             has_attachments: e.has_attachments,
             is_read: user_state&.is_read || false,
             conversation_id: e.conversation_id
