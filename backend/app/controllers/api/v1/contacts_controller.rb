@@ -1389,14 +1389,54 @@ module Api
       def documents
         # Query ContactDocument records (includes Xero invoice/bill PDFs)
         documents = ContactDocument.where(contact_id: @contact.id)
-                                   .includes(:document_type)
+                                   .includes(:document_type, :storage_blob)
                                    .order(created_at: :desc)
 
-        # Group by folder for UI display
-        by_folder = documents.group_by(&:folder)
+        # Generate download URLs in batch
+        storage_service = DocumentStorageService.new
 
-        # Format response
+        # Build lookup map for ExternalInvoice dates (for Xero docs)
+        # ContactDocument.external_id format: "xero:{invoice_id}:pdf" or "xero:{invoice_id}:attachment:{n}"
+        # ExternalInvoice.external_id format: "{invoice_id}" (just the Xero invoice ID)
+        invoice_dates_map = {}
+        xero_docs = documents.select { |d| d.source == "xero" && d.external_id.present? }
+        if xero_docs.any?
+          # Extract actual Xero invoice IDs from ContactDocument external_ids
+          xero_invoice_ids = xero_docs.map do |d|
+            # Parse "xero:{id}:pdf" or "xero:{id}:attachment:1" → extract {id}
+            parts = d.external_id.to_s.split(":")
+            parts.length >= 2 ? parts[1] : nil
+          end.compact.uniq
+
+          # Lookup ExternalInvoice records by their external_id
+          ExternalInvoice.where(external_id: xero_invoice_ids, source: "xero").find_each do |inv|
+            invoice_dates_map[inv.external_id] = {
+              due_date: inv.due_date,
+              fully_paid_date: inv.fully_paid_date,
+              invoice_date: inv.invoice_date
+            }
+          end
+        end
+
+        # Format response with download URLs
         docs_json = documents.map do |doc|
+          # Generate presigned download URL
+          download_url = nil
+          begin
+            result = storage_service.download_url(doc, expires_in: 3600)
+            download_url = result[:url] if result[:success]
+          rescue => e
+            Rails.logger.warn("[ContactsController#documents] Failed to generate URL for doc #{doc.id}: #{e.message}")
+          end
+
+          # Get invoice dates for Xero documents
+          # Parse external_id to extract the actual Xero invoice ID
+          xero_invoice_id = if doc.source == "xero" && doc.external_id.present?
+            parts = doc.external_id.to_s.split(":")
+            parts.length >= 2 ? parts[1] : nil
+          end
+          invoice_dates = xero_invoice_id ? (invoice_dates_map[xero_invoice_id] || {}) : {}
+
           {
             id: doc.id,
             name: doc.file_name,
@@ -1410,7 +1450,11 @@ module Api
             storageProvider: doc.storage_provider,
             documentType: doc.document_type&.name,
             createdAt: doc.created_at&.iso8601,
-            updatedAt: doc.updated_at&.iso8601
+            updatedAt: doc.updated_at&.iso8601,
+            downloadUrl: download_url,
+            invoiceDate: invoice_dates[:invoice_date]&.iso8601,
+            dueDate: invoice_dates[:due_date]&.iso8601,
+            datePaid: invoice_dates[:fully_paid_date]&.iso8601
           }
         end
 
@@ -1418,7 +1462,6 @@ module Api
           success: true,
           exists: documents.any?,
           total: documents.count,
-          folders: by_folder.keys.compact.sort,
           documents: docs_json
         }
       rescue => e
