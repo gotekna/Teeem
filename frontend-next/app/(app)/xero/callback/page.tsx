@@ -99,13 +99,16 @@ export default function XeroCallbackPage() {
         error: null,
       });
 
-      if (isCompanyCallback) {
-        // Company callback - close popup after brief success message
-        // Parent window (XeroConnectionCard) is polling for status
+      // Check if this is a popup window (has opener)
+      const isPopup = window.opener !== null;
+
+      if (isCompanyCallback || isPopup) {
+        // Popup callback - close popup after brief success message
+        // Parent window is polling for status
         setTimeout(() => window.close(), 1500);
       } else {
-        // Redirect back to dashboard instead of settings
-        setTimeout(() => router.push("/dashboard"), 2000);
+        // Full page navigation - redirect back to settings
+        setTimeout(() => router.push("/settings/integrations/xero"), 2000);
       }
     } catch (err) {
       setStatus({

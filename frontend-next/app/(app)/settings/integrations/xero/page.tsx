@@ -193,7 +193,33 @@ export default function XeroIntegrationPage() {
       const response = await api.xero.getAuthUrl();
       const authUrl = response.auth_url || response.url; // Handle both response formats
       if (authUrl) {
-        window.location.href = authUrl;
+        // Open in popup to preserve session (prevents logout issue)
+        const popup = window.open(authUrl, "_blank", "width=600,height=700");
+
+        // Poll for popup close and refresh status
+        const pollInterval = setInterval(async () => {
+          if (popup?.closed) {
+            clearInterval(pollInterval);
+            setConnecting(false);
+
+            // Refresh connection status
+            try {
+              const statusResponse = await api.xero.getStatus();
+              setStatus(statusResponse.data || { connected: false });
+
+              if (statusResponse.data?.connected) {
+                const [tenantsResponse, connectionsResponse] = await Promise.all([
+                  api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
+                  api.get<{ success: boolean; companies: CompanyXeroConnection[] }>("/api/v1/company_xero_connections"),
+                ]);
+                setTenants(tenantsResponse.tenants || []);
+                setCompanyConnections(connectionsResponse.companies || []);
+              }
+            } catch (error) {
+              console.error("Failed to refresh status:", error);
+            }
+          }
+        }, 500);
       } else {
         throw new Error("No authorization URL received from server");
       }
