@@ -33,7 +33,8 @@ class SyncedEmail < ApplicationRecord
 
   # SSoT associations
   has_many :email_recipients, dependent: :destroy
-  has_many :email_attachments, dependent: :destroy
+  # Note: email_attachments uses email_warehouse_id FK (historical naming - email_warehouse was renamed to synced_email)
+  has_many :email_attachments, foreign_key: :email_warehouse_id, dependent: :destroy
   has_many :attachments, through: :email_attachments
 
   # Email Labels (Gmail-style multi-label system)

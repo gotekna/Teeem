@@ -19,6 +19,16 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { BackButton } from "@/components/ui/back-button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Mail,
   Phone,
   Globe,
@@ -50,6 +60,8 @@ import {
   Scale,
   Landmark,
   Clock,
+  Archive,
+  UserX,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { clearCachedRecords } from "@/lib/records-cache";
@@ -250,6 +262,21 @@ export default function ContactDetailPage() {
   const [enrichingFromWeb, setEnrichingFromWeb] = useState(false);
   // SSoT: Xero links for Financial tab (from ContactHeader)
   const [xeroLinks, setXeroLinks] = useState<XeroLink[]>([]);
+
+  // SSoT: Deletion check dialog state (Phase 3 Contact Consolidation)
+  // Pre-flight check before delete to warn about linked users, corporate roles, etc.
+  interface DeletionCheckResult {
+    can_delete: boolean;
+    warnings: Array<{ type: string; message: string; action?: string }>;
+    blockers: Array<{ type: string; message: string; action: string }>;
+    has_user?: boolean;
+    user_email?: string;
+    document_count?: number;
+    corporate_roles_count?: number;
+  }
+  const [deletionCheck, setDeletionCheck] = useState<DeletionCheckResult | null>(null);
+  const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
+  const [deletionLoading, setDeletionLoading] = useState(false);
 
   // SSoT: Filter to only primary Xero account for root Invoices/Bills tabs
   const primaryXeroLink = useMemo(() => {
@@ -759,12 +786,42 @@ export default function ContactDetailPage() {
     }
   };
 
+  // SSoT: Pre-flight check before delete (Phase 3 Contact Consolidation)
+  // Calls deletion_check endpoint to get warnings/blockers before showing delete dialog
   const handleDelete = async () => {
     if (!contact) return;
 
-    if (!(await confirm(`Delete contact "${contact.display_name}"?`))) {
-      return;
+    setDeletionLoading(true);
+    try {
+      // Call deletion_check endpoint first
+      const checkResponse = await api.get<{
+        success: boolean;
+        data: DeletionCheckResult;
+      }>(`/api/v1/contacts/${contact.id}/deletion_check`);
+
+      if (checkResponse?.success && checkResponse.data) {
+        setDeletionCheck(checkResponse.data);
+        setDeletionDialogOpen(true);
+      } else {
+        // Fallback to simple confirm if endpoint fails
+        if (await confirm(`Delete contact "${contact.display_name}"?`)) {
+          await executeDelete();
+        }
+      }
+    } catch (error: any) {
+      console.error("Failed to check deletion:", error);
+      // Fallback to simple confirm
+      if (await confirm(`Delete contact "${contact.display_name}"?`)) {
+        await executeDelete();
+      }
+    } finally {
+      setDeletionLoading(false);
     }
+  };
+
+  // Execute the actual delete
+  const executeDelete = async () => {
+    if (!contact) return;
 
     try {
       const response = await api.delete<{
@@ -777,13 +834,40 @@ export default function ContactDetailPage() {
       // Check if contact was archived instead of deleted
       if (response?.archived) {
         toast({ title: "Contact Archived", description: "The contact was archived (not permanently deleted) to preserve important records." });
+      } else {
+        toast({ title: "Contact Deleted", description: `${contact.display_name} has been permanently deleted.` });
       }
 
+      setDeletionDialogOpen(false);
       router.push('/contacts');
     } catch (error: any) {
       console.error("Failed to delete contact:", error);
-      // Show specific error message from backend if available
       const errorMessage = error?.message || error?.error || "Failed to delete contact. Please try again.";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    }
+  };
+
+  // Archive instead of delete (for contacts with users or important relationships)
+  const handleArchive = async () => {
+    if (!contact) return;
+
+    try {
+      const response = await api.post<{
+        success: boolean;
+        message?: string;
+      }>(`/api/v1/contacts/${contact.id}/archive`);
+
+      if (response?.success) {
+        toast({
+          title: "Contact Archived",
+          description: `${contact.display_name} has been archived. They will no longer appear in lists but their data is preserved.`
+        });
+        setDeletionDialogOpen(false);
+        router.push('/contacts');
+      }
+    } catch (error: any) {
+      console.error("Failed to archive contact:", error);
+      const errorMessage = error?.message || error?.error || "Failed to archive contact. Please try again.";
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   };
@@ -2106,6 +2190,84 @@ export default function ContactDetailPage() {
         onOpenChange={setEditModalOpen}
         onSaved={loadContact}
       />
+
+      {/* Deletion Check Dialog - SSoT: Phase 3 Contact Consolidation */}
+      {/* Shows warnings/blockers before delete, offers archive option for contacts with users */}
+      <AlertDialog open={deletionDialogOpen} onOpenChange={setDeletionDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {deletionCheck?.blockers?.length ? (
+                <>
+                  <UserX className="h-5 w-5 text-destructive" />
+                  Cannot Delete Contact
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  Confirm Deletion
+                </>
+              )}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                {/* Blockers - prevent deletion */}
+                {deletionCheck?.blockers?.map((blocker, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <p className="font-medium text-destructive text-sm">{blocker.message}</p>
+                    {blocker.action && (
+                      <p className="text-xs text-muted-foreground mt-1">{blocker.action}</p>
+                    )}
+                  </div>
+                ))}
+
+                {/* Warnings - allow deletion but with caution */}
+                {deletionCheck?.warnings?.map((warning, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <p className="font-medium text-amber-600 dark:text-amber-400 text-sm">{warning.message}</p>
+                  </div>
+                ))}
+
+                {/* Summary text */}
+                {deletionCheck?.blockers?.length ? (
+                  <p className="text-sm text-muted-foreground">
+                    You can <strong>archive</strong> this contact instead. Archived contacts are hidden from lists but preserve all data and relationships.
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Are you sure you want to permanently delete <strong>{contact?.display_name}</strong>? This action cannot be undone.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {deletionCheck?.blockers?.length ? (
+              // Has blockers - only offer archive
+              <Button onClick={handleArchive} variant="outline" className="gap-2">
+                <Archive className="h-4 w-4" />
+                Archive Instead
+              </Button>
+            ) : (
+              // No blockers - offer both archive and delete
+              <>
+                <Button onClick={handleArchive} variant="outline" className="gap-2">
+                  <Archive className="h-4 w-4" />
+                  Archive
+                </Button>
+                <AlertDialogAction
+                  onClick={executeDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Permanently
+                </AlertDialogAction>
+              </>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

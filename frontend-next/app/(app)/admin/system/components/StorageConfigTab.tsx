@@ -134,24 +134,19 @@ interface StorageConfig {
   region: string | null;
   // Root path and warehouse folders
   root_path: string;
-  // SSoT: warehouse_root_folders is THE ONE place for warehouse type roots (renamed from scope_root_folders)
-  warehouse_root_folders?: ScopeFolders;
-  scope_root_folders: ScopeFolders;  // Legacy backwards compat alias
-  // All warehouse folders (warehouse roots + tab paths for backward compat)
-  warehouse_folders?: ScopeFolders;
-  scope_folders: ScopeFolders;  // Legacy backwards compat alias
+  // SSoT: warehouse_root_folders is THE ONE place for warehouse type roots
+  warehouse_root_folders: ScopeFolders;
+  // All warehouse folders (warehouse roots + tab paths)
+  warehouse_folders: ScopeFolders;
   // SSoT: Templates for folder paths and filenames per warehouse type
-  warehouse_folder_templates?: Record<string, string>;
-  scope_templates: Record<string, string>;  // Legacy backwards compat alias
+  warehouse_folder_templates: Record<string, string>;
   file_name_templates: Record<string, string>;
   // SSoT: Config links for warehouse folders (URL to external config page)
   config_links: Record<string, string>;
   // Phase 4: Virtual warehouses (render from DB instead of S3)
-  virtual_warehouses?: Record<string, boolean>;
-  virtual_scopes: Record<string, boolean>;  // Legacy backwards compat alias
-  // SM task exclusion setting (replaces scope_options.task.exclude_sm_linked)
-  exclude_sm_tasks?: boolean;
-  scope_options: Record<string, Record<string, boolean>>;  // Legacy backwards compat alias
+  virtual_warehouses: Record<string, boolean>;
+  // SM task exclusion setting
+  exclude_sm_tasks: boolean;
 }
 
 // Tree node structure for folder hierarchy
@@ -1293,7 +1288,7 @@ export function StorageConfigTab() {
   // Build folder tree from warehouse_folders, attaching tabs to scope nodes
   // SSoT: Use config from API (not formData which may have stale initial state)
   const folderTree = React.useMemo(() => {
-    const scopeFolders = config?.warehouse_folders || config?.scope_folders || {};
+    const scopeFolders = config?.warehouse_folders || {};
     const tree = buildFolderTree(scopeFolders);
 
     // Attach tabs to scope nodes
@@ -1314,7 +1309,7 @@ export function StorageConfigTab() {
 
     attachTabs(tree);
     return tree;
-  }, [config?.warehouse_folders, config?.scope_folders, entityTabs]);
+  }, [config?.warehouse_folders, entityTabs]);
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
@@ -1527,18 +1522,18 @@ export function StorageConfigTab() {
           // Root path
           root_path: response.data.root_path || "",
           // SSoT: warehouse_root_folders contains full patterns like Jobs/{{JobCode}}
-          warehouse_root_folders: response.data.warehouse_root_folders || response.data.scope_root_folders || {},
-          // SSoT: Warehouse folders from StorageConfiguration (new naming with legacy fallback)
-          warehouse_folders: response.data.warehouse_folders || response.data.scope_folders || {},
+          warehouse_root_folders: response.data.warehouse_root_folders || {},
+          // SSoT: Warehouse folders from StorageConfiguration
+          warehouse_folders: response.data.warehouse_folders || {},
           // SSoT: Templates from StorageConfiguration
-          warehouse_folder_templates: response.data.warehouse_folder_templates || response.data.scope_templates || {},
+          warehouse_folder_templates: response.data.warehouse_folder_templates || {},
           file_name_templates: response.data.file_name_templates || {},
           // SSoT: Config links from StorageConfiguration
           config_links: response.data.config_links || {},
           // Phase 4: Virtual warehouses from StorageConfiguration
-          virtual_warehouses: response.data.virtual_warehouses || response.data.virtual_scopes || {},
+          virtual_warehouses: response.data.virtual_warehouses || {},
           // SM task exclusion setting
-          exclude_sm_tasks: response.data.exclude_sm_tasks ?? response.data.scope_options?.task?.exclude_sm_linked ?? false,
+          exclude_sm_tasks: response.data.exclude_sm_tasks ?? false,
         });
       }
     } catch (error) {
@@ -1564,7 +1559,7 @@ export function StorageConfigTab() {
             provider_type: formData.provider_type,
             root_path: formData.root_path,
             // SSoT: warehouse_root_folders is THE ONE place for warehouse type roots
-            warehouse_root_folders: config?.warehouse_root_folders || config?.scope_root_folders,
+            warehouse_root_folders: config?.warehouse_root_folders,
             warehouse_folder_templates: formData.warehouse_folder_templates,
             file_name_templates: formData.file_name_templates,
             config_links: formData.config_links,
@@ -1985,7 +1980,7 @@ export function StorageConfigTab() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {Object.entries(config?.warehouse_root_folders || config?.scope_root_folders || {}).map(([scope, folder]) => {
+            {Object.entries(config?.warehouse_root_folders || {}).map(([scope, folder]) => {
               // Root folders are STATIC (e.g., "Jobs", "Contacts") - no dynamic tokens
               // Dynamic parts belong in TEMPLATES (e.g., "{{JobCode}}/{{TabName}}")
               return (
@@ -2003,8 +1998,8 @@ export function StorageConfigTab() {
                     <Input
                       value={folder}
                       onChange={(e) => {
-                        const newRoots = { ...(config?.warehouse_root_folders || config?.scope_root_folders || {}), [scope]: e.target.value };
-                        setConfig(prev => prev ? { ...prev, warehouse_root_folders: newRoots, scope_root_folders: newRoots } : prev);
+                        const newRoots = { ...(config?.warehouse_root_folders || {}), [scope]: e.target.value };
+                        setConfig(prev => prev ? { ...prev, warehouse_root_folders: newRoots } : prev);
                       }}
                       className="font-mono h-8"
                       placeholder={getScopeLabel(scope)}
@@ -2013,7 +2008,7 @@ export function StorageConfigTab() {
                       <div className="flex items-center gap-2 pt-1">
                         <Checkbox
                           id="exclude-sm-linked"
-                          checked={config?.exclude_sm_tasks ?? config?.scope_options?.task?.exclude_sm_linked ?? false}
+                          checked={config?.exclude_sm_tasks ?? false}
                           onCheckedChange={(checked) => {
                             setConfig(prev => prev ? { ...prev, exclude_sm_tasks: !!checked } : prev);
                             setFormData(prev => ({ ...prev, exclude_sm_tasks: !!checked }));

@@ -8,7 +8,10 @@
 # Storage is provider-agnostic (Wasabi, S3, SharePoint, Azure) via StorageConfiguration
 #
 class EmailAttachment < ApplicationRecord
-  belongs_to :email_warehouse
+  # Note: FK is email_warehouse_id (historical naming - email_warehouse was renamed to synced_email)
+  belongs_to :synced_email, foreign_key: :email_warehouse_id
+  # Alias for backwards compatibility
+  alias_method :email_warehouse, :synced_email
   belongs_to :storage_blob, optional: true  # SSoT: Deduplicated file storage
   belongs_to :attachment, optional: true  # Legacy: Link to Attachment model (deprecated)
 

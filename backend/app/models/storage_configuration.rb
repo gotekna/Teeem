@@ -690,11 +690,8 @@ class StorageConfiguration < ApplicationRecord
       # SM task exclusion setting
       exclude_sm_tasks: exclude_sm_tasks,
 
-      # Legacy aliases for backward compatibility
-      scope_root_folders: effective_warehouse_root_folders,
-      scope_folders: effective_warehouse_folders,
-      virtual_scopes: effective_virtual_warehouses,
-      scope_options: { "task" => { "exclude_sm_linked" => exclude_sm_tasks } }
+      # SSoT: Legacy aliases REMOVED (Jan 2026 cleanup)
+      # Use warehouse_root_folders, warehouse_folders, virtual_warehouses, exclude_sm_tasks
     }
   end
 end
