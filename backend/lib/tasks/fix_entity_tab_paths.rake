@@ -7,13 +7,13 @@ namespace :entity_tabs do
     updated = 0
     errors = []
 
-    # 1. User-specific tabs - should use {{UserName}}
-    user_tabs = {
-      369 => "{{UserName}}/My Documents",      # My Documents
-      366 => "{{UserName}}",                    # Users root
-      367 => "{{UserName}}/Photos",             # User Photos
-      368 => "{{UserName}}/Contracts",          # User Contracts
+    # 1. Contact-specific tabs
+    contact_tabs_paths = {
+      369 => "My Documents",  # My Documents - relative to Contacts/{{ContactName}}/
     }
+
+    # User tabs are OBSOLETE - now use Contacts instead
+    # Tabs 366, 367, 368 should already be disabled
 
     # 2. Email tabs - relative paths under Email scope
     email_tabs = {
@@ -59,7 +59,7 @@ namespace :entity_tabs do
       299 => "{{XeroConnectionName}}/{{ContactName}}/Bills"
     }
 
-    all_updates = user_tabs
+    all_updates = contact_tabs_paths
       .merge(email_tabs)
       .merge(task_tabs)
       .merge(document_tabs)
@@ -84,7 +84,18 @@ namespace :entity_tabs do
     end
 
     puts ""
-    puts "=== Fixing Email Attachments warehouse_type ==="
+    puts "=== Fixing warehouse_type assignments ==="
+
+    # My Documents should be under contact scope (not warehouse)
+    tab_369 = EntityTab.find_by(id: 369)
+    if tab_369 && tab_369.warehouse_type != "contact"
+      old_type = tab_369.warehouse_type
+      tab_369.update_columns(warehouse_type: "contact")
+      puts "  ✓ Tab 369 (My Documents): warehouse_type '#{old_type}' → 'contact'"
+      updated += 1
+    elsif tab_369
+      puts "  - Tab 369 (My Documents): warehouse_type already 'contact'"
+    end
 
     # Ensure Email Attachments is under email scope
     tab_383 = EntityTab.find_by(id: 383)
