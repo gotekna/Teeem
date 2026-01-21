@@ -2106,14 +2106,16 @@ export function StorageConfigTab() {
                     <Label className="text-sm font-medium">{getScopeLabel(scope)}</Label>
                   </div>
                   <div className="flex-1 space-y-1.5">
-                    <Input
+                    <TokenBuilder
                       value={folder}
-                      onChange={(e) => {
-                        const newRoots = { ...(config?.warehouse_root_folders || {}), [scope]: e.target.value };
+                      onChange={(newValue) => {
+                        const newRoots = { ...(config?.warehouse_root_folders || {}), [scope]: newValue };
                         setConfig(prev => prev ? { ...prev, warehouse_root_folders: newRoots } : prev);
                       }}
-                      className="font-mono h-8"
-                      placeholder={getScopeLabel(scope)}
+                      scope="storage"
+                      separator="/"
+                      showPreview={true}
+                      placeholder={`Click to add tokens for ${getScopeLabel(scope)} paths...`}
                     />
                     {scope === 'task' && (
                       <div className="flex items-center gap-2 pt-1">
