@@ -453,8 +453,7 @@ module Api
       end
 
       # GET /api/v1/external_invoices/:id/pdf
-      # Returns PDF from SharePoint via sharepoint_file_id (SSoT)
-      # No fallback - fail fast if SharePoint doesn't work
+      # Returns PDF from storage (SharePoint/S3) via storage_reference
       def pdf
         invoice = ExternalInvoice.find(params[:id])
 
@@ -462,7 +461,8 @@ module Api
         existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
 
         if existing_pdf&.storage_reference.present?
-          content = fetch_from_sharepoint(existing_pdf.storage_reference)
+          # Use fetch_from_storage which handles paths correctly for any provider
+          content = fetch_from_storage(existing_pdf)
           if content
             send_data content,
                       filename: existing_pdf.file_name || "invoice.pdf",
@@ -470,8 +470,8 @@ module Api
                       disposition: "inline"
             return
           end
-          # SharePoint fetch failed - return error, don't fallback
-          render json: { success: false, error: "SharePoint fetch failed for document #{existing_pdf.id}" }, status: :service_unavailable
+          # Storage fetch failed - return error
+          render json: { success: false, error: "Storage fetch failed for document #{existing_pdf.id}" }, status: :service_unavailable
           return
         end
 
@@ -480,7 +480,7 @@ module Api
         result = service.sync!
 
         if result[:pdf]&.storage_reference.present?
-          content = fetch_from_sharepoint(result[:pdf].storage_reference)
+          content = fetch_from_storage(result[:pdf])
           if content
             send_data content,
                       filename: result[:pdf].file_name || "invoice.pdf",
@@ -488,12 +488,12 @@ module Api
                       disposition: "inline"
             return
           end
-          render json: { success: false, error: "SharePoint fetch failed after Xero sync" }, status: :service_unavailable
+          render json: { success: false, error: "Storage fetch failed after Xero sync" }, status: :service_unavailable
           return
         end
 
-        # Xero sync failed or no sharepoint_file_id
-        error_msg = result[:errors].first || "PDF not available - no sharepoint_file_id"
+        # Xero sync failed or no storage_reference
+        error_msg = result[:errors].first || "PDF not available"
         render json: { success: false, error: error_msg }, status: :not_found
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Invoice not found" }, status: :not_found
