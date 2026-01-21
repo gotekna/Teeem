@@ -435,6 +435,89 @@ namespace :xero do
     puts "Total synced (including previous runs): #{already_synced + pdf_count}"
   end
 
+  desc "Fix mislabeled attachments - distinguish main PDFs from attachments by external_id pattern"
+  task fix_attachment_labels: :environment do
+    puts "=" * 70
+    puts "FIX MISLABELED ATTACHMENTS (SSoT)"
+    puts "=" * 70
+    puts ""
+    puts "SSoT Pattern:"
+    puts "  Main PDF:    external_id ends with ':pdf'"
+    puts "  Attachment:  external_id ends with UUID (not ':pdf')"
+    puts ""
+
+    # SSoT document types for main invoices
+    main_doc_types = ["Xero Bill", "Xero Invoice", "Xero Credit Note"]
+
+    # Find mislabeled attachments: have main doc type but external_id doesn't end with ':pdf'
+    mislabeled = CorporateCompanyDocument
+      .where(source: "xero")
+      .where(document_type: main_doc_types)
+      .where.not("external_id LIKE ?", "%:pdf")
+
+    total = mislabeled.count
+    puts "Found #{total} mislabeled attachments"
+    puts ""
+
+    if total == 0
+      puts "✓ All documents have correct labels!"
+      exit 0
+    end
+
+    # Show breakdown before fix
+    puts "Before fix:"
+    main_doc_types.each do |doc_type|
+      count = mislabeled.where(document_type: doc_type).count
+      puts "  #{doc_type} → #{doc_type} Attachment: #{count}"
+    end
+    puts ""
+
+    fixed = 0
+    errors = []
+
+    mislabeled.find_each do |doc|
+      begin
+        # Map to attachment type
+        new_type = case doc.document_type
+                   when "Xero Bill" then "Xero Bill Attachment"
+                   when "Xero Invoice" then "Xero Invoice Attachment"
+                   when "Xero Credit Note" then "Xero Credit Note Attachment"
+                   else doc.document_type
+                   end
+
+        doc.update_column(:document_type, new_type)
+        fixed += 1
+
+        print "." if fixed % 100 == 0
+      rescue StandardError => e
+        errors << "ID #{doc.id}: #{e.message}"
+      end
+    end
+
+    puts ""
+    puts ""
+    puts "=" * 70
+    puts "COMPLETE!"
+    puts "=" * 70
+    puts "  Fixed: #{fixed}"
+    puts "  Errors: #{errors.count}"
+    puts ""
+
+    if errors.any?
+      puts "Errors:"
+      errors.first(10).each { |e| puts "  - #{e}" }
+    end
+
+    # Show counts after fix
+    puts ""
+    puts "After fix:"
+    ["Xero Bill", "Xero Invoice", "Xero Credit Note"].each do |doc_type|
+      main_count = CorporateCompanyDocument.where(source: "xero", document_type: doc_type).count
+      attachment_count = CorporateCompanyDocument.where(source: "xero", document_type: "#{doc_type} Attachment").count
+      puts "  #{doc_type}: #{main_count} main, #{attachment_count} attachments"
+    end
+  end
+
   desc "Backfill upload: Upload downloaded PDFs that are missing from SharePoint"
   task backfill_sharepoint_uploads: :environment do
     dry_run = ENV["DRY_RUN"] == "true"

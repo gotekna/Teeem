@@ -332,6 +332,7 @@ class XeroAttachmentSyncService
     # Maps to CorporateCompanyDocument with scope: corporate_entity
     case external_invoice.invoice_type
     when "bill" then "Xero Bill Attachment"
+    when "credit_note" then "Xero Credit Note Attachment"
     else "Xero Invoice Attachment"
     end
   end
