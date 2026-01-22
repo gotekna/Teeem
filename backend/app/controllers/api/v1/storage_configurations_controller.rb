@@ -270,35 +270,6 @@ module Api
         end
       end
 
-      def enqueue_folder_reorganization_jobs(old_templates, new_templates)
-        return unless old_templates.is_a?(Hash) && new_templates.is_a?(Hash)
-
-        changed_scopes = []
-
-        new_templates.each do |scope, new_template|
-          old_template = old_templates[scope.to_s]
-          next if old_template == new_template
-          next if old_template.blank?
-
-          changed_scopes << {
-            scope: scope.to_s,
-            old_template: old_template,
-            new_template: new_template
-          }
-        end
-
-        changed_scopes.each do |change|
-          Rails.logger.info "[FolderReorg] Template changed for scope '#{change[:scope]}': '#{change[:old_template]}' -> '#{change[:new_template]}'"
-
-          FolderTemplateReorganizationJob.perform_later(
-            scope: change[:scope],
-            old_template: change[:old_template],
-            new_template: change[:new_template]
-          )
-        end
-
-        Rails.logger.info "[FolderReorg] Enqueued #{changed_scopes.count} reorganization jobs" if changed_scopes.any?
-      end
     end
   end
 end

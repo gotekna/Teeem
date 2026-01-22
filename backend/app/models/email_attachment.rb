@@ -28,6 +28,9 @@ class EmailAttachment < ApplicationRecord
   scope :synced_to_sharepoint, -> { where.not(sharepoint_path: nil) }
   scope :pending_sync, -> { where(sharepoint_path: nil, storage_blob_id: nil) }
 
+  # Callbacks
+  after_create :create_warehouse_entry
+
   # SSoT: Store content with deduplication via StorageBlob
   # Same file = same blob, just increment reference count
   #
@@ -114,5 +117,27 @@ class EmailAttachment < ApplicationRecord
     month = format("%02d", received.month)
 
     "Emails/#{mailbox}/Attachments/#{year}/#{month}"
+  end
+
+  private
+
+  # Create WarehouseDocument entry for File Warehouse
+  def create_warehouse_entry
+    return unless storage_blob
+
+    create_warehouse_document!(
+      source_type: "email_attachment",
+      folder: virtual_folder_path,
+      display_name: filename || "Attachment",
+      original_filename: filename,
+      storage_blob: storage_blob,
+      metadata: {
+        email_attachment_id: id,
+        synced_email_id: email_warehouse_id,
+        content_hash: content_hash
+      }
+    )
+  rescue StandardError => e
+    Rails.logger.error("[EmailAttachment] Failed to create warehouse entry for #{id}: #{e.message}")
   end
 end

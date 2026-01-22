@@ -490,44 +490,6 @@ module Api
           :logo_dark
         )
       end
-
-      # SSoT: Automatically enqueue file reorganization jobs when folder templates change
-      # This is the automatic file reorganization that syncs storage with Entity Config
-      def enqueue_folder_reorganization_jobs(old_templates, new_templates)
-        return unless old_templates.is_a?(Hash) && new_templates.is_a?(Hash)
-
-        changed_scopes = []
-
-        # Find scopes where template changed
-        new_templates.each do |scope, new_template|
-          old_template = old_templates[scope.to_s]
-
-          # Skip if template is unchanged
-          next if old_template == new_template
-
-          # Skip if this is a new template (no old one to compare)
-          next if old_template.blank?
-
-          changed_scopes << {
-            scope: scope.to_s,
-            old_template: old_template,
-            new_template: new_template
-          }
-        end
-
-        # Enqueue jobs for each changed scope
-        changed_scopes.each do |change|
-          Rails.logger.info "[FolderReorg] Template changed for scope '#{change[:scope]}': '#{change[:old_template]}' -> '#{change[:new_template]}'"
-
-          FolderTemplateReorganizationJob.perform_later(
-            scope: change[:scope],
-            old_template: change[:old_template],
-            new_template: change[:new_template]
-          )
-        end
-
-        Rails.logger.info "[FolderReorg] Enqueued #{changed_scopes.count} reorganization jobs" if changed_scopes.any?
-      end
     end
   end
 end

@@ -71,8 +71,9 @@ class EntityTab < ApplicationRecord
   # SSoT: Auto-sync tab_key from display_name (display_name is the source of truth)
   before_validation :sync_tab_key_from_display_name
 
-  # SSoT: When display_name changes, sync SharePoint folder and job_documents
-  after_update :enqueue_folder_rename_if_needed
+  # SSoT: When display_name changes, update virtual folder paths in database
+  # Phase 3 Blob Architecture: No physical file movement, just DB updates (instant)
+  after_update :rename_folders_in_database_if_needed
 
   # Set document types by IDs
   # SSoT: EntityTab can only add/remove SECONDARY links (is_primary: false)
@@ -1061,21 +1062,23 @@ class EntityTab < ApplicationRecord
       .gsub(/^-|-$/, '')         # Remove leading/trailing hyphens
   end
 
-  # SSoT: When display_name changes, enqueue job to sync storage folders and job_documents
-  # This ensures physical folders and database records match the tab configuration
-  # Works for ALL warehouse_types: job, corporate_entity, people, contact (unified folder rename system)
-  def enqueue_folder_rename_if_needed
+  # SSoT: When display_name changes, update virtual folder paths in database
+  # Phase 3 Blob Architecture: Files are stored at content-hash paths (Blobs/{hash}/...)
+  # and NEVER physically move. "Folder" is just a virtual path in WarehouseDocument.folder.
+  # This is now a synchronous call since it's just DB updates (instant).
+  def rename_folders_in_database_if_needed
     return unless warehouse_enabled
     return unless saved_change_to_display_name?
 
     old_name, new_name = saved_change_to_display_name
     return if old_name.blank? || new_name.blank? || old_name == new_name
 
-    EntityTabFolderRenameJob.perform_later(
-      entity_tab_id: id,
+    # Synchronous call - it's just DB updates, fast enough to run inline
+    EntityTabFolderRenameService.new(
+      entity_tab: self,
       old_display_name: old_name,
       new_display_name: new_name
-    )
+    ).execute
   end
 
   # SSoT: Root tabs must have unique icons within the same warehouse_type

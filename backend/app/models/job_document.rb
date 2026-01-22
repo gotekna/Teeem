@@ -356,7 +356,8 @@ class JobDocument < ApplicationRecord
     self.mime_type = content_type || blob.content_type
   end
 
-  # Phase 4: Virtual folder path for File Warehouse (PUBLIC - used by FolderTemplateReorganizationService)
+  # Phase 4: Virtual folder path for File Warehouse
+  # DEPRECATED: folder_path is legacy - use WarehouseDocument.folder instead (Phase 3 SSoT)
   # SSoT: Reads template from StorageConfiguration.virtual_template_for(:job)
   # No fallback - if template is nil, that's a config error that should be fixed
   def virtual_folder_path

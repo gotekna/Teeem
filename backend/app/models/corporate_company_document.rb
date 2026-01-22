@@ -202,6 +202,7 @@ class CorporateCompanyDocument < ApplicationRecord
 
   # Callbacks
   after_create :create_activity
+  after_create :create_warehouse_entry
   before_validation :set_focus
   before_save :extract_financial_years_from_file_name  # SSoT: file_name is THE filename
   before_save :generate_display_name                    # SSoT: display_name is THE display
@@ -312,7 +313,8 @@ class CorporateCompanyDocument < ApplicationRecord
     end
   end
 
-  # Phase 4: Virtual folder path for File Warehouse (PUBLIC - used by FolderTemplateReorganizationService)
+  # Phase 4: Virtual folder path for File Warehouse
+  # DEPRECATED: folder is legacy - use WarehouseDocument.folder instead (Phase 3 SSoT)
   # SSoT: Reads template from StorageConfiguration.virtual_template_for(:corporate)
   # No fallback - if template is nil, that's a config error that should be fixed
   def virtual_folder_path
@@ -498,5 +500,27 @@ class CorporateCompanyDocument < ApplicationRecord
     end
     Rails.logger.info "[CorporateCompanyDocument] Updated #{count} documents with display names"
     count
+  end
+
+  # Create WarehouseDocument entry for File Warehouse
+  def create_warehouse_entry
+    return unless storage_blob
+
+    create_warehouse_document!(
+      source_type: "corporate",
+      folder: virtual_folder_path,
+      display_name: display_name || file_name,
+      original_filename: file_name,
+      storage_blob: storage_blob,
+      metadata: {
+        corporate_company_document_id: id,
+        company_id: company_id,
+        document_type: document_type,
+        document_type_id: document_type_id,
+        folder: folder
+      }
+    )
+  rescue StandardError => e
+    Rails.logger.error("[CorporateCompanyDocument] Failed to create warehouse entry for #{id}: #{e.message}")
   end
 end
