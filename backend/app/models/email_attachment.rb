@@ -106,18 +106,14 @@ class EmailAttachment < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # Attachments go under Emails/{{Mailbox}}/Attachments/{{Year}}/{{Month}}
-  # Uses parent email's mailbox for folder organization
+  # Attachments appear in SAME folder as their parent email
+  # This keeps emails and their attachments together for easy browsing
   def virtual_folder_path
     email = synced_email
-    return "Emails/Unknown/Attachments" unless email
+    return "Emails/Unknown" unless email
 
-    mailbox = email.email_mailbox&.email_address || email.mailbox_owner_email || "Unknown"
-    received = email.received_at || Time.current
-    year = received.year.to_s
-    month = format("%02d", received.month)
-
-    "Emails/#{mailbox}/Attachments/#{year}/#{month}"
+    # SSoT: Use parent email's folder path - attachments appear alongside .eml files
+    email.virtual_folder_path
   end
 
   private

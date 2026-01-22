@@ -1094,6 +1094,24 @@ export default function AllDocumentsPage() {
     }
   }, []);
 
+  // Toggle a folder scope
+  const handleToggleFolderScope = useCallback(async (scopeKey: string, enabled: boolean) => {
+    // Optimistic update
+    setFolderScopes((prev) =>
+      prev.map((scope) => (scope.key === scopeKey ? { ...scope, enabled } : scope))
+    );
+
+    try {
+      await api.put(`/api/v1/sync/folder_scopes/${scopeKey}`, { enabled });
+    } catch (error) {
+      console.error("Failed to update folder scope:", error);
+      // Revert on error
+      setFolderScopes((prev) =>
+        prev.map((scope) => (scope.key === scopeKey ? { ...scope, enabled: !enabled } : scope))
+      );
+    }
+  }, []);
+
   // Download specific platform
   const handleDownloadPlatform = useCallback((platform: "mac" | "windows") => {
     // TODO: Replace with actual download URLs when hosted
@@ -2244,39 +2262,76 @@ export default function AllDocumentsPage() {
 
               {/* Synced Folders Tab */}
               <TabsContent value="folders" className="space-y-4 mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Folders currently being synced to your desktop.
-                </p>
+                <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <Folder className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-medium text-blue-900 dark:text-blue-100">Office 365 Folders</p>
+                    <p className="text-blue-700 dark:text-blue-300">
+                      Enable the folder scopes you want to sync from SharePoint/OneDrive.
+                    </p>
+                  </div>
+                </div>
 
-                {subscriptions.length > 0 ? (
+                {/* Folder Scopes */}
+                {folderScopes.length > 0 ? (
                   <div className="space-y-2">
-                    {subscriptions.map((sub) => (
-                      <div
-                        key={sub.id}
-                        className="flex items-center justify-between py-3 px-3 bg-muted/50 rounded-lg"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Folder className="h-4 w-4 text-blue-500 dark:text-blue-400" />
-                          <div>
-                            <p className="text-sm font-medium">{sub.folderName}</p>
-                            <p className="text-xs text-muted-foreground capitalize">
-                              {sub.folderType.replace("_", " ")}
-                            </p>
+                    {folderScopes.map((scope) => {
+                      const IconComponent = scope.icon === "briefcase" ? Briefcase
+                        : scope.icon === "building" ? Building2
+                        : scope.icon === "users" ? Users
+                        : scope.icon === "mail" ? Mail
+                        : scope.icon === "clipboard" ? ClipboardList
+                        : scope.icon === "warehouse" ? Warehouse
+                        : Folder;
+
+                      return (
+                        <div
+                          key={scope.key}
+                          className={cn(
+                            "flex items-center justify-between py-3 px-4 rounded-lg border transition-colors",
+                            scope.enabled
+                              ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
+                              : "bg-muted/50 border-transparent"
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "h-8 w-8 rounded-lg flex items-center justify-center",
+                              scope.enabled
+                                ? "bg-green-100 dark:bg-green-900"
+                                : "bg-muted"
+                            )}>
+                              <IconComponent className={cn(
+                                "h-4 w-4",
+                                scope.enabled
+                                  ? "text-green-600 dark:text-green-400"
+                                  : "text-muted-foreground"
+                              )} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{scope.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {scope.description}
+                              </p>
+                              {scope.folderPath && (
+                                <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                                  /{scope.folderPath.split("/")[0]}
+                                </p>
+                              )}
+                            </div>
                           </div>
+                          <Switch
+                            checked={scope.enabled}
+                            onCheckedChange={(checked) => handleToggleFolderScope(scope.key, checked)}
+                          />
                         </div>
-                        {sub.lastSyncAt && (
-                          <span className="text-xs text-muted-foreground">
-                            Last sync: {new Date(sub.lastSyncAt).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Folder className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No folders synced yet.</p>
-                    <p className="text-sm mt-1">Use the desktop app to select folders to sync.</p>
+                    <p>Download TEEEM Sync to configure folders.</p>
                     <Button
                       variant="outline"
                       className="mt-4"
