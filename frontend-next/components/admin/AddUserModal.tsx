@@ -289,19 +289,25 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
               <ComboboxDropdown
                 placeholder="Search contacts by name or email..."
                 searchPlaceholder="Type to search..."
-                value={formData.contact_id?.toString() || ""}
-                onValueChange={(value) => {
-                  const contact = contactOptions.find(c => c.id.toString() === value);
+                items={contactOptions.map(c => ({
+                  id: c.id.toString(),
+                  label: c.display_name || `Contact #${c.id}`,
+                  searchText: c.email,
+                }))}
+                selectedItem={formData.contact_id ? {
+                  id: formData.contact_id.toString(),
+                  label: formData.name,
+                } : undefined}
+                onSelect={(item) => {
+                  const contact = contactOptions.find(c => c.id.toString() === item.id);
                   handleContactSelect(contact || null);
                 }}
-                options={contactOptions.map(c => ({
-                  value: c.id.toString(),
-                  label: c.display_name,
-                  description: c.email,
-                }))}
-                onSearchChange={setContactSearch}
-                loading={searchingContacts}
-                emptyMessage={contactSearch.length < 2 ? "Type at least 2 characters..." : "No contacts found"}
+                onInputChange={setContactSearch}
+                isLoading={searchingContacts}
+                disableInternalFilter={true}
+                emptyResults={contactSearch.length < 2 ? "Type at least 2 characters..." : "No contacts found"}
+                clearable
+                onClear={() => handleContactSelect(null)}
               />
               {formData.contact_id && (
                 <p className="text-sm text-muted-foreground">
