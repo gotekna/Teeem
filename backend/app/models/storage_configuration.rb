@@ -54,6 +54,9 @@ class StorageConfiguration < ApplicationRecord
     asset asset_expenses asset_service asset_readings
     financial financial_transactions
     compliance payment payment_invoices payment_proof
+    bank_statement template
+    esignature esignature_pending esignature_completed
+    plan
     xero user
   ].freeze
 
@@ -183,6 +186,20 @@ class StorageConfiguration < ApplicationRecord
     'payment' => 'Payments/{{Year}}/{{Month}}',
     'payment_invoices' => 'Payments/{{Year}}/{{Month}}/Invoices',
     'payment_proof' => 'Payments/{{Year}}/{{Month}}/Proof',
+    # Bank statement documents (Jan 2026)
+    # For: bank_statement_report (ATO compliance PDFs)
+    'bank_statement' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/XERO/Bank',
+    # Document templates (Jan 2026)
+    # For: document_template (HTML templates, PDF overlays)
+    'template' => 'Templates/{{TemplateType}}',
+    # E-signature documents (Jan 2026)
+    # For: e_signature_request (DocuSign envelopes)
+    'esignature' => 'ESignatures/{{Year}}/{{Month}}',
+    'esignature_pending' => 'ESignatures/Pending',
+    'esignature_completed' => 'ESignatures/Completed',
+    # Construction plans (Jan 2026)
+    # For: job_plan_revision, plan_folder_scan
+    'plan' => 'Jobs/{{JobCode}}/Plans',
     # Email documents
     # SSoT: email_attachments uses SAME path as email (appear together in File Warehouse)
     'email' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',

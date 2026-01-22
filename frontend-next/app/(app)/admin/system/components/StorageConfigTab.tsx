@@ -137,6 +137,10 @@ const SCOPE_TO_API_SCOPE: Record<string, string> = {
   financial: 'financial',
   compliance: 'compliance',
   payment: 'payment',
+  bank_statement: 'bank_statement',
+  template: 'template',
+  esignature: 'esignature',
+  plan: 'plan',
 };
 
 interface StorageConfig {
@@ -222,7 +226,8 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   // SSoT: 'financial' added for Financial transaction receipts (Jan 2026)
   // SSoT: 'compliance' added for job compliance docs (Jan 2026)
   // SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
-  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user', 'case', 'asset', 'financial', 'compliance', 'payment'];
+  // SSoT: 'bank_statement', 'template', 'esignature', 'plan' added (Jan 2026)
+  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user', 'case', 'asset', 'financial', 'compliance', 'payment', 'bank_statement', 'template', 'esignature', 'plan'];
 
   filteredEntries.forEach(([key, path]) => {
     if (!path) return;

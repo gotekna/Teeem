@@ -25,6 +25,7 @@ class EntityTab < ApplicationRecord
   # SSoT: 'financial' added for Financial transaction receipts (Jan 2026)
   # SSoT: 'compliance' added for job compliance docs - permits, approvals (Jan 2026)
   # SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
+  # SSoT: 'bank_statement', 'template', 'esignature', 'plan' added (Jan 2026)
   WAREHOUSE_TYPES = %w[
     corporate_entity job document contact email warehouse
     task task_attachments task_responses
@@ -32,6 +33,9 @@ class EntityTab < ApplicationRecord
     asset asset_expenses asset_service asset_readings
     financial financial_transactions
     compliance payment payment_invoices payment_proof
+    bank_statement template
+    esignature esignature_pending esignature_completed
+    plan
     xero user
   ].freeze
 
