@@ -70,7 +70,7 @@ class SyncExclusionRule < ApplicationRecord
       warehouse_type: "warehouse"
     },
     user: {
-      name: "My Documents",
+      name: "Teeem Docs",
       description: "Personal user documents",
       icon: "folder-heart",
       warehouse_type: "user"
