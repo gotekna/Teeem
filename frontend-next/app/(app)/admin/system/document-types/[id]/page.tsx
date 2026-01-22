@@ -18,8 +18,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
+  SelectSeparator,
 } from "@/components/ui/select";
-import { ComboboxDropdown, type ComboboxGroup, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import {
   Save,
   Trash2,
@@ -64,10 +66,11 @@ import {
   getShortToLongMap,
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
-import { DOCUMENT_TYPE_SCOPES } from "@/lib/constants/document-types";
+import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 import { getInitials as getInitialsSSoT } from "@/utils/formatters";
 
 // Re-export for local use (SSoT: @/lib/constants/document-types.ts)
+const FOLDER_OPTIONS = DOCUMENT_FOLDER_OPTIONS;
 const SCOPE_OPTIONS = DOCUMENT_TYPE_SCOPES;
 
 // Common file extensions for documents
@@ -75,13 +78,6 @@ const FILE_EXTENSION_OPTIONS = [
   ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg",
   ".txt", ".csv", ".zip", ".msg", ".eml"
 ];
-
-// SSoT: Scope root paths (from StorageConfiguration)
-const SCOPE_ROOT_PATHS: Record<string, string> = {
-  corporate: "Corporate/{{CompanyGroup}}/{{CompanyCode}}",
-  jobs: "Jobs/{{JobCode}}",
-  contacts: "Contacts/{{ContactName}}",
-};
 
 // Placeholder scope mapping - uses SSoT from lib/placeholders.ts
 // Note: DocType placeholder is added dynamically based on current document type
@@ -168,94 +164,9 @@ export default function DocumentTypeDetailPage() {
   const [jobs, setJobs] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
-  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // SSoT: EntityTab hierarchy for Xero tabs extraction
-  // SSoT: Tabs grouped by scope for grouped dropdown display
-  type TabNode = { id?: number; name: string; tab_key?: string; storage_path?: string; children: TabNode[] };
-  type TabsByScope = {
-    corporate: TabNode[];
-    jobs: TabNode[];
-    contacts: TabNode[];
-  };
-
-  // Extended ComboboxItem for tabs - includes parent labels (no id, not selectable)
-  type TabComboboxItem = ComboboxItem & {
-    depth: number;
-    isLast: boolean;
-    isParentLabel?: boolean; // True for id-less parent nodes shown as labels
-  };
-
-  // SSoT: Flatten TabNode[] to ComboboxItem[] with tree depth info
-  const flattenTabsToItems = React.useCallback((
-    tabs: TabNode[],
-    excludeIds: number[] = [],
-    disabledIds: number[] = []
-  ): TabComboboxItem[] => {
-    const items: TabComboboxItem[] = [];
-
-    const addTab = (tab: TabNode, depth: number = 0, isLast: boolean = false) => {
-      const hasChildren = tab.children && tab.children.length > 0;
-
-      if (!tab.id) {
-        // Tab without id - show as non-selectable parent label for hierarchy context
-        if (hasChildren) {
-          items.push({
-            id: `parent-${tab.name}-${depth}`, // Unique key for parent labels
-            label: tab.name,
-            disabled: true,
-            depth,
-            isLast,
-            isParentLabel: true,
-          });
-          // Recurse into children
-          tab.children!.forEach((child, idx) => {
-            addTab(child, depth + 1, idx === tab.children!.length - 1);
-          });
-        }
-        return;
-      }
-
-      // Skip excluded tabs
-      if (excludeIds.includes(tab.id)) return;
-
-      // Tabs WITH children are parent labels (not selectable, provide context)
-      // Tabs WITHOUT children are leaf tabs (selectable)
-      if (hasChildren) {
-        items.push({
-          id: `parent-${tab.id}`, // Prefix with parent- for filtering detection
-          label: tab.name,
-          disabled: true,
-          depth,
-          isLast,
-          isParentLabel: true,
-        });
-        // Recurse into children
-        tab.children!.forEach((child, idx) => {
-          addTab(child, depth + 1, idx === tab.children!.length - 1);
-        });
-      } else {
-        // Leaf tab - selectable
-        items.push({
-          id: tab.id.toString(),
-          label: tab.name,
-          disabled: disabledIds.includes(tab.id),
-          depth,
-          isLast,
-        });
-      }
-    };
-
-    tabs.forEach((tab, idx) => {
-      addTab(tab, 0, idx === tabs.length - 1);
-    });
-
-    return items;
-  }, []);
-
-  const [tabsByScope, setTabsByScope] = React.useState<TabsByScope>({
-    corporate: [],
-    jobs: [],
-    contacts: []
-  });
+  const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
+  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // SSoT: EntityTab hierarchy for Additional Tabs
+  const [allTabsForLookup, setAllTabsForLookup] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // All tabs (any group) for name lookups
   const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
@@ -275,78 +186,30 @@ export default function DocumentTypeDetailPage() {
 
   // SSoT: THE ONE function for tab name resolution in this component
   // Searches recursively through tabs and their children
-  const findTabNameInArray = React.useCallback((items: any[], id: number | undefined): string | null => {
+  const findTabName = React.useCallback((items: any[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
       if (item.id === id) return item.name;
       if (item.children?.length) {
-        const found = findTabNameInArray(item.children, id);
+        const found = findTabName(item.children, id);
         if (found) return found;
       }
     }
     return null;
   }, []);
 
-  // SSoT: Returns full hierarchy path for display (e.g., "Financial/Bills/Xero")
-  // Builds path by traversing parents and collecting names
-  // Uses storage_folder_path if available (may include subfolders), otherwise falls back to name
-  const findTabPathInArray = React.useCallback((items: any[], id: number | undefined, pathPrefix: string = ""): string | null => {
+  // SSoT: Returns storage_path for display (shows full folder path)
+  const findTabPath = React.useCallback((items: any[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
-      // Use name for building parent path (hierarchy)
-      const folderName = item.name;
-      const currentPath = pathPrefix ? `${pathPrefix}/${folderName}` : folderName;
-      if (item.id === id) {
-        // For the target tab, use storage_path if it has additional depth
-        // storage_path may include subfolders like "Bills/Xero"
-        if (item.storage_path && item.storage_path !== item.name) {
-          return pathPrefix ? `${pathPrefix}/${item.storage_path}` : item.storage_path;
-        }
-        return currentPath;
-      }
+      if (item.id === id) return item.storage_path || item.name;
       if (item.children?.length) {
-        const found = findTabPathInArray(item.children, id, currentPath);
+        const found = findTabPath(item.children, id);
         if (found) return found;
       }
     }
     return null;
   }, []);
-
-  // Search across all scope groups for tab name
-  const findTabName = React.useCallback((id: number | undefined): string | null => {
-    if (!id) return null;
-    // Search all scope groups
-    const result = findTabNameInArray(tabsByScope.corporate, id) ||
-                   findTabNameInArray(tabsByScope.jobs, id) ||
-                   findTabNameInArray(tabsByScope.contacts, id);
-    return result;
-  }, [tabsByScope, findTabNameInArray]);
-
-  // Search across all scope groups for tab path
-  const findTabPath = React.useCallback((id: number | undefined): string | null => {
-    if (!id) return null;
-    // Search all scope groups
-    const result = findTabPathInArray(tabsByScope.corporate, id) ||
-                   findTabPathInArray(tabsByScope.jobs, id) ||
-                   findTabPathInArray(tabsByScope.contacts, id);
-    return result;
-  }, [tabsByScope, findTabPathInArray]);
-
-  // Find full path including scope root
-  const findFullTabPath = React.useCallback((id: number | undefined): string | null => {
-    if (!id) return null;
-    // Check each scope and return with root path
-    const corporatePath = findTabPathInArray(tabsByScope.corporate, id);
-    if (corporatePath) return `${SCOPE_ROOT_PATHS.corporate}/${corporatePath}`;
-
-    const jobPath = findTabPathInArray(tabsByScope.jobs, id);
-    if (jobPath) return `${SCOPE_ROOT_PATHS.jobs}/${jobPath}`;
-
-    const contactPath = findTabPathInArray(tabsByScope.contacts, id);
-    if (contactPath) return `${SCOPE_ROOT_PATHS.contacts}/${contactPath}`;
-
-    return null;
-  }, [tabsByScope, findTabPathInArray]);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
@@ -358,11 +221,16 @@ export default function DocumentTypeDetailPage() {
   const urlScope = searchParams.get("scope") as "company" | "job" | "contacts" | null;
   const urlTabId = searchParams.get("tab");
 
-  // SSoT: Fetch available tabs from EntityTab API
-  // Shows ALL tabs so users can assign document types to any tab
+  // SSoT: Fetch available tabs from EntityTab API (replaces old document_folders)
   React.useEffect(() => {
     const fetchFolders = async () => {
       try {
+        // Use document type scope (for existing) or URL scope (for new), default to corporate_entity
+        const scope = (documentType?.scope || urlScope || "company").toLowerCase();
+        // Map document type scope to EntityTab scope
+        // SSoT: "contacts" maps to "contact" (Jan 2026 consolidation)
+        const entityTabScope = scope === "contacts" ? "contact" : scope === "job" || scope === "jobs" ? "job" : "corporate_entity";
+
         // Build folder hierarchy recursively for all depths
         const mapTabRecursive = (tab: any): any => ({
           id: tab.id,
@@ -373,36 +241,49 @@ export default function DocumentTypeDetailPage() {
           children: (tab.children || []).map(mapTabRecursive)
         });
 
-        // SSoT: Fetch tabs from ALL scopes
-        const groupedTabs: TabsByScope = { corporate: [], jobs: [], contacts: [] };
+        // Fetch EntityTabs for the appropriate scope, documents group
+        // SSoT: Xero tabs are children of the Xero tab in corporate_entity scope
+        const data = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${entityTabScope}`);
+        let allDocumentTabs: any[] = [];
 
-        try {
-          const corporateData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=corporate_entity`);
-          if (corporateData.success && corporateData.data?.tabs) {
-            groupedTabs.corporate = corporateData.data.tabs.map(mapTabRecursive);
+        if (data.success && data.data?.tabs) {
+          // SSoT: Filter to tabs that can store documents (has_storage_folder: true OR tab_group: 'documents')
+          allDocumentTabs = data.data.tabs.filter((t: any) => t.has_storage_folder || t.tab_group === 'documents');
+        }
+
+        // SSoT: Fetch ALL tabs from ALL scopes for name lookups
+        // This ensures we can display tab names even for tabs from other scopes
+        // (e.g., a company doc type referencing a job or contact tab)
+        const allScopes = ['corporate_entity', 'job', 'contact'];
+        const allTabsFromAllScopes: any[] = [];
+        for (const scope of allScopes) {
+          try {
+            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${scope}`);
+            if (scopeData.success && scopeData.data?.tabs) {
+              allTabsFromAllScopes.push(...scopeData.data.tabs.map(mapTabRecursive));
+            }
+          } catch {
+            // Continue if one scope fails
           }
-        } catch { /* Continue if scope fails */ }
+        }
+        setAllTabsForLookup(allTabsFromAllScopes);
 
-        try {
-          const jobData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=job`);
-          if (jobData.success && jobData.data?.tabs) {
-            groupedTabs.jobs = jobData.data.tabs.map(mapTabRecursive);
-          }
-        } catch { /* Continue if scope fails */ }
+        if (allDocumentTabs.length > 0) {
+          const hierarchy = allDocumentTabs.map(mapTabRecursive);
+          setFolderHierarchy(hierarchy);
 
-        try {
-          const contactData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=contact`);
-          if (contactData.success && contactData.data?.tabs) {
-            groupedTabs.contacts = contactData.data.tabs.map(mapTabRecursive);
-          }
-        } catch { /* Continue if scope fails */ }
-
-        setTabsByScope(groupedTabs);
-
-        // Set folderHierarchy for Xero tab extraction (use corporate tabs)
-        setFolderHierarchy(groupedTabs.corporate);
+          // Extract root tab names for Folder/Primary Tab dropdowns (keep sorted)
+          const rootNames = allDocumentTabs.map((t: any) => t.display_name).sort();
+          setFolderOptions(rootNames);
+        } else {
+          // Fallback to hard-coded list if API fails
+          setFolderOptions([...DOCUMENT_FOLDER_OPTIONS]);
+          setFolderHierarchy([]);
+        }
       } catch (error) {
         console.error("Failed to fetch folders:", error);
+        // Fallback to hard-coded list if API fails
+        setFolderOptions([...DOCUMENT_FOLDER_OPTIONS]);
         setFolderHierarchy([]);
       }
     };
@@ -536,8 +417,8 @@ export default function DocumentTypeDetailPage() {
   const loadCompanies = async () => {
     try {
       const response = await api.get<any>('/api/v1/companies');
-      // SSoT: Backend returns { success: true, companies: [...], total: N }
-      const companiesData = response?.companies || response?.data?.companies || response?.data || [];
+      // Handle response format: {success: true, companies: [...], total: N}
+      const companiesData = response.data?.companies || response.companies || response.data?.data || response.data || response;
 
       if (Array.isArray(companiesData)) {
         // Filter to only show corporate-linked companies (those with a company_group_id)
@@ -551,27 +432,25 @@ export default function DocumentTypeDetailPage() {
           setPreviewCompanyId(defaultCompany ? defaultCompany.id : corporateLinkedCompanies[0].id);
         }
       } else {
+        console.warn("Companies data is not an array:", companiesData);
         setCompanies([]);
       }
     } catch (error) {
-      // Non-critical - preview can still work without companies dropdown
-      console.warn("[loadCompanies] Failed to load companies for preview dropdown:", error instanceof Error ? error.message : error);
-      setCompanies([]);
+      console.error("Failed to load companies:", error);
     }
   };
 
   const loadPeople = async () => {
     try {
       const response = await api.get<any>('/api/v1/contacts');
-      // SSoT: Backend returns { success: true, contacts: [...] }
-      const peopleData = response?.contacts || response?.data?.contacts || response?.data || [];
+      const peopleData = response.data?.data || response.data || response;
 
       if (Array.isArray(peopleData)) {
         // Map contacts to people with code (initials)
         const mappedPeople = peopleData.map((p: any) => ({
           id: p.id,
-          name: p.name || p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
-          code: p.code || getInitials(p.name || p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim())
+          name: p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+          code: p.code || getInitials(p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim())
         }));
         setPeople(mappedPeople);
 
@@ -587,17 +466,14 @@ export default function DocumentTypeDetailPage() {
         setPeople([]);
       }
     } catch (error) {
-      // Non-critical - preview can still work without people dropdown
-      console.warn("[loadPeople] Failed to load contacts for preview dropdown:", error instanceof Error ? error.message : error);
-      setPeople([]);
+      console.error("Failed to load people:", error);
     }
   };
 
   const loadJobs = async () => {
     try {
       const response = await api.get<any>('/api/v1/jobs');
-      // SSoT: Backend returns { jobs: [...], ... }
-      const jobsData = response?.jobs || response?.data?.jobs || response?.data || [];
+      const jobsData = response.data?.data || response.data?.jobs || response.data || response;
 
       if (Array.isArray(jobsData)) {
         const mappedJobs = jobsData.map((j: any) => ({
@@ -610,9 +486,7 @@ export default function DocumentTypeDetailPage() {
         setJobs([]);
       }
     } catch (error) {
-      // Non-critical - preview can still work without jobs dropdown
-      console.warn("[loadJobs] Failed to load jobs for preview dropdown:", error instanceof Error ? error.message : error);
-      setJobs([]);
+      console.error("Failed to load jobs:", error);
     }
   };
 
@@ -757,15 +631,10 @@ export default function DocumentTypeDetailPage() {
     try {
       setSaving(true);
 
-      // Strip deprecated fields before sending to backend
-      // These fields exist in frontend state for backwards compatibility but don't exist in backend model
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { category: _cat, tabs: _tabs, primary_tab: _primaryTab, ...payload } = documentType;
-
       if (isNew) {
         // Create new document type
         const response = await api.post<{ success: boolean; data: DocumentType }>(`/api/v1/document_types`, {
-          document_type: payload
+          document_type: documentType
         });
         toast({
           title: "Success",
@@ -787,7 +656,7 @@ export default function DocumentTypeDetailPage() {
             message: string;
           };
         }>(`/api/v1/document_types/${documentTypeId}`, {
-          document_type: payload
+          document_type: documentType
         });
         // Refresh local state with saved data from server
         if (response?.data) {
@@ -1507,77 +1376,60 @@ export default function DocumentTypeDetailPage() {
               <Label>Primary Tab</Label>
               {(() => {
                 const selectedId = documentType.entity_tab_ids?.[0];
-
-                // Create groups for ComboboxDropdown
-                const tabGroups: ComboboxGroup<TabComboboxItem>[] = [
-                  ...(tabsByScope.corporate.length > 0 ? [{
-                    label: "Corporate",
-                    items: flattenTabsToItems(tabsByScope.corporate)
-                  }] : []),
-                  ...(tabsByScope.jobs.length > 0 ? [{
-                    label: "Jobs",
-                    items: flattenTabsToItems(tabsByScope.jobs)
-                  }] : []),
-                  ...(tabsByScope.contacts.length > 0 ? [{
-                    label: "Contacts",
-                    items: flattenTabsToItems(tabsByScope.contacts)
-                  }] : []),
-                ];
-
-                // Find selected item
-                const allItems = tabGroups.flatMap(g => g.items);
-                const selectedItem = selectedId ? allItems.find(i => i.id === selectedId.toString()) : undefined;
-
-                // Get full folder path including scope root for display below dropdown
-                const folderPath = selectedId ? findFullTabPath(selectedId) : null;
-
                 return (
-                  <>
-                  <ComboboxDropdown
-                    groups={tabGroups}
-                    selectedItem={selectedItem}
-                    placeholder="Search tabs..."
-                    onSelect={(item) => {
-                      const newId = parseInt(item.id);
+                  <Select
+                    value={selectedId?.toString() || ""}
+                    onValueChange={(value) => {
+                      const newId = parseInt(value);
                       const otherIds = (documentType.entity_tab_ids || []).slice(1);
                       updateField("entity_tab_ids", [newId, ...otherIds]);
                     }}
-                    renderListItem={({ isChecked, item }) => {
-                      const tabItem = item as TabComboboxItem;
-                      // Parent labels (no id) shown as non-selectable hierarchy context
-                      if (tabItem.isParentLabel) {
+                  >
+                    <SelectTrigger className="text-sm">
+                      <SelectValue placeholder="Select primary tab">
+                        {selectedId ? findTabPath(allTabsForLookup, selectedId) || findTabPath(folderHierarchy, selectedId) || `Tab ${selectedId}` : "Select..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {folderHierarchy.filter(p => p.id).map((parent, idx) => {
+                        const hasChildren = (parent.children || []).filter((c: any) => c.id).length > 0;
+
                         return (
-                          <div
-                            className="flex items-center w-full text-muted-foreground italic"
-                            style={{ paddingLeft: `${tabItem.depth * 16}px` }}
-                          >
-                            <span className="mr-1 text-xs">
-                              {tabItem.isLast ? '└─' : '├─'}
-                            </span>
-                            <span>{item.label}</span>
-                          </div>
+                          <SelectGroup key={parent.id}>
+                            {idx > 0 && <SelectSeparator />}
+                            {hasChildren ? (
+                              <>
+                                {/* Parent with children - show as group header */}
+                                <SelectLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
+                                  📁 {parent.name}
+                                </SelectLabel>
+                                {/* Children with tree connectors */}
+                                {(parent.children || []).filter((c: any) => c.id).map((child: any, childIdx: number, arr: any[]) => (
+                                  <SelectItem key={child.id} value={child.id.toString()} className="pl-4">
+                                    <span className="text-muted-foreground">
+                                      {childIdx === arr.length - 1 ? '└─' : '├─'}
+                                    </span>
+                                    <span className="ml-1">{child.name}</span>
+                                    {child.storage_path && child.storage_path !== child.name && (
+                                      <span className="text-xs text-muted-foreground ml-1">({child.storage_path})</span>
+                                    )}
+                                  </SelectItem>
+                                ))}
+                              </>
+                            ) : (
+                              /* Leaf folder - show directly as selectable */
+                              <SelectItem value={parent.id!.toString()}>
+                                <span>📁 {parent.name}</span>
+                                {parent.storage_path && parent.storage_path !== parent.name && (
+                                  <span className="text-xs text-muted-foreground ml-1">({parent.storage_path})</span>
+                                )}
+                              </SelectItem>
+                            )}
+                          </SelectGroup>
                         );
-                      }
-                      return (
-                        <div
-                          className="flex items-center w-full"
-                          style={{ paddingLeft: `${tabItem.depth * 16}px` }}
-                        >
-                          <span className="text-muted-foreground mr-1 text-xs">
-                            {tabItem.isLast ? '└─' : '├─'}
-                          </span>
-                          <span className={cn(isChecked && "font-medium")}>{item.label}</span>
-                        </div>
-                      );
-                    }}
-                    popoverProps={{ className: "max-h-[400px]" }}
-                  />
-                  {folderPath && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Path: {folderPath}
-                    </p>
-                  )}
-                  </>
+                      })}
+                    </SelectContent>
+                  </Select>
                 );
               })()}
             </div>
@@ -1588,8 +1440,6 @@ export default function DocumentTypeDetailPage() {
               {(() => {
                 const primaryId = documentType.entity_tab_ids?.[0];
                 const secondaryIds = (documentType.entity_tab_ids || []).slice(1);
-                // Only exclude already-selected secondary tabs (show primary as disabled)
-                const alreadySelectedIds = secondaryIds.filter(Boolean) as number[];
 
                 const addSecondaryTab = (tabId: number) => {
                   if (!secondaryIds.includes(tabId) && tabId !== primaryId) {
@@ -1601,23 +1451,6 @@ export default function DocumentTypeDetailPage() {
                   updateField("entity_tab_ids", [primaryId, ...secondaryIds.filter(id => id !== tabId)].filter(Boolean));
                 };
 
-                // Create groups for ComboboxDropdown - exclude already selected, mark primary as disabled
-                const disabledIds = primaryId ? [primaryId] : [];
-                const tabGroups: ComboboxGroup<TabComboboxItem>[] = [
-                  ...(tabsByScope.corporate.length > 0 ? [{
-                    label: "Corporate",
-                    items: flattenTabsToItems(tabsByScope.corporate, alreadySelectedIds, disabledIds)
-                  }] : []),
-                  ...(tabsByScope.jobs.length > 0 ? [{
-                    label: "Jobs",
-                    items: flattenTabsToItems(tabsByScope.jobs, alreadySelectedIds, disabledIds)
-                  }] : []),
-                  ...(tabsByScope.contacts.length > 0 ? [{
-                    label: "Contacts",
-                    items: flattenTabsToItems(tabsByScope.contacts, alreadySelectedIds, disabledIds)
-                  }] : []),
-                ].filter(g => g.items.length > 0); // Hide empty groups
-
                 return (
                   <div className="space-y-2">
                     {/* Display selected secondary tabs */}
@@ -1625,7 +1458,7 @@ export default function DocumentTypeDetailPage() {
                       <div className="flex flex-wrap gap-1">
                         {secondaryIds.map((tabId) => (
                           <Badge key={tabId} variant="secondary" className="text-xs">
-                            {findTabName(tabId) || `Tab ${tabId}`}
+                            {findTabPath(allTabsForLookup, tabId) || findTabPath(folderHierarchy, tabId) || `Tab ${tabId}`}
                             <button onClick={() => removeSecondaryTab(tabId)} className="ml-1 hover:text-destructive">
                               <X className="h-2 w-2" />
                             </button>
@@ -1634,46 +1467,55 @@ export default function DocumentTypeDetailPage() {
                       </div>
                     )}
                     {/* Add secondary tab dropdown */}
-                    <ComboboxDropdown
-                      groups={tabGroups}
-                      placeholder="+ Add tab..."
-                      onSelect={(item) => addSecondaryTab(parseInt(item.id))}
-                      renderListItem={({ isChecked, item }) => {
-                        const tabItem = item as TabComboboxItem;
-                        // Parent labels (no id) shown as non-selectable hierarchy context
-                        if (tabItem.isParentLabel) {
-                          return (
-                            <div
-                              className="flex items-center w-full text-muted-foreground italic"
-                              style={{ paddingLeft: `${tabItem.depth * 16}px` }}
-                            >
-                              <span className="mr-1 text-xs">
-                                {tabItem.isLast ? '└─' : '├─'}
-                              </span>
-                              <span>{item.label}</span>
-                            </div>
+                    <Select
+                      value=""
+                      onValueChange={(value) => addSecondaryTab(parseInt(value))}
+                    >
+                      <SelectTrigger className="text-sm h-8">
+                        <SelectValue placeholder="+ Add tab..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {folderHierarchy.filter(p => p.id).map((parent, idx) => {
+                          // Get available children (not already selected)
+                          const availableChildren = (parent.children || []).filter((c: any) =>
+                            c.id && c.id !== primaryId && !secondaryIds.includes(c.id)
                           );
-                        }
-                        const isPrimary = primaryId?.toString() === item.id;
-                        return (
-                          <div
-                            className={cn(
-                              "flex items-center w-full",
-                              isPrimary && "opacity-50"
-                            )}
-                            style={{ paddingLeft: `${tabItem.depth * 16}px` }}
-                          >
-                            <span className="text-muted-foreground mr-1 text-xs">
-                              {tabItem.isLast ? '└─' : '├─'}
-                            </span>
-                            <span>{item.label}</span>
-                            {isPrimary && <span className="ml-1 text-xs text-muted-foreground">(Primary)</span>}
-                          </div>
-                        );
-                      }}
-                      popoverProps={{ className: "max-h-[400px]" }}
-                      className="h-8"
-                    />
+                          const parentAvailable = parent.id !== primaryId && !secondaryIds.includes(parent.id!);
+                          const hasChildren = availableChildren.length > 0;
+
+                          // Skip group if nothing available
+                          if (!parentAvailable && !hasChildren) return null;
+
+                          return (
+                            <SelectGroup key={parent.id}>
+                              {idx > 0 && <SelectSeparator />}
+                              {hasChildren ? (
+                                <>
+                                  {/* Parent with children - show as group header */}
+                                  <SelectLabel className="text-xs text-muted-foreground font-normal px-2 py-1">
+                                    📁 {parent.name}
+                                  </SelectLabel>
+                                  {/* Children with tree connectors */}
+                                  {availableChildren.map((child: any, childIdx: number) => (
+                                    <SelectItem key={child.id} value={child.id.toString()} className="pl-4">
+                                      <span className="text-muted-foreground">
+                                        {childIdx === availableChildren.length - 1 ? '└─' : '├─'}
+                                      </span>
+                                      <span className="ml-1">{child.name}</span>
+                                    </SelectItem>
+                                  ))}
+                                </>
+                              ) : parentAvailable ? (
+                                /* Leaf folder - show directly as selectable */
+                                <SelectItem value={parent.id!.toString()}>
+                                  <span>📁 {parent.name}</span>
+                                </SelectItem>
+                              ) : null}
+                            </SelectGroup>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
                     <p className="text-[10px] text-muted-foreground">
                       Document stored once, visible in multiple tabs
                     </p>
@@ -2039,7 +1881,7 @@ export default function DocumentTypeDetailPage() {
                       htmlFor="hide-company"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      {documentType.scope === "contacts" ? "Hide Contact" : documentType.scope === "job" ? "Hide Job" : "Hide Company"}
+                      {documentType.scope === "contacts" ? "Hide Person" : documentType.scope === "job" ? "Hide Job" : "Hide Company"}
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
