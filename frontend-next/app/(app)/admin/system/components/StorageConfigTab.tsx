@@ -1082,10 +1082,10 @@ function TabNode({
         onClick={!isEditing ? (e) => { e.stopPropagation(); onStartEdit(tab.id); } : undefined}
         title={!isEditing ? "Click to edit" : undefined}
       >
-        {/* Tab header row */}
+        {/* Tab header row - use warehouse_folder for label (display_name is for document naming) */}
         <div className="flex items-center gap-1 mb-2">
           <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-          <span className="text-sm font-medium">{tab.display_name}</span>
+          <span className="text-sm font-medium">{tab.warehouse_folder || tab.storage_folder_path || tab.display_name}</span>
           {!isEditing && (
             <span className="text-[10px] text-muted-foreground ml-2 opacity-0 group-hover:opacity-100">(click to edit)</span>
           )}
@@ -1194,7 +1194,7 @@ function TabNode({
         style={{ paddingLeft: `${level * 16 + 24}px` }}
       >
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-        <span className="text-sm">{tab.display_name}</span>
+        <span className="text-sm">{tab.warehouse_folder || tab.storage_folder_path || tab.display_name}</span>
         {/* Show document type count if has doc types */}
         {hasDocTypes && (
           <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">

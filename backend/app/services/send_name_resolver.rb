@@ -201,70 +201,103 @@ class SendNameResolver
       context[:name] = documentable.user.name
     end
 
+    # Task context
+    if documentable.respond_to?(:sm_task) && documentable.sm_task
+      task = documentable.sm_task
+      context[:task_id] = task.id
+      context[:task_number] = task.task_number
+      context[:task_name] = task.name
+    end
+
     context
   end
 
   # Expand template with context values
+  # Supports both {Token} and {{Token}} syntax for flexibility
   def expand_template(template, context)
     return nil if template.blank?
 
     result = template.dup
 
+    # Original filename tokens (for display_name templates)
+    if context[:original_filename].present?
+      original = context[:original_filename]
+      base_name = File.basename(original, ".*")
+      extension = File.extname(original).delete_prefix(".")
+      replace_token(result, "OriginalFileName", base_name)
+      replace_token(result, "OriginalFileNameWithExt", original)
+      replace_token(result, "FileExtension", extension)
+    end
+
+    # Task tokens
+    replace_token(result, "TaskId", context[:task_id]) if context[:task_id]
+    replace_token(result, "TaskID", context[:task_id]) if context[:task_id]
+    replace_token(result, "TaskNumber", context[:task_number]) if context[:task_number]
+    replace_token(result, "TaskName", context[:task_name]) if context[:task_name]
+
     # Date tokens
     doc_date = context[:document_date] || context[:received_date] || Time.current
     doc_date = doc_date.to_date if doc_date.respond_to?(:to_date)
 
-    result.gsub!("{Date}", doc_date.strftime("%d-%m-%Y"))
-    result.gsub!("{DDMMYYYY}", doc_date.strftime("%d-%m-%Y"))
-    result.gsub!("{YYYYMMDD}", doc_date.strftime("%Y-%m-%d"))
+    replace_token(result, "Date", doc_date.strftime("%d-%m-%Y"))
+    replace_token(result, "DDMMYYYY", doc_date.strftime("%d-%m-%Y"))
+    replace_token(result, "YYYYMMDD", doc_date.strftime("%Y-%m-%d"))
+    replace_token(result, "DateTime", Time.current.strftime("%Y-%m-%d %H:%M"))
 
     # Email tokens
     if context[:subject].present?
       sanitized_subject = sanitize_for_template(context[:subject])
-      result.gsub!("{Subject}", sanitized_subject)
-      result.gsub!("{SubjectShort}", sanitized_subject[0..49].to_s.strip)
+      replace_token(result, "Subject", sanitized_subject)
+      replace_token(result, "SubjectShort", sanitized_subject[0..49].to_s.strip)
     end
-    result.gsub!("{FromName}", context[:from_name].to_s) if context[:from_name]
-    result.gsub!("{FromEmail}", context[:from_email].to_s) if context[:from_email]
+    replace_token(result, "FromName", context[:from_name]) if context[:from_name]
+    replace_token(result, "FromEmail", context[:from_email]) if context[:from_email]
     if context[:received_date]
       recv_datetime = context[:received_date]
       recv_date = recv_datetime.to_date rescue doc_date
-      result.gsub!("{ReceivedDate}", recv_date.strftime("%d-%m-%Y"))
+      replace_token(result, "ReceivedDate", recv_date.strftime("%d-%m-%Y"))
       # Sortable date format YYYY-MM-DD for chronological ordering
-      result.gsub!("{ReceivedDateSort}", recv_date.strftime("%Y-%m-%d"))
+      replace_token(result, "ReceivedDateSort", recv_date.strftime("%Y-%m-%d"))
       # Time format HH-MM for filename safety (no colons)
-      result.gsub!("{ReceivedTime}", recv_datetime.strftime("%H-%M"))
+      replace_token(result, "ReceivedTime", recv_datetime.strftime("%H-%M"))
     end
 
     # Job tokens
-    result.gsub!("{JobCode}", context[:job_code].to_s) if context[:job_code]
-    result.gsub!("{JobName}", context[:job_name].to_s) if context[:job_name]
-    result.gsub!("{JobTitle}", context[:job_title].to_s) if context[:job_title]
+    replace_token(result, "JobCode", context[:job_code]) if context[:job_code]
+    replace_token(result, "JobName", context[:job_name]) if context[:job_name]
+    replace_token(result, "JobTitle", context[:job_title]) if context[:job_title]
 
     # Company tokens
-    result.gsub!("{CompanyCode}", context[:company_code].to_s) if context[:company_code]
-    result.gsub!("{CompanyName}", context[:company_name].to_s) if context[:company_name]
-    result.gsub!("{CompanyGroup}", context[:company_group].to_s) if context[:company_group]
+    replace_token(result, "CompanyCode", context[:company_code]) if context[:company_code]
+    replace_token(result, "CompanyName", context[:company_name]) if context[:company_name]
+    replace_token(result, "CompanyGroup", context[:company_group]) if context[:company_group]
 
     # Person/Contact tokens
-    result.gsub!("{Name}", context[:name].to_s) if context[:name]
-    result.gsub!("{PersonName}", context[:person_name].to_s) if context[:person_name]
+    replace_token(result, "Name", context[:name]) if context[:name]
+    replace_token(result, "PersonName", context[:person_name]) if context[:person_name]
 
     # Document type tokens
-    result.gsub!("{DocTypeName}", context[:doc_type_name].to_s) if context[:doc_type_name]
-    result.gsub!("{DocTypeCode}", context[:doc_type_code].to_s) if context[:doc_type_code]
-    result.gsub!("{Category}", context[:category].to_s) if context[:category]
+    replace_token(result, "DocTypeName", context[:doc_type_name]) if context[:doc_type_name]
+    replace_token(result, "DocTypeCode", context[:doc_type_code]) if context[:doc_type_code]
+    replace_token(result, "Category", context[:category]) if context[:category]
 
     # Generic tokens
-    result.gsub!("{Description}", context[:description].to_s) if context[:description]
-    result.gsub!("{Number}", context[:number].to_s) if context[:number]
-    result.gsub!("{Folder}", context[:folder].to_s) if context[:folder]
+    replace_token(result, "Description", context[:description]) if context[:description]
+    replace_token(result, "Number", context[:number]) if context[:number]
+    replace_token(result, "Folder", context[:folder]) if context[:folder]
 
-    # Clean up unreplaced tokens
-    result.gsub!(/\s*\{[^}]+\}\s*/, " ")
+    # Clean up unreplaced tokens (both {Token} and {{Token}} syntax)
+    result.gsub!(/\s*\{\{?[^}]+\}?\}\s*/, " ")
 
     # Clean up extra spaces
     result.gsub(/\s+/, " ").strip
+  end
+
+  # Replace token in both {Token} and {{Token}} syntax
+  def replace_token(str, token_name, value)
+    return unless value.present?
+    str.gsub!("{#{token_name}}", value.to_s)
+    str.gsub!("{{#{token_name}}}", value.to_s)
   end
 
   # Sanitize a value for use in templates (not the final filename)

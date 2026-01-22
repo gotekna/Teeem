@@ -84,8 +84,12 @@ class TaskResponseUploader
                   Marcel::MimeType.for(name: upload_result[:filename])
                 end
 
+    # SSoT: Resolve display_name from EntityTab template (e.g., {{OriginalFileName}})
+    resolved_display_name = resolve_display_name(upload_result[:filename])
+
     attrs = {
       file_name: upload_result[:filename],
+      display_name: resolved_display_name,  # SSoT: From EntityTab.display_name template
       mime_type: mime_type,  # Required for PDF/image preview
       # SSoT: Use storage_item_id (provider-agnostic) instead of sharepoint_file_id
       storage_item_id: upload_result[:file_id],
@@ -164,5 +168,48 @@ class TaskResponseUploader
 
     # Create the folder - provider handles existing folders gracefully
     provider.create_folder(folder_path, create_parents: true)
+  end
+
+  # SSoT: Resolve display_name from EntityTab template using SendNameResolver
+  # EntityTab.display_name can contain tokens like {{OriginalFileName}}, {{TaskName}}, {{Subject}}, etc.
+  # Falls back to original filename if no template or EntityTab not found
+  def resolve_display_name(original_filename)
+    # Find the EntityTab for this storage scope (task_responses or task_attachments)
+    # The folder_name method returns "Responses" or "Attachments"
+    entity_tab = EntityTab.find_by(
+      warehouse_type: storage_scope.to_s,
+      warehouse_folder: folder_name
+    )
+
+    # Fall back to original filename if no EntityTab or no template
+    return original_filename unless entity_tab&.display_name.present?
+
+    template = entity_tab.display_name
+
+    # If template has no tokens, use it as-is (it's a static name)
+    return template unless template.include?("{")
+
+    # Use SendNameResolver for consistent token handling
+    # Build context with all available data
+    resolver = SendNameResolver.new
+    context = {
+      original_filename: original_filename,
+      task_id: task.id,
+      task_number: task.task_number,
+      task_name: task.name,
+      document_date: Time.current
+    }
+
+    # Add job context if available
+    if task.job.present?
+      context[:job_code] = task.job.job_number
+      context[:job_name] = task.job.name
+    end
+
+    # Use SendNameResolver's expand_template method
+    resolved = resolver.send(:expand_template, template, context)
+
+    # Fall back to original filename if resolution failed
+    resolved.presence || original_filename
   end
 end
