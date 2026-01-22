@@ -1,4 +1,5 @@
 class User < ApplicationRecord
+  acts_as_tenant :tenant  # Multi-tenancy: Auto-scope all User queries to current tenant
   has_secure_password validations: false  # Disable default validations to make password optional for OAuth
 
   belongs_to :user_group, optional: true

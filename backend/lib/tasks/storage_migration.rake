@@ -365,6 +365,49 @@ namespace :storage do
     puts "Verify with: rails storage:list_s3_folders"
   end
 
+  desc "Fix ContactDocument storage_blob_id from CorporateCompanyDocument"
+  task fix_contact_document_blobs: :environment do
+    puts "=" * 70
+    puts "FIX CONTACT DOCUMENT BLOB REFERENCES"
+    puts "=" * 70
+    puts ""
+
+    fixed = 0
+    not_found = 0
+
+    scope = ContactDocument.where(storage_path: ['/corporate/unassigned', '/Corporate/Unassigned'])
+                           .where(storage_blob_id: nil)
+    total = scope.count
+    puts "Found #{total} ContactDocuments needing blob reference fix"
+    puts ""
+
+    scope.find_each.with_index do |doc, i|
+      # Find matching CorporateCompanyDocument by file_name
+      corp_doc = CorporateCompanyDocument.where(file_name: doc.file_name)
+                                         .where.not(storage_blob_id: nil)
+                                         .first
+
+      if corp_doc
+        doc.update!(storage_blob_id: corp_doc.storage_blob_id)
+        fixed += 1
+      else
+        not_found += 1
+      end
+
+      # Progress indicator
+      if (i + 1) % 500 == 0
+        puts "  Processed #{i + 1}/#{total} (fixed: #{fixed}, not found: #{not_found})"
+      end
+    end
+
+    puts ""
+    puts "=" * 70
+    puts "FIX COMPLETE"
+    puts "=" * 70
+    puts "Fixed:     #{fixed} (copied storage_blob_id from CorporateCompanyDocument)"
+    puts "Not found: #{not_found} (no matching CorporateCompanyDocument with blob)"
+  end
+
   desc "List current S3 root folders"
   task list_s3_folders: :environment do
     puts "=" * 70

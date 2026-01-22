@@ -1139,7 +1139,7 @@ Rails.application.routes.draw do
       end
 
       # Users management
-      resources :users, only: [ :index, :show, :update, :destroy ] do
+      resources :users, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :bulk_delete
           get :for_select

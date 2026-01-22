@@ -1,4 +1,51 @@
 class Api::V1::UsersController < ApplicationController
+  # POST /api/v1/users
+  # Create a new user (admin only)
+  # Requires either contact_id (link to existing) or creates new contact from user info
+  def create
+    unless current_user&.admin?
+      return render json: { success: false, error: "Admin access required" }, status: :forbidden
+    end
+
+    @user = nil
+    success = false
+
+    ActiveRecord::Base.transaction do
+      # Get or create contact
+      contact = find_or_create_contact
+
+      # Create user with contact and tenant
+      @user = User.new(create_user_params)
+      @user.contact = contact
+      @user.tenant_id = current_user.tenant_id  # Inherit tenant from admin
+
+      if @user.save
+        # Assign roles if provided
+        assign_roles_to_user(@user)
+        success = true
+      else
+        raise ActiveRecord::Rollback
+      end
+    end
+
+    if success
+      render json: {
+        success: true,
+        user: user_with_presence(@user)
+      }, status: :created
+    else
+      render json: {
+        success: false,
+        errors: @user&.errors&.full_messages || ["Failed to create user"]
+      }, status: :unprocessable_entity
+    end
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { success: false, errors: [e.message] }, status: :unprocessable_entity
+  rescue => e
+    Rails.logger.error "Error creating user: #{e.class} - #{e.message}"
+    render json: { success: false, error: e.message }, status: :unprocessable_entity
+  end
+
   # GET /api/v1/users
   # Returns list of all users for chat/contact purposes
   def index
@@ -125,6 +172,71 @@ class Api::V1::UsersController < ApplicationController
   # non-admin users from accessing these params (returns 403 Forbidden)
   def admin_user_params
     params.require(:user).permit(:role, :contact_id, role_ids: [])
+  end
+
+  # Params for creating a new user (admin only)
+  def create_user_params
+    params.require(:user).permit(:name, :email, :password, :password_confirmation, :mobile_phone, :job_title)
+  end
+
+  # Find existing contact by ID or create new one from user info
+  def find_or_create_contact
+    contact_id = params.dig(:user, :contact_id)
+
+    if contact_id.present?
+      # Link to existing contact
+      contact = Contact.find(contact_id)
+      # Update contact's is_user_cached flag
+      contact.update_column(:is_user_cached, true) if contact.respond_to?(:is_user_cached)
+      contact
+    else
+      # Create new contact from user info
+      user_data = params[:user]
+      name = user_data[:name].to_s
+      parts = name.strip.split(/\s+/)
+
+      Contact.create!(
+        display_name: name,
+        first_name: parts[0],
+        last_name: parts.length > 1 ? parts[1..-1].join(' ') : nil,
+        contact_type: 'person',
+        is_user_cached: true
+      ).tap do |contact|
+        # Add email to contact_emails table
+        if user_data[:email].present?
+          contact.contact_emails.create!(
+            email: user_data[:email],
+            label: 'login',
+            is_primary: true,
+            position: 1
+          )
+        end
+        # Add mobile to contact_phones table
+        if user_data[:mobile_phone].present?
+          contact.contact_phones.create!(
+            phone_number: user_data[:mobile_phone],
+            label: 'mobile',
+            is_primary: true,
+            position: 1
+          )
+        end
+      end
+    end
+  end
+
+  # Assign roles to newly created user
+  def assign_roles_to_user(user)
+    role_ids = params.dig(:user, :role_ids)
+
+    if role_ids.present?
+      # Assign specified roles
+      roles = Role.where(id: role_ids)
+      user.roles = roles
+    else
+      # Assign default "user" role
+      default_role = Role.find_by(name: "user")
+      user.roles << default_role if default_role && !user.roles.exists?(id: default_role.id)
+    end
   end
 
   # Returns user data with presence status and integration info

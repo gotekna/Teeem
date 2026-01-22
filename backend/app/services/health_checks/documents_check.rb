@@ -207,7 +207,7 @@ module HealthChecks
       companies = CorporateCompany.active
 
       query = CorporateCompanyDocument.where(folder: folder)
-                            .where("LOWER(document_type) LIKE ? OR LOWER(title) LIKE ?", pattern, pattern)
+                            .where("LOWER(document_type) LIKE ? OR LOWER(file_name) LIKE ?", pattern, pattern)
 
       if financial_year
         query = query.where("? = ANY(financial_years)", financial_year)
