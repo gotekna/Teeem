@@ -57,6 +57,13 @@ const clearAuthToken = () => {
   document.cookie = 'auth_token=; path=/; max-age=0';
 };
 
+// Helper to read auth token from cookie (for recovery after localStorage clear)
+const getAuthTokenFromCookie = (): string | null => {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|;\s*)auth_token=([^;]*)/);
+  return match ? match[1] : null;
+};
+
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -91,9 +98,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Initialize token from localStorage (client-side only)
   // Also sync to cookie for server-side rendering access
+  // If localStorage is empty (e.g., hard refresh with cache clear), recover from cookie
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const storedToken = getStorageItem<string>(STORAGE_KEYS.TOKEN, '');
+      let storedToken = getStorageItem<string>(STORAGE_KEYS.TOKEN, '');
+
+      // If localStorage is empty but cookie exists, recover session from cookie
+      // This handles the case where user clears cache but cookie persists
+      if (!storedToken) {
+        const cookieToken = getAuthTokenFromCookie();
+        if (cookieToken) {
+          // Restore to localStorage for future page loads
+          setStorageItem(STORAGE_KEYS.TOKEN, cookieToken);
+          storedToken = cookieToken;
+        }
+      }
+
       if (storedToken) {
         // Ensure cookie is in sync with localStorage for SSR
         document.cookie = `auth_token=${storedToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
