@@ -80,11 +80,16 @@ module StorageMigrationHelpers
       end
 
       stats[:migrated] += 1
+      puts "      SUCCESS: Migrated to blob #{blob.id}"
 
     rescue DocumentProviders::NotFoundError => e
-      stats[:errors] << "#{model_name} #{doc.id}: File not found at #{doc.storage_path}"
+      err = "#{model_name} #{doc.id}: File not found at #{doc.storage_path}"
+      puts "      ERROR: #{err}"
+      stats[:errors] << err
     rescue StandardError => e
-      stats[:errors] << "#{model_name} #{doc.id}: #{e.class} - #{e.message}"
+      err = "#{model_name} #{doc.id}: #{e.class} - #{e.message}"
+      puts "      ERROR: #{err}"
+      stats[:errors] << err
     end
   end
 
