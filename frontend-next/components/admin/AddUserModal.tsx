@@ -308,6 +308,23 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
                 emptyResults={contactSearch.length < 2 ? "Type at least 2 characters..." : "No contacts found"}
                 clearable
                 onClear={() => handleContactSelect(null)}
+                onCreate={(searchValue) => {
+                  // Switch to create mode with search term as name
+                  setCreateNewContact(true);
+                  setFormData({
+                    ...formData,
+                    contact_id: null,
+                    name: searchValue,
+                  });
+                  setContactSearch("");
+                  setContactOptions([]);
+                }}
+                renderOnCreate={(searchValue) => (
+                  <div className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    <span>Create &quot;{searchValue}&quot; as new contact</span>
+                  </div>
+                )}
               />
               {formData.contact_id && (
                 <p className="text-sm text-muted-foreground">

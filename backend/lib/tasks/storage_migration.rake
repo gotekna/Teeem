@@ -365,6 +365,37 @@ namespace :storage do
     puts "Verify with: rails storage:list_s3_folders"
   end
 
+  desc "Delete orphaned document records (no file in storage)"
+  task delete_orphaned_documents: :environment do
+    puts "=" * 70
+    puts "DELETE ORPHANED DOCUMENT RECORDS"
+    puts "=" * 70
+    puts ""
+
+    # Delete JobDocuments without blobs (use delete_all to skip callbacks)
+    job_scope = JobDocument.where.not(storage_path: nil).where(storage_blob_id: nil)
+    job_count = job_scope.count
+    job_scope.in_batches.delete_all
+    puts "JobDocument: deleted #{job_count}"
+
+    # Delete CorporateCompanyDocuments without blobs
+    corp_scope = CorporateCompanyDocument.where.not(storage_path: nil).where(storage_blob_id: nil)
+    corp_count = corp_scope.count
+    corp_scope.in_batches.delete_all
+    puts "CorporateCompanyDocument: deleted #{corp_count}"
+
+    # Delete ContactDocuments without blobs
+    contact_scope = ContactDocument.where.not(storage_path: nil).where(storage_blob_id: nil)
+    contact_count = contact_scope.count
+    contact_scope.in_batches.delete_all
+    puts "ContactDocument: deleted #{contact_count}"
+
+    puts ""
+    puts "Total deleted: #{job_count + corp_count + contact_count}"
+    puts ""
+    puts "Verify with: rails storage:preview_legacy"
+  end
+
   desc "Fix ContactDocument storage_blob_id from CorporateCompanyDocument"
   task fix_contact_document_blobs: :environment do
     puts "=" * 70
