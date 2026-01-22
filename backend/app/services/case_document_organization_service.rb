@@ -215,38 +215,36 @@ class CaseDocumentOrganizationService
   end
 
   # File document to correct location based on type
-  # SSoT: Uses DocumentProviderAware for provider-agnostic file operations
+  # SSoT (Jan 2026): Uses StorageBlob for all file storage
+  # Downloads file content and creates blob (deduplication via content_hash)
   def file_to_correct_location(file_info)
     # Determine document type (can use AI later)
     doc_type = classify_document(file_info)
-    target_location = DOCUMENT_TYPE_FOLDERS[doc_type] || :case_folder
 
-    # Get destination folder path
-    destination_folder_path = get_destination_folder_path(target_location)
-    return unless destination_folder_path
-
-    # Get date-based subfolder (YYYY-MM)
-    file_date = parse_date(file_info[:created_at]) || Date.current
-    date_folder_name = file_date.strftime("%Y-%m")
-    date_folder_path = "#{destination_folder_path}/#{date_folder_name}"
-
-    # Ensure date folder exists
-    get_or_create_folder_path(date_folder_path)
-
-    # Copy or move the file using provider-agnostic methods
-    action = case_record.file_action || "copy"
+    # Download file content from source location
     source_path = file_info[:path] || file_info[:id]
-
-    if action == "move"
-      result = move_file_in_provider(source_path, date_folder_path, file_info[:name])
-    else
-      result = copy_file_in_provider(source_path, date_folder_path, file_info[:name])
+    begin
+      setup_default_provider!
+      file_content = download_from_provider(source_path)
+    rescue => e
+      Rails.logger.error "[CaseDocumentOrganization] Failed to download file: #{e.message}"
+      return
     end
+    return unless file_content
 
-    # Create company_document entry
-    company_doc = create_company_document(file_info, result, doc_type)
+    # SSoT: Create or find StorageBlob (handles deduplication via content_hash)
+    blob = StorageBlob.find_or_create_for_content!(
+      file_content,
+      filename: file_info[:name],
+      content_type: file_info[:mime_type]
+    )
+    blob.increment_reference!
+
+    # Create company_document entry with blob reference
+    company_doc = create_company_document(file_info, blob, doc_type)
 
     # Link to case
+    action = case_record.file_action || "copy"
     CaseDocument.create!(
       case_id: case_record.id,
       company_document_id: company_doc.id,
@@ -256,7 +254,7 @@ class CaseDocumentOrganizationService
     )
 
     @results[:filed_new] += 1
-    Rails.logger.info "[CaseDocumentOrganization] Filed new document: #{file_info[:name]} -> #{target_location}"
+    Rails.logger.info "[CaseDocumentOrganization] Filed new document: #{file_info[:name]} -> StorageBlob"
   end
 
   # Simple document classification based on filename
@@ -350,21 +348,10 @@ class CaseDocumentOrganizationService
   end
 
   # Create a company_document entry for a new file
-  # SSoT: Handles both SharePoint and S3/Wasabi result formats
-  def create_company_document(file_info, storage_result, doc_type)
+  # SSoT (Jan 2026): Uses StorageBlob for all file storage
+  def create_company_document(file_info, blob, doc_type)
     # Determine company
     company = case_record.corporate_company || case_record.corporate_companies.first
-
-    # Handle both SharePoint (id/webUrl) and S3/Wasabi (path/url) result formats
-    storage_file_id = nil
-    storage_url = nil
-    storage_path = nil
-
-    if storage_result.is_a?(Hash)
-      storage_file_id = storage_result["id"] || storage_result[:id]
-      storage_url = storage_result["webUrl"] || storage_result[:web_url] || storage_result[:url]
-      storage_path = storage_result[:path]
-    end
 
     CorporateCompanyDocument.create!(
       corporate_company: company,
@@ -374,9 +361,7 @@ class CaseDocumentOrganizationService
       file_size: file_info[:size],
       mime_type: file_info[:mime_type],  # Required for PDF/image preview
       content_hash: file_info[:content_hash],
-      sharepoint_file_id: storage_file_id,
-      sharepoint_download_url: storage_url,
-      storage_path: storage_path,
+      storage_blob: blob,  # SSoT: Link to StorageBlob (replaces storage_path)
       source: "case_import",
       last_modified_at: parse_date(file_info[:modified_at])
     )

@@ -105,55 +105,37 @@ class CaseEmailAttachmentService
     Rails.logger.info "[CaseEmailAttachment] Linked existing document: #{company_doc.title}"
   end
 
-  # Save attachment to filing folder (provider-agnostic)
-  # SSoT: Uses DocumentProviderAware for uploads
+  # Save attachment using StorageBlob (SSoT for file storage)
+  # SSoT (Jan 2026): ALL uploads use StorageBlob for deduplication
+  # Files stored at Blobs/{hash}.ext - virtual paths are for UI only
   def save_attachment_to_filing_folder(case_email, file, content_hash)
-    # Get filing folder path
-    folder_path = get_filing_folder_path
-    return unless folder_path
-
-    # Setup provider
-    begin
-      setup_default_provider!
-    rescue DocumentProviders::NotConnectedError => e
-      @results[:errors] << { file: file.filename.to_s, error: "Storage not connected: #{e.message}" }
-      return
-    end
-
-    # Get date-based subfolder
-    email_date = case_email.email_warehouse.received_at&.to_date || Date.current
-    date_folder_name = email_date.strftime("%Y-%m")
-    date_folder_path = "#{folder_path}/#{date_folder_name}"
-
-    # Ensure date folder exists
-    get_or_create_folder_path(date_folder_path)
-
-    # Upload file using provider-agnostic method
+    # Read file content for StorageBlob
+    file_content = nil
     file.open do |temp_file|
-      result = upload_to_provider(
-        date_folder_path,
-        File.read(temp_file.path),
-        file.filename.to_s,
-        content_type: file.content_type
-      )
-
-      # Create company_document entry
-      company_doc = create_company_document(case_email, file, content_hash, result)
-
-      # Link to case
-      CaseDocument.create!(
-        case_id: case_record.id,
-        company_document_id: company_doc.id,
-        source_type: "email_attachment",
-        original_location: "Email: #{case_email.email_warehouse.subject}",
-        action_taken: "downloaded"
-      )
-
-      @results[:downloaded_new] += 1
+      file_content = File.read(temp_file.path)
     end
-  rescue DocumentProviders::Error => e
-    @results[:errors] << { file: file.filename.to_s, error: e.message }
-    Rails.logger.error "[CaseEmailAttachment] Storage error saving attachment: #{e.message}"
+
+    # SSoT: Create or find StorageBlob (handles deduplication via content_hash)
+    blob = StorageBlob.find_or_create_for_content!(
+      file_content,
+      filename: file.filename.to_s,
+      content_type: file.content_type
+    )
+    blob.increment_reference!
+
+    # Create company_document entry with storage_blob reference
+    company_doc = create_company_document(case_email, file, content_hash, blob)
+
+    # Link to case
+    CaseDocument.create!(
+      case_id: case_record.id,
+      company_document_id: company_doc.id,
+      source_type: "email_attachment",
+      original_location: "Email: #{case_email.email_warehouse.subject}",
+      action_taken: "downloaded"
+    )
+
+    @results[:downloaded_new] += 1
   rescue => e
     @results[:errors] << { file: file.filename.to_s, error: e.message }
     Rails.logger.error "[CaseEmailAttachment] Error saving attachment: #{e.message}"
@@ -178,18 +160,13 @@ class CaseEmailAttachmentService
   end
 
   # Create company_document for the attachment
-  # SSoT: Handles both SharePoint and S3/Wasabi result formats
-  def create_company_document(case_email, file, content_hash, storage_result)
+  # SSoT (Jan 2026): Uses StorageBlob for all file storage
+  def create_company_document(case_email, file, content_hash, blob)
     company = case_record.corporate_company || case_record.corporate_companies.first
     email = case_email.email_warehouse
 
     # Determine document type from mime type
     doc_type = classify_attachment(file)
-
-    # Handle both SharePoint (id/web_url) and S3/Wasabi (path/url) result formats
-    storage_file_id = storage_result[:id]
-    storage_url = storage_result[:web_url] || storage_result[:url]
-    storage_path = storage_result[:path]
 
     CorporateCompanyDocument.create!(
       company: company,
@@ -199,9 +176,7 @@ class CaseEmailAttachmentService
       file_size: file.byte_size,
       mime_type: file.content_type,  # Required for PDF/image preview
       content_hash: content_hash,
-      sharepoint_file_id: storage_file_id,
-      sharepoint_download_url: storage_url,
-      storage_path: storage_path,
+      storage_blob: blob,  # SSoT: Link to StorageBlob (replaces storage_path)
       source: "email_attachment",
       last_modified_at: email.received_at
     )
