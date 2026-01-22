@@ -45,7 +45,17 @@ class StorageConfiguration < ApplicationRecord
   # Valid warehouse types that can have storage enabled
   # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
   # SSoT: 'user' is for personal user documents (My Docs feature - Jan 2026)
-  WAREHOUSE_TYPES = %w[corporate_entity job document contact email warehouse task task_attachments task_responses xero user].freeze
+  # SSoT: All valid warehouse types for File Warehouse
+  # Added case, asset, financial scopes (Jan 2026)
+  WAREHOUSE_TYPES = %w[
+    corporate_entity job document contact email warehouse
+    task task_attachments task_responses
+    case case_documents case_emails
+    asset asset_expenses asset_service asset_readings
+    financial financial_transactions
+    compliance payment payment_invoices payment_proof
+    xero user
+  ].freeze
 
   # Legacy column aliases for backward compatibility
   # These allow code referencing old column names to continue working
@@ -155,6 +165,24 @@ class StorageConfiguration < ApplicationRecord
     'case' => 'Cases/{{CaseId}}',
     'case_documents' => 'Cases/{{CaseId}}/Documents',
     'case_emails' => 'Cases/{{CaseId}}/Emails',
+    # Asset documents (Jan 2026)
+    # For: asset_expense, asset_odometer_reading, asset_service_history
+    'asset' => 'Assets/{{AssetName}}',
+    'asset_expenses' => 'Assets/{{AssetName}}/Expenses',
+    'asset_service' => 'Assets/{{AssetName}}/Service',
+    'asset_readings' => 'Assets/{{AssetName}}/Readings',
+    # Financial documents (Jan 2026)
+    # For: financial_transaction receipts
+    'financial' => 'Financials/{{Year}}',
+    'financial_transactions' => 'Financials/{{Year}}/{{Month}}',
+    # Compliance documents (Jan 2026)
+    # For: document_task (job compliance - permits, approvals, certifications)
+    'compliance' => 'Jobs/{{JobCode}}/Compliance',
+    # Payment documents (Jan 2026)
+    # For: pay_now_request (subcontractor invoices, proof photos)
+    'payment' => 'Payments/{{Year}}/{{Month}}',
+    'payment_invoices' => 'Payments/{{Year}}/{{Month}}/Invoices',
+    'payment_proof' => 'Payments/{{Year}}/{{Month}}/Proof',
     # Email documents
     # SSoT: email_attachments uses SAME path as email (appear together in File Warehouse)
     'email' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',

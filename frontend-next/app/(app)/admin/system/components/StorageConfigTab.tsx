@@ -133,6 +133,10 @@ const SCOPE_TO_API_SCOPE: Record<string, string> = {
   task: 'task',
   user: 'user',
   case: 'case',
+  asset: 'asset',
+  financial: 'financial',
+  compliance: 'compliance',
+  payment: 'payment',
 };
 
 interface StorageConfig {
@@ -214,7 +218,11 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   // Main scope keys that should have scopeKey on their first folder, not the leaf
   // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
   // SSoT: 'case' added for Case document management (Jan 2026)
-  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user', 'case'];
+  // SSoT: 'asset' added for Asset Register documents (Jan 2026)
+  // SSoT: 'financial' added for Financial transaction receipts (Jan 2026)
+  // SSoT: 'compliance' added for job compliance docs (Jan 2026)
+  // SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
+  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user', 'case', 'asset', 'financial', 'compliance', 'payment'];
 
   filteredEntries.forEach(([key, path]) => {
     if (!path) return;

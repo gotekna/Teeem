@@ -21,7 +21,19 @@ class EntityTab < ApplicationRecord
   # SSoT: 'contact' is THE ONE warehouse_type for all individuals (Jan 2026 - 'people' merged into 'contact')
   # SSoT: 'user' added for Teeem Docs personal user documents (Jan 2026)
   # SSoT: 'case' added for Case document management (Jan 2026)
-  WAREHOUSE_TYPES = %w[corporate_entity job document contact email warehouse task task_attachments task_responses xero user case case_documents case_emails].freeze
+  # SSoT: 'asset' added for Asset Register documents (Jan 2026)
+  # SSoT: 'financial' added for Financial transaction receipts (Jan 2026)
+  # SSoT: 'compliance' added for job compliance docs - permits, approvals (Jan 2026)
+  # SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
+  WAREHOUSE_TYPES = %w[
+    corporate_entity job document contact email warehouse
+    task task_attachments task_responses
+    case case_documents case_emails
+    asset asset_expenses asset_service asset_readings
+    financial financial_transactions
+    compliance payment payment_invoices payment_proof
+    xero user
+  ].freeze
 
   # Legacy alias for backward compatibility
   SCOPES = WAREHOUSE_TYPES
