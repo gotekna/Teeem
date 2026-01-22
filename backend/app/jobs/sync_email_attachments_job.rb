@@ -22,8 +22,11 @@ class SyncEmailAttachmentsJob < ApplicationJob
       return
     end
 
-    unless email.has_attachments
-      Rails.logger.debug "[SyncEmailAttachments] Email #{email_id} has no attachments"
+    # FRC (Jan 2026): Microsoft reports has_attachments=false for inline images.
+    # Check body for cid: references to catch inline images that need syncing.
+    has_inline_images = email.body_html&.include?('cid:')
+    unless email.has_attachments || has_inline_images
+      Rails.logger.debug "[SyncEmailAttachments] Email #{email_id} has no attachments or inline images"
       return
     end
 

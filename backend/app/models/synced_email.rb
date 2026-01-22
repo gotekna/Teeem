@@ -893,8 +893,11 @@ class SyncedEmail < ApplicationRecord
 
   # SSoT: Sync attachments from Microsoft Graph to EmailAttachment → StorageBlob
   # Called automatically for new emails with attachments via OrgEmailSyncJob
+  # FRC (Jan 2026): Microsoft reports has_attachments=false for inline images only.
+  # Check body for cid: references to catch inline images that need syncing.
   def sync_attachments!(force: false)
-    return unless has_attachments
+    has_inline_images = body_html&.include?('cid:')
+    return unless has_attachments || has_inline_images
     return if email_attachments.any? && !force
 
     # SSoT: Try linking existing attachments first (don't re-download)
