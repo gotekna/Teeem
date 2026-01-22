@@ -281,8 +281,13 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   return root;
 }
 
-// Get scope label from key (snake_case to Title Case)
+// Get scope label from key (uses SCOPE_LABELS if defined, else snake_case to Title Case)
 function getScopeLabel(key: string): string {
+  // Check SCOPE_LABELS first for custom labels (e.g., 'user' → 'Teeem Docs')
+  if (SCOPE_LABELS[key]) {
+    return SCOPE_LABELS[key];
+  }
+  // Fallback: convert snake_case to Title Case
   return key
     .split('_')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -2121,6 +2126,7 @@ export function StorageConfigTab() {
                     {scope === 'task' && <ClipboardList className="h-4 w-4 text-orange-500" />}
                     {scope === 'email' && <Mail className="h-4 w-4 text-red-500" />}
                     {scope === 'warehouse' && <FileBox className="h-4 w-4 text-amber-500" />}
+                    {scope === 'user' && <FolderHeart className="h-4 w-4 text-pink-500" />}
                     <Label className="text-sm font-medium">{getScopeLabel(scope)}</Label>
                   </div>
                   <div className="flex-1 space-y-1.5">
