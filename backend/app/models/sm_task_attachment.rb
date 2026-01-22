@@ -35,15 +35,33 @@ class SmTaskAttachment < ApplicationRecord
   scope :responses, -> { where(category: "response") }
 
   # Phase 4: Virtual folder path for File Warehouse
-  # Tasks appear under Tasks/{{Category}}/{{TaskId}}
+  # SSoT: Reads from StorageConfiguration + respects exclude_sm_tasks checkbox
+  # - exclude_sm_tasks=true → SM tasks under job: Jobs/{{JobCode}}/Tasks/{{TaskId}}
+  # - exclude_sm_tasks=false → Standalone: Tasks/{{Category}}/{{TaskId}}
   def virtual_folder_path
     task = sm_task
-    return "Tasks/Attachments/Unknown" unless task
+    return "Tasks/Unknown" unless task
 
-    task_id = task.id.to_s
-    cat = category&.titleize || "Attachments"
+    config = StorageConfiguration.instance
 
-    "Tasks/#{cat}/#{task_id}"
+    # If exclude_sm_tasks is true, SM tasks go under job folder (use :task template)
+    if config.exclude_sm_linked_tasks? && task.job.present?
+      template = config.virtual_template_for(:task)
+      return "Tasks/Unknown" unless template
+
+      result = template.dup
+      result.gsub!("{{JobCode}}", task.job.job_code.to_s)
+      result.gsub!("{{TaskId}}", task.id.to_s)
+      result.gsub!("{{Category}}", category&.titleize || "Attachments")
+      # Clean up empty tokens
+      result.gsub!(/\{\{[^}]+\}\}/, "")
+      result.gsub!(%r{//+}, "/")
+      result
+    else
+      # Standalone tasks folder
+      cat = category&.titleize || "Attachments"
+      "Tasks/#{cat}/#{task.id}"
+    end
   end
 
   # Get the storage blob from the attached document

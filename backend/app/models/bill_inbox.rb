@@ -147,13 +147,24 @@ class BillInbox < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # Bill Inbox documents appear under Warehousing/BillInbox/{{Status}}/{{Year}}/{{Month}}
+  # SSoT: Reads from StorageConfiguration.virtual_template_for(:bill_inbox)
+  # Configure at: /settings/company/entity-config → Storage Config
   def virtual_folder_path
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(:bill_inbox)
+    return "Warehousing/BillInbox/Unknown" unless template
+
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)
     status_folder = status&.titleize || "Pending"
 
-    "Warehousing/BillInbox/#{status_folder}/#{year}/#{month}"
+    result = template.dup
+    result.gsub!("{{Status}}", status_folder)
+    result.gsub!("{{Year}}", year)
+    result.gsub!("{{Month}}", month)
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    result.gsub!(%r{//+}, "/")
+    result
   end
 
   # Display name for File Warehouse

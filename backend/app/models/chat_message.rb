@@ -77,8 +77,13 @@ class ChatMessage < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # Chat files appear under Warehousing/Chat/{{Context}}/{{Year}}/{{Month}}
+  # SSoT: Reads from StorageConfiguration.virtual_template_for(:chat)
+  # Configure at: /settings/company/entity-config → Storage Config
   def virtual_folder_path
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(:chat)
+    return "Warehousing/Chat/Unknown" unless template
+
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)
 
@@ -95,7 +100,13 @@ class ChatMessage < ApplicationRecord
                 "General"
               end
 
-    "Warehousing/Chat/#{context}/#{year}/#{month}"
+    result = template.dup
+    result.gsub!("{{Context}}", context)
+    result.gsub!("{{Year}}", year)
+    result.gsub!("{{Month}}", month)
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    result.gsub!(%r{//+}, "/")
+    result
   end
 
   # Display name for File Warehouse

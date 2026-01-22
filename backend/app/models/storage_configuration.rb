@@ -148,8 +148,11 @@ class StorageConfiguration < ApplicationRecord
     # SSoT: email_attachments uses SAME path as email (appear together in File Warehouse)
     'email' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
     'email_attachments' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
-    # Warehousing (generic)
-    'warehouse' => 'Warehousing'
+    # Warehousing sub-types (all under Warehousing/ root)
+    'warehouse' => 'Warehousing',
+    'chat' => 'Warehousing/Chat/{{Context}}/{{Year}}/{{Month}}',
+    'bill_inbox' => 'Warehousing/BillInbox/{{Status}}/{{Year}}/{{Month}}',
+    'notebook' => 'Warehousing/Notes/{{UserName}}/{{NotebookName}}/{{Year}}'
   }.freeze
 
   # Legacy alias for backward compatibility

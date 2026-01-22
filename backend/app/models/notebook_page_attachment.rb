@@ -85,13 +85,24 @@ class NotebookPageAttachment < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # Notes appear under Warehousing/Notes/{{NotebookName}}/{{Year}}
+  # SSoT: Reads from StorageConfiguration.virtual_template_for(:notebook)
+  # Configure at: /settings/company/entity-config → Storage Config
   def virtual_folder_path
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(:notebook)
+    return "Warehousing/Notes/Unknown" unless template
+
     year = (created_at || Time.current).year.to_s
     notebook_name = notebook&.name || "General"
     user_name = uploaded_by&.name || "Unknown"
 
-    "Warehousing/Notes/#{user_name}/#{notebook_name}/#{year}"
+    result = template.dup
+    result.gsub!("{{UserName}}", user_name)
+    result.gsub!("{{NotebookName}}", notebook_name)
+    result.gsub!("{{Year}}", year)
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    result.gsub!(%r{//+}, "/")
+    result
   end
 
   # ========================================
