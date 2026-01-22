@@ -476,7 +476,7 @@ document_backup_weekly:
   class: DocumentBackupJob
   queue: low
   args: ["all"]
-  schedule: at 4am on Sunday
+  schedule: every Sunday at 4am
 
 # Weekly database backup to Backblaze B2
 # Downloads Heroku backup and uploads to B2
@@ -485,7 +485,7 @@ document_backup_weekly:
 database_backup_weekly:
   class: DatabaseBackupJob
   queue: low
-  schedule: at 3am on Sunday
+  schedule: every Sunday at 3am
 
 # Per-tenant backup dispatcher
 # Checks all BackupConfiguration schedules and queues due backups
