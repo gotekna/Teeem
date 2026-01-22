@@ -2180,6 +2180,14 @@ export default function AllDocumentsPage() {
                     <CloudOff className="h-12 w-12 mx-auto mb-3 opacity-50" />
                     <p>No sync rules configured yet.</p>
                     <p className="text-sm mt-1">Install the desktop app to configure sync settings.</p>
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={handleDownloadDesktopApp}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download TEEEM Sync
+                    </Button>
                   </div>
                 )}
               </TabsContent>
@@ -2219,6 +2227,14 @@ export default function AllDocumentsPage() {
                     <Folder className="h-12 w-12 mx-auto mb-3 opacity-50" />
                     <p>No folders synced yet.</p>
                     <p className="text-sm mt-1">Use the desktop app to select folders to sync.</p>
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={handleDownloadDesktopApp}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download TEEEM Sync
+                    </Button>
                   </div>
                 )}
               </TabsContent>
@@ -2270,9 +2286,13 @@ export default function AllDocumentsPage() {
                     <p className="text-sm mt-1">
                       Download TEEEM Sync to sync files to your desktop.
                     </p>
-                    <Button variant="outline" className="mt-4" disabled>
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={handleDownloadDesktopApp}
+                    >
                       <Download className="h-4 w-4 mr-2" />
-                      Download TEEEM Sync (Coming Soon)
+                      Download TEEEM Sync
                     </Button>
                   </div>
                 )}

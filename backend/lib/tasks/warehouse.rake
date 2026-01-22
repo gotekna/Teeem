@@ -87,6 +87,55 @@ namespace :warehouse do
     puts "Done!"
   end
 
+  desc "Pre-warm the File Warehouse folder tree cache (takes ~90 seconds)"
+  task warmup_cache: :environment do
+    puts "Building warehouse folder tree cache..."
+    total = WarehouseDocument.count
+    puts "Total documents: #{total}"
+
+    start_time = Time.current
+    tree = { root_folders: Hash.new(0), paths: {} }
+    processed = 0
+
+    WarehouseDocument.includes(:documentable).find_each(batch_size: 1000) do |doc|
+      computed_path = doc.computed_folder_path rescue nil
+      next if computed_path.blank?
+
+      tree[:paths][doc.id] = computed_path
+
+      root = computed_path.split("/").first
+      tree[:root_folders][root] += 1
+
+      processed += 1
+      if processed % 10000 == 0
+        elapsed = Time.current - start_time
+        rate = processed / elapsed
+        remaining = ((total - processed) / rate).round
+        puts "  Processed #{processed}/#{total} (#{(processed * 100.0 / total).round}%) - ~#{remaining}s remaining"
+      end
+    end
+
+    # Convert to regular hash for caching
+    tree[:root_folders] = tree[:root_folders].to_h
+
+    # Cache for 1 hour
+    Rails.cache.write("warehouse_folder_tree_v2", tree, expires_in: 1.hour)
+
+    elapsed = (Time.current - start_time).round
+    puts ""
+    puts "Done in #{elapsed} seconds!"
+    puts "Root folders:"
+    tree[:root_folders].each do |name, count|
+      puts "  #{name}: #{count} documents"
+    end
+  end
+
+  desc "Clear the File Warehouse folder tree cache"
+  task clear_folder_cache: :environment do
+    Rails.cache.delete("warehouse_folder_tree_v2")
+    puts "Warehouse folder tree cache cleared"
+  end
+
   desc "Full warehouse setup: link docs, sync attachments, refresh views, capture snapshot"
   task setup: :environment do
     puts "🚀 Running full warehouse setup..."
