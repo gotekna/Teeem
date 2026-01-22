@@ -1397,7 +1397,8 @@ export function StorageConfigTab() {
     };
 
     // Scopes that don't use document types - show all warehouse-enabled tabs
-    const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse'];
+    // SSoT: 'user' added for Teeem Docs (Jan 2026)
+    const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user'];
 
     // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
     const filterWarehouseEnabledTabs = (tabs: EntityTab[]): EntityTab[] => {
