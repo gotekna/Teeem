@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
 
@@ -13,7 +13,7 @@ interface Status {
   error: string | null;
 }
 
-export default function XeroCallbackPage() {
+function XeroCallbackContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<Status>({
     loading: true,
@@ -158,5 +158,34 @@ export default function XeroCallbackPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function LoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+      <div className="w-full max-w-md">
+        <div className="rounded-lg bg-white dark:bg-gray-800 p-8 shadow-lg">
+          <div className="text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
+            </div>
+            <h2 className="mt-6 text-xl font-semibold text-gray-900 dark:text-white">
+              Loading...
+            </h2>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main page wrapped in Suspense (required for useSearchParams in Next.js 16)
+export default function XeroCallbackPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <XeroCallbackContent />
+    </Suspense>
   );
 }
