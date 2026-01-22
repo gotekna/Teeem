@@ -165,7 +165,7 @@ class ContactDocument < ApplicationRecord
       SubTabName: entity_tab&.parent&.display_name,
 
       # DocumentType tokens
-      DocTypeCode: document_type&.code,
+      DocTypeCode: document_type&.abbreviation,
       DocTypeName: document_type&.name,
       Folder: document_type&.folder,
 
