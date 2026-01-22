@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_22_191037) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2686,6 +2686,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_191037) do
     t.string "storage_path"
     t.string "content_hash"
     t.bigint "storage_blob_id"
+    t.string "content_id"
+    t.index ["email_warehouse_id", "content_id"], name: "idx_email_attachments_warehouse_content"
     t.index ["storage_blob_id"], name: "index_email_attachments_on_storage_blob_id"
   end
 

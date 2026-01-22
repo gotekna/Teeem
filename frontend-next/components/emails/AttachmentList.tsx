@@ -29,6 +29,9 @@ export interface Attachment {
   size?: number;
   url?: string;
   outlook_attachment_id?: string;
+  // For inline images: content_id matches cid: references in HTML
+  content_id?: string;
+  inline_url?: string;
 }
 
 interface AttachmentListProps {

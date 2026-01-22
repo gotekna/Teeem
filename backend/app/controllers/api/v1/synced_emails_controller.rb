@@ -1428,16 +1428,23 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Build attachments list - use synced records or fetch from MS365
   def build_attachments_list(email)
     # First try local email_attachments (already synced to SharePoint)
-    synced = email.email_attachments.includes(:attachment)
+    synced = email.email_attachments.includes(:storage_blob, :attachment)
     if synced.any?
       return synced.map do |ea|
+        # Generate presigned URL for inline images (to replace cid: references)
+        inline_url = if ea.storage_blob.present? && ea.content_id.present?
+                       ea.storage_blob.presigned_url(expires_in: 3600)
+                     end
         {
           id: ea.id,
           name: ea.filename || ea.storage_blob&.original_filename || "Unknown",
           # content_type and file_size are on storage_blob (Jan 2026 refactor)
           content_type: ea.storage_blob&.content_type,
           size: ea.storage_blob&.file_size,
-          outlook_attachment_id: ea.outlook_attachment_id
+          outlook_attachment_id: ea.outlook_attachment_id,
+          # For inline images: content_id matches cid: references in HTML
+          content_id: ea.content_id,
+          inline_url: inline_url
         }
       end
     end

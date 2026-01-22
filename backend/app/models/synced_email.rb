@@ -923,6 +923,7 @@ class SyncedEmail < ApplicationRecord
       filename = att["name"]
       content_type = att["contentType"]
       byte_size = att["size"].to_i
+      content_id = att["contentId"]  # For matching cid: references in HTML
 
       # Skip small inline images (likely signatures)
       next if att["isInline"] && content_type&.start_with?("image/") && byte_size < 50_000
@@ -931,8 +932,10 @@ class SyncedEmail < ApplicationRecord
       ea = email_attachments.find_by(filename: filename)
       if ea.nil?
         next_id = (EmailAttachment.maximum(:id) || 0) + 1
-        ea = email_attachments.build(id: next_id, filename: filename)
+        ea = email_attachments.build(id: next_id, filename: filename, content_id: content_id)
         ea.save!
+      elsif ea.content_id.blank? && content_id.present?
+        ea.update_column(:content_id, content_id)
       end
 
       # Store content via StorageBlob (handles deduplication)

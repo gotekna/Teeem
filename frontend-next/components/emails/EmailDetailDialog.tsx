@@ -29,16 +29,40 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { cn } from "@/lib/utils";
 
 /**
- * Sanitizes email HTML to handle unresolvable cid: URLs.
- * Emails with embedded images (like signatures) use cid: (Content-ID) URLs
- * which browsers can't resolve, causing ERR_UNKNOWN_URL_SCHEME errors.
- * This removes those image sources to prevent console spam.
+ * Resolves cid: URLs in email HTML to actual image URLs.
+ * Emails with embedded images use cid: (Content-ID) URLs that browsers can't resolve.
+ * If we have synced attachments with inline_url, replace cid: with actual URLs.
+ * Otherwise, replace with transparent pixel to prevent console errors.
  */
-function sanitizeEmailHtml(html: string): string {
+function resolveInlineImages(html: string, attachments?: Attachment[]): string {
   if (!html) return html;
-  // Replace cid: image sources with empty data URI to prevent console errors
-  // Matches: src="cid:..." or src='cid:...'
-  return html.replace(/src\s*=\s*["']cid:[^"']*["']/gi, 'src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"');
+
+  // Build a map of content_id -> inline_url for quick lookup
+  const cidToUrl = new Map<string, string>();
+  if (attachments) {
+    for (const att of attachments) {
+      if (att.content_id && att.inline_url) {
+        // Store both the full content_id and just the filename part
+        cidToUrl.set(att.content_id, att.inline_url);
+        // Also store by filename (before @) for flexible matching
+        const filename = att.content_id.split('@')[0];
+        if (filename) {
+          cidToUrl.set(filename, att.inline_url);
+        }
+      }
+    }
+  }
+
+  // Replace cid: references with actual URLs or transparent pixel
+  return html.replace(/src\s*=\s*["']cid:([^"']+)["']/gi, (match, cidRef) => {
+    // Try to find matching URL by full content_id or filename
+    const url = cidToUrl.get(cidRef) || cidToUrl.get(cidRef.split('@')[0]);
+    if (url) {
+      return `src="${url}"`;
+    }
+    // Fallback: transparent 1x1 pixel to prevent console errors
+    return 'src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"';
+  });
 }
 
 // Email detail from API
@@ -412,7 +436,7 @@ export function EmailDetailDialog({
                 {email.body_html ? (
                   <div
                     className="prose prose-sm dark:prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(email.body_html) }}
+                    dangerouslySetInnerHTML={{ __html: resolveInlineImages(email.body_html, email.attachments) }}
                   />
                 ) : (
                   <pre className="whitespace-pre-wrap text-sm font-sans">
