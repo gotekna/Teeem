@@ -1991,8 +1991,9 @@ module Api
           # URLs
           fileUrl: download_url,
           storagePath: blob&.storage_path,
-          # Virtual folder (instant move - just DB update)
-          folder: wd.folder,
+          # Virtual folder - computed from CURRENT templates (no sync needed)
+          # Uses documentable's virtual_folder_path which reads current StorageConfiguration
+          folder: wd.computed_folder_path,
           # Timestamps
           createdAt: wd.created_at&.iso8601,
           updatedAt: wd.updated_at&.iso8601,

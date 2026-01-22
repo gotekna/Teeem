@@ -129,6 +129,33 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # ========================================
+  # Computed Folder Path (Runtime Resolution)
+  # ========================================
+  #
+  # SSoT: Returns the folder path computed from CURRENT StorageConfiguration templates.
+  # This ensures folder paths update INSTANTLY when templates change in admin UI,
+  # without needing any background sync jobs.
+  #
+  # Delegates to documentable's virtual_folder_path which reads current templates.
+  # Falls back to stored folder column for documents without a documentable.
+  #
+  # @return [String] The folder path computed from current templates
+  #
+  def computed_folder_path
+    # Try to compute from documentable's current template
+    if documentable.present? && documentable.respond_to?(:virtual_folder_path)
+      begin
+        return documentable.virtual_folder_path
+      rescue StandardError => e
+        Rails.logger.debug "[WarehouseDocument] computed_folder_path fallback for #{id}: #{e.message}"
+      end
+    end
+
+    # Fallback to stored folder (for legacy docs or docs without documentable)
+    folder
+  end
+
+  # ========================================
   # Phase 6: Metadata Accessors (JSONB)
   # ========================================
 

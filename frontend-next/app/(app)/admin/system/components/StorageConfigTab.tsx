@@ -613,7 +613,7 @@ function TreeNode({
               className="text-[10px] text-muted-foreground font-mono"
               style={{ paddingLeft: `${level * 16 + 28}px` }}
             >
-              {rootFolderPath}
+              {rootFolderPath?.replace(/\/+/g, '/').replace(/\/+$/, '')}
             </div>
           );
         }
@@ -1505,10 +1505,18 @@ export function StorageConfigTab() {
     configLink: string | null
   ) => {
     try {
+      // Combine baseFolder + folderTemplate into full path with normalized slashes
+      const fullPath = [baseFolder, folderTemplate]
+        .filter(Boolean)
+        .join('/')
+        .replace(/\/+/g, '/')  // Normalize double slashes
+        .replace(/\/+$/, '');  // Strip trailing slash for consistency
+
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
         "/api/v1/storage_configuration",
         {
           storage: {
+            warehouse_root_folders: { [scopeKey]: fullPath },
             warehouse_folder_templates: { [scopeKey]: folderTemplate },
             file_name_templates: { [scopeKey]: filenameTemplate },
             config_links: { [scopeKey]: configLink }, // null removes the link
@@ -1526,7 +1534,7 @@ export function StorageConfigTab() {
           }
           return {
             ...prev,
-            warehouse_root_folders: { ...prev.warehouse_root_folders, [scopeKey]: baseFolder },
+            warehouse_root_folders: { ...prev.warehouse_root_folders, [scopeKey]: fullPath },
             warehouse_folder_templates: { ...prev.warehouse_folder_templates, [scopeKey]: folderTemplate },
             file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
             config_links: newConfigLinks,
@@ -2107,9 +2115,11 @@ export function StorageConfigTab() {
                   </div>
                   <div className="flex-1 space-y-1.5">
                     <TokenBuilder
-                      value={folder}
+                      value={folder?.replace(/\/+/g, '/').replace(/\/+$/, '')}
                       onChange={(newValue) => {
-                        const newRoots = { ...(config?.warehouse_root_folders || {}), [scope]: newValue };
+                        // Normalize: collapse multiple slashes and strip trailing slash for consistency
+                        const normalized = newValue?.replace(/\/+/g, '/').replace(/\/+$/, '');
+                        const newRoots = { ...(config?.warehouse_root_folders || {}), [scope]: normalized };
                         setConfig(prev => prev ? { ...prev, warehouse_root_folders: newRoots } : prev);
                       }}
                       scope="storage"
