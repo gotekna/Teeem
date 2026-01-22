@@ -183,20 +183,16 @@ export default function MyDocsPage() {
           formData.append("folder", currentFolder);
         }
 
-        const response = await fetch("/api/v1/user_documents", {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-        });
+        // Use api.postFormData which handles backend URL routing and auth
+        const response = await api.postFormData<{ success: boolean; error?: string }>("/api/v1/user_documents", formData);
 
-        const data = await response.json();
-        if (data.success) {
+        if (response.success) {
           toast({
             title: "Uploaded",
             description: `${file.name} uploaded successfully`,
           });
         } else {
-          throw new Error(data.error || "Upload failed");
+          throw new Error(response.error || "Upload failed");
         }
       } catch (error) {
         console.error("Upload failed:", error);

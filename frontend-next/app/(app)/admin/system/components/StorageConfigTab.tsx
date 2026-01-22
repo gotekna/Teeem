@@ -42,6 +42,7 @@ import {
   Building2,
   FileBox,
   ClipboardList,
+  FolderHeart,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -55,7 +56,8 @@ import Link from "next/link";
 // SSoT: Simple scopes have inline editing (no document types)
 // Note: 'overview' is needed because the Tasks folder can have scopeKey='overview'
 // (from EntityTab.scope_base_folders when tab_key='overview' shares path with 'task')
-const SIMPLE_SCOPES = ['email', 'warehouse', 'task', 'overview'];
+// Note: 'user' added for Teeem Docs (personal user documents)
+const SIMPLE_SCOPES = ['email', 'warehouse', 'task', 'user', 'overview'];
 // SSoT: Complex scopes need separate tab (have document types, entity filters)
 const COMPLEX_SCOPES = ['corporate_entity', 'job', 'contact'];
 
@@ -64,6 +66,7 @@ const SCOPE_LABELS: Record<string, string> = {
   corporate_entity: 'Corporate',
   job: 'Jobs',
   contact: 'Contacts',
+  user: 'Teeem Docs',
 };
 
 // SSoT: Provider types match StorageConfiguration.PROVIDER_TYPES
@@ -171,9 +174,10 @@ interface FolderTreeNode {
 
 // SSoT: Known scope root folder names (first segment of paths that should appear at root)
 // These match WAREHOUSE_ROOT_DEFAULTS in StorageConfiguration (Jan 2026 consolidation)
-// Note: 'People' merged into 'Contacts', 'Users' removed (Users = auth only, Contacts = identity)
+// Note: 'People' merged into 'Contacts'
+// Note: 'Users' added for Teeem Docs (personal user documents - Jan 2026)
 const KNOWN_ROOT_FOLDERS = [
-  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Warehouse', 'Shared', 'System'
+  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Users', 'Warehouse', 'Shared', 'System'
 ];
 
 // Build tree structure from flat scope folders
@@ -2331,6 +2335,7 @@ export function StorageConfigTab() {
                             contact: <Users className="h-4 w-4" />,
                             corporate: <Building2 className="h-4 w-4" />,
                             task: <ClipboardList className="h-4 w-4" />,
+                            user: <FolderHeart className="h-4 w-4" />,
                           };
                           return (
                             <div
@@ -2407,6 +2412,7 @@ export function StorageConfigTab() {
                             task: <ClipboardList className="h-3.5 w-3.5 text-red-500" />,
                             task_attachments: <ClipboardList className="h-3.5 w-3.5 text-red-500" />,
                             task_responses: <ClipboardList className="h-3.5 w-3.5 text-red-500" />,
+                            user: <FolderHeart className="h-3.5 w-3.5 text-pink-500" />,
                           };
                           return (
                             <div key={scopeKey} className="ml-4 space-y-0.5">
