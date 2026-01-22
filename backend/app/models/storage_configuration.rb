@@ -214,6 +214,23 @@ class StorageConfiguration < ApplicationRecord
   # Legacy alias for backward compatibility
   SCOPE_ROOT_DEFAULTS = WAREHOUSE_ROOT_DEFAULTS
 
+  # SSoT: Key aliases for warehouse types
+  # Maps common variations to canonical warehouse type keys
+  # Fixes root cause of files going to wrong folders (Jan 2026)
+  WAREHOUSE_KEY_ALIASES = {
+    'contacts' => 'contact',        # XeroAttachmentSyncService uses plural
+    'people' => 'contact',          # Legacy alias (merged Jan 2026)
+    'jobs' => 'job',                # Plural alias
+    'tasks' => 'task',              # Plural alias
+    'emails' => 'email',            # Plural alias
+    'assets' => 'asset',            # Plural alias
+    'templates' => 'template',      # Plural alias
+    'plans' => 'plan',              # Plural alias
+    'cases' => 'case',              # Plural alias
+    'payments' => 'payment',        # Plural alias
+    'corporate_companies' => 'corporate_entity',  # Model name alias
+  }.freeze
+
   # SSoT: Initialize warehouse_root_folders with defaults if empty
   after_initialize :ensure_warehouse_root_folders
 
@@ -261,6 +278,8 @@ class StorageConfiguration < ApplicationRecord
   #
   def root_folder_for(warehouse_type)
     type_key = warehouse_type.to_s
+    # SSoT: Normalize aliased keys (e.g., 'contacts' → 'contact')
+    type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
     # SSoT: Check database first, fall back to defaults for new warehouse types
     path = warehouse_root_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
     return nil if path.blank? || path == "DISABLED"
