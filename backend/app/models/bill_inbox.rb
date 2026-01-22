@@ -168,7 +168,7 @@ class BillInbox < ApplicationRecord
   # Provider-agnostic storage reference (SSoT: storage_item_id)
   # Falls back to sharepoint_file_id for backwards compatibility
   def storage_reference
-    storage_item_id.presence || sharepoint_file_id
+    storage_item_id.presence || storage_file_id
   end
 
   def set_storage_reference(item_id, provider: "sharepoint")
@@ -194,7 +194,7 @@ class BillInbox < ApplicationRecord
 
   # Download invoice file from storage (SSoT)
   def download_invoice_file
-    file_ref = storage_path.presence || sharepoint_file_id
+    file_ref = storage_path.presence || storage_file_id
     return nil unless file_ref.present?
 
     result = download_from_storage(file_ref)

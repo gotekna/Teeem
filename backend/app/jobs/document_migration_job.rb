@@ -103,11 +103,11 @@ class DocumentMigrationJob < ApplicationJob
 
       # Step 2: Determine download reference
       # Primary: storage_reference (file ID or path)
-      # Fallback: expected_sharepoint_path (for Xero-imported docs without file_url)
+      # Fallback: expected_storage_path (for Xero-imported docs without file_url)
       download_ref = document.storage_reference.presence
-      if download_ref.blank? && document.respond_to?(:expected_sharepoint_path)
-        download_ref = document.expected_sharepoint_path
-        Rails.logger.info "[DocumentMigration] Using expected_sharepoint_path: #{download_ref}"
+      if download_ref.blank? && document.respond_to?(:expected_storage_path)
+        download_ref = document.expected_storage_path
+        Rails.logger.info "[DocumentMigration] Using expected_storage_path: #{download_ref}"
       end
 
       if download_ref.blank?

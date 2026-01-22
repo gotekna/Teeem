@@ -383,9 +383,9 @@ class CorporateSharePointScannerService
     folder_display = group_name ? "#{group_name}/#{folder['name']}" : folder["name"]
     Rails.logger.info "Processing folder '#{folder_display}' for company '#{company.name}'"
 
-    # Store SharePoint folder URL for direct access
-    if folder["webUrl"].present? && company.sharepoint_folder_url != folder["webUrl"]
-      company.update_column(:sharepoint_folder_url, folder["webUrl"])
+    # Store storage folder URL for direct access
+    if folder["webUrl"].present? && company.storage_folder_url != folder["webUrl"]
+      company.update_column(:storage_folder_url, folder["webUrl"])
     end
 
     # Scan all documents in this folder (recursively)
@@ -431,8 +431,8 @@ class CorporateSharePointScannerService
       return company if company
     end
 
-    # PRIORITY 2: Check for explicit SharePoint folder name mapping (TEEEM is source of truth)
-    company = CorporateCompany.find_by("LOWER(sharepoint_folder_name) = ?", folder_name.downcase)
+    # PRIORITY 2: Check for explicit storage folder name mapping (TEEEM is source of truth)
+    company = CorporateCompany.find_by("LOWER(storage_folder_name) = ?", folder_name.downcase)
     return company if company
 
     # PRIORITY 3: Try exact name match
@@ -463,9 +463,9 @@ class CorporateSharePointScannerService
       return true if code == company.code.upcase
     end
 
-    # PRIORITY 2: Check explicit SharePoint folder name mapping (TEEEM is source of truth)
-    if company.sharepoint_folder_name.present?
-      return folder_name.downcase == company.sharepoint_folder_name.downcase
+    # PRIORITY 2: Check explicit storage folder name mapping (TEEEM is source of truth)
+    if company.storage_folder_name.present?
+      return folder_name.downcase == company.storage_folder_name.downcase
     end
 
     # PRIORITY 3: Fuzzy matching (fallback)
@@ -507,9 +507,9 @@ class CorporateSharePointScannerService
     document_type_string = parent_folder_name.upcase
 
     # Create or update company document record
-    # ⚠️ SAFETY: Don't blindly reuse existing records by sharepoint_file_id
+    # ⚠️ SAFETY: Don't blindly reuse existing records by storage_file_id
     # SharePoint can reuse IDs after file deletion, which would hijack old records
-    company_doc = CorporateCompanyDocument.find_by(sharepoint_file_id: doc["id"])
+    company_doc = CorporateCompanyDocument.find_by(storage_file_id: doc["id"])
 
     if company_doc
       # Verify this is actually the same file - check filename AND company match

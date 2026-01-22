@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,7 @@ const STATUS_COLORS: Record<SubscriptionStatus, string> = {
 
 export default function SubscriptionsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { confirm } = useConfirm();
   const {
     subscriptions,
@@ -64,6 +65,15 @@ export default function SubscriptionsPage() {
   React.useEffect(() => {
     fetchSubscriptions();
   }, [fetchSubscriptions]);
+
+  // Auto-open dialog if ?new=1 query param is present
+  React.useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setShowAddDialog(true);
+      // Clear the query param to prevent re-opening on refresh
+      router.replace("/settings/email-reseller/subscriptions", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

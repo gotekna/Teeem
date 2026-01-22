@@ -398,9 +398,9 @@ class BankStatementReport < ApplicationRecord
     if corporate_company.present?
       create_document_record(
         filename: filename,
-        sharepoint_path: result[:path] || resolved_path,
-        sharepoint_file_id: result[:id],
-        sharepoint_url: result[:url],
+        storage_path: result[:path] || resolved_path,
+        storage_file_id: result[:id],
+        storage_url: result[:url],
         file_size: content.bytesize
       )
     end
@@ -413,7 +413,7 @@ class BankStatementReport < ApplicationRecord
 
   # Create a CorporateCompanyDocument record for the warehouse
   # SSoT: Links the PDF to the company's document system so it appears in tabs
-  def create_document_record(filename:, sharepoint_path:, sharepoint_file_id:, sharepoint_url:, file_size:)
+  def create_document_record(filename:, storage_path:, storage_file_id:, storage_url:, file_size:)
     # Use unique external_id to prevent duplicates
     external_id = "bank_statement_report:#{id}"
 
@@ -431,9 +431,9 @@ class BankStatementReport < ApplicationRecord
       mime_type: "application/pdf",
       folder: "XERO",  # Shows in XERO tab
       document_date: period_end,
-      expected_sharepoint_path: "#{sharepoint_path}/#{filename}",
-      sharepoint_file_id: sharepoint_file_id,
-      sharepoint_download_url: sharepoint_url,
+      expected_storage_path: "#{storage_path}/#{filename}",
+      storage_file_id: storage_file_id,
+      storage_download_url: storage_url,
       storage_type: "electronic",
       ai_verification_status: "verified",  # System-generated, no AI needed
       documentable: self  # Link back to BankStatementReport

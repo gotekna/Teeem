@@ -89,7 +89,7 @@ class PlanFolderScanJob < ApplicationJob
       file_size = file[:size]
 
       # Check if we already have this file
-      existing = PlanFolderScan.find_by(sharepoint_file_id: file_id)
+      existing = PlanFolderScan.find_by(storage_file_id: file_id)
 
       if existing
         # Check if file was modified
@@ -107,7 +107,7 @@ class PlanFolderScanJob < ApplicationJob
         # New file - create scan record
         PlanFolderScan.create!(
           job: job,
-          sharepoint_file_id: file_id,
+          storage_file_id: file_id,
           file_name: file_name,
           file_modified_at: file_modified,
           file_size: file_size,

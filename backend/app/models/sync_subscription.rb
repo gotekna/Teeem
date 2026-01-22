@@ -50,11 +50,11 @@ class SyncSubscription < ApplicationRecord
   def storage_folder_id
     case syncable_type
     when "Job"
-      syncable.sharepoint_folder_id
+      syncable.storage_folder_id
     when "CorporateCompany"
-      syncable.sharepoint_folder_id
+      syncable.storage_folder_id
     when "Contact"
-      # Contacts may not have dedicated SharePoint folders
+      # Contacts may not have dedicated storage folders
       nil
     end
   end

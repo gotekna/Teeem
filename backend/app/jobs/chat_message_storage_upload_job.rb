@@ -40,7 +40,7 @@ class ChatMessageStorageUploadJob < ApplicationJob
     upload_result = upload_to_provider(folder_path, file_content, filename)
 
     if upload_result && upload_result[:id]
-      message.update_columns(sharepoint_file_id: upload_result[:id])
+      message.update_columns(storage_file_id: upload_result[:id])
       Rails.logger.info("[ChatMessageUpload] Uploaded: #{filename} -> #{upload_result[:path]}")
     else
       Rails.logger.error("[ChatMessageUpload] Upload failed - no ID returned")

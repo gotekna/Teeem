@@ -300,16 +300,16 @@ class CorporateCompanyDocument < ApplicationRecord
     storage_blob.download
   end
 
-  # Sets both provider-agnostic and SharePoint-specific fields
+  # Sets both provider-agnostic and legacy storage fields
   # for backwards compatibility during migration
   def set_storage_reference(item_id, provider: 'sharepoint', path: nil)
     self.storage_item_id = item_id
     self.storage_provider = provider
     self.storage_path = path
 
-    # Maintain backwards compatibility with SharePoint fields
+    # Maintain backwards compatibility with legacy storage_file_id column
     if provider == 'sharepoint'
-      self.sharepoint_file_id = item_id
+      self.storage_file_id = item_id
     end
   end
 

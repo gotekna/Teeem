@@ -97,7 +97,7 @@ class JobDocumentSyncJob < ApplicationJob
 
     # Mark missing files (deleted from storage)
     removed_count = job.job_documents
-      .where.not(sharepoint_item_id: seen_item_ids)
+      .where.not(storage_item_id: seen_item_ids)
       .update_all(sync_status: "missing")
     @stats[:removed] += removed_count
   rescue DocumentProviders::Error => e
@@ -106,7 +106,7 @@ class JobDocumentSyncJob < ApplicationJob
   end
 
   def sync_file_to_database(job, file)
-    job_doc = JobDocument.find_or_initialize_by(sharepoint_item_id: file[:id])
+    job_doc = JobDocument.find_or_initialize_by(storage_item_id: file[:id])
     is_new = job_doc.new_record?
 
     # Detect if file was renamed in storage (name changed but ID is the same)
@@ -127,7 +127,7 @@ class JobDocumentSyncJob < ApplicationJob
 
     job_doc.assign_attributes(
       job: job,
-      sharepoint_drive_id: file[:drive_id] || storage_config&.drive_id,
+      storage_drive_id: file[:drive_id] || storage_config&.drive_id,
       storage_provider: doc_storage_provider,
       storage_path: file[:path] || file[:folder_path],
       file_name: file[:name],

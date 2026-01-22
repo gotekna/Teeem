@@ -112,7 +112,7 @@ class BatchFolderScanJob < ApplicationJob
   def already_processed?(job, storage_file_id)
     # Check if this file has already been imported as a plan
     job.job_plans.joins(:current_revision)
-       .where(job_plan_revisions: { sharepoint_file_id: storage_file_id })
+       .where(job_plan_revisions: { storage_file_id: storage_file_id })
        .exists?
   end
 

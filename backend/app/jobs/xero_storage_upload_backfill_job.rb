@@ -22,7 +22,7 @@ class XeroStorageUploadBackfillJob < ApplicationJob
     pending_count = CorporateCompanyDocument
       .where(source: "xero")
       .where("external_id LIKE ?", "xero:%:pdf")
-      .where(sharepoint_file_id: nil)
+      .where(storage_file_id: nil)
       .count
 
     if pending_count < 5
@@ -62,7 +62,7 @@ class XeroStorageUploadBackfillJob < ApplicationJob
     scope = CorporateCompanyDocument
       .where(source: "xero")
       .where("external_id LIKE ?", "xero:%:pdf")  # Only PDFs, not attachments
-      .where(sharepoint_file_id: nil)
+      .where(storage_file_id: nil)
       .includes(:contact, :documentable)
       .order(created_at: :desc)  # Newest first - process recent PDFs quickly
 
@@ -121,7 +121,7 @@ class XeroStorageUploadBackfillJob < ApplicationJob
 
         if upload_result && upload_result[:id]
           begin
-            doc.update!(sharepoint_file_id: upload_result[:id])
+            doc.update!(storage_file_id: upload_result[:id])
             stats[:uploaded] += 1
             Rails.logger.info("[XeroDocumentUpload] Uploaded: #{filename} -> #{upload_result[:path]}")
           rescue ActiveRecord::RecordNotUnique

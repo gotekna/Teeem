@@ -18,11 +18,11 @@ class BackfillPlanThumbnailsJob < ApplicationJob
     # If force=true, regenerate all thumbnails (for adding micro_thumbnail_base64)
     # Otherwise, only generate for revisions without any thumbnail
     revisions = if force
-      JobPlanRevision.where.not(sharepoint_file_id: nil)
+      JobPlanRevision.where.not(storage_file_id: nil)
     else
       JobPlanRevision
         .where("thumbnail_url IS NULL OR micro_thumbnail_base64 IS NULL")
-        .where.not(sharepoint_file_id: nil)
+        .where.not(storage_file_id: nil)
     end
 
     total = revisions.count

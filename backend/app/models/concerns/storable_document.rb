@@ -31,7 +31,7 @@ module StorableDocument
     before_validation :assign_storage_provider_from_config, on: :create
 
     # Scopes for migration tracking
-    scope :needs_storage_migration, -> { where(storage_path: [nil, ""]).where.not(sharepoint_item_id: [nil, ""]) }
+    scope :needs_storage_migration, -> { where(storage_path: [nil, ""]).where.not(storage_item_id: [nil, ""]).or(where(storage_path: [nil, ""]).where.not(storage_file_id: [nil, ""])) }
     scope :storage_migrated, -> { where.not(storage_path: [nil, ""]) }
     scope :migration_pending, -> { where(migration_status: [nil, "pending"]) }
     scope :migration_in_progress, -> { where(migration_status: "in_progress") }
@@ -119,12 +119,12 @@ module StorableDocument
   # Check if file is still in SharePoint (needs migration)
   def in_sharepoint?
     (storage_provider == "sharepoint" || storage_provider.blank?) &&
-      (sharepoint_item_id.present? || sharepoint_file_id.present?)
+      (storage_item_id.present? || storage_file_id.present?)
   end
 
   # Check if file needs migration
   def needs_migration?
-    storage_path.blank? && (sharepoint_item_id.present? || sharepoint_file_id.present?)
+    storage_path.blank? && (storage_item_id.present? || storage_file_id.present?)
   end
 
   # ========================================
@@ -181,11 +181,11 @@ module StorableDocument
   # ========================================
 
   # Returns the provider-agnostic storage reference ID
-  # Handles legacy column names: sharepoint_item_id, sharepoint_file_id
-  # All controllers/services should use this - NEVER access legacy columns directly
+  # Handles all storage ID column variants
+  # All controllers/services should use this - NEVER access columns directly
   def storage_reference
     return storage_item_id if respond_to?(:storage_item_id) && storage_item_id.present?
-    legacy_sharepoint_id
+    legacy_storage_id
   end
 
   # Check if document has a storage reference
@@ -197,28 +197,27 @@ module StorableDocument
 
   # SSoT: Unified legacy storage ID accessor
   # Different models use different column names:
-  #   - sharepoint_item_id (JobDocument)
-  #   - sharepoint_file_id (CorporateCompanyDocument, BillInbox, etc.)
+  #   - storage_item_id (JobDocument, ContactDocument - renamed from sharepoint_item_id)
+  #   - storage_file_id (CorporateCompanyDocument, BillInbox - renamed from sharepoint_file_id)
   #   - external_id (PeopleDocument)
   # This method handles all - ONLY use internally, external code should use storage_reference
-  def legacy_sharepoint_id
-    if has_attribute?(:sharepoint_item_id) && read_attribute(:sharepoint_item_id).present?
-      read_attribute(:sharepoint_item_id)
-    elsif has_attribute?(:sharepoint_file_id) && read_attribute(:sharepoint_file_id).present?
-      read_attribute(:sharepoint_file_id)
+  def legacy_storage_id
+    if has_attribute?(:storage_item_id) && read_attribute(:storage_item_id).present?
+      read_attribute(:storage_item_id)
+    elsif has_attribute?(:storage_file_id) && read_attribute(:storage_file_id).present?
+      read_attribute(:storage_file_id)
     elsif has_attribute?(:external_id) && read_attribute(:external_id).present?
       read_attribute(:external_id)
     end
   end
 
-  # Deprecated: Use storage_reference instead
+  # Backwards compatibility aliases for external code still using old method names
   def sharepoint_item_id
-    legacy_sharepoint_id
+    legacy_storage_id
   end
 
-  # Deprecated: Use storage_reference instead
   def sharepoint_file_id
-    legacy_sharepoint_id
+    legacy_storage_id
   end
 
   # Override in model to provide default tokens

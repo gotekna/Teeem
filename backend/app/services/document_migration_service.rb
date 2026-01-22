@@ -111,10 +111,10 @@ class DocumentMigrationService
         # Skip orphaned documents (sync_status: 'missing' means file deleted from source)
         # Note: Only JobDocument has sync_status column
         documents = documents.where.not(sync_status: 'missing')
-        documents = documents.where.not(sharepoint_item_id: nil)
+        documents = documents.where.not(storage_item_id: nil)
         documents = documents.where(job_id: job_id) if job_id.present?
       when 'CorporateCompanyDocument'
-        documents = documents.where.not(sharepoint_file_id: nil)
+        documents = documents.where.not(storage_file_id: nil)
       when 'PeopleDocument'
         documents = documents.where.not(external_id: nil)
       end

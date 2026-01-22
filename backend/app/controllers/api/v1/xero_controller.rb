@@ -1540,13 +1540,13 @@ module Api
           # ============================================
           # SSoT: Count PDFs ACTUALLY uploaded to SharePoint (have sharepoint_file_id set)
           # sharepoint_file_id is set by SharePoint after successful upload - this is the SSoT
-          # expected_sharepoint_path is just the PLAN, not the reality
+          # expected_storage_path is just the PLAN, not the reality
           # Only count PDFs (not attachments) to match Stage 2's count
           # SSoT FIX: Must use same filters as total_pdf_eligible (contacts + non-draft)
           # SSoT: Count by document_type (matches XeroAttachmentSyncService.document_type_for_invoice)
           sharepoint_query = CorporateCompanyDocument.where(source: "xero")
                                                     .where(document_type: ["Xero Bill", "Xero Invoice", "Xero Credit Note"])
-                                                    .where.not(sharepoint_file_id: nil)  # SSoT: Actually uploaded
+                                                    .where.not(storage_file_id: nil)  # SSoT: Actually uploaded
                                                     .where(documentable_type: "ExternalInvoice")
                                                     .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                                     .where.not(external_invoices: { contact_id: nil })  # SSoT: Match pdf_eligible_invoices
@@ -1569,7 +1569,7 @@ module Api
 
           sharepoint_docs_query = CorporateCompanyDocument.where(source: "xero")
                                                          .where(documentable_type: "ExternalInvoice")
-                                                         .where.not(sharepoint_file_id: nil)
+                                                         .where.not(storage_file_id: nil)
           if tenant_id.present?
             sharepoint_docs_query = sharepoint_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                                          .where(external_invoices: { tenant_id: tenant_id })
@@ -1710,12 +1710,12 @@ module Api
                                                        .where.not("external_id LIKE ?", "xero:attachment:%")
                                                        .count
 
-          # Check for PDF documents missing expected_sharepoint_path (should all have it after upload)
-          pdfs_missing_sharepoint_path = CorporateCompanyDocument.where(source: "xero")
-                                                                 .where("external_id LIKE ?", "xero:%:pdf")
-                                                                 .where(documentable_type: "ExternalInvoice")
-                                                                 .where(expected_sharepoint_path: nil)
-                                                                 .count
+          # Check for PDF documents missing expected_storage_path (should all have it after upload)
+          pdfs_missing_storage_path = CorporateCompanyDocument.where(source: "xero")
+                                                              .where("external_id LIKE ?", "xero:%:pdf")
+                                                              .where(documentable_type: "ExternalInvoice")
+                                                              .where(expected_storage_path: nil)
+                                                              .count
 
           # Build violations array for Stage 3 display
           stage3_violations = []
@@ -1729,13 +1729,13 @@ module Api
             }
           end
 
-          if pdfs_missing_sharepoint_path > 0 && sharepoint_pdfs_uploaded > 0
+          if pdfs_missing_storage_path > 0 && sharepoint_pdfs_uploaded > 0
             # Only flag as violation if we have uploads (meaning system is working)
             stage3_violations << {
-              type: "missing_sharepoint_path",
-              count: pdfs_missing_sharepoint_path,
+              type: "missing_storage_path",
+              count: pdfs_missing_storage_path,
               severity: "info",
-              description: "PDFs without SharePoint path (may be in progress)",
+              description: "PDFs without storage path (may be in progress)",
               action_required: nil
             }
           end

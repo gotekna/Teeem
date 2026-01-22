@@ -379,7 +379,7 @@ class XeroAttachmentSyncService
         document_type_id: document_type_record&.id,
         documentable: external_invoice,
         job_id: external_invoice.job_id,
-        expected_sharepoint_path: expected_document_path(filename),
+        expected_storage_path: expected_document_path(filename),
         mime_type: mime_type,
         ai_verification_status: is_primary ? "verified" : "pending"
       )

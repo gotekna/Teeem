@@ -145,7 +145,7 @@ export default function EmailResellerDashboard() {
       {/* Actions Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button onClick={() => router.push("/settings/email-reseller/subscriptions")}>
+          <Button onClick={() => router.push("/settings/email-reseller/subscriptions?new=1")}>
             <Plus className="h-4 w-4 mr-2" />
             New Subscription
           </Button>

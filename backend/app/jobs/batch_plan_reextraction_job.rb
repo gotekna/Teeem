@@ -49,7 +49,7 @@ class BatchPlanReextractionJob < ApplicationJob
     plans = @job.job_plans
                  .includes(:current_revision, :plan_type)
                  .joins(:current_revision)
-                 .where.not(job_plan_revisions: { sharepoint_file_id: nil })
+                 .where.not(job_plan_revisions: { storage_file_id: nil })
                  .order(:id)
 
     @operation.start_processing!(total: plans.count)

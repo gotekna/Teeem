@@ -66,8 +66,8 @@ class PlanFolderProcessJob < ApplicationJob
 
       # Create the revision with the storage file link
       job_plan.add_revision!(
-        sharepoint_file_id: scan.storage_reference,
-        sharepoint_web_url: file_path,
+        storage_file_id: scan.storage_reference,
+        storage_web_url: file_path,
         file_name: scan.file_name,
         file_size: scan.file_size,
         revision_date: scan.file_modified_at&.to_date || Date.current

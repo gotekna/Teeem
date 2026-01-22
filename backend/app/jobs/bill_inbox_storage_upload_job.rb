@@ -42,7 +42,7 @@ class BillInboxStorageUploadJob < ApplicationJob
 
     if upload_result && upload_result[:id]
       bill.update_columns(
-        sharepoint_file_id: upload_result[:id],
+        storage_file_id: upload_result[:id],
         original_filename: filename
       )
       Rails.logger.info("[BillInboxUpload] Uploaded: #{filename} -> #{upload_result[:path]}")

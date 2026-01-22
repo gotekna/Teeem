@@ -317,7 +317,7 @@ class WarehouseDocument < ApplicationRecord
 
     when "CorporateCompanyDocument"
       doc = documentable
-      doc.sharepoint_path.presence ||
+      doc.expected_storage_path.presence ||
         compute_corporate_document_legacy_path(doc)
 
     when "ContactDocument"

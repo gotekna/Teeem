@@ -170,8 +170,8 @@ class PlanSetUploadJob < ApplicationJob
     )
 
     plan.add_revision!(
-      sharepoint_file_id: result[:id],
-      sharepoint_web_url: result[:webUrl] || result[:web_url],
+      storage_file_id: result[:id],
+      storage_web_url: result[:webUrl] || result[:web_url],
       file_name: "All Plans.pdf",
       file_size: @file_content.bytesize,
       revision_date: Date.today
@@ -331,8 +331,8 @@ class PlanSetUploadJob < ApplicationJob
     )
 
     plan.add_revision!(
-      sharepoint_file_id: sharepoint_result[:id],
-      sharepoint_web_url: sharepoint_result[:webUrl] || sharepoint_result[:web_url],
+      storage_file_id: sharepoint_result[:id],
+      storage_web_url: sharepoint_result[:webUrl] || sharepoint_result[:web_url],
       file_name: "#{display_name}.pdf",
       file_size: file_size,
       revision_date: Date.today

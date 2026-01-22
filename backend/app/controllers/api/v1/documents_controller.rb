@@ -1752,13 +1752,13 @@ module Api
           .map do |doc|
             {
               name: doc.display_name || doc.file_name || "Untitled",
-              path: doc.storage_path || doc.expected_sharepoint_path || "",
+              path: doc.storage_path || doc.expected_storage_path || "",
               size: doc.file_size || 0,
               content_type: doc.mime_type || MiniMime.lookup_by_filename(doc.file_name || "")&.content_type || "application/octet-stream",
               last_modified: doc.updated_at&.iso8601,
               # SSoT: storage_url (from StorableDocument concern) is THE ONE way to get download URLs
               # Falls back to legacy database columns for backwards compatibility
-              url: doc.storage_url || doc.file_url || doc.sharepoint_download_url || "",
+              url: doc.storage_url || doc.file_url || doc.storage_download_url || "",
               id: doc.id,
               company_name: doc.corporate_company&.name,
               company_code: doc.company_code

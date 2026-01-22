@@ -186,7 +186,7 @@ class CorporateBankStatementsJob < ApplicationJob
     # SSoT: Uses StorageConfiguration for path resolution
     storage_config = StorageConfiguration.instance
     base_path = File.join(storage_config.root_path, storage_config.path_for(:corporate))
-    company_folder = company.sharepoint_folder_name || company.name.gsub(/[^a-zA-Z0-9\-\s]/, "").strip
+    company_folder = company.storage_folder_name || company.name.gsub(/[^a-zA-Z0-9\-\s]/, "").strip
     folder_path = "#{base_path}/#{company_folder}/BANK"
 
     # SSoT: Use StorageUploadable for provider-agnostic upload
@@ -237,9 +237,9 @@ class CorporateBankStatementsJob < ApplicationJob
       storage_type: provider,
       source: "generated",
       focus: "company",
-      sharepoint_file_id: storage_file_id,
-      sharepoint_download_url: storage_url,
-      expected_sharepoint_path: "#{folder_path}/#{filename}",
+      storage_file_id: storage_file_id,
+      storage_download_url: storage_url,
+      expected_storage_path: "#{folder_path}/#{filename}",
       financial_years: [fy_year],
       uploaded_at: Time.current,
       last_modified_at: Time.current,

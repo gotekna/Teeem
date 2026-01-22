@@ -1327,7 +1327,7 @@ module Api
           existing_document_id: r.existing_document_id,
           existing_title: existing&.title,
           existing_filename: existing&.filename,
-          existing_sharepoint_path: existing&.sharepoint_path,
+          existing_storage_path: existing&.expected_storage_path,
           existing_file_size: existing&.file_size,
           existing_document_date: existing&.document_date,
           new_file_path: r.new_file_path,

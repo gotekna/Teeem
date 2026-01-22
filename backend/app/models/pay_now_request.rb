@@ -85,9 +85,9 @@ class PayNowRequest < ApplicationRecord
   }
 
   # SSoT: Storage reference for provider-agnostic access
-  # Returns storage_item_id (new) or sharepoint_file_id (legacy)
+  # Returns storage_item_id (new) or storage_file_id (legacy, renamed from sharepoint_file_id)
   def storage_reference
-    storage_item_id.presence || sharepoint_file_id
+    storage_item_id.presence || storage_file_id
   end
 
   # State machine methods
@@ -385,7 +385,7 @@ class PayNowRequest
 
   # Provider-agnostic storage reference (SSoT: storage_item_id)
   def storage_reference
-    storage_item_id.presence || sharepoint_file_id
+    storage_item_id.presence || storage_file_id
   end
 
   def set_storage_reference(item_id, provider: "sharepoint")

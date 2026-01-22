@@ -75,13 +75,13 @@ class JobDocument < ApplicationRecord
   # SSoT: STORAGE_PROVIDERS, MIGRATION_STATUSES, SYNC_STATUSES, AI_VERIFICATION_STATUSES
   # are defined in DocumentStorageConstants concern
 
-  validates :sharepoint_item_id, presence: true, uniqueness: true
+  validates :storage_item_id, presence: true, uniqueness: true
   validates :storage_provider, inclusion: { in: STORAGE_PROVIDERS }, allow_nil: true
   validates :migration_status, inclusion: { in: MIGRATION_STATUSES }, allow_nil: true
 
   # Provider-agnostic storage reference
   # This is the new SSoT for document storage references
-  # Backwards-compatible with sharepoint_item_id for existing documents
+  # Backwards-compatible with storage_item_id for existing documents
   validates :file_name, presence: true
   validates :sync_status, inclusion: { in: SYNC_STATUSES }
   validates :ai_verification_status, inclusion: { in: AI_VERIFICATION_STATUSES }, allow_blank: true
@@ -190,7 +190,7 @@ class JobDocument < ApplicationRecord
 
   # Check if this is SharePoint sourced
   def sharepoint_sourced?
-    !migrated? && sharepoint_item_id.present?
+    !migrated? && storage_item_id.present?
   end
 
   # Provider-agnostic storage helpers
@@ -218,17 +218,12 @@ class JobDocument < ApplicationRecord
 
   # SSoT: storage_reference is now defined in StorableDocument concern
 
-  # Sets both provider-agnostic and SharePoint-specific fields
-  # for backwards compatibility during migration
+  # Sets storage reference fields
+  # Provider-agnostic design - works with any storage provider
   def set_storage_reference(item_id, provider: 'sharepoint', path: nil)
     self.storage_item_id = item_id
     self.storage_provider = provider
     self.storage_path = path
-
-    # Maintain backwards compatibility with SharePoint fields
-    if provider == 'sharepoint'
-      self.sharepoint_item_id = item_id
-    end
   end
 
   # Version status helpers
@@ -298,7 +293,7 @@ class JobDocument < ApplicationRecord
       file_name: file_params[:file_name],
       file_extension: file_params[:file_extension],
       file_size: file_params[:file_size],
-      sharepoint_item_id: file_params[:sharepoint_item_id],
+      storage_item_id: file_params[:storage_item_id],
       folder_path: folder_path,
       sync_status: 'synced',
       contact: contact,

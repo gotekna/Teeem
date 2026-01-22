@@ -9,7 +9,7 @@ class PlanFolderScan < ApplicationRecord
   # Status values
   STATUSES = %w[pending processing processed skipped error].freeze
 
-  validates :sharepoint_file_id, presence: true, uniqueness: true
+  validates :storage_file_id, presence: true, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
 
   scope :pending, -> { where(status: "pending") }
@@ -47,12 +47,6 @@ class PlanFolderScan < ApplicationRecord
     )
   end
 
-  # SSoT: Storage reference for provider-agnostic access
-  # Alias for sharepoint_file_id to match other document models
-  def storage_reference
-    sharepoint_file_id
-  end
-
   # Mark as skipped (e.g., not a plan file)
   def mark_skipped!(reason = nil)
     update!(
@@ -67,9 +61,9 @@ class PlanFolderScan < ApplicationRecord
   end
 
   # Provider-agnostic storage reference (SSoT: storage_item_id)
-  # Falls back to sharepoint_file_id for backwards compatibility
+  # Falls back to storage_file_id for backwards compatibility
   def storage_reference
-    storage_item_id.presence || sharepoint_file_id
+    storage_item_id.presence || storage_file_id
   end
 
   def set_storage_reference(item_id, provider: "sharepoint")

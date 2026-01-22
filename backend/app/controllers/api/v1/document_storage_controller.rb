@@ -1255,12 +1255,12 @@ module Api
 
           # SSoT: Update database to reflect deletion
           # Find and remove any JobDocument records pointing to this file
-          deleted_docs = JobDocument.where(sharepoint_item_id: file_id)
+          deleted_docs = JobDocument.where(storage_item_id: file_id)
           deleted_count = deleted_docs.count
           deleted_docs.destroy_all if deleted_count > 0
 
           # Also check CorporateCompanyDocument
-          deleted_corp_docs = CorporateCompanyDocument.where(sharepoint_file_id: file_id)
+          deleted_corp_docs = CorporateCompanyDocument.where(storage_file_id: file_id)
           deleted_corp_count = deleted_corp_docs.count
           deleted_corp_docs.destroy_all if deleted_corp_count > 0
 
@@ -1939,7 +1939,7 @@ module Api
               file_name: signed_filename,
               file_extension: File.extname(signed_filename).delete_prefix(".").downcase,
               file_size: uploaded_file["size"],
-              sharepoint_item_id: uploaded_file["id"],
+              storage_item_id: uploaded_file["id"],
               web_url: uploaded_file["webUrl"]
             },
             signed_by_user: current_user
@@ -2998,11 +2998,11 @@ module Api
           docs.limit(50).each do |doc|
             # Filter to SharePoint docs only (S3/Wasabi don't have Graph API thumbnails)
             next unless doc.storage_provider == 'sharepoint' || doc.storage_provider.nil?
-            next unless doc.storage_reference.present? && doc.sharepoint_drive_id.present?
+            next unless doc.storage_reference.present? && doc.storage_drive_id.present?
 
             begin
               # Get fresh thumbnail from Graph API
-              item_data = client.get_drive_item(doc.sharepoint_drive_id, doc.storage_reference, expand: "thumbnails")
+              item_data = client.get_drive_item(doc.storage_drive_id, doc.storage_reference, expand: "thumbnails")
               if item_data
                 thumbnails = item_data.dig("thumbnails", 0) || {}
                 thumb_url = thumbnails.dig("medium", "url") || thumbnails.dig("small", "url")

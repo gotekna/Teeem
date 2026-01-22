@@ -294,7 +294,7 @@ module Api
             paid_at: request.paid_at,
             has_invoice: request.storage_reference.present?,
             sharepoint_file_id: request.storage_reference,  # Keep JSON key for backwards compat
-            proof_photos_sharepoint_ids: request.proof_photos_sharepoint_ids || []
+            proof_photos_sharepoint_ids: request.proof_photos_storage_ids || []
           }
         end
 

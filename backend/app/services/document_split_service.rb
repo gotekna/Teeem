@@ -159,11 +159,11 @@ class DocumentSplitService
 
   def get_parent_folder_path
     # Get the folder path from the original document
-    # Try storage_path first, then expected_sharepoint_path, then folder
+    # Try storage_path first, then expected_storage_path, then folder
     if @document.respond_to?(:storage_path) && @document.storage_path.present?
       File.dirname(@document.storage_path)
-    elsif @document.respond_to?(:expected_sharepoint_path) && @document.expected_sharepoint_path.present?
-      File.dirname(@document.expected_sharepoint_path)
+    elsif @document.respond_to?(:expected_storage_path) && @document.expected_storage_path.present?
+      File.dirname(@document.expected_storage_path)
     elsif @document.respond_to?(:folder) && @document.folder.present?
       # Build path from company folder structure
       storage_config = StorageConfiguration.instance

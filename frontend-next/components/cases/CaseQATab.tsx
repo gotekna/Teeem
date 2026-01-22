@@ -82,7 +82,7 @@ interface DuplicateReview {
   existing_document_id: number;
   existing_title: string | null;
   existing_filename: string | null;
-  existing_sharepoint_path: string | null;
+  existing_storage_path: string | null;
   existing_file_size: number | null;
   existing_document_date: string | null;
   new_file_path: string | null;
@@ -718,7 +718,7 @@ export function CaseQATab({
                             {dup.existing_title || dup.existing_filename}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {dup.existing_sharepoint_path}
+                            {dup.existing_storage_path}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Size: {formatFileSize(dup.existing_file_size)}

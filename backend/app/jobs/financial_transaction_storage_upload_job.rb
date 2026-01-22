@@ -37,7 +37,7 @@ class FinancialTransactionStorageUploadJob < ApplicationJob
     result = upload_to_provider(folder_path, content, filename)
 
     if result && result[:id]
-      transaction.update_columns(sharepoint_file_id: result[:id])
+      transaction.update_columns(storage_file_id: result[:id])
       Rails.logger.info("[FinancialTransactionUpload] Uploaded: #{filename} -> #{result[:path]}")
     else
       Rails.logger.error("[FinancialTransactionUpload] Upload failed - no ID returned")

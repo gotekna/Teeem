@@ -354,8 +354,8 @@ class StorageConfiguration < ApplicationRecord
       update!(
         provider_type: "sharepoint",
         connection_config: connection_config.merge(
-          "site_id" => credential.sharepoint_site_id,
-          "drive_id" => credential.sharepoint_drive_id,
+          "site_id" => credential.site_id,
+          "drive_id" => credential.drive_id,
           "site_url" => credential.respond_to?(:site_url) ? credential.site_url : nil,
           # SSoT: drive_name comes from credential - no hardcoded fallback
           "drive_name" => credential.respond_to?(:drive_name) ? credential.drive_name : nil
@@ -386,8 +386,8 @@ class StorageConfiguration < ApplicationRecord
     case credential
     when MicrosoftCredential
       {
-        "site_id" => credential.sharepoint_site_id,
-        "drive_id" => credential.sharepoint_drive_id,
+        "site_id" => credential.site_id,
+        "drive_id" => credential.drive_id,
         "site_url" => credential.respond_to?(:site_url) ? credential.site_url : nil,
         # SSoT: drive_name comes from credential - no hardcoded fallback
         "drive_name" => credential.respond_to?(:drive_name) ? credential.drive_name : nil

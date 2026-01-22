@@ -40,8 +40,8 @@ class XeroDocumentBackfillJob < ApplicationJob
     # Find documents that need backfilling
     scope = CorporateCompanyDocument
       .where(source: "xero")
-      .where(sharepoint_file_id: nil)
-      .where.not(expected_sharepoint_path: nil)
+      .where(storage_file_id: nil)
+      .where.not(expected_storage_path: nil)
       .order(created_at: :desc)
 
     scope = scope.limit(limit) if limit.present?
@@ -67,12 +67,12 @@ class XeroDocumentBackfillJob < ApplicationJob
           if dry_run
             Rails.logger.info("[XeroDocumentBackfill] [DRY RUN] Would update document #{doc.id} (#{doc.title}) with file ID: #{file_info[:id]}")
           else
-            doc.update!(sharepoint_file_id: file_info[:id])
+            doc.update!(storage_file_id: file_info[:id])
             Rails.logger.info("[XeroDocumentBackfill] Updated document #{doc.id} (#{doc.title}) with file ID: #{file_info[:id]}")
           end
         else
           stats[:not_found] += 1
-          Rails.logger.warn("[XeroDocumentBackfill] File not found on storage: #{doc.expected_sharepoint_path}")
+          Rails.logger.warn("[XeroDocumentBackfill] File not found on storage: #{doc.expected_storage_path}")
         end
 
         # Progress logging every 10 documents
@@ -98,11 +98,11 @@ class XeroDocumentBackfillJob < ApplicationJob
   private
 
   def find_file_on_storage(document, base_folder_name)
-    # The expected_sharepoint_path is like: "Contacts/1497 - Southern Star Windows/BILLS/1497-PO-000100.pdf"
+    # The expected_storage_path is like: "Contacts/1497 - Southern Star Windows/BILLS/1497-PO-000100.pdf"
     # We need to search for this file in storage
 
     # Split path into folder path + filename
-    path_parts = document.expected_sharepoint_path.split("/")
+    path_parts = document.expected_storage_path.split("/")
     filename = path_parts.last
     folder_path = path_parts[1..-2].join("/")  # Skip "Contacts" prefix
 
@@ -118,7 +118,7 @@ class XeroDocumentBackfillJob < ApplicationJob
       Rails.logger.debug("[XeroDocumentBackfill] Folder not found: #{full_folder_path}")
       nil
     rescue DocumentProviders::Error => e
-      Rails.logger.warn("[XeroDocumentBackfill] Storage error for #{document.expected_sharepoint_path}: #{e.message}")
+      Rails.logger.warn("[XeroDocumentBackfill] Storage error for #{document.expected_storage_path}: #{e.message}")
       nil
     rescue StandardError => e
       Rails.logger.error("[XeroDocumentBackfill] Unexpected error finding file: #{e.message}")

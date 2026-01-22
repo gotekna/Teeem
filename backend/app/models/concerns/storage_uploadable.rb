@@ -66,7 +66,7 @@ module StorageUploadable
     service = DocumentStorageService.new
     doc = OpenStruct.new(
       storage_path: path_or_id.to_s.start_with?("/") ? path_or_id : nil,
-      sharepoint_file_id: path_or_id.to_s.start_with?("/") ? nil : path_or_id
+      storage_file_id: path_or_id.to_s.start_with?("/") ? nil : path_or_id
     )
 
     result = service.download(doc)

@@ -32,7 +32,7 @@ class PayNowStorageUploadJob < ApplicationJob
     end
 
     # Upload proof photos
-    if request.proof_photos.attached? && request.proof_photos_sharepoint_ids.blank?
+    if request.proof_photos.attached? && request.proof_photos_storage_ids.blank?
       upload_proof_photos(request)
     end
   rescue DocumentProviders::Error => e
@@ -52,7 +52,7 @@ class PayNowStorageUploadJob < ApplicationJob
     result = upload_to_provider(folder_path, content, filename)
 
     if result && result[:id]
-      request.update_columns(sharepoint_file_id: result[:id])
+      request.update_columns(storage_file_id: result[:id])
       Rails.logger.info("[PayNowUpload] Uploaded invoice: #{filename} -> #{result[:path]}")
     end
   end
@@ -70,7 +70,7 @@ class PayNowStorageUploadJob < ApplicationJob
     end
 
     if ids.any?
-      request.update_columns(proof_photos_sharepoint_ids: ids)
+      request.update_columns(proof_photos_storage_ids: ids)
       Rails.logger.info("[PayNowUpload] Uploaded #{ids.count} proof photos")
     end
   end

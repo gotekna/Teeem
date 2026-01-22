@@ -567,7 +567,7 @@ module Api
             name: "#{entity.job_number} - #{entity.title}",
             path: "/#{base}/#{entity.job_number}",
             document_count: entity.job_documents.count,
-            has_sharepoint_folder: entity.sharepoint_folder_id.present?
+            has_sharepoint_folder: entity.storage_folder_id.present?
           }
         when "CorporateCompany"
           base = config.path_for(:corporate)
@@ -578,7 +578,7 @@ module Api
             name: entity.name,
             path: "/#{base}/#{entity.name}",
             document_count: entity.corporate_company_documents.count,
-            has_sharepoint_folder: entity.respond_to?(:sharepoint_folder_id) && entity.sharepoint_folder_id.present?
+            has_sharepoint_folder: entity.respond_to?(:storage_folder_id) && entity.storage_folder_id.present?
           }
         when "Contact"
           base = config.path_for(:contact)
