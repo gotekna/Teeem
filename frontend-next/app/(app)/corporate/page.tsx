@@ -494,7 +494,7 @@ export default function CorporateDashboardPage() {
     const parts = pathname.replace("/corporate", "").split("/").filter(Boolean);
     // Valid tab values that map to TabsContent values
     // Note: /corporate/companies/123 (detail pages) have their own route files
-    const VALID_TABS = ["groups", "companies", "memberships", "people", "structure"];
+    const VALID_TABS = ["groups", "companies", "memberships", "people", "shareholders", "beneficiaries", "structure"];
     if (parts[0] && VALID_TABS.includes(parts[0])) {
       return parts[0];
     }
