@@ -303,18 +303,19 @@ namespace :storage do
     provider = DocumentProviders.for_organization(Organization.first)
 
     # List of legacy folders to delete
-    legacy_folders = %w[
-      Attachments
-      Contacts
-      Corporate
-      Emails
-      Jobs
-      jobs
-      Task\ Responses
-      Tasks
-      Users
-      Warehousing
-      corporate
+    legacy_folders = [
+      "Attachments",
+      "Contacts",
+      "Corporate",
+      "Emails",
+      "Jobs",
+      "jobs",
+      "Task Responses",
+      "Tasks",
+      "Users",
+      "Warehousing",
+      "corporate",
+      "Shared Documents"
     ]
 
     puts "Folders to delete:"
