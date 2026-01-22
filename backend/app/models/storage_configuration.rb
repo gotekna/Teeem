@@ -145,8 +145,9 @@ class StorageConfiguration < ApplicationRecord
     # Task documents
     'task' => 'Jobs/{{JobCode}}/Tasks/{{TaskId}}',
     # Email documents
-    'email' => 'Emails/{{Mailbox}}/Email Body/{{Year}}/{{Month}}',
-    'email_attachments' => 'Emails/{{Mailbox}}/Attachments/{{Year}}/{{Month}}',
+    # SSoT: email and email_attachments use SAME path - attachments appear alongside emails
+    'email' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
+    'email_attachments' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
     # Warehousing (generic)
     'warehouse' => 'Warehousing'
   }.freeze
