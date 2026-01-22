@@ -40,7 +40,10 @@ module StorageMigrationHelpers
       # Download content from legacy S3 path
       content = provider.download_file(doc.storage_path)
 
-      unless content.present?
+      # Force binary encoding to avoid UTF-8 validation errors on binary files
+      content = content.force_encoding(Encoding::ASCII_8BIT) if content.is_a?(String)
+
+      if content.nil? || content.empty?
         puts "      SKIPPED: No content returned"
         stats[:skipped] += 1
         return
