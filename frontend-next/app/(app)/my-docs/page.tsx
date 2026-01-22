@@ -525,16 +525,22 @@ export default function MyDocsPage() {
     </div>
   );
 
-  // Render gallery item
+  // Render gallery item (draggable)
   const renderGalleryItem = (doc: UserDocument) => (
     <div
       key={doc.id}
-      className="border rounded-lg p-3 hover:bg-muted cursor-pointer group"
+      className={cn(
+        "border rounded-lg p-3 hover:bg-muted cursor-grab active:cursor-grabbing group",
+        draggedDocument?.id === doc.id && "opacity-50"
+      )}
+      draggable
+      onDragStart={(e) => handleDocumentDragStart(e, doc)}
+      onDragEnd={handleDocumentDragEnd}
       onClick={() => { setSelectedDocument(doc); setPreviewOpen(true); }}
     >
       <div className="aspect-square flex items-center justify-center bg-muted/50 rounded mb-2">
         {doc.isImage && doc.fileUrl ? (
-          <img src={doc.fileUrl} alt={doc.fileName} className="max-h-full max-w-full object-contain rounded" />
+          <img src={doc.fileUrl} alt={doc.fileName} className="max-h-full max-w-full object-contain rounded" draggable={false} />
         ) : (
           <div className="scale-150">{getFileIcon(doc)}</div>
         )}
@@ -650,10 +656,14 @@ export default function MyDocsPage() {
           <div className="w-64 border-r overflow-y-auto p-2">
             <div
               className={cn(
-                "flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-muted",
-                !currentFolder && "bg-muted font-medium"
+                "flex items-center gap-2 px-2 py-1 rounded cursor-pointer hover:bg-muted transition-colors",
+                !currentFolder && "bg-muted font-medium",
+                dropTargetFolder === "" && draggedDocument && "bg-primary/20 ring-2 ring-primary"
               )}
               onClick={() => navigateToFolder(null)}
+              onDragOver={(e) => handleFolderDragOver(e, "")}
+              onDragLeave={handleFolderDragLeave}
+              onDrop={(e) => handleFolderDrop(e, null)}
             >
               <Folder className="h-4 w-4 text-amber-500" />
               <span className="text-sm">All Documents</span>
