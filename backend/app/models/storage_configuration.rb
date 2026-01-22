@@ -67,6 +67,16 @@ class StorageConfiguration < ApplicationRecord
     end
   end
 
+  # Callbacks
+  # Clear warehouse folder tree cache when templates change
+  # This ensures File Warehouse instantly reflects template changes
+  after_save :invalidate_warehouse_folder_cache, if: :warehouse_root_folders_changed?
+
+  def invalidate_warehouse_folder_cache
+    Rails.cache.delete("warehouse_folder_tree_v2")
+    Rails.logger.info "[StorageConfiguration] Cleared warehouse folder tree cache after template change"
+  end
+
   # Scopes
   scope :connected, -> { where(status: "connected") }
   scope :for_provider, ->(type) { where(provider_type: type) }

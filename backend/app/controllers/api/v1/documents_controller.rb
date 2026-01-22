@@ -531,51 +531,51 @@ module Api
         end
       end
 
-      # Phase 3: Render virtual folders from WarehouseDocument paths
-      # SSoT: WarehouseDocument.folder contains virtual paths like "Contacts/Acme Corp/..."
-      # After StorageBlob migration, all files are in Blobs/ folder, browsing uses virtual paths
+      # Phase 3: Render virtual folders from WarehouseDocument computed paths
+      # SSoT: Uses computed_folder_path (not stored folder column) for dynamic folder structure
+      # This enables instant reorganization when templates change in Entity Config - no migration needed
       #
       # @param path [String] The folder path to list (e.g., "" for root, "Contacts", "Contacts/Acme")
       def render_virtual_folders(path = "")
         path = path.to_s.strip.gsub(%r{^/+|/+$}, "")
 
-        if path.blank?
-          # Root level: get unique root folder names
-          folder_counts = WarehouseDocument.where.not(folder: [ nil, "" ])
-            .pluck(Arel.sql("SPLIT_PART(folder, '/', 1)"))
-            .tally
+        # Cache the full folder tree for 5 minutes (invalidated by template changes)
+        # Key includes a version that should be bumped when StorageConfiguration templates change
+        cache_key = "warehouse_folder_tree_v2"
+        folder_tree = Rails.cache.fetch(cache_key, expires_in: 5.minutes) do
+          build_folder_tree
+        end
 
-          folders = folder_counts.map do |name, count|
+        if path.blank?
+          # Root level: return top-level folders with counts
+          folders = folder_tree[:root_folders].map do |name, count|
             { name: name, path: name, count: count }
           end.sort_by { |f| f[:name].downcase }
 
           files = []
         else
-          # Subfolder: get subfolders and files at this path
-          # Count path segments to determine depth
+          # Subfolder: compute subfolders and files at this path
           path_depth = path.count("/") + 1
+          subfolder_counts = Hash.new(0)
+          file_ids_at_path = []
 
-          # Get all documents in or under this path
-          docs = WarehouseDocument.where("folder LIKE ?", "#{path}%")
-            .where.not(folder: [ nil, "" ])
-            .includes(:storage_blob)
+          folder_tree[:paths].each do |doc_id, computed_path|
+            next if computed_path.blank?
+            next unless computed_path.start_with?(path)
 
-          # Separate immediate subfolders from files at this level
-          subfolder_counts = {}
-          files_at_path = []
+            # Check if exact match or starts with path/
+            remaining = computed_path[path.length..]
+            next unless remaining.blank? || remaining.start_with?("/")
 
-          docs.find_each do |doc|
-            folder = doc.folder
-            folder_parts = folder.split("/")
+            folder_parts = computed_path.split("/")
 
             if folder_parts.length > path_depth
-              # This is in a subfolder - count the immediate subfolder
+              # Has subfolders - count the immediate subfolder
               subfolder_name = folder_parts[path_depth]
-              subfolder_counts[subfolder_name] ||= 0
               subfolder_counts[subfolder_name] += 1
-            elsif folder == path
-              # This file is directly at this path level
-              files_at_path << doc
+            elsif computed_path == path
+              # File at this exact path
+              file_ids_at_path << doc_id
             end
           end
 
@@ -583,22 +583,26 @@ module Api
             { name: name, path: "#{path}/#{name}", count: count }
           end.sort_by { |f| f[:name].downcase }
 
-          # Map files to response format
-          files = files_at_path.map do |doc|
-            blob = doc.storage_blob
-            url = doc.download_url rescue nil
+          # Fetch full document records for files at this path
+          files = if file_ids_at_path.any?
+            WarehouseDocument.where(id: file_ids_at_path).includes(:storage_blob).map do |doc|
+              blob = doc.storage_blob
+              url = doc.download_url rescue nil
 
-            {
-              name: doc.display_name || doc.original_filename || "Document #{doc.id}",
-              path: blob&.storage_path,
-              size: doc.file_size || blob&.file_size || 0,
-              content_type: doc.content_type || blob&.content_type || "application/octet-stream",
-              last_modified: doc.updated_at&.iso8601,
-              url: url,
-              id: doc.id,
-              warehouse_document_id: doc.id
-            }
-          end.sort_by { |f| f[:name].to_s.downcase }
+              {
+                name: doc.display_name || doc.original_filename || "Document #{doc.id}",
+                path: blob&.storage_path,
+                size: doc.file_size || blob&.file_size || 0,
+                content_type: doc.content_type || blob&.content_type || "application/octet-stream",
+                last_modified: doc.updated_at&.iso8601,
+                url: url,
+                id: doc.id,
+                warehouse_document_id: doc.id
+              }
+            end.sort_by { |f| f[:name].to_s.downcase }
+          else
+            []
+          end
         end
 
         render json: {
@@ -612,6 +616,32 @@ module Api
             total: folders.size + files.size
           }
         }
+      end
+
+      # Build a complete folder tree by computing paths for all warehouse documents
+      # This is cached to avoid O(n) computation on every request
+      #
+      # @return [Hash] { root_folders: { name => count }, paths: { doc_id => computed_path } }
+      def build_folder_tree
+        tree = { root_folders: Hash.new(0), paths: {} }
+
+        # Use find_each for memory efficiency with large datasets
+        WarehouseDocument.includes(:documentable).find_each do |doc|
+          computed_path = doc.computed_folder_path
+          next if computed_path.blank?
+
+          # Store the computed path for this document
+          tree[:paths][doc.id] = computed_path
+
+          # Count root folders
+          root = computed_path.split("/").first
+          tree[:root_folders][root] += 1
+        end
+
+        # Convert root_folders to regular hash (Hash.new(0) doesn't serialize well)
+        tree[:root_folders] = tree[:root_folders].to_h
+
+        tree
       end
 
       # GET /api/v1/documents/folder_files
