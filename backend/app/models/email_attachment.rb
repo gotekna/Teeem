@@ -106,14 +106,14 @@ class EmailAttachment < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # Attachments appear in SAME folder as their parent email
-  # This keeps emails and their attachments together for easy browsing
+  # SSoT: Reads template from StorageConfiguration.virtual_template_for(:email_attachments)
+  # Configure at: /settings/company/entity-config → Storage Config → email_attachments
   def virtual_folder_path
     email = synced_email
     return "Emails/Unknown" unless email
 
-    # SSoT: Use parent email's folder path - attachments appear alongside .eml files
-    email.virtual_folder_path
+    # SSoT: Delegate to parent email which reads from StorageConfiguration template
+    email.virtual_attachments_folder_path
   end
 
   private
