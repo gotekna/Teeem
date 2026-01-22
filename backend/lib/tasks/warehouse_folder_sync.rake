@@ -39,9 +39,9 @@ namespace :warehouse do
   # - Contacts (from ContactDocument → 'Contacts/{{ContactName}}')
   # - Corporate (from CorporateCompanyDocument → 'Corporate/{{CompanyGroup}}')
   # - Emails (from SyncedEmail + EmailAttachment → 'Emails/{{Mailbox}}')
-  # - Warehousing (from warehouse → 'Warehousing')
-  # Note: Tasks don't create WarehouseDocuments - they attach existing emails/corporate docs
-  EXPECTED_ROOT_FOLDERS = %w[Jobs Contacts Corporate Emails Warehousing].freeze
+  # - Tasks (from SmTaskAttachment → 'Tasks/{{TaskId}}')
+  # - Warehousing (from UserDocument → 'Warehousing/{{UserName}}')
+  EXPECTED_ROOT_FOLDERS = %w[Jobs Contacts Corporate Emails Tasks Warehousing].freeze
 
   desc "Audit folder structure - show all root folders and their counts"
   task audit: :environment do

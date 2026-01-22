@@ -221,8 +221,8 @@ module Api
             permissions: @current_user.permissions,
             preload_price_books: @current_user.preload_price_books,
             preferred_theme: @current_user.preferred_theme,
-            photo_url: @current_user.photo.attached? ? url_for(@current_user.photo) : nil,
-            signature_url: @current_user.signature.attached? ? url_for(@current_user.signature) : nil
+            photo_url: nil,      # ActiveStorage removed (Jan 2026) - photos stored in File Warehouse
+            signature_url: nil   # ActiveStorage removed (Jan 2026) - signatures stored in File Warehouse
           },
           # Environment info for auto-login redirect check
           api_url: env_config[:api_url],

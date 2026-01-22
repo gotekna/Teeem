@@ -5,6 +5,11 @@ class SmTaskAttachment < ApplicationRecord
   belongs_to :added_by, class_name: "User", optional: true
   belongs_to :action_item, class_name: "TaskActionItem", optional: true
 
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  # Task attachments appear under Tasks/ folder in File Warehouse
+  # Same file can appear in multiple folders (Tasks/ AND Emails/ or Corporate/)
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   # Attachment types
   ATTACHMENT_TYPES = %w[email document upload].freeze
 
@@ -20,6 +25,7 @@ class SmTaskAttachment < ApplicationRecord
 
   # Callbacks
   after_create :auto_populate_keywords
+  after_create :create_warehouse_entry
 
   # Scopes
   scope :emails, -> { where(attachable_type: "SyncedEmail") }
@@ -27,6 +33,41 @@ class SmTaskAttachment < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
   scope :info, -> { where(category: "info") }
   scope :responses, -> { where(category: "response") }
+
+  # Phase 4: Virtual folder path for File Warehouse
+  # Tasks appear under Tasks/{{Category}}/{{TaskId}}
+  def virtual_folder_path
+    task = sm_task
+    return "Tasks/Attachments/Unknown" unless task
+
+    task_id = task.id.to_s
+    cat = category&.titleize || "Attachments"
+
+    "Tasks/#{cat}/#{task_id}"
+  end
+
+  # Get the storage blob from the attached document
+  # CorporateCompanyDocument has storage_blob directly
+  # SyncedEmail uses warehouse_document.storage_blob
+  def storage_blob
+    if attachable.respond_to?(:storage_blob) && attachable.storage_blob
+      attachable.storage_blob
+    elsif attachable&.warehouse_document&.storage_blob
+      attachable.warehouse_document.storage_blob
+    end
+  end
+
+  # Get display name from attached document
+  def display_name
+    case attachable_type
+    when "SyncedEmail"
+      attachable&.subject || "Email"
+    when "CorporateCompanyDocument"
+      attachable&.file_name || "Document"
+    else
+      "Attachment"
+    end
+  end
 
   private
 
@@ -38,5 +79,29 @@ class SmTaskAttachment < ApplicationRecord
     sm_task.add_keywords_from_email(attachable)
   rescue StandardError => e
     Rails.logger.error("[SmTaskAttachment] Failed to auto-populate keywords: #{e.message}")
+  end
+
+  # Create WarehouseDocument entry for this task attachment
+  # Links to same StorageBlob as the attached document
+  def create_warehouse_entry
+    blob = storage_blob
+    return unless blob
+
+    create_warehouse_document!(
+      source_type: "task",
+      folder: virtual_folder_path,
+      display_name: display_name,
+      original_filename: attachable&.try(:file_name) || attachable&.try(:filename),
+      storage_blob: blob,
+      metadata: {
+        task_id: sm_task_id,
+        task_name: sm_task&.name,
+        category: category,
+        attachable_type: attachable_type,
+        attachable_id: attachable_id
+      }
+    )
+  rescue StandardError => e
+    Rails.logger.error("[SmTaskAttachment] Failed to create warehouse entry: #{e.message}")
   end
 end
