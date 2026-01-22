@@ -145,8 +145,8 @@ class StorageConfiguration < ApplicationRecord
     'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
     'corporate_entity' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
     # Task documents
-    # SSoT: task_attachments and task_responses MUST be defined (TaskResponseUploader uses these)
-    # Path matches Entity Config UI: Tasks/{{TaskId}} (top-level, not under Jobs)
+    # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
+    # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
     'task' => 'Tasks/{{TaskId}}',
     'task_attachments' => 'Tasks/{{TaskId}}/Attachments',
     'task_responses' => 'Tasks/{{TaskId}}/Responses',

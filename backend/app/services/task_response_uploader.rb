@@ -1,7 +1,20 @@
 # frozen_string_literal: true
 
-# TaskResponseUploader
-# Uploads task files to document storage (SharePoint, S3, etc.)
+# ⚠️ DEPRECATED (Jan 2026) - DO NOT USE
+# ════════════════════════════════════════════════════════════════════════════════
+# This class was an SSoT VIOLATION - it bypassed StorageBlob, causing files to be
+# stored at bucket root without proper blob architecture.
+#
+# ALL task uploads now go through SmTasksController#upload_standard_file which:
+#   1. Creates StorageBlob (content-hash deduplication)
+#   2. Stores files at Blobs/{hash}.ext (provider-agnostic)
+#   3. Creates CorporateCompanyDocument with storage_blob reference
+#
+# This file is kept only for reference. Remove after confirming no other code uses it.
+# ════════════════════════════════════════════════════════════════════════════════
+#
+# Original purpose:
+# TaskResponseUploader - Uploads task files to document storage (SharePoint, S3, etc.)
 #
 # SSoT: StorageConfiguration defines ALL folder paths via resolve_path():
 #   - :task_responses scope → /Tasks/{TaskId}/Responses/{filename}

@@ -945,10 +945,10 @@ module Api
       #   - file: The file to upload (required)
       #   - category: "info" or "response" (default: "info")
       #   - notes: Optional notes
-      # ALL files upload to SharePoint (enables sharing links for email):
-      #   - Tasks with job → /Jobs/{code}/{category}/{filename}
-      #   - Standalone tasks → /Tasks/Task-{id}/{category}/{filename}
-      # Falls back to ActiveStorage only if SharePoint is not configured.
+      #
+      # SSoT: ALL uploads use StorageBlob for deduplication and consistent storage
+      # Files stored at Blobs/{hash}.ext - provider-agnostic path
+      # Virtual folder paths handled by SmTaskAttachment.virtual_folder_path
       def upload_attachment
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :bad_request
@@ -958,49 +958,18 @@ module Api
         category = params[:category] || "info"
 
         begin
-          # Always upload to storage (enables sharing links for email)
-          # Falls back to ActiveStorage only if storage isn't configured
-          if StorageConfiguration.instance&.connected?
-            upload_to_storage(file, category)
-          else
-            upload_standard_file(file, category)
-          end
-        rescue TaskResponseUploader::UploadError => e
-          Rails.logger.error "[SmTasksController#upload_attachment] Response upload failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          # SSoT: Always use StorageBlob (Jan 2026 - removed TaskResponseUploader path)
+          # StorageBlob handles: deduplication, content_hash, provider-agnostic storage
+          upload_standard_file(file, category)
         rescue => e
           Rails.logger.error "[SmTasksController#upload_attachment] Failed: #{e.message}"
           render json: { success: false, error: "Upload failed: #{e.message}" }, status: :unprocessable_entity
         end
       end
 
-      # Upload file to storage and create SmTaskAttachment
-      # Uses TaskResponseUploader which handles folder paths:
-      #   - Tasks with job → /Jobs/{code}/{category}/{filename}
-      #   - Standalone tasks → /Tasks/Task-{id}/{category}/{filename}
-      # Category determines subfolder: "response" → Responses, other → Task Attachments
-      def upload_to_storage(file, category)
-        uploader = TaskResponseUploader.new(job: @task.job, task: @task, category: category)
-        result = uploader.upload(file)
-        doc = uploader.create_document_record(result, file)
-
-        attachment = @task.sm_task_attachments.create!(
-          attachable: doc,
-          attachment_type: "document",
-          category: category,
-          notes: params[:notes],
-          added_by: current_user,
-          action_item_id: params[:action_item_id]
-        )
-
-        render json: {
-          success: true,
-          attachment: attachment_to_json(attachment).merge(
-            sharepoint_url: result[:sharepoint_url],
-            action_item_id: attachment.action_item_id
-          )
-        }
-      end
+      # REMOVED (Jan 2026): upload_to_storage method
+      # Was SSoT violation - used TaskResponseUploader which bypassed StorageBlob
+      # All uploads now go through upload_standard_file which uses StorageBlob
 
       # Standard file upload using StorageBlob (SSoT for file storage)
       # Creates a CorporateCompanyDocument record to track the file
