@@ -1,6 +1,8 @@
 class PeopleDocument < ApplicationRecord
   include StorableDocument
   include DocumentStorageConstants
+  include WarehouseDocumentable
+  warehouse_type :people
 
   # SSoT: Storage scope for this document type
   # Determines path: /Corporate/People/{ContactName}/{TabName}/filename
@@ -19,7 +21,7 @@ class PeopleDocument < ApplicationRecord
   # which deduplicates via content_hash and uses StorageConfiguration for provider-agnostic paths.
 
   # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
-  has_one :warehouse_document, as: :documentable, dependent: :destroy
+  # NOTE: has_one :warehouse_document is now provided by WarehouseDocumentable concern
 
   # Duplicate tracking
   has_many :duplicate_reviews_as_existing,

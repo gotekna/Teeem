@@ -1,5 +1,8 @@
 # World-Class Asset Register - Asset Expense (cost tracking per asset)
 class AssetExpense < ApplicationRecord
+  include WarehouseDocumentable
+  warehouse_type :asset
+
   belongs_to :asset
   belongs_to :user, optional: true
   belongs_to :financial_transaction, optional: true

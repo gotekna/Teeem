@@ -1,4 +1,7 @@
 class FinancialTransaction < ApplicationRecord
+  include WarehouseDocumentable
+  warehouse_type :financial
+
   # Associations
   belongs_to :job, optional: true
   belongs_to :user

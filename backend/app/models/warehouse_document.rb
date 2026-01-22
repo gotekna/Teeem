@@ -46,7 +46,7 @@ class WarehouseDocument < ApplicationRecord
 
   validates :display_name, presence: true
   validates :source_type, presence: true, inclusion: {
-    in: %w[corporate job email email_attachment task people contact user template warehouse],
+    in: %w[corporate job email email_attachment task people contact user template warehouse asset financial compliance],
     message: "%{value} is not a valid source type"
   }
   validates :version_number, numericality: { greater_than: 0 }, allow_nil: true
@@ -153,6 +153,37 @@ class WarehouseDocument < ApplicationRecord
 
     # Fallback to stored folder (for legacy docs or docs without documentable)
     folder
+  end
+
+  # ========================================
+  # Computed Display Name (Runtime Resolution)
+  # ========================================
+  #
+  # SSoT: Returns the display name computed from documentable attributes.
+  # Falls back through common naming patterns (title, name, subject, file_name).
+  # Used when display_name column is null or when computing from documentable.
+  #
+  # @return [String] The display name for this document
+  #
+  def computed_display_name
+    # If display_name is stored, use it
+    return display_name if display_name.present?
+
+    # Try to get from documentable using duck typing
+    if documentable.present?
+      return documentable.title if documentable.respond_to?(:title) && documentable.title.present?
+      return documentable.name if documentable.respond_to?(:name) && documentable.name.present?
+      return documentable.subject if documentable.respond_to?(:subject) && documentable.subject.present?
+      return documentable.file_name if documentable.respond_to?(:file_name) && documentable.file_name.present?
+      return documentable.filename if documentable.respond_to?(:filename) && documentable.filename.present?
+    end
+
+    # Fall back to original_filename from this record or blob
+    return original_filename if original_filename.present?
+    return storage_blob&.original_filename if storage_blob&.original_filename.present?
+
+    # Last resort: descriptive name
+    "#{documentable&.class&.name&.titleize || 'Document'} ##{documentable_id || id}"
   end
 
   # ========================================

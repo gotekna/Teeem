@@ -1,4 +1,7 @@
 class DocumentTask < ApplicationRecord
+  include WarehouseDocumentable
+  warehouse_type :compliance
+
   belongs_to :job
   has_many :purchase_order_documents, dependent: :destroy
   has_many :purchase_orders, through: :purchase_order_documents

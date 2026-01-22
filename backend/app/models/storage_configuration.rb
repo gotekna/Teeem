@@ -261,8 +261,8 @@ class StorageConfiguration < ApplicationRecord
   #
   def root_folder_for(warehouse_type)
     type_key = warehouse_type.to_s
-    # SSoT: Only use warehouse_root_folders column (initialized with defaults via after_initialize)
-    path = warehouse_root_folders&.dig(type_key)
+    # SSoT: Check database first, fall back to defaults for new warehouse types
+    path = warehouse_root_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
     return nil if path.blank? || path == "DISABLED"
     path
   end
@@ -358,6 +358,116 @@ class StorageConfiguration < ApplicationRecord
 
     path = File.join(root_path, resolved)
     subfolder.present? ? File.join(path, subfolder) : path
+  end
+
+  # ========================================
+  # Folder Path Computation (WarehouseDocumentable SSoT)
+  # ========================================
+
+  # Compute folder path for any documentable record
+  # Used by WarehouseDocumentable concern to determine folder structure
+  #
+  # @param source_type [String, Symbol] The warehouse source type (asset, financial, compliance, etc.)
+  # @param documentable [ActiveRecord] The source record (AssetExpense, FinancialTransaction, etc.)
+  # @return [String, nil] The computed folder path
+  #
+  # Example:
+  #   compute_folder_path(source_type: :asset, documentable: asset_expense)
+  #   # => "Assets/Toyota Hilux/Expenses"
+  #
+  def compute_folder_path(source_type:, documentable:)
+    template = virtual_template_for(source_type.to_sym)
+    return nil unless template
+
+    tokens = extract_tokens_from(documentable)
+    expand_template(template, tokens)
+  end
+
+  # Extract token values from any documentable record
+  # Uses duck typing to support multiple model types
+  #
+  # @param record [ActiveRecord] The source record
+  # @return [Hash] Token key-value pairs for template expansion
+  #
+  def extract_tokens_from(record)
+    return {} unless record
+
+    tokens = {}
+
+    # Job context
+    if record.respond_to?(:job) && record.job
+      tokens[:JobCode] = record.job.job_code
+      tokens[:JobName] = record.job.name
+    end
+
+    # Asset context
+    if record.respond_to?(:asset) && record.asset
+      tokens[:AssetName] = record.asset.display_name.presence || record.asset.name.presence || "Asset-#{record.asset.id}"
+      tokens[:AssetId] = record.asset.id
+    end
+
+    # Contact context
+    if record.respond_to?(:contact) && record.contact
+      tokens[:ContactName] = record.contact.display_name.presence || "Contact-#{record.contact.id}"
+      tokens[:ContactId] = record.contact.id
+    end
+
+    # Corporate company context
+    if record.respond_to?(:corporate_company) && record.corporate_company
+      tokens[:CompanyCode] = record.corporate_company.company_code
+      tokens[:CompanyName] = record.corporate_company.name
+      tokens[:CompanyGroup] = record.corporate_company.company_group.presence || "Default"
+    end
+
+    # Date tokens - try multiple date fields
+    date = record.try(:expense_date) || record.try(:reading_date) ||
+           record.try(:transaction_date) || record.try(:created_at) || Time.current
+    tokens[:Year] = date.year.to_s
+    tokens[:Month] = date.strftime("%m")
+
+    # Category/folder from document_type if available
+    if record.respond_to?(:document_type_record) && record.document_type_record
+      tokens[:Folder] = record.document_type_record.folder.presence || record.document_type_record.name
+      tokens[:DocTypeName] = record.document_type_record.name
+    elsif record.respond_to?(:document_type)
+      tokens[:DocTypeName] = record.document_type
+    end
+
+    # Generic category - try multiple field names
+    tokens[:Category] = record.try(:category) ||
+                        record.try(:expense_type)&.titleize ||
+                        record.try(:reading_type)&.titleize ||
+                        record.try(:document_type)&.titleize ||
+                        "Documents"
+
+    # Task ID for task documents
+    tokens[:TaskId] = record.id if record.is_a?(DocumentTask) || record.class.name == "SmTaskAttachment"
+
+    tokens
+  end
+
+  # Expand template string with token values
+  # Handles cleanup of unexpanded tokens and path separators
+  #
+  # @param template [String] Path template with {{Token}} placeholders
+  # @param tokens [Hash] Token values for substitution
+  # @return [String] Expanded path
+  #
+  def expand_template(template, tokens)
+    result = template.dup
+
+    tokens.each do |key, value|
+      result.gsub!("{{#{key}}}", value.to_s)
+    end
+
+    # Clean up unexpanded tokens
+    result.gsub!(/\/?\{\{[^\}]+\}\}/, "")
+
+    # Clean up double slashes and trailing slashes
+    result.gsub!(%r{//+}, "/")
+    result.gsub!(%r{/$}, "")
+
+    result
   end
 
   # ========================================

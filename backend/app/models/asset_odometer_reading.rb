@@ -1,5 +1,8 @@
 # World-Class Asset Register - Odometer/Hours Reading (vehicle/equipment tracking)
 class AssetOdometerReading < ApplicationRecord
+  include WarehouseDocumentable
+  warehouse_type :asset
+
   belongs_to :asset
   belongs_to :user, optional: true
 
