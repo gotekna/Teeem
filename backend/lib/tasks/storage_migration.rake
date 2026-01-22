@@ -41,9 +41,11 @@ module StorageMigrationHelpers
       content = provider.download_file(doc.storage_path)
 
       unless content.present?
+        puts "      SKIPPED: No content returned"
         stats[:skipped] += 1
         return
       end
+      puts "      Downloaded #{content.bytesize} bytes"
 
       # Determine content type
       content_type = case model_name
