@@ -160,10 +160,8 @@ class UniversalDocumentReader
       File.basename(file_or_path)
     when ActionDispatch::Http::UploadedFile
       file_or_path.original_filename
-    when ActiveStorage::Blob
-      file_or_path.filename.to_s
-    when ActiveStorage::Attached::One
-      file_or_path.filename.to_s
+    when StorageBlob
+      file_or_path.file_name || "unknown"
     else
       "unknown"
     end
@@ -186,9 +184,7 @@ class UniversalDocumentReader
       File.open(file, "rb")
     when ActionDispatch::Http::UploadedFile
       file.tempfile
-    when ActiveStorage::Blob
-      StringIO.new(file.download)
-    when ActiveStorage::Attached::One
+    when StorageBlob
       StringIO.new(file.download)
     when StringIO, Tempfile, File
       file

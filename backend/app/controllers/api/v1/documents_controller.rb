@@ -42,8 +42,8 @@ module Api
         # Pricebook images (product photos)
         pricebook_image_count = PricebookItem.where.not(image_file_id: nil).count rescue 0
 
-        # Active Storage files (Rails attachments)
-        active_storage_count = ActiveStorage::Blob.count rescue 0
+        # Active Storage REMOVED (Jan 2026) - SSoT is now StorageBlob
+        active_storage_count = 0  # Legacy field for API compatibility
 
         # Notes attachments (notebook page files)
         notes_count = NotebookPageAttachment.count rescue 0

@@ -11,7 +11,7 @@
 # Usage:
 #   result = PdfTextExtractionService.extract(pdf_content)
 #   result = PdfTextExtractionService.extract(file_path)
-#   result = PdfTextExtractionService.extract(active_storage_blob)
+#   result = PdfTextExtractionService.extract(storage_blob)  # StorageBlob SSoT
 #
 class PdfTextExtractionService
   class ExtractionError < StandardError; end
@@ -71,10 +71,8 @@ class PdfTextExtractionService
         # Assume it's binary content with wrong encoding
         source.dup.force_encoding(Encoding::BINARY)
       end
-    when ActiveStorage::Blob
+    when StorageBlob
       source.download
-    when ActiveStorage::Attached::One
-      source.blob.download
     when Tempfile, File
       source.rewind if source.respond_to?(:rewind)
       content = source.binmode.read

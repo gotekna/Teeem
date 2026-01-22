@@ -15,7 +15,7 @@ class ApplicationController < ActionController::API
   rescue_from ActiveRecord::RecordInvalid, with: :handle_validation_error
   rescue_from ActionController::ParameterMissing, with: :handle_parameter_missing
   rescue_from ActiveRecord::DeleteRestrictionError, with: :handle_delete_restriction
-  rescue_from ActiveStorage::FileNotFoundError, with: :handle_file_not_found
+  # REMOVED (Jan 2026): rescue_from ActiveStorage::FileNotFoundError - SSoT is now StorageBlob
 
   private
 
@@ -167,11 +167,6 @@ class ApplicationController < ActionController::API
     }, status: :unprocessable_entity
   end
 
-  def handle_file_not_found(exception)
-    Rails.logger.warn("File not found in storage: #{exception.message}")
-    render json: {
-      success: false,
-      error: "File not found in storage"
-    }, status: :not_found
-  end
+  # REMOVED (Jan 2026): handle_file_not_found - ActiveStorage no longer used
+  # StorageBlob handles file-not-found via standard exception handling
 end

@@ -35,13 +35,13 @@ namespace :warehouse do
   end
 
   # SSoT: Expected root folders per StorageConfiguration::WAREHOUSE_ROOT_DEFAULTS
-  # - Jobs (from job → 'Jobs/{{JobCode}}')
-  # - Contacts (from contact → 'Contacts/{{ContactName}}')
-  # - Corporate (from corporate_entity → 'Corporate/{{CompanyGroup}}')
-  # - Emails (from email → 'Emails/{{Mailbox}}')
+  # - Jobs (from JobDocument → 'Jobs/{{JobCode}}')
+  # - Contacts (from ContactDocument → 'Contacts/{{ContactName}}')
+  # - Corporate (from CorporateCompanyDocument → 'Corporate/{{CompanyGroup}}')
+  # - Emails (from SyncedEmail + EmailAttachment → 'Emails/{{Mailbox}}')
   # - Warehousing (from warehouse → 'Warehousing')
-  # - Tasks (from task → 'Jobs/{{JobCode}}/Tasks' but some legacy may be standalone)
-  EXPECTED_ROOT_FOLDERS = %w[Jobs Contacts Corporate Emails Warehousing Tasks].freeze
+  # Note: Tasks don't create WarehouseDocuments - they attach existing emails/corporate docs
+  EXPECTED_ROOT_FOLDERS = %w[Jobs Contacts Corporate Emails Warehousing].freeze
 
   desc "Audit folder structure - show all root folders and their counts"
   task audit: :environment do

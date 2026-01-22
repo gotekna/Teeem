@@ -183,7 +183,8 @@ class DocumentStorageService
   # SSoT Priority (Jan 2026):
   #   1. StorageBlob (preferred - deduplicated storage)
   #   2. storage_path (S3/Wasabi direct)
-  #   3. ActiveStorage (legacy fallback)
+  #
+  # ActiveStorage REMOVED (Jan 2026) - all files now use StorageBlob or storage_path
   #
   # @param record [ActiveRecord::Base] Document with storage_blob or storage_path
   # @return [Hash] { success: true, content: binary, content_type: "...", filename: "..." }
@@ -197,9 +198,6 @@ class DocumentStorageService
     # Fallback: Direct S3/Wasabi storage
     elsif record.respond_to?(:storage_path) && record.storage_path.present?
       download_from_s3(record)
-    # Legacy: ActiveStorage (for unmigrated records)
-    elsif record.respond_to?(:file) && record.file.attached?
-      download_from_active_storage(record)
     else
       Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage - needs migration"
       error_result("Document not in storage (missing storage_blob and storage_path)", status: :not_found)
@@ -410,20 +408,7 @@ class DocumentStorageService
   end
 
   # NOTE: download_from_sharepoint removed - S3/Wasabi is SSoT, no SharePoint fallback
-
-  def download_from_active_storage(record)
-    {
-      success: true,
-      content: record.file.download,
-      content_type: record.file.content_type || detect_content_type(record.file_name),
-      filename: record.file_name || record.file.filename.to_s
-    }
-  rescue ActiveStorage::FileNotFoundError
-    error_result("File not found in storage", status: :not_found)
-  rescue => e
-    Rails.logger.error "[DocumentStorage] ActiveStorage error for #{record.class.name}##{record.id}: #{e.message}"
-    error_result("Failed to download file: #{e.message}", status: :internal_server_error)
-  end
+  # NOTE: download_from_active_storage removed (Jan 2026) - ActiveStorage no longer used
 
   # NOTE: has_sharepoint_id? removed - S3/Wasabi is SSoT, no SharePoint fallback
 
