@@ -514,79 +514,12 @@ module Api
         path = path.gsub(%r{^/+|/+$}, "") # Remove leading/trailing slashes
 
         begin
-          organization = Organization.first
-          provider = DocumentProviders::S3Compatible.for_organization(organization)
-
-          # List items at this path (non-recursive = immediate children only)
-          items = provider.list_folder(path.presence || "/", recursive: false) || []
-
-          # Separate folders and files
-          folders = items.select { |item| item[:type] == :folder }.map do |item|
-            folder_name = item[:name] || File.basename(item[:path] || "")
-            folder_path = if path.present?
-              "#{path}/#{folder_name}"
-            else
-              folder_name
-            end
-            {
-              name: folder_name,
-              path: folder_path
-            }
-          end
-
-          files = items.select { |item| item[:type] == :file }.map do |item|
-            file_key = item[:id] || item[:key] || item[:name]
-            file_name = File.basename(file_key || "")
-
-            # Generate presigned URL for download
-            url = if file_key.present?
-              provider.download_url(file_key, expires_in: 3600) rescue item[:web_url]
-            else
-              item[:web_url]
-            end
-
-            {
-              name: file_name,
-              path: file_key,
-              size: item[:size] || 0,
-              content_type: item[:content_type] || MiniMime.lookup_by_filename(file_name)&.content_type || "application/octet-stream",
-              last_modified: item[:last_modified]&.iso8601,
-              url: url
-            }
-          end
-
-          # SSoT: Filter root folders using StorageConfiguration.effective_scope_folders
-          # Only show valid user-facing folders (hides internal folders like Blobs, Attachments)
-          if path.blank?
-            valid_roots = StorageConfiguration.instance.effective_scope_folders.values
-              .compact  # Remove nil values
-              .reject(&:blank?)  # Remove empty strings
-              .map { |v| v.split("/").first }
-              .compact  # Remove nil from split results
-              .uniq
-
-            folders = folders.select do |f|
-              valid_roots.any? { |v| v.casecmp?(f[:name]) }
-            end
-          end
-
-          # Sort folders alphabetically, files by name
-          folders.sort_by! { |f| f[:name].to_s.downcase }
-          files.sort_by! { |f| f[:name].to_s.downcase }
-
-          render json: {
-            success: true,
-            path: path,
-            folders: folders,
-            files: files,
-            count: {
-              folders: folders.size,
-              files: files.size,
-              total: folders.size + files.size
-            }
-          }
+          # Phase 3: After StorageBlob migration, all browsing uses virtual folders
+          # Actual S3 only has Blobs/ folder (content-addressed storage)
+          # All user-facing folders are virtual (stored in warehouse_documents.folder column)
+          render_virtual_folders(path)
         rescue StandardError => e
-          Rails.logger.error "[Documents] S3 folder list failed for '#{path}': #{e.message}"
+          Rails.logger.error "[Documents] Virtual folder list failed for '#{path}': #{e.message}"
           render json: {
             success: false,
             error: e.message,
@@ -596,6 +529,89 @@ module Api
             count: { folders: 0, files: 0, total: 0 }
           }, status: :ok
         end
+      end
+
+      # Phase 3: Render virtual folders from WarehouseDocument paths
+      # SSoT: WarehouseDocument.folder contains virtual paths like "Contacts/Acme Corp/..."
+      # After StorageBlob migration, all files are in Blobs/ folder, browsing uses virtual paths
+      #
+      # @param path [String] The folder path to list (e.g., "" for root, "Contacts", "Contacts/Acme")
+      def render_virtual_folders(path = "")
+        path = path.to_s.strip.gsub(%r{^/+|/+$}, "")
+
+        if path.blank?
+          # Root level: get unique root folder names
+          folder_counts = WarehouseDocument.where.not(folder: [ nil, "" ])
+            .pluck(Arel.sql("SPLIT_PART(folder, '/', 1)"))
+            .tally
+
+          folders = folder_counts.map do |name, count|
+            { name: name, path: name, count: count }
+          end.sort_by { |f| f[:name].downcase }
+
+          files = []
+        else
+          # Subfolder: get subfolders and files at this path
+          # Count path segments to determine depth
+          path_depth = path.count("/") + 1
+
+          # Get all documents in or under this path
+          docs = WarehouseDocument.where("folder LIKE ?", "#{path}%")
+            .where.not(folder: [ nil, "" ])
+            .includes(:storage_blob)
+
+          # Separate immediate subfolders from files at this level
+          subfolder_counts = {}
+          files_at_path = []
+
+          docs.find_each do |doc|
+            folder = doc.folder
+            folder_parts = folder.split("/")
+
+            if folder_parts.length > path_depth
+              # This is in a subfolder - count the immediate subfolder
+              subfolder_name = folder_parts[path_depth]
+              subfolder_counts[subfolder_name] ||= 0
+              subfolder_counts[subfolder_name] += 1
+            elsif folder == path
+              # This file is directly at this path level
+              files_at_path << doc
+            end
+          end
+
+          folders = subfolder_counts.map do |name, count|
+            { name: name, path: "#{path}/#{name}", count: count }
+          end.sort_by { |f| f[:name].downcase }
+
+          # Map files to response format
+          files = files_at_path.map do |doc|
+            blob = doc.storage_blob
+            url = doc.download_url rescue nil
+
+            {
+              name: doc.display_name || doc.original_filename || "Document #{doc.id}",
+              path: blob&.storage_path,
+              size: doc.file_size || blob&.file_size || 0,
+              content_type: doc.content_type || blob&.content_type || "application/octet-stream",
+              last_modified: doc.updated_at&.iso8601,
+              url: url,
+              id: doc.id,
+              warehouse_document_id: doc.id
+            }
+          end.sort_by { |f| f[:name].to_s.downcase }
+        end
+
+        render json: {
+          success: true,
+          path: path,
+          folders: folders,
+          files: files,
+          count: {
+            folders: folders.size,
+            files: files.size,
+            total: folders.size + files.size
+          }
+        }
       end
 
       # GET /api/v1/documents/folder_files
