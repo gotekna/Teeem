@@ -21,6 +21,10 @@ class NotebookPageAttachment < ApplicationRecord
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
 
+  # Phase 4: Universal warehouse metadata (SSoT for display_name, folder)
+  # Notebook attachments appear under Warehousing/Notes folder in File Warehouse
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT.
 
   # Validations
@@ -32,6 +36,9 @@ class NotebookPageAttachment < ApplicationRecord
   scope :by_type, ->(type) { where(content_type: type) }
   scope :images, -> { where("content_type LIKE ?", "image/%") }
   scope :documents, -> { where("content_type NOT LIKE ?", "image/%") }
+
+  # Callbacks
+  after_create :create_warehouse_entry
 
   # Check if image
   def image?
@@ -77,6 +84,16 @@ class NotebookPageAttachment < ApplicationRecord
     StorageConfiguration.instance.resolve_warehouse_path(self, scope: :notes)
   end
 
+  # Phase 4: Virtual folder path for File Warehouse
+  # Notes appear under Warehousing/Notes/{{NotebookName}}/{{Year}}
+  def virtual_folder_path
+    year = (created_at || Time.current).year.to_s
+    notebook_name = notebook&.name || "General"
+    user_name = uploaded_by&.name || "Unknown"
+
+    "Warehousing/Notes/#{user_name}/#{notebook_name}/#{year}"
+  end
+
   # ========================================
   # StorageBlob File Access (SSoT)
   # ========================================
@@ -118,4 +135,26 @@ class NotebookPageAttachment < ApplicationRecord
   end
 
   private
+
+  # Create WarehouseDocument entry for notebook attachments
+  def create_warehouse_entry
+    return unless storage_blob
+
+    create_warehouse_document!(
+      source_type: "warehouse",
+      folder: virtual_folder_path,
+      display_name: file_name,
+      original_filename: file_name,
+      storage_blob: storage_blob,
+      metadata: {
+        notebook_page_attachment_id: id,
+        notebook_id: notebook&.id,
+        notebook_name: notebook&.name,
+        page_id: page&.id,
+        uploaded_by_id: uploaded_by_id
+      }
+    )
+  rescue StandardError => e
+    Rails.logger.error("[NotebookPageAttachment] Failed to create warehouse entry: #{e.message}")
+  end
 end

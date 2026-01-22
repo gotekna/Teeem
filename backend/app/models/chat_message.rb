@@ -11,6 +11,10 @@ class ChatMessage < ApplicationRecord
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
 
+  # Phase 4: Universal warehouse metadata (SSoT for display_name, folder)
+  # Chat messages with files appear under Warehousing/Chat folder in File Warehouse
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - SSoT is storage_blob
   # Files stored via StorageBlob with deduplication via content_hash
 
@@ -19,6 +23,7 @@ class ChatMessage < ApplicationRecord
 
   # Upload to storage after file is attached
   after_commit :upload_to_storage, on: [:create, :update], if: :should_upload_to_storage?
+  after_create :create_warehouse_entry
 
   scope :in_channel, ->(channel) { where(channel: channel).order(created_at: :asc) }
   scope :for_project, ->(project_id) { where(project_id: project_id).order(created_at: :asc) }
@@ -71,6 +76,33 @@ class ChatMessage < ApplicationRecord
     end
   end
 
+  # Phase 4: Virtual folder path for File Warehouse
+  # Chat files appear under Warehousing/Chat/{{Context}}/{{Year}}/{{Month}}
+  def virtual_folder_path
+    year = (created_at || Time.current).year.to_s
+    month = format("%02d", (created_at || Time.current).month)
+
+    # Determine context folder based on associations
+    context = if job_id.present?
+                "Jobs/#{job&.job_code || job_id}"
+              elsif contact_id.present?
+                "Contacts/#{contact&.display_name || contact_id}"
+              elsif project_id.present?
+                "Projects/#{project&.name || project_id}"
+              elsif case_id.present?
+                "Cases/#{legal_case&.reference || case_id}"
+              else
+                "General"
+              end
+
+    "Warehousing/Chat/#{context}/#{year}/#{month}"
+  end
+
+  # Display name for File Warehouse
+  def display_name_for_warehouse
+    storage_blob&.original_filename || "Chat attachment #{id}"
+  end
+
   def has_file?
     storage_blob_id.present? || storage_reference.present?
   end
@@ -113,6 +145,29 @@ class ChatMessage < ApplicationRecord
   end
 
   private
+
+  # Create WarehouseDocument entry for chat messages with files
+  def create_warehouse_entry
+    return unless storage_blob
+
+    create_warehouse_document!(
+      source_type: "warehouse",
+      folder: virtual_folder_path,
+      display_name: display_name_for_warehouse,
+      original_filename: storage_blob.original_filename,
+      storage_blob: storage_blob,
+      metadata: {
+        chat_message_id: id,
+        user_id: user_id,
+        job_id: job_id,
+        contact_id: contact_id,
+        project_id: project_id,
+        message_type: message_type
+      }
+    )
+  rescue StandardError => e
+    Rails.logger.error("[ChatMessage] Failed to create warehouse entry: #{e.message}")
+  end
 
   def should_upload_to_storage?
     # Upload only happens when storage_blob is assigned but not yet uploaded

@@ -16,6 +16,10 @@ class BillInbox < ApplicationRecord
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
 
+  # Phase 4: Universal warehouse metadata (SSoT for display_name, folder)
+  # Bill Inbox documents appear under Warehousing/BillInbox folder in File Warehouse
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   has_many :bill_payments, dependent: :destroy
 
   # ActiveStorage has_one_attached :invoice_file was REMOVED (Jan 2026) - SSoT is storage_blob
@@ -55,6 +59,7 @@ class BillInbox < ApplicationRecord
   # Callbacks
   before_validation :set_defaults, on: :create
   after_commit :upload_to_storage, on: [:create, :update], if: :should_upload_to_storage?
+  after_create :create_warehouse_entry
 
   # Instance methods
   def extract_invoice_data!
@@ -141,6 +146,21 @@ class BillInbox < ApplicationRecord
     end
   end
 
+  # Phase 4: Virtual folder path for File Warehouse
+  # Bill Inbox documents appear under Warehousing/BillInbox/{{Status}}/{{Year}}/{{Month}}
+  def virtual_folder_path
+    year = (created_at || Time.current).year.to_s
+    month = format("%02d", (created_at || Time.current).month)
+    status_folder = status&.titleize || "Pending"
+
+    "Warehousing/BillInbox/#{status_folder}/#{year}/#{month}"
+  end
+
+  # Display name for File Warehouse
+  def display_name
+    invoice_number.presence || supplier&.display_name || "Bill #{id}"
+  end
+
   def has_invoice_file?
     storage_reference.present?
   end
@@ -185,6 +205,28 @@ class BillInbox < ApplicationRecord
   end
 
   private
+
+  # Create WarehouseDocument entry for this bill inbox item
+  def create_warehouse_entry
+    return unless storage_blob
+
+    create_warehouse_document!(
+      source_type: "warehouse",
+      folder: virtual_folder_path,
+      display_name: display_name,
+      original_filename: invoice_file_filename,
+      storage_blob: storage_blob,
+      metadata: {
+        bill_inbox_id: id,
+        status: status,
+        invoice_number: invoice_number,
+        supplier_id: supplier_id,
+        total_amount: total_amount
+      }
+    )
+  rescue StandardError => e
+    Rails.logger.error("[BillInbox] Failed to create warehouse entry: #{e.message}")
+  end
 
   def set_defaults
     self.source ||= "email"

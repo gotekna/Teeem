@@ -288,6 +288,73 @@ namespace :warehouse do
     end
   end
 
+  desc "Backfill WarehouseDocument entries for Warehousing folder models"
+  task backfill_warehousing: :environment do
+    puts "=" * 60
+    puts "BACKFILL WAREHOUSING DOCUMENTS"
+    puts "=" * 60
+    puts "Creating WarehouseDocument entries for BillInbox, ChatMessage, NotebookPageAttachment"
+
+    stats = { bill_inbox: 0, chat_message: 0, notebook: 0, skipped: 0, errors: [] }
+
+    # 1. BillInbox
+    puts "\n[1/3] Backfilling BillInbox..."
+    BillInbox.includes(:storage_blob, :warehouse_document).where.not(storage_blob_id: nil).find_each do |bill|
+      next if bill.warehouse_document.present?
+
+      begin
+        bill.send(:create_warehouse_entry)
+        stats[:bill_inbox] += 1
+        print "." if stats[:bill_inbox] % 10 == 0
+      rescue => e
+        stats[:errors] << "BillInbox #{bill.id}: #{e.message}"
+      end
+    end
+    puts "\n   Created: #{stats[:bill_inbox]} warehouse documents"
+
+    # 2. ChatMessage
+    puts "\n[2/3] Backfilling ChatMessage..."
+    ChatMessage.includes(:storage_blob, :warehouse_document).where.not(storage_blob_id: nil).find_each do |msg|
+      next if msg.warehouse_document.present?
+
+      begin
+        msg.send(:create_warehouse_entry)
+        stats[:chat_message] += 1
+        print "." if stats[:chat_message] % 10 == 0
+      rescue => e
+        stats[:errors] << "ChatMessage #{msg.id}: #{e.message}"
+      end
+    end
+    puts "\n   Created: #{stats[:chat_message]} warehouse documents"
+
+    # 3. NotebookPageAttachment
+    puts "\n[3/3] Backfilling NotebookPageAttachment..."
+    NotebookPageAttachment.includes(:storage_blob, :warehouse_document).where.not(storage_blob_id: nil).find_each do |att|
+      next if att.warehouse_document.present?
+
+      begin
+        att.send(:create_warehouse_entry)
+        stats[:notebook] += 1
+        print "." if stats[:notebook] % 10 == 0
+      rescue => e
+        stats[:errors] << "NotebookPageAttachment #{att.id}: #{e.message}"
+      end
+    end
+    puts "\n   Created: #{stats[:notebook]} warehouse documents"
+
+    puts "\n" + "=" * 60
+    puts "BACKFILL COMPLETE"
+    puts "=" * 60
+    puts "BillInbox:              #{stats[:bill_inbox]}"
+    puts "ChatMessage:            #{stats[:chat_message]}"
+    puts "NotebookPageAttachment: #{stats[:notebook]}"
+    puts "Errors:                 #{stats[:errors].count}"
+    if stats[:errors].any?
+      puts "\nFirst 10 errors:"
+      stats[:errors].first(10).each { |e| puts "  - #{e}" }
+    end
+  end
+
   desc "Preview folder changes without applying (dry run)"
   task sync_folders_preview: :environment do
     puts "=" * 60
