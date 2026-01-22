@@ -228,7 +228,8 @@ class DocumentStorageService
     end
 
     if storage_path.present?
-      s3_key = storage_path.to_s.sub(%r{^/}, "")
+      # SSoT: Remove ALL leading slashes (fixes //filename paths from bad uploads)
+      s3_key = storage_path.to_s.gsub(%r{^/+}, "")
       begin
         provider = s3_provider
         return error_result("S3 storage not configured", status: :service_unavailable) unless provider
