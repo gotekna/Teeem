@@ -1,0 +1,11 @@
+# Minimal ActiveStorage config to prevent Rails 8 boot errors
+# SSoT: StorageBlob is THE ONE for file storage (Jan 2026)
+# This file exists only because Rails 8 requires it, even when ActiveStorage is not used
+
+test:
+  service: Disk
+  root: <%= Rails.root.join("tmp/storage") %>
+
+local:
+  service: Disk
+  root: <%= Rails.root.join("storage") %>
