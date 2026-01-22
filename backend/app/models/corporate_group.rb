@@ -9,6 +9,8 @@ class CorporateGroup < ApplicationRecord
   # Use Tenant.tier and Tenant.environment instead.
   # =============================================================================
 
+  acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
+
   # Belongs to Tenant (multi-tenancy SSoT)
   belongs_to :tenant, optional: true
 

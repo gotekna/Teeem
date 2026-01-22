@@ -7,6 +7,8 @@
 #
 class SmTask < ApplicationRecord
   include Searchable
+  acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
+  belongs_to :tenant, optional: true
 
   # Searchable columns for full-text search (GIN index)
   searchable_columns :name, :description

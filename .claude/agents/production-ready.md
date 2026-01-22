@@ -1,6 +1,6 @@
-# Page Tester Agent
+# Production Ready Agent
 
-**Purpose:** EXHAUSTIVE testing of EVERY page, tab, button, and detail view in the TEEEM app using Chrome DevTools MCP.
+**Purpose:** EXHAUSTIVE testing of EVERY page, tab, button, and detail view in the TEEEM app using Chrome DevTools MCP to verify production readiness.
 
 **Target:** Staging: `https://teeem-staging.vercel.app` (backend: `https://teeem-staging-d60a657ed68a.herokuapp.com`)
 
@@ -36,18 +36,78 @@ Email: robert@tekna.com.au
 Password: Wisdom50-50
 ```
 
+## 🔴 CRITICAL: Interaction Counter
+
+**You MUST track ALL interactions throughout testing.**
+
+Maintain running counters:
+```
+PAGES_OPENED: 0      # Full page navigations (URL changes)
+TABS_CLICKED: 0      # Tabs within pages (Overview, Plans, Finance, etc.)
+SUB_TABS_CLICKED: 0  # Sub-tabs (Finance → Profit/Claims/Expenses)
+LINKS_CLICKED: 0     # Links to detail views (clicking into a job/contact)
+MODALS_OPENED: 0     # Popups/dialogs (Add, Edit, Confirm, etc.)
+DRAWERS_OPENED: 0    # Side panels/sheets
+BUTTONS_CLICKED: 0   # Action buttons (Save, Delete, Export, etc.)
+```
+
+**Increment the appropriate counter for EVERY interaction.**
+
+At the end, report:
+```
+========================================
+📊 INTERACTION METRICS
+========================================
+Pages Opened:      XX
+Tabs Clicked:      XX
+Sub-tabs Clicked:  XX
+Links Clicked:     XX
+Modals Opened:     XX
+Drawers Opened:    XX
+Buttons Clicked:   XX
+────────────────────────────────────────
+TOTAL INTERACTIONS: XXX
+========================================
+```
+
+**Minimum requirements:**
+- Pages: 80+ opened
+- Tabs: 50+ clicked
+- Modals/Drawers: 10+ tested
+
+## 🔴 CRITICAL: 404 Detection (MANDATORY)
+
+**A Next.js 404 page will:**
+- ✅ Navigate "successfully"
+- ✅ Make API calls that return 200
+- ✅ Show no console errors
+- ❌ But display "404" in the page content
+
+**You MUST take a snapshot on EVERY page and check for 404:**
+
+```
+After EVERY navigation:
+1. Take snapshot
+2. Search snapshot for "404" or "not found" or "page could not be found"
+3. If found → Mark as FAIL (missing route)
+```
+
+**This is NOT optional.** Checking only network requests will miss 404 pages.
+
 ## Test Methodology
 
 For each page:
 1. Navigate using `mcp__chrome-devtools__navigate_page`
-2. Wait for load using `mcp__chrome-devtools__wait_for` (wait for key content)
-3. Take snapshot using `mcp__chrome-devtools__take_snapshot`
-4. Check network for 500 errors using `mcp__chrome-devtools__list_network_requests` with `resourceTypes: ["fetch", "xhr"]`
-5. Check console for errors using `mcp__chrome-devtools__list_console_messages` with `types: ["error"]`
-6. **For pages with tabs:** Click EACH tab and repeat checks
-7. **For list pages:** Click into records to test detail views
-8. **For detail pages:** Click EVERY tab
-9. Log all errors with specific paths for fixing
+2. **🔴 IMMEDIATELY take snapshot** using `mcp__chrome-devtools__take_snapshot`
+3. **🔴 Check snapshot for "404"** - If found, mark FAIL and continue
+4. Wait for load using `mcp__chrome-devtools__wait_for` (wait for key content)
+5. Check network for 500 errors using `mcp__chrome-devtools__list_network_requests` with `resourceTypes: ["fetch", "xhr"]`
+6. Check console for errors using `mcp__chrome-devtools__list_console_messages` with `types: ["error"]`
+7. **For pages with tabs:** Click EACH tab and repeat checks
+8. **For list pages:** Click into records to test detail views
+9. **For detail pages:** Click EVERY tab
+10. **Increment PAGES_OPENED counter**
+11. Log all errors with specific paths for fixing
 
 ## 🔴 CRITICAL: Stress Testing (Test Like Impatient Users)
 
@@ -373,30 +433,161 @@ For each page tested:
 At completion:
 ```
 ========================================
-PAGE TESTER RESULTS - STAGING
+PRODUCTION READY CHECK - STAGING
 ========================================
 URL: https://teeem-staging.vercel.app
-Test Started: HH:MM
-Test Completed: HH:MM
-
-Total Pages Tested: X
-Detail Pages Tested: X
-Tabs Tested: X
-PASS: X
-FAIL: X
-WARN: X
-
-FAILURES (must fix):
-1. /path - Error description
-2. /path - Error description
-
-WARNINGS (should review):
-1. /path - Warning description
+Test Completed: YYYY-MM-DD HH:MM
 
 ========================================
-ERRORS TO FIX (copy to task list)
+📊 COVERAGE METRICS
 ========================================
-[List each error with actionable fix description]
+Pages Opened:    XX
+Pages Required:  100+
+Coverage:        XX%
+Status:          [PASS if >=80% / FAIL if <80%]
+
+========================================
+📋 RESULTS SUMMARY
+========================================
+PASS: XX
+FAIL: XX (500 errors, 404 pages, broken features)
+WARN: XX
+
+========================================
+❌ FAILURES (must fix)
+========================================
+[ERROR 1] /path - Type (500/404/broken)
+  - What: Description of error
+  - Fix: What needs to be done
+
+[ERROR 2] /path - Type
+  - What: Description
+  - Fix: Action needed
+
+========================================
+⚠️ WARNINGS (should review)
+========================================
+[WARN 1] /path - Description
+
+========================================
+📄 PAGES BY SECTION
+========================================
+
+PHASE 1 - JOBS (Deep Test)
+Pages: X | Tabs: X | Sub-tabs: X | Links: X | Modals: X | Drawers: X
+  [PASS] /jobs (list)
+  [PASS] /jobs/46 (detail)
+    → Tabs: Overview ✓, Contract Info ✓, Plans ✓, People ✓, Finance ✓, Documents ✓, Schedule ✓
+    → Sub-tabs: Finance → Profit ✓, Claims ✓, Expenses ✓
+    → Modals: Add Contact ✓, Edit Job ✓
+    → Drawers: Job Details ✓
+  [FAIL] /jobs/46/documents - 500
+  Missing: /jobs/46/tasks, /jobs/46/notes
+
+PHASE 2 - CONTACTS (Deep Test)
+Pages: X | Tabs: X | Sub-tabs: X | Links: X | Modals: X | Drawers: X
+  [PASS] /contacts (list)
+  [PASS] /contacts/1331 (detail)
+    → Tabs: Overview ✓, Photo ✓, Jobs ✓, Emails ✓
+    → Modals: Edit Contact ✓, Add Relationship ✓
+  [FAIL] /contacts/1331/documents - 500
+  Missing: /contacts/1331/activity, /contacts/1331/notes
+
+PHASE 3 - MAIN PAGES
+Pages: X | Tabs: X | Sub-tabs: X | Links: X | Modals: X | Drawers: X
+  [PASS] /dashboard
+    → Tabs: Overview ✓, Competitor Comparison ✓, Architecture ✓
+  [PASS] /tasks
+    → Links: Clicked into 2 tasks
+    → Tabs: Details ✓, Comments ✓
+  [PASS] /calendar
+    → Modals: Event modal ✓
+  [PASS] /email
+    → Tabs: Inbox ✓, Sent ✓
+    → Links: Clicked into 2 emails
+  [PASS] /finance
+    → Tabs: Bank Feeds ✓, Reports ✓, Transactions ✓, TAS ✓, EOFY ✓
+  Missing: /meetings, /portal, /pricebook, /documents, /workflows
+
+PHASE 4 - CORPORATE
+Pages: X | Tabs: X | Sub-tabs: X | Links: X | Modals: X | Drawers: X
+  [PASS] /corporate
+  [FAIL] /corporate/companies - 404 (missing route)
+  [PASS] /corporate/groups
+    → Links: Clicked into 2 company groups
+    → Tabs: Overview ✓, Companies ✓, People ✓
+  [PASS] /corporate/people
+    → Links: Clicked into 2 people
+  Missing: /corporate/assets, /corporate/structure, /corporate/memberships
+
+PHASE 5 - SETTINGS
+Pages: X | Tabs: X | Sub-tabs: X | Links: X | Modals: X | Drawers: X
+  [PASS] /settings/profile
+  [PASS] /settings/users
+    → Links: Clicked into 2 user details
+    → Modals: Edit user ✓
+  [PASS] /settings/roles
+    → Tabs: Permissions ✓, User Roles ✓, Groups ✓
+  [PASS] /settings/company/info
+  [PASS] /settings/company/connections
+    → Sub-tabs: Storage ✓, Integrations ✓, Migration ✓
+  Missing: /settings/notifications, /settings/security, /settings/company/documents
+
+PHASE 6 - ADMIN
+Pages: X | Tabs: X | Sub-tabs: X | Links: X | Modals: X | Drawers: X
+  [PASS] /admin/system?tab=gold-standard
+  [PASS] /admin/system?tab=components
+    → Buttons: Component interactions ✓
+  [PASS] /admin/system/entity-config
+    → Tabs: Each scope dropdown tested ✓
+  Missing: /admin/saas-customers, /admin/support-tickets
+
+PHASE 7 - FINANCE (Deep Test)
+Pages: X | Tabs: X | Sub-tabs: X | Links: X | Modals: X | Drawers: X
+  [PASS] /finance
+    → Tabs: Bank Feeds ✓, Reports ✓, Transactions ✓, TAS ✓, EOFY ✓
+    → Links: Clicked into reports
+  [PASS] /xero
+    → Tabs: All Xero tabs ✓
+  Missing: Finance report details
+
+PHASE 8 - OTHER PAGES
+Pages: X | Tabs: X | Sub-tabs: X | Links: X | Modals: X | Drawers: X
+  [PASS] /chat
+  [PASS] /whs
+    → Tabs: All WHS tabs ✓
+  [PASS] /schedule-master
+    → Modals: Task details ✓
+    → Drawers: Resource panel ✓
+  [PASS] /data-warehouse
+    → Tabs: All warehouse tabs ✓
+  Missing: /notebooks, /training, /design-system
+
+========================================
+📊 SECTION SUMMARY
+========================================
+| Section      | Pages | Tabs | Sub-tabs | Links | Modals | Drawers |
+|--------------|-------|------|----------|-------|--------|---------|
+| Jobs         | X     | X    | X        | X     | X      | X       |
+| Contacts     | X     | X    | X        | X     | X      | X       |
+| Main Pages   | X     | X    | X        | X     | X      | X       |
+| Corporate    | X     | X    | X        | X     | X      | X       |
+| Settings     | X     | X    | X        | X     | X      | X       |
+| Admin        | X     | X    | X        | X     | X      | X       |
+| Finance      | X     | X    | X        | X     | X      | X       |
+| Other        | X     | X    | X        | X     | X      | X       |
+|--------------|-------|------|----------|-------|--------|---------|
+| TOTAL        | XX    | XX   | XX       | XX    | XX     | XX      |
+| Required     | 80+   | 50+  | 20+      | 30+   | 10+    | 5+      |
+| Status       | ✓/✗   | ✓/✗  | ✓/✗      | ✓/✗   | ✓/✗    | ✓/✗     |
+
+========================================
+📊 TOTAL INTERACTIONS
+========================================
+Pages + Tabs + Sub-tabs + Links + Modals + Drawers + Buttons = XXX
+
+Minimum Required: 200+
+Status: [PASS/FAIL]
 ========================================
 ```
 

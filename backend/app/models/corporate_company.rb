@@ -2,10 +2,25 @@ class CorporateCompany < ApplicationRecord
   include SelfHealing  # Auto-fix formatting issues (ABN, ACN) and earn System kudos
   acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
 
+  # ============================================
+  # SSoT: CorporateCompany is an EXTENSION table
+  # ============================================
+  # Contact is THE ONE SSoT for all entity identity (people, companies, trusts).
+  # CorporateCompany EXTENDS Contact with corporate-specific data:
+  # - ASIC credentials (corporate_key, asic_username, encrypted_asic_password)
+  # - Compliance tracking
+  # - Encrypted TFN
+  # - Share register details
+  # - GL module associations
+  #
+  # All CorporateCompanies MUST have a linked Contact record.
+  # The Contact record is THE ONE source for: name, ABN, ACN, email, phone, address
+  # CorporateCompany stores: ASIC details, compliance, TFN, financial reporting config
+
   # Associations
   belongs_to :tenant, optional: true
   belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
-  belongs_to :contact, optional: true  # SSoT - links Company to Contact identity store
+  belongs_to :contact  # REQUIRED - SSoT identity link (Contact is THE ONE)
 
   # Organization - for credential isolation (optional link to Organization)
   has_one :organization, dependent: :nullify

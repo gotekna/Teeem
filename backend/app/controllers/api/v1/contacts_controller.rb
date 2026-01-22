@@ -1390,9 +1390,10 @@ module Api
 
       def documents
         # Query ContactDocument records (includes Xero invoice/bill PDFs)
+        # Note: .with_attached_file was REMOVED Jan 2026 when ActiveStorage attachment was replaced
+        # with StorageBlob (belongs_to :storage_blob). Use .includes(:storage_blob) for eager loading.
         documents = ContactDocument.where(contact_id: @contact.id)
-                                   .includes(:document_type)
-                                   .with_attached_file
+                                   .includes(:document_type, :storage_blob)
                                    .order(created_at: :desc)
 
         # Filter by tab if tab_key provided

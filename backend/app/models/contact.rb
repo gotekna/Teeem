@@ -116,6 +116,21 @@ class Contact < ApplicationRecord
   # SSoT - if this contact is a company/trust, link to the Company record
   has_one :company_record, class_name: "CorporateCompany", foreign_key: "contact_id", dependent: :nullify
 
+  # SSoT: Corporate Details (alias for company_record)
+  # CorporateCompany is an EXTENSION table for corporate-specific data (ASIC, compliance, etc.)
+  # Contact is THE ONE SSoT for identity; CorporateCompany extends it for corporate management
+  alias_method :corporate_details, :company_record
+
+  # ============================================
+  # Corporate Hierarchy (SSoT: Contact level)
+  # ============================================
+  # Parent company for subsidiary contacts (companies/trusts)
+  # This mirrors CorporateCompany.parent_company_id but at the Contact level
+  belongs_to :parent_company_contact, class_name: "Contact", optional: true
+
+  # Subsidiary contacts (inverse of parent_company_contact)
+  has_many :subsidiary_contacts, class_name: "Contact", foreign_key: :parent_company_contact_id
+
   # ============================================
   # SaaS Customer & Referral Associations
   # ============================================
@@ -841,6 +856,67 @@ class Contact < ApplicationRecord
   # SSoT: Use cached column for performance (updated via callbacks on CorporateCompanyDirector)
   def is_director?
     is_director_cached
+  end
+
+  # ============================================
+  # Corporate Management Helpers
+  # ============================================
+  # SSoT: Contact is THE ONE identity store for all entities
+  # is_corporate_managed flag indicates this contact has corporate features enabled
+
+  # Check if this contact has corporate management features
+  # Returns true if:
+  # 1. is_corporate_managed flag is set, OR
+  # 2. Contact has a linked CorporateCompany record (corporate_details)
+  def corporate_managed?
+    is_corporate_managed? || corporate_details.present?
+  end
+
+  # Check if this contact can have corporate features (company or trust)
+  def can_be_corporate_managed?
+    is_company? || is_trust?
+  end
+
+  # Enable corporate management for this contact
+  # Creates CorporateCompany extension record if needed
+  def enable_corporate_management!
+    return false unless can_be_corporate_managed?
+
+    transaction do
+      # Set flag
+      update!(is_corporate_managed: true)
+
+      # Create CorporateCompany if needed
+      unless corporate_details.present?
+        CorporateCompany.create!(
+          contact: self,
+          tenant: tenant,
+          name: display_name,
+          abn: abn,
+          acn: acn,
+          status: is_active? ? "active" : "dormant"
+        )
+      end
+    end
+
+    reload
+    true
+  rescue => e
+    Rails.logger.error("Contact##{id}: Failed to enable corporate management - #{e.message}")
+    false
+  end
+
+  # Get company hierarchy (if this is a company/trust with subsidiaries)
+  def company_hierarchy
+    return nil unless can_be_corporate_managed?
+
+    {
+      id: id,
+      name: display_name,
+      entity_type: entity_type,
+      parent: parent_company_contact&.slice(:id, :display_name, :entity_type),
+      subsidiaries: subsidiary_contacts.map { |s| s.slice(:id, :display_name, :entity_type) }
+    }
   end
 
   # ============================================

@@ -950,7 +950,9 @@ class EmailToContactExtractionService
       # Use display_name from website details if available, otherwise use company_name
       full_company_name = website_details[:display_name].presence || company_name
 
-      # Create company contact first with website details
+      # Create company Contact (NOT CorporateCompany)
+      # SSoT: CorporateCompany = entities you OWN/MANAGE (SPVs, trusts)
+      #       Contact (entity_type='company') = companies you do business WITH
       company_contact = Contact.create!(
         display_name: full_company_name,
         company_name_or_trust: full_company_name,  # Required for entity_type: "company"
@@ -958,27 +960,19 @@ class EmailToContactExtractionService
         is_active: true,
         website: website_details[:website],
         office_phone: website_details[:phone],
-        email: website_details[:email]
-      )
-
-      # Create company record with website details
-      company = CorporateCompany.create!(
-        name: full_company_name,
-        contact_id: company_contact.id,
-        status: "active",
+        email: website_details[:email],
         abn: website_details[:abn],
         acn: website_details[:acn],
-        registered_office_address: website_details[:address],
-        purpose: website_details[:description]
+        address_line1: website_details[:address]
       )
 
       created_companies << {
-        id: company.id,
+        id: company_contact.id,
         name: full_company_name,
         contact_id: company_contact.id
       }
 
-      company.id
+      company_contact.id
     else
       nil
     end

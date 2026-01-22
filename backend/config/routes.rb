@@ -997,6 +997,23 @@ Rails.application.routes.draw do
           patch "/", action: :update
           delete "/", action: :destroy
         end
+
+        # Corporate Controller (SSoT Consolidation)
+        # Contact is THE ONE SSoT for identity; this exposes corporate extension data
+        # GET    /api/v1/contacts/corporate/:contact_id/details      -> details
+        # GET    /api/v1/contacts/corporate/:contact_id/directors    -> directors
+        # GET    /api/v1/contacts/corporate/:contact_id/shareholders -> shareholders
+        # GET    /api/v1/contacts/corporate/:contact_id/compliance   -> compliance
+        # GET    /api/v1/contacts/corporate/:contact_id/hierarchy    -> hierarchy
+        # POST   /api/v1/contacts/corporate/:contact_id/enable       -> enable
+        scope "corporate/:contact_id", controller: "corporate" do
+          get :details
+          get :directors
+          get :shareholders
+          get :compliance
+          get :hierarchy
+          post :enable
+        end
       end
 
       resources :contacts do
