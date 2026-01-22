@@ -2,7 +2,7 @@
 
 # EmailSharePointMigrationService - Migrate .eml files from SharePoint to Wasabi
 #
-# Handles emails that have sharepoint_email_file_id but files still in SharePoint.
+# Handles emails that have storage_email_file_id but files still in SharePoint.
 # Fixes case mismatches (emails/eml vs Emails/eml) automatically.
 #
 # IMPORTANT: This service uses the TEEEM SharePoint site's Documents drive.
@@ -30,9 +30,9 @@ class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCam
     # Wasabi paths start with /Emails/ (uppercase, leading slash)
     # SharePoint paths are like emails/eml/... (lowercase, no leading slash)
     emails = SyncedEmail
-      .where("sharepoint_email_file_id IS NOT NULL AND sharepoint_email_file_id != ''")
-      .where("sharepoint_email_file_id NOT LIKE '/%'")  # Exclude Wasabi paths (start with /)
-      .where("sharepoint_email_file_id NOT LIKE 'Emails/%'")  # Exclude Wasabi paths
+      .where("storage_email_file_id IS NOT NULL AND storage_email_file_id != ''")
+      .where("storage_email_file_id NOT LIKE '/%'")  # Exclude Wasabi paths (start with /)
+      .where("storage_email_file_id NOT LIKE 'Emails/%'")  # Exclude Wasabi paths
       .where("storage_path IS NULL OR storage_path NOT LIKE '/Emails/%'")  # Not yet in Wasabi
       .order(:id)
 
@@ -144,8 +144,8 @@ class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCam
   end
 
   def download_from_sharepoint(email)
-    file_id = email.sharepoint_email_file_id
-    path = email.sharepoint_email_path
+    file_id = email.storage_email_file_id
+    path = email.storage_email_path
 
     # First try by file ID if it looks like a real ID (not a path)
     if file_id.present? && !file_id.include?("/")

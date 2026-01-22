@@ -78,12 +78,12 @@ module Api
             # Email storage breakdown (Wasabi vs SharePoint legacy)
             wasabi_emails = emails.where("storage_path IS NOT NULL AND storage_path != ''").count
             sharepoint_emails = emails.where("(storage_path IS NULL OR storage_path = '')")
-                                      .where("sharepoint_email_path IS NOT NULL AND sharepoint_email_path != ''")
+                                      .where("storage_email_path IS NOT NULL AND storage_email_path != ''")
                                       .count
             wasabi_email_bytes = emails.where("storage_path IS NOT NULL AND storage_path != ''")
                                        .sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
             sharepoint_email_bytes = emails.where("(storage_path IS NULL OR storage_path = '')")
-                                           .where("sharepoint_email_path IS NOT NULL AND sharepoint_email_path != ''")
+                                           .where("storage_email_path IS NOT NULL AND storage_email_path != ''")
                                            .sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
             # Attachment storage breakdown - SSoT: EmailAttachment linked to SyncedEmail
@@ -92,7 +92,7 @@ module Api
             total_attachments = attachments.count  # SSoT: total attachment count
             wasabi_attachments = attachments.where.not(storage_blob_id: nil).count
             sharepoint_attachments = attachments.where(storage_blob_id: nil)
-                                                .where("sharepoint_path IS NOT NULL AND sharepoint_path != ''")
+                                                .where("storage_path IS NOT NULL AND storage_path != ''")
                                                 .count
 
             # Deduplication stats (how many unique blobs vs total references)
@@ -134,7 +134,7 @@ module Api
 
             per_mailbox_sharepoint_counts = emails
               .where("(storage_path IS NULL OR storage_path = '')")
-              .where("sharepoint_email_path IS NOT NULL AND sharepoint_email_path != ''")
+              .where("storage_email_path IS NOT NULL AND storage_email_path != ''")
               .group("COALESCE(NULLIF(mailbox_owner_email, ''), 'Unknown')")
               .count
 
@@ -148,7 +148,7 @@ module Api
             per_mailbox_att_sharepoint = attachments
               .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.synced_email_id")
               .where(storage_blob_id: nil)
-              .where("email_attachments.sharepoint_path IS NOT NULL AND email_attachments.sharepoint_path != ''")
+              .where("email_attachments.storage_path IS NOT NULL AND email_attachments.storage_path != ''")
               .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
               .count
 
@@ -566,7 +566,7 @@ module Api
           with_direction = SyncedEmail.where.not(direction: nil).count
           with_body_preview = SyncedEmail.where("body_preview IS NOT NULL AND body_preview != ''").count
 
-          # Email Storage Upload Progress (SSoT: storage_path is new, sharepoint_email_path is legacy)
+          # Email Storage Upload Progress (SSoT: storage_path is new, storage_email_path is legacy)
           with_storage = SyncedEmail.where("storage_path IS NOT NULL AND storage_path != ''").count
           uploadable = SyncedEmail.where.not(outlook_id: [nil, ""])
                                      .where.not(mailbox_owner_email: [nil, ""])
@@ -576,7 +576,7 @@ module Api
           # Email Attachments Storage Progress
           attachment_count = defined?(EmailAttachment) ? EmailAttachment.count : 0
           attachments_with_blob = defined?(EmailAttachment) ? EmailAttachment.where.not(storage_blob_id: nil).count : 0
-          attachments_legacy = defined?(EmailAttachment) ? EmailAttachment.where(storage_blob_id: nil).where("sharepoint_path IS NOT NULL AND sharepoint_path != ''").count : 0
+          attachments_legacy = defined?(EmailAttachment) ? EmailAttachment.where(storage_blob_id: nil).where("storage_path IS NOT NULL AND storage_path != ''").count : 0
 
           # StorageBlob Deduplication Stats (SSoT for file storage)
           unique_blobs = defined?(StorageBlob) ? StorageBlob.count : 0

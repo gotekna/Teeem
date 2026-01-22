@@ -960,9 +960,9 @@ module Api
           signing_order: 0, # Parallel signing
           expires_at: 30.days.from_now,
           send_reminders: true,
-          original_sharepoint_file_id: uploaded[:id],
-          sharepoint_site_id: storage_config&.site_id,
-          sharepoint_drive_id: storage_config&.drive_id
+          original_storage_file_id: uploaded[:id],
+          storage_site_id: storage_config&.site_id,
+          storage_drive_id: storage_config&.drive_id
         )
 
         # Add client contacts as signers

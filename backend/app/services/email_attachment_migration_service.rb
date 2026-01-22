@@ -25,10 +25,10 @@ class EmailAttachmentMigrationService
   end
 
   def migrate_attachments(batch_size: nil)
-    # Find attachments that need migration (have SharePoint path but no blob)
+    # Find attachments that need migration (have storage path but no blob)
     attachments = EmailAttachment
       .where(storage_blob_id: nil)
-      .where.not(sharepoint_path: [nil, ""])
+      .where.not(storage_path: [nil, ""])
       .order(:id)
 
     attachments = attachments.limit(batch_size) if batch_size.present?
@@ -134,9 +134,9 @@ class EmailAttachmentMigrationService
 
   def download_from_sharepoint(attachment)
     # Download using path with case correction
-    return nil unless attachment.sharepoint_path.present?
+    return nil unless attachment.storage_path.present?
 
-    path_variations = generate_path_variations(attachment.sharepoint_path)
+    path_variations = generate_path_variations(attachment.storage_path)
 
     path_variations.each do |path|
       begin

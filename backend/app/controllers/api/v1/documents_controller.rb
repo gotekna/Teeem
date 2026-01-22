@@ -28,16 +28,16 @@ module Api
         email_eml_count = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail").count
         email_attachment_count = WarehouseDocument.where(source_type: "email", documentable_type: "EmailAttachment").count
         # Fallback to legacy counts if no warehouse documents
-        email_eml_count = SyncedEmail.where.not(sharepoint_email_path: [nil, ""]).count if email_eml_count == 0
-        email_attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count if email_attachment_count == 0
+        email_eml_count = SyncedEmail.where.not(storage_email_path: [nil, ""]).count if email_eml_count == 0
+        email_attachment_count = EmailAttachment.where.not(storage_path: [nil, ""]).count if email_attachment_count == 0
 
         # Task attachment counts - documents uploaded against task IDs
         # These are CorporateCompanyDocuments linked via SmTaskAttachment
         task_attachment_ids = SmTaskAttachment.where(attachable_type: 'CorporateCompanyDocument').distinct.pluck(:attachable_id) rescue []
         task_doc_count = task_attachment_ids.size
 
-        # Document templates (Word/Excel templates stored in SharePoint)
-        template_count = DocumentTemplate.where.not(sharepoint_path: [nil, ""]).count rescue 0
+        # Document templates (Word/Excel templates stored in storage)
+        template_count = DocumentTemplate.where.not(storage_path: [nil, ""]).count rescue 0
 
         # Pricebook images (product photos)
         pricebook_image_count = PricebookItem.where.not(image_file_id: nil).count rescue 0

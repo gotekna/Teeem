@@ -87,10 +87,13 @@ class DocumentTemplate < ApplicationRecord
   scope :legal_templates, -> { where(is_legal_format: true) }
   scope :tekna_branded, -> { where(is_legal_format: false) }
 
-  # Check if template is linked to SharePoint
-  def sharepoint_linked?
-    sharepoint_item_id.present?
+  # Check if template is linked to storage (provider-agnostic)
+  def storage_linked?
+    storage_item_id.present?
   end
+
+  # Legacy alias for backwards compatibility
+  alias_method :sharepoint_linked?, :storage_linked?
 
   # Template type helpers
   def html_template?

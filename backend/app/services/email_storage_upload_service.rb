@@ -41,11 +41,11 @@ class EmailStorageUploadService
   def upload_missing_emails(batch_size: nil)
     # Find emails that need uploading
     # Must have outlook_id (to fetch from Graph API) and mailbox_owner_email (to know which mailbox)
-    # Check both storage_path (new) and sharepoint_email_path (legacy) columns
+    # Check both storage_path (new) and storage_email_path (legacy) columns
     # Order by ID to ensure consistent ordering across batches
     emails = SyncedEmail
       .where(storage_path: [nil, ""])
-      .where(sharepoint_email_path: [nil, ""])
+      .where(storage_email_path: [nil, ""])
       .where.not(outlook_id: [nil, ""])
       .where.not(mailbox_owner_email: [nil, ""])
       .order(:id)
@@ -191,7 +191,7 @@ class EmailStorageUploadService
     end
 
     # Skip if already uploaded (check both new and legacy columns)
-    if email.storage_path.present? || email.sharepoint_email_path.present?
+    if email.storage_path.present? || email.storage_email_path.present?
       Rails.logger.info "[EmailUpload] Email #{email_id} already has path: #{email.email_storage_path}"
       increment_skipped!
       @progress&.increment!(success: true)
@@ -236,15 +236,14 @@ class EmailStorageUploadService
     # Upload to storage
     result = @provider.upload_file(folder_path, mime_content, filename, content_type: "message/rfc822")
 
-    # Update email record with provider-agnostic storage_path
-    # Also update legacy columns for backward compatibility during migration
+    # Update email record with provider-agnostic storage columns
     # Use update_columns to bypass uniqueness validation on internet_message_id
     # (duplicates exist in DB, but we still want to upload their .eml files)
     email.update_columns(
       storage_path: result[:path],
       storage_file_id: result[:id],
-      sharepoint_email_path: result[:path],
-      sharepoint_email_file_id: result[:id]
+      storage_email_path: result[:path],
+      storage_email_file_id: result[:id]
     )
 
     # SSoT: Create WarehouseDocument for virtual folder rendering (Phase 4)

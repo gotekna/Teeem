@@ -19,7 +19,7 @@ module Engines
 
       # Determine the folder path and file pattern
       folder_path = determine_folder_path(job)
-      file_pattern = template.sharepoint_path || template.name
+      file_pattern = template.storage_path || template.name
 
       # SSoT: Get site_id/drive_id from StorageConfiguration, not template
       storage_config = StorageConfiguration.instance

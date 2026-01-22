@@ -41,7 +41,7 @@ class EmailAttachmentMigrationJob < ApplicationJob
     def enqueue_batch(limit = 1000)
       attachments = EmailAttachment
         .where(storage_blob_id: nil)
-        .where.not(sharepoint_path: [nil, ""])
+        .where.not(storage_path: [nil, ""])
         .order(:id)
         .limit(limit)
         .pluck(:id)
@@ -59,7 +59,7 @@ class EmailAttachmentMigrationJob < ApplicationJob
     def migration_status
       total = EmailAttachment.count
       migrated = EmailAttachment.where.not(storage_blob_id: nil).count
-      pending = EmailAttachment.where(storage_blob_id: nil).where.not(sharepoint_path: [nil, ""]).count
+      pending = EmailAttachment.where(storage_blob_id: nil).where.not(storage_path: [nil, ""]).count
       queued = SolidQueue::Job.where(class_name: "EmailAttachmentMigrationJob").where(finished_at: nil).count
 
       {
@@ -95,8 +95,8 @@ class EmailAttachmentMigrationJob < ApplicationJob
     # SSoT: Try Microsoft Graph API first (primary source)
     content = download_from_graph(attachment)
 
-    # Fallback to SharePoint if Graph fails and sharepoint_path exists
-    if content.blank? && attachment.sharepoint_path.present?
+    # Fallback to SharePoint if Graph fails and storage_path exists
+    if content.blank? && attachment.storage_path.present?
       Rails.logger.info "[AttachmentMigrationJob] Graph failed, trying SharePoint for #{attachment_id}"
       begin
         setup_sharepoint_provider_for_migration!
@@ -108,8 +108,8 @@ class EmailAttachmentMigrationJob < ApplicationJob
 
     unless content
       # Mark as unrecoverable if no source available
-      if attachment.outlook_attachment_id.blank? && attachment.sharepoint_path.blank?
-        Rails.logger.warn "[AttachmentMigrationJob] Attachment #{attachment_id} has no source (no outlook_id, no sharepoint_path) - marking unrecoverable"
+      if attachment.outlook_attachment_id.blank? && attachment.storage_path.blank?
+        Rails.logger.warn "[AttachmentMigrationJob] Attachment #{attachment_id} has no source (no outlook_id, no storage_path) - marking unrecoverable"
         return  # Don't retry
       end
 
@@ -191,7 +191,7 @@ class EmailAttachmentMigrationJob < ApplicationJob
   end
 
   def download_from_storage(attachment)
-    path_variations = generate_path_variations(attachment.sharepoint_path)
+    path_variations = generate_path_variations(attachment.storage_path)
 
     path_variations.each do |path|
       begin

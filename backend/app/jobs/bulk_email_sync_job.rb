@@ -237,7 +237,7 @@ class BulkEmailSyncJob < ApplicationJob
         ) do |ea|
           ea.outlook_attachment_id = outlook_attachment_id
           ea.filename = filename
-          ea.sharepoint_path = existing_attachment.sharepoint_path
+          ea.storage_path = existing_attachment.storage_path
           ea.content_hash = content_hash
         end
 
@@ -247,8 +247,8 @@ class BulkEmailSyncJob < ApplicationJob
         result = upload_attachment(teeem_client, sp_config, filename, content_binary, content_type, file_size, email.received_at, content_hash)
 
         attachment = Attachment.create!(
-          sharepoint_file_id: result[:id],
-          sharepoint_path: result[:path],
+          storage_file_id: result[:id],
+          storage_path: result[:path],
           filename: filename,
           content_type: content_type,
           file_size: file_size,
@@ -261,7 +261,7 @@ class BulkEmailSyncJob < ApplicationJob
           attachment: attachment,
           outlook_attachment_id: outlook_attachment_id,
           filename: filename,
-          sharepoint_path: result[:path],
+          storage_path: result[:path],
           content_hash: content_hash
         )
 
@@ -314,7 +314,7 @@ class BulkEmailSyncJob < ApplicationJob
 
     scope = SyncedEmail
       .where(microsoft_credential_id: @credential.id)
-      .where(sharepoint_email_file_id: nil)
+      .where(storage_email_file_id: nil)
       .where.not(mailbox_owner_email: nil)
       .order(:id)
 
@@ -385,8 +385,8 @@ class BulkEmailSyncJob < ApplicationJob
     result[:path] ||= "#{folder_path}/#{filename}"
 
     email.update!(
-      sharepoint_email_file_id: result[:id],
-      sharepoint_email_path: result[:path]
+      storage_email_file_id: result[:id],
+      storage_email_path: result[:path]
     )
   end
 

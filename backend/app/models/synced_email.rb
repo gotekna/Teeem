@@ -666,14 +666,14 @@ class SyncedEmail < ApplicationRecord
   # SSoT helper methods
 
   # Get email .eml storage path (provider-agnostic)
-  # Returns storage_path (new) or falls back to sharepoint_email_path (legacy)
+  # Returns storage_path (new) or falls back to storage_email_path (legacy column)
   def email_storage_path
-    storage_path.presence || sharepoint_email_path
+    storage_path.presence || storage_email_path
   end
 
   # Get email storage file ID (provider-agnostic)
   def email_storage_file_id
-    storage_file_id.presence || sharepoint_email_file_id
+    storage_file_id.presence || storage_email_file_id
   end
 
   # Check if email .eml is stored

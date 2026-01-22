@@ -2099,7 +2099,13 @@ export function StorageConfigTab() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {Object.entries(config?.warehouse_root_folders || {}).map(([scope, folder]) => {
+            {Object.entries(config?.warehouse_root_folders || {})
+              // FRC: Filter out sub-scopes and aliases that share root with parent
+              // - email_attachments: sub-scope under email (both use Emails/ root)
+              // - corporate_entity: alias for corporate (identical path - keep 'corporate' for naming consistency)
+              // These are handled in the tree view below, not as separate root paths
+              .filter(([scope]) => !['email_attachments', 'task_attachments', 'task_responses', 'corporate_entity'].includes(scope))
+              .map(([scope, folder]) => {
               // Root folders are STATIC (e.g., "Jobs", "Contacts") - no dynamic tokens
               // Dynamic parts belong in TEMPLATES (e.g., "{{JobCode}}/{{TabName}}")
               return (
@@ -2120,7 +2126,9 @@ export function StorageConfigTab() {
                         // Normalize: collapse multiple slashes and strip trailing slash for consistency
                         const normalized = newValue?.replace(/\/+/g, '/').replace(/\/+$/, '');
                         const newRoots = { ...(config?.warehouse_root_folders || {}), [scope]: normalized };
+                        // Update both config AND formData so tree view refreshes
                         setConfig(prev => prev ? { ...prev, warehouse_root_folders: newRoots } : prev);
+                        setFormData(prev => ({ ...prev, warehouse_root_folders: newRoots }));
                       }}
                       scope="storage"
                       separator="/"

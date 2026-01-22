@@ -188,9 +188,9 @@ class DocumentEsignService
       expires_at: (options[:expires_in_days] || 30).days.from_now,
       message_to_signers: options[:message_to_signers],
       send_reminders: options[:send_reminders] != false,
-      original_sharepoint_file_id: uploaded_file[:id],
-      sharepoint_site_id: storage_config.site_id,
-      sharepoint_drive_id: storage_config.drive_id
+      original_storage_file_id: uploaded_file[:id],
+      storage_site_id: storage_config.site_id,
+      storage_drive_id: storage_config.drive_id
     )
 
     # Add signers

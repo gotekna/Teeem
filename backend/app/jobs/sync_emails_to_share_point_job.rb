@@ -128,7 +128,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
             ) do |l|
               l.outlook_attachment_id = outlook_attachment_id
               l.filename = filename
-              l.sharepoint_path = existing_attachment.sharepoint_path
+              l.storage_path = existing_attachment.storage_path
               l.content_hash = content_hash
             end
 
@@ -147,8 +147,8 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
             # Create attachment record
             attachment = Attachment.create!(
-              sharepoint_file_id: result[:id],
-              sharepoint_path: result[:path],
+              storage_file_id: result[:id],
+              storage_path: result[:path],
               filename: filename,
               content_type: content_type,
               file_size: file_size,
@@ -162,7 +162,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
               attachment: attachment,
               outlook_attachment_id: outlook_attachment_id,
               filename: filename,
-              sharepoint_path: result[:path],
+              storage_path: result[:path],
               content_hash: content_hash
             )
 
@@ -264,10 +264,10 @@ class SyncEmailsToSharePointJob < ApplicationJob
     end
 
     # Get emails from this org that haven't been uploaded yet
-    # Simple approach: process emails without sharepoint_email_file_id
+    # Simple approach: process emails without storage_email_file_id
     emails_to_upload = SyncedEmail
       .where(microsoft_credential_id: @credential.id)
-      .where(sharepoint_email_file_id: nil)  # Not yet uploaded
+      .where(storage_email_file_id: nil)  # Not yet uploaded
       .where.not(mailbox_owner_email: nil)   # Only emails with mailbox owner tracked
       .order(received_at: :desc)
       .limit(100)  # Limit for performance
@@ -297,10 +297,10 @@ class SyncEmailsToSharePointJob < ApplicationJob
           email_mime_content
         )
 
-        # Update email record with SharePoint file info
+        # Update email record with storage file info
         email.update!(
-          sharepoint_email_file_id: result[:id],
-          sharepoint_email_path: result[:path]
+          storage_email_file_id: result[:id],
+          storage_email_path: result[:path]
         )
 
         Rails.logger.info "[SyncEmailsToSharePoint] Uploaded email #{email.id}: #{result[:path]}"

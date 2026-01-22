@@ -36,7 +36,7 @@ class BackfillAttachmentUploadsJob < ApplicationJob
 
     # Get existing email_attachments records that haven't been migrated yet
     # Note: The old schema had these columns which were removed in the refactor migration:
-    # - filename, content_type, file_size, content_hash, sharepoint_file_id, sharepoint_path
+    # - filename, content_type, file_size, content_hash, storage_file_id, storage_path
     # However, since attachment_id is now added, records with attachment_id = nil are pending migration
     #
     # IMPORTANT: This assumes the old columns still exist OR we're fetching from Graph API
@@ -114,8 +114,8 @@ class BackfillAttachmentUploadsJob < ApplicationJob
 
           # Create attachment record
           attachment = Attachment.create!(
-            sharepoint_file_id: result[:id],
-            sharepoint_path: result[:path],
+            storage_file_id: result[:id],
+            storage_path: result[:path],
             filename: filename,
             content_type: content_type,
             file_size: file_size,

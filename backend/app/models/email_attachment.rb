@@ -24,9 +24,10 @@ class EmailAttachment < ApplicationRecord
   # SSoT: storage_blob_id is the storage reference
   scope :with_storage_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_storage_blob, -> { where(storage_blob_id: nil) }
-  # Legacy: sharepoint_path (not sharepoint_file_id)
-  scope :synced_to_sharepoint, -> { where.not(sharepoint_path: nil) }
-  scope :pending_sync, -> { where(sharepoint_path: nil, storage_blob_id: nil) }
+  # Storage path (provider-agnostic, renamed from sharepoint_path)
+  scope :synced_to_storage, -> { where.not(storage_path: nil) }
+  scope :synced_to_sharepoint, -> { where.not(storage_path: nil) }  # Legacy alias
+  scope :pending_sync, -> { where(storage_path: nil, storage_blob_id: nil) }
 
   # Callbacks
   after_create :create_warehouse_entry
@@ -66,14 +67,14 @@ class EmailAttachment < ApplicationRecord
     blob
   end
 
-  # Get storage path (from blob or legacy sharepoint_path)
-  def storage_path
-    storage_blob&.storage_path || sharepoint_path
+  # Get effective storage path (from blob or direct column)
+  def effective_storage_path
+    storage_blob&.storage_path || read_attribute(:storage_path)
   end
 
   # Check if file is stored
   def stored?
-    storage_blob_id.present? || sharepoint_path.present?
+    storage_blob_id.present? || read_attribute(:storage_path).present?
   end
 
   # Download file content
@@ -97,9 +98,9 @@ class EmailAttachment < ApplicationRecord
   end
 
   # SSoT: storage_blob is THE ONE storage reference for email attachments
-  # This model doesn't use sharepoint_file_id pattern, it uses:
+  # This model doesn't use file_id pattern, it uses:
   # - storage_blob (new SSoT, deduplicated)
-  # - sharepoint_path (legacy, path string not item ID)
+  # - storage_path (path string, renamed from sharepoint_path)
   def storage_reference
     storage_blob_id.presence
   end

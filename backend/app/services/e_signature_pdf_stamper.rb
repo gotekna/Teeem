@@ -79,14 +79,14 @@ class ESignaturePdfStamper
   private
 
   def fetch_original_document
-    return nil unless @request.original_sharepoint_file_id.present?
+    return nil unless @request.original_storage_file_id.present?
 
     begin
       client = MicrosoftAppGraphClient.new
       client.get_drive_item_content(
-        site_id: @request.sharepoint_site_id,
-        drive_id: @request.sharepoint_drive_id,
-        item_id: @request.original_sharepoint_file_id
+        site_id: @request.storage_site_id,
+        drive_id: @request.storage_drive_id,
+        item_id: @request.original_storage_file_id
       )
     rescue StandardError => e
       Rails.logger.error("ESignaturePdfStamper: Failed to fetch original document: #{e.message}")
@@ -96,13 +96,13 @@ class ESignaturePdfStamper
 
   def fetch_current_document
     # If we have a signed version, use that, otherwise use original
-    if @request.signed_sharepoint_file_id.present?
+    if @request.signed_storage_file_id.present?
       begin
         client = MicrosoftAppGraphClient.new
         client.get_drive_item_content(
-          site_id: @request.sharepoint_site_id,
-          drive_id: @request.sharepoint_drive_id,
-          item_id: @request.signed_sharepoint_file_id
+          site_id: @request.storage_site_id,
+          drive_id: @request.storage_drive_id,
+          item_id: @request.signed_storage_file_id
         )
       rescue StandardError => e
         Rails.logger.error("ESignaturePdfStamper: Failed to fetch signed document: #{e.message}")

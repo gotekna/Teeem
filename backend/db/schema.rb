@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_22_042132) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_22_052604) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -411,8 +411,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_042132) do
   end
 
   create_table "attachments", force: :cascade do |t|
-    t.string "sharepoint_file_id", null: false
-    t.string "sharepoint_path", null: false
+    t.string "storage_file_id", null: false
+    t.string "storage_path", null: false
     t.string "filename", null: false
     t.string "content_type"
     t.bigint "file_size"
@@ -423,7 +423,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_042132) do
     t.string "storage_item_id"
     t.index ["content_hash"], name: "index_attachments_on_content_hash", unique: true
     t.index ["organization_microsoft_app_credential_id"], name: "index_attachments_on_org_cred_id"
-    t.index ["sharepoint_file_id"], name: "index_attachments_on_sharepoint_file_id"
+    t.index ["storage_file_id"], name: "index_attachments_on_storage_file_id"
     t.index ["storage_item_id"], name: "index_attachments_on_storage_item_id"
   end
 
@@ -2416,10 +2416,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_042132) do
     t.string "name"
     t.text "description"
     t.string "category"
-    t.string "sharepoint_site_id"
-    t.string "sharepoint_drive_id"
-    t.string "sharepoint_item_id"
-    t.string "sharepoint_path"
+    t.string "storage_site_id"
+    t.string "storage_drive_id"
+    t.string "storage_item_id"
+    t.string "storage_path"
     t.string "output_format"
     t.string "output_naming_pattern"
     t.jsonb "data_schema"
@@ -2596,10 +2596,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_042132) do
     t.bigint "documentable_id"
     t.string "original_document_hash"
     t.string "signed_document_hash"
-    t.string "original_sharepoint_file_id"
-    t.string "signed_sharepoint_file_id"
-    t.string "sharepoint_site_id"
-    t.string "sharepoint_drive_id"
+    t.string "original_storage_file_id"
+    t.string "signed_storage_file_id"
+    t.string "storage_site_id"
+    t.string "storage_drive_id"
     t.datetime "sent_at"
     t.datetime "expires_at"
     t.datetime "completed_at"
@@ -2678,7 +2678,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_042132) do
     t.datetime "updated_at", null: false
     t.bigint "attachment_id"
     t.string "filename"
-    t.string "sharepoint_path"
+    t.string "storage_path"
     t.string "content_hash"
     t.bigint "storage_blob_id"
     t.index ["storage_blob_id"], name: "index_email_attachments_on_storage_blob_id"
@@ -9432,8 +9432,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_042132) do
     t.jsonb "action_items", default: []
     t.bigint "microsoft_credential_id"
     t.string "mailbox_owner_email"
-    t.string "sharepoint_email_file_id"
-    t.string "sharepoint_email_path"
+    t.string "storage_email_file_id"
+    t.string "storage_email_path"
     t.bigint "contact_ids", default: [], array: true
     t.bigint "primary_contact_id"
     t.datetime "contacts_matched_at"

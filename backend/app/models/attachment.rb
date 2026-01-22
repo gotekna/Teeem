@@ -1,13 +1,13 @@
-# Links attachments stored in SharePoint to their source files
-# Part of SSoT architecture - attachments are stored in SharePoint, tracked here
+# Links attachments stored in cloud storage to their source files
+# Part of SSoT architecture - attachments are stored in storage provider, tracked here
 # Supports deduplication via content_hash - one file stored once, linked to multiple emails
 class Attachment < ApplicationRecord
   belongs_to :organization_microsoft_app_credential
   has_many :email_attachments, dependent: :destroy
   has_many :email_warehouses, through: :email_attachments
 
-  validates :sharepoint_file_id, presence: true
-  validates :sharepoint_path, presence: true
+  validates :storage_file_id, presence: true
+  validates :storage_path, presence: true
   validates :filename, presence: true
   validates :content_hash, presence: true, uniqueness: true
 
@@ -22,15 +22,15 @@ class Attachment < ApplicationRecord
 
   # Get web URL if available
   def web_url
-    # Would need to construct from sharepoint_path and site URL
+    # Would need to construct from storage_path and site URL
     # Can be added later if needed
     nil
   end
 
   # Provider-agnostic storage reference (SSoT: storage_item_id)
-  # Falls back to sharepoint_file_id for backwards compatibility
+  # Falls back to storage_file_id for backwards compatibility
   def storage_reference
-    storage_item_id.presence || sharepoint_file_id
+    storage_item_id.presence || storage_file_id
   end
 
   def set_storage_reference(item_id, provider: "sharepoint", path: nil)

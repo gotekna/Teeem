@@ -288,7 +288,7 @@ export function EntityTabsConfig({
   // SSoT: Fetch storage configuration for scope folder paths
   const [storageConfig, setStorageConfig] = React.useState<{
     root_path?: string;
-    scope_folders?: Record<string, string>;
+    warehouse_root_folders?: Record<string, string>;
     scope_templates?: Record<string, string>;
     file_name_templates?: Record<string, string>;
   } | null>(null);
@@ -300,7 +300,7 @@ export function EntityTabsConfig({
           success: boolean;
           data: {
             root_path?: string;
-            scope_folders?: Record<string, string>;
+            warehouse_root_folders?: Record<string, string>;
             scope_templates?: Record<string, string>;
             file_name_templates?: Record<string, string>;
           };
@@ -316,15 +316,15 @@ export function EntityTabsConfig({
   }, []);
 
   // SSoT: Get base path for a scope from StorageConfiguration
+  // warehouse_root_folders contains full template like "Jobs/{{JobCode}}/{{TabName}}"
   const getBasePath = React.useCallback((scopeKey: string): string => {
     const rootPath = storageConfig?.root_path || "";
-    const scopePath = storageConfig?.scope_folders?.[scopeKey] || "";
-    if (!scopePath) return rootPath || "/";
-    // Handle root path being "/" or empty (Wasabi/S3) vs "/Shared Documents" (SharePoint)
-    if (rootPath === "/" || rootPath === "") {
-      return `/${scopePath}`;
-    }
-    return `${rootPath}/${scopePath}`;
+    // SSoT: warehouse_root_folders is THE ONE source for scope root paths
+    const scopePath = storageConfig?.warehouse_root_folders?.[scopeKey] || "";
+    if (!scopePath) return rootPath || "";
+    // Combine root and scope path, normalize slashes
+    const fullPath = [rootPath, scopePath].filter(Boolean).join('/');
+    return fullPath.replace(/\/+/g, '/').replace(/\/+$/, '');
   }, [storageConfig]);
 
   // SSoT: THE ONE function to get full storage path for a tab
@@ -334,7 +334,9 @@ export function EntityTabsConfig({
     const pathScope = tab.sharepoint_path_type === 'corporate' ? 'people' : defaultScope;
     const basePath = getBasePath(pathScope);
     const folderPath = tab.sharepoint_folder_path || tab.display_name;
-    return `${basePath}/${folderPath}`;
+    // Combine and normalize: collapse multiple slashes, strip trailing
+    const fullPath = [basePath, folderPath].filter(Boolean).join('/');
+    return fullPath.replace(/\/+/g, '/').replace(/\/+$/, '');
   }, [getBasePath]);
 
   // SSoT: Get default folder path template for a scope

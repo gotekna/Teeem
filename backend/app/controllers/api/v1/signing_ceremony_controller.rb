@@ -254,7 +254,7 @@ class Api::V1::SigningCeremonyController < ApplicationController
   def download_document
     request_obj = @signer.e_signature_request
 
-    unless request_obj.original_sharepoint_file_id.present?
+    unless request_obj.original_storage_file_id.present?
       render json: {
         success: false,
         errors: [ "Document not available" ]
@@ -265,9 +265,9 @@ class Api::V1::SigningCeremonyController < ApplicationController
     begin
       client = MicrosoftAppGraphClient.new
       content = client.get_drive_item_content(
-        site_id: request_obj.sharepoint_site_id,
-        drive_id: request_obj.sharepoint_drive_id,
-        item_id: request_obj.original_sharepoint_file_id
+        site_id: request_obj.storage_site_id,
+        drive_id: request_obj.storage_drive_id,
+        item_id: request_obj.original_storage_file_id
       )
 
       # Log download event

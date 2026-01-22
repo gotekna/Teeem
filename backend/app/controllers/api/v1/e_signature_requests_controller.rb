@@ -275,6 +275,10 @@ class Api::V1::ESignatureRequestsController < ApplicationController
       :send_reminders,
       :reminder_interval_days,
       :message_to_signers,
+      :original_storage_file_id,
+      :storage_site_id,
+      :storage_drive_id,
+      # Legacy params for backwards compatibility
       :original_sharepoint_file_id,
       :sharepoint_site_id,
       :sharepoint_drive_id,
