@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * SSoT: Contact Corporate Tab
+ * Part of Contact SSoT Consolidation
+ *
+ * This tab has TWO modes:
+ * 1. PERSON-centric: Shows a person's roles in companies (directorships, shareholdings, trust roles)
+ * 2. COMPANY-centric: Shows a company/trust's own corporate details (ASIC, compliance, share register)
+ *
+ * Mode is determined by contact.entity_type:
+ * - person, sole_trader → Person-centric view
+ * - company, trust → Company-centric view (using ContactCorporateDetailsSubTab)
+ */
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -31,6 +44,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
+import { ContactCorporateDetailsSubTab } from "./ContactCorporateDetailsSubTab";
 import type {
   Contact,
   Directorship,
@@ -83,6 +97,25 @@ export function ContactCorporateTab({
 }: ContactCorporateTabProps) {
   const router = useRouter();
 
+  // SSoT: Determine view mode based on entity_type
+  // Company/Trust contacts show their own corporate details (ASIC, compliance, etc.)
+  // Person/SoleTrader contacts show their roles in companies (directorships, shareholdings, etc.)
+  const isCompanyOrTrust =
+    contact.entity_type?.toLowerCase() === "company" ||
+    contact.entity_type?.toLowerCase() === "trust";
+
+  // For company/trust contacts, show the company-centric corporate details view
+  if (isCompanyOrTrust) {
+    return (
+      <ContactCorporateDetailsSubTab
+        contact={contact}
+        activeSubTab={activeSubTab}
+        onSubTabChange={handleCorporateSubTabChange}
+      />
+    );
+  }
+
+  // For person/sole_trader contacts, show the person-centric view (their roles in companies)
   return (
     <Tabs value={activeSubTab} onValueChange={handleCorporateSubTabChange}>
       <TabsList className="mb-4">

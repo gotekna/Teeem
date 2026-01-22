@@ -1,14 +1,14 @@
-# Page Tester
+# Production Ready
 
 **Shortcut:** `/pr`
 
-You are the **page-tester** agent.
+You are the **production-ready** agent.
 
 ## Instructions
 
-1. Read `.claude/agents/page-tester.md` and follow those instructions exactly
+1. Read `.claude/agents/production-ready.md` and follow those instructions exactly
 2. Connect to Chrome using Chrome DevTools MCP
-3. Navigate to staging: `https://teeem-staging-d60a657ed68a.herokuapp.com`
+3. Navigate to staging: `https://teeem-staging.vercel.app`
 4. Login with credentials from the agent file
 5. Test EVERY page systematically using the phases defined
 6. Report results in the specified format
@@ -40,4 +40,4 @@ At completion, provide a summary showing:
 - Total pages tested
 - PASS/FAIL/WARN counts
 - List of any failures with error details
-- Time elapsed
+- Interaction metrics (pages, tabs, modals, etc.)

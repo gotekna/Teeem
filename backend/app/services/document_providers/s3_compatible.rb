@@ -565,10 +565,11 @@ module DocumentProviders
       return true if objects.empty?
 
       # Delete in batches of 1000
+      # Use quiet: true to suppress XML response (avoids parsing errors with special chars)
       objects.each_slice(1000) do |batch|
         @client.delete_objects(
           bucket: @bucket,
-          delete: { objects: batch }
+          delete: { objects: batch, quiet: true }
         )
       end
 

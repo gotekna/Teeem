@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_22_052604) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_22_080001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1671,6 +1671,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_052604) do
     t.string "contact_code", null: false
     t.bigint "tenant_id"
     t.boolean "is_user_cached", default: false, null: false
+    t.boolean "is_corporate_managed", default: false, null: false
+    t.bigint "parent_company_contact_id"
     t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
@@ -1680,6 +1682,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_052604) do
     t.index ["entity_type", "is_active"], name: "idx_contacts_entity_type_active"
     t.index ["entity_type"], name: "index_contacts_on_entity_type"
     t.index ["is_active"], name: "index_contacts_on_is_active"
+    t.index ["is_corporate_managed"], name: "index_contacts_on_is_corporate_managed", where: "(is_corporate_managed = true)"
     t.index ["is_customer_cached"], name: "index_contacts_on_is_customer_cached"
     t.index ["is_director_cached"], name: "index_contacts_on_is_director_cached"
     t.index ["is_family_member"], name: "index_contacts_on_is_family_member"
@@ -1690,6 +1693,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_052604) do
     t.index ["is_team_contact"], name: "index_contacts_on_is_team_contact"
     t.index ["is_user_cached"], name: "index_contacts_on_is_user_cached"
     t.index ["linked_company_id"], name: "index_contacts_on_linked_company_id"
+    t.index ["parent_company_contact_id"], name: "idx_contacts_with_parent_company", where: "(parent_company_contact_id IS NOT NULL)"
+    t.index ["parent_company_contact_id"], name: "index_contacts_on_parent_company_contact_id"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
     t.index ["referrer_status"], name: "index_contacts_on_referrer_status"
@@ -10754,6 +10759,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_052604) do
   add_foreign_key "contact_relationships", "contacts", column: "related_contact_id"
   add_foreign_key "contact_relationships", "contacts", column: "source_contact_id"
   add_foreign_key "contact_types", "tenants"
+  add_foreign_key "contacts", "contacts", column: "parent_company_contact_id"
   add_foreign_key "contacts", "contacts", column: "primary_company_id"
   add_foreign_key "contacts", "tenants"
   add_foreign_key "corporate_companies", "contacts"
