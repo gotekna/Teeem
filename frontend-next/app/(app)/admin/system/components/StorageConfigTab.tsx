@@ -131,6 +131,7 @@ const SCOPE_TO_API_SCOPE: Record<string, string> = {
   email: 'email',
   warehouse: 'warehouse',
   task: 'task',
+  user: 'user',
 };
 
 interface StorageConfig {
@@ -201,17 +202,17 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
     const firstSegment = path.split('/')[0];
     if (!KNOWN_ROOT_FOLDERS.includes(firstSegment)) {
       // Exception: Keep scope root entries themselves (overview tabs for each scope)
-      // These have keys like 'email', 'warehouse', 'job', etc.
-      // SSoT: 'people' merged into 'contact', 'user' removed (Jan 2026 consolidation)
-      const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate'].includes(key);
+      // These have keys like 'email', 'warehouse', 'job', 'user', etc.
+      // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
+      const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user'].includes(key);
       if (!isOverviewTab) return false;
     }
     return true;
   });
 
   // Main scope keys that should have scopeKey on their first folder, not the leaf
-  // SSoT: 'people' merged into 'contact', 'user' removed (Jan 2026 consolidation)
-  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate'];
+  // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
+  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user'];
 
   filteredEntries.forEach(([key, path]) => {
     if (!path) return;
