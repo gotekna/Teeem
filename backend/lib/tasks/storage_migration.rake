@@ -34,6 +34,9 @@ module StorageMigrationHelpers
     return if doc.storage_path.blank?
 
     begin
+      # Debug: Log which document we're processing
+      puts "    Processing #{model_name} #{doc.id}: #{doc.storage_path&.truncate(50)}"
+
       # Download content from legacy S3 path
       content = provider.download_file(doc.storage_path)
 
@@ -169,6 +172,9 @@ namespace :storage do
 
   desc "Migrate legacy S3 files to StorageBlob system"
   task migrate_legacy_to_blobs: :environment do
+    # Ensure output is immediately flushed to logs
+    $stdout.sync = true
+
     puts "=" * 70
     puts "MIGRATE LEGACY FILES TO STORAGE BLOB"
     puts "=" * 70
