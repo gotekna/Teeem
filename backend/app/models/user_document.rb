@@ -90,6 +90,32 @@ class UserDocument < ApplicationRecord
     effective_entity_tab&.storage_folder_path
   end
 
+  # ========================================
+  # Phase 4: Virtual File Warehouse (SSoT)
+  # ========================================
+
+  # SSoT: Virtual folder path for File Warehouse display
+  # Uses StorageConfiguration template: Users/{{UserName}}/{{Folder}}
+  #
+  # @return [String] Virtual folder path like "Users/Robert Harder/Projects"
+  def virtual_folder_path
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(:user)
+    raise "StorageConfiguration missing :user template - run rails warehouse:init" unless template
+
+    result = template.dup
+    result.gsub!("{{UserName}}", sanitize_path_component(user&.name.to_s))
+    result.gsub!("{{Folder}}", folder.to_s)
+    result.gsub!("{{Category}}", category&.titleize.to_s)
+    result.gsub!("{{TabName}}", folder.to_s.presence || category&.titleize.to_s)
+
+    # Clean up empty tokens and double slashes
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    result.gsub!(%r{//+}, "/")
+    result.gsub!(%r{^/|/$}, "")
+    result
+  end
+
   # Override upload_to_storage to use dynamic scope
   def upload_to_storage(file_content, tokens: {}, filename: nil)
     # Temporarily set the storage scope based on category

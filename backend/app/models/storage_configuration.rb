@@ -44,7 +44,8 @@ class StorageConfiguration < ApplicationRecord
   # Warehouse types (SSoT - renamed from SCOPES)
   # Valid warehouse types that can have storage enabled
   # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
-  WAREHOUSE_TYPES = %w[corporate_entity job document contact email warehouse task task_attachments task_responses xero].freeze
+  # SSoT: 'user' is for personal user documents (My Docs feature - Jan 2026)
+  WAREHOUSE_TYPES = %w[corporate_entity job document contact email warehouse task task_attachments task_responses xero user].freeze
 
   # Legacy column aliases for backward compatibility
   # These allow code referencing old column names to continue working
@@ -133,8 +134,9 @@ class StorageConfiguration < ApplicationRecord
   # SSoT: These MUST include the root folder prefix (Jobs/, Corporate/, Emails/, etc.)
   # Code uses these keys directly - if a key is missing, you get an error (no fallbacks!)
   #
-  # NOTE: 'user' removed - Users are auth only, Contacts are identity (no separate User storage)
   WAREHOUSE_ROOT_DEFAULTS = {
+    # User personal documents (My Docs feature - Jan 2026)
+    'user' => 'Users/{{UserName}}/{{Folder}}',
     # Job documents
     'job' => 'Jobs/{{JobCode}}/{{TabName}}',
     # Contact documents (SSoT for all individuals - Jan 2026 'people' merged into 'contact')

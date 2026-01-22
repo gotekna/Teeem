@@ -68,6 +68,12 @@ class SyncExclusionRule < ApplicationRecord
       description: "General file warehouse",
       icon: "warehouse",
       warehouse_type: "warehouse"
+    },
+    user: {
+      name: "My Documents",
+      description: "Personal user documents",
+      icon: "folder-heart",
+      warehouse_type: "user"
     }
   }.freeze
 

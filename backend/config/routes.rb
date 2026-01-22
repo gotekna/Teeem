@@ -176,6 +176,17 @@ Rails.application.routes.draw do
       # TeeemPDF - user-created PDF documents
       resources :teeem_pdfs, only: [ :index, :show, :create, :update, :destroy ]
 
+      # UserDocuments - personal user documents (My Docs feature)
+      resources :user_documents, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          get :download               # GET /api/v1/user_documents/:id/download - presigned URL
+          post :save_to_job           # POST /api/v1/user_documents/:id/save_to_job - link to job
+        end
+        collection do
+          post :create_folder         # POST /api/v1/user_documents/create_folder - virtual folder
+        end
+      end
+
       # Units of Measure (lookup table for pricebook, recipes, etc.)
       resources :units_of_measure, only: [ :index ]
 
