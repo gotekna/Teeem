@@ -146,9 +146,10 @@ class StorageConfiguration < ApplicationRecord
     'corporate_entity' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
     # Task documents
     # SSoT: task_attachments and task_responses MUST be defined (TaskResponseUploader uses these)
-    'task' => 'Jobs/{{JobCode}}/Tasks/{{TaskId}}',
-    'task_attachments' => 'Jobs/{{JobCode}}/Tasks/{{TaskId}}/Attachments',
-    'task_responses' => 'Jobs/{{JobCode}}/Tasks/{{TaskId}}/Responses',
+    # Path matches Entity Config UI: Tasks/{{TaskId}} (top-level, not under Jobs)
+    'task' => 'Tasks/{{TaskId}}',
+    'task_attachments' => 'Tasks/{{TaskId}}/Attachments',
+    'task_responses' => 'Tasks/{{TaskId}}/Responses',
     # Email documents
     # SSoT: email_attachments uses SAME path as email (appear together in File Warehouse)
     'email' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
