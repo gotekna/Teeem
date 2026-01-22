@@ -717,10 +717,14 @@ export default function AllDocumentsPage() {
 
   // SSoT: Fetch folders - routes to virtual_tree for virtual scopes, s3_folders for physical
   // This is used for OneDrive-like folder browsing
-  const fetchS3Folders = useCallback(async (path: string) => {
-    // Already loaded or loading
-    if (s3Folders[path] || loadingS3Folders.has(path)) {
-      return;
+  const fetchS3Folders = useCallback(async (path: string, forceRefresh: boolean = false) => {
+    // Already loaded (and not in loading state) or currently fetching
+    const existingData = s3Folders[path];
+    if (!forceRefresh && existingData && !existingData.loading) {
+      return; // Already have data, don't re-fetch
+    }
+    if (loadingS3Folders.has(path)) {
+      return; // Currently fetching, don't duplicate
     }
 
     setLoadingS3Folders(prev => new Set(prev).add(path));
@@ -813,7 +817,7 @@ export default function AllDocumentsPage() {
                 next.delete(path); // Allow re-fetch
                 return next;
               });
-              fetchS3Folders(path);
+              fetchS3Folders(path, true); // Force refresh to get updated progress
             }, 2000);
             return; // Don't clear loading state yet
           }
