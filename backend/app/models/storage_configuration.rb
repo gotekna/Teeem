@@ -150,6 +150,11 @@ class StorageConfiguration < ApplicationRecord
     'task' => 'Tasks/{{TaskId}}',
     'task_attachments' => 'Tasks/{{TaskId}}/Attachments',
     'task_responses' => 'Tasks/{{TaskId}}/Responses',
+    # Case documents (Jan 2026)
+    # SSoT: Virtual folder paths for File Warehouse - actual files in Blobs/{hash}.ext
+    'case' => 'Cases/{{CaseId}}',
+    'case_documents' => 'Cases/{{CaseId}}/Documents',
+    'case_emails' => 'Cases/{{CaseId}}/Emails',
     # Email documents
     # SSoT: email_attachments uses SAME path as email (appear together in File Warehouse)
     'email' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',

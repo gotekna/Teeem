@@ -132,6 +132,7 @@ const SCOPE_TO_API_SCOPE: Record<string, string> = {
   warehouse: 'warehouse',
   task: 'task',
   user: 'user',
+  case: 'case',
 };
 
 interface StorageConfig {
@@ -212,7 +213,8 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
 
   // Main scope keys that should have scopeKey on their first folder, not the leaf
   // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
-  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user'];
+  // SSoT: 'case' added for Case document management (Jan 2026)
+  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user', 'case'];
 
   filteredEntries.forEach(([key, path]) => {
     if (!path) return;
@@ -1398,7 +1400,8 @@ export function StorageConfigTab() {
 
     // Scopes that don't use document types - show all warehouse-enabled tabs
     // SSoT: 'user' added for Teeem Docs (Jan 2026)
-    const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user'];
+    // SSoT: 'case' added for Case document management (Jan 2026)
+    const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user', 'case'];
 
     // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
     const filterWarehouseEnabledTabs = (tabs: EntityTab[]): EntityTab[] => {

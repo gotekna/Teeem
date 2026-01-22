@@ -17,10 +17,11 @@ class EntityTab < ApplicationRecord
   # The uniqueness validation still includes company_group_id for future per-tenant customization.
   #
   # Valid warehouse types (xero tabs are children of corporate_entity/xero tab)
-  # System warehouse types (email, warehouse, task, task_attachments, task_responses, user) are read-only in UI - is_system_tab: true
+  # System warehouse types (email, warehouse, task, task_attachments, task_responses, user, case) are read-only in UI - is_system_tab: true
   # SSoT: 'contact' is THE ONE warehouse_type for all individuals (Jan 2026 - 'people' merged into 'contact')
   # SSoT: 'user' added for Teeem Docs personal user documents (Jan 2026)
-  WAREHOUSE_TYPES = %w[corporate_entity job document contact email warehouse task task_attachments task_responses xero user].freeze
+  # SSoT: 'case' added for Case document management (Jan 2026)
+  WAREHOUSE_TYPES = %w[corporate_entity job document contact email warehouse task task_attachments task_responses xero user case case_documents case_emails].freeze
 
   # Legacy alias for backward compatibility
   SCOPES = WAREHOUSE_TYPES
