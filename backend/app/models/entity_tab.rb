@@ -1058,11 +1058,12 @@ class EntityTab < ApplicationRecord
   # Legacy alias
   alias_method :inherit_storage_from_parent, :inherit_warehouse_from_parent
 
-  # SSoT: display_name is the source of truth, tab_key is derived from it
-  # When display_name changes, auto-update tab_key to match
+  # SSoT: Only auto-generate tab_key for NEW records when tab_key is blank
+  # display_name is now used for file display name templates (e.g., {{OriginalFileName}})
+  # NOT for deriving tab_key - tab_key should remain stable once set
   def sync_tab_key_from_display_name
+    return if tab_key.present?  # Only set tab_key if blank (new record)
     return if display_name.blank?
-    return unless display_name_changed? || tab_key.blank?
 
     self.tab_key = display_name
       .downcase
