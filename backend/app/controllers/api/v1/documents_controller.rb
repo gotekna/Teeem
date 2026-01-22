@@ -540,10 +540,74 @@ module Api
         path = path.to_s.strip.gsub(%r{^/+|/+$}, "")
 
         # Cache the full folder tree for 5 minutes (invalidated by template changes)
-        # Key includes a version that should be bumped when StorageConfiguration templates change
         cache_key = "warehouse_folder_tree_v2"
-        folder_tree = Rails.cache.fetch(cache_key, expires_in: 5.minutes) do
-          build_folder_tree
+        building_key = "warehouse_folder_tree_building"
+
+        # Check if tree is already cached
+        folder_tree = Rails.cache.read(cache_key)
+
+        if folder_tree.nil?
+          # Check if already building
+          is_building = Rails.cache.read(building_key)
+
+          if is_building
+            # Return loading state with progress info - frontend should poll
+            progress = Rails.cache.read("warehouse_folder_tree_progress") || {}
+            return render json: {
+              success: true,
+              loading: true,
+              message: progress[:message] || "Building folder index... This takes about 90 seconds on first load.",
+              progress: {
+                processed: progress[:processed] || 0,
+                total: progress[:total] || 150000,
+                percent: progress[:percent] || 0,
+                remaining_seconds: progress[:remaining_seconds]
+              },
+              path: path,
+              folders: [],
+              files: [],
+              count: { folders: 0, files: 0, total: 0 }
+            }
+          end
+
+          # Mark as building and start background job
+          Rails.cache.write(building_key, true, expires_in: 10.minutes)
+          Rails.cache.write("warehouse_folder_tree_progress", {
+            processed: 0,
+            total: WarehouseDocument.count,
+            percent: 0,
+            message: "Starting folder index build..."
+          }, expires_in: 10.minutes)
+
+          # Start background build
+          Thread.new do
+            begin
+              tree = build_folder_tree_with_progress
+              Rails.cache.write(cache_key, tree, expires_in: 5.minutes)
+            rescue StandardError => e
+              Rails.logger.error "[Documents] Background folder tree build failed: #{e.message}"
+            ensure
+              Rails.cache.delete(building_key)
+              Rails.cache.delete("warehouse_folder_tree_progress")
+            end
+          end
+
+          # Return loading state immediately
+          return render json: {
+            success: true,
+            loading: true,
+            message: "Building folder index... This takes about 90 seconds on first load.",
+            progress: {
+              processed: 0,
+              total: WarehouseDocument.count,
+              percent: 0,
+              remaining_seconds: 90
+            },
+            path: path,
+            folders: [],
+            files: [],
+            count: { folders: 0, files: 0, total: 0 }
+          }
         end
 
         if path.blank?
@@ -620,10 +684,19 @@ module Api
 
       # Build a complete folder tree by computing paths for all warehouse documents
       # This is cached to avoid O(n) computation on every request
+      # Tracks progress in cache so frontend can poll for updates
       #
       # @return [Hash] { root_folders: { name => count }, paths: { doc_id => computed_path } }
-      def build_folder_tree
+      def build_folder_tree_with_progress
         tree = { root_folders: Hash.new(0), paths: {} }
+        progress_key = "warehouse_folder_tree_progress"
+
+        total_count = WarehouseDocument.count
+        processed = 0
+        start_time = Time.current
+
+        # Update progress every 5000 documents
+        update_interval = 5000
 
         # Use find_each for memory efficiency with large datasets
         WarehouseDocument.includes(:documentable).find_each do |doc|
@@ -636,7 +709,28 @@ module Api
           # Count root folders
           root = computed_path.split("/").first
           tree[:root_folders][root] += 1
+
+          processed += 1
+
+          # Update progress periodically
+          if processed % update_interval == 0
+            elapsed = Time.current - start_time
+            rate = processed / elapsed
+            remaining = ((total_count - processed) / rate).round
+
+            Rails.cache.write(progress_key, {
+              processed: processed,
+              total: total_count,
+              percent: ((processed.to_f / total_count) * 100).round,
+              elapsed_seconds: elapsed.round,
+              remaining_seconds: remaining,
+              message: "Processing #{processed.to_s(:delimited)} of #{total_count.to_s(:delimited)} documents..."
+            }, expires_in: 5.minutes)
+          end
         end
+
+        # Clear progress when done
+        Rails.cache.delete(progress_key)
 
         # Convert root_folders to regular hash (Hash.new(0) doesn't serialize well)
         tree[:root_folders] = tree[:root_folders].to_h

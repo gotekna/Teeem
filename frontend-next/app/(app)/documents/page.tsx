@@ -118,7 +118,7 @@ interface AllDocumentsResponse {
 interface TreeNode {
   id: string;
   name: string;
-  type: "category" | "parent" | "folder" | "file";
+  type: "category" | "parent" | "folder" | "file" | "loading";
   children?: TreeNode[];
   file?: DocumentItem;
   icon?: React.ReactNode;
@@ -127,6 +127,8 @@ interface TreeNode {
   fullPath?: string;
   // SSoT: Folder path template (e.g., "{{CompanyGroup}}/{{CompanyCode}}")
   pathTemplate?: string;
+  // Loading state progress
+  progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
 }
 
 type ViewMode = "tree" | "list" | "gallery";
@@ -395,8 +397,11 @@ export default function AllDocumentsPage() {
   // SSoT: S3 folder contents - loaded lazily when expanding folders
   // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
   const [s3Folders, setS3Folders] = useState<Record<string, {
-    folders: Array<{ name: string; path: string }>;
-    files: Array<{ name: string; path: string; size: number; content_type: string; url?: string }>;
+    folders: Array<{ name: string; path: string; count?: number }>;
+    files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string }>;
+    loading?: boolean;
+    message?: string;
+    progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
   }>>({});
   const [loadingS3Folders, setLoadingS3Folders] = useState<Set<string>>(new Set());
 
@@ -776,9 +781,12 @@ export default function AllDocumentsPage() {
           }));
         }
       } else {
-        // Physical scope: Use S3/Wasabi folder listing
+        // Physical scope: Use S3/Wasabi folder listing (now uses virtual folders from WarehouseDocument)
         const response = await api.get<{
           success: boolean;
+          loading?: boolean;
+          message?: string;
+          progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
           path: string;
           folders: Array<{ name: string; path: string }>;
           files: Array<{ name: string; path: string; size: number; content_type: string; last_modified?: string; url?: string }>;
@@ -786,6 +794,29 @@ export default function AllDocumentsPage() {
         }>(`/api/v1/documents/s3_folders?path=${encodeURIComponent(path)}`);
 
         if (response?.success) {
+          if (response.loading) {
+            // Index is being built - store loading state and poll for updates
+            setS3Folders(prev => ({
+              ...prev,
+              [path]: {
+                folders: [],
+                files: [],
+                loading: true,
+                message: response.message,
+                progress: response.progress,
+              },
+            }));
+            // Poll again in 2 seconds
+            setTimeout(() => {
+              setLoadingS3Folders(prev => {
+                const next = new Set(prev);
+                next.delete(path); // Allow re-fetch
+                return next;
+              });
+              fetchS3Folders(path);
+            }, 2000);
+            return; // Don't clear loading state yet
+          }
           setS3Folders(prev => ({
             ...prev,
             [path]: {
@@ -1101,6 +1132,16 @@ export default function AllDocumentsPage() {
       return [];
     }
 
+    // Check if folder index is being built (first load takes ~90 seconds)
+    if (rootData.loading) {
+      return [{
+        id: "loading-index",
+        name: rootData.message || "Building folder index...",
+        type: "loading" as const,
+        progress: rootData.progress,
+      }];
+    }
+
     return s3FoldersToTreeWithIcons("");
   }, [s3Folders]);
 
@@ -1242,6 +1283,35 @@ export default function AllDocumentsPage() {
   const renderTreeNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
     const isExpanded = expandedFolders.has(node.id);
     const paddingLeft = depth * 20;
+
+    // Loading state - folder index is being built
+    if (node.type === "loading") {
+      const progress = node.progress;
+      return (
+        <div key={node.id} className="p-6 text-center">
+          <div className="animate-pulse mb-4">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          </div>
+          <p className="text-sm font-medium mb-2">{node.name}</p>
+          {progress && (
+            <div className="space-y-2 max-w-xs mx-auto">
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${progress.percent}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {progress.processed.toLocaleString()} / {progress.total.toLocaleString()} documents ({progress.percent}%)
+                {progress.remaining_seconds && progress.remaining_seconds > 0 && (
+                  <> &middot; ~{Math.ceil(progress.remaining_seconds / 60)} min remaining</>
+                )}
+              </p>
+            </div>
+          )}
+        </div>
+      );
+    }
 
     if (node.type === "file") {
       const file = node.file!;
