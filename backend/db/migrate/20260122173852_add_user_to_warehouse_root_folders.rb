@@ -6,8 +6,7 @@ class AddUserToWarehouseRootFolders < ActiveRecord::Migration[8.0]
     # SSoT: StorageConfiguration.warehouse_root_folders stores all scope paths
     execute <<~SQL
       UPDATE storage_configurations
-      SET warehouse_root_folders = warehouse_root_folders || '{"user": "Users/{{UserName}}/{{Folder}}"}'::jsonb
-      WHERE NOT warehouse_root_folders ? 'user'
+      SET warehouse_root_folders = warehouse_root_folders || '{"user": "Teeem Docs/{{UserName}}/{{Folder}}"}'::jsonb
     SQL
   end
 

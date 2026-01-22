@@ -135,8 +135,8 @@ class StorageConfiguration < ApplicationRecord
   # Code uses these keys directly - if a key is missing, you get an error (no fallbacks!)
   #
   WAREHOUSE_ROOT_DEFAULTS = {
-    # User personal documents (My Docs feature - Jan 2026)
-    'user' => 'Users/{{UserName}}/{{Folder}}',
+    # User personal documents (Teeem Docs feature - Jan 2026)
+    'user' => 'Teeem Docs/{{UserName}}/{{Folder}}',
     # Job documents
     'job' => 'Jobs/{{JobCode}}/{{TabName}}',
     # Contact documents (SSoT for all individuals - Jan 2026 'people' merged into 'contact')

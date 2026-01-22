@@ -178,7 +178,7 @@ interface FolderTreeNode {
 // Note: 'People' merged into 'Contacts'
 // Note: 'Users' added for Teeem Docs (personal user documents - Jan 2026)
 const KNOWN_ROOT_FOLDERS = [
-  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Users', 'Warehouse', 'Shared', 'System'
+  'Jobs', 'Contacts', 'Corporate', 'Tasks', 'Emails', 'Users', 'Teeem Docs', 'Warehouse', 'Shared', 'System'
 ];
 
 // Build tree structure from flat scope folders
