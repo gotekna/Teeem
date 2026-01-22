@@ -302,12 +302,12 @@ class WarehouseDocument < ApplicationRecord
       email = documentable
       # Try various path fields in order of preference
       email.storage_path.presence ||
-        email.sharepoint_email_path.presence ||
+        email.storage_email_path.presence ||
         compute_email_legacy_path(email)
 
     when "EmailAttachment"
       att = documentable
-      att.sharepoint_path.presence ||
+      att.storage_path.presence ||
         compute_attachment_legacy_path(att)
 
     when "JobDocument"

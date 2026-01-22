@@ -25,6 +25,96 @@
 #   # Delete legacy folders (only after migration complete)
 #   rails storage:delete_legacy_folders
 #
+
+# Helper module for migration methods (must be outside namespace for Rake)
+module StorageMigrationHelpers
+  module_function
+
+  def migrate_document(doc, provider, stats, model_name)
+    return if doc.storage_path.blank?
+
+    begin
+      # Download content from legacy S3 path
+      content = provider.download_file(doc.storage_path)
+
+      unless content.present?
+        stats[:skipped] += 1
+        return
+      end
+
+      # Determine content type
+      content_type = case model_name
+      when "JobDocument"
+        doc.mime_type
+      when "CorporateCompanyDocument"
+        doc.content_type
+      when "ContactDocument"
+        doc.content_type
+      end
+
+      # Find or create StorageBlob (deduplicates via content_hash)
+      blob = StorageBlob.find_or_create_for_content!(
+        content,
+        filename: doc.file_name,
+        content_type: content_type
+      )
+
+      # Track if we reused an existing blob
+      if blob.reference_count > 0
+        stats[:already_exists] += 1
+      end
+
+      # Update document with blob reference
+      doc.update!(storage_blob: blob)
+      blob.increment_reference!
+
+      # Create WarehouseDocument entry if missing
+      unless doc.warehouse_document
+        create_warehouse_entry(doc, blob, model_name)
+      else
+        # Update existing warehouse entry to use blob
+        doc.warehouse_document.update!(storage_blob: blob) if doc.warehouse_document.storage_blob_id.nil?
+      end
+
+      stats[:migrated] += 1
+
+    rescue DocumentProviders::NotFoundError => e
+      stats[:errors] << "#{model_name} #{doc.id}: File not found at #{doc.storage_path}"
+    rescue StandardError => e
+      stats[:errors] << "#{model_name} #{doc.id}: #{e.class} - #{e.message}"
+    end
+  end
+
+  def create_warehouse_entry(doc, blob, model_name)
+    source_type = case model_name
+    when "JobDocument" then "job"
+    when "CorporateCompanyDocument" then "corporate"
+    when "ContactDocument" then "contact"
+    end
+
+    # Compute folder path
+    folder = begin
+      doc.virtual_folder_path
+    rescue StandardError
+      "Unknown"
+    end
+
+    # Get display name
+    display_name = doc.respond_to?(:display_name) ? doc.display_name.presence : nil
+    display_name ||= doc.file_name.presence || "Document #{doc.id}"
+
+    doc.create_warehouse_document!(
+      source_type: source_type,
+      folder: folder,
+      display_name: display_name,
+      original_filename: doc.file_name,
+      storage_blob: blob
+    )
+  rescue StandardError => e
+    Rails.logger.warn "[StorageMigration] Failed to create warehouse entry for #{model_name} #{doc.id}: #{e.message}"
+  end
+end
+
 namespace :storage do
   desc "Preview legacy files that need migration to StorageBlob"
   task preview_legacy: :environment do
@@ -102,7 +192,7 @@ namespace :storage do
     puts "  Found: #{job_total} files"
 
     job_scope.find_each.with_index do |doc, i|
-      migrate_document(doc, provider, stats, "JobDocument")
+      StorageMigrationHelpers.migrate_document(doc, provider, stats, "JobDocument")
       print "." if (i + 1) % 10 == 0
     end
     puts "" if job_total > 0
@@ -117,7 +207,7 @@ namespace :storage do
     puts "  Found: #{corp_total} files"
 
     corp_scope.find_each.with_index do |doc, i|
-      migrate_document(doc, provider, stats, "CorporateCompanyDocument")
+      StorageMigrationHelpers.migrate_document(doc, provider, stats, "CorporateCompanyDocument")
       print "." if (i + 1) % 10 == 0
     end
     puts "" if corp_total > 0
@@ -133,7 +223,7 @@ namespace :storage do
     puts "  Progress (every 100 files):"
 
     contact_scope.find_each.with_index do |doc, i|
-      migrate_document(doc, provider, stats, "ContactDocument")
+      StorageMigrationHelpers.migrate_document(doc, provider, stats, "ContactDocument")
 
       # Progress indicator
       if (i + 1) % 100 == 0
@@ -204,7 +294,6 @@ namespace :storage do
       Emails
       Jobs
       jobs
-      Shared\ Documents
       Task\ Responses
       Tasks
       Users
@@ -301,91 +390,5 @@ namespace :storage do
     rescue StandardError => e
       puts "ERROR listing folders: #{e.message}"
     end
-  end
-
-  private
-
-  def migrate_document(doc, provider, stats, model_name)
-    return if doc.storage_path.blank?
-
-    begin
-      # Download content from legacy S3 path
-      content = provider.download_file(doc.storage_path)
-
-      unless content.present?
-        stats[:skipped] += 1
-        return
-      end
-
-      # Determine content type
-      content_type = case model_name
-      when "JobDocument"
-        doc.mime_type
-      when "CorporateCompanyDocument"
-        doc.content_type
-      when "ContactDocument"
-        doc.content_type
-      end
-
-      # Find or create StorageBlob (deduplicates via content_hash)
-      blob = StorageBlob.find_or_create_for_content!(
-        content,
-        filename: doc.file_name,
-        content_type: content_type
-      )
-
-      # Track if we reused an existing blob
-      if blob.reference_count > 0
-        stats[:already_exists] += 1
-      end
-
-      # Update document with blob reference
-      doc.update!(storage_blob: blob)
-      blob.increment_reference!
-
-      # Create WarehouseDocument entry if missing
-      unless doc.warehouse_document
-        create_warehouse_entry(doc, blob, model_name)
-      else
-        # Update existing warehouse entry to use blob
-        doc.warehouse_document.update!(storage_blob: blob) if doc.warehouse_document.storage_blob_id.nil?
-      end
-
-      stats[:migrated] += 1
-
-    rescue DocumentProviders::NotFoundError => e
-      stats[:errors] << "#{model_name} #{doc.id}: File not found at #{doc.storage_path}"
-    rescue StandardError => e
-      stats[:errors] << "#{model_name} #{doc.id}: #{e.class} - #{e.message}"
-    end
-  end
-
-  def create_warehouse_entry(doc, blob, model_name)
-    source_type = case model_name
-    when "JobDocument" then "job"
-    when "CorporateCompanyDocument" then "corporate"
-    when "ContactDocument" then "contact"
-    end
-
-    # Compute folder path
-    folder = begin
-      doc.virtual_folder_path
-    rescue StandardError
-      "Unknown"
-    end
-
-    # Get display name
-    display_name = doc.respond_to?(:display_name) ? doc.display_name.presence : nil
-    display_name ||= doc.file_name.presence || "Document #{doc.id}"
-
-    doc.create_warehouse_document!(
-      source_type: source_type,
-      folder: folder,
-      display_name: display_name,
-      original_filename: doc.file_name,
-      storage_blob: blob
-    )
-  rescue StandardError => e
-    Rails.logger.warn "[StorageMigration] Failed to create warehouse entry for #{model_name} #{doc.id}: #{e.message}"
   end
 end
