@@ -506,10 +506,13 @@ class CorporateCompanyDocument < ApplicationRecord
   def create_warehouse_entry
     return unless storage_blob
 
+    # Use display_name if present, otherwise file_name, otherwise generic fallback
+    name = display_name.presence || file_name.presence || "Document #{id}"
+
     create_warehouse_document!(
       source_type: "corporate",
       folder: virtual_folder_path,
-      display_name: display_name || file_name,
+      display_name: name,
       original_filename: file_name,
       storage_blob: storage_blob,
       metadata: {
