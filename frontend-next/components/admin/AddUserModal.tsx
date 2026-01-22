@@ -297,6 +297,7 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
                 selectedItem={formData.contact_id ? {
                   id: formData.contact_id.toString(),
                   label: formData.name,
+                  searchText: undefined,
                 } : undefined}
                 onSelect={(item) => {
                   const contact = contactOptions.find(c => c.id.toString() === item.id);

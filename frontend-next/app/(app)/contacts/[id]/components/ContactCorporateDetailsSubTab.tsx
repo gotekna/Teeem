@@ -280,7 +280,7 @@ export function ContactCorporateDetailsSubTab({
       const response = await api.post<{ success: boolean; data: { contact_id: number; is_corporate_managed: boolean } }>(
         `/api/v1/contacts/corporate/${contact.id}/enable`
       );
-      if (response.success) {
+      if (response?.success) {
         toast({
           title: "Corporate management enabled",
           description: "This contact now has corporate management features.",
