@@ -117,6 +117,16 @@ Rails.application.routes.draw do
         get "exclusions", to: "/api/v1/sync#exclusions"
         put "exclusions", to: "/api/v1/sync#update_exclusions"
 
+        # File type categories (opt-in sync)
+        get "categories", to: "/api/v1/sync#categories"
+        put "categories", to: "/api/v1/sync#update_categories"
+        put "categories/:key", to: "/api/v1/sync#update_category"
+
+        # Folder scopes (opt-in sync for Office 365 folders)
+        get "folder_scopes", to: "/api/v1/sync#folder_scopes"
+        put "folder_scopes", to: "/api/v1/sync#update_folder_scopes"
+        put "folder_scopes/:key", to: "/api/v1/sync#update_folder_scope"
+
         # Delta sync and file operations
         get "delta", to: "/api/v1/sync#delta"
         post "download_url", to: "/api/v1/sync#download_url"

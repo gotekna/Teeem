@@ -172,6 +172,24 @@ interface SyncExclusionRule {
   priority: number;
 }
 
+interface SyncCategory {
+  key: string;
+  name: string;
+  description: string;
+  extensions: string[];
+  enabled: boolean;
+}
+
+interface SyncFolderScope {
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  warehouseType: string;
+  folderPath: string | null;
+  enabled: boolean;
+}
+
 interface SyncSubscription {
   id: string;
   folderName: string;
@@ -407,11 +425,14 @@ export default function AllDocumentsPage() {
 
   // Sync settings state
   const [showSyncSettings, setShowSyncSettings] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [desktopClients, setDesktopClients] = useState<DesktopClient[]>([]);
   const [exclusionRules, setExclusionRules] = useState<SyncExclusionRule[]>([]);
   const [subscriptions, setSubscriptions] = useState<SyncSubscription[]>([]);
   const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({});
+  const [syncCategories, setSyncCategories] = useState<SyncCategory[]>([]);
+  const [folderScopes, setFolderScopes] = useState<SyncFolderScope[]>([]);
 
   // Background job progress state
   const [activeJob, setActiveJob] = useState<{
@@ -961,8 +982,25 @@ export default function AllDocumentsPage() {
   const fetchSyncSettings = useCallback(async () => {
     setSyncLoading(true);
     try {
-      // Fetch exclusion rules
-      // skipAuthRedirect: 401 means no desktop client, not session expired
+      // Fetch file type categories (opt-in sync)
+      const categoriesRes = await api.get<{ success: boolean; data: { categories?: SyncCategory[] } }>(
+        "/api/v1/sync/categories",
+        { skipAuthRedirect: true }
+      );
+      if (categoriesRes?.success && categoriesRes.data?.categories) {
+        setSyncCategories(categoriesRes.data.categories);
+      }
+
+      // Fetch folder scopes (opt-in sync for Office 365 folders)
+      const folderScopesRes = await api.get<{ success: boolean; data: { folder_scopes?: SyncFolderScope[] } }>(
+        "/api/v1/sync/folder_scopes",
+        { skipAuthRedirect: true }
+      );
+      if (folderScopesRes?.success && folderScopesRes.data?.folder_scopes) {
+        setFolderScopes(folderScopesRes.data.folder_scopes);
+      }
+
+      // Fetch exclusion rules (legacy, for backwards compat)
       const exclusionsRes = await api.get<{ success: boolean; data: { rules?: SyncExclusionRule[] } }>(
         "/api/v1/sync/exclusions",
         { skipAuthRedirect: true }
@@ -1032,6 +1070,39 @@ export default function AllDocumentsPage() {
       }));
     }
   }, [userOverrides]);
+
+  // Handle download desktop app
+  const handleDownloadDesktopApp = useCallback(() => {
+    setShowDownloadModal(true);
+  }, []);
+
+  // Toggle a file type category
+  const handleToggleCategory = useCallback(async (categoryKey: string, enabled: boolean) => {
+    // Optimistic update
+    setSyncCategories((prev) =>
+      prev.map((cat) => (cat.key === categoryKey ? { ...cat, enabled } : cat))
+    );
+
+    try {
+      await api.put(`/api/v1/sync/categories/${categoryKey}`, { enabled });
+    } catch (error) {
+      console.error("Failed to update category:", error);
+      // Revert on error
+      setSyncCategories((prev) =>
+        prev.map((cat) => (cat.key === categoryKey ? { ...cat, enabled: !enabled } : cat))
+      );
+    }
+  }, []);
+
+  // Download specific platform
+  const handleDownloadPlatform = useCallback((platform: "mac" | "windows") => {
+    // TODO: Replace with actual download URLs when hosted
+    const downloadUrls = {
+      mac: "/downloads/TEEEM-Sync.dmg",
+      windows: "/downloads/TEEEM-Sync-Setup.exe",
+    };
+    window.open(downloadUrls[platform], "_blank");
+  }, []);
 
   // Filter documents by search query
   const filteredDocuments = useMemo(() => {
@@ -2090,96 +2161,65 @@ export default function AllDocumentsPage() {
 
               {/* File Types Tab */}
               <TabsContent value="file-types" className="space-y-4 mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Choose which file types to sync to your desktop. Disabled types will appear as placeholders only.
-                </p>
-
-                {/* Extension rules */}
-                {exclusionRules.filter(r => r.ruleType === "extension").length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-muted-foreground">File Extensions</h3>
-                    <div className="space-y-2">
-                      {exclusionRules
-                        .filter((r) => r.ruleType === "extension")
-                        .map((rule) => {
-                          const key = `${rule.ruleType}:${rule.value}`;
-                          const isEnabled = userOverrides[key] ?? (rule.action === "include");
-
-                          return (
-                            <div
-                              key={rule.id}
-                              className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg"
-                            >
-                              <div className="flex items-center gap-3">
-                                <File className="h-4 w-4 text-muted-foreground" />
-                                <div>
-                                  <span className="text-sm">{rule.description}</span>
-                                  <span className="ml-2 text-xs text-muted-foreground">
-                                    ({rule.value})
-                                  </span>
-                                </div>
-                              </div>
-                              <Switch
-                                checked={isEnabled}
-                                onCheckedChange={() => handleToggleExclusion(rule)}
-                              />
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Size rules */}
-                {exclusionRules.filter(r => r.ruleType === "size").length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-sm font-medium text-muted-foreground">File Size Limits</h3>
-                    <div className="space-y-2">
-                      {exclusionRules
-                        .filter((r) => r.ruleType === "size")
-                        .map((rule) => {
-                          const key = `${rule.ruleType}:${rule.value}`;
-                          const isEnabled = userOverrides[key] ?? (rule.action === "include");
-
-                          return (
-                            <div
-                              key={rule.id}
-                              className="flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg"
-                            >
-                              <div>
-                                <span className="text-sm">{rule.description}</span>
-                              </div>
-                              <Switch
-                                checked={isEnabled}
-                                onCheckedChange={() => handleToggleExclusion(rule)}
-                              />
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Always excluded patterns */}
-                {exclusionRules.filter(r => r.ruleType === "pattern").length > 0 && (
-                  <div className="mt-4 p-3 bg-muted rounded-lg">
-                    <h3 className="text-xs font-medium text-muted-foreground mb-1">
-                      Always Excluded (System Files)
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      {exclusionRules
-                        .filter((r) => r.ruleType === "pattern")
-                        .map((r) => r.value)
-                        .join(", ")}
+                <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <Cloud className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-medium text-blue-900 dark:text-blue-100">Opt-in Sync</p>
+                    <p className="text-blue-700 dark:text-blue-300">
+                      Nothing syncs by default. Enable the file types you want to sync to your desktop.
                     </p>
                   </div>
-                )}
+                </div>
 
-                {exclusionRules.length === 0 && (
+                {/* File Type Categories */}
+                {syncCategories.length > 0 ? (
+                  <div className="space-y-2">
+                    {syncCategories.map((category) => (
+                      <div
+                        key={category.key}
+                        className={cn(
+                          "flex items-center justify-between py-3 px-4 rounded-lg border transition-colors",
+                          category.enabled
+                            ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
+                            : "bg-muted/50 border-transparent"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "h-8 w-8 rounded-lg flex items-center justify-center",
+                            category.enabled
+                              ? "bg-green-100 dark:bg-green-900"
+                              : "bg-muted"
+                          )}>
+                            <File className={cn(
+                              "h-4 w-4",
+                              category.enabled
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-muted-foreground"
+                            )} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{category.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {category.description}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {category.extensions.slice(0, 5).join(", ")}
+                              {category.extensions.length > 5 && ` +${category.extensions.length - 5} more`}
+                            </p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={category.enabled}
+                          onCheckedChange={(checked) => handleToggleCategory(category.key, checked)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <CloudOff className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No sync rules configured yet.</p>
-                    <p className="text-sm mt-1">Install the desktop app to configure sync settings.</p>
+                    <p>Download TEEEM Sync to configure file types.</p>
                     <Button
                       variant="outline"
                       className="mt-4"
@@ -2190,6 +2230,16 @@ export default function AllDocumentsPage() {
                     </Button>
                   </div>
                 )}
+
+                {/* Always excluded info */}
+                <div className="mt-4 p-3 bg-muted rounded-lg">
+                  <h3 className="text-xs font-medium text-muted-foreground mb-1">
+                    Always Excluded
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Temporary files (~$*, *.tmp), system files (.DS_Store, Thumbs.db), and files over 500MB are always excluded.
+                  </p>
+                </div>
               </TabsContent>
 
               {/* Synced Folders Tab */}
@@ -2299,6 +2349,77 @@ export default function AllDocumentsPage() {
               </TabsContent>
             </Tabs>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Download TEEEM Sync Modal */}
+      <Dialog open={showDownloadModal} onOpenChange={setShowDownloadModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Download TEEEM Sync
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              TEEEM Sync keeps your files synchronized between the cloud and your desktop.
+              Select your platform to download.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* macOS */}
+              <button
+                onClick={() => handleDownloadPlatform("mac")}
+                className="flex flex-col items-center gap-3 p-4 rounded-lg border border-border hover:border-primary hover:bg-accent transition-colors"
+              >
+                <svg className="h-10 w-10" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                </svg>
+                <div className="text-center">
+                  <p className="font-medium">macOS</p>
+                  <p className="text-xs text-muted-foreground">Intel & Apple Silicon</p>
+                </div>
+              </button>
+
+              {/* Windows */}
+              <button
+                onClick={() => handleDownloadPlatform("windows")}
+                className="flex flex-col items-center gap-3 p-4 rounded-lg border border-border hover:border-primary hover:bg-accent transition-colors"
+              >
+                <svg className="h-10 w-10" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm7 .25l10 .15V21l-10-1.91V13.25z"/>
+                </svg>
+                <div className="text-center">
+                  <p className="font-medium">Windows</p>
+                  <p className="text-xs text-muted-foreground">Windows 10+</p>
+                </div>
+              </button>
+            </div>
+
+            <div className="pt-2 border-t">
+              <h4 className="text-sm font-medium mb-2">Features</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li className="flex items-center gap-2">
+                  <Check className="h-3 w-3 text-green-500" />
+                  Sync files from Jobs, Companies & Contacts
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-3 w-3 text-green-500" />
+                  Files On-Demand - download only what you need
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-3 w-3 text-green-500" />
+                  Automatic conflict resolution
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="h-3 w-3 text-green-500" />
+                  Exclude large files (CAD, video, etc.)
+                </li>
+              </ul>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

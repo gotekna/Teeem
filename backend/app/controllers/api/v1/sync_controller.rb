@@ -305,6 +305,118 @@ module Api
       end
 
       # ==========================================
+      # FILE TYPE CATEGORIES (Opt-in sync)
+      # ==========================================
+
+      # GET /api/v1/sync/categories
+      # Get file type categories with enabled status
+      def categories
+        cats = SyncExclusionRule.categories_for_user(current_user)
+
+        render json: {
+          success: true,
+          data: {
+            categories: cats,
+            info: "Enable categories to sync those file types. Nothing syncs by default."
+          }
+        }
+      end
+
+      # PUT /api/v1/sync/categories/:key
+      # Enable or disable a category
+      def update_category
+        category_key = params[:key]
+        enabled = params[:enabled]
+
+        unless SyncExclusionRule::FILE_CATEGORIES.key?(category_key.to_sym)
+          return render json: { success: false, error: "Unknown category" }, status: :bad_request
+        end
+
+        if enabled
+          SyncExclusionRule.enable_category(current_user, category_key)
+        else
+          SyncExclusionRule.disable_category(current_user, category_key)
+        end
+
+        # Return updated categories
+        categories
+      end
+
+      # PUT /api/v1/sync/categories
+      # Bulk update categories
+      def update_categories
+        updates = params[:categories] || {}
+
+        updates.each do |key, enabled|
+          next unless SyncExclusionRule::FILE_CATEGORIES.key?(key.to_sym)
+
+          if enabled
+            SyncExclusionRule.enable_category(current_user, key)
+          else
+            SyncExclusionRule.disable_category(current_user, key)
+          end
+        end
+
+        categories
+      end
+
+      # ==========================================
+      # FOLDER SCOPES (Opt-in sync for folders)
+      # ==========================================
+
+      # GET /api/v1/sync/folder_scopes
+      # Get folder scopes with enabled status
+      def folder_scopes
+        scopes = SyncExclusionRule.folder_scopes_for_user(current_user)
+
+        render json: {
+          success: true,
+          data: {
+            folder_scopes: scopes,
+            info: "Enable folder scopes to sync those folders. Nothing syncs by default."
+          }
+        }
+      end
+
+      # PUT /api/v1/sync/folder_scopes/:key
+      # Enable or disable a folder scope
+      def update_folder_scope
+        scope_key = params[:key]
+        enabled = params[:enabled]
+
+        unless SyncExclusionRule::FOLDER_SCOPES.key?(scope_key.to_sym)
+          return render json: { success: false, error: "Unknown folder scope" }, status: :bad_request
+        end
+
+        if enabled
+          SyncExclusionRule.enable_folder_scope(current_user, scope_key)
+        else
+          SyncExclusionRule.disable_folder_scope(current_user, scope_key)
+        end
+
+        # Return updated folder scopes
+        folder_scopes
+      end
+
+      # PUT /api/v1/sync/folder_scopes
+      # Bulk update folder scopes
+      def update_folder_scopes
+        updates = params[:folder_scopes] || {}
+
+        updates.each do |key, enabled|
+          next unless SyncExclusionRule::FOLDER_SCOPES.key?(key.to_sym)
+
+          if enabled
+            SyncExclusionRule.enable_folder_scope(current_user, key)
+          else
+            SyncExclusionRule.disable_folder_scope(current_user, key)
+          end
+        end
+
+        folder_scopes
+      end
+
+      # ==========================================
       # DELTA SYNC
       # ==========================================
 
