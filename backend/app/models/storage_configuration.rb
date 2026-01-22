@@ -145,7 +145,7 @@ class StorageConfiguration < ApplicationRecord
     # Task documents
     'task' => 'Jobs/{{JobCode}}/Tasks/{{TaskId}}',
     # Email documents
-    # SSoT: email and email_attachments use SAME path - attachments appear alongside emails
+    # SSoT: email_attachments uses SAME path as email (appear together in File Warehouse)
     'email' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
     'email_attachments' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
     # Warehousing (generic)
@@ -284,6 +284,9 @@ class StorageConfiguration < ApplicationRecord
   #
   def resolve_path(warehouse_type, substitutions = {}, subfolder = nil)
     base_folder = root_folder_for(warehouse_type)
+
+    # Return nil if warehouse type is disabled or not configured
+    return nil if base_folder.nil?
 
     # Substitute template variables in base folder
     resolved = base_folder.dup
