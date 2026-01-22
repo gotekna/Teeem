@@ -719,21 +719,13 @@ class EntityTab < ApplicationRecord
 
   # Task document folder tabs
   # SSoT: Defines the folder structure for task-related documents
-  # Base folder: "Tasks" (stored on overview tab)
-  # Template: "Tasks/Task-{{TaskId}}/{{Category}}"
+  # Base folder: "Tasks" (defined in StorageConfiguration.warehouse_root_folders)
+  # Template: "Tasks/{{TaskId}}/{{Category}}"
   private_class_method def self.seed_task_tabs!
-    # Overview/root tab - defines the base folder for this warehouse_type
-    # SSoT: warehouse_folder on overview tab = warehouse_type base folder
-    find_or_create_by!(warehouse_type: 'task', tab_key: 'overview') do |tab|
-      tab.display_name = 'Overview'
-      tab.tab_group = 'overview'
-      tab.order_position = 0
-      tab.enabled = true
-      tab.is_system_tab = true
-      tab.icon_name = 'ClipboardList'
-      tab.warehouse_enabled = true
-      tab.warehouse_folder = 'Tasks'  # SSoT: Base folder for task warehouse_type
-    end
+    # NOTE: Overview tab NOT created for tasks (Jan 2026)
+    # - Tasks only need Attachments and Responses tabs
+    # - Base folder "Tasks" is defined in StorageConfiguration.warehouse_root_folders['task']
+    # - Overview tabs were redundant and cluttered the Entity Config UI
 
     # Document folder tabs for task attachments
     # These represent categories of documents that can be attached to tasks
