@@ -679,36 +679,35 @@ function SortableQuestionItem({
                     </button>
                   )}
                   {isRenaming ? (
-                    // Inline edit mode
+                    // Inline edit mode - use form submit to get current input value directly
                     <form
                       className="flex items-center gap-1 flex-1"
                       onSubmit={(e) => {
                         e.preventDefault();
-                        handleRenameAttachment?.(att.id, renamingAttachmentName || '');
+                        const form = e.currentTarget;
+                        const input = form.querySelector('input') as HTMLInputElement;
+                        const newName = input?.value || '';
+                        if (newName.trim()) {
+                          handleRenameAttachment?.(att.id, newName);
+                        }
                       }}
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <Input
-                        value={renamingAttachmentName}
-                        onChange={(e) => setRenamingAttachmentName?.(e.target.value)}
+                        name="attachmentName"
+                        defaultValue={renamingAttachmentName}
                         className="h-5 text-xs px-1 py-0 flex-1"
                         autoFocus
-                        onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => {
                           e.stopPropagation();
-                          if (e.key === 'Enter') {
-                            handleRenameAttachment?.(att.id, renamingAttachmentName || '');
-                          } else if (e.key === 'Escape') {
+                          if (e.key === 'Escape') {
                             setRenamingAttachmentId?.(null);
                             setRenamingAttachmentName?.('');
                           }
                         }}
                       />
                       <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRenameAttachment?.(att.id, renamingAttachmentName || '');
-                        }}
+                        type="submit"
                         className="text-green-600 hover:text-green-700 p-0.5"
                         title="Save"
                       >
@@ -5505,47 +5504,56 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           )}
                           <div className="flex-1 min-w-0">
                             {renamingAttachmentId === att.id ? (
-                              <div className="flex items-center gap-1">
+                              <form
+                                className="flex items-center gap-1"
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const form = e.currentTarget;
+                                  const input = form.querySelector('input') as HTMLInputElement;
+                                  const newName = input?.value || '';
+                                  if (newName.trim()) {
+                                    handleRenameAttachment(att.id, newName);
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 <Input
-                                  value={renamingAttachmentName}
-                                  onChange={(e) => setRenamingAttachmentName(e.target.value)}
+                                  name="attachmentName"
+                                  defaultValue={renamingAttachmentName}
                                   onKeyDown={(e) => {
                                     e.stopPropagation();
-                                    if (e.key === 'Enter') {
-                                      handleRenameAttachment(att.id, renamingAttachmentName);
-                                    } else if (e.key === 'Escape') {
+                                    if (e.key === 'Escape') {
                                       setRenamingAttachmentId(null);
+                                      setRenamingAttachmentName('');
                                     }
                                   }}
-                                  onClick={(e) => e.stopPropagation()}
                                   className="h-7 text-sm flex-1"
                                   autoFocus
                                 />
                                 <Button
+                                  type="submit"
                                   variant="ghost"
                                   size="sm"
                                   className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRenameAttachment(att.id, renamingAttachmentName);
-                                  }}
                                   title="Save"
                                 >
                                   <Check className="h-3.5 w-3.5" />
                                 </Button>
                                 <Button
+                                  type="button"
                                   variant="ghost"
                                   size="sm"
                                   className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setRenamingAttachmentId(null);
+                                    setRenamingAttachmentName('');
                                   }}
                                   title="Cancel"
                                 >
                                   <X className="h-3.5 w-3.5" />
                                 </Button>
-                              </div>
+                              </form>
                             ) : (
                               <div className="font-medium truncate">
                                 {/* Priority: attachment.display_name > document/email name */}
