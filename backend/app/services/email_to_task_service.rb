@@ -44,10 +44,10 @@ class EmailToTaskService
       # This enables automatic matching of future related emails
       extract_auto_match_keywords(task)
 
-      # 7. Find and attach related emails
-      # NOTE: Email file attachments (PDFs, etc.) are NOT downloaded here.
-      # SSoT: Attachments are accessible via task → email → email_attachments chain.
-      find_and_attach_related_emails(task)
+      # 7. DON'T auto-attach related emails (Jan 2026 change)
+      # Related emails are now shown as suggestions in the UI, user can choose to add them.
+      # The find_related_emails method is still used by the suggested_emails API endpoint.
+      # REMOVED: find_and_attach_related_emails(task)
 
       # 8. Add email participants as task contacts
       add_email_participants_as_contacts(task)

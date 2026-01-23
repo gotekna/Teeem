@@ -922,11 +922,17 @@ module Api
 
       # PATCH /api/v1/sm_tasks/:id/attachments/:attachment_id
       # Update attachment properties (e.g., link to a question via action_item_id)
+      # Also supports renaming linked document via document_display_name param
       def update_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
 
         permitted = params.permit(:action_item_id, :category, :notes)
         attachment.update!(permitted)
+
+        # If document_display_name provided, update the linked document
+        if params[:document_display_name].present? && attachment.attachable_type == "CorporateCompanyDocument"
+          attachment.attachable.update!(display_name: params[:document_display_name])
+        end
 
         render json: {
           success: true,

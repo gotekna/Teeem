@@ -171,6 +171,12 @@ interface SortableQuestionItemProps {
   handleUndelegateQuestion?: (itemId: number) => void;  // Unlink a delegated task
   onCreateAction?: (text: string) => void;  // Create action item from question
   setSelectedEmailId?: (id: number | null) => void;  // For viewing linked emails
+  // Attachment rename props
+  renamingAttachmentId?: number | null;
+  renamingAttachmentName?: string;
+  setRenamingAttachmentId?: (id: number | null) => void;
+  setRenamingAttachmentName?: (name: string) => void;
+  handleRenameAttachment?: (attachmentId: number, newName: string) => void;
 }
 
 function SortableQuestionItem({
@@ -209,6 +215,11 @@ function SortableQuestionItem({
   handleUndelegateQuestion,
   onCreateAction,
   setSelectedEmailId,
+  renamingAttachmentId,
+  renamingAttachmentName,
+  setRenamingAttachmentId,
+  setRenamingAttachmentName,
+  handleRenameAttachment,
 }: SortableQuestionItemProps) {
   const [isFileDropTarget, setIsFileDropTarget] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -581,20 +592,68 @@ function SortableQuestionItem({
               // SSoT: Use storage_url (provider-agnostic) first, then file_url (ActiveStorage legacy)
               const url = att.document?.storage_url || att.document?.file_url;
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
+              const isRenaming = renamingAttachmentId === att.id;
+
               return (
-                <div key={att.id} className="flex items-center gap-2 text-xs">
+                <div key={att.id} className="flex items-center gap-2 text-xs group">
                   <Paperclip className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
-                  {url ? (
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-green-600 dark:text-green-400 hover:text-green-700 hover:underline font-medium"
+                  {isRenaming ? (
+                    // Inline edit mode
+                    <form
+                      className="flex items-center gap-1 flex-1"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleRenameAttachment?.(att.id, renamingAttachmentName || '');
+                      }}
                     >
-                      {fileName}
-                    </a>
+                      <Input
+                        value={renamingAttachmentName}
+                        onChange={(e) => setRenamingAttachmentName?.(e.target.value)}
+                        className="h-5 text-xs px-1 py-0 flex-1"
+                        autoFocus
+                        onBlur={() => {
+                          // Save on blur if name changed
+                          if (renamingAttachmentName && renamingAttachmentName !== fileName) {
+                            handleRenameAttachment?.(att.id, renamingAttachmentName);
+                          } else {
+                            setRenamingAttachmentId?.(null);
+                            setRenamingAttachmentName?.('');
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            setRenamingAttachmentId?.(null);
+                            setRenamingAttachmentName?.('');
+                          }
+                        }}
+                      />
+                    </form>
                   ) : (
-                    <span className="text-green-600 dark:text-green-400 font-medium">{fileName}</span>
+                    // Display mode with link and edit button
+                    <>
+                      {url ? (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-green-600 dark:text-green-400 hover:text-green-700 hover:underline font-medium"
+                        >
+                          {fileName}
+                        </a>
+                      ) : (
+                        <span className="text-green-600 dark:text-green-400 font-medium">{fileName}</span>
+                      )}
+                      <button
+                        onClick={() => {
+                          setRenamingAttachmentId?.(att.id);
+                          setRenamingAttachmentName?.(fileName);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                        title="Rename"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    </>
                   )}
                 </div>
               );
@@ -783,6 +842,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
   const [emailSearchType, setEmailSearchType] = useState<'subject' | 'body' | 'full' | 'exact'>('subject');
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
+
+  // Attachment rename state
+  const [renamingAttachmentId, setRenamingAttachmentId] = useState<number | null>(null);
+  const [renamingAttachmentName, setRenamingAttachmentName] = useState('');
 
   // Email-to-document highlighting state
   const [selectedEmailForHighlight, setSelectedEmailForHighlight] = useState<number | null>(null);
@@ -2379,6 +2442,33 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
   };
 
+  // Handle renaming an attachment's display name
+  const handleRenameAttachment = async (attachmentId: number, newName: string) => {
+    if (!newName.trim()) return;
+    try {
+      const response = await api.patch<{ success: boolean; attachment: TaskAttachment }>(
+        `/api/v1/sm_tasks/${task.id}/attachments/${attachmentId}`,
+        { document_display_name: newName.trim() }
+      );
+      if (response?.success) {
+        // Update local state to reflect the new name
+        setLocalAttachments(prev => prev.map(att =>
+          att.id === attachmentId && att.document
+            ? { ...att, document: { ...att.document, display_name: newName.trim() } }
+            : att
+        ));
+        // Also refresh to ensure action items get updated attachments
+        await refresh();
+        toast.success('Attachment renamed');
+      }
+    } catch (error) {
+      console.error('[TaskFullscreenView] Failed to rename attachment:', error);
+      toast.error('Failed to rename attachment');
+    }
+    setRenamingAttachmentId(null);
+    setRenamingAttachmentName('');
+  };
+
   // Drag and drop handlers for the attachment column
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -3545,6 +3635,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               handleUndelegateQuestion={handleUndelegateQuestion}
                               onCreateAction={(text) => addActionItem(task.id, text, 'action')}
                               setSelectedEmailId={setSelectedEmailId}
+                              renamingAttachmentId={renamingAttachmentId}
+                              renamingAttachmentName={renamingAttachmentName}
+                              setRenamingAttachmentId={setRenamingAttachmentId}
+                              setRenamingAttachmentName={setRenamingAttachmentName}
+                              handleRenameAttachment={handleRenameAttachment}
                             />
                           ))}
                         </div>
@@ -3588,6 +3683,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       handleUndelegateQuestion={handleUndelegateQuestion}
                       onCreateAction={(text) => addActionItem(task.id, text, 'action')}
                       setSelectedEmailId={setSelectedEmailId}
+                      renamingAttachmentId={renamingAttachmentId}
+                      renamingAttachmentName={renamingAttachmentName}
+                      setRenamingAttachmentId={setRenamingAttachmentId}
+                      setRenamingAttachmentName={setRenamingAttachmentName}
+                      handleRenameAttachment={handleRenameAttachment}
                     />
                   ))}
                 </SortableContext>
