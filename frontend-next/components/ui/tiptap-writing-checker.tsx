@@ -78,12 +78,40 @@ function HoverTooltip({
   onShowDetails: () => void;
 }) {
   const config = issueTypeConfig[issue.type];
+  const fixBtnRef = React.useRef<HTMLButtonElement>(null);
+  const whyBtnRef = React.useRef<HTMLButtonElement>(null);
+
+  // Use native DOM events since React events don't work reliably in createRoot portals
+  React.useEffect(() => {
+    const fixBtn = fixBtnRef.current;
+    const whyBtn = whyBtnRef.current;
+
+    const handleFixClick = (e: MouseEvent) => {
+      console.log('[WritingChecker] HoverTooltip Fix native click');
+      e.preventDefault();
+      e.stopPropagation();
+      onFix();
+    };
+
+    const handleWhyClick = (e: MouseEvent) => {
+      console.log('[WritingChecker] HoverTooltip Why native click');
+      e.preventDefault();
+      e.stopPropagation();
+      onShowDetails();
+    };
+
+    fixBtn?.addEventListener('click', handleFixClick);
+    whyBtn?.addEventListener('click', handleWhyClick);
+
+    return () => {
+      fixBtn?.removeEventListener('click', handleFixClick);
+      whyBtn?.removeEventListener('click', handleWhyClick);
+    };
+  }, [onFix, onShowDetails]);
 
   return (
     <div
       className="bg-popover text-popover-foreground shadow-lg rounded-lg border overflow-hidden min-w-[200px] max-w-[320px] animate-in fade-in-0 zoom-in-95 duration-100"
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.preventDefault()}
     >
       {/* Quick suggestion bar */}
       <div className="flex items-center gap-2 p-2 border-b bg-muted/30">
@@ -99,33 +127,17 @@ function HoverTooltip({
       {/* Action buttons */}
       <div className="flex items-stretch divide-x">
         <button
+          ref={fixBtnRef}
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onFix();
-          }}
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-colors cursor-pointer"
         >
           <Check className="h-3.5 w-3.5" />
           Fix
         </button>
         <button
+          ref={whyBtnRef}
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onShowDetails();
-          }}
-          className="flex items-center justify-center gap-1 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          className="flex items-center justify-center gap-1 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
         >
           <span className="text-xs">Why?</span>
           <ChevronRight className="h-3 w-3" />
@@ -148,12 +160,40 @@ function DetailTooltip({
   onClose: () => void;
 }) {
   const config = issueTypeConfig[issue.type];
+  const applyFixRef = React.useRef<HTMLButtonElement>(null);
+  const ignoreRef = React.useRef<HTMLButtonElement>(null);
+
+  // Use native DOM events since React events don't work reliably in createRoot portals
+  React.useEffect(() => {
+    const applyBtn = applyFixRef.current;
+    const ignoreBtn = ignoreRef.current;
+
+    const handleApplyClick = (e: MouseEvent) => {
+      console.log('[WritingChecker] Apply Fix native click');
+      e.preventDefault();
+      e.stopPropagation();
+      onFix();
+    };
+
+    const handleIgnoreClick = (e: MouseEvent) => {
+      console.log('[WritingChecker] Ignore native click');
+      e.preventDefault();
+      e.stopPropagation();
+      onDismiss();
+    };
+
+    applyBtn?.addEventListener('click', handleApplyClick);
+    ignoreBtn?.addEventListener('click', handleIgnoreClick);
+
+    return () => {
+      applyBtn?.removeEventListener('click', handleApplyClick);
+      ignoreBtn?.removeEventListener('click', handleIgnoreClick);
+    };
+  }, [onFix, onDismiss]);
 
   return (
     <div
       className="bg-popover text-popover-foreground shadow-xl rounded-lg border overflow-hidden w-80 animate-in fade-in-0 zoom-in-95 duration-150"
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.preventDefault()}
     >
       {/* Header */}
       <div className={`flex items-center justify-between px-3 py-2 ${config.bg} border-b ${config.border}`}>
@@ -203,35 +243,17 @@ function DetailTooltip({
       {/* Action buttons */}
       <div className="flex items-stretch border-t divide-x">
         <button
+          ref={applyFixRef}
           type="button"
-          onMouseDown={(e) => {
-            console.log('[WritingChecker] Apply Fix mousedown');
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onClick={(e) => {
-            console.log('[WritingChecker] Apply Fix clicked');
-            e.preventDefault();
-            e.stopPropagation();
-            onFix();
-          }}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-primary/5 hover:bg-primary/10 text-primary transition-colors"
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-primary/5 hover:bg-primary/10 text-primary transition-colors cursor-pointer"
         >
           <Check className="h-4 w-4" />
           Apply Fix
         </button>
         <button
+          ref={ignoreRef}
           type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onDismiss();
-          }}
-          className="px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          className="px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
         >
           Ignore
         </button>
