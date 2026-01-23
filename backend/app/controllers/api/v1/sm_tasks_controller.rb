@@ -10,6 +10,7 @@ module Api
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category,
         :attachments, :add_attachment, :remove_attachment, :update_attachment, :upload_attachment,
+        :presign_attachment, :confirm_attachment,
         :download_attachment_for_email, :create_attachment_share_link,
         :follow, :unfollow, :followers, :add_follower, :remove_follower,
         :history,
@@ -1030,6 +1031,136 @@ module Api
             action_item_id: attachment.action_item_id
           )
         }
+      end
+
+      # POST /api/v1/sm_tasks/:id/attachments/presign
+      # Get presigned URL for direct S3 upload (bypasses Heroku timeout)
+      # Returns: { success: true, upload_url: "...", key: "...", content_type: "..." }
+      def presign_attachment
+        filename = params[:filename]
+        content_type = params[:content_type] || "application/octet-stream"
+        category = params[:category] || "info"
+
+        unless filename.present?
+          return render json: { success: false, error: "Filename required" }, status: :bad_request
+        end
+
+        begin
+          # Get S3 provider
+          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+
+          # Generate unique key in Blobs folder (will be moved after upload)
+          # Use timestamp + random to avoid collisions
+          safe_filename = filename.gsub(/[^a-zA-Z0-9._-]/, "_")
+          temp_key = "TaskUploads/#{@task.id}/#{Time.current.to_i}_#{SecureRandom.hex(4)}_#{safe_filename}"
+
+          # Get presigned upload URL (1 hour expiry)
+          upload_url = provider.presigned_upload_url(
+            "",  # Folder path (temp_key already includes full path)
+            temp_key,
+            expires_in: 3600,
+            content_type: content_type
+          )
+
+          render json: {
+            success: true,
+            upload_url: upload_url,
+            key: temp_key,
+            filename: filename,
+            content_type: content_type,
+            category: category,
+            expires_in: 3600
+          }
+        rescue DocumentProviders::NotConnectedError => e
+          render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
+        rescue => e
+          Rails.logger.error "[SmTasksController#presign_attachment] Failed: #{e.message}"
+          render json: { success: false, error: "Failed to generate upload URL" }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/sm_tasks/:id/attachments/confirm
+      # Confirm upload after direct S3 upload, create attachment record
+      # Params: key (S3 key), filename, content_type, category, action_item_id (optional)
+      def confirm_attachment
+        key = params[:key]
+        filename = params[:filename]
+        content_type = params[:content_type] || "application/octet-stream"
+        category = params[:category] || "info"
+        file_size = params[:file_size].to_i
+
+        unless key.present? && filename.present?
+          return render json: { success: false, error: "Key and filename required" }, status: :bad_request
+        end
+
+        begin
+          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+
+          # Verify the file exists in S3
+          file_info = provider.get_file(key)
+
+          # Download content to calculate hash and create StorageBlob
+          content = provider.download_file(key)
+
+          # Create StorageBlob with content hash for deduplication
+          blob = StorageBlob.find_or_create_for_content!(
+            content,
+            filename: filename,
+            content_type: content_type
+          )
+          blob.increment_reference!
+
+          # Delete the temp file (StorageBlob now has it in Blobs/ folder)
+          provider.delete_file(key) rescue nil
+
+          # Create document record
+          doc_attrs = {
+            file_name: filename,
+            display_name: filename,
+            mime_type: content_type,
+            document_type: "other",
+            filed_by: current_user&.name,
+            uploaded_at: Time.current,
+            storage_blob: blob,
+            content_hash: blob.content_hash,
+            sm_task_id: @task.id
+          }
+
+          # Secondary owner for cross-referencing
+          if @task.job_id.present?
+            doc_attrs[:job_id] = @task.job_id
+          elsif @task.supplier_id.present?
+            doc_attrs[:contact_id] = @task.supplier_id
+          elsif current_user&.contact_id.present?
+            doc_attrs[:contact_id] = current_user.contact_id
+          end
+
+          doc = CorporateCompanyDocument.create!(doc_attrs)
+
+          # Create task attachment
+          attachment = @task.sm_task_attachments.create!(
+            attachable: doc,
+            attachment_type: "document",
+            category: category,
+            notes: params[:notes],
+            added_by: current_user,
+            action_item_id: params[:action_item_id]
+          )
+
+          render json: {
+            success: true,
+            attachment: attachment_to_json(attachment).merge(
+              action_item_id: attachment.action_item_id
+            )
+          }
+        rescue DocumentProviders::NotFoundError
+          render json: { success: false, error: "File not found in storage. Upload may have failed." }, status: :not_found
+        rescue DocumentProviders::NotConnectedError => e
+          render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
+        rescue => e
+          Rails.logger.error "[SmTasksController#confirm_attachment] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+          render json: { success: false, error: "Failed to confirm upload: #{e.message}" }, status: :unprocessable_entity
+        end
       end
 
       # GET /api/v1/sm_tasks/:id/attachments/:attachment_id/download

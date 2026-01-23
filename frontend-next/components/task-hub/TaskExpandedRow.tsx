@@ -18,7 +18,8 @@ import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
-import { api } from '@/lib/api';
+import { api, getApiBaseUrl } from '@/lib/api';
+import { getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 import {
   AlertTriangle,
   Calendar as CalendarIcon,
@@ -126,32 +127,81 @@ function DelegatedTaskView({
     }
   };
 
+  // Upload using presigned URL flow: Browser → S3 directly (bypasses Heroku 30s timeout)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
 
     setUploading(true);
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
+    const baseUrl = getApiBaseUrl();
+
     try {
       for (const file of Array.from(files)) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('category', 'response');
+        try {
+          // Step 1: Get presigned URL from backend
+          const presignResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/presign`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              filename: file.name,
+              content_type: file.type || 'application/octet-stream',
+              category: 'response',
+            }),
+          });
 
-        const result = await api.postFormData<{ success: boolean; attachment: TaskAttachment }>(
-          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
-          formData
-        );
+          const presignData = await presignResponse.json();
+          if (!presignData.success || !presignData.upload_url) {
+            toast.error(presignData.error || `Failed to prepare upload for ${file.name}`);
+            continue;
+          }
 
-        if (result?.success && result.attachment) {
-          setLocalAttachments(prev => [...prev, result.attachment]);
-          toast.success(`Uploaded ${file.name}`);
-        } else {
+          // Step 2: Upload directly to S3 using XHR
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+              } else {
+                reject(new Error(`S3 upload failed: ${xhr.status}`));
+              }
+            };
+            xhr.onerror = () => reject(new Error('Network error during S3 upload'));
+            xhr.open('PUT', presignData.upload_url);
+            xhr.setRequestHeader('Content-Type', presignData.content_type);
+            xhr.send(file);
+          });
+
+          // Step 3: Confirm upload with backend
+          const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              key: presignData.key,
+              filename: file.name,
+              content_type: file.type || 'application/octet-stream',
+              category: 'response',
+            }),
+          });
+
+          const confirmData = await confirmResponse.json();
+          if (confirmData.success && confirmData.attachment) {
+            setLocalAttachments(prev => [...prev, confirmData.attachment]);
+            toast.success(`Uploaded ${file.name}`);
+          } else {
+            toast.error(confirmData.error || `Failed to save ${file.name}`);
+          }
+        } catch (err) {
+          console.error(`Failed to upload ${file.name}:`, err);
           toast.error(`Failed to upload ${file.name}`);
         }
       }
-    } catch (err) {
-      console.error('Failed to upload file:', err);
-      toast.error('Upload failed. Please try again.');
     } finally {
       setUploading(false);
       e.target.value = '';

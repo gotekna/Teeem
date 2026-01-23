@@ -1758,6 +1758,8 @@ Rails.application.routes.draw do
           get :attachments
           post :attachments, action: :add_attachment
           post "attachments/upload", action: :upload_attachment
+          post "attachments/presign", action: :presign_attachment   # Get presigned URL for direct S3 upload
+          post "attachments/confirm", action: :confirm_attachment   # Confirm upload after direct S3 upload
           delete "attachments/:attachment_id", action: :remove_attachment
           patch "attachments/:attachment_id", action: :update_attachment
           get "attachments/:attachment_id/download", action: :download_attachment_for_email

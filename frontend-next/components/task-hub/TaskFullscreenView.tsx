@@ -42,6 +42,7 @@ import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api, getApiBaseUrl } from '@/lib/api';
+import { getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 // Note: Uses sonner's toast (imported below) for toast.success/error/info API
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -2211,32 +2212,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const handleCategorySelect = async (category: AttachmentCategory) => {
     if (!pendingFile) return;
 
-    setAttachmentLoading(true);
     setShowCategoryDialog(false);
+    const file = pendingFile;
+    setPendingFile(null);
 
-    try {
-      const formData = new FormData();
-      formData.append('file', pendingFile);
-      formData.append('category', category);
-
-      const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment }>(
-        `/api/v1/sm_tasks/${task.id}/attachments/upload`,
-        formData
-      );
-
-      if (response?.success && response.attachment) {
-        setLocalAttachments(prev => [...prev, response.attachment]);
-        toast.success(`Uploaded ${pendingFile.name}`);
-      } else {
-        toast.error('Upload failed. Please try again.');
-      }
-    } catch (err) {
-      console.error('Failed to upload file:', err);
-      toast.error('Upload failed. Please try again.');
-    } finally {
-      setAttachmentLoading(false);
-      setPendingFile(null);
-    }
+    // Use the shared presigned URL upload function
+    await uploadFileWithCategory(file, category);
   };
 
   const handleCategoryCancel = () => {
@@ -2245,41 +2226,101 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   };
 
   // Helper to upload file directly with a category (bypasses dialog)
+  // Uses presigned URL flow: Browser → S3 directly (bypasses Heroku 30s timeout)
   const uploadFileWithCategory = async (file: File, category: AttachmentCategory, actionItemId?: number) => {
     console.log('[TaskFullscreenView] uploadFileWithCategory:', file.name, 'category:', category, 'actionItemId:', actionItemId);
     setAttachmentLoading(true);
+
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
+    const baseUrl = getApiBaseUrl();
+
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category', category);
-      if (actionItemId) {
-        formData.append('action_item_id', actionItemId.toString());
+      // Step 1: Get presigned URL from backend
+      console.log('[TaskFullscreenView] Step 1: Getting presigned URL...');
+      const presignResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/presign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          content_type: file.type || 'application/octet-stream',
+          category,
+        }),
+      });
+
+      const presignData = await presignResponse.json();
+      if (!presignData.success || !presignData.upload_url) {
+        console.error('[TaskFullscreenView] Failed to get presigned URL:', presignData);
+        toast.error(presignData.error || 'Failed to prepare upload. Please try again.');
+        setAttachmentLoading(false);
+        return;
       }
 
-      const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment & { action_item_id?: number } }>(
-        `/api/v1/sm_tasks/${task.id}/attachments/upload`,
-        formData
-      );
+      console.log('[TaskFullscreenView] Got presigned URL, key:', presignData.key);
 
-      console.log('[TaskFullscreenView] Upload response:', response);
+      // Step 2: Upload directly to S3 using XHR (no timeout, supports progress)
+      console.log('[TaskFullscreenView] Step 2: Uploading to S3...');
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
 
-      if (response?.success && response.attachment) {
-        console.log('[TaskFullscreenView] Adding attachment to local state:', response.attachment);
-        setLocalAttachments(prev => [...prev, response.attachment]);
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            console.log('[TaskFullscreenView] S3 upload complete');
+            resolve();
+          } else {
+            console.error('[TaskFullscreenView] S3 upload failed:', xhr.status, xhr.statusText);
+            reject(new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`));
+          }
+        };
+
+        xhr.onerror = () => {
+          console.error('[TaskFullscreenView] S3 upload network error');
+          reject(new Error('Network error during S3 upload'));
+        };
+
+        xhr.open('PUT', presignData.upload_url);
+        xhr.setRequestHeader('Content-Type', presignData.content_type);
+        xhr.send(file);
+      });
+
+      // Step 3: Confirm upload with backend
+      console.log('[TaskFullscreenView] Step 3: Confirming upload...');
+      const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          key: presignData.key,
+          filename: file.name,
+          content_type: file.type || 'application/octet-stream',
+          category,
+          action_item_id: actionItemId,
+        }),
+      });
+
+      const confirmData = await confirmResponse.json();
+      console.log('[TaskFullscreenView] Confirm response:', confirmData);
+
+      if (confirmData.success && confirmData.attachment) {
+        console.log('[TaskFullscreenView] Adding attachment to local state:', confirmData.attachment);
+        setLocalAttachments(prev => [...prev, confirmData.attachment]);
         toast.success(`Uploaded ${file.name}`);
 
-        // If linked to an action item, also update the local task action items
-        if (actionItemId && response.attachment) {
-          // Force a refresh to get the updated action items with attachments
+        // If linked to an action item, refresh to get updated action items
+        if (actionItemId) {
           refresh();
         }
       } else {
-        console.error('[TaskFullscreenView] Upload failed or no attachment in response:', response);
-        toast.error('Upload failed. Please try again.');
+        console.error('[TaskFullscreenView] Confirm failed:', confirmData);
+        toast.error(confirmData.error || 'Failed to save attachment. Please try again.');
       }
-    } catch (err) {
-      console.error('[TaskFullscreenView] Failed to upload file:', err);
-      toast.error('Upload failed. Please try again.');
+    } catch (error) {
+      console.error('[TaskFullscreenView] Upload error:', error);
+      toast.error('Upload failed. Please check your connection and try again.');
     } finally {
       setAttachmentLoading(false);
     }
