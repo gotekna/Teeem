@@ -104,11 +104,15 @@ import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdow
 import { ExpandChevron } from '@/components/ui/expand-chevron';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
 import { DocumentViewerModal, getFileType } from '@/components/ui/document-viewer-modal';
+import { RichTextEditorModal } from '@/components/ui/rich-text-editor-modal';
 import { AttachmentCategoryDialog } from './AttachmentCategoryDialog';
 import { ComposeEmailModal } from '@/components/emails/ComposeEmailModal';
 import { EmailAttachmentLink } from '@/components/emails/EmailAttachmentLink';
 import { getOverdueColorClasses } from './TaskColorSettings';
 import { TASK_STATUS } from '@/lib/constants/task-status';
+
+// Type for rich text editor modal
+type EditModalType = 'question' | 'header' | 'answer' | 'action' | null;
 
 interface Job {
   id: number;
@@ -193,6 +197,8 @@ interface SortableQuestionItemProps {
   editingAnswerText?: string;
   setEditingAnswerText?: (text: string) => void;
   handleUpdateAnswer?: (id: number) => void;
+  // Rich text editor modal for answers
+  onEditAnswer?: (itemId: number, currentAnswer: string) => void;
   delegatingQuestionId?: number | null;
   setDelegatingQuestionId?: (id: number | null) => void;
   delegationUsers?: User[];
@@ -240,6 +246,7 @@ function SortableQuestionItem({
   editingAnswerText,
   setEditingAnswerText,
   handleUpdateAnswer,
+  onEditAnswer,
   delegatingQuestionId,
   setDelegatingQuestionId,
   delegationUsers,
@@ -568,8 +575,14 @@ function SortableQuestionItem({
           <div
             className="ml-6 p-2 rounded bg-green-50 dark:bg-green-950/30 border-l-2 border-green-500 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/40"
             onClick={() => {
-              setEditingAnswerId?.(item.id);
-              setEditingAnswerText?.(item.response || '');
+              if (onEditAnswer) {
+                // Use rich text editor modal
+                onEditAnswer(item.id, item.response || '');
+              } else {
+                // Fallback to inline editing
+                setEditingAnswerId?.(item.id);
+                setEditingAnswerText?.(item.response || '');
+              }
             }}
           >
             <span className="text-xs text-green-600 dark:text-green-400">Answer:</span>
@@ -619,7 +632,15 @@ function SortableQuestionItem({
             variant="ghost"
             size="sm"
             className="h-6 text-xs"
-            onClick={() => setAnsweringItemId?.(item.id)}
+            onClick={() => {
+              if (onEditAnswer) {
+                // Use rich text editor modal
+                onEditAnswer(item.id, '');
+              } else {
+                // Fallback to inline editing
+                setAnsweringItemId?.(item.id);
+              }
+            }}
           >
             + Add Answer
           </Button>
@@ -984,6 +1005,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [editingAnswerId, setEditingAnswerId] = useState<number | null>(null);
   const [editingAnswerText, setEditingAnswerText] = useState('');
 
+  // Rich text editor modal state (SSoT for all text editing)
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editModalType, setEditModalType] = useState<EditModalType>(null);
+  const [editModalItemId, setEditModalItemId] = useState<number | null>(null);
+  const [editModalValue, setEditModalValue] = useState('');
+  const [editModalTitle, setEditModalTitle] = useState('Edit');
+
+  // Open the rich text editor modal
+  const openEditModal = useCallback((type: EditModalType, itemId: number, value: string, title: string) => {
+    setEditModalType(type);
+    setEditModalItemId(itemId);
+    setEditModalValue(value || '');
+    setEditModalTitle(title);
+    setEditModalOpen(true);
+  }, []);
+
   // Scroll position preservation after save
   const lastSavedItemIdRef = useRef<number | null>(null);
   const scrollToSavedItem = useCallback(() => {
@@ -999,6 +1036,30 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       });
     }
   }, []);
+
+  // Save handler for the rich text editor modal
+  const handleEditModalSave = useCallback(async (newValue: string) => {
+    if (!editModalItemId || !editModalType) return;
+
+    const trimmedValue = newValue.trim();
+    if (!trimmedValue) return;
+
+    lastSavedItemIdRef.current = editModalItemId;
+    setActionItemLoading(editModalItemId);
+
+    try {
+      if (editModalType === 'question' || editModalType === 'header' || editModalType === 'action') {
+        // Questions, headers, and action items all use updateActionItem
+        await updateActionItem(task.id, editModalItemId, trimmedValue);
+      } else if (editModalType === 'answer') {
+        // Answers use answerActionItem
+        await answerActionItem(task.id, editModalItemId, trimmedValue);
+      }
+    } finally {
+      setActionItemLoading(null);
+      scrollToSavedItem();
+    }
+  }, [editModalItemId, editModalType, task.id, updateActionItem, answerActionItem, scrollToSavedItem]);
 
   // Email compose for responses
   const [showComposeEmail, setShowComposeEmail] = useState(false);
@@ -3729,10 +3790,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         isCollapsed={collapsedHeaders.has(header.id)}
                         isDropTarget={overHeaderId === header.id && activeDragId !== header.id}
                         onToggleCollapse={() => toggleHeaderCollapse(header.id)}
-                        onEdit={(text) => {
-                          setEditingItemId(header.id);
-                          setEditingItemText(text);
-                        }}
+                        onEdit={(text) => openEditModal('header', header.id, text, 'Edit Header')}
                         onRemove={() => handleRemoveItem(header.id)}
                         onAddChild={() => {
                           setAddingToHeaderId(header.id);
@@ -3802,10 +3860,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               key={child.id}
                               item={child}
                               task={task}
-                              onEdit={(text) => {
-                                setEditingItemId(child.id);
-                                setEditingItemText(text);
-                              }}
+                              onEdit={(text) => openEditModal('question', child.id, text, 'Edit Question')}
                               onRemove={() => handleRemoveItem(child.id)}
                               onFileDrop={handleFileDropOnQuestion}
                               onAttachmentDrop={handleAttachmentDropOnQuestion}
@@ -3825,6 +3880,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               editingAnswerText={editingAnswerText}
                               setEditingAnswerText={setEditingAnswerText}
                               handleUpdateAnswer={handleUpdateAnswer}
+                              onEditAnswer={(itemId, answer) => openEditModal('answer', itemId, answer, 'Edit Answer')}
                               delegatingQuestionId={delegatingQuestionId}
                               setDelegatingQuestionId={setDelegatingQuestionId}
                               delegationUsers={delegationUsers}
@@ -3852,10 +3908,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       key={item.id}
                       item={item}
                       task={task}
-                      onEdit={(text) => {
-                        setEditingItemId(item.id);
-                        setEditingItemText(text);
-                      }}
+                      onEdit={(text) => openEditModal('question', item.id, text, 'Edit Question')}
                       onRemove={() => handleRemoveItem(item.id)}
                       onFileDrop={handleFileDropOnQuestion}
                       onAttachmentDrop={handleAttachmentDropOnQuestion}
@@ -3875,6 +3928,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       editingAnswerText={editingAnswerText}
                       setEditingAnswerText={setEditingAnswerText}
                       handleUpdateAnswer={handleUpdateAnswer}
+                      onEditAnswer={(itemId, answer) => openEditModal('answer', itemId, answer, 'Edit Answer')}
                       delegatingQuestionId={delegatingQuestionId}
                       setDelegatingQuestionId={setDelegatingQuestionId}
                       delegationUsers={delegationUsers}
@@ -4089,41 +4143,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       className="mt-0.5 shrink-0"
                       disabled={actionItemLoading === item.id}
                     />
-                    {editingItemId === item.id ? (
-                      <Textarea
-                        value={editingItemText}
-                        onChange={(e) => setEditingItemText(e.target.value)}
-                        onBlur={() => handleUpdateItem(item.id)}
-                        onKeyDown={(e) => {
-                          // Shift+Enter for newline, Enter to save
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleUpdateItem(item.id);
-                          }
-                          if (e.key === 'Escape') {
-                            setEditingItemId(null);
-                            setEditingItemText('');
-                          }
-                        }}
-                        className="text-sm flex-1 min-h-[80px] w-full resize-y p-3 border-2 border-primary/50 rounded-md shadow-sm"
-                        autoFocus
-                        spellCheck={true}
-                        rows={Math.max(2, Math.ceil(editingItemText.length / 40))}
-                      />
-                    ) : (
-                      <span
-                        className={cn(
-                          "flex-1 cursor-pointer",
-                          item.checked && "line-through text-muted-foreground"
-                        )}
-                        onClick={() => {
-                          setEditingItemId(item.id);
-                          setEditingItemText(item.text);
-                        }}
-                      >
-                        {item.text}
-                      </span>
-                    )}
+                    <span
+                      className={cn(
+                        "flex-1 cursor-pointer",
+                        item.checked && "line-through text-muted-foreground"
+                      )}
+                      onClick={() => openEditModal('action', item.id, item.text, 'Edit Action')}
+                    >
+                      {item.text}
+                    </span>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
                         variant="ghost"
@@ -6148,6 +6176,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Rich Text Editor Modal (SSoT for all text editing) */}
+      <RichTextEditorModal
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        value={editModalValue}
+        onSave={handleEditModalSave}
+        title={editModalTitle}
+        placeholder={
+          editModalType === 'answer' ? 'Type your answer...' :
+          editModalType === 'question' ? 'Enter your question...' :
+          editModalType === 'header' ? 'Enter header text...' :
+          'Enter text...'
+        }
+        plainText={false}
+        minHeight={editModalType === 'answer' ? 400 : 300}
+      />
     </div>
   );
 }
