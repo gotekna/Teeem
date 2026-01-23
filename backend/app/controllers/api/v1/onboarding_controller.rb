@@ -3,6 +3,8 @@
 module Api
   module V1
     class OnboardingController < ApplicationController
+      include PresignedUploadHandler
+
       before_action :authenticate_user!
 
       # GET /api/v1/onboarding/status
@@ -153,12 +155,22 @@ module Api
         DataImportService::IMPORT_ORDER.include?(type.to_sym)
       end
 
+      # SSoT: Extract files from either multipart upload or presigned URL storage keys
       def extract_files_from_params
         files = {}
 
         DataImportService::IMPORT_ORDER.each do |table|
           file_key = "#{table}_file"
-          files[table] = params[file_key] if params[file_key].present?
+          storage_key = "#{table}_storage_key"
+
+          # Prefer direct file upload, fall back to storage key
+          if params[file_key].present?
+            files[table] = params[file_key]
+          elsif params[storage_key].present?
+            # SSoT: Use PresignedUploadHandler to download from S3
+            downloaded = download_from_storage(params[storage_key])
+            files[table] = downloaded if downloaded
+          end
         end
 
         files

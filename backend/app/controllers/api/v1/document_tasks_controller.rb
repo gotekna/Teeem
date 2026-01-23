@@ -2,6 +2,7 @@ module Api
   module V1
     class DocumentTasksController < ApplicationController
       include DocumentProviderAware
+      include PresignedUploadHandler
 
       before_action :set_job
 
@@ -45,7 +46,7 @@ module Api
       end
 
       # POST /api/v1/jobs/:job_id/document_tasks/:id/upload
-      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
+      # SSoT: Uses PresignedUploadHandler for file uploads (supports both multipart and presigned URL)
       def upload
         task = DocumentTask.find_or_create_by(
           id: params[:id],
@@ -53,11 +54,12 @@ module Api
           category: params[:category]
         )
 
-        unless params[:file].present?
-          return render json: { error: "No file provided" }, status: :bad_request
+        # SSoT: Accept either file upload or storage_key from presigned URL
+        uploaded_file = resolve_uploaded_file(:file, :storage_key)
+        unless uploaded_file
+          return render_upload_error
         end
 
-        uploaded_file = params[:file]
         storage_url = nil
 
         # Try to upload to storage provider first

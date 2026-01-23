@@ -49,6 +49,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 import type {
@@ -536,16 +537,22 @@ export default function ChatPage() {
       clearImagePreview();
 
       try {
-        const formData = new FormData();
-        formData.append("chat_message[content]", newMessage || "[Image]");
-        formData.append("chat_message[message_type]", "image");
-        formData.append("chat_message[file]", pastedImage);
-        if (recipientId) {
-          formData.append("chat_message[recipient_user_id]", recipientId.toString());
+        // SSoT: Upload image via presigned URL (bypasses Heroku 30s timeout)
+        const uploadResult = await uploadFile(pastedImage, 'chat');
+
+        if (!uploadResult.success || !uploadResult.key) {
+          throw new Error(uploadResult.error || "Failed to upload image");
         }
 
-        // Note: You'll need to update the backend to handle file uploads
-        await api.postFormData("/api/v1/chat_messages", formData);
+        // Send message with storage_key
+        await api.post("/api/v1/chat_messages", {
+          chat_message: {
+            content: newMessage || "[Image]",
+            message_type: "image",
+            storage_key: uploadResult.key,
+            recipient_user_id: recipientId,
+          }
+        });
       } catch (error) {
         console.error("Failed to send image:", error);
       }

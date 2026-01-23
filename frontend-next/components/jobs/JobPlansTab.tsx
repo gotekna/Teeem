@@ -44,10 +44,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
-import { API_TIMEOUT_FILE_UPLOAD } from "@/lib/constants/timeout-constants";
 import { cachePdf, getCachedPdf } from "@/lib/pdf-cache";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { uploadPhoto } from "@/lib/storage-upload";
+import { uploadFile } from "@/lib/upload-utils";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
@@ -467,23 +467,31 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      // SSoT: Use presigned URL upload (bypasses Heroku 30s timeout)
+      const uploadResult = await uploadFile(file, 'imports', {
+        metadata: { job_id: jobId }
+      });
 
-      const result = await api.postFormData<{
+      if (!uploadResult.success || !uploadResult.key) {
+        throw new Error(uploadResult.error || "Failed to upload file");
+      }
+
+      // Create plan upload record with S3 key
+      const result = await api.post<{
         success: boolean;
         data?: { id: number };
         error?: string;
-      // SSoT: Uses API_TIMEOUT_FILE_UPLOAD from timeout-constants.ts
-      }>(`/api/v1/jobs/${jobId}/plan_uploads`, formData, { timeout: API_TIMEOUT_FILE_UPLOAD });
+      }>(`/api/v1/jobs/${jobId}/plan_uploads`, {
+        storage_key: uploadResult.key,
+      });
 
-      if (result.success && result.data?.id) {
+      if (result?.success && result.data?.id) {
         // Show progress modal
         setOperationType("plan_upload");
         setOperationId(result.data.id);
         setShowProcessingModal(true);
       } else {
-        throw new Error(result.error || "Failed to start upload");
+        throw new Error(result?.error || "Failed to start upload");
       }
     } catch (err) {
       console.error("Error processing plan set:", err);

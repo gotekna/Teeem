@@ -58,6 +58,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
+import { uploadFile } from "@/lib/upload-utils";
 import { formatFileSize } from "@/utils/formatters";
 
 interface OrgStatus {
@@ -1145,15 +1146,25 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const handleTaskUpload = async (taskId: number, file: File) => {
     try {
       setUploading(taskId);
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("task_id", String(taskId));
-      formData.append("construction_id", String(jobId));
-      formData.append("category", String(selectedCategory?.id));
 
-      const response = await api.postFormData<{ document_url: string; uploaded_at: string }>(
+      // SSoT: Use presigned URL upload (bypasses Heroku 30s timeout)
+      const uploadResult = await uploadFile(file, 'job_documents', {
+        metadata: { job_id: jobId }
+      });
+
+      if (!uploadResult.success || !uploadResult.key) {
+        throw new Error(uploadResult.error || "Failed to upload file");
+      }
+
+      // Confirm with backend using storage_key
+      const response = await api.post<{ document_url: string; uploaded_at: string }>(
         `/api/v1/jobs/${jobId}/document_tasks/${taskId}/upload`,
-        formData
+        {
+          storage_key: uploadResult.key,
+          task_id: taskId,
+          construction_id: jobId,
+          category: selectedCategory?.id,
+        }
       );
 
       if (response) {

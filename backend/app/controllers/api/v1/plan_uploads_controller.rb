@@ -4,6 +4,7 @@ module Api
   module V1
     class PlanUploadsController < ApplicationController
       include DocumentProviderAware
+      include PresignedUploadHandler
 
       before_action :set_job
       before_action :set_plan_upload, only: [:show, :resume]
@@ -50,10 +51,12 @@ module Api
 
       # POST /api/v1/jobs/:job_id/plan_uploads
       # Upload a new plan set
-      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
+      # SSoT: Uses PresignedUploadHandler for file uploads (supports both multipart and presigned URL)
       def create
-        unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
+        # SSoT: Accept either file upload or storage_key from presigned URL
+        uploaded_file = resolve_uploaded_file(:file, :storage_key)
+        unless uploaded_file
+          return render json: { success: false, error: "No file provided. Use 'file' for multipart or 'storage_key' for presigned URL upload." }, status: :unprocessable_entity
         end
 
         # Check for existing active upload
@@ -67,7 +70,6 @@ module Api
         # Ensure job has plan tabs
         ensure_job_has_plan_tabs
 
-        uploaded_file = params[:file]
         tab_id = params[:job_plan_tab_id] || @job.job_plan_tabs.root_tabs.ordered.first&.id
 
         # Create PlanUpload record

@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 
 import { api } from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 
 // ============================================
@@ -700,15 +701,26 @@ export function ImportExportPanel({ constructionId, constructionName }: ImportEx
     if (!file) return;
 
     setImporting(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("construction_id", String(constructionId));
 
     try {
-      const res = await api.postFormData<ImportResponse>(
+      // SSoT: Use presigned URL upload (bypasses Heroku 30s timeout)
+      const uploadResult = await uploadFile(file, 'imports');
+
+      if (!uploadResult.success || !uploadResult.key) {
+        throw new Error(uploadResult.error || "Failed to upload file");
+      }
+
+      // Import using storage_key
+      const res = await api.post<ImportResponse>(
         "/api/v1/sm_integrations/import_ms_project",
-        formData
+        {
+          storage_key: uploadResult.key,
+          job_id: constructionId,
+        }
       );
+      if (!res) {
+        throw new Error("No response from server");
+      }
       toast({ title: "Success", description: `Imported ${res.tasks_imported} tasks successfully!` });
       window.location.reload();
     } catch (err) {

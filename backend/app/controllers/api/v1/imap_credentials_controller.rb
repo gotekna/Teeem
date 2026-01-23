@@ -1,4 +1,6 @@
 class Api::V1::ImapCredentialsController < ApplicationController
+  include PresignedUploadHandler
+
   before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
 
   # GET /api/v1/imap_credentials
@@ -749,17 +751,36 @@ class Api::V1::ImapCredentialsController < ApplicationController
     end
   end
 
-  # Build attachments array from uploaded files
+  # SSoT: Build attachments array from either uploaded files or storage keys
   def build_attachments_from_params
-    return [] unless params[:attachments].present?
+    attachments = []
 
-    params[:attachments].map do |file|
-      {
-        filename: file.original_filename,
-        content: file.read,
-        content_type: file.content_type
-      }
+    # Handle direct file uploads
+    if params[:attachments].present?
+      Array(params[:attachments]).each do |file|
+        attachments << {
+          filename: file.original_filename,
+          content: file.read,
+          content_type: file.content_type
+        }
+      end
     end
+
+    # Handle storage keys (from presigned URL uploads)
+    if params[:attachment_storage_keys].present?
+      Array(params[:attachment_storage_keys]).each do |storage_key|
+        file = download_from_storage(storage_key)
+        next unless file
+
+        attachments << {
+          filename: file.original_filename,
+          content: file.read,
+          content_type: file.content_type
+        }
+      end
+    end
+
+    attachments
   end
 
   def credential_params

@@ -3,6 +3,8 @@
 module Api
   module V1
     class SmIntegrationsController < ApplicationController
+      include PresignedUploadHandler
+
       before_action :set_job, only: [ :export_ms_project, :sync_calendar, :calendar_events ]
 
       # ==========================================
@@ -10,14 +12,17 @@ module Api
       # ==========================================
 
       # POST /api/v1/sm_integrations/import_ms_project
+      # SSoT: Accepts either file upload or storage_key from presigned URL
       def import_ms_project
         construction = Job.find(params[:job_id])
 
-        unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :bad_request
+        # SSoT: Accept either file upload or storage_key from presigned URL
+        uploaded_file = resolve_uploaded_file(:file, :storage_key)
+        unless uploaded_file
+          return render_upload_error
         end
 
-        xml_content = params[:file].read
+        xml_content = uploaded_file.read
         result = SmMsProjectService.import(construction, xml_content)
 
         if result[:success]

@@ -1,4 +1,5 @@
 class Api::V1::ChatMessagesController < ApplicationController
+  include PresignedUploadHandler
   # GET /api/v1/chat_messages/online_users
   # Returns list of users with their online status
   def online_users
@@ -137,13 +138,21 @@ class Api::V1::ChatMessagesController < ApplicationController
   end
 
   # POST /api/v1/chat_messages
+  # SSoT: Supports both multipart file upload and presigned URL storage_key
   def create
     @message = ChatMessage.new(message_params)
     @message.user = current_user
 
     # SSoT: Handle file attachment via StorageBlob (Jan 2026)
-    if params[:chat_message][:file].present?
-      uploaded_file = params[:chat_message][:file]
+    # Accept either direct file upload or storage_key from presigned URL
+    uploaded_file = params.dig(:chat_message, :file)
+    storage_key = params.dig(:chat_message, :storage_key)
+
+    if storage_key.present? && uploaded_file.blank?
+      uploaded_file = download_from_storage(storage_key)
+    end
+
+    if uploaded_file.present?
       @message.attach_file(
         uploaded_file.read,
         filename: uploaded_file.original_filename,

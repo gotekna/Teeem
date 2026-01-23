@@ -23,6 +23,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import api from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
 
 interface OnboardingStatus {
   tenant_name: string;
@@ -156,25 +157,32 @@ export default function DataImportPage() {
   const handleValidate = async () => {
     if (uploadedFiles.length === 0) return;
 
-    const formData = new FormData();
-
-    uploadedFiles.forEach((uf) => {
-      if (uf.type !== "unknown") {
-        formData.append(`${uf.type}_file`, uf.file);
-      }
-    });
-
     // Update status to validating
     setUploadedFiles((prev) =>
       prev.map((f) => ({ ...f, status: "validating" as const }))
     );
 
     try {
-      const response = await api.postFormData<{
+      // SSoT: Upload files via presigned URL first
+      const storageKeys: Record<string, string> = {};
+      for (const uf of uploadedFiles) {
+        if (uf.type !== "unknown") {
+          const uploadResult = await uploadFile(uf.file, 'imports');
+          if (uploadResult.success && uploadResult.key) {
+            storageKeys[`${uf.type}_storage_key`] = uploadResult.key;
+          }
+        }
+      }
+
+      const response = await api.post<{
         valid: boolean;
         would_import?: Record<string, number>;
         errors?: string[];
-      }>("/api/v1/onboarding/validate", formData);
+      }>("/api/v1/onboarding/validate", storageKeys);
+
+      if (!response) {
+        throw new Error("No response from validation");
+      }
 
       // Update files with validation results
       setUploadedFiles((prev) =>
@@ -204,36 +212,44 @@ export default function DataImportPage() {
     setImportProgress(0);
     setImportResult(null);
 
-    const formData = new FormData();
-
-    uploadedFiles.forEach((uf) => {
-      if (uf.type !== "unknown") {
-        formData.append(`${uf.type}_file`, uf.file);
-      }
-    });
-
     // Update status to importing
     setUploadedFiles((prev) =>
       prev.map((f) => ({ ...f, status: "importing" as const }))
     );
 
     try {
-      // Simulate progress
+      // SSoT: Upload files via presigned URL first
+      const storageKeys: Record<string, string> = {};
+      let uploadCount = 0;
+      const totalFiles = uploadedFiles.filter(uf => uf.type !== "unknown").length;
+
+      for (const uf of uploadedFiles) {
+        if (uf.type !== "unknown") {
+          const uploadResult = await uploadFile(uf.file, 'imports');
+          if (uploadResult.success && uploadResult.key) {
+            storageKeys[`${uf.type}_storage_key`] = uploadResult.key;
+          }
+          uploadCount++;
+          setImportProgress(Math.round((uploadCount / totalFiles) * 50)); // First 50% for uploads
+        }
+      }
+
+      // Simulate progress for import
       const progressInterval = setInterval(() => {
-        setImportProgress((prev) => Math.min(prev + 10, 90));
+        setImportProgress((prev) => Math.min(prev + 5, 90));
       }, 500);
 
-      const response = await api.postFormData<{
+      const response = await api.post<{
         success: boolean;
         counts?: Record<string, number>;
         error?: string;
         errors?: string[];
-      }>("/api/v1/onboarding/import", formData);
+      }>("/api/v1/onboarding/import", storageKeys);
 
       clearInterval(progressInterval);
       setImportProgress(100);
 
-      if (response.success) {
+      if (response?.success) {
         setImportResult({
           success: true,
           message: "Data imported successfully!",
@@ -247,14 +263,14 @@ export default function DataImportPage() {
       } else {
         setImportResult({
           success: false,
-          message: response.error || "Import failed",
-          counts: response.counts,
+          message: response?.error || "Import failed",
+          counts: response?.counts,
         });
         setUploadedFiles((prev) =>
           prev.map((f) => ({
             ...f,
             status: "error" as const,
-            errors: response.errors,
+            errors: response?.errors,
           }))
         );
       }

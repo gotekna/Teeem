@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { api } from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
 
 interface Transaction {
   id: number;
@@ -166,32 +167,38 @@ export default function TransactionForm({
         throw new Error("Category is required");
       }
 
-      // Prepare form data
-      const submitData = new FormData();
-      Object.keys(formData).forEach((key) => {
-        const value = formData[key as keyof FormData];
-        if (value !== "" && value !== null) {
-          submitData.append(`transaction[${key}]`, value.toString());
-        }
-      });
-
+      // SSoT: Upload receipt via presigned URL if present
+      let receiptStorageKey: string | undefined;
       if (receipt) {
-        submitData.append("transaction[receipt]", receipt);
+        const uploadResult = await uploadFile(receipt, 'transactions');
+        if (!uploadResult.success || !uploadResult.key) {
+          throw new Error(uploadResult.error || "Failed to upload receipt");
+        }
+        receiptStorageKey = uploadResult.key;
       }
 
-      // Submit using FormData methods
+      // Prepare transaction data
+      const transactionData: Record<string, unknown> = {
+        transaction: {
+          ...formData,
+          amount: parseFloat(formData.amount),
+          receipt_storage_key: receiptStorageKey,
+        }
+      };
+
+      // Submit using JSON
       let response;
       if (transaction) {
         // Update existing transaction
-        response = await api.putFormData<{ success: boolean; transaction: Transaction; error?: string }>(
+        response = await api.put<{ success: boolean; transaction: Transaction; error?: string }>(
           `/api/v1/financial_transactions/${transaction.id}`,
-          submitData
+          transactionData
         );
       } else {
         // Create new transaction
-        response = await api.postFormData<{ success: boolean; transaction: Transaction; error?: string }>(
+        response = await api.post<{ success: boolean; transaction: Transaction; error?: string }>(
           "/api/v1/financial_transactions",
-          submitData
+          transactionData
         );
       }
 

@@ -1,8 +1,11 @@
 module Api
   module V1
     class FinancialTransactionsController < ApplicationController
+      include PresignedUploadHandler
+
       before_action :set_transaction, only: [ :show, :update, :destroy, :post ]
       before_action :set_company, only: [ :index, :create ]
+      before_action :resolve_receipt_from_storage_key, only: [ :create, :update ]
 
       # GET /api/v1/financial_transactions
       def index
@@ -190,6 +193,17 @@ module Api
           :auto_post,
           :receipt
         )
+      end
+
+      # SSoT: Convert storage_key to receipt file for presigned URL uploads
+      def resolve_receipt_from_storage_key
+        return if params.dig(:transaction, :receipt).present?
+        return unless params.dig(:transaction, :receipt_storage_key).present?
+
+        receipt_file = download_from_storage(params[:transaction][:receipt_storage_key])
+        if receipt_file
+          params[:transaction][:receipt] = receipt_file
+        end
       end
 
       def apply_filters(scope)
