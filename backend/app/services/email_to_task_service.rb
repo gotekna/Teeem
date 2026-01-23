@@ -15,7 +15,7 @@ class EmailToTaskService
   class TaskCreationError < StandardError; end
 
   def initialize(synced_email, user: nil)
-    @email = email_warehouse
+    @email = synced_email
     @user = user || synced_email.synced_by_user || User.first
   end
 
