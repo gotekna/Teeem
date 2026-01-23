@@ -593,21 +593,18 @@ module DocumentProviders
     # ❌ WRONG: Use @client (has force_path_style: true) → generates path-style URLs
     #           → Wasabi 307 redirects → CORS fails → upload broken
     # ✅ CORRECT: Create separate client with force_path_style: false for browser uploads
-    #            → generates virtual-hosted style URLs directly → no redirect → works
+    #            → AWS SDK auto-prepends bucket to endpoint → no redirect → works
     # ════════════════════════════════════════════════════════════════════
     def build_browser_safe_client
-      # Virtual-hosted style endpoint: bucket.endpoint
-      # Path-style: endpoint/bucket (what @client uses, causes 307 redirect)
-      endpoint_uri = URI.parse(@credential.endpoint)
-      virtual_hosted_endpoint = "#{endpoint_uri.scheme}://#{@bucket}.#{endpoint_uri.host}"
-      virtual_hosted_endpoint += ":#{endpoint_uri.port}" if endpoint_uri.port && ![80, 443].include?(endpoint_uri.port)
-
+      # With force_path_style: false, AWS SDK automatically converts endpoint to
+      # virtual-hosted style by prepending the bucket name to the host.
+      # e.g., s3.region.wasabisys.com → bucket.s3.region.wasabisys.com
       Aws::S3::Client.new(
         access_key_id: @credential.access_key_id,
         secret_access_key: @credential.secret_access_key,
         region: @credential.region,
-        endpoint: virtual_hosted_endpoint,
-        force_path_style: false  # Virtual-hosted style for browser compatibility
+        endpoint: @credential.endpoint,  # Keep original, SDK will add bucket
+        force_path_style: false  # SDK prepends bucket for virtual-hosted style
       )
     end
 
