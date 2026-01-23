@@ -145,7 +145,20 @@ interface SuggestedEmail {
   has_attachments: boolean;
   document_attachments_count: number;
   body_preview: string | null;
-  match_reason: 'same_thread' | 'similar_subject' | 'same_contact' | null;
+}
+
+// Category of suggested emails
+interface SuggestedEmailCategory {
+  emails: SuggestedEmail[];
+  label: string;
+  description: string;
+}
+
+// Grouped suggested emails by category
+interface SuggestedEmailsGrouped {
+  thread: SuggestedEmailCategory;
+  sender: SuggestedEmailCategory;
+  subject: SuggestedEmailCategory;
 }
 
 // Sortable question/header item component
@@ -1047,12 +1060,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     linked: false,     // Linked collapsed
   });
 
-  // Suggested emails (related emails not yet attached)
-  const [suggestedEmails, setSuggestedEmails] = useState<SuggestedEmail[]>([]);
+  // Suggested emails modal (related emails not yet attached, grouped by category)
+  const [suggestedEmailsGrouped, setSuggestedEmailsGrouped] = useState<SuggestedEmailsGrouped | null>(null);
   const [suggestedEmailsLoading, setSuggestedEmailsLoading] = useState(false);
-  const [suggestedEmailsExpanded, setSuggestedEmailsExpanded] = useState(false);
+  const [suggestedEmailsModalOpen, setSuggestedEmailsModalOpen] = useState(false);
   const [selectedSuggestedEmails, setSelectedSuggestedEmails] = useState<Set<number>>(new Set());
   const [addingSuggestedEmail, setAddingSuggestedEmail] = useState(false);
+  // Track which categories are expanded in the modal
+  const [suggestedCategoryExpanded, setSuggestedCategoryExpanded] = useState<Record<string, boolean>>({
+    thread: true,   // Thread expanded by default
+    sender: false,  // Sender collapsed
+    subject: false, // Subject collapsed
+  });
 
   // Adding header mode (when user clicks "+ Add Header")
   const [addingHeaderText, setAddingHeaderText] = useState('');
@@ -1886,20 +1905,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setAttachmentLoading(false);
   };
 
-  // Fetch suggested emails (related emails not yet attached)
+  // Fetch suggested emails (related emails not yet attached, grouped by category)
   const fetchSuggestedEmails = async () => {
     setSuggestedEmailsLoading(true);
     try {
       const response = await api.get<{
         success: boolean;
-        suggested: SuggestedEmail[];
+        categories: SuggestedEmailsGrouped;
         already_attached_ids: number[];
         source_email_id?: number;
         message?: string;
       }>(`/api/v1/sm_tasks/${task.id}/suggested_emails`);
 
       if (response?.success) {
-        setSuggestedEmails(response.suggested || []);
+        setSuggestedEmailsGrouped(response.categories || null);
       }
     } catch (err) {
       console.error('Failed to fetch suggested emails:', err);
@@ -1908,36 +1927,45 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
   };
 
-  // Add a suggested email to the task
-  const handleAddSuggestedEmail = async (emailId: number) => {
-    setAddingSuggestedEmail(true);
-    try {
-      const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
-        `/api/v1/sm_tasks/${task.id}/attachments`,
-        {
-          attachment_type: 'email',
-          attachable_id: emailId,
-          notes: 'Added from suggestions',
-        }
-      );
-      if (response?.success && response.attachment) {
-        setLocalAttachments(prev => [...prev, response.attachment]);
-        // Remove from suggested list
-        setSuggestedEmails(prev => prev.filter(e => e.id !== emailId));
-        // Remove from selection
-        setSelectedSuggestedEmails(prev => {
-          const next = new Set(prev);
-          next.delete(emailId);
-          return next;
-        });
-        toast.success('Email added');
+  // Get total count of suggested emails across all categories
+  const getTotalSuggestedCount = (): number => {
+    if (!suggestedEmailsGrouped) return 0;
+    return (
+      suggestedEmailsGrouped.thread.emails.length +
+      suggestedEmailsGrouped.sender.emails.length +
+      suggestedEmailsGrouped.subject.emails.length
+    );
+  };
+
+  // Get all email IDs from a category
+  const getCategoryEmailIds = (category: keyof SuggestedEmailsGrouped): number[] => {
+    if (!suggestedEmailsGrouped) return [];
+    return suggestedEmailsGrouped[category].emails.map(e => e.id);
+  };
+
+  // Check if all emails in a category are selected
+  const isCategoryFullySelected = (category: keyof SuggestedEmailsGrouped): boolean => {
+    const ids = getCategoryEmailIds(category);
+    if (ids.length === 0) return false;
+    return ids.every(id => selectedSuggestedEmails.has(id));
+  };
+
+  // Toggle all emails in a category
+  const toggleCategorySelection = (category: keyof SuggestedEmailsGrouped) => {
+    const ids = getCategoryEmailIds(category);
+    const allSelected = isCategoryFullySelected(category);
+
+    setSelectedSuggestedEmails(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        // Deselect all in category
+        ids.forEach(id => next.delete(id));
+      } else {
+        // Select all in category
+        ids.forEach(id => next.add(id));
       }
-    } catch (err) {
-      console.error('Failed to add suggested email:', err);
-      toast.error('Failed to add email');
-    } finally {
-      setAddingSuggestedEmail(false);
-    }
+      return next;
+    });
   };
 
   // Add all selected suggested emails
@@ -1946,37 +1974,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     setAddingSuggestedEmail(true);
     const emailIds = Array.from(selectedSuggestedEmails);
-
-    for (const emailId of emailIds) {
-      try {
-        const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
-          `/api/v1/sm_tasks/${task.id}/attachments`,
-          {
-            attachment_type: 'email',
-            attachable_id: emailId,
-            notes: 'Added from suggestions',
-          }
-        );
-        if (response?.success && response.attachment) {
-          setLocalAttachments(prev => [...prev, response.attachment]);
-          setSuggestedEmails(prev => prev.filter(e => e.id !== emailId));
-        }
-      } catch (err) {
-        console.error(`Failed to add email ${emailId}:`, err);
-      }
-    }
-
-    setSelectedSuggestedEmails(new Set());
-    setAddingSuggestedEmail(false);
-    toast.success(`Added ${emailIds.length} email(s)`);
-  };
-
-  // Add all suggested emails at once
-  const handleAddAllSuggestedEmails = async () => {
-    if (suggestedEmails.length === 0) return;
-
-    setAddingSuggestedEmail(true);
-    const emailIds = suggestedEmails.map(e => e.id);
     let addedCount = 0;
 
     for (const emailId of emailIds) {
@@ -1998,10 +1995,32 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       }
     }
 
-    setSuggestedEmails([]);
+    // Remove added emails from grouped state
+    if (suggestedEmailsGrouped) {
+      setSuggestedEmailsGrouped({
+        thread: {
+          ...suggestedEmailsGrouped.thread,
+          emails: suggestedEmailsGrouped.thread.emails.filter(e => !selectedSuggestedEmails.has(e.id))
+        },
+        sender: {
+          ...suggestedEmailsGrouped.sender,
+          emails: suggestedEmailsGrouped.sender.emails.filter(e => !selectedSuggestedEmails.has(e.id))
+        },
+        subject: {
+          ...suggestedEmailsGrouped.subject,
+          emails: suggestedEmailsGrouped.subject.emails.filter(e => !selectedSuggestedEmails.has(e.id))
+        }
+      });
+    }
+
     setSelectedSuggestedEmails(new Set());
     setAddingSuggestedEmail(false);
     toast.success(`Added ${addedCount} email(s)`);
+
+    // Close modal if all emails added
+    if (getTotalSuggestedCount() - addedCount === 0) {
+      setSuggestedEmailsModalOpen(false);
+    }
   };
 
   // Toggle suggested email selection
@@ -2015,16 +2034,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       }
       return next;
     });
-  };
-
-  // Get display label for match reason
-  const getMatchReasonLabel = (reason: SuggestedEmail['match_reason']): string => {
-    switch (reason) {
-      case 'same_thread': return 'Same thread';
-      case 'similar_subject': return 'Similar subject';
-      case 'same_contact': return 'Same sender';
-      default: return 'Related';
-    }
   };
 
   // Download an attachment document
@@ -3027,51 +3036,35 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // Process documents to create share links
+      // Process documents to link - use storage_url directly (S3/Wasabi presigned URLs)
       for (const att of documentsToLink) {
-        const fileName = att.document?.display_name || att.document?.file_name || 'file';
-        setPrepareEmailStatus(`Creating share link for ${fileName}... (${processed + 1}/${totalToProcess})`);
-        try {
-          const response = await api.post<{ success: boolean; share_url: string }>(
-            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
-          );
-          if (response?.success && response?.share_url) {
-            shareLinks[att.id] = response.share_url;
-          }
-        } catch (err) {
-          console.error(`Failed to create share link for attachment ${att.id}:`, err);
+        // Use existing storage_url - no API call needed for S3/Wasabi
+        const url = att.document?.storage_url;
+        if (url) {
+          shareLinks[att.id] = url;
         }
         processed++;
       }
 
       // Process emails to create app links (no API call needed)
       for (const att of emailsToLink) {
-        const subject = att.email?.subject || '(No subject)';
-        setPrepareEmailStatus(`Creating link for email "${subject}"... (${processed + 1}/${totalToProcess})`);
         // Create app URL to view the email
         const emailUrl = `${window.location.origin}/emails?open=${att.email?.id}`;
         shareLinks[att.id] = emailUrl;
         processed++;
       }
 
-      // Process question attachments to create share links
+      // Process question attachments to link - use storage_url directly
       for (const att of questionAttachmentsToLink) {
-        // Skip if we already have a share link for this attachment
+        // Skip if we already have a link for this attachment
         if (shareLinks[att.id]) {
           processed++;
           continue;
         }
-        const fileName = att.document?.display_name || att.document?.file_name || 'file';
-        setPrepareEmailStatus(`Creating share link for ${fileName}... (${processed + 1}/${totalToProcess})`);
-        try {
-          const response = await api.post<{ success: boolean; share_url: string }>(
-            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
-          );
-          if (response?.success && response?.share_url) {
-            shareLinks[att.id] = response.share_url;
-          }
-        } catch (err) {
-          console.error(`Failed to create share link for question attachment ${att.id}:`, err);
+        // Use existing storage_url - no API call needed for S3/Wasabi
+        const url = att.document?.storage_url;
+        if (url) {
+          shareLinks[att.id] = url;
         }
         processed++;
       }
@@ -4636,135 +4629,27 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   </PopoverContent>
                 </Popover>
 
-                {/* Suggested Emails Button */}
-                <Popover open={suggestedEmailsExpanded} onOpenChange={(open) => {
-                  setSuggestedEmailsExpanded(open);
-                  if (open && suggestedEmails.length === 0) {
-                    fetchSuggestedEmails();
-                  }
-                }}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Target className="h-3 w-3 mr-1" />
-                      Suggested
-                      {suggestedEmails.length > 0 && (
-                        <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
-                          {suggestedEmails.length}
-                        </Badge>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-96 p-3" align="end">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-medium text-muted-foreground">Suggested emails</h4>
-                        {suggestedEmails.length > 0 && (
-                          <div className="flex gap-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-6 px-2 text-xs"
-                              onClick={handleAddSelectedSuggestedEmails}
-                              disabled={selectedSuggestedEmails.size === 0 || addingSuggestedEmail}
-                            >
-                              {addingSuggestedEmail ? (
-                                <Spinner className="h-3 w-3" />
-                              ) : (
-                                <>Add Selected ({selectedSuggestedEmails.size})</>
-                              )}
-                            </Button>
-                            <Button
-                              variant="default"
-                              size="sm"
-                              className="h-6 px-2 text-xs"
-                              onClick={handleAddAllSuggestedEmails}
-                              disabled={addingSuggestedEmail}
-                            >
-                              Add All
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-
-                      {suggestedEmailsLoading ? (
-                        <div className="flex items-center justify-center py-4">
-                          <Spinner className="h-5 w-5" />
-                        </div>
-                      ) : suggestedEmails.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-4">
-                          No related emails found
-                        </p>
-                      ) : (
-                        <div className="max-h-64 overflow-y-auto space-y-1">
-                          {suggestedEmails.map((email) => (
-                            <div
-                              key={email.id}
-                              className={cn(
-                                "flex items-start gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer text-xs",
-                                selectedSuggestedEmails.has(email.id) && "bg-blue-50 dark:bg-blue-950/30"
-                              )}
-                              onClick={() => toggleSuggestedEmailSelection(email.id)}
-                            >
-                              <Checkbox
-                                checked={selectedSuggestedEmails.has(email.id)}
-                                onCheckedChange={() => toggleSuggestedEmailSelection(email.id)}
-                                className="mt-0.5 shrink-0"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium truncate">{email.subject}</div>
-                                <div className="text-muted-foreground truncate flex items-center gap-2">
-                                  <span className="truncate">{email.from_name || email.from_email}</span>
-                                  {email.received_at && (
-                                    <span className="shrink-0 text-[10px]">
-                                      {format(new Date(email.received_at), 'dd MMM')}
-                                    </span>
-                                  )}
-                                </div>
-                                {email.match_reason && (
-                                  <Badge variant="outline" className="mt-1 text-[9px] h-4 px-1">
-                                    {getMatchReasonLabel(email.match_reason)}
-                                  </Badge>
-                                )}
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-5 w-5 p-0 shrink-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAddSuggestedEmail(email.id);
-                                }}
-                                title="Add this email"
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full h-7 text-xs text-muted-foreground"
-                        onClick={fetchSuggestedEmails}
-                        disabled={suggestedEmailsLoading}
-                      >
-                        {suggestedEmailsLoading ? (
-                          <Spinner className="h-3 w-3 mr-1" />
-                        ) : (
-                          <Search className="h-3 w-3 mr-1" />
-                        )}
-                        Refresh suggestions
-                      </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                {/* Suggested Emails Button - Opens Modal */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSuggestedEmailsModalOpen(true);
+                    if (!suggestedEmailsGrouped) {
+                      fetchSuggestedEmails();
+                    }
+                  }}
+                >
+                  <Target className="h-3 w-3 mr-1" />
+                  Suggested
+                  {getTotalSuggestedCount() > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                      {getTotalSuggestedCount()}
+                    </Badge>
+                  )}
+                </Button>
               </div>
 
               {!emailsCollapsed && (
@@ -5883,6 +5768,263 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           }}
         />
       )}
+
+      {/* Suggested Emails Modal - Collapsible sections by category */}
+      <Dialog open={suggestedEmailsModalOpen} onOpenChange={setSuggestedEmailsModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Suggested Related Emails
+              {getTotalSuggestedCount() > 0 && (
+                <Badge variant="secondary">{getTotalSuggestedCount()}</Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-3 py-2">
+            {suggestedEmailsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Spinner className="h-6 w-6" />
+                <span className="ml-2 text-sm text-muted-foreground">Loading suggestions...</span>
+              </div>
+            ) : !suggestedEmailsGrouped ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No source email found for this task.</p>
+                <p className="text-sm mt-1">Suggestions are based on the email used to create this task.</p>
+              </div>
+            ) : getTotalSuggestedCount() === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No related emails found.</p>
+                <p className="text-sm mt-1">All similar emails may already be attached.</p>
+              </div>
+            ) : (
+              <>
+                {/* Thread Section */}
+                {suggestedEmailsGrouped.thread.emails.length > 0 && (
+                  <Collapsible
+                    open={suggestedCategoryExpanded.thread}
+                    onOpenChange={(open) => setSuggestedCategoryExpanded(prev => ({ ...prev, thread: open }))}
+                    className="border rounded-lg"
+                  >
+                    <CollapsibleTrigger asChild>
+                      <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          {suggestedCategoryExpanded.thread ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                          <span className="font-medium">{suggestedEmailsGrouped.thread.label}</span>
+                          <Badge variant="outline">{suggestedEmailsGrouped.thread.emails.length}</Badge>
+                        </div>
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isCategoryFullySelected('thread')}
+                            onCheckedChange={() => toggleCategorySelection('thread')}
+                          />
+                          <span className="text-xs text-muted-foreground">Select All</span>
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="border-t divide-y">
+                        {suggestedEmailsGrouped.thread.emails.map((email) => (
+                          <div
+                            key={email.id}
+                            className="flex items-start gap-3 p-3 hover:bg-muted/30"
+                          >
+                            <Checkbox
+                              checked={selectedSuggestedEmails.has(email.id)}
+                              onCheckedChange={() => toggleSuggestedEmailSelection(email.id)}
+                              className="mt-1"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm truncate">
+                                  {email.from_name || email.from_email}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(email.received_at), 'dd/MM/yy HH:mm')}
+                                </span>
+                              </div>
+                              <p className="text-sm truncate">{email.subject}</p>
+                              {email.body_preview && (
+                                <p className="text-xs text-muted-foreground truncate mt-1">
+                                  {email.body_preview}
+                                </p>
+                              )}
+                            </div>
+                            {email.has_attachments && (
+                              <Paperclip className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Sender Section */}
+                {suggestedEmailsGrouped.sender.emails.length > 0 && (
+                  <Collapsible
+                    open={suggestedCategoryExpanded.sender}
+                    onOpenChange={(open) => setSuggestedCategoryExpanded(prev => ({ ...prev, sender: open }))}
+                    className="border rounded-lg"
+                  >
+                    <CollapsibleTrigger asChild>
+                      <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          {suggestedCategoryExpanded.sender ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                          <span className="font-medium">{suggestedEmailsGrouped.sender.label}</span>
+                          <Badge variant="outline">{suggestedEmailsGrouped.sender.emails.length}</Badge>
+                        </div>
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isCategoryFullySelected('sender')}
+                            onCheckedChange={() => toggleCategorySelection('sender')}
+                          />
+                          <span className="text-xs text-muted-foreground">Select All</span>
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="border-t divide-y">
+                        {suggestedEmailsGrouped.sender.emails.map((email) => (
+                          <div
+                            key={email.id}
+                            className="flex items-start gap-3 p-3 hover:bg-muted/30"
+                          >
+                            <Checkbox
+                              checked={selectedSuggestedEmails.has(email.id)}
+                              onCheckedChange={() => toggleSuggestedEmailSelection(email.id)}
+                              className="mt-1"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm truncate">
+                                  {email.from_name || email.from_email}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(email.received_at), 'dd/MM/yy HH:mm')}
+                                </span>
+                              </div>
+                              <p className="text-sm truncate">{email.subject}</p>
+                              {email.body_preview && (
+                                <p className="text-xs text-muted-foreground truncate mt-1">
+                                  {email.body_preview}
+                                </p>
+                              )}
+                            </div>
+                            {email.has_attachments && (
+                              <Paperclip className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {/* Subject Section */}
+                {suggestedEmailsGrouped.subject.emails.length > 0 && (
+                  <Collapsible
+                    open={suggestedCategoryExpanded.subject}
+                    onOpenChange={(open) => setSuggestedCategoryExpanded(prev => ({ ...prev, subject: open }))}
+                    className="border rounded-lg"
+                  >
+                    <CollapsibleTrigger asChild>
+                      <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          {suggestedCategoryExpanded.subject ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                          <span className="font-medium">{suggestedEmailsGrouped.subject.label}</span>
+                          <Badge variant="outline">{suggestedEmailsGrouped.subject.emails.length}</Badge>
+                        </div>
+                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isCategoryFullySelected('subject')}
+                            onCheckedChange={() => toggleCategorySelection('subject')}
+                          />
+                          <span className="text-xs text-muted-foreground">Select All</span>
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="border-t divide-y">
+                        {suggestedEmailsGrouped.subject.emails.map((email) => (
+                          <div
+                            key={email.id}
+                            className="flex items-start gap-3 p-3 hover:bg-muted/30"
+                          >
+                            <Checkbox
+                              checked={selectedSuggestedEmails.has(email.id)}
+                              onCheckedChange={() => toggleSuggestedEmailSelection(email.id)}
+                              className="mt-1"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm truncate">
+                                  {email.from_name || email.from_email}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(email.received_at), 'dd/MM/yy HH:mm')}
+                                </span>
+                              </div>
+                              <p className="text-sm truncate">{email.subject}</p>
+                              {email.body_preview && (
+                                <p className="text-xs text-muted-foreground truncate mt-1">
+                                  {email.body_preview}
+                                </p>
+                              )}
+                            </div>
+                            {email.has_attachments && (
+                              <Paperclip className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Footer with Add Selected button */}
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setSuggestedEmailsModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddSelectedSuggestedEmails}
+              disabled={selectedSuggestedEmails.size === 0 || addingSuggestedEmail}
+            >
+              {addingSuggestedEmail ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Selected ({selectedSuggestedEmails.size})
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -921,9 +921,8 @@ module Api
       end
 
       # GET /api/v1/sm_tasks/:id/suggested_emails
-      # Returns related emails that could be attached to this task, without auto-attaching them.
-      # This endpoint reuses the logic from EmailToTaskService.find_related_emails but returns
-      # suggestions for the user to review and manually add.
+      # Returns related emails that could be attached to this task, grouped by category.
+      # Categories: thread (same conversation), sender (same external party), subject (similar subject)
       #
       # Jan 2026: Changed from auto-attach to suggest-and-add pattern because the "same external party"
       # criterion was too broad - it was attaching unrelated emails from the same sender.
@@ -938,7 +937,11 @@ module Api
         unless source_email
           return render json: {
             success: true,
-            suggested: [],
+            categories: {
+              thread: { emails: [], label: "Same Thread", description: "Emails from the same conversation" },
+              sender: { emails: [], label: "Same Sender", description: "Other emails from/to this person" },
+              subject: { emails: [], label: "Similar Subject", description: "Emails with similar subject line" }
+            },
             already_attached_ids: [],
             message: "No source email found for this task"
           }
@@ -949,12 +952,28 @@ module Api
                                     .where(attachable_type: "SyncedEmail")
                                     .pluck(:attachable_id)
 
-        # Find related emails using similar logic to EmailToTaskService
-        suggested = find_related_emails_for(source_email, already_attached_ids)
+        # Find related emails grouped by category
+        grouped = find_related_emails_grouped(source_email, already_attached_ids)
 
         render json: {
           success: true,
-          suggested: suggested.map { |email| email_to_suggestion_json(email) },
+          categories: {
+            thread: {
+              emails: grouped[:thread].map { |e| email_to_suggestion_json(e) },
+              label: "Same Thread",
+              description: "Emails from the same conversation"
+            },
+            sender: {
+              emails: grouped[:sender].map { |e| email_to_suggestion_json(e) },
+              label: "Same Sender",
+              description: "Other emails from/to #{find_external_party_email(source_email) || 'this person'}"
+            },
+            subject: {
+              emails: grouped[:subject].map { |e| email_to_suggestion_json(e) },
+              label: "Similar Subject",
+              description: "Emails with similar subject line"
+            }
+          },
           already_attached_ids: already_attached_ids,
           source_email_id: source_email.id
         }
@@ -2582,53 +2601,49 @@ module Api
         "same_contact"
       end
 
-      # Find related emails similar to EmailToTaskService.find_related_emails
-      # but doesn't auto-attach - just returns suggestions
-      def find_related_emails_for(source_email, already_attached_ids)
-        @source_email_for_matching = source_email  # Store for determine_match_reason
-        emails = []
+      # Find related emails grouped by category
+      # Returns hash with :thread, :sender, :subject keys
+      def find_related_emails_grouped(source_email, already_attached_ids)
+        result = { thread: [], sender: [], subject: [] }
+        all_found_ids = [source_email.id] + already_attached_ids
 
         # 1. Same conversation thread (email chain history)
         if source_email.conversation_id.present?
-          emails += SyncedEmail
+          result[:thread] = SyncedEmail
             .where(conversation_id: source_email.conversation_id)
-            .where.not(id: [source_email.id] + already_attached_ids)
+            .where.not(id: all_found_ids)
             .order(received_at: :desc)
-            .limit(10)
+            .limit(20)
             .to_a
+          all_found_ids += result[:thread].map(&:id)
         end
 
-        # 2. Similar subject line (catches broken threads and forwards)
-        base_subject = normalize_email_subject(source_email.subject)
-        if base_subject.present? && emails.size < 10
-          subject_emails = SyncedEmail
-            .where("subject ILIKE ?", "%#{base_subject}%")
-            .where("received_at > ?", 90.days.ago)
-            .where.not(id: [source_email.id] + already_attached_ids + emails.map(&:id))
-            .order(received_at: :desc)
-            .limit(10 - emails.size)
-            .to_a
-
-          emails += subject_emails
-        end
-
-        # 3. Emails with same external party (not internal domains)
-        # This criterion is intentionally looser - user can choose to ignore
+        # 2. Emails with same external party (not internal domains)
         external_email = find_external_party_email(source_email)
-        if external_email.present? && emails.size < 10
-          party_emails = SyncedEmail
+        if external_email.present?
+          result[:sender] = SyncedEmail
             .involving_email(external_email)
             .where("received_at > ?", 90.days.ago)
-            .where.not(id: [source_email.id] + already_attached_ids + emails.map(&:id))
+            .where.not(id: all_found_ids)
             .order(received_at: :desc)
-            .limit(10 - emails.size)
+            .limit(20)
             .to_a
-
-          emails += party_emails
+          all_found_ids += result[:sender].map(&:id)
         end
 
-        # Return unique, limited list
-        emails.uniq(&:id).first(10)
+        # 3. Similar subject line (catches broken threads and forwards)
+        base_subject = normalize_email_subject(source_email.subject)
+        if base_subject.present?
+          result[:subject] = SyncedEmail
+            .where("subject ILIKE ?", "%#{base_subject}%")
+            .where("received_at > ?", 90.days.ago)
+            .where.not(id: all_found_ids)
+            .order(received_at: :desc)
+            .limit(20)
+            .to_a
+        end
+
+        result
       end
 
       # Normalize email subject for comparison
