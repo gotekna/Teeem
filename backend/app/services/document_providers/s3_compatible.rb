@@ -522,7 +522,9 @@ module DocumentProviders
     # Get presigned URL for direct upload (browser uploads)
     # Uses virtual-hosted style URLs to avoid 307 redirects that break browser CORS
     def presigned_upload_url(folder_path, filename, options = {})
-      key = "#{build_key(folder_path)}/#{filename}".gsub(%r{/+}, "/")
+      # Build key and normalize: collapse multiple slashes, remove leading slash
+      # S3 keys should not start with "/" - ensures consistency with get_file/download_file
+      key = "#{build_key(folder_path)}/#{filename}".gsub(%r{/+}, "/").sub(%r{^/}, "")
       expires_in = options.fetch(:expires_in, 3600)
       content_type = options[:content_type] || detect_content_type(filename)
 
