@@ -707,12 +707,12 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   }, [user, isSupervisor, viewInitialized]);
 
   const [filters, setFiltersState] = useState<TaskFilters>(() => {
-    // Load saved filters from localStorage
+    // Load saved filters from localStorage (except showMyTasksOnly which always defaults to true)
     const saved = getStorageItem<Partial<TaskFilters>>(STORAGE_KEYS.TASK_HUB_FILTERS, {});
     const parsedFilters = { ...defaultFilters, ...saved };
     return {
       ...parsedFilters,
-      showMyTasksOnly: parsedFilters.showMyTasksOnly ?? true, // Default to "Mine"
+      showMyTasksOnly: true, // Always default to "Mine" on page load
       jobIds: initialJobId ? [initialJobId] : parsedFilters.jobIds || [],
     };
   });
