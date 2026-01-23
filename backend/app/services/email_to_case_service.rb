@@ -478,13 +478,15 @@ class EmailToCaseService
           company_contact = find_or_create_company(party["company"])
         end
 
+        # SSoT: Multi-tenancy - set tenant_id from user
         contact = Contact.create(
           email: email,
           display_name: party["name"],
           mobile_phone: party["phone"],
           company_name_or_trust: party["company"],
           primary_company_id: company_contact&.id,
-          entity_type: "person"
+          entity_type: "person",
+          tenant_id: @user&.tenant_id
         )
       end
 
@@ -533,9 +535,11 @@ class EmailToCaseService
     return company if company
 
     # SSoT: Use find_or_create_by! with RecordNotUnique rescue for race condition protection
+    # SSoT: Multi-tenancy - set tenant_id from user
     company = Contact.find_or_create_by!(
       display_name: company_name.strip,
-      entity_type: "company"
+      entity_type: "company",
+      tenant_id: @user&.tenant_id
     )
     Rails.logger.info "[EmailToCase] Created new company contact: #{company.display_name} (ID: #{company.id})"
     company

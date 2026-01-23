@@ -37,8 +37,9 @@ module Importers
     private
 
     def build_contact(row)
+      # SSoT: Multi-tenancy - use tenant association (not deprecated company_group)
       Contact.new(
-        company_group: @tenant,
+        tenant: @tenant,
         first_name: normalize_value(row["first_name"]),
         last_name: normalize_value(row["last_name"]),
         email: normalize_value(row["email"]),

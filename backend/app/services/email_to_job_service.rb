@@ -526,13 +526,15 @@ class EmailToJobService
     # No existing contact found - create new one if we have email
     return nil unless email.present?
 
+    # SSoT: Multi-tenancy - set tenant_id from user
     Contact.create!(
       email: email,
       display_name: name,
       mobile_phone: normalize_phone(customer_data["phone"]),
       company_name_or_trust: customer_data["company"],
       entity_type: customer_data["entity_type"] || "person",
-      roles: [ "customer" ]
+      roles: [ "customer" ],
+      tenant_id: @user&.tenant_id
     )
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "Failed to create customer: #{e.message}"
@@ -839,6 +841,7 @@ class EmailToJobService
 
     # Build company contact
     # Note: Don't set roles for companies - roles are for person contacts (Employee, sales, etc.)
+    # SSoT: Multi-tenancy - set tenant_id from user
     company = Contact.new(
       entity_type: "company",
       company_name_or_trust: company_details["name"],
@@ -850,7 +853,8 @@ class EmailToJobService
       state: company_details["state"],
       postcode: company_details["postcode"],
       email_domains: [domain],  # Store domain for future auto-linking
-      is_active: true
+      is_active: true,
+      tenant_id: @user&.tenant_id
     )
 
     # Add company email if we can construct it

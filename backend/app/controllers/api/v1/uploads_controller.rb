@@ -224,7 +224,7 @@ module Api
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
         # SSoT: storage_item_id is THE ONE identifier for all storage providers
-        # sharepoint_item_id is only set for SharePoint synced files (nullable after migration)
+        # (Provider-agnostic - was renamed from sharepoint_item_id)
         doc = JobDocument.create!(
           file_name: filename,
           storage_blob: blob,

@@ -77,7 +77,9 @@ class EmailToTaskService
       sequence_order: 1,
       created_by: @user,
       assigned_user: @user,  # Auto-assign to the user creating the task
-      is_private: false
+      is_private: false,
+      # SSoT: Multi-tenancy - set tenant_id from user (background job has no tenant context)
+      tenant_id: @user&.tenant_id
     )
   end
 
@@ -360,9 +362,11 @@ class EmailToTaskService
     return contact if contact
 
     # Create new contact with email via contact_emails association
+    # SSoT: Multi-tenancy - set tenant_id from user (background job has no tenant context)
     contact = Contact.create!(
       display_name: name || extract_name_from_email(email),
-      entity_type: "person"
+      entity_type: "person",
+      tenant_id: @user&.tenant_id
     )
     contact.contact_emails.create!(email: email, is_primary: true)
     contact

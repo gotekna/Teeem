@@ -458,11 +458,13 @@ class ExternalInvoiceSyncService
     Rails.logger.info("Auto-creating contact for Xero contact: #{invoice.contact_name}")
 
     begin
+      # SSoT: Multi-tenancy - set tenant_id from service context
       contact = Contact.new(
         display_name: invoice.contact_name,
         company_name_or_trust: invoice.contact_name,
         entity_type: "company",
-        sync_with_xero: true
+        sync_with_xero: true,
+        tenant_id: @tenant_id
       )
 
       if contact.save

@@ -24,8 +24,9 @@ module Importers
 
     def build_company(row)
       # Using Contact model with company flag
+      # SSoT: Multi-tenancy - use tenant association (not deprecated company_group)
       Contact.new(
-        company_group: @tenant,
+        tenant: @tenant,
         company_name: normalize_value(row["name"]),
         abn: normalize_value(row["abn"]),
         address: normalize_value(row["address"]),

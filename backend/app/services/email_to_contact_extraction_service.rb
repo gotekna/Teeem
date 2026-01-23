@@ -245,12 +245,14 @@ class EmailToContactExtractionService
           phones = selection[:phones] || {}
 
           # Create contact
+          # SSoT: Multi-tenancy - set tenant_id from user
           contact = Contact.new(
             first_name: parsed_name[:first_name],
             last_name: parsed_name[:last_name],
             entity_type: selection[:entity_type] || "person",
             primary_company_id: company_id,
-            is_active: true
+            is_active: true,
+            tenant_id: @user&.tenant_id
           )
 
           # Use setter methods for email and phones (writes to contact_emails/contact_phones tables)
@@ -953,6 +955,7 @@ class EmailToContactExtractionService
       # Create company Contact (NOT CorporateCompany)
       # SSoT: CorporateCompany = entities you OWN/MANAGE (SPVs, trusts)
       #       Contact (entity_type='company') = companies you do business WITH
+      # SSoT: Multi-tenancy - set tenant_id from user
       company_contact = Contact.create!(
         display_name: full_company_name,
         company_name_or_trust: full_company_name,  # Required for entity_type: "company"
@@ -963,7 +966,8 @@ class EmailToContactExtractionService
         email: website_details[:email],
         abn: website_details[:abn],
         acn: website_details[:acn],
-        address_line1: website_details[:address]
+        address_line1: website_details[:address],
+        tenant_id: @user&.tenant_id
       )
 
       created_companies << {

@@ -400,6 +400,7 @@ class SmTaskCompletionService
                   generate_unique_task_name(attrs[:name])
                 end
 
+    # SSoT: Multi-tenancy - set tenant_id from parent task (background job has no tenant context)
     spawned = SmTask.create!(
       construction_id: task.construction_id,
       parent_task_id: task.id,
@@ -410,6 +411,7 @@ class SmTaskCompletionService
       duration_days: attrs[:duration_days] || 1,
       status: "not_started",
       created_by: user,
+      tenant_id: task&.tenant_id,
       **attrs.except(:spawn_type).merge(name: task_name)
     )
 

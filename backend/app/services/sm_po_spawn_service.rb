@@ -122,6 +122,7 @@ class SmPoSpawnService
     # Get next task number for the job
     max_task_number = SmTask.where(job_id: task.job_id).maximum(:task_number) || 0
 
+    # SSoT: Multi-tenancy - set tenant_id from parent task (background job has no tenant context)
     spawned = SmTask.create!(
       job_id: task.job_id,
       task_number: max_task_number + 1,
@@ -135,6 +136,7 @@ class SmPoSpawnService
       # Audit
       created_by: user,
       updated_by: user,
+      tenant_id: task&.tenant_id,
       **attrs.except(:spawn_type)
     )
 

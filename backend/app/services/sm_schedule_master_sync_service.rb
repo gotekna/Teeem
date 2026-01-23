@@ -1185,7 +1185,9 @@ class SmScheduleMasterSyncService
 
       # Audit
       created_by: user,
-      updated_by: user
+      updated_by: user,
+      # SSoT: Multi-tenancy - set tenant_id from job (background job has no tenant context)
+      tenant_id: job&.tenant_id
     )
 
     task.save!

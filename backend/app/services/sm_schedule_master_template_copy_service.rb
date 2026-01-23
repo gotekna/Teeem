@@ -162,7 +162,9 @@ class SmScheduleMasterTemplateCopyService
         end_date: row.duration_days <= 1 ? start_date : @calendar.add_working_days(start_date, row.duration_days - 1),
         # Audit
         created_by: user,
-        updated_by: user
+        updated_by: user,
+        # SSoT: Multi-tenancy - set tenant_id from job (background job has no tenant context)
+        tenant_id: job&.tenant_id
       )
 
       if task.save
