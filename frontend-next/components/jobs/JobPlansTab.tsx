@@ -941,13 +941,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   <FolderOpen className="h-4 w-4 mr-2" />
                   Scan Folder for New Plans
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {
-                  // Open SharePoint folder for this job's plans
-                  window.open(`https://teeemptyltd.sharepoint.com/sites/TEEEM/Shared%20Documents/TEEEM%20Jobs/${jobCode}/Plans`, "_blank");
-                }}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open Storage Folder
-                </DropdownMenuItem>
+{/* Storage folder button removed - S3/Wasabi doesn't have web UI */}
                 {((selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.sharepoint_file_id) || selectedPlanIds.length > 0) && (
                   <DropdownMenuItem onClick={() => {
                     // Download selected plans' PDFs

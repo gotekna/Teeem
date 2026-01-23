@@ -366,9 +366,10 @@ export default function CompanyDetailPage() {
     return company.company_group?.name || company.group_name || null;
   };
 
-  const getSharePointUrl = () => {
-    if (company.sharepoint_folder_url) return company.sharepoint_folder_url;
-    return "https://gotekna-my.sharepoint.com/personal/robert_tekna_com_au/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Frobert%5Ftekna%5Fcom%5Fau%2FDocuments%2FAccounts%20%2D%20Internal%2FCorporate%20File";
+  // SSoT: Only show storage folder link if company has a configured folder URL
+  // Returns null for S3/Wasabi (no web UI) - button is conditionally rendered
+  const getStorageFolderUrl = () => {
+    return company.sharepoint_folder_url || company.storage_folder_url || null;
   };
 
   return (
@@ -424,12 +425,14 @@ export default function CompanyDetailPage() {
                 <span className="text-xs text-muted-foreground uppercase">Health</span>
               </button>
             )}
-            <Button variant="outline" size="sm" asChild>
-              <a href={getSharePointUrl()} target="_blank" rel="noopener noreferrer">
-                <FolderOpen className="h-4 w-4 mr-2" />
-                SharePoint
-              </a>
-            </Button>
+            {getStorageFolderUrl() && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={getStorageFolderUrl()!} target="_blank" rel="noopener noreferrer">
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  Storage
+                </a>
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={openEditSheet}>
               <Edit className="h-4 w-4 mr-2" />
               Edit

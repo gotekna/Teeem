@@ -69,9 +69,10 @@ refresh_integration_tokens:
 # ============================================
 # EMAIL SYNC - Org-wide via app permissions
 # ============================================
-# Syncs ALL mailboxes using Microsoft app credentials (no per-user OAuth needed)
-org_email_sync:
-  class: OrgEmailSyncJob
+# Syncs ALL mailboxes for ALL connected MS365 organizations.
+# Dispatcher job iterates all credentials and enqueues OrgEmailSyncJob for each.
+all_orgs_email_sync:
+  class: AllOrgsEmailSyncJob
   queue: low
   schedule: every 15 minutes
 

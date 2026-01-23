@@ -95,6 +95,7 @@ export interface CorporateCompany {
   formatted_abn?: string;
   has_xero_connection?: boolean;
   sharepoint_folder_url?: string;
+  storage_folder_url?: string;
   current_directors?: Director[];
   pending_compliance_items?: ComplianceItem[];
   company_group?: string | { name: string; code?: string };

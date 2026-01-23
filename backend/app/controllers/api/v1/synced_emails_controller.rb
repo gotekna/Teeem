@@ -429,12 +429,16 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # POST /api/v1/synced_email/sync
   # Trigger manual email sync from Office 365
   def sync
-    # Trigger org-wide email sync in background
-    OrgEmailSyncJob.perform_later("incremental")
+    # SSoT: Sync ALL connected MS365 organizations (not just one)
+    connected_orgs = MicrosoftCredential.app_credentials.connected
+
+    connected_orgs.each do |cred|
+      OrgEmailSyncJob.perform_later("incremental", credential_id: cred.id)
+    end
 
     render json: {
       success: true,
-      message: "Email sync started. New emails will appear shortly."
+      message: "Email sync started for #{connected_orgs.count} organization(s). New emails will appear shortly."
     }
   end
 
