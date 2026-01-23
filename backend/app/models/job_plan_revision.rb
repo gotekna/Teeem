@@ -25,7 +25,7 @@ class JobPlanRevision < ApplicationRecord
   end
 
   # Provider-agnostic storage reference (SSoT: storage_item_id)
-  # Falls back to sharepoint_file_id for backwards compatibility
+  # Falls back to storage_file_id for backwards compatibility
   def storage_reference
     storage_item_id.presence || storage_file_id
   end
