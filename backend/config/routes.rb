@@ -1767,6 +1767,7 @@ Rails.application.routes.draw do
           patch "working_drawings/pages/:page_id/override", to: "sm_tasks#override_page_category"
           # Task attachments
           get :attachments
+          get :suggested_emails  # Returns related emails as suggestions (not auto-attached)
           post :attachments, action: :add_attachment
           post "attachments/upload", action: :upload_attachment
           post "attachments/presign", action: :presign_attachment   # Get presigned URL for direct S3 upload

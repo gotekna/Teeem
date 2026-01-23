@@ -920,6 +920,46 @@ module Api
         render json: { success: false, error: "Attachment not found" }, status: :not_found
       end
 
+      # GET /api/v1/sm_tasks/:id/suggested_emails
+      # Returns related emails that could be attached to this task, without auto-attaching them.
+      # This endpoint reuses the logic from EmailToTaskService.find_related_emails but returns
+      # suggestions for the user to review and manually add.
+      #
+      # Jan 2026: Changed from auto-attach to suggest-and-add pattern because the "same external party"
+      # criterion was too broad - it was attaching unrelated emails from the same sender.
+      def suggested_emails
+        # Find the source email (the email this task was created from)
+        source_attachment = @task.sm_task_attachments.emails
+                                 .where("notes LIKE ?", "Source email%")
+                                 .includes(:attachable)
+                                 .first
+        source_email = source_attachment&.attachable
+
+        unless source_email
+          return render json: {
+            success: true,
+            suggested: [],
+            already_attached_ids: [],
+            message: "No source email found for this task"
+          }
+        end
+
+        # Get already attached email IDs to filter them out
+        already_attached_ids = @task.sm_task_attachments.emails
+                                    .where(attachable_type: "SyncedEmail")
+                                    .pluck(:attachable_id)
+
+        # Find related emails using similar logic to EmailToTaskService
+        suggested = find_related_emails_for(source_email, already_attached_ids)
+
+        render json: {
+          success: true,
+          suggested: suggested.map { |email| email_to_suggestion_json(email) },
+          already_attached_ids: already_attached_ids,
+          source_email_id: source_email.id
+        }
+      end
+
       # PATCH /api/v1/sm_tasks/:id/attachments/:attachment_id
       # Update attachment properties (e.g., link to a question via action_item_id)
       # Also supports renaming linked document via document_display_name param
@@ -2501,6 +2541,134 @@ module Api
             url: Rails.application.routes.url_helpers.rails_blob_path(file, only_path: true)
           }
         }
+      end
+
+      # Helper to serialize SyncedEmail for suggested emails response
+      # Returns a lighter payload than full attachment_to_json
+      def email_to_suggestion_json(email)
+        {
+          id: email.id,
+          subject: email.subject,
+          from_email: email.from_email,
+          from_name: email.from_name,
+          to_emails: email.to_emails,
+          received_at: email.received_at,
+          has_attachments: email.document_attachments_count > 0,
+          document_attachments_count: email.document_attachments_count,
+          body_preview: email.body_preview || email.body_text&.truncate(200),
+          # Include match reason for UI to show why this email was suggested
+          match_reason: determine_match_reason(email)
+        }
+      end
+
+      # Determine why an email was suggested as related
+      def determine_match_reason(email)
+        # This is called in context where @source_email_for_matching is set
+        return nil unless @source_email_for_matching
+
+        # Check conversation match first (most reliable)
+        if email.conversation_id.present? && email.conversation_id == @source_email_for_matching.conversation_id
+          return "same_thread"
+        end
+
+        # Check subject similarity
+        base_subject = normalize_email_subject(@source_email_for_matching.subject)
+        email_subject = normalize_email_subject(email.subject)
+        if base_subject.present? && email_subject.present? && email_subject.include?(base_subject)
+          return "similar_subject"
+        end
+
+        # Fallback - same external party
+        "same_contact"
+      end
+
+      # Find related emails similar to EmailToTaskService.find_related_emails
+      # but doesn't auto-attach - just returns suggestions
+      def find_related_emails_for(source_email, already_attached_ids)
+        @source_email_for_matching = source_email  # Store for determine_match_reason
+        emails = []
+
+        # 1. Same conversation thread (email chain history)
+        if source_email.conversation_id.present?
+          emails += SyncedEmail
+            .where(conversation_id: source_email.conversation_id)
+            .where.not(id: [source_email.id] + already_attached_ids)
+            .order(received_at: :desc)
+            .limit(10)
+            .to_a
+        end
+
+        # 2. Similar subject line (catches broken threads and forwards)
+        base_subject = normalize_email_subject(source_email.subject)
+        if base_subject.present? && emails.size < 10
+          subject_emails = SyncedEmail
+            .where("subject ILIKE ?", "%#{base_subject}%")
+            .where("received_at > ?", 90.days.ago)
+            .where.not(id: [source_email.id] + already_attached_ids + emails.map(&:id))
+            .order(received_at: :desc)
+            .limit(10 - emails.size)
+            .to_a
+
+          emails += subject_emails
+        end
+
+        # 3. Emails with same external party (not internal domains)
+        # This criterion is intentionally looser - user can choose to ignore
+        external_email = find_external_party_email(source_email)
+        if external_email.present? && emails.size < 10
+          party_emails = SyncedEmail
+            .involving_email(external_email)
+            .where("received_at > ?", 90.days.ago)
+            .where.not(id: [source_email.id] + already_attached_ids + emails.map(&:id))
+            .order(received_at: :desc)
+            .limit(10 - emails.size)
+            .to_a
+
+          emails += party_emails
+        end
+
+        # Return unique, limited list
+        emails.uniq(&:id).first(10)
+      end
+
+      # Normalize email subject for comparison
+      def normalize_email_subject(subject)
+        return nil if subject.blank?
+
+        subject
+          .gsub(/^(RE:|FW:|FWD:)\s*/i, "")
+          .gsub(/\[SEC=[^\]]+\]/i, "")
+          .gsub(/\s+/, " ")
+          .strip
+          .first(50)
+      end
+
+      # Find the first non-internal email address involved in an email
+      def find_external_party_email(email)
+        internal_domain_patterns = CorporateCompanySetting.internal_domain_patterns
+        newtask_address = CorporateCompanySetting.monitored_mailbox_newtask&.downcase
+
+        # Check from
+        if email.from_email.present?
+          return email.from_email unless internal_domain_patterns.any? { |d| email.from_email.downcase.include?(d) }
+        end
+
+        # Check to recipients
+        email.to_emails&.each do |email_addr|
+          next if email_addr.blank?
+          next if newtask_address && email_addr.downcase == newtask_address
+          next if internal_domain_patterns.any? { |d| email_addr.downcase.include?(d) }
+          return email_addr
+        end
+
+        # Check cc recipients
+        email.cc_emails&.each do |email_addr|
+          next if email_addr.blank?
+          next if internal_domain_patterns.any? { |d| email_addr.downcase.include?(d) }
+          return email_addr
+        end
+
+        nil
       end
 
       def save_temp_file(uploaded_file)

@@ -72,6 +72,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Download,
   ExternalLink,
   Eye,
   EyeOff,
@@ -133,6 +134,20 @@ interface User {
   name: string;
 }
 
+// Suggested email from the suggested_emails endpoint
+interface SuggestedEmail {
+  id: number;
+  subject: string;
+  from_email: string;
+  from_name: string | null;
+  to_emails: string[];
+  received_at: string;
+  has_attachments: boolean;
+  document_attachments_count: number;
+  body_preview: string | null;
+  match_reason: 'same_thread' | 'similar_subject' | 'same_contact' | null;
+}
+
 // Sortable question/header item component
 interface SortableQuestionItemProps {
   item: TaskActionItem;
@@ -177,6 +192,9 @@ interface SortableQuestionItemProps {
   setRenamingAttachmentId?: (id: number | null) => void;
   setRenamingAttachmentName?: (name: string) => void;
   handleRenameAttachment?: (attachmentId: number, newName: string) => void;
+  // Document viewer props
+  onOpenDocument?: (url: string, fileName: string, fileType: 'pdf' | 'image' | 'other') => void;
+  onDownloadAttachment?: (att: TaskAttachment) => void;
 }
 
 function SortableQuestionItem({
@@ -220,6 +238,8 @@ function SortableQuestionItem({
   setRenamingAttachmentId,
   setRenamingAttachmentName,
   handleRenameAttachment,
+  onOpenDocument,
+  onDownloadAttachment,
 }: SortableQuestionItemProps) {
   const [isFileDropTarget, setIsFileDropTarget] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -594,9 +614,25 @@ function SortableQuestionItem({
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
               const isRenaming = renamingAttachmentId === att.id;
 
+              // Determine file type for viewer
+              const ext = (att.document?.file_name || '').split('.').pop()?.toLowerCase() || '';
+              const fileType: 'pdf' | 'image' | 'other' = ext === 'pdf' ? 'pdf'
+                : ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext) ? 'image'
+                : 'other';
+
               return (
-                <div key={att.id} className="flex items-center gap-2 text-xs group">
+                <div key={att.id} className="flex items-center gap-1 text-xs group">
                   <Paperclip className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
+                  {/* Download button - always visible */}
+                  {url && (
+                    <button
+                      onClick={() => onDownloadAttachment?.(att)}
+                      className="text-muted-foreground hover:text-foreground"
+                      title="Download"
+                    >
+                      <Download className="h-3 w-3" />
+                    </button>
+                  )}
                   {isRenaming ? (
                     // Inline edit mode
                     <form
@@ -629,17 +665,20 @@ function SortableQuestionItem({
                       />
                     </form>
                   ) : (
-                    // Display mode with link and edit button
+                    // Display mode: single click = drawer, double click = new window
                     <>
                       {url ? (
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-green-600 dark:text-green-400 hover:text-green-700 hover:underline font-medium"
+                        <button
+                          onClick={() => onOpenDocument?.(url, fileName, fileType)}
+                          onDoubleClick={(e) => {
+                            e.preventDefault();
+                            window.open(url, '_blank');
+                          }}
+                          className="text-green-600 dark:text-green-400 hover:text-green-700 hover:underline font-medium text-left"
+                          title="Click to preview, double-click to open in new tab"
                         >
                           {fileName}
-                        </a>
+                        </button>
                       ) : (
                         <span className="text-green-600 dark:text-green-400 font-medium">{fileName}</span>
                       )}
@@ -1007,6 +1046,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     matched: false,    // Auto-matched collapsed
     linked: false,     // Linked collapsed
   });
+
+  // Suggested emails (related emails not yet attached)
+  const [suggestedEmails, setSuggestedEmails] = useState<SuggestedEmail[]>([]);
+  const [suggestedEmailsLoading, setSuggestedEmailsLoading] = useState(false);
+  const [suggestedEmailsExpanded, setSuggestedEmailsExpanded] = useState(false);
+  const [selectedSuggestedEmails, setSelectedSuggestedEmails] = useState<Set<number>>(new Set());
+  const [addingSuggestedEmail, setAddingSuggestedEmail] = useState(false);
 
   // Adding header mode (when user clicks "+ Add Header")
   const [addingHeaderText, setAddingHeaderText] = useState('');
@@ -1838,6 +1884,147 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       console.error('Failed to remove attachment:', err);
     }
     setAttachmentLoading(false);
+  };
+
+  // Fetch suggested emails (related emails not yet attached)
+  const fetchSuggestedEmails = async () => {
+    setSuggestedEmailsLoading(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        suggested: SuggestedEmail[];
+        already_attached_ids: number[];
+        source_email_id?: number;
+        message?: string;
+      }>(`/api/v1/sm_tasks/${task.id}/suggested_emails`);
+
+      if (response?.success) {
+        setSuggestedEmails(response.suggested || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch suggested emails:', err);
+    } finally {
+      setSuggestedEmailsLoading(false);
+    }
+  };
+
+  // Add a suggested email to the task
+  const handleAddSuggestedEmail = async (emailId: number) => {
+    setAddingSuggestedEmail(true);
+    try {
+      const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
+        `/api/v1/sm_tasks/${task.id}/attachments`,
+        {
+          attachment_type: 'email',
+          attachable_id: emailId,
+          notes: 'Added from suggestions',
+        }
+      );
+      if (response?.success && response.attachment) {
+        setLocalAttachments(prev => [...prev, response.attachment]);
+        // Remove from suggested list
+        setSuggestedEmails(prev => prev.filter(e => e.id !== emailId));
+        // Remove from selection
+        setSelectedSuggestedEmails(prev => {
+          const next = new Set(prev);
+          next.delete(emailId);
+          return next;
+        });
+        toast.success('Email added');
+      }
+    } catch (err) {
+      console.error('Failed to add suggested email:', err);
+      toast.error('Failed to add email');
+    } finally {
+      setAddingSuggestedEmail(false);
+    }
+  };
+
+  // Add all selected suggested emails
+  const handleAddSelectedSuggestedEmails = async () => {
+    if (selectedSuggestedEmails.size === 0) return;
+
+    setAddingSuggestedEmail(true);
+    const emailIds = Array.from(selectedSuggestedEmails);
+
+    for (const emailId of emailIds) {
+      try {
+        const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
+          `/api/v1/sm_tasks/${task.id}/attachments`,
+          {
+            attachment_type: 'email',
+            attachable_id: emailId,
+            notes: 'Added from suggestions',
+          }
+        );
+        if (response?.success && response.attachment) {
+          setLocalAttachments(prev => [...prev, response.attachment]);
+          setSuggestedEmails(prev => prev.filter(e => e.id !== emailId));
+        }
+      } catch (err) {
+        console.error(`Failed to add email ${emailId}:`, err);
+      }
+    }
+
+    setSelectedSuggestedEmails(new Set());
+    setAddingSuggestedEmail(false);
+    toast.success(`Added ${emailIds.length} email(s)`);
+  };
+
+  // Add all suggested emails at once
+  const handleAddAllSuggestedEmails = async () => {
+    if (suggestedEmails.length === 0) return;
+
+    setAddingSuggestedEmail(true);
+    const emailIds = suggestedEmails.map(e => e.id);
+    let addedCount = 0;
+
+    for (const emailId of emailIds) {
+      try {
+        const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
+          `/api/v1/sm_tasks/${task.id}/attachments`,
+          {
+            attachment_type: 'email',
+            attachable_id: emailId,
+            notes: 'Added from suggestions',
+          }
+        );
+        if (response?.success && response.attachment) {
+          setLocalAttachments(prev => [...prev, response.attachment]);
+          addedCount++;
+        }
+      } catch (err) {
+        console.error(`Failed to add email ${emailId}:`, err);
+      }
+    }
+
+    setSuggestedEmails([]);
+    setSelectedSuggestedEmails(new Set());
+    setAddingSuggestedEmail(false);
+    toast.success(`Added ${addedCount} email(s)`);
+  };
+
+  // Toggle suggested email selection
+  const toggleSuggestedEmailSelection = (emailId: number) => {
+    setSelectedSuggestedEmails(prev => {
+      const next = new Set(prev);
+      if (next.has(emailId)) {
+        next.delete(emailId);
+      } else {
+        next.add(emailId);
+      }
+      return next;
+    });
+  };
+
+  // Get display label for match reason
+  const getMatchReasonLabel = (reason: SuggestedEmail['match_reason']): string => {
+    switch (reason) {
+      case 'same_thread': return 'Same thread';
+      case 'similar_subject': return 'Similar subject';
+      case 'same_contact': return 'Same sender';
+      default: return 'Related';
+    }
   };
 
   // Download an attachment document
@@ -3640,6 +3827,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               setRenamingAttachmentId={setRenamingAttachmentId}
                               setRenamingAttachmentName={setRenamingAttachmentName}
                               handleRenameAttachment={handleRenameAttachment}
+                              onOpenDocument={(url, name, type) => setViewerDocument({ url, fileName: name, fileType: type })}
+                              onDownloadAttachment={handleDownloadAttachment}
                             />
                           ))}
                         </div>
@@ -3688,6 +3877,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       setRenamingAttachmentId={setRenamingAttachmentId}
                       setRenamingAttachmentName={setRenamingAttachmentName}
                       handleRenameAttachment={handleRenameAttachment}
+                      onOpenDocument={(url, name, type) => setViewerDocument({ url, fileName: name, fileType: type })}
+                      onDownloadAttachment={handleDownloadAttachment}
                     />
                   ))}
                 </SortableContext>
@@ -4441,6 +4632,136 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           </Button>
                         </div>
                       </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Suggested Emails Button */}
+                <Popover open={suggestedEmailsExpanded} onOpenChange={(open) => {
+                  setSuggestedEmailsExpanded(open);
+                  if (open && suggestedEmails.length === 0) {
+                    fetchSuggestedEmails();
+                  }
+                }}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Target className="h-3 w-3 mr-1" />
+                      Suggested
+                      {suggestedEmails.length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                          {suggestedEmails.length}
+                        </Badge>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-96 p-3" align="end">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-muted-foreground">Suggested emails</h4>
+                        {suggestedEmails.length > 0 && (
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 text-xs"
+                              onClick={handleAddSelectedSuggestedEmails}
+                              disabled={selectedSuggestedEmails.size === 0 || addingSuggestedEmail}
+                            >
+                              {addingSuggestedEmail ? (
+                                <Spinner className="h-3 w-3" />
+                              ) : (
+                                <>Add Selected ({selectedSuggestedEmails.size})</>
+                              )}
+                            </Button>
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="h-6 px-2 text-xs"
+                              onClick={handleAddAllSuggestedEmails}
+                              disabled={addingSuggestedEmail}
+                            >
+                              Add All
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {suggestedEmailsLoading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Spinner className="h-5 w-5" />
+                        </div>
+                      ) : suggestedEmails.length === 0 ? (
+                        <p className="text-xs text-muted-foreground text-center py-4">
+                          No related emails found
+                        </p>
+                      ) : (
+                        <div className="max-h-64 overflow-y-auto space-y-1">
+                          {suggestedEmails.map((email) => (
+                            <div
+                              key={email.id}
+                              className={cn(
+                                "flex items-start gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer text-xs",
+                                selectedSuggestedEmails.has(email.id) && "bg-blue-50 dark:bg-blue-950/30"
+                              )}
+                              onClick={() => toggleSuggestedEmailSelection(email.id)}
+                            >
+                              <Checkbox
+                                checked={selectedSuggestedEmails.has(email.id)}
+                                onCheckedChange={() => toggleSuggestedEmailSelection(email.id)}
+                                className="mt-0.5 shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium truncate">{email.subject}</div>
+                                <div className="text-muted-foreground truncate flex items-center gap-2">
+                                  <span className="truncate">{email.from_name || email.from_email}</span>
+                                  {email.received_at && (
+                                    <span className="shrink-0 text-[10px]">
+                                      {format(new Date(email.received_at), 'dd MMM')}
+                                    </span>
+                                  )}
+                                </div>
+                                {email.match_reason && (
+                                  <Badge variant="outline" className="mt-1 text-[9px] h-4 px-1">
+                                    {getMatchReasonLabel(email.match_reason)}
+                                  </Badge>
+                                )}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0 shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddSuggestedEmail(email.id);
+                                }}
+                                title="Add this email"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full h-7 text-xs text-muted-foreground"
+                        onClick={fetchSuggestedEmails}
+                        disabled={suggestedEmailsLoading}
+                      >
+                        {suggestedEmailsLoading ? (
+                          <Spinner className="h-3 w-3 mr-1" />
+                        ) : (
+                          <Search className="h-3 w-3 mr-1" />
+                        )}
+                        Refresh suggestions
+                      </Button>
                     </div>
                   </PopoverContent>
                 </Popover>
