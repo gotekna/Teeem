@@ -598,6 +598,11 @@ module DocumentProviders
     #            → AWS SDK auto-prepends bucket to endpoint → no redirect → works
     # ════════════════════════════════════════════════════════════════════
     def build_browser_safe_client
+      # Normalize endpoint to path-style (strip bucket if present)
+      # This handles the case where endpoint was saved in virtual-hosted format
+      # e.g., https://bucket.s3.region.wasabisys.com → https://s3.region.wasabisys.com
+      endpoint = normalize_endpoint_to_path_style(@credential.endpoint)
+
       # With force_path_style: false, AWS SDK automatically converts endpoint to
       # virtual-hosted style by prepending the bucket name to the host.
       # e.g., s3.region.wasabisys.com → bucket.s3.region.wasabisys.com
@@ -605,9 +610,28 @@ module DocumentProviders
         access_key_id: @credential.access_key_id,
         secret_access_key: @credential.secret_access_key,
         region: @credential.region,
-        endpoint: @credential.endpoint,  # Keep original, SDK will add bucket
+        endpoint: endpoint,
         force_path_style: false  # SDK prepends bucket for virtual-hosted style
       )
+    end
+
+    # Normalize endpoint to path-style by stripping bucket name prefix if present
+    # e.g., https://teeem-documents.s3.ap-southeast-2.wasabisys.com → https://s3.ap-southeast-2.wasabisys.com
+    def normalize_endpoint_to_path_style(endpoint)
+      return endpoint if endpoint.blank?
+
+      uri = URI.parse(endpoint)
+      host = uri.host
+
+      # Check if host starts with bucket name (virtual-hosted style)
+      # Pattern: bucket.s3.region.provider.com
+      if host.start_with?("#{@bucket}.")
+        # Strip bucket prefix: teeem-documents.s3.region.com → s3.region.com
+        uri.host = host.sub(/^#{Regexp.escape(@bucket)}\./, "")
+        uri.to_s
+      else
+        endpoint
+      end
     end
 
     # NOTE: default_subfolders and create_template_folders removed
