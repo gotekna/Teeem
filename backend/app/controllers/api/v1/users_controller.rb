@@ -161,7 +161,8 @@ class Api::V1::UsersController < ApplicationController
   def user_params
     params.require(:user).permit(
       :name, :email, :mobile_phone, :job_title, :preferred_theme,
-      :qbcc_licence_number, :qbcc_licence_class, :signature, :photo
+      :qbcc_licence_number, :qbcc_licence_class, :signature, :photo,
+      :enable_ai_writing_assistant
     )
   end
 
