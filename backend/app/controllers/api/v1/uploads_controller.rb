@@ -1,0 +1,328 @@
+# frozen_string_literal: true
+
+module Api
+  module V1
+    # UploadsController - THE ONE SSoT for presigned URL uploads
+    #
+    # All file uploads in the app should use this controller to get presigned URLs
+    # for direct browser-to-S3 uploads. This bypasses Heroku's 30-second timeout.
+    #
+    # Usage:
+    #   1. POST /api/v1/uploads/presign - Get presigned URL
+    #   2. PUT to presigned URL - Upload file directly to S3
+    #   3. POST /api/v1/uploads/confirm - Confirm upload and create record
+    #
+    # Scopes determine where the file is stored and what record type is created:
+    #   - documents: CorporateCompanyDocument (corporate documents)
+    #   - user_documents: UserDocument (personal documents)
+    #   - job_documents: Job attachments
+    #   - task_attachments: SmTaskAttachment (use SmTasksController instead)
+    #   - imports: Temporary import files
+    #   - chat: Chat message attachments
+    #
+    class UploadsController < ApplicationController
+      before_action :authenticate_user!
+
+      # POST /api/v1/uploads/presign
+      # Get a presigned URL for direct S3 upload
+      #
+      # Params:
+      #   - filename: Original filename
+      #   - content_type: MIME type (optional, will detect from filename)
+      #   - scope: Upload scope (documents, user_documents, job_documents, imports, chat)
+      #   - metadata: Optional metadata hash (job_id, folder_path, etc.)
+      #
+      def presign
+        filename = params[:filename]
+        content_type = params[:content_type] || detect_content_type(filename)
+        scope = params[:scope] || "documents"
+        metadata = params[:metadata] || {}
+
+        unless filename.present?
+          return render json: { success: false, error: "Filename required" }, status: :bad_request
+        end
+
+        unless valid_scope?(scope)
+          return render json: { success: false, error: "Invalid scope: #{scope}" }, status: :bad_request
+        end
+
+        begin
+          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+
+          # Build storage path based on scope
+          folder_path = build_folder_path(scope, metadata)
+          safe_filename = sanitize_filename(filename)
+          temp_key = "#{folder_path}/#{Time.current.to_i}_#{SecureRandom.hex(4)}_#{safe_filename}"
+
+          # Get presigned upload URL
+          upload_url = provider.presigned_upload_url(
+            "",  # folder_path already included in temp_key
+            temp_key,
+            expires_in: 3600,
+            content_type: content_type
+          )
+
+          render json: {
+            success: true,
+            upload_url: upload_url,
+            key: temp_key,
+            filename: filename,
+            content_type: content_type,
+            scope: scope,
+            expires_in: 3600
+          }
+        rescue DocumentProviders::NotConnectedError => e
+          render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
+        rescue => e
+          Rails.logger.error "[UploadsController#presign] Failed: #{e.message}"
+          render json: { success: false, error: "Failed to generate upload URL" }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/uploads/confirm
+      # Confirm upload and create the appropriate record
+      #
+      # Params:
+      #   - key: S3 key from presign response
+      #   - filename: Original filename
+      #   - content_type: MIME type
+      #   - scope: Upload scope (must match presign scope)
+      #   - metadata: Scope-specific metadata (job_id, document_type, etc.)
+      #
+      def confirm
+        key = params[:key]
+        filename = params[:filename]
+        content_type = params[:content_type] || "application/octet-stream"
+        scope = params[:scope] || "documents"
+        metadata = params[:metadata] || {}
+
+        unless key.present? && filename.present?
+          return render json: { success: false, error: "Key and filename required" }, status: :bad_request
+        end
+
+        begin
+          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+
+          # Verify file exists in S3
+          file_info = provider.get_file(key)
+          file_size = file_info[:size] || 0
+
+          # Create the appropriate record based on scope
+          result = create_record_for_scope(scope, key, filename, content_type, file_size, metadata, provider)
+
+          if result[:success]
+            render json: result
+          else
+            render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          end
+        rescue DocumentProviders::NotFoundError
+          render json: { success: false, error: "File not found in storage. Upload may have failed." }, status: :not_found
+        rescue => e
+          Rails.logger.error "[UploadsController#confirm] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+          render json: { success: false, error: "Failed to confirm upload: #{e.message}" }, status: :unprocessable_entity
+        end
+      end
+
+      private
+
+      VALID_SCOPES = %w[documents user_documents job_documents imports chat transactions].freeze
+
+      def valid_scope?(scope)
+        VALID_SCOPES.include?(scope)
+      end
+
+      def build_folder_path(scope, metadata)
+        case scope
+        when "documents"
+          "Documents/Uploads"
+        when "user_documents"
+          "UserDocuments/#{current_user.id}"
+        when "job_documents"
+          job_id = metadata[:job_id] || metadata["job_id"]
+          job = Job.find_by(id: job_id)
+          job ? "Jobs/#{job.job_code}/Documents" : "Jobs/Uploads"
+        when "imports"
+          "Imports/#{Time.current.strftime('%Y/%m')}"
+        when "chat"
+          "Chat/#{Time.current.strftime('%Y/%m')}"
+        when "transactions"
+          "Transactions/#{Time.current.strftime('%Y/%m')}"
+        else
+          "Uploads"
+        end
+      end
+
+      def create_record_for_scope(scope, key, filename, content_type, file_size, metadata, provider)
+        case scope
+        when "documents"
+          create_corporate_document(key, filename, content_type, file_size, metadata, provider)
+        when "user_documents"
+          create_user_document(key, filename, content_type, file_size, metadata, provider)
+        when "job_documents"
+          create_job_document(key, filename, content_type, file_size, metadata, provider)
+        when "imports"
+          # Imports don't create a record - just return the key for processing
+          { success: true, key: key, filename: filename, size: file_size }
+        when "chat"
+          # Chat attachments are handled by ChatMessage creation
+          { success: true, key: key, filename: filename, size: file_size }
+        when "transactions"
+          # Transaction receipts are handled by Transaction update
+          { success: true, key: key, filename: filename, size: file_size }
+        else
+          { success: false, error: "Unknown scope: #{scope}" }
+        end
+      end
+
+      def create_corporate_document(key, filename, content_type, file_size, metadata, provider)
+        # Get company from metadata or current user's default
+        company_id = metadata[:company_id] || metadata["company_id"]
+        company = company_id ? CorporateCompany.find_by(id: company_id) : current_user.corporate_companies.first
+        return { success: false, error: "Company required for corporate documents" } unless company
+
+        # Move to permanent location with content-hash deduplication
+        blob = find_or_create_blob(key, filename, content_type, file_size, provider)
+
+        doc = CorporateCompanyDocument.create!(
+          file_name: filename,
+          document_type: metadata[:document_type] || metadata["document_type"] || "other",
+          storage_blob: blob,
+          content_hash: blob.content_hash,
+          file_size: file_size,
+          mime_type: content_type,
+          company_id: company.id,
+          user: current_user,
+          folder: metadata[:folder] || metadata["folder"],
+          source: "manual"
+        )
+
+        { success: true, document: document_to_json(doc) }
+      end
+
+      def create_user_document(key, filename, content_type, file_size, metadata, provider)
+        blob = find_or_create_blob(key, filename, content_type, file_size, provider)
+
+        doc = UserDocument.create!(
+          file_name: filename,
+          storage_blob: blob,
+          storage_path: blob.storage_path,
+          file_size: file_size,
+          content_type: content_type,
+          user: current_user,
+          category: metadata[:category] || metadata["category"] || "my_docs",
+          folder: metadata[:folder] || metadata["folder"]
+        )
+
+        { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.display_name } }
+      end
+
+      def create_job_document(key, filename, content_type, file_size, metadata, provider)
+        job_id = metadata[:job_id] || metadata["job_id"]
+        job = Job.find_by(id: job_id)
+        return { success: false, error: "Job not found" } unless job
+
+        blob = find_or_create_blob(key, filename, content_type, file_size, provider)
+
+        # Generate unique ID for sharepoint_item_id (required by schema)
+        # For manual uploads, use "upload_" prefix to distinguish from SharePoint synced
+        unique_id = "upload_#{SecureRandom.uuid}"
+
+        doc = JobDocument.create!(
+          file_name: filename,
+          storage_blob: blob,
+          sharepoint_item_id: unique_id,  # Required unique identifier (schema: null: false)
+          storage_item_id: blob.storage_path,
+          storage_path: blob.storage_path,
+          storage_provider: "s3_compatible",
+          content_hash: blob.content_hash,
+          file_size: file_size,
+          mime_type: content_type,
+          job: job,
+          folder_path: metadata[:folder_path] || metadata["folder_path"] || "Uploads",
+          source: "manual",
+          sync_status: "synced"
+        )
+
+        { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.file_name } }
+      end
+
+      def find_or_create_blob(temp_key, filename, content_type, file_size, provider)
+        # Download file to compute hash
+        content = provider.download_file(temp_key)
+        computed_hash = Digest::SHA256.hexdigest(content)
+
+        # Check for existing blob with same hash (deduplication)
+        existing_blob = StorageBlob.find_by(content_hash: computed_hash)
+        if existing_blob
+          # Delete temp file, reuse existing blob
+          provider.delete_file(temp_key) rescue nil
+          existing_blob.increment_reference!
+          return existing_blob
+        end
+
+        # Move to permanent Blobs location
+        extension = File.extname(filename)
+        permanent_key = "Blobs/#{computed_hash[0, 2]}/#{computed_hash}#{extension}"
+
+        provider.native_client.copy_object(
+          bucket: provider.instance_variable_get(:@bucket),
+          copy_source: "#{provider.instance_variable_get(:@bucket)}/#{temp_key}",
+          key: permanent_key
+        )
+        provider.delete_file(temp_key) rescue nil
+
+        # Create blob record
+        blob = StorageBlob.create!(
+          content_hash: computed_hash,
+          storage_path: permanent_key,
+          file_size: file_size,
+          content_type: content_type,
+          original_filename: filename,
+          reference_count: 1
+        )
+
+        blob
+      end
+
+      def document_to_json(doc)
+        {
+          id: doc.id,
+          file_name: doc.file_name,
+          display_name: doc.display_name || doc.file_name,
+          document_type: doc.document_type,
+          file_url: doc.file_url,
+          file_size: doc.file_size,
+          created_at: doc.created_at
+        }
+      end
+
+      def sanitize_filename(filename)
+        filename.to_s.gsub(/[^a-zA-Z0-9._-]/, "_").strip
+      end
+
+      def detect_content_type(filename)
+        return "application/octet-stream" unless filename
+
+        ext = File.extname(filename).downcase
+        CONTENT_TYPES[ext] || "application/octet-stream"
+      end
+
+      CONTENT_TYPES = {
+        ".pdf" => "application/pdf",
+        ".doc" => "application/msword",
+        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xls" => "application/vnd.ms-excel",
+        ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".csv" => "text/csv",
+        ".txt" => "text/plain",
+        ".jpg" => "image/jpeg",
+        ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        ".gif" => "image/gif",
+        ".zip" => "application/zip",
+        ".json" => "application/json",
+        ".xml" => "application/xml"
+      }.freeze
+    end
+  end
+end

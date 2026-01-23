@@ -27,6 +27,17 @@ Rails.application.routes.draw do
       end
 
       # =============================================================
+      # Uploads API - THE ONE SSoT for presigned URL uploads
+      # All file uploads should use this to bypass Heroku 30s timeout
+      # =============================================================
+      resources :uploads, only: [] do
+        collection do
+          post :presign
+          post :confirm
+        end
+      end
+
+      # =============================================================
       # Document Storage API (SharePoint, S3, Wasabi)
       # IMPORTANT: Must be BEFORE `resources :documents` to avoid
       # /documents/:id matching /documents/status as id="status"
