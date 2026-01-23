@@ -6191,7 +6191,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           editModalType === 'header' ? 'Enter header text...' :
           'Enter text...'
         }
-        plainText={false}
+        plainText={editModalType !== 'answer'}
         minHeight={editModalType === 'answer' ? 400 : 300}
       />
     </div>
