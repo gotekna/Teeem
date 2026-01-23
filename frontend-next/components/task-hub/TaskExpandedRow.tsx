@@ -44,6 +44,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { Briefcase } from 'lucide-react';
@@ -143,10 +144,14 @@ function DelegatedTaskView({
 
         if (result?.success && result.attachment) {
           setLocalAttachments(prev => [...prev, result.attachment]);
+          toast.success(`Uploaded ${file.name}`);
+        } else {
+          toast.error(`Failed to upload ${file.name}`);
         }
       }
     } catch (err) {
       console.error('Failed to upload file:', err);
+      toast.error('Upload failed. Please try again.');
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -754,8 +759,10 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
         if (response?.success && response.attachment) {
           setLocalAttachments((prev) => [...prev, response.attachment]);
           setShowAttachmentPicker(false);
+          toast.success(`Uploaded ${attachment.file.name}`);
         } else {
           console.error('Upload failed:', response?.error);
+          toast.error('Upload failed. Please try again.');
         }
       } else if (attachment.id) {
         // Link existing email/document
@@ -770,10 +777,12 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
         if (response?.success && response.attachment) {
           setLocalAttachments((prev) => [...prev, response.attachment]);
           setShowAttachmentPicker(false);
+          toast.success('Attachment linked');
         }
       }
     } catch (error) {
       console.error('Failed to add attachment:', error);
+      toast.error('Failed to add attachment. Please try again.');
     } finally {
       setAttachmentLoading(false);
     }
@@ -806,11 +815,14 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
 
         if (response?.success && response.attachment) {
           setLocalAttachments((prev) => [...prev, response.attachment]);
+          toast.success(`Uploaded ${file.name}`);
         } else {
           console.error('Upload failed:', response?.error);
+          toast.error(`Failed to upload ${file.name}`);
         }
       } catch (error) {
         console.error('Failed to upload file:', error);
+        toast.error(`Failed to upload ${file.name}`);
       }
     }
     setAttachmentLoading(false);

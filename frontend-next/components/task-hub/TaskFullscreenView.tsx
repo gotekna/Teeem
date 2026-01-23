@@ -2226,9 +2226,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       if (response?.success && response.attachment) {
         setLocalAttachments(prev => [...prev, response.attachment]);
+        toast.success(`Uploaded ${pendingFile.name}`);
+      } else {
+        toast.error('Upload failed. Please try again.');
       }
     } catch (err) {
       console.error('Failed to upload file:', err);
+      toast.error('Upload failed. Please try again.');
     } finally {
       setAttachmentLoading(false);
       setPendingFile(null);
@@ -2262,6 +2266,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       if (response?.success && response.attachment) {
         console.log('[TaskFullscreenView] Adding attachment to local state:', response.attachment);
         setLocalAttachments(prev => [...prev, response.attachment]);
+        toast.success(`Uploaded ${file.name}`);
 
         // If linked to an action item, also update the local task action items
         if (actionItemId && response.attachment) {
@@ -2270,9 +2275,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         }
       } else {
         console.error('[TaskFullscreenView] Upload failed or no attachment in response:', response);
+        toast.error('Upload failed. Please try again.');
       }
     } catch (err) {
       console.error('[TaskFullscreenView] Failed to upload file:', err);
+      toast.error('Upload failed. Please try again.');
     } finally {
       setAttachmentLoading(false);
     }
