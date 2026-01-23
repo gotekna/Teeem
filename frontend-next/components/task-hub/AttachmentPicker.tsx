@@ -368,7 +368,7 @@ function FileUploadPanel({ onSelect }: { onSelect: (att: PendingAttachment) => v
         <p className={`text-sm ${isDragging ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
           {isDragging ? 'Drop files here' : 'Drag files here or click to upload'}
         </p>
-        <p className="text-xs text-muted-foreground mt-1">PDF, Word, Excel, Images</p>
+        <p className="text-xs text-muted-foreground mt-1">Any file type supported</p>
       </label>
     </div>
   );
