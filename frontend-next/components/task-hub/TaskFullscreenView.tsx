@@ -3934,6 +3934,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             {/* Attachment Picker (inline) */}
             {showAttachmentPicker && (
               <div className="p-2 border rounded bg-muted/30 mb-3 shrink-0">
+                {attachmentLoading && (
+                  <div className="flex items-center gap-2 mb-2 p-2 bg-primary/10 rounded text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span>Uploading file...</span>
+                  </div>
+                )}
                 <AttachmentPicker
                   attachments={pendingAttachments}
                   onAdd={handleAddAttachment}
