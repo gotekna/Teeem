@@ -863,6 +863,7 @@ class XeroContactSyncService
     is_company = xero_contact_is_company?(xero_contact)
 
     # Note: xero_id and xero_contact_status are stored in contact_external_links (SSoT)
+    # SSoT: Multi-tenancy - set tenant_id from sync context
     contact_data = {
       display_name: xero_contact["Name"],
       first_name: is_company ? nil : xero_contact["FirstName"],
@@ -877,6 +878,7 @@ class XeroContactSyncService
       xero_contact_number: xero_contact["ContactNumber"],
       xero_account_number: xero_contact["AccountNumber"],
       website: xero_contact["Website"],
+      tenant_id: tenant_id,
       default_discount: xero_contact["Discount"],
       default_purchase_account: xero_contact["PurchasesDefaultAccountCode"],
       default_sales_account: xero_contact["SalesDefaultAccountCode"]
@@ -1411,6 +1413,7 @@ class XeroContactSyncService
       )
       Rails.logger.info("Updated person contact: #{display_name} (linked to #{company_contact.display_name})")
     else
+      # SSoT: Multi-tenancy - inherit tenant_id from parent company contact
       person_contact = Contact.create!(
         first_name: first_name,
         last_name: last_name,
@@ -1418,7 +1421,8 @@ class XeroContactSyncService
         email: email.presence,
         primary_company_id: company_contact.id,
         entity_type: "person",
-        sync_with_xero: false
+        sync_with_xero: false,
+        tenant_id: company_contact.tenant_id
       )
       Rails.logger.info("Created person contact: #{display_name} (linked to #{company_contact.display_name})")
       @stats[:created_in_teeem] += 1
