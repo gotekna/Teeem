@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Paperclip,
   FileText,
@@ -13,6 +14,28 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { formatFileSize } from "@/utils/formatters";
+
+// File type detection helpers
+function isSpreadsheetFile(name: string, contentType?: string): boolean {
+  const ext = name?.split(".").pop()?.toLowerCase() || "";
+  const type = contentType?.toLowerCase() || "";
+  return (
+    ["xlsx", "xls", "csv"].includes(ext) ||
+    type.includes("spreadsheet") ||
+    type.includes("excel")
+  );
+}
+
+function isWordDocFile(name: string, contentType?: string): boolean {
+  const ext = name?.split(".").pop()?.toLowerCase() || "";
+  const type = contentType?.toLowerCase() || "";
+  return (
+    ["doc", "docx"].includes(ext) ||
+    type.includes("word") ||
+    type.includes("msword") ||
+    type.includes("wordprocessingml")
+  );
+}
 
 // Cache for presigned URLs (attachment key -> url)
 const presignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
@@ -79,6 +102,7 @@ function isSignatureAttachment(attachment: Attachment): boolean {
 
 export function AttachmentList({ attachments, emailId, className }: AttachmentListProps) {
   const [loading, setLoading] = useState<string | null>(null);
+  const router = useRouter();
 
   // Filter out signature/embedded images
   const visibleAttachments = attachments?.filter(a => !isSignatureAttachment(a)) || [];
@@ -143,19 +167,85 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
   }, [emailId, getPresignedUrl]);
 
   // Open attachment in new window (double-click action)
+  // For spreadsheets: Opens in TeeemXL
+  // For Word docs: Opens in TeeemWord
+  // For others: Opens in browser
   const handleOpenInNewWindow = async (attachment: Attachment) => {
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
     if (!emailId || !attachmentId) return;
 
     setLoading(attachment.name);
     try {
+      // Check if it's a spreadsheet - import to TeeemXL via backend
+      if (isSpreadsheetFile(attachment.name, attachment.content_type)) {
+        const response = await api.post<{
+          success: boolean;
+          data?: { id: number };
+          error?: string;
+        }>("/api/v1/teeem_spreadsheets/import_from_attachment", {
+          email_id: emailId,
+          attachment_id: attachmentId,
+        });
+
+        if (response?.success && response.data?.id) {
+          // Open TeeemXL with the imported spreadsheet
+          window.open(`/admin/system/teeem-xl?id=${response.data.id}`, "_blank");
+        } else {
+          console.error("Failed to import spreadsheet:", response?.error);
+          // Fallback to blob preview
+          const blob = await fetchAttachmentBlob(attachment);
+          const url = window.URL.createObjectURL(blob);
+          window.open(url, "_blank");
+          setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+        }
+        return;
+      }
+
+      // Check if it's a Word doc - download blob and navigate to TeeemWord
+      if (isWordDocFile(attachment.name, attachment.content_type)) {
+        const blob = await fetchAttachmentBlob(attachment);
+
+        // Store the blob in sessionStorage as base64 for TeeemWord to import
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const base64 = reader.result as string;
+          const fileName = attachment.name;
+
+          // Create a new TeeemDocument first
+          const docResponse = await api.post<{
+            success: boolean;
+            data?: { id: number };
+          }>("/api/v1/teeem_documents", {
+            teeem_document: {
+              name: fileName.replace(/\.(docx?|doc)$/i, ""),
+            },
+          });
+
+          if (docResponse?.success && docResponse.data?.id) {
+            // Store the file data for TeeemWord to pick up
+            sessionStorage.setItem("teeem_word_import", JSON.stringify({
+              base64,
+              fileName,
+              documentId: docResponse.data.id,
+            }));
+
+            // Open TeeemWord - it will detect the import data and auto-import
+            window.open(`/admin/system/teeem-word?id=${docResponse.data.id}&import=true`, "_blank");
+          } else {
+            // Fallback to blob preview
+            const url = window.URL.createObjectURL(blob);
+            window.open(url, "_blank");
+            setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+          }
+        };
+        reader.readAsDataURL(blob);
+        return;
+      }
+
+      // Default: Open blob in browser
       const blob = await fetchAttachmentBlob(attachment);
       const url = window.URL.createObjectURL(blob);
-
-      // Always open in new tab
       window.open(url, "_blank");
-
-      // Clean up after a delay (let browser open the URL first)
       setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     } catch (error) {
       console.error("Failed to open attachment:", error);

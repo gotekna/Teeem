@@ -278,6 +278,68 @@ export default function TeeemWordPage() {
     loadOrCreate();
   }, [documentId, router, editor]);
 
+  // Auto-import from sessionStorage (when coming from email attachment)
+  React.useEffect(() => {
+    const shouldImport = searchParams.get("import") === "true";
+    if (!shouldImport || !editor || !document) return;
+
+    const importData = sessionStorage.getItem("teeem_word_import");
+    if (!importData) return;
+
+    try {
+      const { base64, fileName } = JSON.parse(importData);
+      if (!base64 || !fileName?.toLowerCase().endsWith(".docx")) {
+        sessionStorage.removeItem("teeem_word_import");
+        return;
+      }
+
+      // Convert base64 to blob
+      const byteString = atob(base64.split(",")[1]);
+      const mimeType = base64.split(",")[0].split(":")[1].split(";")[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([ab], { type: mimeType });
+      const file = new File([blob], fileName, { type: mimeType });
+
+      // Import the file
+      setImporting(true);
+      importDocx(file).then((result) => {
+        editor.commands.setContent(result.html);
+        setHasChanges(true);
+        setName(fileName.replace(/\.docx$/i, ""));
+
+        if (result.messages.length > 0) {
+          console.log("Import warnings:", result.messages);
+        }
+
+        toast({
+          title: "Document imported",
+          description: result.messages.length > 0
+            ? `Imported with ${result.messages.length} warning(s)`
+            : "Document imported successfully from email attachment",
+        });
+      }).catch((error) => {
+        console.error("Failed to import:", error);
+        toast({
+          title: "Import failed",
+          description: "Failed to import the document. Please try again.",
+          variant: "destructive",
+        });
+      }).finally(() => {
+        setImporting(false);
+        sessionStorage.removeItem("teeem_word_import");
+        // Remove the import param from URL
+        router.replace(`/admin/system/teeem-word?id=${document.id}`);
+      });
+    } catch (error) {
+      console.error("Failed to parse import data:", error);
+      sessionStorage.removeItem("teeem_word_import");
+    }
+  }, [editor, document, searchParams, router, toast]);
+
   // Set editor content when document loads and editor is ready
   React.useEffect(() => {
     if (editor && document?.data?.content) {

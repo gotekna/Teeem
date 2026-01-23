@@ -162,6 +162,9 @@ Rails.application.routes.draw do
 
       # TeeemXL Spreadsheets - user-created spreadsheets
       resources :teeem_spreadsheets, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :import_from_attachment  # POST /api/v1/teeem_spreadsheets/import_from_attachment
+        end
         member do
           get :export              # GET /api/v1/teeem_spreadsheets/:id/export - download as XLSX
           post :save_to_warehouse  # POST /api/v1/teeem_spreadsheets/:id/save_to_warehouse - save to S3
@@ -170,6 +173,9 @@ Rails.application.routes.draw do
 
       # TeeemWord Documents - user-created word documents
       resources :teeem_documents, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :import_from_attachment  # POST /api/v1/teeem_documents/import_from_attachment
+        end
         member do
           get :export               # GET /api/v1/teeem_documents/:id/export - download as DOCX
           post :save_to_warehouse   # POST /api/v1/teeem_documents/:id/save_to_warehouse - save to S3

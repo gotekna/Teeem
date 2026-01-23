@@ -5,6 +5,76 @@ module Api
     class TeeemSpreadsheetsController < ApplicationController
       before_action :set_spreadsheet, only: [:show, :update, :destroy, :export, :save_to_warehouse]
 
+      # POST /api/v1/teeem_spreadsheets/import_from_attachment
+      # Imports an email attachment directly into a new TeeemSpreadsheet
+      # Params:
+      #   - email_id: ID of the SyncedEmail
+      #   - attachment_id: ID of the email attachment
+      def import_from_attachment
+        email = SyncedEmail.find(params[:email_id])
+        email_attachment = email.email_attachments.find_by(id: params[:attachment_id])
+
+        unless email_attachment
+          return render json: { success: false, error: "Attachment not found" }, status: :not_found
+        end
+
+        # Download the attachment content
+        content = fetch_attachment_content(email, email_attachment)
+        unless content.present?
+          return render json: { success: false, error: "Could not download attachment" }, status: :unprocessable_entity
+        end
+
+        # Parse with TeeemXl
+        temp_file = Tempfile.new(["import", ".xlsx"])
+        begin
+          temp_file.binmode
+          temp_file.write(content)
+          temp_file.rewind
+
+          workbook = TeeemXl.read(temp_file.path)
+
+          # Convert to TeeemSpreadsheet data format
+          sheets_data = workbook.sheets.map do |sheet|
+            cells = {}
+            sheet.rows.each_with_index do |row, row_idx|
+              row.cells.each_with_index do |cell, col_idx|
+                next if cell.value.nil?
+                col_letter = column_letter(col_idx)
+                ref = "#{col_letter}#{row_idx + 1}"
+                cells[ref] = { "value" => cell.value, "type" => detect_cell_type(cell.value) }
+              end
+            end
+            { "name" => sheet.name, "cells" => cells }
+          end
+
+          # Create the spreadsheet with a name based on the attachment filename
+          base_name = email_attachment.filename.sub(/\.(xlsx?|csv)$/i, "")
+          spreadsheet = current_user.teeem_spreadsheets.create!(
+            name: base_name,
+            description: "Imported from email: #{email.subject}",
+            data: {
+              "sheets" => sheets_data,
+              "activeSheet" => 0,
+              "columnWidths" => {},
+              "frozenRows" => 0,
+              "frozenCols" => 0
+            }
+          )
+
+          render json: {
+            success: true,
+            data: spreadsheet_detail(spreadsheet),
+            message: "Spreadsheet imported successfully"
+          }, status: :created
+        rescue TeeemXl::Error => e
+          Rails.logger.error "[TeeemSpreadsheet] Import failed: #{e.message}"
+          render json: { success: false, error: "Failed to parse spreadsheet: #{e.message}" }, status: :unprocessable_entity
+        ensure
+          temp_file&.close
+          temp_file&.unlink
+        end
+      end
+
       # GET /api/v1/teeem_spreadsheets
       # Optional params:
       #   - job_id: filter by job (returns spreadsheets attached to this job)
@@ -232,6 +302,73 @@ module Api
           result = result * 26 + (char.ord - 64)
         end
         result - 1
+      end
+
+      # Convert column index to letter (0 -> A, 1 -> B, 26 -> AA)
+      def column_letter(index)
+        result = ""
+        n = index + 1
+        while n > 0
+          n -= 1
+          result = (65 + (n % 26)).chr + result
+          n /= 26
+        end
+        result
+      end
+
+      # Detect cell type from value
+      def detect_cell_type(value)
+        case value
+        when Numeric then "number"
+        when TrueClass, FalseClass then "boolean"
+        else "string"
+        end
+      end
+
+      # Fetch attachment content from storage (similar to SyncedEmailsController#download_attachment)
+      def fetch_attachment_content(email, email_attachment)
+        # Priority 1: Use storage_blob if available (Wasabi)
+        if email_attachment.stored?
+          content = email_attachment.download
+          return content&.b if content.present?
+        end
+
+        # Priority 2: Try SharePoint if available
+        if email_attachment.attachment&.storage_reference.present?
+          sp_config = MicrosoftCredential.teeem_sharepoint_config
+          if sp_config
+            begin
+              client = MicrosoftAppGraphClient.for_sharepoint(sp_config)
+              content = client.download_file(
+                sp_config.drive_id || StorageConfiguration.instance.drive_id,
+                email_attachment.attachment.storage_reference
+              )
+              return content&.b if content.present?
+            rescue StandardError => e
+              Rails.logger.warn "[TeeemSpreadsheet] SharePoint download failed: #{e.message}"
+            end
+          end
+        end
+
+        # Priority 3: Try to download from Outlook directly
+        if email.outlook_message_id.present? && email_attachment.outlook_attachment_id.present?
+          cred = email.microsoft_credential
+          if cred
+            begin
+              client = MicrosoftAppGraphClient.for_org(cred)
+              content = client.download_attachment(
+                email.mailbox_owner_email,
+                email.outlook_message_id,
+                email_attachment.outlook_attachment_id
+              )
+              return content&.b if content.present?
+            rescue StandardError => e
+              Rails.logger.warn "[TeeemSpreadsheet] Outlook download failed: #{e.message}"
+            end
+          end
+        end
+
+        nil
       end
     end
   end

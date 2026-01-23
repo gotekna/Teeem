@@ -99,14 +99,32 @@ function HoverTooltip({
       {/* Action buttons */}
       <div className="flex items-stretch divide-x">
         <button
-          onClick={onFix}
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onFix();
+          }}
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
         >
           <Check className="h-3.5 w-3.5" />
           Fix
         </button>
         <button
-          onClick={onShowDetails}
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onShowDetails();
+          }}
           className="flex items-center justify-center gap-1 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
         >
           <span className="text-xs">Why?</span>
@@ -185,14 +203,34 @@ function DetailTooltip({
       {/* Action buttons */}
       <div className="flex items-stretch border-t divide-x">
         <button
-          onClick={onFix}
+          type="button"
+          onMouseDown={(e) => {
+            console.log('[WritingChecker] Apply Fix mousedown');
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            console.log('[WritingChecker] Apply Fix clicked');
+            e.preventDefault();
+            e.stopPropagation();
+            onFix();
+          }}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-primary/5 hover:bg-primary/10 text-primary transition-colors"
         >
           <Check className="h-4 w-4" />
           Apply Fix
         </button>
         <button
-          onClick={onDismiss}
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDismiss();
+          }}
           className="px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
         >
           Ignore
@@ -491,27 +529,45 @@ export const WritingChecker = Extension.create({
             extension.storage.tooltipRoot = createRoot(tooltipContainer);
 
             const handleFix = () => {
-              // Fix THIS specific issue only
-              const tr = view.state.tr.replaceWith(
-                issue.from,
-                issue.to,
-                view.state.schema.text(issue.suggestion)
-              );
+              console.log('[WritingChecker] handleFix called', {
+                original: issue.original,
+                suggestion: issue.suggestion,
+                from: issue.from,
+                to: issue.to,
+                docLength: view.state.doc.content.size,
+              });
 
-              // Remove this issue from the list
-              const currentState = writingCheckerKey.getState(view.state);
-              if (currentState) {
-                const newIssues = currentState.issues.filter((i) => i !== issue);
-                const decorations = createDecorations(tr.doc, newIssues);
-                tr.setMeta(writingCheckerKey, {
-                  decorations,
-                  issues: newIssues,
+              try {
+                // Fix THIS specific issue only
+                const tr = view.state.tr.replaceWith(
+                  issue.from,
+                  issue.to,
+                  view.state.schema.text(issue.suggestion)
+                );
+
+                console.log('[WritingChecker] Transaction created', {
+                  docChanged: tr.docChanged,
+                  steps: tr.steps.length,
                 });
-              }
 
-              view.dispatch(tr);
-              cleanupTooltip();
-              view.focus();
+                // Remove this issue from the list
+                const currentState = writingCheckerKey.getState(view.state);
+                if (currentState) {
+                  const newIssues = currentState.issues.filter((i) => i !== issue);
+                  const decorations = createDecorations(tr.doc, newIssues);
+                  tr.setMeta(writingCheckerKey, {
+                    decorations,
+                    issues: newIssues,
+                  });
+                }
+
+                view.dispatch(tr);
+                console.log('[WritingChecker] Transaction dispatched');
+                cleanupTooltip();
+                view.focus();
+              } catch (error) {
+                console.error('[WritingChecker] handleFix error:', error);
+              }
             };
 
             const handleDismiss = () => {
