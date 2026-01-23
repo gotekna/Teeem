@@ -375,7 +375,9 @@ class ImapEmailService
             references: email_data[:references],
             first_synced_at: Time.current,
             last_synced_at: Time.current,
-            synced_by_user: credential.user
+            synced_by_user: credential.user,
+            # SSoT: Multi-tenancy - set tenant_id from credential's user
+            tenant_id: credential.user&.tenant_id
           )
 
           # Attach files if present
@@ -613,9 +615,8 @@ class ImapEmailService
       first_synced_at: Time.current,
       last_synced_at: Time.current,
       synced_by_user: credential.user,
-      # SSoT: Multi-tenancy - set from user's corporate_group
-      # acts_as_tenant requires this for emails to be visible in tenant context
-      company_group_id: credential.user&.corporate_group_id
+      # SSoT: Multi-tenancy - set tenant_id from user
+      tenant_id: credential.user&.tenant_id
     )
   rescue => e
     Rails.logger.warn "[ImapEmailService] Could not save sent email to warehouse: #{e.message}"

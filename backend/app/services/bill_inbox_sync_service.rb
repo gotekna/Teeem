@@ -181,6 +181,8 @@ class BillInboxSyncService
       e.has_attachments = true
       # Store the monitored mailbox info in folder_name as a workaround
       e.folder_name = "bill_inbox:#{@mailbox}"
+      # SSoT: Multi-tenancy - set tenant_id from credential's organization
+      e.tenant_id = @client.credential&.organization&.tenant_id
     end
   end
 

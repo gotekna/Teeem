@@ -14,6 +14,8 @@
 class MicrosoftAppGraphClient
   GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 
+  attr_reader :credential
+
   class NotConnectedError < StandardError; end
   class ApiError < StandardError; end
   class DeadTokenError < NotConnectedError; end

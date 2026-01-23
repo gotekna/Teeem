@@ -243,6 +243,20 @@ class Api::V1::EmailUserStatesController < ApplicationController
 
   def set_email
     @email = SyncedEmail.find(params[:email_id])
+  rescue ActiveRecord::RecordNotFound
+    # Check if email exists but is tenant-scoped out (NULL tenant_id from pre-fix emails)
+    email = SyncedEmail.unscoped.find_by(id: params[:email_id])
+
+    if email.nil?
+      render json: { success: false, error: "Email not found" }, status: :not_found
+    elsif email.tenant_id.nil? && current_tenant.present?
+      # Auto-fix legacy emails with NULL tenant_id
+      Rails.logger.info "[EmailUserStates] Auto-fixing NULL tenant_id on email #{email.id}"
+      email.update_column(:tenant_id, current_tenant.id)
+      @email = email
+    else
+      render json: { success: false, error: "Email not accessible" }, status: :not_found
+    end
   end
 
   def state_params

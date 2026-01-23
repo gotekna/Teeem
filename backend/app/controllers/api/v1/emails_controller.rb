@@ -43,7 +43,9 @@ class Api::V1::EmailsController < ApplicationController
       has_attachments: false,
       synced_by_user: current_user,
       first_synced_at: Time.current,
-      last_synced_at: Time.current
+      last_synced_at: Time.current,
+      # SSoT: Multi-tenancy - always set tenant_id for proper scoping
+      tenant_id: current_tenant&.id
     )
 
     # Try to auto-match to a job
@@ -115,7 +117,9 @@ class Api::V1::EmailsController < ApplicationController
       received_at: parsed_data[:received_at] || parsed_data[:date] || Time.current,
       has_attachments: false,
       first_synced_at: Time.current,
-      last_synced_at: Time.current
+      last_synced_at: Time.current,
+      # SSoT: Multi-tenancy - always set tenant_id for proper scoping
+      tenant_id: current_tenant&.id
     )
 
     # Try to auto-match to a job

@@ -1331,6 +1331,20 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
   def set_email
     @email = SyncedEmail.includes(:job).find(params[:id])
+  rescue ActiveRecord::RecordNotFound
+    # Check if email exists but is tenant-scoped out (NULL tenant_id from pre-fix emails)
+    email = SyncedEmail.unscoped.includes(:job).find_by(id: params[:id])
+
+    if email.nil?
+      render json: { success: false, error: "Email not found" }, status: :not_found
+    elsif email.tenant_id.nil? && current_tenant.present?
+      # Auto-fix legacy emails with NULL tenant_id
+      Rails.logger.info "[SyncedEmails] Auto-fixing NULL tenant_id on email #{email.id}"
+      email.update_column(:tenant_id, current_tenant.id)
+      @email = email
+    else
+      render json: { success: false, error: "Email not accessible" }, status: :not_found
+    end
   end
 
   def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil, thread_counts_cache: nil, user_states_cache: nil, thread_emails: nil)
