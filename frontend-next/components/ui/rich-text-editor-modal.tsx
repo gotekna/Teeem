@@ -43,6 +43,10 @@ interface RichTextEditorModalProps {
   plainText?: boolean;
   /** Minimum height of the editor in pixels */
   minHeight?: number;
+  /** Enable AI writing checker / spell check (default: true) */
+  enableWritingChecker?: boolean;
+  /** Context for the writing checker to understand the content type */
+  writingContext?: "email_body" | "notes" | "general";
 }
 
 export function RichTextEditorModal({
@@ -54,6 +58,8 @@ export function RichTextEditorModal({
   placeholder = "Type here...",
   plainText = false,
   minHeight = 300,
+  enableWritingChecker = true,
+  writingContext = "general",
 }: RichTextEditorModalProps) {
   // Convert plain text to HTML if needed
   const initialValue = React.useMemo(() => {
@@ -117,6 +123,8 @@ export function RichTextEditorModal({
             placeholder={placeholder}
             minHeight={minHeight}
             className="border-0 rounded-none"
+            enableWritingChecker={enableWritingChecker}
+            writingContext={writingContext}
           />
         </div>
 

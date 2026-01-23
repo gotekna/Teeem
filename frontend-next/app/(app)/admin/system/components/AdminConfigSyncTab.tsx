@@ -26,11 +26,6 @@ import { RefreshCw, Upload, Building2, Check, AlertCircle, ChevronDown, Eye } fr
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   Dialog,
   DialogContent,
   DialogDescription,

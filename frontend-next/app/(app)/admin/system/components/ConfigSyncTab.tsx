@@ -8,10 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   RefreshCw,
   ArrowRight,
@@ -117,10 +118,8 @@ export function ConfigSyncTab() {
   const [allTenantCounts, setAllTenantCounts] = useState<AllTenantCounts>({});
   const [allTenants, setAllTenants] = useState<TenantSummary[]>([]);
   const [groups, setGroups] = useState<ConfigGroup[]>([]);
-  // Start with all groups collapsed
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
-    new Set(["jobs", "documents", "contacts", "schedule", "operations"])
-  );
+  // Start with all groups collapsed (empty array = none expanded)
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [masterTenant, setMasterTenant] = useState<TenantInfo | null>(null);
   const [currentTenant, setCurrentTenant] = useState<TenantInfo | null>(null);
   const [isMasterTenant, setIsMasterTenant] = useState(false);
@@ -134,18 +133,6 @@ export function ConfigSyncTab() {
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Toggle group collapsed state
-  const toggleGroup = (groupKey: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(groupKey)) {
-        next.delete(groupKey);
-      } else {
-        next.add(groupKey);
-      }
-      return next;
-    });
-  };
 
   // Fetch available tables on mount
   const fetchTables = useCallback(async () => {
@@ -664,9 +651,14 @@ export function ConfigSyncTab() {
         </div>
       )}
 
-      {/* Overview with collapsible groups (shown when no table selected) */}
+      {/* Overview with accordion groups (shown when no table selected) */}
       {!selectedTable && (
-        <div className="space-y-2">
+        <Accordion
+          type="multiple"
+          value={expandedGroups}
+          onValueChange={setExpandedGroups}
+          className="space-y-2"
+        >
           {groups.map((group) => {
             const groupTables = tables.filter((t) => t.group === group.key);
             if (groupTables.length === 0) return null;
@@ -692,174 +684,160 @@ export function ConfigSyncTab() {
                 );
               });
             }
-            const isCollapsed = collapsedGroups.has(group.key);
 
             return (
-              <Collapsible
-                key={group.key}
-                open={!isCollapsed}
-                onOpenChange={() => toggleGroup(group.key)}
-              >
-                <div className="border rounded-lg overflow-hidden">
-                  {/* Group Header */}
-                  <CollapsibleTrigger asChild>
-                    <button className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted/70 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <ChevronRight
-                          className={cn(
-                            "h-4 w-4 transition-transform",
-                            !isCollapsed && "rotate-90"
-                          )}
-                        />
-                        {GROUP_ICONS[group.key]}
-                        <span className="font-medium">{group.label}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({groupTables.length} {groupTables.length === 1 ? "table" : "tables"})
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
+              <AccordionItem key={group.key} value={group.key} className="border rounded-lg overflow-hidden">
+                {/* Group Header */}
+                <AccordionTrigger className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted/70 hover:no-underline [&[data-state=open]>div>svg]:rotate-90">
+                  <div className="flex items-center gap-2">
+                    <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                    {GROUP_ICONS[group.key]}
+                    <span className="font-medium">{group.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      ({groupTables.length} {groupTables.length === 1 ? "table" : "tables"})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    {showAllTenants ? (
+                      // Master tenant: show all tenants
+                      allTenants.map((tenant) => {
+                        const slug = tenant.slug || tenant.id.toString();
+                        return (
+                          <div key={tenant.id} className="flex items-center gap-1">
+                            <Badge
+                              variant={tenant.is_master ? "default" : "secondary"}
+                              className="text-xs"
+                            >
+                              {tenant.name}
+                            </Badge>
+                            <span className="font-mono w-8 text-right">{groupTotals[slug] || 0}</span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      // Other tenants: show master vs current only
+                      <>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="default" className="text-xs">{masterTenant?.name || "TEEEM"}</Badge>
+                          <span className="font-mono w-8 text-right">{groupMasterTotal}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="secondary" className="text-xs">{currentTenant?.name || "Tenant"}</Badge>
+                          <span className="font-mono w-8 text-right">{groupTenantTotal}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </AccordionTrigger>
+
+                {/* Group Content */}
+                <AccordionContent>
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/30">
+                      <tr>
+                        <th className="p-2 pl-10 text-left font-medium text-xs text-muted-foreground">Table</th>
                         {showAllTenants ? (
-                          // Master tenant: show all tenants
-                          allTenants.map((tenant) => {
-                            const slug = tenant.slug || tenant.id.toString();
-                            return (
-                              <div key={tenant.id} className="flex items-center gap-1">
-                                <Badge
-                                  variant={tenant.is_master ? "default" : "secondary"}
-                                  className="text-xs"
-                                >
-                                  {tenant.name}
-                                </Badge>
-                                <span className="font-mono w-8 text-right">{groupTotals[slug] || 0}</span>
-                              </div>
-                            );
-                          })
+                          // Master tenant: show all tenant columns
+                          allTenants.map((tenant) => (
+                            <th
+                              key={tenant.id}
+                              className="p-2 text-center font-medium text-xs text-muted-foreground w-20"
+                            >
+                              {tenant.name}
+                            </th>
+                          ))
                         ) : (
-                          // Other tenants: show master vs current only
+                          // Other tenants: show master vs current + diff
                           <>
-                            <div className="flex items-center gap-1">
-                              <Badge variant="default" className="text-xs">{masterTenant?.name || "TEEEM"}</Badge>
-                              <span className="font-mono w-8 text-right">{groupMasterTotal}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Badge variant="secondary" className="text-xs">{currentTenant?.name || "Tenant"}</Badge>
-                              <span className="font-mono w-8 text-right">{groupTenantTotal}</span>
-                            </div>
+                            <th className="p-2 text-center font-medium text-xs text-muted-foreground w-24">
+                              {masterTenant?.name || "TEEEM"}
+                            </th>
+                            <th className="p-2 text-center font-medium text-xs text-muted-foreground w-24">
+                              {currentTenant?.name || "Tenant"}
+                            </th>
+                            <th className="p-2 text-center font-medium text-xs text-muted-foreground w-20">Diff</th>
                           </>
                         )}
-                      </div>
-                    </button>
-                  </CollapsibleTrigger>
-
-                  {/* Group Content */}
-                  <CollapsibleContent>
-                    <table className="w-full text-sm">
-                      <thead className="bg-muted/30">
-                        <tr>
-                          <th className="p-2 pl-10 text-left font-medium text-xs text-muted-foreground">Table</th>
-                          {showAllTenants ? (
-                            // Master tenant: show all tenant columns
-                            allTenants.map((tenant) => (
-                              <th
-                                key={tenant.id}
-                                className="p-2 text-center font-medium text-xs text-muted-foreground w-20"
-                              >
-                                {tenant.name}
-                              </th>
-                            ))
-                          ) : (
-                            // Other tenants: show master vs current + diff
-                            <>
-                              <th className="p-2 text-center font-medium text-xs text-muted-foreground w-24">
-                                {masterTenant?.name || "TEEEM"}
-                              </th>
-                              <th className="p-2 text-center font-medium text-xs text-muted-foreground w-24">
-                                {currentTenant?.name || "Tenant"}
-                              </th>
-                              <th className="p-2 text-center font-medium text-xs text-muted-foreground w-20">Diff</th>
-                            </>
-                          )}
-                          <th className="p-2 text-right font-medium text-xs text-muted-foreground w-28">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {groupTables.map((table) => {
-                          const counts = tableCounts[table.key] || { master: 0, tenant: 0 };
-                          const diff = counts.tenant - counts.master;
-                          const tableTenantCounts = allTenantCounts[table.key] || {};
-                          return (
-                            <tr key={table.key} className="border-t hover:bg-muted/30">
-                              <td className="p-2 pl-10">
-                                <div className="font-medium">{table.model.replace(/([A-Z])/g, " $1").trim()}</div>
-                                <div className="text-xs text-muted-foreground">{table.description}</div>
-                              </td>
-                              {showAllTenants ? (
-                                // Master tenant: show all tenant counts
-                                allTenants.map((tenant) => {
-                                  const slug = tenant.slug || tenant.id.toString();
-                                  const count = tableTenantCounts[slug] || 0;
-                                  return (
-                                    <td key={tenant.id} className="p-2 text-center">
-                                      <span className={cn(
-                                        "font-mono font-medium",
-                                        count === 0 && "text-red-500 dark:text-red-400"
-                                      )}>
-                                        {count}
-                                      </span>
-                                    </td>
-                                  );
-                                })
-                              ) : (
-                                // Other tenants: show master vs current + diff
-                                <>
-                                  <td className="p-2 text-center">
+                        <th className="p-2 text-right font-medium text-xs text-muted-foreground w-28">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groupTables.map((table) => {
+                        const counts = tableCounts[table.key] || { master: 0, tenant: 0 };
+                        const diff = counts.tenant - counts.master;
+                        const tableTenantCounts = allTenantCounts[table.key] || {};
+                        return (
+                          <tr key={table.key} className="border-t hover:bg-muted/30">
+                            <td className="p-2 pl-10">
+                              <div className="font-medium">{table.model.replace(/([A-Z])/g, " $1").trim()}</div>
+                              <div className="text-xs text-muted-foreground">{table.description}</div>
+                            </td>
+                            {showAllTenants ? (
+                              // Master tenant: show all tenant counts
+                              allTenants.map((tenant) => {
+                                const slug = tenant.slug || tenant.id.toString();
+                                const count = tableTenantCounts[slug] || 0;
+                                return (
+                                  <td key={tenant.id} className="p-2 text-center">
                                     <span className={cn(
                                       "font-mono font-medium",
-                                      counts.master === 0 && "text-red-500 dark:text-red-400"
+                                      count === 0 && "text-red-500 dark:text-red-400"
                                     )}>
-                                      {counts.master}
+                                      {count}
                                     </span>
                                   </td>
-                                  <td className="p-2 text-center">
-                                    <span className="font-mono font-medium">{counts.tenant}</span>
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    {diff !== 0 && (
-                                      <span className={cn(
-                                        "font-mono text-xs px-2 py-1 rounded",
-                                        diff > 0 ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/30 dark:text-yellow-400" :
-                                        "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-950/30 dark:text-green-400"
-                                      )}>
-                                        {diff > 0 ? `+${diff}` : diff}
-                                      </span>
-                                    )}
-                                    {diff === 0 && counts.master > 0 && (
-                                      <Check className="h-4 w-4 mx-auto text-green-600 dark:text-green-400" />
-                                    )}
-                                  </td>
-                                </>
-                              )}
-                              <td className="p-2 text-right">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setSelectedTable(table.key)}
-                                >
-                                  <RefreshCw className="h-3 w-3 mr-1" />
-                                  Compare
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </CollapsibleContent>
-                </div>
-              </Collapsible>
+                                );
+                              })
+                            ) : (
+                              // Other tenants: show master vs current + diff
+                              <>
+                                <td className="p-2 text-center">
+                                  <span className={cn(
+                                    "font-mono font-medium",
+                                    counts.master === 0 && "text-red-500 dark:text-red-400"
+                                  )}>
+                                    {counts.master}
+                                  </span>
+                                </td>
+                                <td className="p-2 text-center">
+                                  <span className="font-mono font-medium">{counts.tenant}</span>
+                                </td>
+                                <td className="p-2 text-center">
+                                  {diff !== 0 && (
+                                    <span className={cn(
+                                      "font-mono text-xs px-2 py-1 rounded",
+                                      diff > 0 ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/30 dark:text-yellow-400" :
+                                      "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-950/30 dark:text-green-400"
+                                    )}>
+                                      {diff > 0 ? `+${diff}` : diff}
+                                    </span>
+                                  )}
+                                  {diff === 0 && counts.master > 0 && (
+                                    <Check className="h-4 w-4 mx-auto text-green-600 dark:text-green-400" />
+                                  )}
+                                </td>
+                              </>
+                            )}
+                            <td className="p-2 text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedTable(table.key)}
+                              >
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                                Compare
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </AccordionContent>
+              </AccordionItem>
             );
           })}
-        </div>
+        </Accordion>
       )}
     </div>
   );

@@ -250,6 +250,48 @@ const TIER_1_COMPONENTS: StandardComponent[] = [
     usageCount: 0,
   },
   {
+    id: "empty-state",
+    name: "EmptyState",
+    displayName: "Empty State",
+    category: "feedback",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/empty-state",
+    description:
+      "SSoT for empty state displays. Shows icon, title, description, and optional action button.",
+    whenToUse:
+      "Empty tables/lists, no search results, no data in a section, empty dropdowns. Replaces ad-hoc 'No results' patterns.",
+    usageCount: 0,
+  },
+  {
+    id: "status-indicator",
+    name: "StatusIndicator",
+    displayName: "Status Indicator",
+    category: "display",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/status-indicator",
+    description:
+      "SSoT for status displays. Supports dot, badge, and dot+text variants with consistent colors.",
+    whenToUse:
+      "Connection status, task/workflow status, sync status, any status indicator. Replaces inline colored dots and status badges.",
+    usageCount: 0,
+  },
+  {
+    id: "truncated-text",
+    name: "TruncatedText",
+    displayName: "Truncated Text",
+    category: "display",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/truncated-text",
+    description:
+      "SSoT for text truncation with automatic tooltips. Supports single-line max-width and multi-line clamping.",
+    whenToUse:
+      "Table cells with limited width, card titles that might overflow, any text needing truncation with tooltip fallback.",
+    usageCount: 0,
+  },
+  {
     id: "input",
     name: "Input",
     displayName: "Input",

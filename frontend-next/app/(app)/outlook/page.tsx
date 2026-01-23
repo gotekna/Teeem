@@ -49,12 +49,8 @@ export default function OutlookPage() {
     }
 
     // SSoT: Use BackButton's getParentRoute helper for consistent navigation
-    const hasHistory = window.history.length > 2;
-    if (hasHistory) {
-      router.back();
-    } else {
-      router.push(getParentRoute(window.location.pathname));
-    }
+    // Always use getParentRoute for predictable navigation (router.back() deprecated for navigation)
+    router.push(getParentRoute(window.location.pathname));
   }, [router]);
 
   return (

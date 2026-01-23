@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { Spinner } from "@/components/ui/spinner";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1124,12 +1124,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [collapsedEmailMonths, setCollapsedEmailMonths] = useState<Set<string>>(new Set());
   const [moreSendersOpen, setMoreSendersOpen] = useState(false);
 
-  // Email tree view expansion state (by source category)
-  const [emailTreeExpanded, setEmailTreeExpanded] = useState<Record<string, boolean>>({
-    thread: true,      // Thread expanded by default
-    matched: false,    // Auto-matched collapsed
-    linked: false,     // Linked collapsed
-  });
+  // Email tree view expansion state (by source category) - array of expanded item keys
+  const [emailTreeExpanded, setEmailTreeExpanded] = useState<string[]>(['thread']); // Thread expanded by default
 
   // Suggested emails modal (related emails not yet attached, grouped by category)
   const [suggestedEmailsGrouped, setSuggestedEmailsGrouped] = useState<SuggestedEmailsGrouped | null>(null);
@@ -1137,12 +1133,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [suggestedEmailsModalOpen, setSuggestedEmailsModalOpen] = useState(false);
   const [selectedSuggestedEmails, setSelectedSuggestedEmails] = useState<Set<number>>(new Set());
   const [addingSuggestedEmail, setAddingSuggestedEmail] = useState(false);
-  // Track which categories are expanded in the modal
-  const [suggestedCategoryExpanded, setSuggestedCategoryExpanded] = useState<Record<string, boolean>>({
-    thread: true,   // Thread expanded by default
-    sender: false,  // Sender collapsed
-    subject: false, // Subject collapsed
-  });
+  // Track which categories are expanded in the suggested emails modal - array of expanded item keys
+  const [suggestedCategoryExpanded, setSuggestedCategoryExpanded] = useState<string[]>(['thread']); // Thread expanded by default
 
   // Adding header mode (when user clicks "+ Add Header")
   const [addingHeaderText, setAddingHeaderText] = useState('');
@@ -4830,14 +4822,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             )}
                           </Button>
                         </div>
+                        <Accordion type="multiple" value={emailTreeExpanded} onValueChange={setEmailTreeExpanded}>
                         {/* Thread Emails Branch */}
                         {categorizedEmails.thread.length > 0 && (
-                          <Collapsible
-                            open={emailTreeExpanded.thread}
-                            onOpenChange={(open: boolean) => setEmailTreeExpanded(prev => ({ ...prev, thread: open }))}
-                          >
-                            <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50">
-                              {emailTreeExpanded.thread ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                          <AccordionItem value="thread" className="border-none">
+                            <AccordionTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50 hover:no-underline [&[data-state=open]>svg:first-child]:rotate-90">
+                              <ChevronRight className="h-3 w-3 shrink-0 transition-transform duration-200" />
                               <Mail className="h-3 w-3 text-blue-500 dark:text-blue-400" />
                               <span className="text-xs font-medium">Thread</span>
                               <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1.5">
@@ -4845,8 +4835,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                 {emailSourceFilter.type === 'contact' && filteredCategories.thread.length !== categorizedEmails.thread.length &&
                                   ` / ${categorizedEmails.thread.length}`}
                               </Badge>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
+                            </AccordionTrigger>
+                            <AccordionContent>
                               <div>
                                 {emailsByMonthPerCategory.thread.sortedMonths.map((monthKey, monthIdx) => {
                                   const monthEmails = emailsByMonthPerCategory.thread.byMonth[monthKey];
@@ -5054,18 +5044,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   );
                                 })}
                               </div>
-                            </CollapsibleContent>
-                          </Collapsible>
+                            </AccordionContent>
+                          </AccordionItem>
                         )}
 
                         {/* Auto-Matched Emails Branch */}
                         {categorizedEmails.matched.length > 0 && (
-                          <Collapsible
-                            open={emailTreeExpanded.matched}
-                            onOpenChange={(open: boolean) => setEmailTreeExpanded(prev => ({ ...prev, matched: open }))}
-                          >
-                            <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50">
-                              {emailTreeExpanded.matched ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                          <AccordionItem value="matched" className="border-none">
+                            <AccordionTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50 hover:no-underline [&[data-state=open]>svg:first-child]:rotate-90">
+                              <ChevronRight className="h-3 w-3 shrink-0 transition-transform duration-200" />
                               <Search className="h-3 w-3 text-amber-500" />
                               <span className="text-xs font-medium">Auto-Matched</span>
                               <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1.5">
@@ -5073,8 +5060,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                 {emailSourceFilter.type === 'contact' && filteredCategories.matched.length !== categorizedEmails.matched.length &&
                                   ` / ${categorizedEmails.matched.length}`}
                               </Badge>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
+                            </AccordionTrigger>
+                            <AccordionContent>
                               <div>
                                 {emailsByMonthPerCategory.matched.sortedMonths.map((monthKey) => {
                                   const monthEmails = emailsByMonthPerCategory.matched.byMonth[monthKey];
@@ -5189,18 +5176,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   );
                                 })}
                               </div>
-                            </CollapsibleContent>
-                          </Collapsible>
+                            </AccordionContent>
+                          </AccordionItem>
                         )}
 
                         {/* Manually Linked Emails Branch */}
                         {categorizedEmails.linked.length > 0 && (
-                          <Collapsible
-                            open={emailTreeExpanded.linked}
-                            onOpenChange={(open: boolean) => setEmailTreeExpanded(prev => ({ ...prev, linked: open }))}
-                          >
-                            <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50">
-                              {emailTreeExpanded.linked ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                          <AccordionItem value="linked" className="border-none">
+                            <AccordionTrigger className="flex items-center gap-2 w-full px-2 py-1.5 bg-muted/30 hover:bg-muted/50 hover:no-underline [&[data-state=open]>svg:first-child]:rotate-90">
+                              <ChevronRight className="h-3 w-3 shrink-0 transition-transform duration-200" />
                               <Link2 className="h-3 w-3 text-green-500 dark:text-green-400" />
                               <span className="text-xs font-medium">Linked</span>
                               <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1.5">
@@ -5208,8 +5192,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                 {emailSourceFilter.type === 'contact' && filteredCategories.linked.length !== categorizedEmails.linked.length &&
                                   ` / ${categorizedEmails.linked.length}`}
                               </Badge>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
+                            </AccordionTrigger>
+                            <AccordionContent>
                               <div>
                                 {emailsByMonthPerCategory.linked.sortedMonths.map((monthKey) => {
                                   const monthEmails = emailsByMonthPerCategory.linked.byMonth[monthKey];
@@ -5324,9 +5308,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   );
                                 })}
                               </div>
-                            </CollapsibleContent>
-                          </Collapsible>
+                            </AccordionContent>
+                          </AccordionItem>
                         )}
+                        </Accordion>
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground text-center py-3">No emails attached</p>
@@ -5951,35 +5936,25 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 <p className="text-sm mt-1">All similar emails may already be attached.</p>
               </div>
             ) : (
-              <>
+              <Accordion type="multiple" value={suggestedCategoryExpanded} onValueChange={setSuggestedCategoryExpanded} className="space-y-2">
                 {/* Thread Section */}
                 {suggestedEmailsGrouped.thread.emails.length > 0 && (
-                  <Collapsible
-                    open={suggestedCategoryExpanded.thread}
-                    onOpenChange={(open) => setSuggestedCategoryExpanded(prev => ({ ...prev, thread: open }))}
-                    className="border rounded-lg"
-                  >
-                    <CollapsibleTrigger asChild>
-                      <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50">
-                        <div className="flex items-center gap-2">
-                          {suggestedCategoryExpanded.thread ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                          <span className="font-medium">{suggestedEmailsGrouped.thread.label}</span>
-                          <Badge variant="outline">{suggestedEmailsGrouped.thread.emails.length}</Badge>
-                        </div>
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={isCategoryFullySelected('thread')}
-                            onCheckedChange={() => toggleCategorySelection('thread')}
-                          />
-                          <span className="text-xs text-muted-foreground">Select All</span>
-                        </div>
+                  <AccordionItem value="thread" className="border rounded-lg">
+                    <AccordionTrigger className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 hover:no-underline [&[data-state=open]>div>svg:first-child]:rotate-90">
+                      <div className="flex items-center gap-2">
+                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                        <span className="font-medium">{suggestedEmailsGrouped.thread.label}</span>
+                        <Badge variant="outline">{suggestedEmailsGrouped.thread.emails.length}</Badge>
                       </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isCategoryFullySelected('thread')}
+                          onCheckedChange={() => toggleCategorySelection('thread')}
+                        />
+                        <span className="text-xs text-muted-foreground">Select All</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
                       <div className="border-t divide-y">
                         {suggestedEmailsGrouped.thread.emails.map((email) => (
                           <div
@@ -6013,38 +5988,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           </div>
                         ))}
                       </div>
-                    </CollapsibleContent>
-                  </Collapsible>
+                    </AccordionContent>
+                  </AccordionItem>
                 )}
 
                 {/* Sender Section */}
                 {suggestedEmailsGrouped.sender.emails.length > 0 && (
-                  <Collapsible
-                    open={suggestedCategoryExpanded.sender}
-                    onOpenChange={(open) => setSuggestedCategoryExpanded(prev => ({ ...prev, sender: open }))}
-                    className="border rounded-lg"
-                  >
-                    <CollapsibleTrigger asChild>
-                      <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50">
-                        <div className="flex items-center gap-2">
-                          {suggestedCategoryExpanded.sender ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                          <span className="font-medium">{suggestedEmailsGrouped.sender.label}</span>
-                          <Badge variant="outline">{suggestedEmailsGrouped.sender.emails.length}</Badge>
-                        </div>
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={isCategoryFullySelected('sender')}
-                            onCheckedChange={() => toggleCategorySelection('sender')}
-                          />
-                          <span className="text-xs text-muted-foreground">Select All</span>
-                        </div>
+                  <AccordionItem value="sender" className="border rounded-lg">
+                    <AccordionTrigger className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 hover:no-underline [&[data-state=open]>div>svg:first-child]:rotate-90">
+                      <div className="flex items-center gap-2">
+                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                        <span className="font-medium">{suggestedEmailsGrouped.sender.label}</span>
+                        <Badge variant="outline">{suggestedEmailsGrouped.sender.emails.length}</Badge>
                       </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isCategoryFullySelected('sender')}
+                          onCheckedChange={() => toggleCategorySelection('sender')}
+                        />
+                        <span className="text-xs text-muted-foreground">Select All</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
                       <div className="border-t divide-y">
                         {suggestedEmailsGrouped.sender.emails.map((email) => (
                           <div
@@ -6078,38 +6043,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           </div>
                         ))}
                       </div>
-                    </CollapsibleContent>
-                  </Collapsible>
+                    </AccordionContent>
+                  </AccordionItem>
                 )}
 
                 {/* Subject Section */}
                 {suggestedEmailsGrouped.subject.emails.length > 0 && (
-                  <Collapsible
-                    open={suggestedCategoryExpanded.subject}
-                    onOpenChange={(open) => setSuggestedCategoryExpanded(prev => ({ ...prev, subject: open }))}
-                    className="border rounded-lg"
-                  >
-                    <CollapsibleTrigger asChild>
-                      <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50">
-                        <div className="flex items-center gap-2">
-                          {suggestedCategoryExpanded.subject ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                          <span className="font-medium">{suggestedEmailsGrouped.subject.label}</span>
-                          <Badge variant="outline">{suggestedEmailsGrouped.subject.emails.length}</Badge>
-                        </div>
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={isCategoryFullySelected('subject')}
-                            onCheckedChange={() => toggleCategorySelection('subject')}
-                          />
-                          <span className="text-xs text-muted-foreground">Select All</span>
-                        </div>
+                  <AccordionItem value="subject" className="border rounded-lg">
+                    <AccordionTrigger className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 hover:no-underline [&[data-state=open]>div>svg:first-child]:rotate-90">
+                      <div className="flex items-center gap-2">
+                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200" />
+                        <span className="font-medium">{suggestedEmailsGrouped.subject.label}</span>
+                        <Badge variant="outline">{suggestedEmailsGrouped.subject.emails.length}</Badge>
                       </div>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isCategoryFullySelected('subject')}
+                          onCheckedChange={() => toggleCategorySelection('subject')}
+                        />
+                        <span className="text-xs text-muted-foreground">Select All</span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
                       <div className="border-t divide-y">
                         {suggestedEmailsGrouped.subject.emails.map((email) => (
                           <div
@@ -6143,10 +6098,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           </div>
                         ))}
                       </div>
-                    </CollapsibleContent>
-                  </Collapsible>
+                    </AccordionContent>
+                  </AccordionItem>
                 )}
-              </>
+              </Accordion>
             )}
           </div>
 
@@ -6193,6 +6148,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         }
         plainText={editModalType !== 'answer'}
         minHeight={editModalType === 'answer' ? 400 : 300}
+        enableWritingChecker={true}
+        writingContext="notes"
       />
     </div>
   );

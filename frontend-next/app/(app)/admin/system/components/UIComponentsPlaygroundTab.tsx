@@ -99,6 +99,9 @@ import { AttachmentBadge } from "@/components/ui/attachment-badge";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { FormField } from "@/components/ui/form-field";
 import { FormModal } from "@/components/ui/form-modal";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusIndicator, StatusBadge, ActiveIndicator } from "@/components/ui/status-indicator";
+import { TruncatedText, ClampedText } from "@/components/ui/truncated-text";
 
 // Pattern Components
 import { DragHandle, PositionBadge, ItemBadge, SortableList, SortableItem } from "@/components/ui/dnd";
@@ -480,6 +483,191 @@ function FormModalDemo() {
           </FormField>
         </div>
       </FormModal>
+    </div>
+  );
+}
+
+function EmptyStateDemo() {
+  return (
+    <div className="space-y-4">
+      {/* Basic */}
+      <div className="border rounded p-2">
+        <EmptyState title="No documents found" size="sm" />
+      </div>
+
+      {/* With description and action */}
+      <div className="border rounded p-2">
+        <EmptyState
+          title="No search results"
+          description="Try adjusting your search terms or filters"
+          action={{ label: "Clear filters", onClick: () => alert("Clear clicked") }}
+          size="sm"
+        />
+      </div>
+
+      {/* Custom icon */}
+      <div className="border rounded p-2">
+        <EmptyState
+          icon={<Database className="h-8 w-8" />}
+          title="No data available"
+          description="Upload a file to get started"
+          size="sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+function StatusIndicatorDemo() {
+  return (
+    <div className="space-y-4">
+      {/* Dot variants */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Dot variant</p>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="active" />
+            <span className="text-xs">Active</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="success" />
+            <span className="text-xs">Success</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="warning" />
+            <span className="text-xs">Warning</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="error" />
+            <span className="text-xs">Error</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="inactive" />
+            <span className="text-xs">Inactive</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="info" />
+            <span className="text-xs">Info</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Badge variants */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Badge variant</p>
+        <div className="flex flex-wrap gap-2">
+          <StatusIndicator status="active" variant="badge" label="Active" />
+          <StatusIndicator status="success" variant="badge" label="Completed" />
+          <StatusIndicator status="warning" variant="badge" label="Pending" />
+          <StatusIndicator status="error" variant="badge" label="Failed" />
+          <StatusIndicator status="inactive" variant="badge" label="Archived" />
+          <StatusIndicator status="info" variant="badge" label="Processing" />
+        </div>
+      </div>
+
+      {/* Dot-text variants */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Dot + text variant</p>
+        <div className="flex flex-wrap gap-4">
+          <StatusIndicator status="active" variant="dot-text" label="Online" pulse />
+          <StatusIndicator status="warning" variant="dot-text" label="Syncing" />
+          <StatusIndicator status="error" variant="dot-text" label="Disconnected" />
+        </div>
+      </div>
+
+      {/* Sizes */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Sizes</p>
+        <div className="flex items-center gap-4">
+          <StatusIndicator status="success" variant="badge" label="XS" size="xs" />
+          <StatusIndicator status="success" variant="badge" label="SM" size="sm" />
+          <StatusIndicator status="success" variant="badge" label="MD" size="md" />
+        </div>
+      </div>
+
+      {/* String normalization */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Auto-normalized status strings</p>
+        <div className="flex flex-wrap gap-2">
+          <StatusIndicator status="completed" variant="badge" />
+          <StatusIndicator status="pending" variant="badge" />
+          <StatusIndicator status="failed" variant="badge" />
+          <StatusIndicator status="processing" variant="badge" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TruncatedTextDemo() {
+  const longText = "This is a very long text that will be truncated when it exceeds the maximum width. Hover to see the full content in a tooltip.";
+  const multiLineText = "This is a multi-line text example that demonstrates line clamping. When the text exceeds the specified number of lines, it will be truncated with an ellipsis. Hover to see the full content.";
+
+  return (
+    <div className="space-y-4">
+      {/* Max width truncation */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Max width truncation</p>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs w-16">200px:</span>
+            <TruncatedText maxWidth={200}>{longText}</TruncatedText>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs w-16">150px:</span>
+            <TruncatedText maxWidth={150}>{longText}</TruncatedText>
+          </div>
+        </div>
+      </div>
+
+      {/* Line clamping */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Line clamping</p>
+        <div className="space-y-2 max-w-sm">
+          <div className="border rounded p-2">
+            <p className="text-xs text-muted-foreground mb-1">2 lines:</p>
+            <ClampedText lines={2}>{multiLineText}</ClampedText>
+          </div>
+          <div className="border rounded p-2">
+            <p className="text-xs text-muted-foreground mb-1">1 line:</p>
+            <TruncatedText lines={1} as="p">{multiLineText}</TruncatedText>
+          </div>
+        </div>
+      </div>
+
+      {/* Table cell example */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Table cell example</p>
+        <div className="border rounded overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-24">ID</TableHead>
+                <TableHead className="w-40">Name (truncated)</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell className="font-mono text-xs">001</TableCell>
+                <TableCell>
+                  <TruncatedText maxWidth={140}>
+                    Very Long Company Name That Should Be Truncated
+                  </TruncatedText>
+                </TableCell>
+                <TableCell><Badge variant="outline">Active</Badge></TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-mono text-xs">002</TableCell>
+                <TableCell>
+                  <TruncatedText maxWidth={140}>Short Name</TruncatedText>
+                </TableCell>
+                <TableCell><Badge variant="outline">Active</Badge></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1222,6 +1410,9 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   "confirmation-dialog": ConfirmationDialogDemo,
   "form-field": FormFieldDemo,
   "form-modal": FormModalDemo,
+  "empty-state": EmptyStateDemo,
+  "status-indicator": StatusIndicatorDemo,
+  "truncated-text": TruncatedTextDemo,
   tabs: TabsDemo,
   table: TableDemo,
   spinner: SpinnerDemo,
