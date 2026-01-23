@@ -981,14 +981,16 @@ module Api
 
       # PATCH /api/v1/sm_tasks/:id/attachments/:attachment_id
       # Update attachment properties (e.g., link to a question via action_item_id)
-      # Also supports renaming linked document via document_display_name param
+      # Also supports renaming via:
+      #   - display_name: stored on attachment as custom display name (works for all types)
+      #   - document_display_name: updates the linked CorporateCompanyDocument (legacy)
       def update_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
 
-        permitted = params.permit(:action_item_id, :category, :notes)
+        permitted = params.permit(:action_item_id, :category, :notes, :display_name)
         attachment.update!(permitted)
 
-        # If document_display_name provided, update the linked document
+        # Legacy: If document_display_name provided, update the linked document
         if params[:document_display_name].present? && attachment.attachable_type == "CorporateCompanyDocument"
           attachment.attachable.update!(display_name: params[:document_display_name])
         end
@@ -2441,6 +2443,7 @@ module Api
           attachment_type: attachment.attachment_type,
           category: attachment.category || "info",
           notes: attachment.notes,
+          display_name: attachment.display_name, # Custom display name (overrides document/email name)
           added_by: attachment.added_by&.name,
           created_at: attachment.created_at,
           action_item_id: attachment.action_item_id

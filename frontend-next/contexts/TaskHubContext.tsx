@@ -43,6 +43,7 @@ export interface TaskAttachment {
   attachment_type: string;
   category?: AttachmentCategory;
   notes?: string;
+  display_name?: string; // Custom display name (overrides document/email name)
   added_by?: string;
   created_at: string;
   email?: TaskAttachmentEmail;

@@ -330,7 +330,7 @@ function SortableQuestionItem({
                   setEditingItemText('');
                 }
               }}
-              className="h-6 text-sm font-medium flex-1"
+              className="h-8 text-sm font-medium flex-1"
               autoFocus
               spellCheck={true}
             />
@@ -469,20 +469,25 @@ function SortableQuestionItem({
         )}
         <HelpCircle className="h-4 w-4 text-blue-500 dark:text-blue-400 mt-0.5 shrink-0" />
         {editingItemId === item.id ? (
-          <Input
+          <Textarea
             value={editingItemText}
             onChange={(e) => setEditingItemText(e.target.value)}
             onBlur={() => handleUpdateItem(item.id)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleUpdateItem(item.id);
+              // Shift+Enter for newline, Enter to save
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleUpdateItem(item.id);
+              }
               if (e.key === 'Escape') {
                 setEditingItemId(null);
                 setEditingItemText('');
               }
             }}
-            className="h-6 text-sm flex-1"
+            className="text-sm flex-1 min-h-[60px] resize-none"
             autoFocus
             spellCheck={true}
+            rows={Math.max(2, Math.ceil(editingItemText.length / 50))}
           />
         ) : (
           <span
@@ -2675,19 +2680,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
   };
 
-  // Handle renaming an attachment's display name
+  // Handle renaming an attachment's display name (works for all types: docs, images, emails)
   const handleRenameAttachment = async (attachmentId: number, newName: string) => {
     if (!newName.trim()) return;
     try {
       const response = await api.patch<{ success: boolean; attachment: TaskAttachment }>(
         `/api/v1/sm_tasks/${task.id}/attachments/${attachmentId}`,
-        { document_display_name: newName.trim() }
+        { display_name: newName.trim() }
       );
       if (response?.success) {
-        // Update local state to reflect the new name
+        // Update local state - store display_name on the attachment itself
         setLocalAttachments(prev => prev.map(att =>
-          att.id === attachmentId && att.document
-            ? { ...att, document: { ...att.document, display_name: newName.trim() } }
+          att.id === attachmentId
+            ? { ...att, display_name: newName.trim() }
             : att
         ));
         // Also refresh to ensure action items get updated attachments
@@ -4128,7 +4133,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             setEditingItemText('');
                           }
                         }}
-                        className="h-6 text-sm flex-1"
+                        className="h-8 text-sm flex-1"
                         autoFocus
                         spellCheck={true}
                       />
@@ -5471,12 +5476,76 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             <FileText className="h-3 w-3 text-primary shrink-0" />
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium truncate">
-                              {isEmail
-                                ? (att.email?.subject || '(No subject)')
-                                : (att.document?.display_name || att.document?.file_name)}
-                            </div>
+                            {renamingAttachmentId === att.id ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  value={renamingAttachmentName}
+                                  onChange={(e) => setRenamingAttachmentName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    e.stopPropagation();
+                                    if (e.key === 'Enter') {
+                                      handleRenameAttachment(att.id, renamingAttachmentName);
+                                    } else if (e.key === 'Escape') {
+                                      setRenamingAttachmentId(null);
+                                    }
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-7 text-sm flex-1"
+                                  autoFocus
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRenameAttachment(att.id, renamingAttachmentName);
+                                  }}
+                                  title="Save"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRenamingAttachmentId(null);
+                                  }}
+                                  title="Cancel"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="font-medium truncate">
+                                {/* Priority: attachment.display_name > document/email name */}
+                                {att.display_name || (isEmail
+                                  ? (att.email?.subject || '(No subject)')
+                                  : (att.document?.display_name || att.document?.file_name))}
+                              </div>
+                            )}
                           </div>
+                          {renamingAttachmentId !== att.id && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingAttachmentId(att.id);
+                                // Use current display name or fall back to original
+                                const currentName = att.display_name || (isEmail
+                                  ? (att.email?.subject || '')
+                                  : (att.document?.display_name || att.document?.file_name || ''));
+                                setRenamingAttachmentName(currentName);
+                              }}
+                              title="Rename"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
