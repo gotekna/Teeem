@@ -1,13 +1,17 @@
 class EmailJobProposal < ApplicationRecord
   # Associations
-  belongs_to :synced_email, class_name: "SyncedEmail"
+  # SSoT: Legacy column is email_warehouse_id, but association uses synced_email
+  belongs_to :synced_email, class_name: "SyncedEmail", foreign_key: :email_warehouse_id
   belongs_to :created_by_user, class_name: "User"
   belongs_to :approved_by_user, class_name: "User", optional: true
   belongs_to :job, optional: true
 
+  # Alias for backwards compatibility (use synced_email_id in code, maps to email_warehouse_id)
+  alias_attribute :synced_email_id, :email_warehouse_id
+
   # Validations
   validates :status, presence: true, inclusion: { in: %w[pending approved rejected error] }
-  validates :synced_email_id, presence: true
+  validates :email_warehouse_id, presence: true
   validates :created_by_user_id, presence: true
   validates :extracted_data, presence: true
 

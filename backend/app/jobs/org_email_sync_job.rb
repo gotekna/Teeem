@@ -461,7 +461,8 @@ class OrgEmailSyncJob < ApplicationJob
     return unless user
 
     # Get or create the user state and sync the read status from Office 365
-    state = EmailUserState.find_or_initialize_by(synced_email: email, user: user)
+    # SSoT: Use email_warehouse (actual association), not synced_email alias
+    state = EmailUserState.find_or_initialize_by(email_warehouse: email, user: user)
 
     # Only update if Office 365 status differs (to preserve manual overrides when syncing older emails)
     # For new states, always sync from Office 365

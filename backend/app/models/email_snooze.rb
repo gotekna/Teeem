@@ -5,7 +5,8 @@
 # Supports preset durations and custom times.
 #
 class EmailSnooze < ApplicationRecord
-  belongs_to :email_warehouse
+  # SSoT: Legacy column is email_warehouse_id, but actual model is SyncedEmail
+  belongs_to :email_warehouse, class_name: "SyncedEmail"
   belongs_to :user
 
   # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
@@ -91,10 +92,11 @@ class EmailSnooze < ApplicationRecord
   # @param reason [String] Optional reason/note
   def self.snooze!(email, user:, until_time:, reason: nil)
     # Cancel any existing active snooze for this email/user
-    active.where(synced_email: email, user: user).update_all(is_active: false)
+    # SSoT: Use email_warehouse (actual association), not synced_email alias
+    active.where(email_warehouse: email, user: user).update_all(is_active: false)
 
     create!(
-      synced_email: email,
+      email_warehouse: email,
       user: user,
       snooze_until: until_time,
       reason: reason
@@ -133,12 +135,14 @@ class EmailSnooze < ApplicationRecord
 
   # Check if an email is snoozed for a user
   def self.snoozed?(email, user)
-    active.exists?(synced_email: email, user: user)
+    # SSoT: Use email_warehouse (actual association), not synced_email alias
+    active.exists?(email_warehouse: email, user: user)
   end
 
   # Get the active snooze for an email/user if any
   def self.active_snooze_for(email, user)
-    active.find_by(synced_email: email, user: user)
+    # SSoT: Use email_warehouse (actual association), not synced_email alias
+    active.find_by(email_warehouse: email, user: user)
   end
 
   # Get preset options with calculated times

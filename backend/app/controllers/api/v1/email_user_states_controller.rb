@@ -41,7 +41,8 @@ class Api::V1::EmailUserStatesController < ApplicationController
   # GET /api/v1/email_user_states/for_email/:email_id
   # Get state for a specific email
   def show
-    state = EmailUserState.find_by(synced_email: @email, user: current_user)
+    # SSoT: Use email_warehouse (actual association), not synced_email alias
+    state = EmailUserState.find_by(email_warehouse: @email, user: current_user)
 
     render json: {
       success: true,

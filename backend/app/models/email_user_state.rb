@@ -5,7 +5,9 @@
 # Each user has their own independent state for each email.
 #
 class EmailUserState < ApplicationRecord
-  belongs_to :email_warehouse
+  # SSoT: Legacy column is email_warehouse_id, but actual model is SyncedEmail
+  # (EmailWarehouse was renamed to SyncedEmail in Jan 2026)
+  belongs_to :email_warehouse, class_name: "SyncedEmail"
   belongs_to :user
 
   # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
@@ -52,7 +54,9 @@ class EmailUserState < ApplicationRecord
 
   # Get or create state for an email/user combo
   def self.for(email, user)
-    find_or_create_by!(synced_email: email, user: user)
+    # SSoT: Use email_warehouse (the actual association name), not synced_email alias
+    # synced_email is alias_method which doesn't work in find_or_create_by!
+    find_or_create_by!(email_warehouse: email, user: user)
   end
 
   # Toggle pin for an email

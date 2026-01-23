@@ -1,7 +1,8 @@
 # CaseEmail - links emails from warehouse to cases
 class CaseEmail < ApplicationRecord
   belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
-  belongs_to :email_warehouse
+  # SSoT: Legacy column is email_warehouse_id, but actual model is SyncedEmail
+  belongs_to :email_warehouse, class_name: "SyncedEmail"
   belongs_to :added_by, class_name: "User", optional: true
 
   # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
