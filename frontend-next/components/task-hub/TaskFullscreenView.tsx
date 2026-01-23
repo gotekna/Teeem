@@ -320,20 +320,24 @@ function SortableQuestionItem({
             )}
           </button>
           {editingItemId === item.id ? (
-            <Input
+            <Textarea
               value={editingItemText}
               onChange={(e) => setEditingItemText(e.target.value)}
               onBlur={() => handleUpdateItem(item.id)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleUpdateItem(item.id);
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleUpdateItem(item.id);
+                }
                 if (e.key === 'Escape') {
                   setEditingItemId(null);
                   setEditingItemText('');
                 }
               }}
-              className="h-8 text-sm font-medium flex-1"
+              className="text-sm font-medium flex-1 min-h-[80px] w-full resize-y p-3 border-2 border-primary/50 rounded-md shadow-sm"
               autoFocus
               spellCheck={true}
+              rows={Math.max(2, Math.ceil(editingItemText.length / 40))}
             />
           ) : (
             <span
@@ -538,7 +542,7 @@ function SortableQuestionItem({
                   setEditingAnswerText?.('');
                 }
               }}
-              className="min-h-[60px] text-sm"
+              className="min-h-[120px] text-sm border-2 border-primary/50 rounded-md shadow-sm"
               context="answer"
               autoFocus
             />
@@ -581,7 +585,7 @@ function SortableQuestionItem({
             value={answerText ?? ''}
             onChange={(value) => setAnswerText?.(value)}
             placeholder="Type answer..."
-            className="min-h-[60px] text-sm"
+            className="min-h-[120px] text-sm border-2 border-primary/50 rounded-md shadow-sm"
             context="answer"
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
