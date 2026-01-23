@@ -1730,23 +1730,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   };
 
   // Attachments
+  // Uses presigned URL flow for file uploads: Browser → S3 directly (bypasses Heroku 30s timeout)
   const handleAddAttachment = async (attachment: PendingAttachment) => {
     setAttachmentLoading(true);
     try {
       if (attachment.type === 'upload' && attachment.file) {
-        // File upload - use FormData to upload the file
-        const formData = new FormData();
-        formData.append('file', attachment.file);
-        formData.append('category', 'info'); // Default to info category for picker uploads
-
-        const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment }>(
-          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
-          formData
-        );
-        if (response?.success && response.attachment) {
-          setLocalAttachments(prev => [...prev, response.attachment]);
-          setShowAttachmentPicker(false);
-        }
+        // File upload - use presigned URL flow (reuse uploadFileWithCategory)
+        // Note: uploadFileWithCategory handles setAttachmentLoading internally,
+        // but we manage it here for consistency with the email/document branch
+        await uploadFileWithCategory(attachment.file, 'info');
+        setShowAttachmentPicker(false);
       } else if (attachment.id) {
         // Email or document - link existing record
         const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(

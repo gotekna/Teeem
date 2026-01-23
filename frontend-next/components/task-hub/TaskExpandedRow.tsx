@@ -793,26 +793,75 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   };
 
   // Handler for adding an attachment
+  // Uses presigned URL flow for file uploads: Browser → S3 directly (bypasses Heroku 30s timeout)
   const handleAddAttachment = async (attachment: PendingAttachment) => {
     setAttachmentLoading(true);
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
+    const baseUrl = getApiBaseUrl();
+
     try {
       if (attachment.type === 'upload' && attachment.file) {
-        // Upload file using multipart form data
-        const formData = new FormData();
-        formData.append('file', attachment.file);
+        const file = attachment.file;
 
-        const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment; error?: string }>(
-          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
-          formData
-        );
+        // Step 1: Get presigned URL from backend
+        const presignResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/presign`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            category: 'info',
+          }),
+        });
 
-        if (response?.success && response.attachment) {
-          setLocalAttachments((prev) => [...prev, response.attachment]);
+        const presignData = await presignResponse.json();
+        if (!presignData.success || !presignData.upload_url) {
+          toast.error(presignData.error || 'Failed to prepare upload. Please try again.');
+          return;
+        }
+
+        // Step 2: Upload directly to S3 using XHR
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`S3 upload failed: ${xhr.status}`));
+            }
+          };
+          xhr.onerror = () => reject(new Error('Network error during S3 upload'));
+          xhr.open('PUT', presignData.upload_url);
+          xhr.setRequestHeader('Content-Type', presignData.content_type);
+          xhr.send(file);
+        });
+
+        // Step 3: Confirm upload with backend
+        const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            key: presignData.key,
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            category: 'info',
+          }),
+        });
+
+        const confirmData = await confirmResponse.json();
+        if (confirmData.success && confirmData.attachment) {
+          setLocalAttachments((prev) => [...prev, confirmData.attachment]);
           setShowAttachmentPicker(false);
-          toast.success(`Uploaded ${attachment.file.name}`);
+          toast.success(`Uploaded ${file.name}`);
         } else {
-          console.error('Upload failed:', response?.error);
-          toast.error('Upload failed. Please try again.');
+          console.error('Upload failed:', confirmData?.error);
+          toast.error(confirmData.error || 'Failed to save attachment. Please try again.');
         }
       } else if (attachment.id) {
         // Link existing email/document
@@ -843,6 +892,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   };
 
   // Direct file drop handler for attachments section
+  // Uses presigned URL flow: Browser → S3 directly (bypasses Heroku 30s timeout)
   const handleFileDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -851,24 +901,71 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     const files = e.dataTransfer.files;
     if (!files || files.length === 0) return;
 
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
+    const baseUrl = getApiBaseUrl();
+
     // Upload each file
     for (const file of Array.from(files)) {
       setAttachmentLoading(true);
       try {
-        const formData = new FormData();
-        formData.append('file', file);
+        // Step 1: Get presigned URL from backend
+        const presignResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/presign`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            category: 'response',
+          }),
+        });
 
-        const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment; error?: string }>(
-          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
-          formData
-        );
+        const presignData = await presignResponse.json();
+        if (!presignData.success || !presignData.upload_url) {
+          toast.error(presignData.error || `Failed to prepare upload for ${file.name}`);
+          continue;
+        }
 
-        if (response?.success && response.attachment) {
-          setLocalAttachments((prev) => [...prev, response.attachment]);
+        // Step 2: Upload directly to S3 using XHR
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve();
+            } else {
+              reject(new Error(`S3 upload failed: ${xhr.status}`));
+            }
+          };
+          xhr.onerror = () => reject(new Error('Network error during S3 upload'));
+          xhr.open('PUT', presignData.upload_url);
+          xhr.setRequestHeader('Content-Type', presignData.content_type);
+          xhr.send(file);
+        });
+
+        // Step 3: Confirm upload with backend
+        const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            key: presignData.key,
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            category: 'response',
+          }),
+        });
+
+        const confirmData = await confirmResponse.json();
+        if (confirmData.success && confirmData.attachment) {
+          setLocalAttachments((prev) => [...prev, confirmData.attachment]);
           toast.success(`Uploaded ${file.name}`);
         } else {
-          console.error('Upload failed:', response?.error);
-          toast.error(`Failed to upload ${file.name}`);
+          console.error('Upload failed:', confirmData?.error);
+          toast.error(confirmData.error || `Failed to save ${file.name}`);
         }
       } catch (error) {
         console.error('Failed to upload file:', error);

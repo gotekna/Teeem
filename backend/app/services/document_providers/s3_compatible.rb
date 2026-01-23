@@ -520,12 +520,18 @@ module DocumentProviders
     # ====================
 
     # Get presigned URL for direct upload (browser uploads)
+    # Uses virtual-hosted style URLs to avoid 307 redirects that break browser CORS
     def presigned_upload_url(folder_path, filename, options = {})
       key = "#{build_key(folder_path)}/#{filename}".gsub(%r{/+}, "/")
       expires_in = options.fetch(:expires_in, 3600)
       content_type = options[:content_type] || detect_content_type(filename)
 
-      signer = Aws::S3::Presigner.new(client: @client)
+      # Create browser-safe client with virtual-hosted style URLs
+      # CORS preflight cannot follow 307 redirects, so we must generate URLs in the
+      # final format that S3-compatible services expect (virtual-hosted style)
+      browser_client = build_browser_safe_client
+
+      signer = Aws::S3::Presigner.new(client: browser_client)
       signer.presigned_url(
         :put_object,
         bucket: @bucket,
@@ -577,6 +583,33 @@ module DocumentProviders
     end
 
     private
+
+    # Build S3 client safe for browser presigned URLs (virtual-hosted style)
+    # ⚠️ DO NOT SIMPLIFY - CORS 307 redirect fix (Jan 2026)
+    # ════════════════════════════════════════════════════════════════════
+    # Why: Wasabi (and some other S3-compatible providers) redirect path-style URLs
+    #      to virtual-hosted style URLs with a 307 redirect. Browser CORS preflight
+    #      cannot follow redirects, causing upload failures.
+    # ❌ WRONG: Use @client (has force_path_style: true) → generates path-style URLs
+    #           → Wasabi 307 redirects → CORS fails → upload broken
+    # ✅ CORRECT: Create separate client with force_path_style: false for browser uploads
+    #            → generates virtual-hosted style URLs directly → no redirect → works
+    # ════════════════════════════════════════════════════════════════════
+    def build_browser_safe_client
+      # Virtual-hosted style endpoint: bucket.endpoint
+      # Path-style: endpoint/bucket (what @client uses, causes 307 redirect)
+      endpoint_uri = URI.parse(@credential.endpoint)
+      virtual_hosted_endpoint = "#{endpoint_uri.scheme}://#{@bucket}.#{endpoint_uri.host}"
+      virtual_hosted_endpoint += ":#{endpoint_uri.port}" if endpoint_uri.port && ![80, 443].include?(endpoint_uri.port)
+
+      Aws::S3::Client.new(
+        access_key_id: @credential.access_key_id,
+        secret_access_key: @credential.secret_access_key,
+        region: @credential.region,
+        endpoint: virtual_hosted_endpoint,
+        force_path_style: false  # Virtual-hosted style for browser compatibility
+      )
+    end
 
     # NOTE: default_subfolders and create_template_folders removed
     # SSoT: EntityTab is now the source of truth for folder structure
