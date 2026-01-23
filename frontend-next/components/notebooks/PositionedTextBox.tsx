@@ -129,6 +129,7 @@ export function PositionedTextBox({
     editorProps: {
       attributes: {
         class: "outline-none min-h-[20px] text-sm [direction:ltr]",
+        spellcheck: "true",
       },
     },
     onUpdate: ({ editor }) => {

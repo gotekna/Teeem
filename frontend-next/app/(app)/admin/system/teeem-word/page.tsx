@@ -198,6 +198,11 @@ export default function TeeemWordPage() {
       TableHeader,
     ],
     content: "<p></p>",
+    editorProps: {
+      attributes: {
+        spellcheck: "true",
+      },
+    },
     onUpdate: ({ editor }) => {
       setHasChanges(true);
     },

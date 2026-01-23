@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_23_175004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8683,6 +8683,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.datetime "updated_at", null: false
     t.string "category", default: "info"
     t.bigint "action_item_id"
+    t.string "display_name"
     t.index ["action_item_id"], name: "index_sm_task_attachments_on_action_item_id"
     t.index ["added_by_id"], name: "index_sm_task_attachments_on_added_by_id"
     t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"
@@ -9992,6 +9993,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.bigint "tenant_id"
     t.bigint "signature_blob_id"
     t.bigint "photo_blob_id"
+    t.boolean "enable_ai_writing_assistant", default: false, null: false
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
     t.index ["email"], name: "index_users_on_email", unique: true

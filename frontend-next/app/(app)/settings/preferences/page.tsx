@@ -79,9 +79,10 @@ export default function PreferencesPage() {
     setSavingAi(true);
 
     try {
-      const response = await api.patch(`/api/v1/users/${user.id}`, {
-        user: { enable_ai_writing_assistant: checked },
-      });
+      const response = await api.patch<{ success: boolean; user?: any; errors?: string[] }>(
+        `/api/v1/users/${user.id}`,
+        { user: { enable_ai_writing_assistant: checked } }
+      );
 
       if (response?.success) {
         if (refreshUser) await refreshUser();

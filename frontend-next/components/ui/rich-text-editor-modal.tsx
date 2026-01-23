@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { RichTextEditor, htmlToPlainText, plainTextToHtml } from "@/components/ui/rich-text-editor";
 import { Check, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * RichTextEditorModal - THE ONE standard rich text editing modal
@@ -43,7 +44,7 @@ interface RichTextEditorModalProps {
   plainText?: boolean;
   /** Minimum height of the editor in pixels */
   minHeight?: number;
-  /** Enable AI writing checker / spell check (default: true) */
+  /** Enable AI writing checker (default: reads from user's preferences) */
   enableWritingChecker?: boolean;
   /** Context for the writing checker to understand the content type */
   writingContext?: "email_body" | "notes" | "general";
@@ -58,9 +59,15 @@ export function RichTextEditorModal({
   placeholder = "Type here...",
   plainText = false,
   minHeight = 300,
-  enableWritingChecker = true,
+  enableWritingChecker,
   writingContext = "general",
 }: RichTextEditorModalProps) {
+  // Read user's AI writing assistant preference
+  const { user } = useAuth();
+  const userAiPreference = (user as any)?.enable_ai_writing_assistant ?? false;
+
+  // Use explicit prop if provided, otherwise use user preference
+  const shouldEnableWritingChecker = enableWritingChecker ?? userAiPreference;
   // Convert plain text to HTML if needed
   const initialValue = React.useMemo(() => {
     if (!value) return "";
@@ -123,7 +130,7 @@ export function RichTextEditorModal({
             placeholder={placeholder}
             minHeight={minHeight}
             className="border-0 rounded-none"
-            enableWritingChecker={enableWritingChecker}
+            enableWritingChecker={shouldEnableWritingChecker}
             writingContext={writingContext}
           />
         </div>

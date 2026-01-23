@@ -528,6 +528,16 @@ a.bg-primary svg {
 }
 
 /* ========================================
+   NATIVE BROWSER SPELLCHECK
+   ======================================== */
+
+/*
+ * Browser spellcheck is enabled via spellcheck="true" attribute on ProseMirror.
+ * The red wavy underlines are rendered by the browser, not CSS.
+ * No additional CSS is needed - browsers handle this natively.
+ */
+
+/* ========================================
    WRITING CHECKER - Spell/Grammar/Tone
    ======================================== */
 

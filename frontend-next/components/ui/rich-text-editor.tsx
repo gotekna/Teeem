@@ -1412,9 +1412,10 @@ export function RichTextEditor({
       )}
     >
       {!hideToolbar && <EditorToolbar editor={editor} showWritingChecker={enableWritingChecker} />}
-      <div style={{ minHeight }} className="overflow-y-auto">
+      <div style={{ minHeight }} className="overflow-y-auto" spellCheck={true}>
         <EditorContent
           editor={editor}
+          spellCheck={true}
           className="[&_.ProseMirror>p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)] [&_.ProseMirror>p.is-editor-empty:first-child]:before:text-muted-foreground [&_.ProseMirror>p.is-editor-empty:first-child]:before:float-left [&_.ProseMirror>p.is-editor-empty:first-child]:before:h-0 [&_.ProseMirror>p.is-editor-empty:first-child]:before:pointer-events-none [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol_ol]:list-[lower-roman] [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square] [&_li]:my-1 [&_ul.task-list]:list-none [&_ul.task-list]:pl-0 [&_.task-item]:flex [&_.task-item]:items-center [&_.task-item]:gap-2 [&_.task-item>label]:flex [&_.task-item>label]:items-center [&_.task-item>label]:shrink-0 [&_.task-item>div]:flex-1 [&_.task-item>div]:min-w-0"
         />
       </div>
@@ -1485,6 +1486,7 @@ export function InlineRichTextEditor({
           "[&_ul]:list-disc [&_ul]:ml-3 [&_ol]:list-decimal [&_ol]:ml-3",
           "dark:prose-invert text-sm"
         ),
+        spellcheck: "true",
       },
     },
   });
@@ -1531,7 +1533,7 @@ export function InlineRichTextEditor({
           <List className="h-3 w-3" />
         </Button>
       </div>
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} spellCheck={true} />
     </div>
   );
 }
