@@ -670,15 +670,41 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   const { user } = useAuth();
   const searchParams = useSearchParams();
 
+  // Check if user is a supervisor (has supervisor-related role)
+  const isSupervisor = useMemo(() => {
+    const roleNames = (user as { role_names?: string[] } | null)?.role_names || [];
+    return roleNames.some(role =>
+      role.toLowerCase().includes('supervisor') ||
+      role.toLowerCase().includes('site supervisor')
+    );
+  }, [user]);
+
   const [tasks, setTasks] = useState<SmTask[]>([]);
+  const [viewInitialized, setViewInitialized] = useState(false);
   const [activeView, setActiveViewState] = useState<ViewType>(() => {
-    // Load saved view from localStorage
-    const saved = getStorageItem<ViewType>(STORAGE_KEYS.TASK_HUB_VIEW, 'list');
+    // Load saved view from localStorage (will be overridden if no saved preference)
+    const saved = getStorageItem<ViewType | null>(STORAGE_KEYS.TASK_HUB_VIEW, null);
     if (saved && ['board', 'list', 'gantt'].includes(saved)) {
       return saved;
     }
-    return 'list';
+    // No saved preference - will be set by useEffect based on user role
+    return 'list'; // Temporary default
   });
+
+  // Set default view based on user role (only if no saved preference)
+  useEffect(() => {
+    if (viewInitialized || !user) return;
+
+    const saved = getStorageItem<ViewType | null>(STORAGE_KEYS.TASK_HUB_VIEW, null);
+    if (!saved) {
+      // No saved preference - default based on role
+      // Supervisors: List view (need full details)
+      // Non-supervisors: Board view (quick overview)
+      const defaultView: ViewType = isSupervisor ? 'list' : 'board';
+      setActiveViewState(defaultView);
+    }
+    setViewInitialized(true);
+  }, [user, isSupervisor, viewInitialized]);
 
   const [filters, setFiltersState] = useState<TaskFilters>(() => {
     // Load saved filters from localStorage

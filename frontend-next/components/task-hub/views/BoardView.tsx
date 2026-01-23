@@ -8,7 +8,6 @@
  */
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { TASK_STATUS } from '@/lib/constants/task-status';
 import { Badge } from '@/components/ui/badge';
@@ -95,7 +94,6 @@ function TaskCardContent({ task }: { task: TaskItem }) {
 }
 
 export function BoardView() {
-  const router = useRouter();
   const { filteredTasks, updateTask } = useTaskHub();
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -126,9 +124,9 @@ export function BoardView() {
     setSheetOpen(true);
   };
 
-  // Handle double-click to open in fullscreen
+  // Handle double-click to open in new tab (matches List view behavior)
   const handleCardDoubleClick = (task: TaskItem) => {
-    router.push(`/sm_tasks/${task.id}`);
+    window.open(`/sm_tasks/${task.id}`, '_blank');
   };
 
   // Render a task card
