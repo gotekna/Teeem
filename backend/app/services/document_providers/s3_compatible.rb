@@ -229,6 +229,8 @@ module DocumentProviders
     # @option options [String] :filename Custom download filename (Send Name)
     #   When provided, browser downloads will save with this name instead of S3 key
     # @return [String] Presigned download URL
+    #
+    # ⚠️ Uses virtual-hosted style URLs to avoid 307 redirects that break browser CORS
     def download_url(path_or_id, options = {})
       key = resolve_key(path_or_id)
       expires_in = options.fetch(:expires_in, 3600)
@@ -248,7 +250,10 @@ module DocumentProviders
         presign_params[:response_content_disposition] = "attachment; filename=\"#{safe_filename}\""
       end
 
-      signer = Aws::S3::Presigner.new(client: @client)
+      # Use browser-safe client with virtual-hosted style URLs
+      # CORS preflight cannot follow 307 redirects from path-style to virtual-hosted
+      browser_client = build_browser_safe_client
+      signer = Aws::S3::Presigner.new(client: browser_client)
       signer.presigned_url(:get_object, presign_params)
     end
 

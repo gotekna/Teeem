@@ -709,7 +709,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.jsonb "ocr_extraction_result"
     t.jsonb "comparison_data"
     t.jsonb "contact_comparison_data", default: {}
-    t.string "sharepoint_file_id"
+    t.string "storage_file_id"
     t.integer "match_confidence"
     t.string "match_source", limit: 30
     t.string "storage_item_id"
@@ -722,9 +722,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.index ["match_source"], name: "index_bill_inboxes_on_match_source"
     t.index ["match_status"], name: "index_bill_inboxes_on_match_status"
     t.index ["matched_purchase_order_id"], name: "index_bill_inboxes_on_matched_purchase_order_id"
-    t.index ["sharepoint_file_id"], name: "index_bill_inboxes_on_sharepoint_file_id"
     t.index ["status"], name: "index_bill_inboxes_on_status"
     t.index ["storage_blob_id"], name: "index_bill_inboxes_on_storage_blob_id"
+    t.index ["storage_file_id"], name: "index_bill_inboxes_on_storage_file_id"
     t.index ["storage_item_id"], name: "index_bill_inboxes_on_storage_item_id"
     t.index ["supplier_id", "invoice_number"], name: "index_bill_inboxes_on_supplier_id_and_invoice_number", unique: true, where: "(invoice_number IS NOT NULL)"
     t.index ["supplier_id"], name: "index_bill_inboxes_on_supplier_id"
@@ -1148,7 +1148,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.string "message_type", default: "text"
     t.string "file_url"
     t.string "file_name"
-    t.string "sharepoint_file_id"
+    t.string "storage_file_id"
     t.string "storage_item_id"
     t.bigint "storage_blob_id"
     t.index ["case_id"], name: "index_chat_messages_on_case_id"
@@ -1160,8 +1160,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.index ["project_id", "created_at"], name: "index_chat_messages_on_project_id_and_created_at"
     t.index ["project_id"], name: "index_chat_messages_on_project_id"
     t.index ["recipient_user_id"], name: "index_chat_messages_on_recipient_user_id"
-    t.index ["sharepoint_file_id"], name: "index_chat_messages_on_sharepoint_file_id"
     t.index ["storage_blob_id"], name: "index_chat_messages_on_storage_blob_id"
+    t.index ["storage_file_id"], name: "index_chat_messages_on_storage_file_id"
     t.index ["storage_item_id"], name: "index_chat_messages_on_storage_item_id"
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
@@ -1394,8 +1394,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.string "storage_path"
     t.string "storage_item_id"
     t.string "storage_provider", limit: 20
-    t.string "sharepoint_item_id"
-    t.string "sharepoint_file_id"
+    t.string "storage_file_id"
     t.string "web_url"
     t.string "migration_status", limit: 20
     t.text "migration_error"
@@ -1857,10 +1856,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.string "storage_type"
     t.string "filed_by"
     t.bigint "document_type_id"
-    t.string "sharepoint_file_id"
-    t.string "sharepoint_download_url"
+    t.string "storage_file_id"
+    t.string "storage_download_url"
     t.datetime "last_modified_at"
-    t.string "expected_sharepoint_path"
+    t.string "expected_storage_path"
     t.string "register_folder"
     t.string "company_code"
     t.string "source", default: "manual"
@@ -1937,11 +1936,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.index ["migration_status"], name: "index_corporate_company_documents_on_migration_status"
     t.index ["orphaned_at"], name: "index_corporate_company_documents_on_orphaned_at", where: "(orphaned_at IS NOT NULL)"
     t.index ["searchable"], name: "idx_documents_searchable_gin", using: :gin
-    t.index ["sharepoint_file_id"], name: "index_corporate_company_documents_on_sharepoint_file_id", unique: true, where: "(sharepoint_file_id IS NOT NULL)"
     t.index ["sm_task_id"], name: "index_corporate_company_documents_on_sm_task_id"
     t.index ["source", "external_id"], name: "index_corporate_company_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
     t.index ["source"], name: "index_corporate_company_documents_on_source"
     t.index ["storage_blob_id"], name: "index_corporate_company_documents_on_storage_blob_id"
+    t.index ["storage_file_id"], name: "index_corporate_company_documents_on_storage_file_id", unique: true, where: "(storage_file_id IS NOT NULL)"
     t.index ["storage_provider", "migration_status"], name: "idx_corp_docs_provider_migration"
     t.index ["storage_provider"], name: "index_corporate_company_documents_on_storage_provider"
     t.index ["storage_type"], name: "index_corporate_company_documents_on_storage_type"
@@ -2129,8 +2128,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.string "component_name"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.boolean "has_sharepoint_folder", default: false
-    t.string "sharepoint_folder_path"
+    t.boolean "has_storage_folder", default: false
+    t.string "storage_folder_path"
     t.jsonb "sub_tabs", default: []
     t.bigint "company_group_id"
     t.bigint "tenant_id"
@@ -2389,7 +2388,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "sharepoint_path"
+    t.string "storage_path"
     t.integer "parent_id"
     t.index ["entity_types"], name: "index_document_folders_on_entity_types", using: :gin
     t.index ["name"], name: "index_document_folders_on_name", unique: true
@@ -2411,7 +2410,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.string "validated_by"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "sharepoint_url"
+    t.string "storage_url"
     t.bigint "storage_blob_id"
     t.index ["job_id"], name: "index_document_tasks_on_job_id"
     t.index ["storage_blob_id"], name: "index_document_tasks_on_storage_blob_id"
@@ -2535,7 +2534,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.string "signed_document_hash", null: false
     t.text "signature_chain"
     t.jsonb "signers_summary", default: []
-    t.string "certificate_sharepoint_file_id"
+    t.string "certificate_storage_file_id"
     t.string "verification_token"
     t.datetime "generated_at"
     t.datetime "created_at", null: false
@@ -3342,7 +3341,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.datetime "synced_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "sharepoint_file_id"
+    t.string "storage_file_id"
     t.string "storage_item_id"
     t.bigint "storage_blob_id"
     t.index ["category"], name: "index_financial_transactions_on_category"
@@ -3353,9 +3352,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.index ["job_id", "transaction_date"], name: "index_financial_transactions_on_job_id_and_transaction_date"
     t.index ["job_id"], name: "index_financial_transactions_on_job_id"
     t.index ["keepr_journal_id"], name: "index_financial_transactions_on_keepr_journal_id"
-    t.index ["sharepoint_file_id"], name: "index_financial_transactions_on_sharepoint_file_id"
     t.index ["status"], name: "index_financial_transactions_on_status"
     t.index ["storage_blob_id"], name: "index_financial_transactions_on_storage_blob_id"
+    t.index ["storage_file_id"], name: "index_financial_transactions_on_storage_file_id"
     t.index ["storage_item_id"], name: "index_financial_transactions_on_storage_item_id"
     t.index ["transaction_date"], name: "index_financial_transactions_on_transaction_date"
     t.index ["transaction_type"], name: "index_financial_transactions_on_transaction_type"
@@ -6135,8 +6134,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
   create_table "job_documents", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "document_type_id"
-    t.string "sharepoint_item_id", null: false
-    t.string "sharepoint_drive_id"
+    t.string "storage_drive_id"
     t.string "file_name", null: false
     t.string "file_extension"
     t.string "file_type"
@@ -6212,10 +6210,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.index ["parent_document_id"], name: "index_job_documents_on_parent_document_id"
     t.index ["rename_approved_by_id"], name: "index_job_documents_on_rename_approved_by_id"
     t.index ["rename_status"], name: "index_job_documents_on_rename_status"
-    t.index ["sharepoint_drive_id"], name: "index_job_documents_on_sharepoint_drive_id"
-    t.index ["sharepoint_item_id"], name: "index_job_documents_on_sharepoint_item_id", unique: true
     t.index ["signed_by_id"], name: "index_job_documents_on_signed_by_id"
     t.index ["storage_blob_id"], name: "index_job_documents_on_storage_blob_id"
+    t.index ["storage_drive_id"], name: "index_job_documents_on_storage_drive_id"
     t.index ["storage_provider", "storage_item_id"], name: "index_job_documents_on_storage_provider_and_storage_item_id"
     t.index ["storage_provider"], name: "index_job_documents_on_storage_provider"
     t.index ["sync_status"], name: "index_job_documents_on_sync_status"
@@ -6243,8 +6240,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.date "revision_date"
     t.date "issued_date"
     t.boolean "is_on_issue", default: false
-    t.string "sharepoint_file_id"
-    t.string "sharepoint_web_url"
+    t.string "storage_file_id"
+    t.string "storage_web_url"
     t.string "file_name"
     t.integer "file_size"
     t.text "notes"
@@ -6519,7 +6516,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.bigint "estimator_id"
     t.bigint "internal_sales_id"
     t.bigint "client_coordinator_id"
-    t.string "sharepoint_folder_status", default: "not_requested"
     t.string "job_code", null: false
     t.bigint "tenant_id"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
@@ -7092,8 +7088,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.bigint "pay_now_weekly_limit_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "sharepoint_file_id"
-    t.jsonb "proof_photos_sharepoint_ids", default: []
+    t.string "storage_file_id"
+    t.jsonb "proof_photos_storage_ids", default: []
     t.string "storage_item_id"
     t.bigint "invoice_blob_id"
     t.jsonb "proof_photo_blob_ids", default: [], null: false
@@ -7109,9 +7105,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.index ["requested_by_portal_user_id"], name: "index_pay_now_requests_on_requested_by_portal_user_id"
     t.index ["requested_payment_date"], name: "index_pay_now_requests_on_requested_payment_date"
     t.index ["reviewed_by_supervisor_id"], name: "index_pay_now_requests_on_reviewed_by_supervisor_id"
-    t.index ["sharepoint_file_id"], name: "index_pay_now_requests_on_sharepoint_file_id"
     t.index ["status", "created_at"], name: "index_pay_now_requests_on_status_and_created_at"
     t.index ["status"], name: "index_pay_now_requests_on_status"
+    t.index ["storage_file_id"], name: "index_pay_now_requests_on_storage_file_id"
     t.index ["storage_item_id"], name: "index_pay_now_requests_on_storage_item_id"
   end
 
@@ -7401,7 +7397,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
 
   create_table "plan_folder_scans", force: :cascade do |t|
     t.bigint "job_id", null: false
-    t.string "sharepoint_file_id", null: false
+    t.string "storage_file_id", null: false
     t.string "file_name"
     t.datetime "file_modified_at"
     t.integer "file_size"
@@ -7415,8 +7411,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_22_211151) do
     t.index ["job_id", "status"], name: "index_plan_folder_scans_on_job_id_and_status"
     t.index ["job_id"], name: "index_plan_folder_scans_on_job_id"
     t.index ["job_plan_id"], name: "index_plan_folder_scans_on_job_plan_id"
-    t.index ["sharepoint_file_id"], name: "index_plan_folder_scans_on_sharepoint_file_id", unique: true
     t.index ["status"], name: "index_plan_folder_scans_on_status"
+    t.index ["storage_file_id"], name: "index_plan_folder_scans_on_storage_file_id", unique: true
     t.index ["storage_item_id"], name: "index_plan_folder_scans_on_storage_item_id"
   end
 
