@@ -692,22 +692,40 @@ function SortableQuestionItem({
                         onChange={(e) => setRenamingAttachmentName?.(e.target.value)}
                         className="h-5 text-xs px-1 py-0 flex-1"
                         autoFocus
-                        onBlur={() => {
-                          // Save on blur if name changed
-                          if (renamingAttachmentName && renamingAttachmentName !== fileName) {
-                            handleRenameAttachment?.(att.id, renamingAttachmentName);
-                          } else {
-                            setRenamingAttachmentId?.(null);
-                            setRenamingAttachmentName?.('');
-                          }
-                        }}
+                        onClick={(e) => e.stopPropagation()}
                         onKeyDown={(e) => {
-                          if (e.key === 'Escape') {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') {
+                            handleRenameAttachment?.(att.id, renamingAttachmentName || '');
+                          } else if (e.key === 'Escape') {
                             setRenamingAttachmentId?.(null);
                             setRenamingAttachmentName?.('');
                           }
                         }}
                       />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRenameAttachment?.(att.id, renamingAttachmentName || '');
+                        }}
+                        className="text-green-600 hover:text-green-700 p-0.5"
+                        title="Save"
+                      >
+                        <Check className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRenamingAttachmentId?.(null);
+                          setRenamingAttachmentName?.('');
+                        }}
+                        className="text-muted-foreground hover:text-foreground p-0.5"
+                        title="Cancel"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </form>
                   ) : (
                     // Display mode: single click = drawer, double click = new window
