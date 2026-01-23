@@ -1587,6 +1587,56 @@ module Api
       # GET /api/v1/contacts/invalid_entity_types
       # Health check: Find contacts with invalid entity_type values
 
+      # GET /api/v1/contacts/frequent
+      # Returns contacts the user emails most frequently
+      # Used by compose modal to show quick-add contact chips
+      def frequent
+        # Get email addresses the user has sent to most frequently
+        # Use tenant_id for multi-tenancy
+        email_counts = SyncedEmail
+          .where(tenant_id: current_user&.tenant_id)
+          .where(direction: "sent")
+          .where.not(to_emails: nil)
+          .pluck(:to_emails, :cc_emails)
+          .flatten
+          .compact
+          .flatten
+          .map(&:downcase)
+          .tally
+          .sort_by { |_email, count| -count }
+          .first(20)
+          .to_h
+
+        # Match emails to contacts
+        frequent_emails = email_counts.keys
+        contacts_with_emails = Contact
+          .joins(:contact_emails)
+          .where("LOWER(contact_emails.email) IN (?)", frequent_emails)
+          .includes(:contact_emails, :primary_company)
+          .distinct
+          .limit(15)
+
+        # Build response with email counts
+        result = contacts_with_emails.map do |contact|
+          email = contact.contact_emails.find { |ce| frequent_emails.include?(ce.email&.downcase) }&.email
+          {
+            id: contact.id,
+            display_name: contact.display_name,
+            email: email || contact.email,
+            email_count: email_counts[email&.downcase] || 0,
+            primary_company: contact.primary_company ? {
+              id: contact.primary_company.id,
+              name: contact.primary_company.display_name
+            } : nil
+          }
+        end
+
+        # Sort by email count descending
+        result.sort_by! { |c| -c[:email_count] }
+
+        render json: { success: true, data: result }
+      end
+
       private
 
       def titleize_name(name)

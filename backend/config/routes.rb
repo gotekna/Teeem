@@ -1056,6 +1056,7 @@ Rails.application.routes.draw do
           post :fix_email_assignment
           post :match_supplier
           get :read_only_fields
+          get :frequent            # Frequent email contacts for compose modal
           # SSoT: Contact choices from Contact model constants
           get :entity_types        # Contact::ENTITY_TYPES
           get :employment_statuses # Contact::EMPLOYMENT_STATUSES

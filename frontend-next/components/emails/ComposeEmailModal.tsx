@@ -132,6 +132,17 @@ export function ComposeEmailModal({
   // Store signature separately (not in editor) to preserve HTML formatting
   const [signatureHtml, setSignatureHtml] = useState<string>("");
 
+  // Frequent contacts for quick-add chips
+  interface FrequentContact {
+    id: number;
+    display_name: string;
+    email: string;
+    email_count: number;
+    primary_company?: { id: number; name: string } | null;
+  }
+  const [frequentContacts, setFrequentContacts] = useState<FrequentContact[]>([]);
+  const [frequentContactsLoading, setFrequentContactsLoading] = useState(false);
+
   // Auto-save draft hook
   const autoSave = useAutoSaveDraft({
     enabled: open && !sending,
@@ -215,10 +226,28 @@ export function ComposeEmailModal({
     }
   }, [open, companySettings]);
 
+  // Fetch frequent contacts for quick-add chips
+  const fetchFrequentContacts = useCallback(async () => {
+    setFrequentContactsLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; data: FrequentContact[] }>(
+        '/api/v1/contacts/frequent'
+      );
+      if (response.data) {
+        setFrequentContacts(response.data);
+      }
+    } catch (err) {
+      console.debug('Failed to fetch frequent contacts:', err);
+    } finally {
+      setFrequentContactsLoading(false);
+    }
+  }, []);
+
   // Fetch accounts when modal opens
   useEffect(() => {
     if (open) {
       fetchAccounts();
+      fetchFrequentContacts();
       setContacts([]);
       setContactSearch("");
       setCcSearch("");
@@ -683,6 +712,63 @@ export function ComposeEmailModal({
                     onSearch={setBccSearch}
                     minSearchChars={CONTACT_SEARCH_MIN_CHARS}
                   />
+                </div>
+              </div>
+            )}
+
+            {/* Frequent Contacts - Quick-add chips */}
+            {frequentContacts.length > 0 && (
+              <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/20">
+                <span className="text-xs text-muted-foreground shrink-0">Quick add:</span>
+                <div className="flex flex-wrap gap-1.5 overflow-x-auto">
+                  {frequentContacts.slice(0, 8).map((contact) => {
+                    // Check if already in To or CC
+                    const isInTo = formData.to.toLowerCase().includes(contact.email.toLowerCase());
+                    const isInCc = formData.cc.toLowerCase().includes(contact.email.toLowerCase());
+                    const isAdded = isInTo || isInCc;
+
+                    return (
+                      <div key={contact.id} className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isAdded) return;
+                            // Add to To field
+                            const newTo = formData.to
+                              ? `${formData.to}, ${contact.email}`
+                              : contact.email;
+                            setFormData({ ...formData, to: newTo });
+                          }}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            if (isAdded) return;
+                            // Right-click adds to CC
+                            const newCc = formData.cc
+                              ? `${formData.cc}, ${contact.email}`
+                              : contact.email;
+                            setFormData({ ...formData, cc: newCc });
+                          }}
+                          disabled={isAdded}
+                          className={`
+                            flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors
+                            ${isAdded
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 cursor-default'
+                              : 'bg-muted hover:bg-primary/10 hover:text-primary cursor-pointer'}
+                          `}
+                          title={isAdded
+                            ? `Already added to ${isInTo ? 'To' : 'CC'}`
+                            : `Click to add to To, right-click to add to CC`}
+                        >
+                          <span className="truncate max-w-[120px]">
+                            {contact.display_name.split(' ')[0]}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {contact.email_count}
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

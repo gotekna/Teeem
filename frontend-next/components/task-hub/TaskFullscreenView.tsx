@@ -2911,15 +2911,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             body += '</p>\n';
           }
 
-          // Include attachments linked to this question
+          // Include attachments linked to this question (documents OR emails)
           if (q.attachments && q.attachments.length > 0) {
             q.attachments.forEach(att => {
-              const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-              // Use SharePoint share link if available, otherwise fall back to storage_url or file_url
-              const shareUrl = shareLinksMap[att.id];
-              const fallbackUrl = att.document?.storage_url || att.document?.file_url;
-              const url = shareUrl || fallbackUrl;
-              body += `<p>&nbsp;&nbsp;&nbsp;📎 See attached: ${formatFileLink(fileName, url)}</p>\n`;
+              if (att.email) {
+                // Email attachment - use subject as the display name
+                const subject = att.email.subject || '(No subject)';
+                const url = shareLinksMap[att.id];
+                body += `<p>&nbsp;&nbsp;&nbsp;📧 See attached: ${formatFileLink(subject, url)}</p>\n`;
+              } else if (att.document) {
+                // Document attachment
+                const fileName = att.document.display_name || att.document.file_name || 'Document';
+                // Use SharePoint share link if available, otherwise fall back to storage_url or file_url
+                const shareUrl = shareLinksMap[att.id];
+                const fallbackUrl = att.document.storage_url || att.document.file_url;
+                const url = shareUrl || fallbackUrl;
+                body += `<p>&nbsp;&nbsp;&nbsp;📎 See attached: ${formatFileLink(fileName, url)}</p>\n`;
+              }
             });
           }
           questionNum++;
