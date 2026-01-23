@@ -779,6 +779,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [showAttachmentPicker, setShowAttachmentPicker] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [attachmentLoading, setAttachmentLoading] = useState(false);
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<number | null>(null);
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
   const [emailSearchType, setEmailSearchType] = useState<'subject' | 'body' | 'full' | 'exact'>('subject');
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
@@ -1774,6 +1775,41 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       console.error('Failed to remove attachment:', err);
     }
     setAttachmentLoading(false);
+  };
+
+  // Download an attachment document
+  const handleDownloadAttachment = async (att: TaskAttachment) => {
+    if (!att.document) return;
+
+    setDownloadingAttachmentId(att.id);
+    try {
+      const url = att.document.storage_url || att.document.file_url;
+      if (url) {
+        // Create hidden link and trigger download
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = att.document.display_name || att.document.file_name || 'document';
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err) {
+      console.error('Failed to download attachment:', err);
+      toast.error('Failed to download file');
+    } finally {
+      // Brief delay so user sees the loading state
+      setTimeout(() => setDownloadingAttachmentId(null), 500);
+    }
+  };
+
+  // Open an attachment in a new window
+  const handleOpenAttachmentInNewWindow = (att: TaskAttachment) => {
+    if (!att.document) return;
+    const url = att.document.storage_url || att.document.file_url;
+    if (url) {
+      window.open(url, '_blank');
+    }
   };
 
   // Get shareable link for an attachment (email or document) and copy to clipboard
@@ -3628,17 +3664,33 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         </>
                       ) : (
                         <>
-                          <FileText className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
-                          <span className="flex-1 truncate font-medium">
+                          {downloadingAttachmentId === att.id ? (
+                            <Loader2 className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0 animate-spin" />
+                          ) : (
+                            <FileText className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+                          )}
+                          <button
+                            onClick={() => handleDownloadAttachment(att)}
+                            onDoubleClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleOpenAttachmentInNewWindow(att);
+                            }}
+                            className="flex-1 truncate font-medium text-left hover:underline cursor-pointer"
+                            title="Click to download, double-click to open in new window"
+                          >
                             {att.document?.display_name || att.document?.file_name}
-                          </span>
+                          </button>
                         </>
                       )}
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleRemoveAttachment(att.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveAttachment(att.id);
+                        }}
                         title="Delete attachment"
                       >
                         <X className="h-3 w-3" />
@@ -4976,26 +5028,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           />
                           <div
                             className="flex items-center gap-2 flex-1 min-w-0"
-                            onClick={() => {
-                              if (att.document) {
-                                const docUrl = `${getApiBaseUrl()}/api/v1/company_documents/${att.document.id}/content`;
-                                setViewerDocument({
-                                  url: docUrl,
-                                  fileName: att.document.display_name || att.document.file_name || 'document',
-                                  fileType: getFileType(att.document.file_name),
-                                });
-                              }
-                            }}
+                            onClick={() => handleDownloadAttachment(att)}
                             onDoubleClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              const url = att.document?.storage_url || att.document?.file_url;
-                              if (url) {
-                                window.open(url, '_blank');
-                              }
+                              handleOpenAttachmentInNewWindow(att);
                             }}
+                            title="Click to download, double-click to open in new window"
                           >
-                            <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                            {downloadingAttachmentId === att.id ? (
+                              <Loader2 className="h-3 w-3 text-muted-foreground shrink-0 animate-spin" />
+                            ) : (
+                              <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                            )}
                             <div className="flex-1 min-w-0">
                               <div className="font-medium truncate">
                                 {att.document?.display_name || att.document?.file_name}
@@ -5049,17 +5094,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             if (att.email) {
                               setSelectedEmailId(att.email.id);
                             } else if (att.document) {
-                              const docUrl = `${getApiBaseUrl()}/api/v1/company_documents/${att.document.id}/content`;
-                              setViewerDocument({
-                                url: docUrl,
-                                fileName: att.document.display_name || att.document.file_name || 'document',
-                                fileType: getFileType(att.document.file_name),
-                              });
+                              handleDownloadAttachment(att);
                             }
                           }}
+                          onDoubleClick={(e) => {
+                            if (!att.email) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleOpenAttachmentInNewWindow(att);
+                            }
+                          }}
+                          title={att.email ? undefined : "Click to download, double-click to open in new window"}
                         >
                           {isEmail ? (
                             <Mail className="h-3 w-3 text-primary shrink-0" />
+                          ) : downloadingAttachmentId === att.id ? (
+                            <Loader2 className="h-3 w-3 text-primary shrink-0 animate-spin" />
                           ) : (
                             <FileText className="h-3 w-3 text-primary shrink-0" />
                           )}
