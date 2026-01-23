@@ -528,32 +528,19 @@ module DocumentProviders
       expires_in = options.fetch(:expires_in, 3600)
       content_type = options[:content_type] || detect_content_type(filename)
 
-      # DEBUG: Log ALL values to diagnose double-bucket issue
-      raw_endpoint = @credential.endpoint
-      normalized_endpoint = normalize_endpoint_to_path_style(raw_endpoint)
-      Rails.logger.info "[presigned_upload_url] DEBUG START ====================="
-      Rails.logger.info "[presigned_upload_url] raw_endpoint: #{raw_endpoint}"
-      Rails.logger.info "[presigned_upload_url] normalized_endpoint: #{normalized_endpoint}"
-      Rails.logger.info "[presigned_upload_url] @bucket: #{@bucket}"
-      Rails.logger.info "[presigned_upload_url] key: #{key}"
-      Rails.logger.info "[presigned_upload_url] DEBUG END ======================="
-
       # Create browser-safe client with virtual-hosted style URLs
       # CORS preflight cannot follow 307 redirects, so we must generate URLs in the
       # final format that S3-compatible services expect (virtual-hosted style)
       browser_client = build_browser_safe_client
 
       signer = Aws::S3::Presigner.new(client: browser_client)
-      url = signer.presigned_url(
+      signer.presigned_url(
         :put_object,
         bucket: @bucket,
         key: key,
         expires_in: expires_in,
         content_type: content_type
       )
-
-      Rails.logger.info "[presigned_upload_url] GENERATED URL: #{url}"
-      url
     end
 
     # Delete all files with a prefix (delete folder and contents)

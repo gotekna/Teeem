@@ -2251,18 +2251,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         return;
       }
 
-      console.log('[TaskFullscreenView] Got presigned URL, key:', presignData.key);
-      // DEBUG: Log endpoint info from backend
-      if (presignData._debug_endpoint) {
-        console.log('[TaskFullscreenView] DEBUG endpoint:', presignData._debug_endpoint);
-        console.log('[TaskFullscreenView] DEBUG bucket:', presignData._debug_bucket);
-      }
-
-      // Step 2: Upload directly to S3 using fetch (simpler CORS handling)
-      console.log('[TaskFullscreenView] Step 2: Uploading to S3...');
-      console.log('[TaskFullscreenView] Upload URL:', presignData.upload_url);
-      console.log('[TaskFullscreenView] Content-Type:', presignData.content_type);
-      console.log('[TaskFullscreenView] File size:', file.size, 'bytes');
+      console.log('[TaskFullscreenView] Got presigned URL, uploading file...');
 
       try {
         const s3Response = await fetch(presignData.upload_url, {

@@ -1062,10 +1062,6 @@ module Api
             content_type: content_type
           )
 
-          # DEBUG: Log endpoint info to diagnose double-bucket issue
-          cred = provider.credential
-          Rails.logger.info "[presign_attachment] DEBUG: endpoint=#{cred.endpoint}, bucket=#{cred.bucket}"
-
           render json: {
             success: true,
             upload_url: upload_url,
@@ -1073,10 +1069,7 @@ module Api
             filename: filename,
             content_type: content_type,
             category: category,
-            expires_in: 3600,
-            # DEBUG: Include endpoint info in response (temporary)
-            _debug_endpoint: cred.endpoint,
-            _debug_bucket: cred.bucket
+            expires_in: 3600
           }
         rescue DocumentProviders::NotConnectedError => e
           render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
