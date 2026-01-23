@@ -473,9 +473,10 @@ class DocumentStorageService
   #
   # Priority:
   #   1. warehouse_document.download_filename (Phase 3 SSoT - sanitized + templated)
-  #   2. record.file_name (original filename)
-  #   3. storage_blob.original_filename (fallback)
-  #   4. "document" (last resort)
+  #   2. display_name (user-renamed) + original extension
+  #   3. record.file_name (original filename)
+  #   4. storage_blob.original_filename (fallback)
+  #   5. "document" (last resort)
   #
   # @param record [ActiveRecord::Base] Document model
   # @return [String] The filename to use for download
@@ -485,17 +486,33 @@ class DocumentStorageService
       return record.warehouse_document.download_filename
     end
 
-    # 2. Try record's file_name
+    # 2. Try display_name (user-renamed) - add original extension if missing
+    if record.respond_to?(:display_name) && record.display_name.present?
+      display = record.display_name
+      original = record.respond_to?(:file_name) ? record.file_name : nil
+
+      # If display_name doesn't have extension, add it from original file_name
+      if original.present?
+        original_ext = File.extname(original)
+        display_ext = File.extname(display)
+        if display_ext.blank? && original_ext.present?
+          return "#{display}#{original_ext}"
+        end
+      end
+      return display
+    end
+
+    # 3. Try record's file_name
     if record.respond_to?(:file_name) && record.file_name.present?
       return record.file_name
     end
 
-    # 3. Try storage_blob's original_filename
+    # 4. Try storage_blob's original_filename
     if record.respond_to?(:storage_blob) && record.storage_blob&.original_filename.present?
       return record.storage_blob.original_filename
     end
 
-    # 4. Last resort fallback
+    # 5. Last resort fallback
     "document"
   end
 end

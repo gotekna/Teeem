@@ -1033,8 +1033,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [emailFileAttachments, setEmailFileAttachments] = useState<File[]>([]);
   const [prepareEmailLoading, setPrepareEmailLoading] = useState(false);
   const [prepareEmailStatus, setPrepareEmailStatus] = useState('');
-  // Track how each attachment should be included: 'attach' (file), 'link' (SharePoint URL), 'none' (exclude)
-  const [attachmentEmailOptions, setAttachmentEmailOptions] = useState<Record<number, 'attach' | 'link' | 'none'>>({});
+  // Track how each attachment should be included: 'attach' (file), 'link' (URL), 'both' (attach + link), 'none' (exclude)
+  const [attachmentEmailOptions, setAttachmentEmailOptions] = useState<Record<number, 'attach' | 'link' | 'both' | 'none'>>({});
   // Store SharePoint share links created for 'link' option
   const [shareLinksMap, setShareLinksMap] = useState<Record<number, string>>({});
   // Include original email in response chain (quoted reply)
@@ -1380,7 +1380,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Initialize default email options for response attachments
   // Default: 'link' for SharePoint files, 'attach' for ActiveStorage files
   useEffect(() => {
-    const newOptions: Record<number, 'attach' | 'link' | 'none'> = {};
+    const newOptions: Record<number, 'attach' | 'link' | 'both' | 'none'> = {};
     responseAttachments.forEach(att => {
       // Keep existing choice if already set
       if (attachmentEmailOptions[att.id]) {
@@ -2907,18 +2907,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     });
 
     // Separate by option type (documents and emails)
-    const attachedFiles = generalResponseAttachments.filter(att =>
-      attachmentEmailOptions[att.id] === 'attach' && att.document
-    );
-    const attachedEmails = generalResponseAttachments.filter(att =>
-      attachmentEmailOptions[att.id] === 'attach' && att.email
-    );
-    const linkedFiles = generalResponseAttachments.filter(att =>
-      attachmentEmailOptions[att.id] === 'link' && att.document
-    );
-    const linkedEmails = generalResponseAttachments.filter(att =>
-      attachmentEmailOptions[att.id] === 'link' && att.email
-    );
+    // 'both' option includes item in BOTH attached AND linked lists
+    const attachedFiles = generalResponseAttachments.filter(att => {
+      const opt = attachmentEmailOptions[att.id];
+      return (opt === 'attach' || opt === 'both') && att.document;
+    });
+    const attachedEmails = generalResponseAttachments.filter(att => {
+      const opt = attachmentEmailOptions[att.id];
+      return (opt === 'attach' || opt === 'both') && att.email;
+    });
+    const linkedFiles = generalResponseAttachments.filter(att => {
+      const opt = attachmentEmailOptions[att.id];
+      return (opt === 'link' || opt === 'both') && att.document;
+    });
+    const linkedEmails = generalResponseAttachments.filter(att => {
+      const opt = attachmentEmailOptions[att.id];
+      return (opt === 'link' || opt === 'both') && att.email;
+    });
     // 'none' files are excluded
 
     // Show files/emails that are attached to the email (no hyperlink - they're attachments)
@@ -3000,20 +3005,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         .filter(att => att.document?.storage_url);
 
       // Separate documents and emails for processing
-      const documentsToAttach = responseAttachments.filter(a =>
-        attachmentEmailOptions[a.id] === 'attach' && a.document
-      );
-      const emailsToAttach = responseAttachments.filter(a =>
-        attachmentEmailOptions[a.id] === 'attach' && a.email
-      );
+      // 'both' option includes item in BOTH attach AND link lists
+      const documentsToAttach = responseAttachments.filter(a => {
+        const opt = attachmentEmailOptions[a.id];
+        return (opt === 'attach' || opt === 'both') && a.document;
+      });
+      const emailsToAttach = responseAttachments.filter(a => {
+        const opt = attachmentEmailOptions[a.id];
+        return (opt === 'attach' || opt === 'both') && a.email;
+      });
       const documentsToLink = responseAttachments.filter(a => {
         const opt = attachmentEmailOptions[a.id];
         const hasExternalStorage = a.document?.storage_url;
-        return opt === 'link' && hasExternalStorage && a.document;
+        return (opt === 'link' || opt === 'both') && hasExternalStorage && a.document;
       });
       const emailsToLink = responseAttachments.filter(a => {
         const opt = attachmentEmailOptions[a.id];
-        return opt === 'link' && a.email;
+        return (opt === 'link' || opt === 'both') && a.email;
       });
 
       const totalToProcess = documentsToAttach.length + emailsToAttach.length +
@@ -5482,7 +5490,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
-                        {/* Email inclusion options - for documents (SharePoint link) and emails (app link) */}
+                        {/* Email inclusion options - for documents (S3 link) and emails (app link) */}
                         <div className="flex items-center gap-3 mt-1.5 ml-5 text-[10px]">
                           <label className="flex items-center gap-1 cursor-pointer">
                             <input
@@ -5495,16 +5503,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             <span>Attach</span>
                           </label>
                           {(hasExternalStorage || isEmail) && (
-                            <label className="flex items-center gap-1 cursor-pointer">
-                              <input
-                                type="radio"
-                                name={`att-${att.id}`}
-                                checked={emailOption === 'link'}
-                                onChange={() => setAttachmentEmailOptions(prev => ({ ...prev, [att.id]: 'link' }))}
-                                className="w-3 h-3"
-                              />
-                              <span>Link</span>
-                            </label>
+                            <>
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`att-${att.id}`}
+                                  checked={emailOption === 'link'}
+                                  onChange={() => setAttachmentEmailOptions(prev => ({ ...prev, [att.id]: 'link' }))}
+                                  className="w-3 h-3"
+                                />
+                                <span>Link</span>
+                              </label>
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`att-${att.id}`}
+                                  checked={emailOption === 'both'}
+                                  onChange={() => setAttachmentEmailOptions(prev => ({ ...prev, [att.id]: 'both' }))}
+                                  className="w-3 h-3"
+                                />
+                                <span>Both</span>
+                              </label>
+                            </>
                           )}
                           <label className="flex items-center gap-1 cursor-pointer text-muted-foreground">
                             <input
