@@ -713,9 +713,46 @@ function SortableQuestionItem({
             // Handle email attachments (SyncedEmail)
             if (att.email) {
               const subject = att.email.subject || '(No subject)';
+              const downloadUrl = att.email.download_eml_url;
               return (
-                <div key={att.id} className="flex items-center gap-2 text-xs">
+                <div key={att.id} className="flex items-center gap-1 text-xs group">
                   <Mail className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
+                  {/* Download .eml button */}
+                  {downloadUrl && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          // Call the download_eml endpoint
+                          const response = await fetch(downloadUrl, {
+                            credentials: 'include',
+                            headers: { 'Accept': 'application/json' }
+                          });
+                          const data = await response.json();
+                          if (data.success && data.content) {
+                            // Decode base64 and download
+                            const blob = new Blob(
+                              [Uint8Array.from(atob(data.content), c => c.charCodeAt(0))],
+                              { type: 'message/rfc822' }
+                            );
+                            const url = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = data.filename || `${subject}.eml`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(url);
+                          }
+                        } catch (error) {
+                          console.error('Failed to download email:', error);
+                        }
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                      title="Download as .eml"
+                    >
+                      <Download className="h-3 w-3" />
+                    </button>
+                  )}
                   <button
                     onClick={() => setSelectedEmailId?.(att.email!.id)}
                     className="text-green-600 dark:text-green-400 hover:text-green-700 hover:underline font-medium text-left"

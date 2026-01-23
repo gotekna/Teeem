@@ -2464,6 +2464,9 @@ module Api
               conversation_id: email.conversation_id,
               thread_count: email.thread_count,
               body_preview: email.body_preview || email.body_text&.truncate(200),
+              # SSoT: Download entire email as .eml file
+              # Endpoint: GET /api/v1/synced_emails/:id/download_eml
+              download_eml_url: "/api/v1/synced_emails/#{email.id}/download_eml",
               # SSoT: Return attachment metadata for display
               # Download URL: /api/v1/synced_email/:email_id/attachments/:attachment_id/download
               # Frontend constructs download URL from email_id + attachment.id (never expose storage_path)

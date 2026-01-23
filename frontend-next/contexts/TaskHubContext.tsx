@@ -22,6 +22,7 @@ export interface TaskAttachmentEmail {
   thread_count?: number;
   body_preview?: string;
   attachment_content_hashes?: string[]; // Content hashes of email file attachments for linking to documents
+  download_eml_url?: string; // SSoT: API endpoint to download email as .eml file
 }
 
 export interface TaskAttachmentDocument {
