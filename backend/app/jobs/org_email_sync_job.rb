@@ -287,9 +287,10 @@ class OrgEmailSyncJob < ApplicationJob
       references: email_data["references"],
       last_synced_at: Time.current,
       microsoft_credential_id: @credential&.id,  # Track which org this email came from
-      mailbox_owner_email: owner_email  # Track which mailbox this email came from (for fetching attachments)
-      # NOTE: company_group_id removed - column doesn't exist in synced_emails table yet
-      # TODO: Add migration for multi-tenancy support when needed
+      mailbox_owner_email: owner_email,  # Track which mailbox this email came from (for fetching attachments)
+      # SSoT: Multi-tenancy - set tenant_id from credential's organization
+      # This ensures emails are isolated per tenant and don't leak across orgs
+      tenant_id: @credential&.organization&.tenant_id
     )
 
     # Set first_synced_at if new record
