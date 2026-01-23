@@ -96,7 +96,7 @@ module Api
         end
 
         # SSoT: Attach to StorageBlob (Jan 2026 - replaces ActiveStorage)
-        task.attach_document(
+        task.attach_file(
           uploaded_file.read,
           filename: uploaded_file.original_filename,
           content_type: uploaded_file.content_type
@@ -105,7 +105,7 @@ module Api
           has_document: true,
           uploaded_at: Time.current,
           uploaded_by: current_user&.email,
-          sharepoint_url: storage_url
+          storage_url: storage_url
         )
 
         render json: {
@@ -162,8 +162,8 @@ module Api
           category: task.category,
           has_document: task.has_document,
           is_validated: task.is_validated,
-          document_url: task.sharepoint_url || task.document_url,
-          sharepoint_url: task.sharepoint_url,
+          document_url: task.storage_url || task.document_url,
+          sharepoint_url: task.storage_url, # Alias for frontend compatibility
           uploaded_at: task.uploaded_at,
           validated_at: task.validated_at,
           validated_by: task.validated_by

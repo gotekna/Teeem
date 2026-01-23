@@ -530,6 +530,17 @@ export function isRelatedPath(path1: string, path2: string): boolean {
     if (isDeepSettings && isTopLevelSettingsTab) {
       return false; // Force trail rebuild
     }
+
+    // Also handle navigating from a deeper sub-tab to a different main tab
+    // e.g., /settings/developer/components/table → /settings/developer/tools
+    // These have the same parent (/settings/developer) but different depths
+    if (segments1.length >= 4 && segments2.length === 3) {
+      const parent1 = segments1.slice(0, 2).join('/'); // settings/developer
+      const parent2 = segments2.slice(0, 2).join('/'); // settings/developer
+      if (parent1 === parent2 && segments1[2] !== segments2[2]) {
+        return false; // Force trail rebuild when switching between tabs at different depths
+      }
+    }
   }
 
   // Check if first segment matches (e.g., both under /jobs)

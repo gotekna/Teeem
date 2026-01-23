@@ -1,14 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import {
   Paperclip,
   FileText,
   FileImage,
   FileSpreadsheet,
   File,
-  ExternalLink,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -102,7 +101,6 @@ function isSignatureAttachment(attachment: Attachment): boolean {
 
 export function AttachmentList({ attachments, emailId, className }: AttachmentListProps) {
   const [loading, setLoading] = useState<string | null>(null);
-  const router = useRouter();
 
   // Filter out signature/embedded images
   const visibleAttachments = attachments?.filter(a => !isSignatureAttachment(a)) || [];
@@ -254,7 +252,103 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     }
   };
 
-  // Download attachment (single-click action)
+  // Preview attachment in popup (single-click action)
+  // For spreadsheets: Opens in TeeemXL
+  // For Word docs: Opens in TeeemWord
+  // For others: Opens in popup window
+  const handlePreviewInPopup = async (attachment: Attachment) => {
+    const attachmentId = attachment.id || attachment.outlook_attachment_id;
+    if (!emailId || !attachmentId) return;
+
+    setLoading(attachment.name);
+    try {
+      // Check if it's a spreadsheet - import to TeeemXL via backend
+      if (isSpreadsheetFile(attachment.name, attachment.content_type)) {
+        const response = await api.post<{
+          success: boolean;
+          data?: { id: number };
+          error?: string;
+        }>("/api/v1/teeem_spreadsheets/import_from_attachment", {
+          email_id: emailId,
+          attachment_id: attachmentId,
+        });
+
+        if (response?.success && response.data?.id) {
+          // Open TeeemXL with the imported spreadsheet in popup
+          window.open(
+            `/admin/system/teeem-xl?id=${response.data.id}`,
+            "preview",
+            "width=1200,height=800,menubar=no,toolbar=no,location=no,status=no"
+          );
+        } else {
+          console.error("Failed to import spreadsheet:", response?.error);
+          // Fallback to blob preview
+          const blob = await fetchAttachmentBlob(attachment);
+          const url = window.URL.createObjectURL(blob);
+          window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
+          setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+        }
+        return;
+      }
+
+      // Check if it's a Word doc - download blob and navigate to TeeemWord
+      if (isWordDocFile(attachment.name, attachment.content_type)) {
+        const blob = await fetchAttachmentBlob(attachment);
+
+        // Store the blob in sessionStorage as base64 for TeeemWord to import
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const base64 = reader.result as string;
+          const fileName = attachment.name;
+
+          // Create a new TeeemDocument first
+          const docResponse = await api.post<{
+            success: boolean;
+            data?: { id: number };
+          }>("/api/v1/teeem_documents", {
+            teeem_document: {
+              name: fileName.replace(/\.(docx?|doc)$/i, ""),
+            },
+          });
+
+          if (docResponse?.success && docResponse.data?.id) {
+            // Store the file data for TeeemWord to pick up
+            sessionStorage.setItem("teeem_word_import", JSON.stringify({
+              base64,
+              fileName,
+              documentId: docResponse.data.id,
+            }));
+
+            // Open TeeemWord in popup - it will detect the import data and auto-import
+            window.open(
+              `/admin/system/teeem-word?id=${docResponse.data.id}&import=true`,
+              "preview",
+              "width=1200,height=800,menubar=no,toolbar=no,location=no,status=no"
+            );
+          } else {
+            // Fallback to blob preview
+            const url = window.URL.createObjectURL(blob);
+            window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
+            setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+          }
+        };
+        reader.readAsDataURL(blob);
+        return;
+      }
+
+      // Default: Open blob in popup window
+      const blob = await fetchAttachmentBlob(attachment);
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error("Failed to preview attachment:", error);
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  // Download attachment
   const handleDownload = async (attachment: Attachment, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
@@ -284,7 +378,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
         <Paperclip className="h-4 w-4" />
         <span>{visibleAttachments.length} Attachment{visibleAttachments.length !== 1 ? "s" : ""}</span>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
         {visibleAttachments.map((attachment, idx) => {
           const Icon = getFileIcon(attachment.content_type, attachment.name);
           const isLoading = loading === attachment.name;
@@ -293,50 +387,43 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           return (
             <div
               key={attachment.id || idx}
-              onClick={hasId ? () => handleDownload(attachment) : undefined}
-              onDoubleClick={hasId ? () => handleOpenInNewWindow(attachment) : undefined}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/50 transition-colors",
-                hasId && "cursor-pointer hover:bg-muted hover:border-primary/50",
-                isLoading && "opacity-50"
-              )}
-              title="Click to download, double-click to open in new window"
+              className="flex items-center gap-1 text-sm group"
             >
               <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate max-w-[200px]">
-                  {attachment.name}
-                </p>
-                {attachment.size && (
-                  <p className="text-xs text-muted-foreground">
-                    {formatFileSize(attachment.size)}
-                  </p>
+              <button
+                onClick={hasId ? () => handlePreviewInPopup(attachment) : undefined}
+                onDoubleClick={hasId ? (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleOpenInNewWindow(attachment);
+                } : undefined}
+                className={cn(
+                  "truncate text-left max-w-[200px]",
+                  hasId && "text-primary hover:underline cursor-pointer",
+                  !hasId && "text-foreground",
+                  isLoading && "opacity-50"
                 )}
-              </div>
+                title="Click to preview, double-click to open in new tab"
+                disabled={!hasId}
+              >
+                {attachment.name}
+              </button>
               {hasId && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0"
-                  onClick={(e) => { e.stopPropagation(); handleOpenInNewWindow(attachment); }}
+                  className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => { e.stopPropagation(); handleDownload(attachment, e); }}
                   disabled={isLoading}
-                  title="Open in new window"
+                  title="Download"
                 >
-                  <ExternalLink className={cn("h-4 w-4", isLoading && "animate-pulse")} />
+                  <Download className={cn("h-3 w-3", isLoading && "animate-spin")} />
                 </Button>
               )}
-              {attachment.url && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  asChild
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <a href={attachment.url} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
+              {attachment.size && (
+                <span className="text-xs text-muted-foreground">
+                  ({formatFileSize(attachment.size)})
+                </span>
               )}
             </div>
           );

@@ -924,8 +924,8 @@ export default function TeeemPowerPointPage() {
   const [jobs, setJobs] = React.useState<Job[]>([]);
   const [loadingJobs, setLoadingJobs] = React.useState(false);
 
-  // Current slide
-  const currentSlide = data.slides[selectedSlideIndex];
+  // Current slide - with safety check for empty slides array
+  const currentSlide = data.slides[selectedSlideIndex] || data.slides[0];
 
   // Search jobs for the job picker
   const searchJobs = React.useCallback(async (term: string) => {
@@ -972,9 +972,11 @@ export default function TeeemPowerPointPage() {
             setName(response.data.name);
             setSelectedJobId(response.data.jobId || null);
             setSelectedJobName(response.data.jobName || null);
-            if (response.data.data) {
+            // Ensure we have valid data with at least one slide
+            if (response.data.data && response.data.data.slides && response.data.data.slides.length > 0) {
               setData(response.data.data);
             }
+            // If no valid data, keep the initial empty presentation from createEmptyPresentation()
           }
         } else {
           const response = await api.post<{ success: boolean; data: TeeemPresentation }>(
@@ -984,9 +986,11 @@ export default function TeeemPowerPointPage() {
           if (response?.success && response.data) {
             setPresentation(response.data);
             setName(response.data.name);
-            if (response.data.data) {
+            // Ensure we have valid data with at least one slide
+            if (response.data.data && response.data.data.slides && response.data.data.slides.length > 0) {
               setData(response.data.data);
             }
+            // If no valid data, keep the initial empty presentation from createEmptyPresentation()
             router.replace(`/admin/system/teeem-powerpoint?id=${response.data.id}`);
           }
         }
@@ -1406,6 +1410,18 @@ export default function TeeemPowerPointPage() {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <Spinner className="h-8 w-8" />
+      </div>
+    );
+  }
+
+  // Safety check: ensure we have a current slide to render
+  if (!currentSlide) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">No slides available</p>
+          <Button onClick={() => addSlide("title")}>Create First Slide</Button>
+        </div>
       </div>
     );
   }
