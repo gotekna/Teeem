@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { copyToClipboard } from "@/utils/formatters";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -205,7 +206,7 @@ export default function ABNLookupTab() {
   }, [nameInput, stateInput, postcodeInput]);
 
   const handleCopy = async (text: string, field: string) => {
-    await navigator.clipboard.writeText(text);
+    await copyToClipboard(text);
     setCopied(field);
     setTimeout(() => setCopied(null), 2000);
   };

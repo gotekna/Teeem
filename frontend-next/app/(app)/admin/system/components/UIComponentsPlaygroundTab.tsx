@@ -14,6 +14,7 @@
  */
 
 import * as React from "react";
+import { copyToClipboard } from "@/utils/formatters";
 import {
   Sun,
   Moon,
@@ -94,6 +95,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AttachmentBadge } from "@/components/ui/attachment-badge";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { FormField } from "@/components/ui/form-field";
+import { FormModal } from "@/components/ui/form-modal";
 
 // Pattern Components
 import { DragHandle, PositionBadge, ItemBadge, SortableList, SortableItem } from "@/components/ui/dnd";
@@ -180,6 +185,79 @@ function BadgeDemo() {
   );
 }
 
+function AttachmentBadgeDemo() {
+  const [loading, setLoading] = React.useState(false);
+
+  const handleDownload = () => {
+    setLoading(true);
+    setTimeout(() => setLoading(false), 1500);
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Indicator mode */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Indicator mode (paperclip)</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <AttachmentBadge />
+          <AttachmentBadge count={3} />
+          <AttachmentBadge count={5} variant="success" />
+        </div>
+      </div>
+
+      {/* File type icons */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">File type detection</p>
+        <div className="flex flex-wrap gap-2">
+          <AttachmentBadge fileName="report.pdf" />
+          <AttachmentBadge fileName="photo.jpg" />
+          <AttachmentBadge fileName="data.xlsx" />
+          <AttachmentBadge fileName="contract.docx" />
+          <AttachmentBadge fileName="model.rvt" />
+          <AttachmentBadge fileName="drawing.dwg" />
+        </div>
+      </div>
+
+      {/* With display name and size */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">With display name &amp; size</p>
+        <div className="flex flex-wrap gap-2">
+          <AttachmentBadge fileName="report.pdf" displayName="Q4 Report" fileSize={1024000} />
+          <AttachmentBadge fileName="photo.jpg" displayName="Site Photo" fileSize={2500000} />
+        </div>
+      </div>
+
+      {/* Interactive with actions */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Interactive (click to download)</p>
+        <div className="flex flex-wrap gap-2">
+          <AttachmentBadge
+            fileName="report.pdf"
+            displayName="Downloadable"
+            onDownload={handleDownload}
+            loading={loading}
+          />
+          <AttachmentBadge
+            fileName="image.png"
+            displayName="With remove"
+            onRemove={() => alert("Remove clicked")}
+          />
+        </div>
+      </div>
+
+      {/* Size variants */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Sizes</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <AttachmentBadge fileName="file.pdf" size="xs" />
+          <AttachmentBadge fileName="file.pdf" size="sm" />
+          <AttachmentBadge fileName="file.pdf" size="md" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InputDemo() {
   return (
     <div className="space-y-2 max-w-sm">
@@ -240,6 +318,169 @@ function DialogDemo() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ConfirmationDialogDemo() {
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [variant, setVariant] = React.useState<"default" | "destructive">("default");
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setLoading(false);
+    setOpen(false);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setVariant("default");
+            setOpen(true);
+          }}
+        >
+          Open Confirmation
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => {
+            setVariant("destructive");
+            setOpen(true);
+          }}
+        >
+          Open Delete Confirmation
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Click confirm to see loading state (1.5s delay)
+      </p>
+      <ConfirmationDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={variant === "destructive" ? "Delete Item?" : "Confirm Action"}
+        description={
+          variant === "destructive"
+            ? "This action cannot be undone. The item will be permanently deleted."
+            : "Are you sure you want to proceed with this action?"
+        }
+        variant={variant}
+        confirmLabel={variant === "destructive" ? "Delete" : "Confirm"}
+        onConfirm={handleConfirm}
+        loading={loading}
+      />
+    </div>
+  );
+}
+
+function FormFieldDemo() {
+  const [value, setValue] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+
+  const handleBlur = () => {
+    if (!value) {
+      setError("This field is required");
+    } else if (value.length < 3) {
+      setError("Must be at least 3 characters");
+    } else {
+      setError(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4 max-w-sm">
+      {/* Basic usage */}
+      <FormField label="Email" required>
+        <Input placeholder="Enter your email" />
+      </FormField>
+
+      {/* With hint */}
+      <FormField label="Username" hint="Letters and numbers only" required>
+        <Input placeholder="Choose a username" />
+      </FormField>
+
+      {/* With error (interactive) */}
+      <FormField
+        label="Full Name"
+        error={error}
+        hint="Enter at least 3 characters"
+        required
+      >
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={handleBlur}
+          placeholder="Try leaving empty or entering 1-2 chars"
+        />
+      </FormField>
+
+      {/* Horizontal layout */}
+      <FormField label="Enable notifications" orientation="horizontal">
+        <Switch />
+      </FormField>
+    </div>
+  );
+}
+
+function FormModalDemo() {
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setLoading(false);
+    setOpen(false);
+    setName("");
+    setEmail("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        Open Form Modal
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        Click Save to see loading state (1.5s delay)
+      </p>
+      <FormModal
+        open={open}
+        onOpenChange={setOpen}
+        title="Add New Contact"
+        description="Enter the contact details below."
+        submitLabel="Save Contact"
+        onSubmit={handleSubmit}
+        isLoading={loading}
+      >
+        <div className="space-y-4">
+          <FormField label="Name" required>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter name"
+              disabled={loading}
+            />
+          </FormField>
+          <FormField label="Email" required>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter email"
+              disabled={loading}
+            />
+          </FormField>
+        </div>
+      </FormModal>
+    </div>
   );
 }
 
@@ -973,10 +1214,14 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   button: ButtonDemo,
   card: CardDemo,
   badge: BadgeDemo,
+  "attachment-badge": AttachmentBadgeDemo,
   input: InputDemo,
   label: LabelDemo,
   select: SelectDemo,
   dialog: DialogDemo,
+  "confirmation-dialog": ConfirmationDialogDemo,
+  "form-field": FormFieldDemo,
+  "form-modal": FormModalDemo,
   tabs: TabsDemo,
   table: TableDemo,
   spinner: SpinnerDemo,
@@ -1018,7 +1263,7 @@ function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
+    await copyToClipboard(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

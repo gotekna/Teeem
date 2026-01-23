@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { copyToClipboard } from "@/utils/formatters";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -211,7 +212,7 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
 
   const handleCopyLink = useCallback(() => {
     if (shareLink) {
-      navigator.clipboard.writeText(shareLink);
+      copyToClipboard(shareLink);
       setShareLinkCopied(true);
       setTimeout(() => setShareLinkCopied(false), 2000);
     }

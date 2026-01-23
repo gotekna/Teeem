@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { copyToClipboard } from "@/utils/formatters";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,7 +96,7 @@ function CopyableCode({ children }: { children: string }) {
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(children);
+    await copyToClipboard(children);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };

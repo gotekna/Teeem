@@ -10,6 +10,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -132,7 +133,7 @@ export function AgentsTab() {
   };
 
   const copyCommand = (command: string) => {
-    navigator.clipboard.writeText(command);
+    copyToClipboard(command);
     setCopiedCommand(command);
     setTimeout(() => setCopiedCommand(null), 2000);
   };

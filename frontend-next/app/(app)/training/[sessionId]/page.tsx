@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ShareIcon, XMarkIcon, CheckIcon, ClipboardIcon } from "@heroicons/react/24/outline";
+import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
 import { Input } from "@/components/ui/input";
@@ -106,14 +107,14 @@ export default function TrainingSessionPage() {
   }, [jitsiLoaded, sessionId, displayName, router]);
 
   const copyInviteLink = () => {
-    navigator.clipboard.writeText(inviteLink);
+    copyToClipboard(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const copySessionId = () => {
     if (sessionId) {
-      navigator.clipboard.writeText(sessionId);
+      copyToClipboard(sessionId);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }

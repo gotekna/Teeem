@@ -11,6 +11,7 @@ import { useCallback } from 'react';
 import { useSetAtom } from 'jotai';
 import { api } from '@/lib/api';
 import { invalidateColumnsCacheAtom } from '@/lib/column-state-atoms';
+import { copyToClipboard } from '@/utils/formatters';
 import type { TableColumn } from '../../types';
 
 export interface UseSchemaHandlersProps {
@@ -195,7 +196,7 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
   // Copy table ID to clipboard
   const handleCopyTableId = useCallback(() => {
     if (foundationIdNumeric) {
-      navigator.clipboard.writeText(String(foundationIdNumeric));
+      copyToClipboard(String(foundationIdNumeric));
       toast({ title: "Copied", description: `Table ID ${foundationIdNumeric} copied to clipboard` });
     }
   }, [foundationIdNumeric, toast]);

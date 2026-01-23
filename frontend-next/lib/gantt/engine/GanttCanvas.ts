@@ -16,6 +16,7 @@ import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 import { CHART_COLORS, GANTT_COLORS, TAILWIND_COLORS, CATEGORY_COLORS } from '@/lib/constants/color-constants';
 import { TASK_STATUS, TaskStatus, TASK_STATUS_LABELS } from '@/lib/constants/task-status';
 import { getStorageItem, setStorageItem, removeStorageItem } from '@/lib/storage-utils';
+import { copyToClipboard } from '@/utils/formatters';
 
 // Extracted Managers (Day 2-7 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
@@ -14560,7 +14561,7 @@ export class GanttCanvas {
 
   copyGanttBibleToClipboard(): boolean {
     try {
-      navigator.clipboard.writeText(this.ganttBibleContent.trim());
+      copyToClipboard(this.ganttBibleContent.trim());
       return true;
     } catch (e) {
       console.error('[GanttCanvas] Failed to copy Gantt Bible:', e);
@@ -14594,7 +14595,7 @@ export class GanttCanvas {
 
   copyBugHunterLexiconToClipboard(): boolean {
     try {
-      navigator.clipboard.writeText(this.bugHunterLexiconContent.trim());
+      copyToClipboard(this.bugHunterLexiconContent.trim());
       return true;
     } catch (e) {
       console.error('[GanttCanvas] Failed to copy Bug Hunter Lexicon:', e);
@@ -14637,7 +14638,7 @@ ${this.getAutomatedTestResults()}
 
   copyTestStatusReportToClipboard(): boolean {
     try {
-      navigator.clipboard.writeText(this.generateTestStatusReport().trim());
+      copyToClipboard(this.generateTestStatusReport().trim());
       return true;
     } catch (e) {
       console.error('[GanttCanvas] Failed to copy Test Status Report:', e);
@@ -14680,7 +14681,7 @@ ${this.getAutomatedTestResults()}
 
   copyGanttRulesToClipboard(): boolean {
     try {
-      navigator.clipboard.writeText(this.ganttRulesContent.trim());
+      copyToClipboard(this.ganttRulesContent.trim());
       return true;
     } catch (e) {
       console.error('[GanttCanvas] Failed to copy Gantt Rules:', e);

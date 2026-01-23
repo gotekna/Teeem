@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/use-toast";
+import { copyToClipboard } from "@/utils/formatters";
 
 export interface DocumentFile {
   id?: number;
@@ -73,7 +74,7 @@ export function DocumentActions({
     }
 
     try {
-      await navigator.clipboard.writeText(document.fileUrl);
+      await copyToClipboard(document.fileUrl);
       setCopied(true);
       toast({
         title: "Link copied",

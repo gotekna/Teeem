@@ -13,6 +13,7 @@ import {
   ContextMenuTrigger,
   ContextMenuShortcut,
 } from "@/components/ui/context-menu";
+import { copyToClipboard } from "@/utils/formatters";
 import {
   Reply,
   ReplyAll,
@@ -215,13 +216,13 @@ export function EmailContextMenu({
 
   const handleCopySubject = () => {
     if (subject) {
-      navigator.clipboard.writeText(subject);
+      copyToClipboard(subject);
     }
   };
 
   const handleCopySenderEmail = () => {
     if (fromEmail) {
-      navigator.clipboard.writeText(fromEmail);
+      copyToClipboard(fromEmail);
     }
   };
 

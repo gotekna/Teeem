@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { copyToClipboard } from "@/utils/formatters";
 import consoleCapture, { type LogEntry } from "@/utils/consoleCapture";
 import { clearAllCachedRecords } from "@/lib/records-cache";
 import html2canvas from "html2canvas";
@@ -108,7 +109,7 @@ export function HeaderDebugTools() {
         });
       }
 
-      await navigator.clipboard.writeText(formatted);
+      await copyToClipboard(formatted);
       setCopiedButton("errors");
       setTimeout(() => setCopiedButton(null), 2000);
     } catch (err) {
@@ -243,7 +244,7 @@ ${pngDataUrl}
 ${formattedLogs || "(No logs)"}
 `;
 
-      await navigator.clipboard.writeText(formatted);
+      await copyToClipboard(formatted);
       setCopiedButton("validate");
       setTimeout(() => setCopiedButton(null), 2000);
     } catch (err) {

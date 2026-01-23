@@ -2,31 +2,10 @@
 
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { useAtom } from "jotai";
-import { createConsumer, Subscription } from "@rails/actioncable";
+import type { Subscription } from "@rails/actioncable";
 import type { EmailListItem, EmailUserState } from "@/lib/email-types";
-import { getApiBaseUrl } from "@/lib/api";
 import { syncingAtom } from "@/lib/email-atoms";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
-
-// Singleton ActionCable consumer to prevent multiple connections
-let globalConsumer: ReturnType<typeof createConsumer> | null = null;
-let globalConsumerUrl: string | null = null;
-
-function getOrCreateConsumer(wsUrl: string): ReturnType<typeof createConsumer> {
-  // Reuse existing consumer if URL matches
-  if (globalConsumer && globalConsumerUrl === wsUrl) {
-    return globalConsumer;
-  }
-
-  // Disconnect old consumer if URL changed
-  if (globalConsumer) {
-    globalConsumer.disconnect();
-  }
-
-  globalConsumer = createConsumer(wsUrl);
-  globalConsumerUrl = wsUrl;
-  return globalConsumer;
-}
+import { getOrCreateConsumer, getWebSocketUrl } from "@/lib/websocket/consumer-singleton";
 
 // WebSocket event types (matches backend EmailChannel)
 export type EmailWebSocketEventType =
@@ -223,6 +202,7 @@ export function useEmailWebSocket(
   const FAILURE_RESET_MS = 60000;
 
   // Memoize WebSocket URL so it doesn't change between renders
+  // SSoT: Use getWebSocketUrl from consumer-singleton
   const wsUrl = useMemo(() => {
     return process.env.NEXT_PUBLIC_WS_URL || getWebSocketUrl();
   }, []);
@@ -366,33 +346,6 @@ export function useEmailWebSocket(
     disconnect,
     reconnect,
   };
-}
-
-/**
- * Construct WebSocket URL from API URL
- * Converts http(s)://host/api to ws(s)://host/cable
- * Includes auth token as query param for iOS Safari/mobile support
- */
-function getWebSocketUrl(): string {
-  // SSoT: Use getApiBaseUrl from @/lib/api
-  const apiUrl = getApiBaseUrl();
-  const url = new URL(apiUrl);
-
-  // Convert http to ws, https to wss
-  url.protocol = url.protocol.replace("http", "ws");
-
-  // Change path to /cable (ActionCable default)
-  url.pathname = "/cable";
-
-  // Add auth token as query parameter (iOS Safari can't send headers on WebSocket)
-  if (typeof window !== "undefined") {
-    const token = getStorageItem(STORAGE_KEYS.TOKEN, null);
-    if (token) {
-      url.searchParams.set("token", token);
-    }
-  }
-
-  return url.toString();
 }
 
 export default useEmailWebSocket;

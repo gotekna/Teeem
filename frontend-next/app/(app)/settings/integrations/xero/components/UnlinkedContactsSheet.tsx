@@ -8,6 +8,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -365,7 +366,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                     className="h-6 w-6 p-0 shrink-0"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      navigator.clipboard.writeText(contact.xero_details!.email!);
+                                      copyToClipboard(contact.xero_details!.email!);
                                       toast.success("Email copied");
                                     }}
                                   >
@@ -390,7 +391,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                         className="h-6 w-6 p-0 shrink-0"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          navigator.clipboard.writeText(phone.number);
+                                          copyToClipboard(phone.number);
                                           toast.success("Phone copied");
                                         }}
                                       >
@@ -417,7 +418,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                         className="h-6 w-6 p-0 shrink-0"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          navigator.clipboard.writeText(addr.formatted);
+                                          copyToClipboard(addr.formatted);
                                           toast.success("Address copied");
                                         }}
                                       >
@@ -439,7 +440,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                     className="h-6 w-6 p-0 shrink-0"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      navigator.clipboard.writeText(contact.xero_details!.website!);
+                                      copyToClipboard(contact.xero_details!.website!);
                                       toast.success("Website copied");
                                     }}
                                   >

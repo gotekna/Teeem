@@ -1,5 +1,7 @@
 // Console Capture Utility - Intercepts and stores all console output
 
+import { copyToClipboard } from "@/utils/formatters";
+
 interface LogEntry {
   timestamp: string;
   type: "log" | "error" | "warn" | "info" | "debug";
@@ -150,7 +152,7 @@ class ConsoleCapture {
     const fullText = header + formatted;
 
     try {
-      await navigator.clipboard.writeText(fullText);
+      await copyToClipboard(fullText);
       return `Copied ${this.logs.length} console entries to clipboard!`;
     } catch (err) {
       throw new Error(`Failed to copy: ${err}`);

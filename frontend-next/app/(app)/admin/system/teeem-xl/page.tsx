@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -660,7 +661,7 @@ export default function TeeemXLPage() {
     // Also copy to system clipboard as text
     const text = getSelectionAsText();
     if (text) {
-      navigator.clipboard.writeText(text).catch(() => {});
+      copyToClipboard(text).catch(() => {});
     }
   };
 

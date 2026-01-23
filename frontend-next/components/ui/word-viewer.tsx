@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "./button";
 import { Spinner } from "./spinner";
+import { copyToClipboard } from "@/utils/formatters";
 
 export interface WordData {
   text: string;
@@ -37,7 +38,7 @@ export function WordViewer({
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(data.text);
+      await copyToClipboard(data.text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {

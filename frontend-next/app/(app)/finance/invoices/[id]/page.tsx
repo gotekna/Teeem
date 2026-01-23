@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -290,7 +291,7 @@ export default function InvoiceDetailPage() {
     if (!paymentLinkUrl) return;
 
     try {
-      await navigator.clipboard.writeText(paymentLinkUrl);
+      await copyToClipboard(paymentLinkUrl);
       setPaymentLinkCopied(true);
       setTimeout(() => setPaymentLinkCopied(false), 2000);
     } catch (err) {

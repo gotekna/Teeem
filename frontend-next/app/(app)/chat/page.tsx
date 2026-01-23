@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { copyToClipboard } from "@/utils/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import {
@@ -1240,7 +1241,7 @@ function MessageBubble({
                               ]);
                             } catch {
                               // Fallback: copy URL to clipboard
-                              await navigator.clipboard.writeText(message.file_url!);
+                              await copyToClipboard(message.file_url!);
                             }
                           }}
                           className="p-1.5 bg-black/60 hover:bg-black/80 rounded text-white"

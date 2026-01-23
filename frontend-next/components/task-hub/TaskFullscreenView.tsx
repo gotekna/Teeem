@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SmTask, TaskAttachment, TaskAttachmentEmail, TaskActionItem, TaskFollower, useTaskHub, ActionItemType, AttachmentCategory } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { copyToClipboard } from '@/utils/formatters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SmartInput } from '@/components/ui/smart-input';
@@ -2148,7 +2149,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         `/api/v1/sm_tasks/${task.id}/attachments/${attachmentId}/share_link`
       );
       if (response?.success && response?.share_url) {
-        await navigator.clipboard.writeText(response.share_url);
+        await copyToClipboard(response.share_url);
         toast.success('Link copied to clipboard');
       } else {
         toast.error(response?.error || 'Failed to create share link');
