@@ -52,6 +52,7 @@ class EmailSendingService
     :from_address,
     :reply_to_message_id,
     :mailbox_email,
+    :sm_task_id,  # Optional: Link sent email to SM task
     keyword_init: true
   ) do
     def to_list
@@ -187,7 +188,7 @@ class EmailSendingService
     # Determine the from email (used for mailbox_owner_email)
     from_email_addr = sender_email
 
-    SyncedEmail.create!(
+    synced_email = SyncedEmail.create!(
       internet_message_id: result.message_id || SecureRandom.uuid,
       source_type: @account_type,
       imap_credential_id: imap_credential_id,
@@ -209,8 +210,30 @@ class EmailSendingService
       # SSoT: Multi-tenancy - set tenant_id from user
       tenant_id: @params.user&.tenant_id
     )
+
+    # Link sent email to SM Task if sm_task_id provided
+    if @params.sm_task_id.present?
+      link_email_to_task(synced_email)
+    end
   rescue StandardError => e
     Rails.logger.warn("[EmailSendingService] Failed to log to warehouse: #{e.message}")
+  end
+
+  # Link sent email to SM Task via SmTaskAttachment
+  def link_email_to_task(synced_email)
+    task = SmTask.find_by(id: @params.sm_task_id)
+    return unless task
+
+    SmTaskAttachment.create!(
+      sm_task: task,
+      attachable: synced_email,
+      attachment_type: "email",
+      category: "response",  # Mark as response email (sent from task)
+      added_by: @params.user
+    )
+    Rails.logger.info("[EmailSendingService] Linked sent email ##{synced_email.id} to task ##{task.id}")
+  rescue StandardError => e
+    Rails.logger.warn("[EmailSendingService] Failed to link email to task: #{e.message}")
   end
 
   private
@@ -229,7 +252,8 @@ class EmailSendingService
       attachments: params[:attachments],
       from_address: params[:from_address],
       reply_to_message_id: params[:reply_to_message_id],
-      mailbox_email: params[:mailbox_email]
+      mailbox_email: params[:mailbox_email],
+      sm_task_id: params[:sm_task_id]
     )
   end
 

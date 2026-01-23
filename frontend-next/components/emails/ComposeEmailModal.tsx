@@ -61,6 +61,8 @@ interface ComposeEmailModalProps {
   draft?: EmailDraft;
   /** Pre-loaded file attachments (e.g., from Task response) */
   initialAttachments?: File[];
+  /** SM Task ID to link sent email to task */
+  smTaskId?: number;
   onSent?: () => void;
 }
 
@@ -75,6 +77,7 @@ export function ComposeEmailModal({
   defaultFromAccountId,
   draft,
   initialAttachments,
+  smTaskId,
   onSent,
 }: ComposeEmailModalProps) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -432,6 +435,7 @@ export function ComposeEmailModal({
           body: fullBody,
           reply_to_message_id: replyToMessageId,
           attachments: attachments,
+          sm_task_id: smTaskId,  // Link sent email to SM task
         });
       }
 

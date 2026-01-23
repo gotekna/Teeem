@@ -2155,9 +2155,13 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                       };
                     })}
                     viewOnly={true}
-                    onRowDoubleClick={(row) => {
-                      // Open email detail dialog
+                    onRowClick={(row) => {
+                      // Open email in drawer
                       setSelectedEmailId(Number(row.id));
+                    }}
+                    onRowDoubleClick={(row) => {
+                      // Open email in new tab
+                      window.open(`/emails?open=${row.id}`, '_blank');
                     }}
                   />
                 </div>

@@ -298,7 +298,8 @@ module Api
         # Performance: Eager load associations to avoid N+1 queries
         # portal_user and corporate_groups_via_membership are always included in as_json response
         # FRC (Jan 2026): Fixed from :corporate_group (doesn't exist) to :corporate_groups_via_membership (has_many through)
-        @contacts = @contacts.includes(:portal_user, :corporate_groups_via_membership)
+        # contact_emails needed for email method (used by email composer autocomplete)
+        @contacts = @contacts.includes(:portal_user, :corporate_groups_via_membership, :contact_emails)
 
         # Conditional eager loading for company relationships
         if include_companies
@@ -324,7 +325,7 @@ module Api
             portal_user: {},
             corporate_groups_via_membership: {}
           },
-          methods: [ :is_sales?, :is_land_agent?, :display_name, :xero_linked_count, :xero_customer?, :xero_supplier? ]
+          methods: [ :is_sales?, :is_land_agent?, :display_name, :xero_linked_count, :xero_customer?, :xero_supplier?, :email ]
         )
 
         # Performance: Build hash map for O(1) lookups instead of O(n²) array search

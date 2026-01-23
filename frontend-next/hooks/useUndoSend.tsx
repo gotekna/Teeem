@@ -85,6 +85,7 @@ export function useUndoSend() {
         bcc: email.bcc,
         reply_to_message_id: email.reply_to_message_id,
         attachment_storage_keys: attachmentStorageKeys.length > 0 ? attachmentStorageKeys : undefined,
+        sm_task_id: email.sm_task_id,  // Link sent email to SM task
       });
 
       toast({

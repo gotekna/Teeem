@@ -396,7 +396,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       attachments: attachments,
       from_address: params[:from_address],
       reply_to_message_id: params[:reply_to_message_id],
-      mailbox_email: params[:mailbox_email]
+      mailbox_email: params[:mailbox_email],
+      sm_task_id: params[:sm_task_id]  # Optional: Link sent email to SM task
     )
 
     if result.success?

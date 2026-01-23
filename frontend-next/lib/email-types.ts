@@ -90,6 +90,7 @@ export interface SendEmailParams {
   body: string;
   reply_to_message_id?: string;
   attachments?: File[];
+  sm_task_id?: number;  // Optional: Link sent email to SM task
 }
 
 /**

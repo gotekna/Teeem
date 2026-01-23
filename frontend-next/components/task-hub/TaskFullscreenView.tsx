@@ -106,6 +106,7 @@ import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletion
 import { DocumentViewerModal, getFileType } from '@/components/ui/document-viewer-modal';
 import { AttachmentCategoryDialog } from './AttachmentCategoryDialog';
 import { ComposeEmailModal } from '@/components/emails/ComposeEmailModal';
+import { EmailAttachmentLink } from '@/components/emails/EmailAttachmentLink';
 import { getOverdueColorClasses } from './TaskColorSettings';
 import { TASK_STATUS } from '@/lib/constants/task-status';
 
@@ -717,53 +718,15 @@ function SortableQuestionItem({
             }
             // Handle email attachments (SyncedEmail)
             if (att.email) {
-              const subject = att.email.subject || '(No subject)';
-              const downloadUrl = att.email.download_eml_url;
               return (
                 <div key={att.id} className="flex items-center gap-1 text-xs group">
                   <Mail className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
-                  {/* Download .eml button */}
-                  {downloadUrl && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          // Call the download_eml endpoint
-                          const response = await fetch(downloadUrl, {
-                            credentials: 'include',
-                            headers: { 'Accept': 'application/json' }
-                          });
-                          const data = await response.json();
-                          if (data.success && data.content) {
-                            // Decode base64 and download
-                            const blob = new Blob(
-                              [Uint8Array.from(atob(data.content), c => c.charCodeAt(0))],
-                              { type: 'message/rfc822' }
-                            );
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = data.filename || `${subject}.eml`;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            URL.revokeObjectURL(url);
-                          }
-                        } catch (error) {
-                          console.error('Failed to download email:', error);
-                        }
-                      }}
-                      className="text-muted-foreground hover:text-foreground"
-                      title="Download as .eml"
-                    >
-                      <Download className="h-3 w-3" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setSelectedEmailId?.(att.email!.id)}
-                    className="text-green-600 dark:text-green-400 hover:text-green-700 hover:underline font-medium text-left"
-                  >
-                    {subject}
-                  </button>
+                  <EmailAttachmentLink
+                    emailId={att.email.id}
+                    subject={att.email.subject || '(No subject)'}
+                    onSelect={(id) => setSelectedEmailId?.(id)}
+                    downloadUrl={att.email.download_eml_url}
+                  />
                 </div>
               );
             }
@@ -3989,12 +3952,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       {att.email ? (
                         <>
                           <Mail className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
-                          <button
-                            onClick={() => setSelectedEmailId(att.email!.id)}
-                            className="flex-1 truncate font-medium text-left hover:underline"
-                          >
-                            {att.email.subject || '(No subject)'}
-                          </button>
+                          <EmailAttachmentLink
+                            emailId={att.email.id}
+                            subject={att.email.subject || '(No subject)'}
+                            onSelect={(id) => setSelectedEmailId(id)}
+                            downloadUrl={att.email.download_eml_url}
+                            linkClassName="flex-1 truncate"
+                          />
                         </>
                       ) : (
                         <>
@@ -4897,6 +4861,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                                   handleEmailHighlight(att.email);
                                                 }
                                               }}
+                                              onDoubleClick={(e) => {
+                                                e.preventDefault();
+                                                if (att.email) {
+                                                  window.open(`/emails?open=${att.email.id}`, '_blank');
+                                                }
+                                              }}
+                                              title="Click to view, double-click to open in new tab"
                                             >
                                               <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
                                               <div className="flex-1 min-w-0">
@@ -5112,6 +5083,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                             handleEmailHighlight(att.email);
                                           }
                                         }}
+                                        onDoubleClick={(e) => {
+                                          e.preventDefault();
+                                          if (att.email) {
+                                            window.open(`/emails?open=${att.email.id}`, '_blank');
+                                          }
+                                        }}
+                                        title="Click to view, double-click to open in new tab"
                                       >
                                         <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
                                         <div className="flex-1 min-w-0">
@@ -5240,6 +5218,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                             handleEmailHighlight(att.email);
                                           }
                                         }}
+                                        onDoubleClick={(e) => {
+                                          e.preventDefault();
+                                          if (att.email) {
+                                            window.open(`/emails?open=${att.email.id}`, '_blank');
+                                          }
+                                        }}
+                                        title="Click to view, double-click to open in new tab"
                                       >
                                         <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
                                         <div className="flex-1 min-w-0">
@@ -5460,13 +5445,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             }
                           }}
                           onDoubleClick={(e) => {
-                            if (!att.email) {
-                              e.preventDefault();
-                              e.stopPropagation();
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (att.email) {
+                              window.open(`/emails?open=${att.email.id}`, '_blank');
+                            } else {
                               handleOpenAttachmentInNewWindow(att);
                             }
                           }}
-                          title={att.email ? undefined : "Click to download, double-click to open in new window"}
+                          title={att.email ? "Click to view, double-click to open in new tab" : "Click to download, double-click to open in new window"}
                         >
                           {isEmail ? (
                             <Mail className="h-3 w-3 text-primary shrink-0" />
@@ -5888,6 +5875,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           defaultSubject={`Re: Task #${task.task_number} - ${task.name}`}
           defaultBody={generateResponseBody()}
           initialAttachments={emailFileAttachments}
+          smTaskId={task.id}
           onSent={() => {
             setShowComposeEmail(false);
             refresh();
