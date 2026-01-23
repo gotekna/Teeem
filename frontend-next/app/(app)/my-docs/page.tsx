@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { api } from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/utils/formatters";
@@ -170,29 +171,24 @@ export default function MyDocsPage() {
     return () => clearTimeout(timer);
   }, [jobSearch, saveToJobOpen, searchJobs]);
 
-  // File upload handler
+  // File upload handler - SSoT: Use presigned URL upload (bypasses Heroku 30s timeout)
   const handleFileUpload = useCallback(async (files: FileList | File[]) => {
     setUploading(true);
     const fileArray = Array.from(files);
 
     for (const file of fileArray) {
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        if (currentFolder) {
-          formData.append("folder", currentFolder);
-        }
+        const result = await uploadFile(file, 'user_documents', {
+          metadata: currentFolder ? { folder: currentFolder } : {}
+        });
 
-        // Use api.postFormData which handles backend URL routing and auth
-        const response = await api.postFormData<{ success: boolean; error?: string }>("/api/v1/user_documents", formData);
-
-        if (response.success) {
+        if (result.success) {
           toast({
             title: "Uploaded",
             description: `${file.name} uploaded successfully`,
           });
         } else {
-          throw new Error(response.error || "Upload failed");
+          throw new Error(result.error || "Upload failed");
         }
       } catch (error) {
         console.error("Upload failed:", error);

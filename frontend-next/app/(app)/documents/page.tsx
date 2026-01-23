@@ -65,6 +65,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { DocumentActions } from "@/components/documents/DocumentActions";
@@ -951,11 +952,14 @@ export default function AllDocumentsPage() {
         const file = files[i];
         setUploadProgress(`Uploading ${i + 1}/${files.length}: ${file.name}`);
 
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("folder", "MyDocs");
+        // SSoT: Use presigned URL upload (bypasses Heroku 30s timeout)
+        const result = await uploadFile(file, 'documents', {
+          metadata: { folder: "MyDocs" }
+        });
 
-        await api.postFormData("/api/v1/documents", formData);
+        if (!result.success) {
+          throw new Error(result.error || "Upload failed");
+        }
       }
 
       setUploadProgress("Upload complete!");

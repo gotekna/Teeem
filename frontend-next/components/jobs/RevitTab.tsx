@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
 import {
   Folder,
   File,
@@ -262,6 +263,7 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
   };
 
   // Upload files to SharePoint
+  // SSoT: Use presigned URL upload (bypasses Heroku 30s timeout)
   const uploadFiles = async (files: File[]) => {
     if (!revitFolderId) return;
 
@@ -276,13 +278,18 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
       setUploadProgress({ current: i + 1, total: files.length });
 
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("job_id", jobId.toString());
-        formData.append("folder_id", revitFolderId);
+        const result = await uploadFile(file, 'job_documents', {
+          metadata: {
+            job_id: jobId,
+            folder_path: "Revit"
+          }
+        });
 
-        await api.postFormData("/api/v1/documents/upload", formData);
-        successCount++;
+        if (result.success) {
+          successCount++;
+        } else {
+          throw new Error(result.error || "Upload failed");
+        }
       } catch (err) {
         console.error(`Failed to upload ${file.name}:`, err);
         errorCount++;
