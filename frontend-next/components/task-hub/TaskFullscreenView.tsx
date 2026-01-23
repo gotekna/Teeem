@@ -485,10 +485,10 @@ function SortableQuestionItem({
                 setEditingItemText('');
               }
             }}
-            className="text-sm flex-1 min-h-[60px] resize-none"
+            className="text-sm flex-1 min-h-[100px] w-full resize-y p-3 border-2 border-primary/50 rounded-md shadow-sm"
             autoFocus
             spellCheck={true}
-            rows={Math.max(2, Math.ceil(editingItemText.length / 50))}
+            rows={Math.max(3, Math.ceil(editingItemText.length / 40))}
           />
         ) : (
           <span
@@ -4086,20 +4086,25 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       disabled={actionItemLoading === item.id}
                     />
                     {editingItemId === item.id ? (
-                      <Input
+                      <Textarea
                         value={editingItemText}
                         onChange={(e) => setEditingItemText(e.target.value)}
                         onBlur={() => handleUpdateItem(item.id)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleUpdateItem(item.id);
+                          // Shift+Enter for newline, Enter to save
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleUpdateItem(item.id);
+                          }
                           if (e.key === 'Escape') {
                             setEditingItemId(null);
                             setEditingItemText('');
                           }
                         }}
-                        className="h-8 text-sm flex-1"
+                        className="text-sm flex-1 min-h-[80px] w-full resize-y p-3 border-2 border-primary/50 rounded-md shadow-sm"
                         autoFocus
                         spellCheck={true}
+                        rows={Math.max(2, Math.ceil(editingItemText.length / 40))}
                       />
                     ) : (
                       <span
