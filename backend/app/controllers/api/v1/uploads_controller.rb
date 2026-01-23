@@ -223,15 +223,12 @@ module Api
 
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
-        # Generate unique ID for sharepoint_item_id (required by schema)
-        # For manual uploads, use "upload_" prefix to distinguish from SharePoint synced
-        unique_id = "upload_#{SecureRandom.uuid}"
-
+        # SSoT: storage_item_id is THE ONE identifier for all storage providers
+        # sharepoint_item_id is only set for SharePoint synced files (nullable after migration)
         doc = JobDocument.create!(
           file_name: filename,
           storage_blob: blob,
-          sharepoint_item_id: unique_id,  # Required unique identifier (schema: null: false)
-          storage_item_id: blob.storage_path,
+          storage_item_id: blob.storage_path,  # SSoT: THE ONE storage identifier
           storage_path: blob.storage_path,
           storage_provider: "s3_compatible",
           content_hash: blob.content_hash,

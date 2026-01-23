@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Tracks files found in SharePoint plan folders for processing
+# Tracks files found in storage (SharePoint/S3/Wasabi) for processing
 # Used to detect new/updated plans from Revit exports
 class PlanFolderScan < ApplicationRecord
   belongs_to :job
@@ -9,7 +9,9 @@ class PlanFolderScan < ApplicationRecord
   # Status values
   STATUSES = %w[pending processing processed skipped error].freeze
 
-  validates :storage_file_id, presence: true, uniqueness: true
+  # SSoT: storage_item_id is THE ONE identifier for all providers
+  # sharepoint_file_id is only set for SharePoint synced files (nullable after migration)
+  validates :storage_item_id, presence: true, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
 
   scope :pending, -> { where(status: "pending") }
@@ -61,9 +63,9 @@ class PlanFolderScan < ApplicationRecord
   end
 
   # Provider-agnostic storage reference (SSoT: storage_item_id)
-  # Falls back to storage_file_id for backwards compatibility
+  # Falls back to sharepoint_file_id for backwards compatibility with legacy records
   def storage_reference
-    storage_item_id.presence || storage_file_id
+    storage_item_id.presence || sharepoint_file_id
   end
 
   def set_storage_reference(item_id, provider: "sharepoint")
