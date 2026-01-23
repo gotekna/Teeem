@@ -159,21 +159,18 @@ function DelegatedTaskView({
             continue;
           }
 
-          // Step 2: Upload directly to S3 using XHR
-          await new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                resolve();
-              } else {
-                reject(new Error(`S3 upload failed: ${xhr.status}`));
-              }
-            };
-            xhr.onerror = () => reject(new Error('Network error during S3 upload'));
-            xhr.open('PUT', presignData.upload_url);
-            xhr.setRequestHeader('Content-Type', presignData.content_type);
-            xhr.send(file);
+          // Step 2: Upload directly to S3 using fetch
+          const s3Response = await fetch(presignData.upload_url, {
+            method: 'PUT',
+            headers: { 'Content-Type': presignData.content_type },
+            body: file,
           });
+
+          if (!s3Response.ok) {
+            console.error('[TaskExpandedRow] S3 upload failed:', s3Response.status, s3Response.statusText);
+            toast.error(`Upload failed for ${file.name}: ${s3Response.status}`);
+            continue;
+          }
 
           // Step 3: Confirm upload with backend
           const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
@@ -823,21 +820,18 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           return;
         }
 
-        // Step 2: Upload directly to S3 using XHR
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve();
-            } else {
-              reject(new Error(`S3 upload failed: ${xhr.status}`));
-            }
-          };
-          xhr.onerror = () => reject(new Error('Network error during S3 upload'));
-          xhr.open('PUT', presignData.upload_url);
-          xhr.setRequestHeader('Content-Type', presignData.content_type);
-          xhr.send(file);
+        // Step 2: Upload directly to S3 using fetch
+        const s3Response = await fetch(presignData.upload_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': presignData.content_type },
+          body: file,
         });
+
+        if (!s3Response.ok) {
+          console.error('[TaskExpandedRow] S3 upload failed:', s3Response.status, s3Response.statusText);
+          toast.error(`Upload failed: ${s3Response.status}`);
+          return;
+        }
 
         // Step 3: Confirm upload with backend
         const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
@@ -928,21 +922,18 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           continue;
         }
 
-        // Step 2: Upload directly to S3 using XHR
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve();
-            } else {
-              reject(new Error(`S3 upload failed: ${xhr.status}`));
-            }
-          };
-          xhr.onerror = () => reject(new Error('Network error during S3 upload'));
-          xhr.open('PUT', presignData.upload_url);
-          xhr.setRequestHeader('Content-Type', presignData.content_type);
-          xhr.send(file);
+        // Step 2: Upload directly to S3 using fetch
+        const s3Response = await fetch(presignData.upload_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': presignData.content_type },
+          body: file,
         });
+
+        if (!s3Response.ok) {
+          console.error('[TaskExpandedRow] S3 upload failed:', s3Response.status, s3Response.statusText);
+          toast.error(`Upload failed for ${file.name}: ${s3Response.status}`);
+          continue;
+        }
 
         // Step 3: Confirm upload with backend
         const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {

@@ -2253,30 +2253,36 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       console.log('[TaskFullscreenView] Got presigned URL, key:', presignData.key);
 
-      // Step 2: Upload directly to S3 using XHR (no timeout, supports progress)
+      // Step 2: Upload directly to S3 using fetch (simpler CORS handling)
       console.log('[TaskFullscreenView] Step 2: Uploading to S3...');
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
+      console.log('[TaskFullscreenView] Upload URL:', presignData.upload_url);
+      console.log('[TaskFullscreenView] Content-Type:', presignData.content_type);
+      console.log('[TaskFullscreenView] File size:', file.size, 'bytes');
 
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            console.log('[TaskFullscreenView] S3 upload complete');
-            resolve();
-          } else {
-            console.error('[TaskFullscreenView] S3 upload failed:', xhr.status, xhr.statusText);
-            reject(new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`));
-          }
-        };
+      try {
+        const s3Response = await fetch(presignData.upload_url, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': presignData.content_type,
+          },
+          body: file,
+        });
 
-        xhr.onerror = () => {
-          console.error('[TaskFullscreenView] S3 upload network error');
-          reject(new Error('Network error during S3 upload'));
-        };
+        console.log('[TaskFullscreenView] S3 response status:', s3Response.status, s3Response.statusText);
 
-        xhr.open('PUT', presignData.upload_url);
-        xhr.setRequestHeader('Content-Type', presignData.content_type);
-        xhr.send(file);
-      });
+        if (!s3Response.ok) {
+          // Try to read error body if possible
+          const errorText = await s3Response.text().catch(() => 'Could not read error');
+          console.error('[TaskFullscreenView] S3 upload failed:', errorText);
+          throw new Error(`S3 upload failed: ${s3Response.status} ${s3Response.statusText}`);
+        }
+
+        console.log('[TaskFullscreenView] S3 upload complete');
+      } catch (fetchError) {
+        console.error('[TaskFullscreenView] S3 fetch error:', fetchError);
+        // Re-throw with more context
+        throw new Error(`S3 upload failed: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
+      }
 
       // Step 3: Confirm upload with backend
       console.log('[TaskFullscreenView] Step 3: Confirming upload...');
