@@ -1339,8 +1339,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const infoAttachments = documentAttachments.filter(a => a.category !== 'response');
   const responseDocuments = documentAttachments.filter(a => a.category === 'response');
 
-  // Emails linked to questions are also response items
-  const responseEmails = allEmailAttachments.filter(a => a.action_item_id);
+  // Emails linked to questions OR with category 'response' are response items
+  const responseEmails = allEmailAttachments.filter(a => a.action_item_id || a.category === 'response');
 
   // Combined response attachments (documents + emails linked to questions)
   const responseAttachments = [...responseDocuments, ...responseEmails];

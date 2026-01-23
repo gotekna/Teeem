@@ -19,6 +19,7 @@ import Image from "@tiptap/extension-image";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { createFontSizeExtension, registerFocusedEditor } from "@/components/ui/rich-text-editor";
+import { WritingChecker } from "@/components/ui/tiptap-writing-checker";
 import { type PositionedBoxData } from "./hooks/useNotebookPage";
 
 // Re-export for convenience
@@ -36,6 +37,8 @@ interface PositionedTextBoxProps {
   isResizing?: boolean;
   containerRef?: React.RefObject<HTMLDivElement | null>;
   className?: string;
+  /** Enable AI-powered spell check (default: true for main content, false for others) */
+  enableSpellCheck?: boolean;
 }
 
 export function PositionedTextBox({
@@ -50,7 +53,10 @@ export function PositionedTextBox({
   isResizing = false,
   containerRef: externalContainerRef,
   className,
+  enableSpellCheck,
 }: PositionedTextBoxProps) {
+  // Default: spell check enabled for main content boxes (longer text), disabled for small boxes
+  const shouldEnableSpellCheck = enableSpellCheck ?? box.isMainContent;
   const boxRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -106,7 +112,15 @@ export function PositionedTextBox({
       },
       nested: true,
     }),
-  ], [box.isMainContent]);
+    // AI-powered spell check (only for main content by default)
+    ...(shouldEnableSpellCheck ? [
+      WritingChecker.configure({
+        enabled: true,
+        debounceMs: 500,
+        context: "notes",
+      }),
+    ] : []),
+  ], [box.isMainContent, shouldEnableSpellCheck]);
 
   const editor = useEditor({
     extensions,

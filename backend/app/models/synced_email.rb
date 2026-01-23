@@ -67,6 +67,7 @@ class SyncedEmail < ApplicationRecord
   # Callbacks - Real-time sync via ActionCable
   after_create_commit :broadcast_new_email
   after_create_commit :inherit_job_from_thread
+  after_create_commit :inherit_task_from_thread
   after_destroy_commit :broadcast_email_deleted
   # Phase 4: Update warehouse_document.folder on relevant field changes
   after_save :update_warehouse_document_folder, if: :should_update_virtual_folder?
@@ -1099,6 +1100,51 @@ class SyncedEmail < ApplicationRecord
     Rails.logger.info "[SyncedEmail] Auto-assigned email #{id} to job #{thread_job_id} via thread inheritance"
   rescue StandardError => e
     Rails.logger.error "[SyncedEmail] Failed to inherit job from thread: #{e.message}"
+  end
+
+  # Auto-link to SM Task if another email in this conversation thread is already linked
+  # This ensures email thread replies automatically appear in the task's Response Files
+  # (e.g., user sends email from task, recipient replies, reply auto-links to same task)
+  def inherit_task_from_thread
+    return if conversation_id.blank?  # No thread to inherit from
+
+    # Find all task attachments for other emails in this thread
+    thread_email_ids = SyncedEmail
+      .where(conversation_id: conversation_id)
+      .where.not(id: id)
+      .pluck(:id)
+
+    return if thread_email_ids.empty?
+
+    # Find tasks that have any of these emails attached
+    task_attachments = SmTaskAttachment
+      .where(attachable_type: "SyncedEmail", attachable_id: thread_email_ids)
+      .select(:sm_task_id, :category, :added_by_id)
+      .distinct
+
+    return if task_attachments.empty?
+
+    # Link this email to each task (avoid duplicates)
+    task_attachments.each do |ta|
+      # Skip if already linked to this task
+      next if SmTaskAttachment.exists?(
+        sm_task_id: ta.sm_task_id,
+        attachable_type: "SyncedEmail",
+        attachable_id: id
+      )
+
+      SmTaskAttachment.create!(
+        sm_task_id: ta.sm_task_id,
+        attachable: self,
+        attachment_type: "email",
+        category: ta.category || "response",  # Inherit category, default to response
+        added_by_id: ta.added_by_id  # Inherit who added the original
+      )
+
+      Rails.logger.info "[SyncedEmail] Auto-linked email #{id} to task #{ta.sm_task_id} via thread inheritance"
+    end
+  rescue StandardError => e
+    Rails.logger.error "[SyncedEmail] Failed to inherit task from thread: #{e.message}"
   end
 
   # Broadcast email deletion to the owner via ActionCable
