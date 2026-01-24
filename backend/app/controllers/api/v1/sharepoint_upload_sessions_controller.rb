@@ -208,10 +208,13 @@ module Api
 
       # Navigate to a folder path within a parent folder, creating folders if needed
       # Reuses logic from job_photos_controller
+      # SSoT: Uses StorageConfiguration for drive_id (Jan 2026)
       def navigate_to_folder(client, credential, parent_folder_id, path)
         return { "id" => parent_folder_id } if path.blank?
 
-        drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+        # SSoT: Get drive path from StorageConfiguration
+        storage_drive_id = StorageConfiguration.instance&.drive_id
+        drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
         current_folder_id = parent_folder_id
 
         path.split("/").each do |folder_name|

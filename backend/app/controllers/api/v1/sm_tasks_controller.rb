@@ -1343,7 +1343,8 @@ module Api
           end
 
           file_id = attachable.storage_reference
-          drive_id = credential.drive_id
+          # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
+          drive_id = StorageConfiguration.instance&.drive_id
 
         when SyncedEmail
           # Emails use file_id from email_storage_file_id (SSoT method)

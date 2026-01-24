@@ -387,25 +387,50 @@ class MicrosoftCredential < ApplicationRecord
     StorageConfiguration.instance&.connected? && sharepoint_credential.present?
   end
 
-  # Delegate drive_id to StorageConfiguration (SSoT)
-  # Required for backward compatibility with code that calls credential.drive_id
+  # ╔════════════════════════════════════════════════════════════════════════╗
+  # ║  DEPRECATED: Storage Delegation Methods (Jan 2026)                      ║
+  # ║                                                                         ║
+  # ║  These methods delegate to StorageConfiguration for backward compat.   ║
+  # ║  NEW CODE SHOULD USE StorageConfiguration.instance.* DIRECTLY!          ║
+  # ║                                                                         ║
+  # ║  Example:                                                               ║
+  # ║    ❌ credential.drive_id                                               ║
+  # ║    ✅ StorageConfiguration.instance.drive_id                            ║
+  # ╚════════════════════════════════════════════════════════════════════════╝
+
+  # @deprecated Use StorageConfiguration.instance.drive_id instead
   def drive_id
+    ActiveSupport::Deprecation.warn(
+      "MicrosoftCredential#drive_id is deprecated. Use StorageConfiguration.instance.drive_id instead.",
+      caller(1)
+    )
     StorageConfiguration.instance&.drive_id
   end
 
-  # Delegate site_id to StorageConfiguration (SSoT)
+  # @deprecated Use StorageConfiguration.instance.site_id instead
   def site_id
+    ActiveSupport::Deprecation.warn(
+      "MicrosoftCredential#site_id is deprecated. Use StorageConfiguration.instance.site_id instead.",
+      caller(1)
+    )
     StorageConfiguration.instance&.site_id
   end
 
-  # Delegate root_folder_id to StorageConfiguration (SSoT)
-  # Required for backward compatibility with code that calls credential.root_folder_id
+  # @deprecated Use StorageConfiguration.instance.root_folder_id instead
   def root_folder_id
+    ActiveSupport::Deprecation.warn(
+      "MicrosoftCredential#root_folder_id is deprecated. Use StorageConfiguration.instance.root_folder_id instead.",
+      caller(1)
+    )
     StorageConfiguration.instance&.root_folder_id
   end
 
-  # Delegate root_folder_path to StorageConfiguration (SSoT)
+  # @deprecated Use StorageConfiguration.instance.root_folder_path instead
   def root_folder_path
+    ActiveSupport::Deprecation.warn(
+      "MicrosoftCredential#root_folder_path is deprecated. Use StorageConfiguration.instance.root_folder_path instead.",
+      caller(1)
+    )
     StorageConfiguration.instance&.root_folder_path
   end
 

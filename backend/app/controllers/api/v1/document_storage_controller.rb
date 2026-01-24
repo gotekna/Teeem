@@ -588,8 +588,9 @@ module Api
             # Delegated credentials use MicrosoftGraphClient with /me endpoints
             client = MicrosoftGraphClient.new(credential)
 
-            # Get the correct drive path (handles SharePoint vs personal OneDrive)
-            drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+            # SSoT: Get drive path from StorageConfiguration (Jan 2026)
+            storage_drive_id = StorageConfiguration.instance&.drive_id
+            drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
 
             # Get folders in the specified location
             if folder_id.present?
@@ -678,8 +679,9 @@ module Api
         begin
           client = MicrosoftGraphClient.new(credential)
 
-          # Create folder in root of current drive
-          folder = client.create_folder(folder_name, drive_id: credential.drive_id)
+          # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
+          storage_drive_id = StorageConfiguration.instance&.drive_id
+          folder = client.create_folder(folder_name, drive_id: storage_drive_id)
 
           render json: {
             success: true,
@@ -1331,7 +1333,9 @@ module Api
           else
             # Delegated credentials use MicrosoftGraphClient with /me endpoints
             client = MicrosoftGraphClient.new(credential)
-            drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+            # SSoT: Get drive path from StorageConfiguration (Jan 2026)
+            storage_drive_id = StorageConfiguration.instance&.drive_id
+            drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
 
             # Fetch single item - this returns @microsoft.graph.downloadUrl
             item = client.get("#{drive_path}/items/#{file_id}")
@@ -1420,10 +1424,14 @@ module Api
 
         begin
           client = MicrosoftGraphClient.new(credential)
+          # SSoT: Get storage config for drive_id/root_folder_id (Jan 2026)
+          storage_config = StorageConfiguration.instance
+          storage_root_folder_id = storage_config&.root_folder_id
+          storage_drive_id = storage_config&.drive_id
 
           # Create new folder if requested
           if new_folder_name.present?
-            parent_id = folder_id || credential.root_folder_id
+            parent_id = folder_id || storage_root_folder_id
             new_folder = if parent_id
               client.create_folder(new_folder_name, parent_id: parent_id)
             else
@@ -1437,7 +1445,7 @@ module Api
           end
 
           # Get the target folder ID (use root if not specified)
-          target_folder_id = folder_id || credential.root_folder_id
+          target_folder_id = folder_id || storage_root_folder_id
 
           unless target_folder_id
             return render json: { error: "No target folder specified and no root folder configured" }, status: :bad_request
@@ -1470,7 +1478,7 @@ module Api
                 # For files < 4MB, use simple upload
                 if file_content.bytesize < 4.megabytes
                   result = client.post(
-                    "/drives/#{credential.drive_id}/items/#{target_folder_id}:/#{filename}:/content",
+                    "/drives/#{storage_drive_id}/items/#{target_folder_id}:/#{filename}:/content",
                     file_content,
                     { "Content-Type" => attachment.content_type || "application/octet-stream" }
                   )
@@ -2225,10 +2233,12 @@ module Api
 
         begin
           client = MicrosoftGraphClient.new(credential)
+          # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
+          storage_drive_id = StorageConfiguration.instance&.drive_id
 
           # Rename the file in SharePoint (SSoT: use storage_reference)
           result = client.patch(
-            "/drives/#{credential.drive_id}/items/#{document.storage_reference}",
+            "/drives/#{storage_drive_id}/items/#{document.storage_reference}",
             { name: new_name }
           )
 
@@ -2287,12 +2297,14 @@ module Api
         results = { approved: 0, failed: 0, errors: [] }
 
         client = MicrosoftGraphClient.new(credential)
+        # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
+        storage_drive_id = StorageConfiguration.instance&.drive_id
 
         documents.each do |doc|
           begin
             # Rename in SharePoint (SSoT: use storage_reference)
             result = client.patch(
-              "/drives/#{credential.drive_id}/items/#{doc.storage_reference}",
+              "/drives/#{storage_drive_id}/items/#{doc.storage_reference}",
               { name: doc.ai_proposed_name }
             )
 
@@ -2565,7 +2577,9 @@ module Api
           }
         else
           client = MicrosoftGraphClient.new(credential)
-          drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+          # SSoT: Get drive path from StorageConfiguration (Jan 2026)
+          storage_drive_id = StorageConfiguration.instance&.drive_id
+          drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
 
           # Get file info including download URL
           file_info = client.get("#{drive_path}/items/#{file_id}?$select=id,name,@microsoft.graph.downloadUrl")
@@ -2833,8 +2847,9 @@ module Api
       def change_root_folder_by_id(credential, folder_id)
         client = MicrosoftGraphClient.new(credential)
 
-        # Get the correct drive path (handles SharePoint vs personal OneDrive)
-        drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+        # SSoT: Get drive path from StorageConfiguration (Jan 2026)
+        storage_drive_id = StorageConfiguration.instance&.drive_id
+        drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
 
         # Get folder info from Graph API
         folder_response = client.get("#{drive_path}/items/#{folder_id}")
@@ -3026,10 +3041,13 @@ module Api
 
       # Recursively list all files in a job folder
       # Similar to JobDocumentMigrationService but for the job's own folder
+      # SSoT: Uses StorageConfiguration for drive_id (Jan 2026)
       def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
         files = []
         folders_to_process = [ [ root_folder_id, 0, "" ] ] # [folder_id, depth, path]
         start_time = Time.now
+        # SSoT: Get drive_id from StorageConfiguration
+        storage_drive_id = StorageConfiguration.instance&.drive_id
 
         while folders_to_process.any?
           # Check if we've exceeded the time limit
@@ -3042,7 +3060,7 @@ module Api
 
           begin
             # Note: @microsoft.graph.downloadUrl is automatically included in drive item responses
-            url = "/drives/#{credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$expand=thumbnails&$top=200"
+            url = "/drives/#{storage_drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$expand=thumbnails&$top=200"
             result = client.get(url)
 
             result["value"]&.each do |item|

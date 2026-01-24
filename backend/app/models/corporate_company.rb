@@ -275,8 +275,11 @@ class CorporateCompany < ApplicationRecord
     group_name = corporate_group.name
     company_folder_name = "#{code.presence || name[0..2].upcase} - #{name}"
 
-    # SSoT: Get company folder path from StorageConfiguration
-    company_folder_path = StorageConfiguration.instance.path_for(:corporate)
+    # SSoT: Get paths from StorageConfiguration (Jan 2026)
+    storage_config = StorageConfiguration.instance
+    company_folder_path = storage_config.path_for(:corporate)
+    # SSoT: Use root_path from StorageConfiguration (SharePoint: "/Shared Documents", S3: "/")
+    root_path_encoded = ERB::Util.url_encode(storage_config.root_path.to_s.delete_prefix("/"))
 
     # URL encode the path components
     encoded_path = [
@@ -285,7 +288,7 @@ class CorporateCompany < ApplicationRecord
       company_folder_name
     ].map { |p| ERB::Util.url_encode(p) }.join("/")
 
-    "#{base_url}/Shared%20Documents/#{encoded_path}"
+    "#{base_url}/#{root_path_encoded}/#{encoded_path}"
   end
 
   # SharePoint folder URL for a specific document type/tab folder

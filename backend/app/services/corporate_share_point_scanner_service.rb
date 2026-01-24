@@ -329,8 +329,9 @@ class CorporateSharePointScannerService
   def find_folder_by_path(client, path)
     path_parts = path.split("/")
     current_folder = nil
-    # Use SharePoint drive if available, otherwise fall back to personal OneDrive
-    drive_path = @credential&.drive_id ? "/drives/#{@credential.drive_id}" : "/me/drive"
+    # SSoT: Get drive path from StorageConfiguration (Jan 2026)
+    storage_drive_id = StorageConfiguration.instance&.drive_id
+    drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
     current_parent_path = "#{drive_path}/root"
 
     path_parts.each do |folder_name|
@@ -350,8 +351,9 @@ class CorporateSharePointScannerService
 
   def list_folder_children(client, folder_id)
     all_items = []
-    # Use SharePoint drive if available, otherwise fall back to personal OneDrive
-    drive_path = @credential&.drive_id ? "/drives/#{@credential.drive_id}" : "/me/drive"
+    # SSoT: Get drive path from StorageConfiguration (Jan 2026)
+    storage_drive_id = StorageConfiguration.instance&.drive_id
+    drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
     next_link = "#{drive_path}/items/#{folder_id}/children"
 
     while next_link

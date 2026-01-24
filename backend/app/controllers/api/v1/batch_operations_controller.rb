@@ -269,7 +269,9 @@ module Api
         staging_folder_name = "_plan_staging"
 
         begin
-          drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+          # SSoT: Get drive path from StorageConfiguration (Jan 2026)
+          storage_drive_id = StorageConfiguration.instance&.drive_id
+          drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
           response = client.get("#{drive_path}/root/children")
           folders = response["value"] || []
           staging_folder = folders.find { |f| f["name"] == staging_folder_name && f["folder"] }
