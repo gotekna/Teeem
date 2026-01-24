@@ -94,8 +94,8 @@ namespace :email do
         print "  [#{index + 1}/#{total}] #{attachment.filename&.truncate(40)}... "
 
         begin
-          # Re-sync attachments for this email
-          email.sync_attachments!
+          # Re-sync attachments for this email (force: true to re-download even if records exist)
+          email.sync_attachments!(force: true)
 
           # Check if this attachment now has a blob
           attachment.reload
