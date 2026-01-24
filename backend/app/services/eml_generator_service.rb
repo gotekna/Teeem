@@ -80,8 +80,8 @@ class EmlGeneratorService
       provider = DocumentProviders.for_organization(organization)
       return nil unless provider
 
-      # Use StorageConfiguration for path template
-      storage_config = StorageConfiguration.instance
+      # Use StorageConfiguration for path template (org-specific)
+      storage_config = StorageConfiguration.for_organization(organization)
       year = (email.received_at || email.created_at).year
       month = (email.received_at || email.created_at).strftime("%m")
       mailbox = email.mailbox_owner_email&.split("@")&.first || "unknown"
