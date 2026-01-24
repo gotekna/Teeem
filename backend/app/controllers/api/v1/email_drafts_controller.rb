@@ -121,10 +121,11 @@ class Api::V1::EmailDraftsController < ApplicationController
       permitted[:imap_credential_id] = params[:credential_id]
     end
 
-    # Sanitize empty/zero credential_id to nil
+    # Sanitize empty/zero/invalid credential_id to nil
     # Rails converts "" to 0 for integer columns, which violates FK constraint
+    # Also handle: nil, "", "0", 0, and any non-numeric strings
     credential_id = permitted[:imap_credential_id]
-    if credential_id.blank? || credential_id.to_s == "0"
+    if credential_id.blank? || credential_id.to_i <= 0
       permitted[:imap_credential_id] = nil
     end
 

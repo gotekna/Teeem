@@ -168,6 +168,7 @@ function generateModernDark(
   const website = company?.website || DEFAULT_COMPANY.website;
 
   return `
+${SIGNATURE_MARKER}
 <br><br>
 <table cellpadding="0" cellspacing="0" border="0" style="background-color: ${brandColor}; border-radius: 4px; width: 400px; max-width: 100%; font-family: Arial, sans-serif;">
   <tr>
@@ -228,6 +229,7 @@ function generateModernLight(
   const website = company?.website || DEFAULT_COMPANY.website;
 
   return `
+${SIGNATURE_MARKER}
 <br><br>
 <table cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9fa; border-radius: 4px; width: 400px; max-width: 100%; font-family: Arial, sans-serif; border-left: 4px solid ${brandColor};">
   <tr>
@@ -274,6 +276,7 @@ function generateMinimal(
   const brandColor = company?.brand_color || DEFAULT_COMPANY.brand_color;
 
   return `
+${SIGNATURE_MARKER}
 <br><br>
 <div style="font-family: Arial, sans-serif; color: #333333; font-size: 13px; border-top: 1px solid #e0e0e0; padding-top: 12px; max-width: 400px;">
   <div style="font-weight: 600; color: ${brandColor};">${user.name}${jobTitleLine}</div>
@@ -307,6 +310,7 @@ function generateClassic(
   const brandColor = company?.brand_color || DEFAULT_COMPANY.brand_color;
 
   return `
+${SIGNATURE_MARKER}
 <br><br>
 <div style="font-family: Georgia, serif; font-size: 13px; max-width: 400px;">
   <div style="border-bottom: 2px solid ${brandColor}; padding-bottom: 8px; margin-bottom: 8px;">
@@ -347,6 +351,7 @@ function generateProfessional(
     : `<span style="color: ${brandColor}; font-weight: bold; font-size: 16px;">${companyName}</span>`;
 
   return `
+${SIGNATURE_MARKER}
 <br><br>
 <table cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px; width: 400px; max-width: 100%; font-family: Arial, sans-serif;">
   <tr>
@@ -387,6 +392,7 @@ function generateCreative(
   const brandColor = company?.brand_color || DEFAULT_COMPANY.brand_color;
 
   return `
+${SIGNATURE_MARKER}
 <br><br>
 <table cellpadding="0" cellspacing="0" border="0" style="width: 400px; max-width: 100%; font-family: Arial, sans-serif;">
   <tr>
@@ -426,6 +432,7 @@ function generateCompact(
   const website = company?.website || DEFAULT_COMPANY.website;
 
   return `
+${SIGNATURE_MARKER}
 <br><br>
 <div style="font-family: Arial, sans-serif; font-size: 12px; border-top: 1px solid ${brandColor}; padding-top: 8px; max-width: 500px;">
   <div>${parts.join(' <span style="color: #cccccc;">|</span> ')}</div>
@@ -472,6 +479,7 @@ function generateDetailed(
     : `<span style="color: ${brandColor}; font-weight: bold; font-size: 18px;">${companyName}</span>`;
 
   return `
+${SIGNATURE_MARKER}
 <br><br>
 <table cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 6px; width: 420px; max-width: 100%; font-family: Arial, sans-serif; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
   <tr>
@@ -536,6 +544,7 @@ function generateSocial(
     : `<span style="color: ${brandColor}; font-weight: bold; font-size: 14px;">${companyName}</span>`;
 
   return `
+${SIGNATURE_MARKER}
 <br><br>
 <table cellpadding="0" cellspacing="0" border="0" style="width: 400px; max-width: 100%; font-family: Arial, sans-serif;">
   <tr>
@@ -562,20 +571,27 @@ function generateSocial(
 // ============================================================================
 
 /**
- * Check if body already contains a signature (any style)
- * Uses structural markers that work regardless of brand color
+ * Unique marker added to all TEEEM signatures for reliable detection
+ * Must be present in all signature templates
+ */
+export const SIGNATURE_MARKER = '<!-- TEEEM-EMAIL-SIGNATURE -->';
+
+/**
+ * Check if body already contains a TEEEM signature
+ * Uses unique marker for reliable detection (not generic CSS that could appear in quoted emails)
  */
 export function hasSignature(body: string): boolean {
-  // Check for various signature structural indicators (color-agnostic)
+  // Primary check: look for our unique marker
+  if (body.includes(SIGNATURE_MARKER)) {
+    return true;
+  }
+
+  // Legacy fallback: check for very specific TEEEM signature patterns
+  // (for drafts saved before marker was added)
   return (
-    body.includes('border-radius: 4px; width: 400px') || // Modern dark/light table
-    body.includes('border-radius: 6px; width: 420px') || // Detailed table
-    body.includes('border-radius: 8px 8px 0 0') || // Creative top header
-    body.includes('border-left: 4px solid') || // Modern light accent
-    body.includes('border-left: 3px solid') || // Social accent
-    body.includes('font-family: Georgia, serif') || // Classic serif font
-    body.includes('border-top: 1px solid') || // Compact/Minimal separator
-    body.includes("--<br>") // Traditional text signature marker
+    body.includes('width: 400px; max-width: 100%') || // Modern dark/light table (specific combo)
+    body.includes('width: 420px; max-width: 100%') || // Detailed table (specific combo)
+    body.includes('TEEEM Email Warehouse') // Reconstructed email marker
   );
 }
 

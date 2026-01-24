@@ -1640,7 +1640,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const responseAttachments = [...responseDocuments, ...responseEmails];
 
   // Initialize default email options for response attachments
-  // Default: 'link' for SharePoint files, 'attach' for ActiveStorage files
+  // Default: 'link' for all attachments (user preference - links are preferred)
   useEffect(() => {
     const newOptions: Record<number, 'attach' | 'link' | 'both' | 'none'> = {};
     responseAttachments.forEach(att => {
@@ -1648,9 +1648,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       if (attachmentEmailOptions[att.id]) {
         newOptions[att.id] = attachmentEmailOptions[att.id];
       } else {
-        // Default: use link for external storage files, attach for others
-        const hasExternalStorage = att.document?.storage_url;
-        newOptions[att.id] = hasExternalStorage ? 'link' : 'attach';
+        // Default: always use 'link' for all response attachments
+        newOptions[att.id] = 'link';
       }
     });
     // Only update if different to avoid infinite loop
@@ -2559,6 +2558,76 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     const url = att.document.storage_url || att.document.file_url;
     if (url) {
       window.open(url, '_blank');
+    }
+  };
+
+  // Download all attachments at once
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const handleDownloadAllAttachments = async (attachments: TaskAttachment[]) => {
+    if (attachments.length === 0) return;
+
+    setDownloadingAll(true);
+    let downloaded = 0;
+    let failed = 0;
+
+    for (const att of attachments) {
+      try {
+        if (att.email) {
+          // Download email as .eml file
+          const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
+            `/api/v1/synced_emails/${att.email.id}/download_eml`
+          );
+          if (response?.success) {
+            const byteCharacters = atob(response.content);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: response.content_type || 'message/rfc822' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = response.filename || `email-${att.email.id}.eml`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            downloaded++;
+          } else {
+            failed++;
+          }
+        } else if (att.document) {
+          // Download document
+          const url = att.document.storage_url || att.document.file_url;
+          if (url) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = att.document.display_name || att.document.file_name || 'document';
+            link.target = '_blank';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            downloaded++;
+          } else {
+            failed++;
+          }
+        }
+        // Small delay between downloads to prevent browser blocking
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (err) {
+        console.error(`Failed to download attachment ${att.id}:`, err);
+        failed++;
+      }
+    }
+
+    setDownloadingAll(false);
+    if (failed === 0) {
+      toast.success(`Downloaded ${downloaded} file${downloaded !== 1 ? 's' : ''}`);
+    } else if (downloaded > 0) {
+      toast.info(`Downloaded ${downloaded} file${downloaded !== 1 ? 's' : ''}, ${failed} failed`);
+    } else {
+      toast.error('Failed to download files');
     }
   };
 
@@ -4577,9 +4646,33 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             {/* Info attachments - reference docs that can be dragged onto questions */}
             {infoAttachments.length > 0 && (
               <div className="mt-3 pt-3 border-t shrink-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <Paperclip className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Reference docs:</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Paperclip className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Reference docs:</span>
+                  </div>
+                  {infoAttachments.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => handleDownloadAllAttachments(infoAttachments)}
+                      disabled={downloadingAll}
+                      title="Download all reference docs to your computer"
+                    >
+                      {downloadingAll ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Downloading...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-3 w-3 mr-1" />
+                          Download All
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
                 <div className="space-y-1">
                   {infoAttachments.map((att) => (
