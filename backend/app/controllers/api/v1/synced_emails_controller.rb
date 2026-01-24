@@ -1076,40 +1076,32 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # GET /api/v1/synced_email/:id/download_eml
   # Download the entire email as .eml file (RFC 822 MIME format)
   # Used for attaching emails to response emails in Task Hub
-  # Supports both Outlook (Microsoft Graph) and IMAP sourced emails
+  #
+  # SSoT: Email Warehouse is THE source of truth.
+  # We reconstruct EML from stored fields - NO Outlook/IMAP fetching.
+  # If reconstruction fails, we SHOW the error (no silent fallbacks).
   def download_eml
-    mime_content = nil
+    # SSoT: Reconstruct from warehouse data (stored fields)
+    mime_content = reconstruct_eml_from_warehouse
 
-    # Route to appropriate source based on email type
-    if @email.source_type == "imap" && @email.imap_credential_id.present?
-      mime_content = fetch_imap_eml
-    elsif @email.outlook_id.present?
-      mime_content = fetch_outlook_eml
-    end
+    # Generate a safe filename from subject
+    subject = @email.subject.presence || "(No subject)"
+    safe_subject = subject.gsub(/[^\w\s\-]/, "").strip.truncate(50, omission: "")
+    filename = "#{safe_subject}.eml"
 
-    # Fallback: Reconstruct MIME from stored fields if server fetch fails
-    mime_content ||= reconstruct_eml_from_fields
-
-    if mime_content.present?
-      # Generate a safe filename from subject
-      subject = @email.subject.presence || "(No subject)"
-      safe_subject = subject.gsub(/[^\w\s\-]/, "").strip.truncate(50, omission: "")
-      filename = "#{safe_subject}.eml"
-
-      # Return as base64 encoded JSON (same format as attachment download for consistency)
-      render json: {
-        success: true,
-        filename: filename,
-        content: Base64.strict_encode64(mime_content),
-        content_type: "message/rfc822"
-      }
-    else
-      render json: { error: "Failed to download email content" }, status: :not_found
-    end
+    # Return as base64 encoded JSON (same format as attachment download for consistency)
+    render json: {
+      success: true,
+      filename: filename,
+      content: Base64.strict_encode64(mime_content),
+      content_type: "message/rfc822"
+    }
   rescue StandardError => e
+    # NO silent fallbacks - show the actual error so we can fix it
     Rails.logger.error "[SyncedEmail] EML download failed: email_id=#{@email&.id}, error=#{e.class}: #{e.message}"
-    Rails.logger.error "[SyncedEmail] Backtrace: #{e.backtrace.first(10).join("\n")}"
-    render json: { error: "Download failed: #{e.message.truncate(100)}" }, status: :internal_server_error
+    Rails.logger.error "[SyncedEmail] Email state: subject=#{@email&.subject.present?}, from=#{@email&.from_email.present?}, body_html=#{@email&.body_html.present?}, body_text=#{@email&.body_text.present?}"
+    Rails.logger.error "[SyncedEmail] Backtrace: #{e.backtrace.first(5).join("\n")}"
+    render json: { success: false, error: "EML reconstruction failed: #{e.message}" }, status: :unprocessable_entity
   end
 
   # POST /api/v1/synced_email/bulk_delete_spam
@@ -1213,42 +1205,47 @@ class Api::V1::SyncedEmailsController < ApplicationController
     nil
   end
 
-  # Reconstruct .eml from stored fields (fallback when server unavailable)
-  def reconstruct_eml_from_fields
-    Rails.logger.info "[SyncedEmail] Reconstructing EML from stored fields: email_id=#{@email.id}"
+  # SSoT: Reconstruct .eml from Email Warehouse (stored fields)
+  # This is THE source of truth - no fallback to Outlook/IMAP
+  # Errors are raised, not swallowed - we need to see what's broken
+  def reconstruct_eml_from_warehouse
+    Rails.logger.info "[SyncedEmail] Reconstructing EML from warehouse: email_id=#{@email.id}"
+
+    # Validate required fields - fail explicitly if missing
+    raise "Email has no from_email" if @email.from_email.blank?
+    raise "Email has no body (html or text)" if @email.body_html.blank? && @email.body_text.blank?
+
+    email_ref = @email # Capture reference for block scope
 
     mail = Mail.new do |m|
-      m.message_id = @email.internet_message_id if @email.internet_message_id.present?
-      m.subject = @email.subject
-      m.from = @email.from_email
-      m.to = @email.to_emails if @email.to_emails.present?
-      m.cc = @email.cc_emails if @email.cc_emails.present?
-      m.date = @email.received_at || @email.sent_at || @email.created_at
+      m.message_id = email_ref.internet_message_id if email_ref.internet_message_id.present?
+      m.subject = email_ref.subject.presence || "(No subject)"
+      m.from = email_ref.from_email
+      m.to = email_ref.to_emails if email_ref.to_emails.present?
+      m.cc = email_ref.cc_emails if email_ref.cc_emails.present?
+      m.date = email_ref.received_at || email_ref.sent_at || email_ref.created_at
 
       # Set body - prefer HTML, fallback to text
-      if @email.body_html.present?
+      if email_ref.body_html.present?
         m.html_part = Mail::Part.new do
           content_type "text/html; charset=UTF-8"
-          body @email.body_html
+          body email_ref.body_html
         end
       end
 
-      if @email.body_text.present?
+      if email_ref.body_text.present?
         m.text_part = Mail::Part.new do
           content_type "text/plain; charset=UTF-8"
-          body @email.body_text
+          body email_ref.body_text
         end
       end
 
-      # Add a note that this is reconstructed
+      # Mark as reconstructed from warehouse
       m["X-Reconstructed"] = "true"
       m["X-Reconstructed-From"] = "TEEEM Email Warehouse"
     end
 
     mail.to_s
-  rescue StandardError => e
-    Rails.logger.error "[SyncedEmail] EML reconstruction failed: #{e.message}"
-    nil
   end
 
   # GET /api/v1/synced_email/rules
