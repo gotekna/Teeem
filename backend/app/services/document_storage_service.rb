@@ -497,21 +497,21 @@ class DocumentStorageService
   # SSoT: Resolve the Send Name for a document download
   #
   # Priority:
-  #   1. warehouse_document.download_filename (Phase 3 SSoT - sanitized + templated)
-  #   2. display_name (user-renamed) + original extension
+  #   1. record.display_name (user-friendly name, generated from templates)
+  #   2. warehouse_document.download_filename (Phase 3 SSoT - sanitized + templated)
   #   3. record.file_name (original filename)
   #   4. storage_blob.original_filename (fallback)
   #   5. "document" (last resort)
   #
+  # Note: display_name is checked FIRST because CorporateCompanyDocument generates
+  # nice display names (e.g., "Invoice INV-0520") but the warehouse_document may
+  # have been created earlier with just the raw file_name.
+  #
   # @param record [ActiveRecord::Base] Document model
   # @return [String] The filename to use for download
   def resolve_send_name(record)
-    # 1. Try warehouse_document (Phase 3 SSoT)
-    if record.respond_to?(:warehouse_document) && record.warehouse_document.present?
-      return record.warehouse_document.download_filename
-    end
-
-    # 2. Try display_name (user-renamed) - add original extension if missing
+    # 1. Try display_name FIRST - this is the user-friendly name
+    # CorporateCompanyDocument.generate_display_name creates names like "Invoice INV-0520"
     if record.respond_to?(:display_name) && record.display_name.present?
       display = record.display_name
       original = record.respond_to?(:file_name) ? record.file_name : nil
@@ -525,6 +525,11 @@ class DocumentStorageService
         end
       end
       return display
+    end
+
+    # 2. Try warehouse_document (Phase 3 SSoT)
+    if record.respond_to?(:warehouse_document) && record.warehouse_document.present?
+      return record.warehouse_document.download_filename
     end
 
     # 3. Try record's file_name
