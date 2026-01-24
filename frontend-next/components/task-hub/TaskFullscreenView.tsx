@@ -3437,10 +3437,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const generateResponseBody = (): string => {
     let body = '';
 
-    // Helper to format a file link as HTML hyperlink
+    // Helper to format a file link as HTML hyperlink with Download/Open options
+    // For external email recipients - makes actions more discoverable
     const formatFileLink = (fileName: string, url?: string): string => {
       if (url) {
-        return `<a href="${url}">${fileName}</a>`;
+        return `<a href="${url}">${fileName}</a> · <a href="${url}" download style="color: #666; font-size: 0.9em;">Download</a> · <a href="${url}" target="_blank" style="color: #666; font-size: 0.9em;">Open</a>`;
       }
       return fileName;
     };
