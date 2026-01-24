@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { PDFEditor } from "@/components/ui/pdf-editor";
@@ -36,6 +37,7 @@ export function DocumentViewerModal({
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0">
+          <DialogTitle className="sr-only">{fileName || 'PDF Viewer'}</DialogTitle>
           <PDFEditor
             url={url}
             fileName={fileName}
@@ -51,6 +53,7 @@ export function DocumentViewerModal({
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[90vw] max-h-[90vh] p-4">
+          <DialogTitle className="sr-only">{fileName || 'Image Viewer'}</DialogTitle>
           <div className="flex flex-col h-full">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-medium truncate">{fileName}</h2>
@@ -89,6 +92,7 @@ export function DocumentViewerModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
+        <DialogTitle className="sr-only">{fileName || 'File Preview'}</DialogTitle>
         <div className="flex flex-col items-center gap-4 py-4">
           <p className="text-sm text-muted-foreground text-center">
             Preview not available for this file type.
