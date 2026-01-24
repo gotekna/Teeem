@@ -79,20 +79,21 @@ const columns: KanbanColumnDef<TaskItem>[] = [
 interface TaskCardContentProps {
   task: TaskItem;
   currentUserId?: number;
+  waitingStyles?: string | null;
+  overdueColors?: { bg: string; border: string } | null;
 }
 
-function TaskCardContent({ task, currentUserId }: TaskCardContentProps) {
-  // Get overdue gradient colors
-  const overdueColors = task.is_overdue && task.status !== TASK_STATUS.COMPLETED && task.days_overdue
-    ? getOverdueColorClasses(task.days_overdue)
-    : null;
-
+function TaskCardContent({ task, currentUserId, waitingStyles, overdueColors }: TaskCardContentProps) {
   // Show subtasks if user owns parent OR follows parent
   const showSubtasks = task.children && task.children.length > 0 &&
     (task.is_following || task.assigned_user_id === currentUserId);
 
+  // Determine if task is in a waiting status (shouldn't show overdue badge)
+  const isWaitingStatus = task.status === TASK_STATUS.WAITING_FOR_RESPONSE ||
+    task.status === TASK_STATUS.WAITING_FOR_INFO;
+
   return (
-    <div className={cn('px-2 py-1.5 text-xs', overdueColors && overdueColors.bg)}>
+    <div className={cn('px-2 py-1.5 text-xs', overdueColors?.bg)}>
       <div className="flex items-center gap-1.5">
         <span
           className={cn(
@@ -103,7 +104,8 @@ function TaskCardContent({ task, currentUserId }: TaskCardContentProps) {
           {task.name}
         </span>
 
-        {task.is_overdue && task.status !== TASK_STATUS.COMPLETED && (
+        {/* Only show overdue badge if not in waiting status */}
+        {task.is_overdue && task.status !== TASK_STATUS.COMPLETED && !isWaitingStatus && (
           <Badge variant="destructive" className="h-3.5 px-1 text-[9px] gap-0.5 shrink-0">
             <AlertTriangle className="h-2 w-2" />
             {task.days_overdue ? `${task.days_overdue}d` : '!'}
@@ -353,7 +355,14 @@ export function BoardView() {
     if (item.status === newStatus) return;
 
     try {
-      await updateTask(item.id, { status: newStatus });
+      const updates: Partial<SmTask> = { status: newStatus };
+
+      // When moving TO Active, set required_by to today
+      if (newStatus === TASK_STATUS.STARTED) {
+        updates.required_by = new Date().toISOString().split('T')[0];
+      }
+
+      await updateTask(item.id, updates);
     } catch (error) {
       console.error('Failed to update task status:', error);
     }
@@ -435,12 +444,30 @@ export function BoardView() {
     }
   }, [sortedTasks, reorderBoardTask]);
 
+  // Get column-based background color for waiting statuses
+  const getWaitingColumnStyles = (status: string) => {
+    if (status === TASK_STATUS.WAITING_FOR_RESPONSE) {
+      return 'bg-purple-50/50 dark:bg-purple-950/20 border-l-4 border-l-purple-400';
+    }
+    if (status === TASK_STATUS.WAITING_FOR_INFO) {
+      return 'bg-orange-50/50 dark:bg-orange-950/20 border-l-4 border-l-orange-400';
+    }
+    return null;
+  };
+
   // Render a task card
   const renderCard = (task: TaskItem, isDragging: boolean) => {
-    // Get overdue gradient colors
-    const overdueColors = task.is_overdue && task.status !== TASK_STATUS.COMPLETED && task.days_overdue
-      ? getOverdueColorClasses(task.days_overdue)
-      : null;
+    // Get overdue gradient colors - exclude waiting statuses (they shouldn't show as overdue)
+    const overdueColors = task.is_overdue &&
+      task.status !== TASK_STATUS.COMPLETED &&
+      task.status !== TASK_STATUS.WAITING_FOR_RESPONSE &&
+      task.status !== TASK_STATUS.WAITING_FOR_INFO &&
+      task.days_overdue
+        ? getOverdueColorClasses(task.days_overdue)
+        : null;
+
+    // Get waiting column styles (purple for Waiting for Response, orange for Waiting for More Info)
+    const waitingStyles = getWaitingColumnStyles(task.status);
 
     // Calculate position within this column (1-indexed for display)
     const columnTasks = sortedTasks.filter(t => t.status === task.status);
@@ -454,6 +481,7 @@ export function BoardView() {
         isDragging={isDragging}
         className={cn(
           overdueColors && overdueColors.border,
+          waitingStyles,
           "cursor-pointer"
         )}
         onClick={() => handleCardClick(task)}
@@ -467,6 +495,8 @@ export function BoardView() {
         <TaskCardContent
           task={task}
           currentUserId={user?.id}
+          waitingStyles={waitingStyles}
+          overdueColors={overdueColors}
         />
       </KanbanCard>
     );
