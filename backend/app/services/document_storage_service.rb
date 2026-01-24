@@ -164,6 +164,37 @@ class DocumentStorageService
     @provider.present? && @storage_config.connected?
   end
 
+  # Create a shareable link for a document
+  #
+  # SSoT Architecture (Jan 2026):
+  #   - S3/Wasabi: Returns long-lived presigned URL (7 days default)
+  #   - SharePoint: Creates persistent anonymous sharing link
+  #
+  # @param record [ActiveRecord::Base] Document with storage_path or storage_reference
+  # @param expires_in [Integer] Expiry in seconds for S3 URLs (default: 7 days)
+  # @param type [String] SharePoint link type: "view" or "edit" (default: "view")
+  # @param scope [String] SharePoint scope: "anonymous" or "organization" (default: "anonymous")
+  # @return [Hash] { success: true, share_url: "...", provider: :s3/:sharepoint }
+  #                or { success: false, error: "..." }
+  def create_share_link(record, expires_in: 604800, type: "view", scope: "anonymous")
+    return error_result("No record provided") unless record
+
+    # SSoT Priority:
+    # 1. StorageBlob/storage_path → S3 presigned URL (new architecture)
+    # 2. storage_reference → SharePoint share link (legacy)
+
+    if has_s3_storage?(record)
+      create_s3_share_link(record, expires_in: expires_in)
+    elsif has_sharepoint_storage?(record)
+      create_sharepoint_share_link(record, type: type, scope: scope)
+    else
+      error_result("Document not in storage (missing storage_path and storage_reference)")
+    end
+  rescue StandardError => e
+    Rails.logger.error "[DocumentStorage] create_share_link error: #{e.class} - #{e.message}"
+    error_result("Failed to create share link: #{e.message}")
+  end
+
   # Get storage stats
   def stats
     {
@@ -514,5 +545,93 @@ class DocumentStorageService
 
     # 5. Last resort fallback
     "document"
+  end
+
+  # ============================================================================
+  # SHARE LINK HELPERS (Private)
+  # ============================================================================
+
+  # Check if record has S3/Wasabi storage
+  def has_s3_storage?(record)
+    (record.respond_to?(:storage_blob) && record.storage_blob.present?) ||
+      (record.respond_to?(:storage_path) && record.storage_path.present?)
+  end
+
+  # Check if record has SharePoint storage (legacy)
+  def has_sharepoint_storage?(record)
+    sharepoint_item_id(record).present?
+  end
+
+  # Get SharePoint item ID from record (different fields for different record types)
+  def sharepoint_item_id(record)
+    case record
+    when SyncedEmail
+      record.email_storage_file_id if record.respond_to?(:email_storage_file_id)
+    else
+      record.storage_reference if record.respond_to?(:storage_reference)
+    end
+  end
+
+  # Create S3 presigned URL as share link
+  def create_s3_share_link(record, expires_in:)
+    result = download_url(record, expires_in: expires_in)
+    if result[:success]
+      { success: true, share_url: result[:url], provider: :s3_compatible, expires_in: expires_in }
+    else
+      result
+    end
+  end
+
+  # Create SharePoint share link
+  # SSoT: Uses MicrosoftAppGraphClient.create_share_link
+  def create_sharepoint_share_link(record, type:, scope:)
+    # Get appropriate credential based on record type
+    credential, drive_id = resolve_sharepoint_credential_for(record)
+
+    unless credential
+      return error_result("SharePoint not configured")
+    end
+
+    unless drive_id
+      return error_result("SharePoint drive not configured")
+    end
+
+    item_id = sharepoint_item_id(record)
+
+    # Create share link via Graph API
+    client = MicrosoftAppGraphClient.new(credential)
+    result = client.create_share_link(
+      drive_id: drive_id,
+      item_id: item_id,
+      type: type,
+      scope: scope
+    )
+
+    if result[:url].present?
+      { success: true, share_url: result[:url], provider: :sharepoint, type: type, scope: scope }
+    else
+      error_result("Failed to create SharePoint sharing link")
+    end
+  rescue MicrosoftAppGraphClient::NotConnectedError => e
+    error_result(e.message)
+  rescue MicrosoftAppGraphClient::APIError => e
+    error_result("SharePoint API error: #{e.message}")
+  end
+
+  # Resolve the appropriate SharePoint credential and drive_id for a record
+  # Different record types may be in different SharePoint locations
+  def resolve_sharepoint_credential_for(record)
+    case record
+    when SyncedEmail
+      # Emails use TEEEM's SharePoint (central storage)
+      sp_config = MicrosoftCredential.teeem_sharepoint_config
+      return [nil, nil] unless sp_config
+      [sp_config[:credential], sp_config[:drive_id]]
+    else
+      # Other documents use org's SharePoint
+      credential = MicrosoftCredential.sharepoint_credential
+      drive_id = StorageConfiguration.instance&.drive_id
+      [credential, drive_id]
+    end
   end
 end

@@ -1197,7 +1197,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [attachmentEmailOptions, setAttachmentEmailOptions] = useState<Record<number, 'attach' | 'link' | 'both' | 'none'>>({});
   // Store SharePoint share links created for 'link' option
   const [shareLinksMap, setShareLinksMap] = useState<Record<number, string>>({});
+  // Download All URL - use both state and ref for synchronous access in generateResponseBody
   const [downloadAllShareUrl, setDownloadAllShareUrl] = useState<string | null>(null);
+  const downloadAllShareUrlRef = useRef<string | null>(null);
   // Company settings for email signature
   // Use both state (for re-renders) and ref (for synchronous access in generateResponseBody)
   const [companySettings, setCompanySettings] = useState<{
@@ -2560,8 +2562,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-      } else if (att.document.has_storage) {
-        // Fallback: Use API endpoint for legacy SharePoint documents
+      } else {
+        // Fallback: Use API endpoint (works for all documents via DocumentStorageService)
         const response = await api.get<{
           success: boolean;
           filename: string;
@@ -2589,8 +2591,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         } else {
           toast.error('Failed to download file');
         }
-      } else {
-        toast.error('File not available for download');
       }
     } catch (err) {
       console.error('Failed to download attachment:', err);
@@ -2603,9 +2603,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   // Download all response files at once
   const handleDownloadAllResponseFiles = async () => {
-    const downloadableFiles = responseAttachments.filter(
-      att => att.document && (att.document.storage_url || att.document.file_url || att.document.has_storage)
-    );
+    // Backend can download via DocumentStorageService even without frontend URLs
+    const downloadableFiles = responseAttachments.filter(att => att.document);
 
     if (downloadableFiles.length === 0) {
       toast.error('No files available to download');
@@ -3449,7 +3448,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     // Add greeting with recipient's name
     if (originalEmailData) {
       const recipientName = originalEmailData.from_name?.split(' ')[0] || 'there';
-      body += `<p>Hi ${recipientName},<br><br>Please see my responses below:</p>\n\n`;
+      body += `<p>Hi ${recipientName},</p>\n`;
+      body += `<p>&nbsp;</p>\n`;  // Blank line after greeting (nbsp prevents stripping)
+      body += `<p>Please see my responses below:</p>\n`;
+      body += `<p>&nbsp;</p>\n`;  // Blank line before questions
     }
 
     // Get all included questions (with answers OR attachments)
@@ -3496,9 +3498,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       // First, process headers in order
       let headerNum = 0;
+      console.log('[generateResponseBody] Processing headers:', groupedQuestions.headers.map(h => ({
+        id: h.id,
+        text: h.text.substring(0, 30),
+        childCount: h.children?.length || 0
+      })));
+      console.log('[generateResponseBody] headerMap keys:', Array.from(headerMap.keys()));
+
       groupedQuestions.headers.forEach(header => {
         headerNum++;
         const headerQuestions = headerMap.get(header.id) || [];
+        console.log(`[generateResponseBody] Header ${headerNum} "${header.text.substring(0, 20)}": ${headerQuestions.length} questions in map`);
         if (headerQuestions.length === 0) return; // Skip headers with no included questions
 
         // Add header with its number (bold)
@@ -3697,11 +3707,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     const totalDocuments = questionDocCount + linkedFiles.length;
 
     // Add "Download All" link if available (for multiple files)
-    if (downloadAllShareUrl && totalDocuments > 1) {
-      body += `<p>📦 <a href="${downloadAllShareUrl}"><strong>Download All Files (ZIP)</strong></a></p>\n`;
+    // Use ref for synchronous access (avoids React state timing issues)
+    const downloadUrl = downloadAllShareUrlRef.current;
+    if (downloadUrl && totalDocuments > 1) {
+      body += `<p>📦 <a href="${downloadUrl}"><strong>Download All Files (ZIP)</strong></a></p>\n`;
     }
 
-    // Add closing line
+    // Add closing line (with blank line before for visual separation)
+    body += '<p></p>\n';
     body += '<p>Please let me know if you have any further questions.</p>\n';
 
     // Add simple signature (TipTap-compatible) - positioned BEFORE quoted chain like Outlook
@@ -3788,29 +3801,32 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       const filesToAttach: File[] = [];
       const shareLinks: Record<number, string> = {};
 
-      // Collect all question attachments that have SharePoint file IDs
-      const questionAttachmentsToLink = questionItems
+      // Collect all question attachments that have document URLs (SharePoint or fallback)
+      const allQuestionAttachments = questionItems
         .filter(q => q.include_in_response)
-        .flatMap(q => q.attachments || [])
-        .filter(att => att.document?.storage_url);
+        .flatMap(q => q.attachments || []);
+
+      // Include any attachment that has a document (backend can download via DocumentStorageService)
+      const questionAttachmentsToLink = allQuestionAttachments
+        .filter(att => att.document);
 
       // Separate documents and emails for processing
       // 'both' option includes item in BOTH attach AND link lists
       const documentsToAttach = responseAttachments.filter(a => {
-        const opt = attachmentEmailOptions[a.id];
+        const opt = attachmentEmailOptions[a.id] || 'link';  // Default to 'link'
         return (opt === 'attach' || opt === 'both') && a.document;
       });
       const emailsToAttach = responseAttachments.filter(a => {
-        const opt = attachmentEmailOptions[a.id];
+        const opt = attachmentEmailOptions[a.id] || 'link';  // Default to 'link'
         return (opt === 'attach' || opt === 'both') && a.email;
       });
       const documentsToLink = responseAttachments.filter(a => {
-        const opt = attachmentEmailOptions[a.id];
-        const hasExternalStorage = a.document?.storage_url;
-        return (opt === 'link' || opt === 'both') && hasExternalStorage && a.document;
+        const opt = attachmentEmailOptions[a.id] || 'link';  // Default to 'link'
+        // Include any document (backend can download via DocumentStorageService)
+        return (opt === 'link' || opt === 'both') && a.document;
       });
       const emailsToLink = responseAttachments.filter(a => {
-        const opt = attachmentEmailOptions[a.id];
+        const opt = attachmentEmailOptions[a.id] || 'link';  // Default to 'link'
         return (opt === 'link' || opt === 'both') && a.email;
       });
 
@@ -3911,21 +3927,41 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       setEmailFileAttachments(filesToAttach);
 
       // Generate "Download All" zip link if there are multiple documents to link
-      const allDocumentsToLink = [...documentsToLink, ...questionAttachmentsToLink.filter(a => a.document)];
-      console.log('[prepareEmailResponse] Documents to link:', allDocumentsToLink.length, allDocumentsToLink);
+      // Note: questionAttachmentsToLink already filtered to only include items with documents
+      const allDocumentsToLink = [...documentsToLink, ...questionAttachmentsToLink];
       if (allDocumentsToLink.length > 1) {
         setPrepareEmailStatus('Creating download all link...');
         try {
-          console.log('[prepareEmailResponse] Calling download_all_response_files endpoint...');
-          const zipResponse = await api.get<{ success: boolean; share_url?: string; error?: string }>(
+          const zipResponse = await api.get<{
+            success: boolean;
+            share_url?: string;
+            download_method?: string;
+            content?: string;
+            filename?: string;
+            content_type?: string;
+            error?: string
+          }>(
             `/api/v1/sm_tasks/${task.id}/download_all_response_files`
           );
-          console.log('[prepareEmailResponse] Zip response:', zipResponse);
           if (zipResponse.success && zipResponse.share_url) {
+            // Presigned URL (production with Wasabi/S3)
+            downloadAllShareUrlRef.current = zipResponse.share_url;
             setDownloadAllShareUrl(zipResponse.share_url);
-            console.log('[prepareEmailResponse] Download all URL set:', zipResponse.share_url);
+          } else if (zipResponse.success && zipResponse.download_method === 'base64' && zipResponse.content) {
+            // Base64 fallback (local dev without storage connection)
+            // Create a blob URL for local testing - note: only works in same browser session
+            const byteCharacters = atob(zipResponse.content);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: zipResponse.content_type || 'application/zip' });
+            const blobUrl = URL.createObjectURL(blob);
+            downloadAllShareUrlRef.current = blobUrl;
+            setDownloadAllShareUrl(blobUrl);
           } else {
-            console.warn('[prepareEmailResponse] No share_url in response:', zipResponse);
+            // No URL available - Download All link won't appear in email
           }
         } catch (err) {
           console.error('Failed to create download all link:', err);
@@ -3933,6 +3969,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         }
       } else {
         console.log('[prepareEmailResponse] Not enough documents for download all:', allDocumentsToLink.length);
+        downloadAllShareUrlRef.current = null;
         setDownloadAllShareUrl(null);
       }
 
@@ -6325,8 +6362,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 <Send className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">Response Files</span>
                 <Badge variant="secondary" className="text-xs">{responseAttachments.length}</Badge>
-                {/* Download All button */}
-                {responseAttachments.filter(att => att.document && (att.document.storage_url || att.document.file_url || att.document.has_storage)).length > 1 && (
+                {/* Download All button - backend can download via API even without frontend URLs */}
+                {responseAttachments.filter(att => att.document).length > 1 && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

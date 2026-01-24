@@ -14,6 +14,15 @@ module Api
       # Require admin for sensitive operations
       before_action :require_admin, only: [ :disconnect, :change_root_folder, :sync_corporate_documents ]
 
+      # SSoT: Setup document provider for provider-agnostic methods
+      # Skip for SharePoint-specific admin actions (OAuth, site selection, etc.)
+      before_action :setup_storage_provider, only: [
+        :browse_folders, :create_root_folder, :validate_folder,
+        :folder_contents, :search, :download, :presigned_url,
+        :download_url, :upload, :delete_file, :copy_files,
+        :job_all_files, :job_document_download, :job_document_url
+      ]
+
       # Handle decryption errors gracefully - this happens when credentials were encrypted
       # with different encryption keys (e.g., production vs development environments)
       rescue_from ActiveRecord::Encryption::Errors::Decryption do |e|
@@ -512,11 +521,10 @@ module Api
       # Browse OneDrive folders - optionally within a specific folder
       # Returns folders and breadcrumb path for navigation
       # Performance: Cached for 2 minutes to reduce SharePoint API calls
+      # NOTE: This is SharePoint-specific (admin folder selection UI)
       def browse_folders
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
+        # SSoT: Use helper methods for credential and client
+        unless sharepoint_connected?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -533,15 +541,13 @@ module Api
         end
 
         begin
-          # Check if using app credentials (requires different API calls)
-          is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
-
           current_folder = nil
           breadcrumbs = []
 
-          if is_app_credential
+          # App credentials use different API methods than delegated
+          if sharepoint_credential.credential_type == "app"
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
-            client = MicrosoftAppGraphClient.new(credential)
+            client = sharepoint_client
             storage_config = StorageConfiguration.instance
 
             unless storage_config&.connected?
@@ -590,11 +596,11 @@ module Api
             end.sort_by { |f| f[:name].downcase }
           else
             # Delegated credentials use MicrosoftGraphClient with /me endpoints
-            client = MicrosoftGraphClient.new(credential)
+            client = sharepoint_client
 
             # SSoT: Get drive path from StorageConfiguration (Jan 2026)
-            storage_drive_id = StorageConfiguration.instance&.drive_id
-            drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
+            config = StorageConfiguration.instance
+            drive_path = config&.drive_id.present? ? "/drives/#{config.drive_id}" : "/me/drive"
 
             # Get folders in the specified location
             if folder_id.present?
@@ -898,13 +904,12 @@ module Api
 
       # POST /api/v1/documents/upload
       # Upload file to OneDrive
+      # NOTE: This is SharePoint-specific (uses folder_id from SharePoint)
       def upload
         job = Job.find(params[:job_id])
 
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
+        # SSoT: Use helper methods for credential and client
+        unless sharepoint_connected?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -920,7 +925,7 @@ module Api
         end
 
         begin
-          client = MicrosoftGraphClient.new(credential)
+          client = sharepoint_client
 
           # Check file size to determine upload method
           file_size = uploaded_file.size
@@ -958,14 +963,13 @@ module Api
       # Get contents of a specific folder by name within a job's folder
       # Supports fetching from multiple folders (e.g., "Photo" and "Client Photo")
       # Performance: Cached for 5 minutes to reduce SharePoint API calls
+      # NOTE: This is SharePoint-specific (uses folder IDs and names)
       def folder_contents
         job = Job.find(params[:job_id])
         folder_names = params[:folder_names]&.split(",")&.map(&:strip) || [ params[:folder_name] ]
 
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
+        # SSoT: Use helper methods for credential and client
+        unless sharepoint_connected?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -981,7 +985,7 @@ module Api
         end
 
         begin
-          client = MicrosoftGraphClient.new(credential)
+          client = sharepoint_client
 
           # SSoT: Use stored sharepoint_folder_id first, fall back to find_job_folder
           job_folder_id = job.storage_folder_id
@@ -1069,11 +1073,10 @@ module Api
 
       # GET /api/v1/documents/search
       # Search for files across the entire SharePoint/OneDrive drive
+      # NOTE: This is SharePoint-specific search
       def search
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
+        # SSoT: Use helper methods for credential and client
+        unless sharepoint_connected?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1084,7 +1087,7 @@ module Api
         end
 
         begin
-          client = MicrosoftGraphClient.new(credential)
+          client = sharepoint_client
 
           # Search across the entire drive (not limited to root folder)
           results = client.search(query)
@@ -1224,11 +1227,10 @@ module Api
 
       # DELETE /api/v1/documents/delete_file
       # Delete a file from SharePoint/OneDrive
+      # NOTE: This is SharePoint-specific file deletion
       def delete_file
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
+        # SSoT: Use helper methods for credential and client
+        unless sharepoint_connected?
           return render json: { success: false, error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1239,23 +1241,20 @@ module Api
         end
 
         begin
-          # Check if using app credentials (requires different API calls)
-          is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+          client = sharepoint_client
+          config = StorageConfiguration.instance
 
-          if is_app_credential
-            client = MicrosoftAppGraphClient.new(credential)
-            storage_config = StorageConfiguration.instance
-
-            unless storage_config&.connected?
+          # App credentials use different API methods than delegated
+          if sharepoint_credential.credential_type == "app"
+            unless config&.connected?
               return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
             end
 
             client.delete_drive_item(
-              drive_id: storage_config.drive_id,
+              drive_id: config.drive_id,
               item_id: file_id
             )
           else
-            client = MicrosoftGraphClient.new(credential)
             client.delete_file(file_id)
           end
 
@@ -2550,55 +2549,38 @@ module Api
       # Generate presigned URL for SharePoint files
       # SSoT: Uses SharePoint's @microsoft.graph.downloadUrl for direct browser access
       def presigned_url_for_sharepoint(file_id)
-        credential = MicrosoftCredential.sharepoint_credential
-
-        unless credential&.valid_access_token
+        # SSoT: Use helper methods for credential and client
+        unless sharepoint_connected?
           raise DocumentProviders::NotConnectedError, "SharePoint not connected"
         end
 
-        is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+        client = sharepoint_client
+        config = StorageConfiguration.instance
 
-        if is_app_credential
-          client = MicrosoftAppGraphClient.new(credential)
-          storage_config = StorageConfiguration.instance
+        unless config&.connected?
+          raise DocumentProviders::NotConnectedError, "SharePoint not configured"
+        end
 
-          unless storage_config&.connected?
-            raise DocumentProviders::NotConnectedError, "SharePoint not configured"
-          end
-
-          # Get file metadata with download URL
-          item_data = client.get_drive_item(storage_config.drive_id, file_id)
+        # Get file metadata with download URL
+        # App credentials use different API method than delegated
+        if sharepoint_credential.credential_type == "app"
+          item_data = client.get_drive_item(config.drive_id, file_id)
           download_url_value = item_data[:download_url]
-
-          unless download_url_value.present?
-            raise DocumentProviders::NotFoundError, "Download URL not available for this file"
-          end
-
-          render json: {
-            success: true,
-            url: download_url_value,
-            expires_in: 1800  # SharePoint URLs typically valid ~30 min
-          }
         else
-          client = MicrosoftGraphClient.new(credential)
-          # SSoT: Get drive path from StorageConfiguration (Jan 2026)
-          storage_drive_id = StorageConfiguration.instance&.drive_id
-          drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
-
-          # Get file info including download URL
+          drive_path = config.drive_id.present? ? "/drives/#{config.drive_id}" : "/me/drive"
           file_info = client.get("#{drive_path}/items/#{file_id}?$select=id,name,@microsoft.graph.downloadUrl")
           download_url_value = file_info["@microsoft.graph.downloadUrl"]
-
-          unless download_url_value.present?
-            raise DocumentProviders::NotFoundError, "Download URL not available for this file"
-          end
-
-          render json: {
-            success: true,
-            url: download_url_value,
-            expires_in: 1800
-          }
         end
+
+        unless download_url_value.present?
+          raise DocumentProviders::NotFoundError, "Download URL not available for this file"
+        end
+
+        render json: {
+          success: true,
+          url: download_url_value,
+          expires_in: 1800  # SharePoint URLs typically valid ~30 min
+        }
       end
 
       # List all files recursively from provider (Wasabi/S3)
@@ -2673,30 +2655,28 @@ module Api
       end
 
       # Download file from SharePoint by item ID (for photo gallery)
+      # SSoT: Uses helper methods for credential and client
       def download_from_sharepoint_by_id(file_id, is_preview)
-        credential = MicrosoftCredential.sharepoint_credential
-
-        unless credential&.valid_access_token
+        unless sharepoint_connected?
           raise DocumentProviders::NotConnectedError, "SharePoint not connected"
         end
 
-        is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+        client = sharepoint_client
+        config = StorageConfiguration.instance
 
-        if is_app_credential
-          client = MicrosoftAppGraphClient.new(credential)
-          storage_config = StorageConfiguration.instance
-
-          unless storage_config&.connected?
+        # Get file metadata and content
+        # App credentials use different API methods than delegated
+        if sharepoint_credential.credential_type == "app"
+          unless config&.connected?
             raise DocumentProviders::NotConnectedError, "SharePoint not configured"
           end
 
-          file_metadata = client.get_drive_item(storage_config.drive_id, file_id)
+          file_metadata = client.get_drive_item(config.drive_id, file_id)
           file_content = client.get_drive_item_content(
-            drive_id: storage_config.drive_id,
+            drive_id: config.drive_id,
             item_id: file_id
           )
         else
-          client = MicrosoftGraphClient.new(credential)
           file_metadata = client.get_file(file_id)
           file_content = client.download_file(file_id)
         end
@@ -2752,10 +2732,9 @@ module Api
       end
 
       # Download document content from SharePoint
+      # SSoT: Uses helper methods for credential and client
       def download_from_sharepoint(document, is_preview)
-        credential = MicrosoftCredential.sharepoint_credential
-
-        unless credential&.valid_access_token
+        unless sharepoint_connected?
           raise DocumentProviders::NotConnectedError, "SharePoint not connected"
         end
 
@@ -2765,24 +2744,22 @@ module Api
           raise DocumentProviders::NotFoundError, "No SharePoint file ID for document"
         end
 
-        # Use app credentials if available
-        is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+        client = sharepoint_client
+        config = StorageConfiguration.instance
 
-        if is_app_credential
-          client = MicrosoftAppGraphClient.new(credential)
-          storage_config = StorageConfiguration.instance
-
-          unless storage_config&.connected?
+        # Get file metadata and content
+        # App credentials use different API methods than delegated
+        if sharepoint_credential.credential_type == "app"
+          unless config&.connected?
             raise DocumentProviders::NotConnectedError, "SharePoint not configured"
           end
 
-          file_metadata = client.get_drive_item(storage_config.drive_id, file_id)
+          file_metadata = client.get_drive_item(config.drive_id, file_id)
           file_content = client.get_drive_item_content(
-            drive_id: storage_config.drive_id,
+            drive_id: config.drive_id,
             item_id: file_id
           )
         else
-          client = MicrosoftGraphClient.new(credential)
           file_metadata = client.get_file(file_id)
           file_content = client.download_file(file_id)
         end
@@ -2814,11 +2791,10 @@ module Api
         provider.download_url(storage_ref, expires_in: 3600)
       end
 
-      # Get SharePoint download URL
+      # Get SharePoint download URL for a document
+      # SSoT: Uses helper methods for credential and client
       def get_sharepoint_download_url(document)
-        credential = MicrosoftCredential.sharepoint_credential
-
-        unless credential&.valid_access_token
+        unless sharepoint_connected?
           raise DocumentProviders::NotConnectedError, "SharePoint not connected"
         end
 
@@ -2828,20 +2804,19 @@ module Api
           raise DocumentProviders::NotFoundError, "No SharePoint file ID for document"
         end
 
-        is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+        client = sharepoint_client
+        config = StorageConfiguration.instance
 
-        if is_app_credential
-          client = MicrosoftAppGraphClient.new(credential)
-          storage_config = StorageConfiguration.instance
-
-          unless storage_config&.connected?
+        # Get download URL
+        # App credentials use different API methods than delegated
+        if sharepoint_credential.credential_type == "app"
+          unless config&.connected?
             raise DocumentProviders::NotConnectedError, "SharePoint not configured"
           end
 
-          item_data = client.get_drive_item(storage_config.drive_id, file_id)
+          item_data = client.get_drive_item(config.drive_id, file_id)
           item_data[:download_url] || document.web_url
         else
-          client = MicrosoftGraphClient.new(credential)
           file_data = client.get_file(file_id)
           file_data["@microsoft.graph.downloadUrl"] || document.web_url
         end
@@ -2902,6 +2877,55 @@ module Api
         Rails.logger.error "Failed to change root folder by ID: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
         render json: { error: "Failed to change root folder: #{e.message}" }, status: :internal_server_error
+      end
+
+      # ============================================================================
+      # PROVIDER SETUP (SSoT: Uses DocumentProviderAware)
+      # ============================================================================
+
+      # Initialize the document provider for this request
+      # Uses DocumentProviderAware concern to get the correct provider
+      def setup_storage_provider
+        setup_default_provider!
+      rescue DocumentProviders::NotConnectedError => e
+        # Don't fail the action - some actions can work without a provider
+        Rails.logger.warn "[DocumentStorage] Provider not configured: #{e.message}"
+        @document_provider = nil
+      rescue ActiveRecord::Encryption::Errors::Decryption => e
+        Rails.logger.warn "[DocumentStorage] Credential decryption error: #{e.message}"
+        @document_provider = nil
+      end
+
+      # Get SharePoint credential (SSoT: consolidates credential fetching)
+      # @return [MicrosoftCredential, nil] The SharePoint credential or nil
+      def sharepoint_credential
+        @sharepoint_credential ||= begin
+          cred = MicrosoftCredential.sharepoint_credential
+          # Verify decryption works by accessing encrypted field
+          cred&.access_token if cred
+          cred
+        rescue ActiveRecord::Encryption::Errors::Decryption => e
+          Rails.logger.warn "[DocumentStorage] SharePoint credential decryption error: #{e.message}"
+          nil
+        end
+      end
+
+      # Get SharePoint client for the current credential
+      # Uses app or delegated client based on credential type
+      # @return [MicrosoftAppGraphClient, MicrosoftGraphClient, nil]
+      def sharepoint_client
+        return nil unless sharepoint_credential&.valid_access_token
+
+        @sharepoint_client ||= if sharepoint_credential.credential_type == "app"
+          MicrosoftAppGraphClient.new(sharepoint_credential)
+        else
+          MicrosoftGraphClient.new(sharepoint_credential)
+        end
+      end
+
+      # Check if SharePoint is connected and available
+      def sharepoint_connected?
+        sharepoint_credential&.valid_access_token.present?
       end
 
       # Get the best available credential for OneDrive operations

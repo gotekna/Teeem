@@ -1324,68 +1324,29 @@ module Api
       end
 
       # POST /api/v1/sm_tasks/:id/attachments/:attachment_id/share_link
-      # Create anonymous SharePoint sharing link ("Anyone with the link")
+      # Create anonymous sharing link ("Anyone with the link")
+      # SSoT: Uses DocumentStorageService.create_share_link (provider-agnostic)
       def create_attachment_share_link
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
         attachable = attachment.attachable
 
-        # Handle both document and email attachments
-        case attachable
-        when CorporateCompanyDocument
-          unless attachable.storage_reference.present?
-            return render json: { success: false, error: "Document not in storage" }, status: :unprocessable_entity
-          end
-
-          # Documents use org's SharePoint
-          credential = MicrosoftCredential.active_for_org(current_organization)
-          unless credential
-            return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
-          end
-
-          file_id = attachable.storage_reference
-          # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
-          drive_id = StorageConfiguration.instance&.drive_id
-
-        when SyncedEmail
-          # Emails use file_id from email_storage_file_id (SSoT method)
-          file_id = attachable.email_storage_file_id
-          unless file_id.present?
-            return render json: { success: false, error: "Email not stored in SharePoint" }, status: :unprocessable_entity
-          end
-
-          # Emails use TEEEM's SharePoint (StorageConfiguration)
-          sp_config = MicrosoftCredential.teeem_sharepoint_config
-          unless sp_config
-            return render json: { success: false, error: "SharePoint storage not configured" }, status: :unprocessable_entity
-          end
-
-          credential = sp_config[:credential]
-          drive_id = sp_config[:drive_id]
-
-        else
+        # Validate attachment type
+        unless attachable.is_a?(CorporateCompanyDocument) || attachable.is_a?(SyncedEmail)
           return render json: { success: false, error: "Attachment type not supported for sharing" }, status: :unprocessable_entity
         end
 
-        # Create anonymous sharing link
-        client = MicrosoftAppGraphClient.new(credential)
-        result = client.create_share_link(
-          drive_id: drive_id,
-          item_id: file_id,
-          type: "view",
-          scope: "anonymous"  # "Anyone with the link" - no login required
-        )
+        # SSoT: Use DocumentStorageService for provider-agnostic share link creation
+        # Handles both S3 (presigned URLs) and SharePoint (share links)
+        service = DocumentStorageService.new
+        result = service.create_share_link(attachable, type: "view", scope: "anonymous")
 
-        share_url = result[:url]
-
-        if share_url.present?
-          render json: { success: true, share_url: share_url }
+        if result[:success]
+          render json: { success: true, share_url: result[:share_url] }
         else
-          render json: { success: false, error: "Failed to create sharing link" }, status: :unprocessable_entity
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
         end
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Attachment not found" }, status: :not_found
-      rescue MicrosoftAppGraphClient::NotConnectedError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
       rescue => e
         Rails.logger.error "[SmTasksController#create_attachment_share_link] Error: #{e.message}"
         render json: { success: false, error: "Failed to create sharing link" }, status: :internal_server_error
@@ -1429,8 +1390,8 @@ module Api
         zip_data.rewind
 
         # Generate a unique filename for the zip
-        safe_title = @task.title.to_s.gsub(/[^a-zA-Z0-9\s-]/, "").strip.gsub(/\s+/, "_")[0..50]
-        zip_filename = "#{safe_title}_response_files.zip"
+        safe_name = @task.name.to_s.gsub(/[^a-zA-Z0-9\s-]/, "").strip.gsub(/\s+/, "_")[0..50]
+        zip_filename = "#{safe_name}_response_files.zip"
 
         # Option 1: Return as direct download (for API calls)
         if params[:direct] == "true"
@@ -1441,63 +1402,55 @@ module Api
           return
         end
 
-        # Option 2: Upload to temporary storage and return share link
-        # Upload zip to SharePoint temporary folder
-        credential = MicrosoftCredential.active_for_org(current_organization)
-        unless credential
-          # Fallback to base64 encoded data if no SharePoint
-          return render json: {
+        # Option 2: Upload to storage and return presigned download URL
+        # SSoT: Use DocumentProviders (auto-selects Wasabi/S3/SharePoint based on StorageConfiguration)
+        begin
+          provider = DocumentProviders.for_organization(current_organization)
+
+          unless provider
+            # Fallback to base64 encoded data if no storage provider
+            return render json: {
+              success: true,
+              download_method: "base64",
+              filename: zip_filename,
+              content: Base64.strict_encode64(zip_data.read),
+              content_type: "application/zip"
+            }
+          end
+
+          # Upload to Temp folder with timestamped filename
+          temp_folder_path = "Temp/TaskResponseZips"
+          timestamped_filename = "#{Time.current.strftime('%Y%m%d_%H%M%S')}_#{zip_filename}"
+
+          upload_result = provider.upload_file(temp_folder_path, zip_data.read, timestamped_filename, content_type: "application/zip")
+
+          if upload_result[:path]
+            # Get presigned download URL (24 hour expiry for external recipients)
+            download_url = provider.download_url(upload_result[:path], expires_in: 86400)
+
+            render json: {
+              success: true,
+              download_method: "presigned_url",
+              share_url: download_url,
+              filename: zip_filename,
+              file_count: document_attachments.size
+            }
+          else
+            render json: { success: false, error: "Failed to upload zip file" }, status: :unprocessable_entity
+          end
+        rescue DocumentProviders::NotConnectedError, ActiveRecord::Encryption::Errors::Decryption => e
+          # NotConnectedError: No storage configured
+          # Decryption: Local dev can't decrypt production-encrypted credentials
+          Rails.logger.warn "[SmTasksController#download_all_response_files] Storage unavailable (#{e.class.name}): #{e.message}"
+          # Fallback to base64
+          zip_data.rewind
+          render json: {
             success: true,
             download_method: "base64",
             filename: zip_filename,
             content: Base64.strict_encode64(zip_data.read),
             content_type: "application/zip"
           }
-        end
-
-        # Upload to SharePoint temp folder and create share link
-        client = MicrosoftAppGraphClient.new(credential)
-        drive_id = StorageConfiguration.instance&.drive_id
-
-        unless drive_id
-          return render json: { success: false, error: "Storage not configured" }, status: :unprocessable_entity
-        end
-
-        # Upload to a "Temp" folder (create if needed)
-        temp_folder_path = "Temp/TaskResponseZips"
-        timestamped_filename = "#{Time.current.strftime('%Y%m%d_%H%M%S')}_#{zip_filename}"
-
-        begin
-          upload_result = client.upload_file(
-            drive_id: drive_id,
-            parent_path: temp_folder_path,
-            filename: timestamped_filename,
-            content: zip_data.read
-          )
-
-          if upload_result[:id]
-            # Create anonymous share link
-            share_result = client.create_share_link(
-              drive_id: drive_id,
-              item_id: upload_result[:id],
-              type: "view",
-              scope: "anonymous"
-            )
-
-            if share_result[:url]
-              render json: {
-                success: true,
-                download_method: "share_link",
-                share_url: share_result[:url],
-                filename: zip_filename,
-                file_count: document_attachments.size
-              }
-            else
-              render json: { success: false, error: "Failed to create share link" }, status: :unprocessable_entity
-            end
-          else
-            render json: { success: false, error: "Failed to upload zip file" }, status: :unprocessable_entity
-          end
         rescue => e
           Rails.logger.error "[SmTasksController#download_all_response_files] Upload error: #{e.message}"
           render json: { success: false, error: "Failed to create download link" }, status: :internal_server_error
