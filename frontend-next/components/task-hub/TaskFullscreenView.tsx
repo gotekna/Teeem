@@ -3897,11 +3897,30 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // Process emails to create app links (no API call needed)
+      // Process emails to create shareable links (presigned S3 URLs for EML files)
+      // External recipients can download the .eml file without Teeem login
       for (const att of emailsToLink) {
-        // Create app URL to view the email
-        const emailUrl = `${window.location.origin}/emails?open=${att.email?.id}`;
-        shareLinks[att.id] = emailUrl;
+        const subject = att.email?.subject || '(No subject)';
+        setPrepareEmailStatus(`Creating link for "${subject}"... (${processed + 1}/${totalToProcess})`);
+        try {
+          // Call share_link API to get presigned S3 URL for the EML file
+          const shareResponse = await api.post<{ success: boolean; share_url?: string; error?: string }>(
+            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
+          );
+          if (shareResponse?.success && shareResponse.share_url) {
+            shareLinks[att.id] = shareResponse.share_url;
+          } else {
+            // Fallback to internal URL if share link creation fails (email may not have EML file)
+            console.warn(`[prepareEmailResponse] No share link for email ${att.id}: ${shareResponse?.error || 'unknown error'}`);
+            const emailUrl = `${window.location.origin}/emails?open=${att.email?.id}`;
+            shareLinks[att.id] = emailUrl;
+          }
+        } catch (err) {
+          console.error(`Failed to create share link for email ${att.id}:`, err);
+          // Fallback to internal URL
+          const emailUrl = `${window.location.origin}/emails?open=${att.email?.id}`;
+          shareLinks[att.id] = emailUrl;
+        }
         processed++;
       }
 
