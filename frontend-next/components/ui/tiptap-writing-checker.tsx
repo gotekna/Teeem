@@ -165,8 +165,10 @@ function DetailTooltip({
 
   // Use native DOM events since React events don't work reliably in createRoot portals
   React.useEffect(() => {
+    console.log('[WritingChecker] DetailTooltip useEffect running');
     const applyBtn = applyFixRef.current;
     const ignoreBtn = ignoreRef.current;
+    console.log('[WritingChecker] Refs:', { applyBtn: !!applyBtn, ignoreBtn: !!ignoreBtn });
 
     const handleApplyClick = (e: MouseEvent) => {
       console.log('[WritingChecker] Apply Fix native click');
@@ -182,8 +184,13 @@ function DetailTooltip({
       onDismiss();
     };
 
-    applyBtn?.addEventListener('click', handleApplyClick);
-    ignoreBtn?.addEventListener('click', handleIgnoreClick);
+    if (applyBtn) {
+      console.log('[WritingChecker] Adding click listener to Apply Fix button');
+      applyBtn.addEventListener('click', handleApplyClick);
+    }
+    if (ignoreBtn) {
+      ignoreBtn.addEventListener('click', handleIgnoreClick);
+    }
 
     return () => {
       applyBtn?.removeEventListener('click', handleApplyClick);
@@ -290,6 +297,7 @@ export const WritingChecker = Extension.create({
   },
 
   addProseMirrorPlugins() {
+    console.log('[WritingChecker] Extension loading, enabled:', this.options.enabled);
     const extension = this;
 
     // Helper to clean up hover tooltip
@@ -459,26 +467,23 @@ export const WritingChecker = Extension.create({
                       hoveredIssue.to
                     );
 
-                    // Remove this issue and recalculate positions for remaining issues
-                    const currentState = writingCheckerKey.getState(view.state);
-                    if (currentState) {
-                      const remainingIssues = currentState.issues.filter((i) => i !== hoveredIssue);
-                      // Recalculate positions for remaining issues in the new document
-                      const recalculatedIssues = recalculateIssuePositions(tr.doc, remainingIssues);
-                      const decorations = createDecorations(tr.doc, recalculatedIssues);
-                      tr.setMeta(writingCheckerKey, {
-                        decorations,
-                        issues: recalculatedIssues,
-                      });
-                    }
+                    // Clear decorations, dispatch change
+                    tr.setMeta(writingCheckerKey, {
+                      decorations: DecorationSet.empty,
+                      issues: [],
+                      isChecking: false,
+                    });
 
                     // Dispatch the transaction - this updates the editor content
                     view.dispatch(tr);
                     console.log('[WritingChecker] HoverTooltip transaction dispatched');
 
-                    // Cleanup after dispatch (use setTimeout to ensure DOM updates)
+                    // Cleanup and trigger fresh spell check for remaining issues
+                    cleanupHover();
+
+                    // Clear last checked text to force re-check
+                    extension.storage.lastCheckedText = "";
                     setTimeout(() => {
-                      cleanupHover();
                       view.focus();
                     }, 0);
                   };
@@ -546,12 +551,15 @@ export const WritingChecker = Extension.create({
 
           // Handle click for detail view
           handleClick(view, pos, event) {
+            console.log('[WritingChecker] handleClick', { pos });
             const state = this.getState(view.state);
+            console.log('[WritingChecker] state:', state ? `${state.issues.length} issues` : 'null');
             if (!state) return false;
 
             const clickedIssue = state.issues.find(
               (issue) => pos >= issue.from && pos <= issue.to
             );
+            console.log('[WritingChecker] clickedIssue:', clickedIssue ? clickedIssue.original : 'none');
 
             if (clickedIssue) {
               cleanupHover();
@@ -569,6 +577,7 @@ export const WritingChecker = Extension.create({
             view: typeof editorView,
             issue: WritingIssue
           ) => {
+            console.log('[WritingChecker] showDetailTooltip called for:', issue.original);
             cleanupTooltip();
             extension.storage.isTooltipOpen = true;
 
@@ -606,27 +615,23 @@ export const WritingChecker = Extension.create({
                   textBefore: view.state.doc.textContent.substring(issue.from - 1, issue.to + 10),
                 });
 
-                // Remove this issue and recalculate positions for remaining issues
-                const currentState = writingCheckerKey.getState(view.state);
-                if (currentState) {
-                  const remainingIssues = currentState.issues.filter((i) => i !== issue);
-                  // Recalculate positions for remaining issues in the new document
-                  const recalculatedIssues = recalculateIssuePositions(tr.doc, remainingIssues);
-                  const decorations = createDecorations(tr.doc, recalculatedIssues);
-                  tr.setMeta(writingCheckerKey, {
-                    decorations,
-                    issues: recalculatedIssues,
-                  });
-                }
+                // Clear decorations for fixed issue, dispatch change
+                tr.setMeta(writingCheckerKey, {
+                  decorations: DecorationSet.empty,
+                  issues: [],
+                  isChecking: false,
+                });
 
                 // Dispatch the transaction - this updates the editor content
                 view.dispatch(tr);
-                console.log('[WritingChecker] Transaction dispatched, new content:',
-                  view.state.doc.textContent.substring(Math.max(0, issue.from - 5), issue.from + issue.suggestion.length + 5));
+                console.log('[WritingChecker] Transaction dispatched');
 
-                // Cleanup tooltip after dispatch (use setTimeout to ensure DOM updates)
+                // Cleanup tooltip and trigger fresh spell check for remaining issues
+                cleanupTooltip();
+
+                // Clear last checked text to force re-check, then trigger check
+                extension.storage.lastCheckedText = "";
                 setTimeout(() => {
-                  cleanupTooltip();
                   view.focus();
                 }, 0);
               } catch (error) {
@@ -690,6 +695,7 @@ export const WritingChecker = Extension.create({
 
           // Make available globally for hover handler
           (window as unknown as { __showDetailTooltip: typeof showDetailTooltipFn }).__showDetailTooltip = showDetailTooltipFn;
+          console.log('[WritingChecker] Set __showDetailTooltip on window');
 
           const scheduleCheck = () => {
             if (!extension.options.enabled) return;
@@ -718,23 +724,40 @@ export const WritingChecker = Extension.create({
               try {
                 const response = await api.post<{
                   success: boolean;
-                  data: WritingCheckResult;
+                  data?: WritingCheckResult;
+                  error?: string;
                 }>("/api/v1/writing_assistant/check", {
                   text,
                   context: extension.options.context,
                 });
 
+                console.log('[WritingChecker] API response:', response);
+
+                // Check for API error
+                if (!response?.success) {
+                  console.error('[WritingChecker] API error:', response?.error || 'Unknown error');
+                  const tr = editorView.state.tr.setMeta(writingCheckerKey, {
+                    isChecking: false,
+                  });
+                  editorView.dispatch(tr);
+                  return;
+                }
+
                 if (response?.data) {
+                  console.log('[WritingChecker] API returned', response.data.issues.length, 'issues from API');
                   const issues = findIssuePositions(
                     editorView.state.doc,
                     response.data.issues,
                     extension.storage.dismissedIssues
                   );
+                  console.log('[WritingChecker] After findIssuePositions:', issues.length, 'issues with positions');
+                  issues.forEach(i => console.log('[WritingChecker] Issue:', i.original, 'at', i.from, '-', i.to));
 
                   const decorations = createDecorations(
                     editorView.state.doc,
                     issues
                   );
+                  console.log('[WritingChecker] Created decorations, count:', decorations.find().length);
 
                   const tr = editorView.state.tr.setMeta(writingCheckerKey, {
                     decorations,
@@ -743,11 +766,12 @@ export const WritingChecker = Extension.create({
                     correctedText: response.data.corrected_text,
                   });
                   editorView.dispatch(tr);
+                  console.log('[WritingChecker] Dispatched transaction with decorations');
 
                   extension.options.onIssuesChange?.(issues);
                 }
               } catch (error) {
-                console.error("Writing check failed:", error);
+                console.error("[WritingChecker] API call failed:", error);
                 const tr = editorView.state.tr.setMeta(writingCheckerKey, {
                   isChecking: false,
                 });
@@ -757,6 +781,7 @@ export const WritingChecker = Extension.create({
           };
 
           // Trigger initial check when editor loads with content
+          console.log('[WritingChecker] Triggering initial check');
           scheduleCheck();
 
           return {
@@ -780,9 +805,13 @@ export const WritingChecker = Extension.create({
     // Helper function to show detail tooltip (accessed from hover handler)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function showDetailTooltip(view: any, issue: WritingIssue) {
+      console.log('[WritingChecker] showDetailTooltip wrapper called');
       const fn = (window as unknown as { __showDetailTooltip?: (view: unknown, issue: WritingIssue) => void }).__showDetailTooltip;
+      console.log('[WritingChecker] __showDetailTooltip exists:', !!fn);
       if (fn) {
         fn(view, issue);
+      } else {
+        console.error('[WritingChecker] __showDetailTooltip not set!');
       }
     }
   },

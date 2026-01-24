@@ -85,9 +85,10 @@ export function KanbanCard({
     pointerStartRef.current = null;
   };
 
-  // Handle double-click - only fire if drag didn't occur
+  // Handle double-click - browser only fires dblclick for actual double-clicks (not drags)
+  // No need to check dragOccurredRef since the browser handles this distinction
   const handleDoubleClick = (e: React.MouseEvent) => {
-    if (!dragOccurredRef.current && onDoubleClick) {
+    if (onDoubleClick) {
       e.preventDefault();
       e.stopPropagation();
       onDoubleClick(e);

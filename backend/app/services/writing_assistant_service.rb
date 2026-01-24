@@ -1,7 +1,10 @@
 # frozen_string_literal: true
 
 # AI-powered writing assistant for spell check, grammar, and tone suggestions
-# Uses Claude Haiku for fast, cost-effective text analysis
+#
+# Two tiers:
+# 1. FREE: Basic spell check using local dictionary (BasicSpellCheckService)
+# 2. AI: Full grammar, tone, and advanced spell check using Claude Haiku
 #
 # Usage:
 #   service = WritingAssistantService.new
@@ -25,9 +28,51 @@ class WritingAssistantService
 
   # @param text [String] The text to check
   # @param context [String] The context type (task_name, question, action, etc.)
+  # @param mode [String] "auto" (default), "basic" (free tier only), or "ai" (AI only)
   # @return [Hash] Result with issues, corrected_text, and quality
-  def check(text, context: "general")
-    return empty_result(text) if text.blank? || text.length < MIN_CHECK_LENGTH
+  def check(text, context: "general", mode: "auto")
+    Rails.logger.info "[WritingAssistant] Checking text (#{text.length} chars, mode: #{mode}): #{text.truncate(100)}"
+
+    if text.blank? || text.length < MIN_CHECK_LENGTH
+      Rails.logger.info "[WritingAssistant] Text too short (< #{MIN_CHECK_LENGTH} chars), skipping"
+      return empty_result(text)
+    end
+
+    # Mode selection:
+    # - "basic": Free tier only (no AI)
+    # - "ai": AI only (requires API key)
+    # - "auto": Try AI first, fall back to basic
+    case mode
+    when "basic"
+      Rails.logger.info "[WritingAssistant] Using basic (free) spell check"
+      return basic_check(text)
+    when "ai"
+      return ai_check(text, context)
+    else # "auto"
+      # Try AI if configured, otherwise use basic
+      if ENV["ANTHROPIC_API_KEY"].present?
+        result = ai_check(text, context)
+        return result if result[:issues].any? || result[:quality] != "excellent"
+      end
+      # Fall back to or supplement with basic check
+      Rails.logger.info "[WritingAssistant] Using basic spell check (AI not available or found no issues)"
+      return basic_check(text)
+    end
+  end
+
+  private
+
+  # Free tier: Basic spell check using local dictionary
+  def basic_check(text)
+    BasicSpellCheckService.new.check(text)
+  end
+
+  # AI tier: Full grammar, tone, and spell check using Claude
+  def ai_check(text, context)
+    if ENV["ANTHROPIC_API_KEY"].blank?
+      Rails.logger.warn "[WritingAssistant] ANTHROPIC_API_KEY not configured, falling back to basic"
+      return empty_result(text)
+    end
 
     response = call_claude(
       prompt: build_prompt(text, context),
@@ -35,13 +80,19 @@ class WritingAssistantService
       max_tokens: 500
     )
 
-    parse_response(response, text)
-  rescue StandardError => e
-    Rails.logger.error "[WritingAssistant] Error checking text: #{e.message}"
-    empty_result(text)
-  end
+    Rails.logger.info "[WritingAssistant] Claude raw response: #{response.inspect.truncate(500)}"
 
-  private
+    result = parse_response(response, text)
+    Rails.logger.info "[WritingAssistant] AI check result: #{result[:issues].length} issues"
+
+    result
+  rescue StandardError => e
+    Rails.logger.error "[WritingAssistant] AI check error: #{e.message}"
+    Rails.logger.error "[WritingAssistant] Backtrace: #{e.backtrace.first(3).join("\n")}"
+    # Fall back to basic check on AI failure
+    Rails.logger.info "[WritingAssistant] Falling back to basic spell check"
+    basic_check(text)
+  end
 
   def build_prompt(text, context)
     <<~PROMPT
@@ -91,12 +142,18 @@ class WritingAssistantService
   end
 
   def parse_response(response, original_text)
+    # Extract raw text first for logging
+    raw_text = extract_claude_text(response)
+    Rails.logger.info "[WritingAssistant] Claude text response: #{raw_text.truncate(300)}"
+
     result = parse_claude_json(response)
 
     if result.blank?
-      Rails.logger.warn "[WritingAssistant] Failed to parse Claude response"
+      Rails.logger.warn "[WritingAssistant] Failed to parse Claude response - raw was: #{raw_text.truncate(200)}"
       return empty_result(original_text)
     end
+
+    Rails.logger.info "[WritingAssistant] Parsed JSON keys: #{result.keys.inspect}"
 
     # Ensure required keys exist
     {
