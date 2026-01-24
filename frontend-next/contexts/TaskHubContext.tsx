@@ -305,8 +305,9 @@ export interface TaskHubContextType extends TaskHubState {
   answerActionItem: (taskId: number, itemId: number, response: string) => Promise<TaskActionItem>;
   updateActionItem: (taskId: number, itemId: number, text: string) => Promise<TaskActionItem>;
   removeActionItem: (taskId: number, itemId: number) => Promise<void>;
-  delegateActionItem: (taskId: number, itemId: number, userId: number) => Promise<TaskActionItem>;
+  delegateActionItem: (taskId: number, itemId: number, userId: number, options?: { instructions?: string; dueDate?: string }) => Promise<TaskActionItem>;
   undelegateActionItem: (taskId: number, itemId: number, deleteTask?: boolean) => Promise<TaskActionItem>;
+  moveDelegatedTask: (taskId: number, sourceItemId: number, targetItemId: number) => Promise<void>;
   toggleIncludeInResponse: (taskId: number, itemId: number) => Promise<void>;
   reorderActionItems: (taskId: number, items: Array<{ id: number; position: number; parent_item_id: number | null }>) => Promise<void>;
 
@@ -1232,10 +1233,19 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     ));
   }, []);
 
-  const delegateActionItem = useCallback(async (taskId: number, itemId: number, userId: number): Promise<TaskActionItem> => {
+  const delegateActionItem = useCallback(async (
+    taskId: number,
+    itemId: number,
+    userId: number,
+    options?: { instructions?: string; dueDate?: string }
+  ): Promise<TaskActionItem> => {
     const response = await api.post<{ action_item: TaskActionItem; delegated_task: SmTask; success: boolean }>(
       `/api/v1/sm_tasks/${taskId}/action_items/${itemId}/delegate`,
-      { user_id: userId }
+      {
+        user_id: userId,
+        instructions: options?.instructions,
+        due_date: options?.dueDate,
+      }
     );
     if (response?.success && response?.action_item) {
       setTasks(prev => prev.map(t =>
@@ -1272,6 +1282,29 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       return response.action_item;
     }
     throw new Error('Failed to unlink task');
+  }, []);
+
+  const moveDelegatedTask = useCallback(async (taskId: number, sourceItemId: number, targetItemId: number): Promise<void> => {
+    const response = await api.post<{ source_item: TaskActionItem; target_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${sourceItemId}/move_delegated_task`,
+      { target_item_id: targetItemId }
+    );
+    if (response?.success && response?.source_item && response?.target_item) {
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item => {
+                if (item.id === sourceItemId) return response.source_item;
+                if (item.id === targetItemId) return response.target_item;
+                return item;
+              })
+            }
+          : t
+      ));
+      return;
+    }
+    throw new Error('Failed to move delegated task');
   }, []);
 
   const toggleIncludeInResponse = useCallback(async (taskId: number, itemId: number) => {
@@ -1574,6 +1607,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     removeActionItem,
     delegateActionItem,
     undelegateActionItem,
+    moveDelegatedTask,
     toggleIncludeInResponse,
     reorderActionItems,
     // Privacy
