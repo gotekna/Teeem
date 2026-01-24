@@ -3890,6 +3890,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       // Process documents to link - call share_link API for proper filename in download
       // The share_link API creates presigned URLs with Content-Disposition header
       // so external recipients download files with correct names (not just dates)
+      // Track documents that couldn't get share links (file might not exist in storage)
+      const docsWithoutShareLinks: string[] = [];
       for (const att of documentsToLink) {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
         setPrepareEmailStatus(`Creating link for "${fileName}"... (${processed + 1}/${totalToProcess})`);
@@ -3900,22 +3902,21 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           if (shareResponse?.success && shareResponse.share_url) {
             shareLinks[att.id] = shareResponse.share_url;
           } else {
-            // Fallback to storage_url if share link creation fails
+            // Document file not found in storage - skip and warn user
             console.warn(`[prepareEmailResponse] No share link for document ${att.id}: ${shareResponse?.error || 'unknown error'}`);
-            const url = att.document?.storage_url;
-            if (url) shareLinks[att.id] = url;
+            docsWithoutShareLinks.push(fileName);
           }
         } catch (err) {
           console.error(`Failed to create share link for document ${att.id}:`, err);
-          // Fallback to storage_url
-          const url = att.document?.storage_url;
-          if (url) shareLinks[att.id] = url;
+          docsWithoutShareLinks.push(fileName);
         }
         processed++;
       }
 
       // Process emails to create shareable links (presigned S3 URLs for EML files)
       // External recipients can download the .eml file without Teeem login
+      // Track emails that couldn't get share links (file not in storage)
+      const emailsWithoutShareLinks: string[] = [];
       for (const att of emailsToLink) {
         const subject = att.email?.subject || '(No subject)';
         setPrepareEmailStatus(`Creating link for "${subject}"... (${processed + 1}/${totalToProcess})`);
@@ -3927,21 +3928,29 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           if (shareResponse?.success && shareResponse.share_url) {
             shareLinks[att.id] = shareResponse.share_url;
           } else {
-            // Fallback to internal URL if share link creation fails (email may not have EML file)
+            // Email doesn't have EML file in storage - can't share externally
+            // Don't include a broken link - just skip this email and warn user
             console.warn(`[prepareEmailResponse] No share link for email ${att.id}: ${shareResponse?.error || 'unknown error'}`);
-            const emailUrl = `${window.location.origin}/emails?open=${att.email?.id}`;
-            shareLinks[att.id] = emailUrl;
+            emailsWithoutShareLinks.push(subject);
           }
         } catch (err) {
           console.error(`Failed to create share link for email ${att.id}:`, err);
-          // Fallback to internal URL
-          const emailUrl = `${window.location.origin}/emails?open=${att.email?.id}`;
-          shareLinks[att.id] = emailUrl;
+          emailsWithoutShareLinks.push(subject);
         }
         processed++;
       }
 
+      // Show warning if some emails couldn't be shared
+      if (emailsWithoutShareLinks.length > 0) {
+        const emailList = emailsWithoutShareLinks.slice(0, 3).join(', ');
+        const moreCount = emailsWithoutShareLinks.length > 3 ? ` (+${emailsWithoutShareLinks.length - 3} more)` : '';
+        toast.warning(`Some emails couldn't be shared externally (file not in storage): ${emailList}${moreCount}`, {
+          duration: 8000,
+        });
+      }
+
       // Process question attachments to link - call share_link API for proper filename
+      // Note: failures are added to docsWithoutShareLinks (defined above)
       for (const att of questionAttachmentsToLink) {
         // Skip if we already have a link for this attachment
         if (shareLinks[att.id]) {
@@ -3957,16 +3966,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           if (shareResponse?.success && shareResponse.share_url) {
             shareLinks[att.id] = shareResponse.share_url;
           } else {
-            // Fallback to storage_url if share link creation fails
-            const url = att.document?.storage_url;
-            if (url) shareLinks[att.id] = url;
+            // Question attachment file not found - skip and add to warning
+            console.warn(`[prepareEmailResponse] No share link for question attachment ${att.id}`);
+            docsWithoutShareLinks.push(fileName);
           }
         } catch (err) {
           console.error(`Failed to create share link for question attachment ${att.id}:`, err);
-          const url = att.document?.storage_url;
-          if (url) shareLinks[att.id] = url;
+          docsWithoutShareLinks.push(fileName);
         }
         processed++;
+      }
+
+      // Show warnings for attachments that couldn't be shared
+      if (docsWithoutShareLinks.length > 0) {
+        const docList = docsWithoutShareLinks.slice(0, 3).join(', ');
+        const moreCount = docsWithoutShareLinks.length > 3 ? ` (+${docsWithoutShareLinks.length - 3} more)` : '';
+        toast.warning(`Some documents couldn't be shared externally (file not in storage): ${docList}${moreCount}`, {
+          duration: 8000,
+        });
       }
 
       setPrepareEmailStatus('Opening email...');

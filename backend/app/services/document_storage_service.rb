@@ -265,6 +265,15 @@ class DocumentStorageService
         provider = s3_provider
         return error_result("S3 storage not configured", status: :service_unavailable) unless provider
 
+        # Verify file exists before generating presigned URL
+        # This prevents returning broken links for files that were never uploaded
+        begin
+          provider.get_file(s3_key)
+        rescue DocumentProviders::NotFoundError
+          Rails.logger.warn "[DocumentStorage] File not found in S3: #{s3_key} (record: #{record.class.name}##{record.id})"
+          return error_result("File not found in storage: #{s3_key}", status: :not_found)
+        end
+
         # SSoT: Get Send Name from warehouse_document (Phase 3)
         # This is the filename used when downloading (Content-Disposition header)
         send_name = resolve_send_name(record)
