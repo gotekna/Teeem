@@ -43,7 +43,17 @@ import {
   Trash2,
   Users,
   KeyRound,
+  LayoutGrid,
+  List,
+  GanttChart,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 /**
  * Roles & Permissions Page - Organization Settings
@@ -100,6 +110,11 @@ interface Role {
   description: string;
   users_count: number;
   tasks_count?: number;
+  // Role settings (Jan 2026) - Task view only, theme is user-based
+  settings?: {
+    default_task_view?: "list" | "board" | "gantt";
+  };
+  default_task_view?: "list" | "board" | "gantt";
 }
 
 interface Group {
@@ -441,6 +456,8 @@ function UserRolesSubTab() {
   const [newRoleDescription, setNewRoleDescription] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  // Role settings state (Jan 2026)
+  const [editDefaultTaskView, setEditDefaultTaskView] = useState<"list" | "board" | "gantt">("board");
   const [saving, setSaving] = useState(false);
   // View users in role
   const [showUsersDialog, setShowUsersDialog] = useState(false);
@@ -519,6 +536,8 @@ function UserRolesSubTab() {
     setEditingRole(role);
     setEditDisplayName(role.display_name || role.name);
     setEditDescription(role.description || "");
+    // Initialize settings (Jan 2026)
+    setEditDefaultTaskView(role.default_task_view || role.settings?.default_task_view || "board");
     setShowEditDialog(true);
   };
 
@@ -527,7 +546,12 @@ function UserRolesSubTab() {
     setSaving(true);
     try {
       await api.patch(`/api/v1/permissions/roles/${editingRole.id}`, {
-        role: { display_name: editDisplayName, description: editDescription },
+        role: {
+          display_name: editDisplayName,
+          description: editDescription,
+          // Include settings (Jan 2026)
+          default_task_view: editDefaultTaskView,
+        },
       });
       toast({ title: "Success", description: "Role updated successfully" });
       setShowEditDialog(false);
@@ -678,11 +702,11 @@ function UserRolesSubTab() {
 
       {/* Edit Role Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Role</DialogTitle>
             <DialogDescription>
-              Update the display name and description for this role.
+              Update role settings and display options.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -706,6 +730,52 @@ function UserRolesSubTab() {
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
               />
+            </div>
+
+            {/* Role Settings Section (Jan 2026) */}
+            <div className="pt-4 border-t">
+              <h4 className="font-medium text-sm mb-3">Default Settings</h4>
+              <p className="text-xs text-muted-foreground mb-4">
+                These settings apply to users with this role as their primary role.
+              </p>
+
+              <div className="space-y-4">
+                {/* Default Task View */}
+                <div className="space-y-2">
+                  <Label>Default Task View</Label>
+                  <Select
+                    value={editDefaultTaskView}
+                    onValueChange={(value: "list" | "board" | "gantt") => setEditDefaultTaskView(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select default view" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="board">
+                        <div className="flex items-center gap-2">
+                          <LayoutGrid className="h-4 w-4" />
+                          Board
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="list">
+                        <div className="flex items-center gap-2">
+                          <List className="h-4 w-4" />
+                          List
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="gantt">
+                        <div className="flex items-center gap-2">
+                          <GanttChart className="h-4 w-4" />
+                          Gantt
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Default view when users first open Tasks.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>

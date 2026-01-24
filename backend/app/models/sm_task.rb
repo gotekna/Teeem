@@ -26,6 +26,8 @@ class SmTask < ApplicationRecord
   enum :status, {
     not_started: "not_started",
     started: "started",
+    waiting_for_response: "waiting_for_response",
+    waiting_for_info: "waiting_for_info",
     completed: "completed"
   }, prefix: true
 
@@ -40,6 +42,7 @@ class SmTask < ApplicationRecord
   def progress_percentage
     case status
     when "completed" then 100
+    when "waiting_for_response", "waiting_for_info" then 75
     when "started" then 50
     else 0
     end
@@ -484,7 +487,7 @@ class SmTask < ApplicationRecord
 
   # Complete task
   def complete!(passed: nil)
-    return false unless status_started? || status_not_started?
+    return false unless status_started? || status_not_started? || status_waiting_for_response? || status_waiting_for_info?
     update!(
       status: "completed",
       completed_at: Time.current,
@@ -508,7 +511,7 @@ class SmTask < ApplicationRecord
 
   # Check if task can be completed (used by cascade completion)
   def can_complete?
-    (status_started? || status_not_started?) && !on_hold
+    (status_started? || status_not_started? || status_waiting_for_response? || status_waiting_for_info?) && !on_hold
   end
 
   # ============================================

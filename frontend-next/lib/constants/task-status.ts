@@ -18,6 +18,8 @@
 export const TASK_STATUS = {
   NOT_STARTED: 'not_started',
   STARTED: 'started',
+  WAITING_FOR_RESPONSE: 'waiting_for_response',
+  WAITING_FOR_INFO: 'waiting_for_info',
   COMPLETED: 'completed',
   // Extended statuses for Gantt visualization (not in backend enum)
   // These are visual states derived from task properties
@@ -32,6 +34,8 @@ export type TaskStatus = (typeof TASK_STATUS)[keyof typeof TASK_STATUS];
 export const CORE_TASK_STATUSES = [
   TASK_STATUS.NOT_STARTED,
   TASK_STATUS.STARTED,
+  TASK_STATUS.WAITING_FOR_RESPONSE,
+  TASK_STATUS.WAITING_FOR_INFO,
   TASK_STATUS.COMPLETED,
 ] as const;
 
@@ -47,6 +51,8 @@ export const TASK_STATUS_VALUES: TaskStatus[] = Object.values(TASK_STATUS);
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   [TASK_STATUS.NOT_STARTED]: 'Not Started',
   [TASK_STATUS.STARTED]: 'In Progress',
+  [TASK_STATUS.WAITING_FOR_RESPONSE]: 'Waiting for Response',
+  [TASK_STATUS.WAITING_FOR_INFO]: 'Waiting for More Info',
   [TASK_STATUS.COMPLETED]: 'Completed',
   [TASK_STATUS.ON_HOLD]: 'On Hold',
   [TASK_STATUS.AT_RISK]: 'At Risk',
@@ -56,7 +62,9 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
 export const TASK_STATUS_SHORT_LABELS: Record<TaskStatus, string> = {
   [TASK_STATUS.NOT_STARTED]: 'To Do',
   [TASK_STATUS.STARTED]: 'Active',
-  [TASK_STATUS.COMPLETED]: 'Done',
+  [TASK_STATUS.WAITING_FOR_RESPONSE]: 'Waiting',
+  [TASK_STATUS.WAITING_FOR_INFO]: 'Need Info',
+  [TASK_STATUS.COMPLETED]: 'Completed',
   [TASK_STATUS.ON_HOLD]: 'Hold',
   [TASK_STATUS.AT_RISK]: 'Risk',
 };
@@ -81,6 +89,18 @@ export const TASK_STATUS_COLORS: Record<
     border: 'border-blue-300 dark:border-blue-600',
     hex: '#3b82f6', // blue-500
   },
+  [TASK_STATUS.WAITING_FOR_RESPONSE]: {
+    bg: 'bg-purple-100 dark:bg-purple-900',
+    text: 'text-purple-700 dark:text-purple-300',
+    border: 'border-purple-300 dark:border-purple-600',
+    hex: '#a855f7', // purple-500
+  },
+  [TASK_STATUS.WAITING_FOR_INFO]: {
+    bg: 'bg-amber-100 dark:bg-amber-900',
+    text: 'text-amber-700 dark:text-amber-300',
+    border: 'border-amber-300 dark:border-amber-600',
+    hex: '#f59e0b', // amber-500
+  },
   [TASK_STATUS.COMPLETED]: {
     bg: 'bg-green-100 dark:bg-green-900',
     text: 'text-green-700 dark:text-green-300',
@@ -88,10 +108,10 @@ export const TASK_STATUS_COLORS: Record<
     hex: '#22c55e', // green-500
   },
   [TASK_STATUS.ON_HOLD]: {
-    bg: 'bg-amber-100 dark:bg-amber-900',
-    text: 'text-amber-700 dark:text-amber-300',
-    border: 'border-amber-300 dark:border-amber-600',
-    hex: '#f59e0b', // amber-500
+    bg: 'bg-orange-100 dark:bg-orange-900',
+    text: 'text-orange-700 dark:text-orange-300',
+    border: 'border-orange-300 dark:border-orange-600',
+    hex: '#f97316', // orange-500
   },
   [TASK_STATUS.AT_RISK]: {
     bg: 'bg-red-100 dark:bg-red-900',
@@ -108,6 +128,8 @@ export const TASK_STATUS_COLORS: Record<
 export const TASK_STATUS_PROGRESS: Record<TaskStatus, number> = {
   [TASK_STATUS.NOT_STARTED]: 0,
   [TASK_STATUS.STARTED]: 50,
+  [TASK_STATUS.WAITING_FOR_RESPONSE]: 75,
+  [TASK_STATUS.WAITING_FOR_INFO]: 75,
   [TASK_STATUS.COMPLETED]: 100,
   [TASK_STATUS.ON_HOLD]: 0, // On hold tasks retain their progress but display as 0
   [TASK_STATUS.AT_RISK]: 50, // At risk is typically an in-progress state
@@ -167,10 +189,13 @@ export function canStart(status: TaskStatus): boolean {
 }
 
 /**
- * Check if a task can be completed (must be started or not_started)
+ * Check if a task can be completed (must be not completed)
  */
 export function canComplete(status: TaskStatus): boolean {
-  return status === TASK_STATUS.NOT_STARTED || status === TASK_STATUS.STARTED;
+  return status === TASK_STATUS.NOT_STARTED ||
+         status === TASK_STATUS.STARTED ||
+         status === TASK_STATUS.WAITING_FOR_RESPONSE ||
+         status === TASK_STATUS.WAITING_FOR_INFO;
 }
 
 /**

@@ -30,7 +30,9 @@ module Api
           # N+1 fix: action_items needs checked_by and responded_by for action_item_to_json
           action_items: [:checked_by, :responded_by],
           # N+1 fix: sm_task_attachments needs added_by for attachment_to_json
-          sm_task_attachments: [:added_by, :attachable]
+          sm_task_attachments: [:added_by, :attachable],
+          # N+1 fix: children (subtasks) with assigned_user for SubtaskList display
+          children: [:assigned_user]
         )
         # Note: :last_assigner is a method (queries activity_logs), not an association - cannot be eager loaded
         # Note: For SyncedEmail attachables, email_attachments + storage_blob are loaded separately below
@@ -2433,7 +2435,11 @@ module Api
           # predecessor_ids is JSONB array of {id, type, lag} objects
           predecessor_ids: [:id, :type, :lag],
           # predecessor_ids_backup is JSONB array of backed up {id, type, lag} objects
-          predecessor_ids_backup: [:id, :type, :lag]
+          predecessor_ids_backup: [:id, :type, :lag],
+
+          # Board priority for Task Hub BoardView drag-and-drop ordering
+          # Format: { "status": priority } where priority is a number
+          board_priority: {}
         )
       end
 
@@ -2867,6 +2873,18 @@ module Api
         # Include predecessor_ids for Gantt dependency rendering
         json[:predecessor_ids] = task.predecessor_ids || []
 
+        # Children (subtasks) for expandable SubtaskList in TaskHub
+        # Uses preloaded children association with assigned_user to avoid N+1
+        json[:children] = task.children.map do |child|
+          {
+            id: child.id,
+            name: child.name,
+            status: child.status,
+            assigned_user_id: child.assigned_user_id,
+            assigned_user_name: child.assigned_user&.name
+          }
+        end
+
         json
       end
 
@@ -2904,6 +2922,7 @@ module Api
           supplier_id: task.supplier_id,
           parent_task_id: task.parent_task_id,
           sequence_order: task.sequence_order,
+          board_priority: task.board_priority,
           sm_schedule_master_id: task.sm_schedule_master_id,
           # Workflow triggers
           start_workflow_enabled: task.start_workflow_enabled,

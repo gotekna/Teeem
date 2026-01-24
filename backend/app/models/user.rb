@@ -395,9 +395,66 @@ class User < ApplicationRecord
     roles.exists?(name: role_name.to_s)
   end
 
-  # Primary role for backward compatibility (returns first role or legacy role column)
+  # =============================================================================
+  # Primary Role & Role Settings Support
+  # SSoT: Primary role determines default settings for users with multiple roles
+  # =============================================================================
+
+  # Get the user's primary role (the one marked as is_primary in user_roles)
+  # Falls back to first role if no primary is set, or legacy role column
   def primary_role
-    roles.first&.name || role
+    @primary_role ||= begin
+      # First, try to find the role marked as primary
+      primary_user_role = user_roles.find_by(is_primary: true)
+      if primary_user_role
+        primary_user_role.role
+      else
+        # Fallback to first role
+        roles.first
+      end
+    end
+  end
+
+  # Get the name of the primary role
+  def primary_role_name
+    primary_role&.name || role
+  end
+
+  # Get the ID of the primary role
+  def primary_role_id
+    primary_role&.id
+  end
+
+  # Set the primary role by role_id
+  def set_primary_role!(role_id)
+    user_role = user_roles.find_by(role_id: role_id)
+    return false unless user_role
+
+    user_role.set_as_primary!
+    @primary_role = nil # Clear memoization
+    true
+  end
+
+  # Get settings from the primary role
+  def role_settings
+    primary_role&.settings || {}
+  end
+
+  # Get the default task view for this user (from primary role settings)
+  # Returns: 'list', 'board', or 'gantt'
+  def default_task_view
+    role_settings.dig("default_task_view") || primary_role&.default_task_view || "board"
+  end
+
+  # Get the default theme for this user (from primary role settings)
+  # Returns: 'light', 'dark', or 'system'
+  def default_theme_from_role
+    role_settings.dig("default_theme") || primary_role&.default_theme || "system"
+  end
+
+  # Check if sidebar should be collapsed by default (from primary role settings)
+  def sidebar_collapsed_by_default?
+    role_settings.dig("sidebar_collapsed") == true
   end
 
   private

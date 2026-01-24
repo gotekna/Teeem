@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink } from "lucide-react";
+import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -46,6 +46,8 @@ interface UserData {
   presence_status?: string;
   integrations?: string[];
   preferred_theme?: string;
+  // Primary role (Jan 2026)
+  primary_role_id?: number | null;
   [key: string]: unknown;
 }
 
@@ -58,40 +60,69 @@ interface UserDetailSheetProps {
 
 export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailSheetProps) {
   const [editData, setEditData] = useState<Partial<UserData>>({});
+  const [fullUserData, setFullUserData] = useState<UserData | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  // Load available roles
+  // Load available roles AND full user data when sheet opens
+  // SSoT: /api/v1/users/:id returns role_ids, Foundation API doesn't
   useEffect(() => {
-    const loadRoles = async () => {
+    const loadData = async () => {
+      if (!user?.id) return;
+
+      setLoading(true);
       try {
-        const response = await api.get<{ records: Role[] }>("/api/v1/foundations/roles/records");
-        if (response?.records) {
-          setRoles(response.records);
+        // Fetch roles and full user data in parallel
+        const [rolesResponse, userResponse] = await Promise.all([
+          api.get<Array<{ id: number; value: string; label: string }>>("/api/v1/roles"),
+          api.get<UserData>(`/api/v1/users/${user.id}`),
+        ]);
+
+        // SSoT: RolesController#index returns array of { id, value, label }
+        if (Array.isArray(rolesResponse)) {
+          setRoles(rolesResponse.map(r => ({
+            id: r.id,
+            name: r.value,
+            display_name: r.label,
+          })));
+        }
+
+        // SSoT: UsersController#show returns full user with role_ids
+        if (userResponse) {
+          setFullUserData(userResponse);
         }
       } catch (err) {
-        console.error("Failed to load roles:", err);
+        console.error("Failed to load data:", err);
+      } finally {
+        setLoading(false);
       }
     };
-    if (isOpen) {
-      loadRoles();
-    }
-  }, [isOpen]);
 
-  // Initialize edit data when user changes
+    if (isOpen && user?.id) {
+      loadData();
+    } else {
+      setFullUserData(null);
+    }
+  }, [isOpen, user?.id]);
+
+  // Initialize edit data when full user data is loaded
   // Phase 5: User sheet focuses on auth - profile info managed via Contact
   useEffect(() => {
-    if (user) {
+    const userData = fullUserData || user;
+    if (userData) {
       setEditData({
-        email: user.email,
-        job_title: user.job_title || "",
+        email: userData.email,
+        job_title: userData.job_title || "",
         // SSoT: Always ensure role_ids is an array to prevent .map errors
-        role_ids: Array.isArray(user.role_ids) ? user.role_ids : [],
-        preferred_theme: user.preferred_theme || "light",
+        role_ids: Array.isArray(userData.role_ids) ? userData.role_ids : [],
+        preferred_theme: userData.preferred_theme || "light",
+        // Primary role (Jan 2026)
+        primary_role_id: userData.primary_role_id || null,
       });
     }
-  }, [user]);
+  }, [fullUserData, user]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -113,6 +144,8 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             job_title: editData.job_title,
             role_ids: roleIds,
             preferred_theme: editData.preferred_theme,
+            // Primary role (Jan 2026)
+            primary_role_id: editData.primary_role_id,
           },
         }
       );
@@ -149,11 +182,14 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   const selectedRoleIds = roleIdsArray.map((r: { id: number }) => String(r.id));
   const selectedOptions = roleOptions.filter((opt) => selectedRoleIds.includes(opt.value));
 
+  // Use fullUserData (from API) if available, fallback to prop
+  const displayUser = fullUserData || user;
+
   // Get Contact display name for header
-  const contactDisplayName = user?.contact?.display_name
-    || (user?.contact?.first_name && user?.contact?.last_name
-      ? `${user.contact.first_name} ${user.contact.last_name}`
-      : user?.name) || "Unknown User";
+  const contactDisplayName = displayUser?.contact?.display_name
+    || (displayUser?.contact?.first_name && displayUser?.contact?.last_name
+      ? `${displayUser.contact.first_name} ${displayUser.contact.last_name}`
+      : displayUser?.name) || "Unknown User";
 
   if (!user) return null;
 
@@ -167,52 +203,55 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
           </SheetTitle>
         </SheetHeader>
 
-        <div className="mt-6 space-y-6">
-          {/* Contact Profile Card - SSoT: Contact is identity, User is auth */}
-          <div className="p-4 rounded-lg border bg-muted/30 dark:bg-muted/10">
+        <div className="mt-4 space-y-4">
+          {/* Loading indicator */}
+          {loading && (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {/* Contact Profile Card with status badges */}
+          <div className="p-3 rounded-lg border bg-muted/30 dark:bg-muted/10">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-lg font-semibold">{contactDisplayName}</p>
-                <p className="text-sm text-muted-foreground">Profile managed via Contact</p>
+              <div className="flex items-center gap-3">
+                <div>
+                  <p className="font-semibold">{contactDisplayName}</p>
+                  <div className="flex gap-1.5 mt-1">
+                    {displayUser?.presence_status === "online" && (
+                      <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400 text-xs px-1.5 py-0">
+                        Online
+                      </Badge>
+                    )}
+                    {displayUser?.status === "active" && displayUser?.presence_status !== "online" && (
+                      <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 text-xs px-1.5 py-0">
+                        Active
+                      </Badge>
+                    )}
+                    {displayUser?.status === "pending" && (
+                      <Badge variant="secondary" className="text-xs px-1.5 py-0">Pending</Badge>
+                    )}
+                    {displayUser?.integrations?.includes("microsoft") && (
+                      <Badge variant="outline" className="text-xs px-1.5 py-0">MS</Badge>
+                    )}
+                  </div>
+                </div>
               </div>
-              {user.contact_id && (
-                <Link href={`/contacts/${user.contact_id}`}>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <ExternalLink className="h-4 w-4" />
-                    View Profile
+              {displayUser?.contact_id && (
+                <Link href={`/contacts/${typeof displayUser.contact_id === 'object' ? (displayUser.contact_id as { id: number }).id : displayUser.contact_id}`}>
+                  <Button variant="outline" size="sm" className="gap-1.5 h-8">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Profile
                   </Button>
                 </Link>
               )}
             </div>
           </div>
 
-          {/* Status badges */}
-          <div className="flex gap-2 flex-wrap">
-            {user.presence_status === "online" && (
-              <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
-                Online
-              </Badge>
-            )}
-            {user.status === "active" && user.presence_status !== "online" && (
-              <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
-                Active
-              </Badge>
-            )}
-            {user.status === "pending" && (
-              <Badge variant="secondary">Pending</Badge>
-            )}
-            {user.integrations?.includes("microsoft") && (
-              <Badge variant="outline">MS Connected</Badge>
-            )}
-            {user.integrations?.includes("outlook") && (
-              <Badge variant="outline">Email Sync</Badge>
-            )}
-          </div>
-
           {/* Login Email */}
-          <div className="space-y-2">
-            <Label htmlFor="email" className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted-foreground" />
+          <div className="space-y-1">
+            <Label htmlFor="email" className="flex items-center gap-1.5 text-sm">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
               Login Email
             </Label>
             <Input
@@ -220,16 +259,14 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
               type="email"
               value={editData.email || ""}
               onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+              className="h-9"
             />
-            <p className="text-xs text-muted-foreground">
-              Used for login. Changes sync to Contact record.
-            </p>
           </div>
 
-          {/* Job Title - kept for email signature */}
-          <div className="space-y-2">
-            <Label htmlFor="job_title" className="flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-muted-foreground" />
+          {/* Job Title */}
+          <div className="space-y-1">
+            <Label htmlFor="job_title" className="flex items-center gap-1.5 text-sm">
+              <Briefcase className="h-3.5 w-3.5 text-muted-foreground" />
               Job Title
             </Label>
             <Input
@@ -237,22 +274,19 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
               value={editData.job_title || ""}
               onChange={(e) => setEditData({ ...editData, job_title: e.target.value })}
               placeholder="e.g. Sales, Project Manager"
+              className="h-9"
             />
-            <p className="text-xs text-muted-foreground">
-              Used in email signature. Leave blank to hide from signature.
-            </p>
           </div>
 
           {/* Roles - Multi-select */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-muted-foreground" />
+          <div className="space-y-1">
+            <Label className="flex items-center gap-1.5 text-sm">
+              <Shield className="h-3.5 w-3.5 text-muted-foreground" />
               Roles
             </Label>
             <MultipleSelector
               value={selectedOptions}
               onChange={(selected) => {
-                // Convert selected options back to role objects
                 const newRoleIds = selected.map((opt) => {
                   const role = roles.find((r) => String(r.id) === opt.value);
                   return role ? { id: role.id, display_value: role.display_name, name: role.name } : null;
@@ -262,77 +296,84 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
               options={roleOptions}
               placeholder="Select roles..."
               emptyIndicator={
-                <p className="text-center text-sm text-muted-foreground py-2">
+                <p className="text-center text-sm text-muted-foreground py-1">
                   No roles available
                 </p>
               }
             />
-            <p className="text-xs text-muted-foreground">
-              Users can have multiple roles. Roles determine permissions and access levels.
-            </p>
           </div>
 
-          {/* Theme Preference */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              {editData.preferred_theme === "dark" ? (
-                <Moon className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <Sun className="h-4 w-4 text-muted-foreground" />
-              )}
-              Theme Preference
-            </Label>
-            <Select
-              value={editData.preferred_theme || "light"}
-              onValueChange={(value) => setEditData({ ...editData, preferred_theme: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select theme" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">
-                  <div className="flex items-center gap-2">
-                    <Sun className="h-4 w-4" />
-                    Light
-                  </div>
-                </SelectItem>
-                <SelectItem value="dark">
-                  <div className="flex items-center gap-2">
-                    <Moon className="h-4 w-4" />
-                    Dark
-                  </div>
-                </SelectItem>
-                <SelectItem value="system">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">💻</span>
-                    System
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Theme applied when user logs in.
-            </p>
+          {/* Primary Role & Theme - side by side when Primary Role shown */}
+          <div className={roleIdsArray.length > 1 ? "grid grid-cols-2 gap-3" : ""}>
+            {/* Primary Role - Only shown when user has 2+ roles */}
+            {roleIdsArray.length > 1 && (
+              <div className="space-y-1">
+                <Label className="flex items-center gap-1.5 text-sm">
+                  <Star className="h-3.5 w-3.5 text-muted-foreground" />
+                  Primary Role
+                </Label>
+                <Select
+                  value={editData.primary_role_id?.toString() || ""}
+                  onValueChange={(value) => setEditData({ ...editData, primary_role_id: parseInt(value, 10) })}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleIdsArray.map((r: { id: number; display_value: string }) => (
+                      <SelectItem key={r.id} value={r.id.toString()}>
+                        {r.display_value}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Theme Preference */}
+            <div className="space-y-1">
+              <Label className="flex items-center gap-1.5 text-sm">
+                {editData.preferred_theme === "dark" ? (
+                  <Moon className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <Sun className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                Theme
+              </Label>
+              <Select
+                value={editData.preferred_theme || "light"}
+                onValueChange={(value) => setEditData({ ...editData, preferred_theme: value })}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select theme" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">Light</SelectItem>
+                  <SelectItem value="dark">Dark</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Read-only info */}
-          <div className="pt-4 border-t space-y-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span>Created: {user.created_at ? format(new Date(user.created_at), "d MMM yyyy") : "Unknown"}</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              <span>Last login: {user.last_login_at ? format(new Date(user.last_login_at), "d MMM yyyy 'at' h:mm a") : "Never"}</span>
-            </div>
+          {/* Read-only info - compact single line */}
+          <div className="pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Created {displayUser?.created_at ? format(new Date(displayUser.created_at), "d MMM yyyy") : "Unknown"}
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              Last login {displayUser?.last_login_at ? format(new Date(displayUser.last_login_at), "d MMM yyyy") : "Never"}
+            </span>
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2 pt-4">
-            <Button onClick={handleSave} disabled={saving} className="flex-1">
+          <div className="flex gap-2 pt-2">
+            <Button onClick={handleSave} disabled={saving} className="flex-1 h-9">
               {saving ? "Saving..." : "Save Changes"}
             </Button>
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} className="h-9">
               Cancel
             </Button>
           </div>

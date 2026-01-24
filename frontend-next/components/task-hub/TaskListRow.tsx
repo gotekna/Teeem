@@ -2,11 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TaskExpandedRow } from './TaskExpandedRow';
+import { SubtaskList } from './SubtaskList';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +50,7 @@ export function TaskListRow({
   onTaskNameSave,
 }: TaskListRowProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const {
     updateTask,
     toggleTaskSelection,
@@ -61,6 +64,10 @@ export function TaskListRow({
     supplierConfirmTask,
   } = useTaskHub();
   const isExpanded = expandedTaskId === task.id;
+
+  // Show subtasks if user owns parent OR follows parent
+  const showSubtasks = task.children && task.children.length > 0 &&
+    (task.is_following || task.assigned_user_id === user?.id);
 
   const handleRowClick = () => {
     toggleTaskExpansion(task.id);
@@ -83,7 +90,7 @@ export function TaskListRow({
         onClick={handleRowClick}
         onDoubleClick={handleRowDoubleClick}
         className={cn(
-          'grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-2 text-xs items-center cursor-pointer transition-colors',
+          'grid grid-cols-[28px_1fr_180px_60px_60px_100px_70px_32px] gap-1 px-2 py-2 text-xs items-center cursor-pointer transition-colors',
           !isExpanded && 'hover:bg-muted/30',
           !isExpanded && selectedTaskIds.has(task.id) && 'bg-primary/5',
           !isExpanded && getTaskRowColorClass(task),
@@ -171,7 +178,7 @@ export function TaskListRow({
               <TooltipTrigger asChild>
                 <div>
                   <Checkbox
-                    checked={task.status === 'started' || task.status === 'completed'}
+                    checked={task.status === 'started' || task.status === 'waiting_for_response' || task.status === 'waiting_for_info' || task.status === 'completed'}
                     onCheckedChange={(checked) => {
                       if (checked) startTask(task.id);
                       else updateTask(task.id, { status: 'not_started' });
@@ -182,6 +189,42 @@ export function TaskListRow({
                 </div>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-[10px]">Started</TooltipContent>
+            </Tooltip>
+
+            {/* Waiting for Response - always show */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Checkbox
+                    checked={task.status === 'waiting_for_response'}
+                    onCheckedChange={(checked) => {
+                      if (checked) updateTask(task.id, { status: 'waiting_for_response' });
+                      else updateTask(task.id, { status: 'started' });
+                    }}
+                    disabled={task.status === 'completed' || task.status === 'not_started'}
+                    className="h-3.5 w-3.5 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-[10px]">Waiting for Response</TooltipContent>
+            </Tooltip>
+
+            {/* Waiting for More Info - always show */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Checkbox
+                    checked={task.status === 'waiting_for_info'}
+                    onCheckedChange={(checked) => {
+                      if (checked) updateTask(task.id, { status: 'waiting_for_info' });
+                      else updateTask(task.id, { status: 'started' });
+                    }}
+                    disabled={task.status === 'completed' || task.status === 'not_started'}
+                    className="h-3.5 w-3.5 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-[10px]">Waiting for More Info</TooltipContent>
             </Tooltip>
 
             {/* PO-only checkboxes */}
@@ -299,6 +342,14 @@ export function TaskListRow({
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Subtasks section - shows when user owns or follows parent */}
+      {showSubtasks && !isExpanded && (
+        <div className="pl-8 pr-2 pb-1">
+          <SubtaskList subtasks={task.children} compact={false} />
+        </div>
+      )}
+
       {isExpanded && <TaskExpandedRow task={task} />}
     </div>
   );
@@ -306,7 +357,7 @@ export function TaskListRow({
 
 export function TaskListHeader() {
   return (
-    <div className="grid grid-cols-[28px_1fr_130px_60px_60px_100px_70px_32px] gap-1 px-2 py-1.5 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
+    <div className="grid grid-cols-[28px_1fr_180px_60px_60px_100px_70px_32px] gap-1 px-2 py-1.5 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
       <div></div>
       <div>Task</div>
       <div className="text-center">Progress</div>

@@ -119,7 +119,11 @@ module Api
               email: user.email,
               name: user.name,
               role_names: user.role_names,  # SSoT: Return role names array
-              permissions: user.permissions
+              permissions: user.permissions,
+              # Primary role settings (Jan 2026)
+              primary_role_id: user.primary_role_id,
+              default_task_view: user.default_task_view,
+              default_theme_from_role: user.default_theme_from_role
             }
           }
         else
@@ -222,7 +226,12 @@ module Api
             preload_price_books: @current_user.preload_price_books,
             preferred_theme: @current_user.preferred_theme,
             photo_url: nil,      # ActiveStorage removed (Jan 2026) - photos stored in File Warehouse
-            signature_url: nil   # ActiveStorage removed (Jan 2026) - signatures stored in File Warehouse
+            signature_url: nil,  # ActiveStorage removed (Jan 2026) - signatures stored in File Warehouse
+            # Primary role settings (Jan 2026)
+            primary_role_id: @current_user.primary_role_id,
+            default_task_view: @current_user.default_task_view,
+            default_theme_from_role: @current_user.default_theme_from_role,
+            sidebar_collapsed_by_default: @current_user.sidebar_collapsed_by_default?
           },
           # Environment info for auto-login redirect check
           api_url: env_config[:api_url],

@@ -182,6 +182,20 @@ export interface SmTask {
   source_action_item_id?: number;
   parent_task_id?: number;
   parent_task_name?: string;
+
+  // Board priority for Task Hub BoardView drag-and-drop ordering
+  // Format: { "status": priority } where priority is a number
+  // Empty {} or missing key = use date ordering (default)
+  board_priority?: Record<string, number>;
+
+  // Children (subtasks) for expandable SubtaskList display
+  children?: Array<{
+    id: number;
+    name: string;
+    status: CoreTaskStatus;
+    assigned_user_id?: number;
+    assigned_user_name?: string;
+  }>;
 }
 
 export interface TaskFilters {
@@ -240,6 +254,9 @@ export interface TaskHubContextType extends TaskHubState {
   // Bulk actions
   bulkUpdateStatus: (taskIds: number[], status: SmTask['status']) => Promise<void>;
   bulkAssign: (taskIds: number[], userId: number) => Promise<void>;
+
+  // Board priority (for BoardView drag-and-drop ordering)
+  reorderBoardTask: (taskId: number, status: string, priority: number | null) => Promise<void>;
 
   // View & filter actions
   setActiveView: (view: ViewType) => void;
@@ -670,13 +687,16 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   const { user } = useAuth();
   const searchParams = useSearchParams();
 
-  // Check if user is a supervisor (has supervisor-related role)
-  const isSupervisor = useMemo(() => {
-    const roleNames = (user as { role_names?: string[] } | null)?.role_names || [];
-    return roleNames.some(role =>
-      role.toLowerCase().includes('supervisor') ||
-      role.toLowerCase().includes('site supervisor')
-    );
+  // Get default task view from user's primary role settings (Jan 2026)
+  // SSoT: default_task_view comes from the backend via /api/v1/auth/me
+  const roleDefaultTaskView = useMemo(() => {
+    const userWithSettings = user as { default_task_view?: 'list' | 'board' | 'gantt' } | null;
+    const defaultView = userWithSettings?.default_task_view;
+    // Validate the view type
+    if (defaultView && ['board', 'list', 'gantt'].includes(defaultView)) {
+      return defaultView as ViewType;
+    }
+    return 'board'; // Fallback default
   }, [user]);
 
   const [tasks, setTasks] = useState<SmTask[]>([]);
@@ -687,24 +707,22 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     if (saved && ['board', 'list', 'gantt'].includes(saved)) {
       return saved;
     }
-    // No saved preference - will be set by useEffect based on user role
+    // No saved preference - will be set by useEffect based on user role settings
     return 'list'; // Temporary default
   });
 
-  // Set default view based on user role (only if no saved preference)
+  // Set default view based on user's primary role settings (only if no saved preference)
+  // SSoT: Uses default_task_view from the API (Jan 2026) instead of hardcoded role check
   useEffect(() => {
     if (viewInitialized || !user) return;
 
     const saved = getStorageItem<ViewType | null>(STORAGE_KEYS.TASK_HUB_VIEW, null);
     if (!saved) {
-      // No saved preference - default based on role
-      // Supervisors: List view (need full details)
-      // Non-supervisors: Board view (quick overview)
-      const defaultView: ViewType = isSupervisor ? 'list' : 'board';
-      setActiveViewState(defaultView);
+      // No saved preference - use role-based default from backend
+      setActiveViewState(roleDefaultTaskView);
     }
     setViewInitialized(true);
-  }, [user, isSupervisor, viewInitialized]);
+  }, [user, roleDefaultTaskView, viewInitialized]);
 
   const [filters, setFiltersState] = useState<TaskFilters>(() => {
     // Load saved filters from localStorage (except showMyTasksOnly which always defaults to true)
@@ -1018,6 +1036,45 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       setSelectedTaskIds(new Set());
     } catch (err) {
       console.error('Failed to bulk assign:', err);
+      setTasks(originalTasks);
+      throw err;
+    }
+  }, [tasks]);
+
+  // Board priority for BoardView drag-and-drop ordering
+  const reorderBoardTask = useCallback(async (
+    taskId: number,
+    status: string,
+    priority: number | null
+  ) => {
+    // Find the current task to get existing board_priority
+    const currentTask = tasks.find(t => t.id === taskId);
+    if (!currentTask) return;
+
+    // Build new board_priority object
+    const currentPriority = currentTask.board_priority || {};
+    const newPriority: Record<string, number> = { ...currentPriority };
+
+    if (priority === null) {
+      // Remove priority for this status (return to date ordering)
+      delete newPriority[status];
+    } else {
+      // Set priority for this status
+      newPriority[status] = priority;
+    }
+
+    // Optimistic update
+    const originalTasks = [...tasks];
+    setTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, board_priority: newPriority } : t
+    ));
+
+    try {
+      await api.patch(`/api/v1/sm_tasks/${taskId}`, {
+        sm_task: { board_priority: newPriority }
+      });
+    } catch (err) {
+      console.error('Failed to reorder board task:', err);
       setTasks(originalTasks);
       throw err;
     }
@@ -1466,6 +1523,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     deleteTask,
     bulkUpdateStatus,
     bulkAssign,
+    reorderBoardTask,
     setActiveView,
     setFilters,
     clearFilters,

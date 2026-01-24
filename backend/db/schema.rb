@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_23_175004) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_24_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8108,6 +8108,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_23_175004) do
     t.datetime "updated_at", null: false
     t.boolean "god_view_access", default: false, null: false
     t.boolean "can_approve_payments", default: false, null: false
+    t.jsonb "settings", default: {}, null: false
     t.index ["name"], name: "index_roles_on_name", unique: true
     t.index ["position"], name: "index_roles_on_position"
   end
@@ -8878,6 +8879,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_23_175004) do
     t.datetime "dependency_broken_at"
     t.bigint "dependency_broken_by_id"
     t.bigint "tenant_id"
+    t.jsonb "board_priority", default: {}
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"
@@ -9962,8 +9964,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_23_175004) do
     t.bigint "role_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "is_primary", default: false, null: false
     t.index ["role_id"], name: "index_user_roles_on_role_id"
     t.index ["user_id"], name: "index_user_roles_on_user_id"
+    t.index ["user_id"], name: "index_user_roles_on_user_id_primary", unique: true, where: "(is_primary = true)"
   end
 
   create_table "users", force: :cascade do |t|

@@ -76,7 +76,7 @@ class Api::V1::UsersController < ApplicationController
 
     # Merge regular user params with admin-only params if user is admin
     update_params = user_params
-    admin_fields_present = params[:user][:role] || params[:user][:role_ids] || params[:user].key?(:contact_id)
+    admin_fields_present = params[:user][:role] || params[:user][:role_ids] || params[:user].key?(:contact_id) || params[:user].key?(:primary_role_id)
     if current_user&.admin? && admin_fields_present
       update_params = update_params.merge(admin_user_params)
     elsif admin_fields_present
@@ -85,6 +85,14 @@ class Api::V1::UsersController < ApplicationController
         success: false,
         error: "Thanks for helping, can you contact an administrator for assistance"
       }, status: :forbidden
+    end
+
+    # Handle primary role update (Jan 2026)
+    if params[:user].key?(:primary_role_id) && current_user&.admin?
+      primary_role_id = params[:user][:primary_role_id]
+      if primary_role_id.present?
+        @user.set_primary_role!(primary_role_id)
+      end
     end
 
     if @user.update(update_params)
@@ -269,6 +277,9 @@ class Api::V1::UsersController < ApplicationController
       # Multi-role support - format for multiple_lookups column type
       role_ids: safe_roles.map { |r| { id: r.id, display_value: r.display_name, name: r.name } },
       role_names: user.role_names,
+      # Primary role (Jan 2026) - determines default settings for multi-role users
+      primary_role_id: user.primary_role_id,
+      default_task_view: user.default_task_view,
       # Profile photo - ActiveStorage removed (Jan 2026), photos stored in File Warehouse
       photo_url: nil,
       # Digital signature - ActiveStorage removed (Jan 2026), signatures stored in File Warehouse

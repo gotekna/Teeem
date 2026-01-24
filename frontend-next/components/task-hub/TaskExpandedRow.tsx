@@ -65,9 +65,11 @@ interface TaskExpandedRowProps {
 // Status checkbox colors matching Gantt
 const statusColors = {
   started: 'data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500',
-  hold: 'data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500',
+  waiting_for_response: 'data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500',
+  waiting_for_info: 'data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500',
+  hold: 'data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500',
   confirm: 'data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500',
-  supplier_confirm: 'data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500',
+  supplier_confirm: 'data-[state=checked]:bg-violet-500 data-[state=checked]:border-violet-500',
   completed: 'data-[state=checked]:bg-muted0 data-[state=checked]:border-border',
 };
 
@@ -1218,13 +1220,49 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             <div className="flex items-center gap-1">
               <Checkbox
                 id={`started-${task.id}`}
-                checked={task.status === TASK_STATUS.STARTED || task.status === TASK_STATUS.COMPLETED}
+                checked={task.status === TASK_STATUS.STARTED || task.status === TASK_STATUS.WAITING_FOR_RESPONSE || task.status === TASK_STATUS.WAITING_FOR_INFO || task.status === TASK_STATUS.COMPLETED}
                 onCheckedChange={handleStartedChange}
                 disabled={!!loading || task.status === TASK_STATUS.COMPLETED}
                 className={cn("h-4 w-4", statusColors.started)}
               />
               <Label htmlFor={`started-${task.id}`} className="text-xs cursor-pointer">Started</Label>
               {loading === 'started' && <Spinner size={10} />}
+            </div>
+
+            {/* Waiting for Response - always shown */}
+            <div className="flex items-center gap-1">
+              <Checkbox
+                id={`waiting-response-${task.id}`}
+                checked={task.status === TASK_STATUS.WAITING_FOR_RESPONSE}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    updateTask(task.id, { status: TASK_STATUS.WAITING_FOR_RESPONSE });
+                  } else {
+                    updateTask(task.id, { status: TASK_STATUS.STARTED });
+                  }
+                }}
+                disabled={!!loading || task.status === TASK_STATUS.COMPLETED || task.status === TASK_STATUS.NOT_STARTED}
+                className={cn("h-4 w-4", statusColors.waiting_for_response)}
+              />
+              <Label htmlFor={`waiting-response-${task.id}`} className="text-xs cursor-pointer">Waiting</Label>
+            </div>
+
+            {/* Waiting for More Info - always shown */}
+            <div className="flex items-center gap-1">
+              <Checkbox
+                id={`waiting-info-${task.id}`}
+                checked={task.status === TASK_STATUS.WAITING_FOR_INFO}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    updateTask(task.id, { status: TASK_STATUS.WAITING_FOR_INFO });
+                  } else {
+                    updateTask(task.id, { status: TASK_STATUS.STARTED });
+                  }
+                }}
+                disabled={!!loading || task.status === TASK_STATUS.COMPLETED || task.status === TASK_STATUS.NOT_STARTED}
+                className={cn("h-4 w-4", statusColors.waiting_for_info)}
+              />
+              <Label htmlFor={`waiting-info-${task.id}`} className="text-xs cursor-pointer">Need Info</Label>
             </div>
 
             {/* Hold - only if linked to job */}
