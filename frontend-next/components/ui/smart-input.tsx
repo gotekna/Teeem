@@ -105,7 +105,7 @@ export const SmartInput = React.forwardRef<HTMLInputElement, SmartInputProps>(
     );
 
     return (
-      <div className="relative">
+      <div className="relative flex-1 w-full">
         <Input
           ref={ref}
           value={value}

@@ -34,6 +34,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   generateSignatureByStyle,
   hasSignature,
+  hasSignaturePlaceholder,
+  replaceSignaturePlaceholder,
   type SignatureStyleId,
   DEFAULT_SIGNATURE_STYLE,
 } from "@/lib/email-signature";
@@ -68,6 +70,8 @@ interface ComposeEmailModalProps {
   initialAttachments?: File[];
   /** SM Task ID to link sent email to task */
   smTaskId?: number;
+  /** Skip signature generation (when body already includes signature) */
+  skipSignature?: boolean;
   onSent?: () => void;
 }
 
@@ -83,6 +87,7 @@ export function ComposeEmailModal({
   draft,
   initialAttachments,
   smTaskId,
+  skipSignature = false,
   onSent,
 }: ComposeEmailModalProps) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -469,10 +474,16 @@ export function ComposeEmailModal({
 
     setSending(true);
     try {
-      // Combine body with signature - insert BEFORE quoted thread (blockquote)
+      // Handle signature insertion
+      // Option 1: Body has placeholder (from Task response) - REPLACE with styled signature
+      // Option 2: Normal compose - INSERT signature before blockquote or at end
       let fullBody = formData.body;
-      if (signatureHtml) {
-        // Find first blockquote (start of quoted email thread)
+
+      if (signatureHtml && hasSignaturePlaceholder(fullBody)) {
+        // Replace the simple placeholder with the user's styled signature
+        fullBody = replaceSignaturePlaceholder(fullBody, signatureHtml);
+      } else if (signatureHtml && !skipSignature) {
+        // Normal flow: insert signature before quoted thread (blockquote)
         const blockquoteIndex = fullBody.indexOf('<blockquote');
         if (blockquoteIndex !== -1) {
           // Insert signature before quoted content
@@ -871,7 +882,8 @@ export function ComposeEmailModal({
                 />
 
                 {/* Signature Preview - rendered separately to preserve HTML formatting */}
-                {signatureHtml && (
+                {/* Hidden when skipSignature is true (signature already in body) */}
+                {signatureHtml && !skipSignature && (
                   <div
                     className="mt-4 pointer-events-none"
                     dangerouslySetInnerHTML={{ __html: signatureHtml }}

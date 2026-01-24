@@ -1,5 +1,7 @@
 module Bpmn
   class ServiceTaskExecutor
+    # SSoT: Task type → handler class mapping
+    # Jan 2026: "sync_to_sharepoint" now maps to SyncToStorageTask (provider-agnostic)
     TASK_HANDLERS = {
       "send_email" => "Bpmn::Tasks::SendEmailTask",
       "generate_document" => "Bpmn::Tasks::GenerateDocumentTask",

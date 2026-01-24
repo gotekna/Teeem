@@ -29,6 +29,52 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { cn } from "@/lib/utils";
 
 /**
+ * Strips existing quoted content from email body text.
+ * When replying, we only want to quote the NEW content from the email,
+ * not the entire thread history that's already embedded in body_text.
+ */
+function stripQuotedContent(text: string): string {
+  if (!text) return "";
+
+  // Normalize line endings (Windows \r\n and old Mac \r to Unix \n)
+  let cleanText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // Find common quote markers and truncate there
+  // (?:^|\n) matches at start of string OR after newline
+  // .+? uses non-greedy matching
+  const quotePatterns: [RegExp, string][] = [
+    [/(?:^|\n)\s*---\s*Original Message\s*---/i, "Original Message"],
+    [/(?:^|\n)\s*On .+? wrote:/i, "On ... wrote:"],
+    [/(?:^|\n)\s*From:\s+.+?\n\s*Sent:\s+/i, "From/Sent"],
+    [/(?:^|\n)\s*From:\s+.+?\n\s*Date:\s+/i, "From/Date"],
+    [/(?:^|\n)\s*_{10,}/, "Underscores"],
+    [/(?:^|\n)\s*-{10,}/, "Dashes"],
+  ];
+
+  let earliestIndex = cleanText.length;
+
+  // Find the earliest quote marker
+  for (const [pattern] of quotePatterns) {
+    const match = cleanText.match(pattern);
+    if (match?.index !== undefined && match.index < earliestIndex) {
+      earliestIndex = match.index;
+    }
+  }
+
+  // Also check for lines starting with > (quoted text) - but only if they appear in a block
+  const quotedLineMatch = cleanText.match(/(?:^|\n)\s*>{1,}[^\n]+(?:\n\s*>{1,}[^\n]+){2,}/);
+  if (quotedLineMatch?.index !== undefined && quotedLineMatch.index < earliestIndex) {
+    earliestIndex = quotedLineMatch.index;
+  }
+
+  if (earliestIndex < cleanText.length) {
+    cleanText = cleanText.slice(0, earliestIndex).trim();
+  }
+
+  return cleanText;
+}
+
+/**
  * Resolves cid: URLs in email HTML to actual image URLs.
  * Emails with embedded images use cid: (Content-ID) URLs that browsers can't resolve.
  * If we have synced attachments with inline_url, replace cid: with actual URLs.
@@ -214,7 +260,20 @@ export function EmailDetailDialog({
       ? email.subject
       : `Fwd: ${email.subject || ""}`;
 
-    const quotedBody = `\n\n--- Original Message ---\nFrom: ${email.display_from || email.from_email}\nDate: ${format(new Date(email.received_at), "PPpp")}\nSubject: ${email.subject || ""}\n\n${email.body_text || ""}`;
+    // Strip existing quoted content so we only quote this email's NEW content, not entire thread history
+    const originalContent = stripQuotedContent(email.body_text || "");
+
+    // Build attachments section if there are attachments (appears before signature)
+    let attachmentsHtml = "";
+    if (email.has_attachments && email.attachments && email.attachments.length > 0) {
+      const attachmentNames = email.attachments.map(a => a.name).join(", ");
+      attachmentsHtml = `<p><strong>Attachments:</strong> ${attachmentNames}</p>`;
+    }
+
+    // Build quoted body as HTML with blockquote so signature inserts before it
+    const quotedHeader = `--- Original Message ---<br>From: ${email.display_from || email.from_email}<br>Date: ${format(new Date(email.received_at), "PPpp")}<br>Subject: ${email.subject || ""}`;
+    const quotedContentHtml = originalContent.split("\n").map(line => line || "<br>").join("<br>");
+    const quotedBody = `${attachmentsHtml}<blockquote style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${quotedHeader}<br><br>${quotedContentHtml}</blockquote>`;
 
     switch (replyMode) {
       case "reply":
@@ -355,7 +414,7 @@ export function EmailDetailDialog({
 
               {/* Subject Line */}
               <div className="px-4 py-3 border-b shrink-0">
-                <h1 className="text-lg font-semibold">
+                <h1 className="text-lg font-semibold break-words">
                   {email.subject || "(no subject)"}
                 </h1>
                 <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">

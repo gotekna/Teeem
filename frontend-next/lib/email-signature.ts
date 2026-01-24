@@ -595,3 +595,84 @@ export function hasSignature(body: string): boolean {
 export function getSignatureStyleById(styleId: SignatureStyleId) {
   return SIGNATURE_STYLES.find((s) => s.id === styleId) || SIGNATURE_STYLES[0];
 }
+
+/**
+ * Markers for replaceable signature placeholder
+ * Used to find and replace simple signature with styled version on send
+ */
+export const SIGNATURE_PLACEHOLDER_START = '<!-- TEEEM-SIGNATURE-PLACEHOLDER-START -->';
+export const SIGNATURE_PLACEHOLDER_END = '<!-- TEEEM-SIGNATURE-PLACEHOLDER-END -->';
+
+/**
+ * Generate a TipTap-compatible simple signature PLACEHOLDER
+ * Uses only basic HTML that TipTap can render: p, strong, br, a
+ * No tables, no complex divs, no inline styles
+ *
+ * This placeholder shows WHERE the signature will appear (editable position).
+ * On SEND, it gets REPLACED with the user's actual styled signature template.
+ */
+export function generateSimpleSignature(
+  user: SignatureUserData,
+  company?: SignatureCompanyData
+): string {
+  if (!user?.name) return "";
+
+  const lines: string[] = [];
+
+  // User name (bold)
+  lines.push(`<strong>${user.name}</strong>`);
+
+  // Job title (if available)
+  if (user.job_title) {
+    lines.push(user.job_title);
+  }
+
+  // Company name
+  if (company?.name) {
+    lines.push(company.name);
+  }
+
+  // Contact info
+  if (user.mobile_phone) {
+    lines.push(user.mobile_phone);
+  }
+  lines.push(user.email);
+
+  // Company details
+  if (company?.address) {
+    lines.push(company.address);
+  }
+  if (company?.website) {
+    lines.push(`<a href="${company.website.startsWith('http') ? company.website : 'https://' + company.website}">${company.website}</a>`);
+  }
+
+  // Wrap in markers so ComposeEmailModal can find and replace with styled version
+  return `
+${SIGNATURE_PLACEHOLDER_START}
+<p>—</p>
+<p>${lines.join('<br>')}</p>
+${SIGNATURE_PLACEHOLDER_END}
+`.trim();
+}
+
+/**
+ * Check if body contains a signature placeholder that should be replaced
+ */
+export function hasSignaturePlaceholder(body: string): boolean {
+  return body.includes(SIGNATURE_PLACEHOLDER_START) && body.includes(SIGNATURE_PLACEHOLDER_END);
+}
+
+/**
+ * Replace signature placeholder with styled signature
+ * Returns the body with placeholder replaced, or original body if no placeholder found
+ */
+export function replaceSignaturePlaceholder(body: string, styledSignature: string): string {
+  if (!hasSignaturePlaceholder(body)) {
+    return body;
+  }
+
+  const startIndex = body.indexOf(SIGNATURE_PLACEHOLDER_START);
+  const endIndex = body.indexOf(SIGNATURE_PLACEHOLDER_END) + SIGNATURE_PLACEHOLDER_END.length;
+
+  return body.slice(0, startIndex) + styledSignature + body.slice(endIndex);
+}

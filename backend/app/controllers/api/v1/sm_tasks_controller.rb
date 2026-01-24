@@ -11,7 +11,7 @@ module Api
         :working_drawings, :process_working_drawings, :override_page_category,
         :attachments, :add_attachment, :remove_attachment, :update_attachment, :upload_attachment,
         :presign_attachment, :confirm_attachment,
-        :download_attachment_for_email, :create_attachment_share_link,
+        :download_attachment_for_email, :create_attachment_share_link, :download_all_response_files,
         :follow, :unfollow, :followers, :add_follower, :remove_follower,
         :history,
         :compare_to_template, :sync_from_template,
@@ -1389,6 +1389,122 @@ module Api
       rescue => e
         Rails.logger.error "[SmTasksController#create_attachment_share_link] Error: #{e.message}"
         render json: { success: false, error: "Failed to create sharing link" }, status: :internal_server_error
+      end
+
+      # GET /api/v1/sm_tasks/:id/download_all_response_files
+      # Creates a zip file containing all response document attachments and returns a download URL
+      # For external email recipients to download all files with one click
+      def download_all_response_files
+        require "zip"
+
+        # Get all response document attachments (category: 'response' or linked to action_items)
+        response_attachments = @task.sm_task_attachments.includes(:attachable).select do |att|
+          att.category == "response" || att.action_item_id.present?
+        end
+
+        # Filter to only documents (not emails)
+        document_attachments = response_attachments.select { |att| att.attachable.is_a?(CorporateCompanyDocument) }
+
+        if document_attachments.empty?
+          return render json: { success: false, error: "No files to download" }, status: :unprocessable_entity
+        end
+
+        # Create zip file in memory
+        zip_data = Zip::OutputStream.write_buffer do |zip|
+          document_attachments.each do |att|
+            document = att.attachable
+            next unless document
+
+            # Download file content
+            service = DocumentStorageService.new
+            result = service.download(document)
+            next unless result[:success] && result[:content]
+
+            filename = document.file_name || document.display_name || "document_#{att.id}"
+            # Ensure unique filenames in zip
+            zip.put_next_entry(filename)
+            zip.write(result[:content])
+          end
+        end
+        zip_data.rewind
+
+        # Generate a unique filename for the zip
+        safe_title = @task.title.to_s.gsub(/[^a-zA-Z0-9\s-]/, "").strip.gsub(/\s+/, "_")[0..50]
+        zip_filename = "#{safe_title}_response_files.zip"
+
+        # Option 1: Return as direct download (for API calls)
+        if params[:direct] == "true"
+          send_data zip_data.read,
+            filename: zip_filename,
+            type: "application/zip",
+            disposition: "attachment"
+          return
+        end
+
+        # Option 2: Upload to temporary storage and return share link
+        # Upload zip to SharePoint temporary folder
+        credential = MicrosoftCredential.active_for_org(current_organization)
+        unless credential
+          # Fallback to base64 encoded data if no SharePoint
+          return render json: {
+            success: true,
+            download_method: "base64",
+            filename: zip_filename,
+            content: Base64.strict_encode64(zip_data.read),
+            content_type: "application/zip"
+          }
+        end
+
+        # Upload to SharePoint temp folder and create share link
+        client = MicrosoftAppGraphClient.new(credential)
+        drive_id = StorageConfiguration.instance&.drive_id
+
+        unless drive_id
+          return render json: { success: false, error: "Storage not configured" }, status: :unprocessable_entity
+        end
+
+        # Upload to a "Temp" folder (create if needed)
+        temp_folder_path = "Temp/TaskResponseZips"
+        timestamped_filename = "#{Time.current.strftime('%Y%m%d_%H%M%S')}_#{zip_filename}"
+
+        begin
+          upload_result = client.upload_file(
+            drive_id: drive_id,
+            parent_path: temp_folder_path,
+            filename: timestamped_filename,
+            content: zip_data.read
+          )
+
+          if upload_result[:id]
+            # Create anonymous share link
+            share_result = client.create_share_link(
+              drive_id: drive_id,
+              item_id: upload_result[:id],
+              type: "view",
+              scope: "anonymous"
+            )
+
+            if share_result[:url]
+              render json: {
+                success: true,
+                download_method: "share_link",
+                share_url: share_result[:url],
+                filename: zip_filename,
+                file_count: document_attachments.size
+              }
+            else
+              render json: { success: false, error: "Failed to create share link" }, status: :unprocessable_entity
+            end
+          else
+            render json: { success: false, error: "Failed to upload zip file" }, status: :unprocessable_entity
+          end
+        rescue => e
+          Rails.logger.error "[SmTasksController#download_all_response_files] Upload error: #{e.message}"
+          render json: { success: false, error: "Failed to create download link" }, status: :internal_server_error
+        end
+      rescue => e
+        Rails.logger.error "[SmTasksController#download_all_response_files] Error: #{e.message}"
+        render json: { success: false, error: "Failed to create zip file" }, status: :internal_server_error
       end
 
       # ===== Bulk Email Linking =====

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SmTask, TaskAttachment, TaskAttachmentEmail, TaskActionItem, TaskFollower, useTaskHub, ActionItemType, AttachmentCategory } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { copyToClipboard } from '@/utils/formatters';
+import { generateSimpleSignature } from '@/lib/email-signature';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SmartInput } from '@/components/ui/smart-input';
@@ -1046,6 +1047,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [attachmentLoading, setAttachmentLoading] = useState(false);
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<number | null>(null);
+  const [downloadingAllResponseFiles, setDownloadingAllResponseFiles] = useState(false);
   const [emailKeywords, setEmailKeywords] = useState(task.email_keywords || '');
   const [emailSearchType, setEmailSearchType] = useState<'subject' | 'body' | 'full' | 'exact'>('subject');
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
@@ -1195,6 +1197,21 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [attachmentEmailOptions, setAttachmentEmailOptions] = useState<Record<number, 'attach' | 'link' | 'both' | 'none'>>({});
   // Store SharePoint share links created for 'link' option
   const [shareLinksMap, setShareLinksMap] = useState<Record<number, string>>({});
+  const [downloadAllShareUrl, setDownloadAllShareUrl] = useState<string | null>(null);
+  // Company settings for email signature
+  // Use both state (for re-renders) and ref (for synchronous access in generateResponseBody)
+  const [companySettings, setCompanySettings] = useState<{
+    logo_dark?: string;
+    logo_url?: string;
+    company_name?: string;
+    address?: string;
+    website?: string;
+    phone?: string;
+    brand_colors?: { primary?: string; primaryForeground?: string };
+  } | null>(null);
+  const companySettingsRef = useRef(companySettings);
+  // Keep ref in sync with state
+  useEffect(() => { companySettingsRef.current = companySettings; }, [companySettings]);
   // Include original email in response chain (quoted reply)
   const [includeOriginalEmail, setIncludeOriginalEmail] = useState(true);
 
@@ -2584,6 +2601,38 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
   };
 
+  // Download all response files at once
+  const handleDownloadAllResponseFiles = async () => {
+    const downloadableFiles = responseAttachments.filter(
+      att => att.document && (att.document.storage_url || att.document.file_url || att.document.has_storage)
+    );
+
+    if (downloadableFiles.length === 0) {
+      toast.error('No files available to download');
+      return;
+    }
+
+    setDownloadingAllResponseFiles(true);
+    let downloadedCount = 0;
+
+    try {
+      for (const att of downloadableFiles) {
+        await handleDownloadAttachment(att);
+        downloadedCount++;
+        // Small delay between downloads to avoid overwhelming the browser
+        if (downloadedCount < downloadableFiles.length) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+      toast.success(`Downloaded ${downloadedCount} file${downloadedCount > 1 ? 's' : ''}`);
+    } catch (err) {
+      console.error('Failed to download all files:', err);
+      toast.error(`Downloaded ${downloadedCount} of ${downloadableFiles.length} files`);
+    } finally {
+      setDownloadingAllResponseFiles(false);
+    }
+  };
+
   // Open an attachment in a new window
   const handleOpenAttachmentInNewWindow = (att: TaskAttachment) => {
     if (!att.document) return;
@@ -3641,10 +3690,41 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       body += '</ul>\n';
     }
 
+    // Count total document attachments (question attachments + general response files)
+    const questionDocCount = includedQuestions.reduce((count, q) => {
+      return count + (q.attachments?.filter(a => a.document)?.length || 0);
+    }, 0);
+    const totalDocuments = questionDocCount + linkedFiles.length;
+
+    // Add "Download All" link if available (for multiple files)
+    if (downloadAllShareUrl && totalDocuments > 1) {
+      body += `<p>📦 <a href="${downloadAllShareUrl}"><strong>Download All Files (ZIP)</strong></a></p>\n`;
+    }
+
     // Add closing line
     body += '<p>Please let me know if you have any further questions.</p>\n';
 
-    // Note: Signature is handled by ComposeEmailModal (renders separately with proper HTML)
+    // Add simple signature (TipTap-compatible) - positioned BEFORE quoted chain like Outlook
+    // Use ref for company settings to avoid React state timing issues
+    const settings = companySettingsRef.current;
+    if (currentUser) {
+      const signature = generateSimpleSignature(
+        {
+          name: currentUser.name,
+          email: currentUser.email,
+          mobile_phone: currentUser.mobile_phone as string | undefined,
+          job_title: currentUser.job_title as string | undefined,
+        },
+        settings ? {
+          name: settings.company_name,
+          address: settings.address,
+          website: settings.website,
+        } : undefined
+      );
+      if (signature) {
+        body += '\n' + signature + '\n';
+      }
+    }
 
     // Include original email as quoted reply if enabled
     if (includeOriginalEmail && originalEmailData) {
@@ -3688,6 +3768,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setPrepareEmailLoading(true);
     setPrepareEmailStatus('');
     try {
+      // Fetch company settings for signature if not already loaded
+      if (!companySettings) {
+        setPrepareEmailStatus('Loading signature settings...');
+        try {
+          const settingsResponse = await api.get<{ success: boolean; data: typeof companySettings }>(
+            "/api/v1/company_settings"
+          );
+          if (settingsResponse?.data) {
+            // Set both ref (for immediate use) and state (for re-renders)
+            companySettingsRef.current = settingsResponse.data;
+            setCompanySettings(settingsResponse.data);
+          }
+        } catch (err) {
+          console.debug("Company settings unavailable for signature");
+        }
+      }
+
       const filesToAttach: File[] = [];
       const shareLinks: Record<number, string> = {};
 
@@ -3812,6 +3909,32 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       // Store the share links and file attachments
       setShareLinksMap(shareLinks);
       setEmailFileAttachments(filesToAttach);
+
+      // Generate "Download All" zip link if there are multiple documents to link
+      const allDocumentsToLink = [...documentsToLink, ...questionAttachmentsToLink.filter(a => a.document)];
+      console.log('[prepareEmailResponse] Documents to link:', allDocumentsToLink.length, allDocumentsToLink);
+      if (allDocumentsToLink.length > 1) {
+        setPrepareEmailStatus('Creating download all link...');
+        try {
+          console.log('[prepareEmailResponse] Calling download_all_response_files endpoint...');
+          const zipResponse = await api.get<{ success: boolean; share_url?: string; error?: string }>(
+            `/api/v1/sm_tasks/${task.id}/download_all_response_files`
+          );
+          console.log('[prepareEmailResponse] Zip response:', zipResponse);
+          if (zipResponse.success && zipResponse.share_url) {
+            setDownloadAllShareUrl(zipResponse.share_url);
+            console.log('[prepareEmailResponse] Download all URL set:', zipResponse.share_url);
+          } else {
+            console.warn('[prepareEmailResponse] No share_url in response:', zipResponse);
+          }
+        } catch (err) {
+          console.error('Failed to create download all link:', err);
+          // Not critical - continue without it
+        }
+      } else {
+        console.log('[prepareEmailResponse] Not enough documents for download all:', allDocumentsToLink.length);
+        setDownloadAllShareUrl(null);
+      }
 
       // Open compose modal
       setShowComposeEmail(true);
@@ -6202,6 +6325,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 <Send className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">Response Files</span>
                 <Badge variant="secondary" className="text-xs">{responseAttachments.length}</Badge>
+                {/* Download All button */}
+                {responseAttachments.filter(att => att.document && (att.document.storage_url || att.document.file_url || att.document.has_storage)).length > 1 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownloadAllResponseFiles();
+                    }}
+                    className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                    title="Download all files"
+                  >
+                    {downloadingAllResponseFiles ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Download className="h-3 w-3" />
+                    )}
+                    <span>Download All</span>
+                  </button>
+                )}
               </div>
 
               {!responseFilesCollapsed && (
@@ -6978,6 +7119,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           defaultBody={generateResponseBody()}
           initialAttachments={emailFileAttachments}
           smTaskId={task.id}
+          skipSignature={true}
           onSent={() => {
             setShowComposeEmail(false);
             refresh();

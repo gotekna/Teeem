@@ -79,23 +79,9 @@ function getFileIcon(contentType?: string, name?: string) {
 }
 
 // Check if attachment is a signature/embedded image that should be hidden
-function isSignatureAttachment(attachment: Attachment): boolean {
-  const name = attachment.name?.toLowerCase() || "";
-  const type = attachment.content_type?.toLowerCase() || "";
-  const size = attachment.size || 0;
-
-  // Only check images
-  if (!type.startsWith("image/")) return false;
-
-  // Signature patterns
-  if (/^image\d{3}\.(png|jpg|jpeg|gif)$/i.test(name)) return true;
-  if (/^outlook-signature[_-]/i.test(name)) return true;
-  if (/^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i.test(name)) return true;
-  if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i.test(name)) return true;
-
-  // Very small images (< 10KB) are likely icons
-  if (size > 0 && size < 10000) return true;
-
+// Disabled: User wants to see all attachments including signature images
+function isSignatureAttachment(_attachment: Attachment): boolean {
+  // No filtering - show all attachments
   return false;
 }
 
@@ -372,11 +358,64 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     }
   };
 
+  // Download all attachments as a zip file
+  const handleDownloadAll = async () => {
+    if (!emailId || visibleAttachments.length === 0) return;
+
+    setLoading("all");
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      // Fetch all attachments in parallel
+      const results = await Promise.allSettled(
+        visibleAttachments.map(async (att) => {
+          const blob = await fetchAttachmentBlob(att);
+          return { name: att.name, blob };
+        })
+      );
+
+      // Add successful downloads to zip
+      for (const result of results) {
+        if (result.status === "fulfilled" && result.value.blob) {
+          zip.file(result.value.name, result.value.blob);
+        }
+      }
+
+      // Generate and download zip
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = window.URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `attachments-${emailId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Failed to download all attachments:", error);
+    } finally {
+      setLoading(null);
+    }
+  };
+
   return (
     <div className={cn("space-y-2", className)}>
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
         <Paperclip className="h-4 w-4" />
         <span>{visibleAttachments.length} Attachment{visibleAttachments.length !== 1 ? "s" : ""}</span>
+        {visibleAttachments.length > 1 && emailId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={handleDownloadAll}
+            disabled={loading === "all"}
+          >
+            <Download className={cn("h-3 w-3 mr-1", loading === "all" && "animate-spin")} />
+            Download All
+          </Button>
+        )}
       </div>
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         {visibleAttachments.map((attachment, idx) => {
