@@ -216,15 +216,7 @@ class JobDocument < ApplicationRecord
     !migration_in_progress? && storage_reference.present?
   end
 
-  # SSoT: storage_reference is now defined in StorableDocument concern
-
-  # Sets storage reference fields
-  # Provider-agnostic design - works with any storage provider
-  def set_storage_reference(item_id, provider: 'sharepoint', path: nil)
-    self.storage_item_id = item_id
-    self.storage_provider = provider
-    self.storage_path = path
-  end
+  # SSoT: storage_reference is defined in StorableDocument concern
 
   # Version status helpers
   def draft?
@@ -321,13 +313,7 @@ class JobDocument < ApplicationRecord
     storage_blob.presigned_url(expires_in: expires_in, filename: file_name)
   end
 
-  # Download file content from storage
-  # @return [String, nil] File content or nil if no file
-  def download_file
-    return nil unless storage_blob
-
-    storage_blob.download
-  end
+  # download_file is provided by StorableDocument concern (SSoT)
 
   # Attach a file using StorageBlob (deduplication via content_hash)
   # @param content [String] File content

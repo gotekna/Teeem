@@ -1,5 +1,6 @@
 class DocumentTask < ApplicationRecord
   include WarehouseDocumentable
+  include BlobStorable  # SSoT: provides download_file, has_file?, base attach_file
   warehouse_type :compliance
 
   belongs_to :job
@@ -21,12 +22,10 @@ class DocumentTask < ApplicationRecord
   scope :validated, -> { where(is_validated: true) }
 
   # ========================================
-  # StorageBlob File Access (SSoT)
+  # StorageBlob File Access
   # ========================================
 
-  def has_file?
-    storage_blob_id.present?
-  end
+  # download_file and has_file? provided by BlobStorable concern
 
   def document_url(expires_in: 3600)
     return nil unless storage_blob
@@ -34,12 +33,7 @@ class DocumentTask < ApplicationRecord
     storage_blob.presigned_url(expires_in: expires_in, filename: name)
   end
 
-  def download_file
-    return nil unless storage_blob
-
-    storage_blob.download
-  end
-
+  # Override BlobStorable#attach_file to also set has_document flag
   def attach_file(content, filename:, content_type: nil)
     blob = StorageBlob.find_or_create_for_content!(
       content,

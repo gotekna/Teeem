@@ -140,6 +140,34 @@ module StorableDocument
   end
 
   # ========================================
+  # Download Methods (SSoT)
+  # ========================================
+
+  # Download file content from storage
+  # SSoT: Uses StorageBlob if available, falls back to legacy storage
+  # @return [String, nil] File content or nil if not found
+  def download_file
+    # Prefer StorageBlob (new SSoT for file storage)
+    if respond_to?(:storage_blob) && storage_blob.present?
+      return storage_blob.download
+    end
+
+    # Fallback to legacy DocumentStorageService
+    service = DocumentStorageService.new
+    result = service.download(self)
+    result[:success] ? result[:content] : nil
+  end
+
+  # Check if file exists in storage
+  def has_file?
+    if respond_to?(:storage_blob) && storage_blob.present?
+      true
+    else
+      has_storage_reference?
+    end
+  end
+
+  # ========================================
   # Migration Methods
   # ========================================
 

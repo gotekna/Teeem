@@ -295,23 +295,7 @@ class CorporateCompanyDocument < ApplicationRecord
     self.content_hash = blob.content_hash
   end
 
-  def download_file
-    return nil unless storage_blob
-    storage_blob.download
-  end
-
-  # Sets both provider-agnostic and legacy storage fields
-  # for backwards compatibility during migration
-  def set_storage_reference(item_id, provider: 'sharepoint', path: nil)
-    self.storage_item_id = item_id
-    self.storage_provider = provider
-    self.storage_path = path
-
-    # Maintain backwards compatibility with legacy storage_file_id column
-    if provider == 'sharepoint'
-      self.storage_file_id = item_id
-    end
-  end
+  # download_file is provided by StorableDocument concern (SSoT)
 
   # Phase 4: Virtual folder path for File Warehouse
   # DEPRECATED: folder is legacy - use WarehouseDocument.folder instead (Phase 3 SSoT)

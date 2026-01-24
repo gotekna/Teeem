@@ -9,6 +9,7 @@
 #
 class NotebookPageAttachment < ApplicationRecord
   include WarehouseSyncable
+  include BlobStorable  # SSoT: provides download_file, has_file?, base attach_file
   warehouse_type :file
 
   # Associations
@@ -121,14 +122,9 @@ class NotebookPageAttachment < ApplicationRecord
     storage_blob.presigned_url(expires_in: expires_in, filename: file_name)
   end
 
-  # Download file content from storage
-  def download_file
-    return nil unless storage_blob
+  # download_file is provided by BlobStorable concern (SSoT)
 
-    storage_blob.download
-  end
-
-  # Attach a file using StorageBlob
+  # Override BlobStorable#attach_file to set model-specific metadata
   def attach_file(content, filename:, content_type: nil)
     blob = StorageBlob.find_or_create_for_content!(
       content,

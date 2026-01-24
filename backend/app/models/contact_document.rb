@@ -93,13 +93,7 @@ class ContactDocument < ApplicationRecord
     storage_blob.presigned_url(expires_in: expires_in, filename: file_name)
   end
 
-  # Download file content from storage
-  # @return [String, nil] File content or nil if no file
-  def download_file
-    return nil unless storage_blob
-
-    storage_blob.download
-  end
+  # download_file is provided by StorableDocument concern (SSoT)
 
   # Attach a file using StorageBlob (deduplication via content_hash)
   # @param content [String] File content

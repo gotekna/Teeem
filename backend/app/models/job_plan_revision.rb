@@ -30,10 +30,6 @@ class JobPlanRevision < ApplicationRecord
     storage_item_id.presence || storage_file_id
   end
 
-  def set_storage_reference(item_id, provider: "sharepoint")
-    self.storage_item_id = item_id
-  end
-
   # Human-readable file size
   def formatted_file_size
     return nil unless file_size

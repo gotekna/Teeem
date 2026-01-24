@@ -150,10 +150,6 @@ class FinancialTransaction < ApplicationRecord
     storage_item_id.presence || storage_file_id
   end
 
-  def set_storage_reference(item_id, provider: "sharepoint")
-    self.storage_item_id = item_id
-  end
-
   private
 
   def set_default_status

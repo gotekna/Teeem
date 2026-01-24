@@ -182,10 +182,6 @@ class BillInbox < ApplicationRecord
     storage_item_id.presence || storage_file_id
   end
 
-  def set_storage_reference(item_id, provider: "sharepoint")
-    self.storage_item_id = item_id
-  end
-
   def invoice_file_content_type
     # Return stored mime type or detect from filename
     return nil unless has_invoice_file?

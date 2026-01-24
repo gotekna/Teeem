@@ -316,7 +316,7 @@ class PlanSetUploadJob < ApplicationJob
     SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
-  def create_job_plan!(display_name, sharepoint_result, file_size)
+  def create_job_plan!(display_name, storage_result, file_size)
     # Idempotency: check if plan already exists
     existing = @job.job_plans.find_by(display_name: display_name)
     if existing
@@ -331,8 +331,8 @@ class PlanSetUploadJob < ApplicationJob
     )
 
     plan.add_revision!(
-      storage_file_id: sharepoint_result[:id],
-      storage_web_url: sharepoint_result[:webUrl] || sharepoint_result[:web_url],
+      storage_file_id: storage_result[:id],
+      storage_web_url: storage_result[:webUrl] || storage_result[:web_url],
       file_name: "#{display_name}.pdf",
       file_size: file_size,
       revision_date: Date.today

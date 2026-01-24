@@ -143,10 +143,6 @@ class ChatMessage < ApplicationRecord
     storage_item_id.presence || storage_file_id
   end
 
-  def set_storage_reference(item_id, provider: "sharepoint")
-    self.storage_item_id = item_id
-  end
-
   def download_file
     file_ref = storage_item_id.presence || storage_file_id
     return nil unless file_ref.present?
