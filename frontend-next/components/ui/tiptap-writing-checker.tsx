@@ -81,31 +81,37 @@ function HoverTooltip({
   const fixBtnRef = React.useRef<HTMLButtonElement>(null);
   const whyBtnRef = React.useRef<HTMLButtonElement>(null);
 
-  // Use native DOM events since React events don't work reliably in createRoot portals
+  // Use pointerdown/mousedown to bypass modal focus trap interference
   React.useEffect(() => {
     const fixBtn = fixBtnRef.current;
     const whyBtn = whyBtnRef.current;
 
-    const handleFixClick = (e: MouseEvent) => {
-      console.log('[WritingChecker] HoverTooltip Fix native click');
+    const handleFixPointerDown = (e: PointerEvent | MouseEvent) => {
+      console.log('[WritingChecker] HoverTooltip Fix pointerdown');
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation();
       onFix();
     };
 
-    const handleWhyClick = (e: MouseEvent) => {
-      console.log('[WritingChecker] HoverTooltip Why native click');
+    const handleWhyPointerDown = (e: PointerEvent | MouseEvent) => {
+      console.log('[WritingChecker] HoverTooltip Why pointerdown');
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation();
       onShowDetails();
     };
 
-    fixBtn?.addEventListener('click', handleFixClick);
-    whyBtn?.addEventListener('click', handleWhyClick);
+    fixBtn?.addEventListener('pointerdown', handleFixPointerDown, { capture: true });
+    fixBtn?.addEventListener('mousedown', handleFixPointerDown, { capture: true });
+    whyBtn?.addEventListener('pointerdown', handleWhyPointerDown, { capture: true });
+    whyBtn?.addEventListener('mousedown', handleWhyPointerDown, { capture: true });
 
     return () => {
-      fixBtn?.removeEventListener('click', handleFixClick);
-      whyBtn?.removeEventListener('click', handleWhyClick);
+      fixBtn?.removeEventListener('pointerdown', handleFixPointerDown, { capture: true });
+      fixBtn?.removeEventListener('mousedown', handleFixPointerDown, { capture: true });
+      whyBtn?.removeEventListener('pointerdown', handleWhyPointerDown, { capture: true });
+      whyBtn?.removeEventListener('mousedown', handleWhyPointerDown, { capture: true });
     };
   }, [onFix, onShowDetails]);
 
@@ -130,6 +136,18 @@ function HoverTooltip({
           ref={fixBtnRef}
           type="button"
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+          onPointerDown={(e) => {
+            console.log('[WritingChecker] HoverTooltip Fix React onPointerDown');
+            e.preventDefault();
+            e.stopPropagation();
+            onFix();
+          }}
+          onClick={(e) => {
+            console.log('[WritingChecker] HoverTooltip Fix React onClick');
+            e.preventDefault();
+            e.stopPropagation();
+            onFix();
+          }}
         >
           <Check className="h-3.5 w-3.5" />
           Fix
@@ -138,6 +156,18 @@ function HoverTooltip({
           ref={whyBtnRef}
           type="button"
           className="flex items-center justify-center gap-1 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+          onPointerDown={(e) => {
+            console.log('[WritingChecker] HoverTooltip Why React onPointerDown');
+            e.preventDefault();
+            e.stopPropagation();
+            onShowDetails();
+          }}
+          onClick={(e) => {
+            console.log('[WritingChecker] HoverTooltip Why React onClick');
+            e.preventDefault();
+            e.stopPropagation();
+            onShowDetails();
+          }}
         >
           <span className="text-xs">Why?</span>
           <ChevronRight className="h-3 w-3" />
@@ -165,8 +195,17 @@ function DetailTooltip({
   const applyFixRef = React.useRef<HTMLButtonElement>(null);
   const ignoreRef = React.useRef<HTMLButtonElement>(null);
   const addToDictRef = React.useRef<HTMLButtonElement>(null);
+  const closeRef = React.useRef<HTMLButtonElement>(null);
 
-  // Use native DOM events since React events don't work reliably in createRoot portals
+  // ⚠️ DO NOT SIMPLIFY - Modal focus traps intercept click events (2026-01-24)
+  // ════════════════════════════════════════════════════════════════════════
+  // Why: When tooltip is rendered via createRoot portal to document.body,
+  // modal focus traps (like Radix Dialog) can intercept click events before
+  // they reach the button. Using pointerdown + mousedown provides reliable
+  // event capture that bypasses focus trap interference.
+  // ❌ WRONG: Using only click events (get intercepted by modal focus trap)
+  // ✅ CORRECT: Using pointerdown/mousedown which fire before focus trap logic
+  // ════════════════════════════════════════════════════════════════════════
   React.useEffect(() => {
     console.log('[WritingChecker] DetailTooltip useEffect running');
     const applyBtn = applyFixRef.current;
@@ -174,44 +213,70 @@ function DetailTooltip({
     const addToDictBtn = addToDictRef.current;
     console.log('[WritingChecker] Refs:', { applyBtn: !!applyBtn, ignoreBtn: !!ignoreBtn, addToDictBtn: !!addToDictBtn });
 
-    const handleApplyClick = (e: MouseEvent) => {
-      console.log('[WritingChecker] Apply Fix native click');
+    // Use pointerdown as primary (fires before click, bypasses focus traps)
+    // with mousedown as fallback for older browsers
+    const handleApplyPointerDown = (e: PointerEvent | MouseEvent) => {
+      console.log('[WritingChecker] Apply Fix pointerdown/mousedown');
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation();
       onFix();
     };
 
-    const handleIgnoreClick = (e: MouseEvent) => {
-      console.log('[WritingChecker] Ignore native click');
+    const handleIgnorePointerDown = (e: PointerEvent | MouseEvent) => {
+      console.log('[WritingChecker] Ignore pointerdown/mousedown');
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation();
       onDismiss();
     };
 
-    const handleAddToDictClick = (e: MouseEvent) => {
-      console.log('[WritingChecker] Add to Dictionary native click');
+    const handleAddToDictPointerDown = (e: PointerEvent | MouseEvent) => {
+      console.log('[WritingChecker] Add to Dictionary pointerdown/mousedown');
       e.preventDefault();
       e.stopPropagation();
+      e.stopImmediatePropagation();
       onAddToDictionary?.();
     };
 
+    const handleClosePointerDown = (e: PointerEvent | MouseEvent) => {
+      console.log('[WritingChecker] Close pointerdown/mousedown');
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      onClose();
+    };
+
     if (applyBtn) {
-      console.log('[WritingChecker] Adding click listener to Apply Fix button');
-      applyBtn.addEventListener('click', handleApplyClick);
+      console.log('[WritingChecker] Adding pointerdown listener to Apply Fix button');
+      applyBtn.addEventListener('pointerdown', handleApplyPointerDown, { capture: true });
+      applyBtn.addEventListener('mousedown', handleApplyPointerDown, { capture: true });
     }
     if (ignoreBtn) {
-      ignoreBtn.addEventListener('click', handleIgnoreClick);
+      ignoreBtn.addEventListener('pointerdown', handleIgnorePointerDown, { capture: true });
+      ignoreBtn.addEventListener('mousedown', handleIgnorePointerDown, { capture: true });
     }
     if (addToDictBtn) {
-      addToDictBtn.addEventListener('click', handleAddToDictClick);
+      addToDictBtn.addEventListener('pointerdown', handleAddToDictPointerDown, { capture: true });
+      addToDictBtn.addEventListener('mousedown', handleAddToDictPointerDown, { capture: true });
+    }
+    const closeBtn = closeRef.current;
+    if (closeBtn) {
+      closeBtn.addEventListener('pointerdown', handleClosePointerDown, { capture: true });
+      closeBtn.addEventListener('mousedown', handleClosePointerDown, { capture: true });
     }
 
     return () => {
-      applyBtn?.removeEventListener('click', handleApplyClick);
-      ignoreBtn?.removeEventListener('click', handleIgnoreClick);
-      addToDictBtn?.removeEventListener('click', handleAddToDictClick);
+      applyBtn?.removeEventListener('pointerdown', handleApplyPointerDown, { capture: true });
+      applyBtn?.removeEventListener('mousedown', handleApplyPointerDown, { capture: true });
+      ignoreBtn?.removeEventListener('pointerdown', handleIgnorePointerDown, { capture: true });
+      ignoreBtn?.removeEventListener('mousedown', handleIgnorePointerDown, { capture: true });
+      addToDictBtn?.removeEventListener('pointerdown', handleAddToDictPointerDown, { capture: true });
+      addToDictBtn?.removeEventListener('mousedown', handleAddToDictPointerDown, { capture: true });
+      closeBtn?.removeEventListener('pointerdown', handleClosePointerDown, { capture: true });
+      closeBtn?.removeEventListener('mousedown', handleClosePointerDown, { capture: true });
     };
-  }, [onFix, onDismiss, onAddToDictionary]);
+  }, [onFix, onDismiss, onAddToDictionary, onClose]);
 
   return (
     <div
@@ -225,8 +290,21 @@ function DetailTooltip({
           </span>
         </div>
         <button
-          onClick={onClose}
-          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          ref={closeRef}
+          type="button"
+          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+          onPointerDown={(e) => {
+            console.log('[WritingChecker] Close React onPointerDown');
+            e.preventDefault();
+            e.stopPropagation();
+            onClose();
+          }}
+          onClick={(e) => {
+            console.log('[WritingChecker] Close React onClick');
+            e.preventDefault();
+            e.stopPropagation();
+            onClose();
+          }}
         >
           <X className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
@@ -262,12 +340,24 @@ function DetailTooltip({
         )}
       </div>
 
-      {/* Action buttons */}
+      {/* Action buttons - using both React handlers AND native listeners for maximum compatibility */}
       <div className="flex items-stretch border-t divide-x">
         <button
           ref={applyFixRef}
           type="button"
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-primary/5 hover:bg-primary/10 text-primary transition-colors cursor-pointer"
+          onPointerDown={(e) => {
+            console.log('[WritingChecker] Apply Fix React onPointerDown');
+            e.preventDefault();
+            e.stopPropagation();
+            onFix();
+          }}
+          onClick={(e) => {
+            console.log('[WritingChecker] Apply Fix React onClick');
+            e.preventDefault();
+            e.stopPropagation();
+            onFix();
+          }}
         >
           <Check className="h-4 w-4" />
           Apply Fix
@@ -278,6 +368,18 @@ function DetailTooltip({
             type="button"
             className="px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
             title="Add to Dictionary"
+            onPointerDown={(e) => {
+              console.log('[WritingChecker] Add to Dict React onPointerDown');
+              e.preventDefault();
+              e.stopPropagation();
+              onAddToDictionary();
+            }}
+            onClick={(e) => {
+              console.log('[WritingChecker] Add to Dict React onClick');
+              e.preventDefault();
+              e.stopPropagation();
+              onAddToDictionary();
+            }}
           >
             <BookPlus className="h-4 w-4" />
           </button>
@@ -286,6 +388,18 @@ function DetailTooltip({
           ref={ignoreRef}
           type="button"
           className="px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+          onPointerDown={(e) => {
+            console.log('[WritingChecker] Ignore React onPointerDown');
+            e.preventDefault();
+            e.stopPropagation();
+            onDismiss();
+          }}
+          onClick={(e) => {
+            console.log('[WritingChecker] Ignore React onClick');
+            e.preventDefault();
+            e.stopPropagation();
+            onDismiss();
+          }}
         >
           Ignore
         </button>
@@ -318,6 +432,7 @@ export const WritingChecker = Extension.create({
       dismissedIssues: new Set<string>(),
       currentHoveredIssue: null as WritingIssue | null,
       isTooltipOpen: false,
+      documentPointerHandler: null as ((e: PointerEvent | MouseEvent) => void) | null,
     };
   },
 
@@ -460,6 +575,7 @@ export const WritingChecker = Extension.create({
 
                   // Create hover container
                   const hoverContainer = document.createElement("div");
+                  hoverContainer.setAttribute('data-writing-checker-tooltip', 'true');
                   hoverContainer.style.position = "fixed";
                   hoverContainer.style.zIndex = "9999";
                   // Add padding around the tooltip so mouse doesn't leave accidentally
@@ -485,32 +601,38 @@ export const WritingChecker = Extension.create({
 
                   const handleFix = () => {
                     console.log('[WritingChecker] HoverTooltip handleFix called');
-                    // Fix THIS specific issue only - use insertText for reliable replacement
-                    const tr = view.state.tr.insertText(
-                      hoveredIssue.suggestion,
-                      hoveredIssue.from,
-                      hoveredIssue.to
-                    );
 
-                    // Clear decorations, dispatch change
-                    tr.setMeta(writingCheckerKey, {
-                      decorations: DecorationSet.empty,
-                      issues: [],
-                      isChecking: false,
-                    });
-
-                    // Dispatch the transaction - this updates the editor content
-                    view.dispatch(tr);
-                    console.log('[WritingChecker] HoverTooltip transaction dispatched');
-
-                    // Cleanup and trigger fresh spell check for remaining issues
+                    // Cleanup hover FIRST
                     cleanupHover();
 
-                    // Clear last checked text to force re-check
-                    extension.storage.lastCheckedText = "";
+                    // Use setTimeout to escape event handling context
                     setTimeout(() => {
-                      view.focus();
-                    }, 0);
+                      try {
+                        console.log('[WritingChecker] HoverTooltip applying fix');
+
+                        // Get fresh state and create transaction
+                        const tr = view.state.tr;
+                        tr.delete(hoveredIssue.from, hoveredIssue.to);
+                        tr.insertText(hoveredIssue.suggestion, hoveredIssue.from);
+
+                        // Clear decorations
+                        tr.setMeta(writingCheckerKey, {
+                          decorations: DecorationSet.empty,
+                          issues: [],
+                          isChecking: false,
+                        });
+
+                        // Dispatch the transaction
+                        view.dispatch(tr);
+                        console.log('[WritingChecker] HoverTooltip transaction dispatched');
+
+                        // Clear last checked text to force re-check
+                        extension.storage.lastCheckedText = "";
+                        view.focus();
+                      } catch (error) {
+                        console.error('[WritingChecker] HoverTooltip handleFix error:', error);
+                      }
+                    }, 10);
                   };
 
                   const handleShowDetails = () => {
@@ -597,6 +719,45 @@ export const WritingChecker = Extension.create({
         },
 
         view(editorView) {
+          // ⚠️ DO NOT REMOVE - Window-level capture prevents Radix Dialog from blocking tooltip events
+          // ════════════════════════════════════════════════════════════════════════
+          // Why: Radix Dialog adds document-level capture listeners that intercept
+          // pointer events before they reach our tooltip buttons. By using window-level
+          // capture (higher than document), we intercept clicks on tooltip buttons,
+          // stop the event from reaching Radix, then manually trigger the button click.
+          // ════════════════════════════════════════════════════════════════════════
+          const handleWindowPointerCapture = (e: PointerEvent | MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Check if click is within a writing-checker tooltip
+            const tooltipEl = target.closest('[data-writing-checker-tooltip]');
+            if (tooltipEl) {
+              console.log('[WritingChecker] Window capture - tooltip click detected, target:', target.tagName, target.className);
+
+              // Check if the click is on a button or interactive element
+              const button = target.closest('button');
+              if (button) {
+                console.log('[WritingChecker] Window capture - clicking button:', button.textContent?.trim());
+                // Stop event from reaching Radix's document-level listeners
+                // Then manually trigger the button's click
+                e.stopPropagation();
+                e.preventDefault();
+
+                // Use setTimeout to click after this event cycle completes
+                setTimeout(() => {
+                  console.log('[WritingChecker] Dispatching synthetic click to button');
+                  button.click();
+                }, 0);
+              }
+            }
+          };
+
+          // Use window level to capture before document-level listeners
+          window.addEventListener('pointerdown', handleWindowPointerCapture, { capture: true });
+          window.addEventListener('mousedown', handleWindowPointerCapture, { capture: true });
+
+          // Store for cleanup
+          extension.storage.documentPointerHandler = handleWindowPointerCapture;
+
           // Show detail tooltip function (shared between hover and click)
           const showDetailTooltipFn = (
             view: typeof editorView,
@@ -607,6 +768,7 @@ export const WritingChecker = Extension.create({
             extension.storage.isTooltipOpen = true;
 
             const tooltipContainer = document.createElement("div");
+            tooltipContainer.setAttribute('data-writing-checker-tooltip', 'true');
             tooltipContainer.style.position = "fixed";
             tooltipContainer.style.zIndex = "9999";
             document.body.appendChild(tooltipContainer);
@@ -626,42 +788,72 @@ export const WritingChecker = Extension.create({
                 docLength: view.state.doc.content.size,
               });
 
-              try {
-                // Fix THIS specific issue only - use insertText for reliable text replacement
-                const tr = view.state.tr.insertText(
-                  issue.suggestion,
-                  issue.from,
-                  issue.to
-                );
+              // Cleanup tooltip FIRST to prevent any interference
+              cleanupTooltip();
 
-                console.log('[WritingChecker] Transaction created', {
-                  docChanged: tr.docChanged,
-                  steps: tr.steps.length,
-                  textBefore: view.state.doc.textContent.substring(issue.from - 1, issue.to + 10),
-                });
+              // Use setTimeout to ensure we're outside any event handling context
+              setTimeout(() => {
+                try {
+                  console.log('[WritingChecker] Applying fix in setTimeout');
+                  const textBefore = view.state.doc.textContent;
+                  console.log('[WritingChecker] Full text before:', textBefore);
 
-                // Clear decorations for fixed issue, dispatch change
-                tr.setMeta(writingCheckerKey, {
-                  decorations: DecorationSet.empty,
-                  issues: [],
-                  isChecking: false,
-                });
+                  // Try to get TipTap editor instance from the view's DOM
+                  const editorElement = view.dom.closest('.ProseMirror')?.parentElement;
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const tiptapEditor = (editorElement as any)?.editor;
 
-                // Dispatch the transaction - this updates the editor content
-                view.dispatch(tr);
-                console.log('[WritingChecker] Transaction dispatched');
+                  if (tiptapEditor && typeof tiptapEditor.chain === 'function') {
+                    // Use TipTap's chain commands for proper state updates
+                    console.log('[WritingChecker] Using TipTap editor commands');
+                    tiptapEditor
+                      .chain()
+                      .focus()
+                      .setTextSelection({ from: issue.from, to: issue.to })
+                      .deleteSelection()
+                      .insertContent(issue.suggestion)
+                      .run();
+                    console.log('[WritingChecker] TipTap commands executed');
+                  } else {
+                    // Fallback to direct ProseMirror manipulation
+                    console.log('[WritingChecker] Falling back to ProseMirror');
+                    const tr = view.state.tr;
+                    tr.delete(issue.from, issue.to);
+                    tr.insertText(issue.suggestion, issue.from);
 
-                // Cleanup tooltip and trigger fresh spell check for remaining issues
-                cleanupTooltip();
+                    // Clear decorations
+                    tr.setMeta(writingCheckerKey, {
+                      decorations: DecorationSet.empty,
+                      issues: [],
+                      isChecking: false,
+                    });
 
-                // Clear last checked text to force re-check, then trigger check
-                extension.storage.lastCheckedText = "";
-                setTimeout(() => {
+                    view.dispatch(tr);
+                    console.log('[WritingChecker] ProseMirror transaction dispatched');
+                  }
+
+                  // Log result
+                  const textAfter = view.state.doc.textContent;
+                  console.log('[WritingChecker] Full text after:', textAfter);
+                  console.log('[WritingChecker] Text changed:', textBefore !== textAfter);
+
+                  // Clear decorations via separate transaction
+                  const clearTr = view.state.tr.setMeta(writingCheckerKey, {
+                    decorations: DecorationSet.empty,
+                    issues: [],
+                    isChecking: false,
+                  });
+                  view.dispatch(clearTr);
+
+                  // Clear last checked text to force re-check
+                  extension.storage.lastCheckedText = "";
+
+                  // Focus the editor
                   view.focus();
-                }, 0);
-              } catch (error) {
-                console.error('[WritingChecker] handleFix error:', error);
-              }
+                } catch (error) {
+                  console.error('[WritingChecker] handleFix error:', error);
+                }
+              }, 10);
             };
 
             const handleDismiss = () => {
@@ -853,6 +1045,12 @@ export const WritingChecker = Extension.create({
             destroy() {
               if (extension.storage.checkTimeout) {
                 clearTimeout(extension.storage.checkTimeout);
+              }
+              // Remove window-level capture listeners
+              if (extension.storage.documentPointerHandler) {
+                window.removeEventListener('pointerdown', extension.storage.documentPointerHandler, { capture: true });
+                window.removeEventListener('mousedown', extension.storage.documentPointerHandler, { capture: true });
+                extension.storage.documentPointerHandler = null;
               }
               cleanupHover();
               cleanupTooltip();

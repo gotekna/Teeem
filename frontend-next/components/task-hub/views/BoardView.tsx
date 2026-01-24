@@ -38,7 +38,6 @@ import {
 import { Lock, AlertTriangle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getOverdueColorClasses } from '../TaskColorSettings';
-import { PositionBadge } from '@/components/ui/dnd';
 
 // Extend SmTask to include KanbanItem requirements
 interface TaskItem extends SmTask {
@@ -74,16 +73,13 @@ const columns: KanbanColumnDef<TaskItem>[] = [
   },
 ];
 
-// Task card content renderer
+// Task card content renderer (position badge now handled by KanbanCard SSoT)
 interface TaskCardContentProps {
   task: TaskItem;
   currentUserId?: number;
-  position?: number;
-  maxPosition?: number;
-  onPositionChange?: (newPosition: number) => void;
 }
 
-function TaskCardContent({ task, currentUserId, position, maxPosition, onPositionChange }: TaskCardContentProps) {
+function TaskCardContent({ task, currentUserId }: TaskCardContentProps) {
   // Get overdue gradient colors
   const overdueColors = task.is_overdue && task.status !== TASK_STATUS.COMPLETED && task.days_overdue
     ? getOverdueColorClasses(task.days_overdue)
@@ -96,16 +92,6 @@ function TaskCardContent({ task, currentUserId, position, maxPosition, onPositio
   return (
     <div className={cn('px-2 py-1.5 text-xs', overdueColors && overdueColors.bg)}>
       <div className="flex items-center gap-1.5">
-        {/* Position badge for manual reordering */}
-        {position !== undefined && onPositionChange && (
-          <PositionBadge
-            position={position}
-            editable
-            onPositionChange={onPositionChange}
-            maxPosition={maxPosition}
-            size="sm"
-          />
-        )}
         <span
           className={cn(
             'flex-1 truncate',
@@ -250,22 +236,40 @@ export function BoardView() {
   };
 
   // Handle card reorder within a column (drag-and-drop priority ordering)
+  // Strategy: Assign sequential priorities to ALL tasks in the column to maintain new order
   const handleCardReorder = useCallback(async (event: CardReorderEvent<TaskItem>) => {
     const { item, columnId, fromIndex, toIndex } = event;
 
+    console.log('[BoardView] handleCardReorder called:', { itemId: item.id, columnId, fromIndex, toIndex });
+
     // Don't do anything if position didn't change
-    if (fromIndex === toIndex) return;
+    if (fromIndex === toIndex) {
+      console.log('[BoardView] fromIndex === toIndex, skipping');
+      return;
+    }
 
-    // Get all tasks in this column (sorted)
-    const columnTasks = sortedTasks.filter(t => t.status === columnId);
+    // Get all tasks in this column (sorted by current order)
+    const columnTasks = [...sortedTasks.filter(t => t.status === columnId)];
 
-    // Calculate the new priority for the dragged task
-    const newPriority = calculateInsertPriority(columnTasks, fromIndex, toIndex, columnId);
+    // Reorder the array: remove from old position, insert at new position
+    const [movedTask] = columnTasks.splice(fromIndex, 1);
+    columnTasks.splice(toIndex, 0, movedTask);
 
+    console.log('[BoardView] New order:', columnTasks.map((t, i) => `${i}: ${t.id}`));
+
+    // Assign sequential priorities to ALL tasks in the column
+    // This ensures the new order is maintained regardless of existing priorities
     try {
-      await reorderBoardTask(item.id, columnId, newPriority);
+      const updatePromises = columnTasks.map((task, index) => {
+        const newPriority = (index + 1) * 1000; // 1000, 2000, 3000, etc.
+        console.log(`[BoardView] Setting task ${task.id} priority to ${newPriority}`);
+        return reorderBoardTask(task.id, columnId, newPriority);
+      });
+
+      await Promise.all(updatePromises);
+      console.log('[BoardView] All priorities updated successfully');
     } catch (error) {
-      console.error('Failed to reorder task:', error);
+      console.error('[BoardView] Failed to reorder tasks:', error);
     }
   }, [sortedTasks, reorderBoardTask]);
 
@@ -281,18 +285,27 @@ export function BoardView() {
   };
 
   // Handle position change via typed number input
+  // Uses same strategy as drag reorder: assign priorities to ALL tasks
   const handlePositionChange = useCallback(async (task: TaskItem, newPosition: number) => {
-    const columnTasks = sortedTasks.filter(t => t.status === task.status);
+    const columnTasks = [...sortedTasks.filter(t => t.status === task.status)];
     const currentIndex = columnTasks.findIndex(t => t.id === task.id);
     const newIndex = newPosition - 1; // Convert 1-indexed to 0-indexed
 
     if (currentIndex === -1 || newIndex === currentIndex) return;
+    if (newIndex < 0 || newIndex >= columnTasks.length) return;
 
-    // Calculate the new priority for the target position
-    const newPriority = calculateInsertPriority(columnTasks, currentIndex, newIndex, task.status);
+    // Reorder the array: remove from old position, insert at new position
+    const [movedTask] = columnTasks.splice(currentIndex, 1);
+    columnTasks.splice(newIndex, 0, movedTask);
 
+    // Assign sequential priorities to ALL tasks in the column
     try {
-      await reorderBoardTask(task.id, task.status, newPriority);
+      const updatePromises = columnTasks.map((t, index) => {
+        const newPriority = (index + 1) * 1000;
+        return reorderBoardTask(t.id, task.status, newPriority);
+      });
+
+      await Promise.all(updatePromises);
     } catch (error) {
       console.error('Failed to reorder task:', error);
     }
@@ -321,13 +334,15 @@ export function BoardView() {
         )}
         onClick={() => handleCardClick(task)}
         onDoubleClick={() => handleCardDoubleClick(task)}
+        // Position badge via SSoT - click to type new position number
+        position={position}
+        maxPosition={maxPosition}
+        positionEditable={true}
+        onPositionChange={(newPos) => handlePositionChange(task, newPos)}
       >
         <TaskCardContent
           task={task}
           currentUserId={user?.id}
-          position={position}
-          maxPosition={maxPosition}
-          onPositionChange={(newPos) => handlePositionChange(task, newPos)}
         />
       </KanbanCard>
     );

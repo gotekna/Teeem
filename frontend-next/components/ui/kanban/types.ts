@@ -233,6 +233,16 @@ export interface KanbanCardProps {
   onClick?: (e: React.MouseEvent) => void;
   /** Double-click handler (fires if drag didn't activate) */
   onDoubleClick?: (e: React.MouseEvent) => void;
+
+  // Position badge props (SSoT - optional position editing support)
+  /** Current position (1-indexed) - shows position badge when provided */
+  position?: number;
+  /** Maximum position (for validation in position input) */
+  maxPosition?: number;
+  /** Whether position badge is editable */
+  positionEditable?: boolean;
+  /** Callback when position is changed via badge click */
+  onPositionChange?: (newPosition: number) => void;
 }
 
 /**

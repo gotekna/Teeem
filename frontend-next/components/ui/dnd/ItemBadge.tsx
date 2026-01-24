@@ -75,18 +75,18 @@ export interface ItemBadgeProps {
   maxPosition?: number;
 }
 
-// Size classes for badge
+// Size classes for badge - must match inputSizeClasses for seamless edit mode transition
 const sizeClasses = {
-  sm: "text-[9px] px-1 py-0 h-3.5 min-w-[16px]",
-  md: "text-[10px] px-1.5 py-0 h-4 min-w-[20px]",
-  lg: "text-xs px-2 py-0.5 h-5 min-w-[24px]",
+  sm: "text-[9px] px-1 py-0 h-3.5 min-w-[16px] leading-[14px]",
+  md: "text-[10px] px-1.5 py-0 h-4 min-w-[20px] leading-4",
+  lg: "text-xs px-2 py-0.5 h-5 min-w-[24px] leading-5",
 };
 
-// Size classes for input (editing mode)
+// Size classes for input (editing mode) - must match badge sizeClasses exactly
 const inputSizeClasses = {
-  sm: "h-3.5 w-6 text-[9px]",
-  md: "h-4 w-7 text-[10px]",
-  lg: "h-5 w-8 text-xs",
+  sm: "h-3.5 min-w-[16px] w-6 text-[9px] leading-[14px]",
+  md: "h-4 min-w-[20px] w-7 text-[10px] leading-4",
+  lg: "h-5 min-w-[24px] w-8 text-xs leading-5",
 };
 
 // Icon size classes
@@ -149,8 +149,10 @@ export function ItemBadge({
   }, [position, label, isEditing, contentType]);
 
   const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+    // Only stop propagation and handle click when editable
     if (!editable) return;
+
+    e.stopPropagation();
 
     // Only allow editing for position or label
     if (contentType === "position" && onPositionChange) {
@@ -196,7 +198,9 @@ export function ItemBadge({
   };
 
   // Editing mode - show input
+  // Stop all pointer/mouse events to prevent card drag behavior
   if (isEditing) {
+    const stopEvent = (e: React.SyntheticEvent) => e.stopPropagation();
     return (
       <Input
         ref={inputRef}
@@ -207,10 +211,14 @@ export function ItemBadge({
         onChange={(e) => setInputValue(e.target.value)}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        onClick={(e) => e.stopPropagation()}
+        onClick={stopEvent}
+        onPointerDown={stopEvent}
+        onMouseDown={stopEvent}
         className={cn(
           contentType === "label" ? "w-12" : inputSizeClasses[size],
           "p-0 text-center font-mono border-primary",
+          // Hide number input spinners to match badge size exactly
+          "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
           className
         )}
       />
@@ -255,7 +263,7 @@ export function ItemBadge({
         isClickable && "cursor-pointer hover:opacity-80",
         className
       )}
-      onClick={handleClick}
+      onClick={isClickable ? handleClick : undefined}
       title={isClickable ? tooltipText : undefined}
     >
       {renderBadgeContent()}

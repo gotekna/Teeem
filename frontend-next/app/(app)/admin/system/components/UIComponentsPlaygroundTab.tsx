@@ -110,6 +110,7 @@ import {
   KanbanCard,
   type KanbanColumnDef,
   type CardMoveEvent,
+  type CardReorderEvent,
 } from "@/components/ui/kanban";
 import { TokenBadge, TokenPalette, TokenBuilder } from "@/components/ui/tokens";
 
@@ -1172,23 +1173,69 @@ function KanbanBoardDemo() {
     );
   };
 
-  const renderCard = (item: KanbanDemoItem, isDragging: boolean) => (
-    <KanbanCard key={item.id} id={item.id} isDragging={isDragging}>
-      <div className="px-2 py-1.5 text-xs flex items-center gap-1.5">
-        <span className="flex-1 truncate">{item.name}</span>
-        {item.priority === "high" && (
-          <Badge variant="destructive" className="text-[9px] px-1 py-0 h-3.5">
-            High
-          </Badge>
-        )}
-      </div>
-    </KanbanCard>
-  );
+  const handleCardReorder = (event: CardReorderEvent<KanbanDemoItem>) => {
+    const { item, columnId, fromIndex, toIndex } = event;
+    setItems((prev) => {
+      const columnItems = prev.filter((i) => i.status === columnId);
+      const otherItems = prev.filter((i) => i.status !== columnId);
+
+      // Remove item from old position and insert at new position
+      const reordered = [...columnItems];
+      reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, item);
+
+      return [...otherItems, ...reordered];
+    });
+  };
+
+  const handlePositionChange = (item: KanbanDemoItem, newPosition: number) => {
+    const columnItems = items.filter((i) => i.status === item.status);
+    const currentIndex = columnItems.findIndex((i) => i.id === item.id);
+    const newIndex = newPosition - 1; // Convert 1-indexed to 0-indexed
+
+    if (currentIndex !== -1 && newIndex !== currentIndex) {
+      handleCardReorder({
+        item,
+        columnId: item.status,
+        fromIndex: currentIndex,
+        toIndex: newIndex,
+      });
+    }
+  };
+
+  const renderCard = (item: KanbanDemoItem, isDragging: boolean) => {
+    // Calculate position within column (1-indexed)
+    const columnItems = items.filter((i) => i.status === item.status);
+    const position = columnItems.findIndex((i) => i.id === item.id) + 1;
+    const maxPosition = columnItems.length;
+
+    return (
+      <KanbanCard
+        key={item.id}
+        id={item.id}
+        isDragging={isDragging}
+        // Position badge via SSoT
+        position={position}
+        maxPosition={maxPosition}
+        positionEditable={true}
+        onPositionChange={(newPos) => handlePositionChange(item, newPos)}
+      >
+        <div className="px-2 py-1.5 text-xs flex items-center gap-1.5">
+          <span className="flex-1 truncate">{item.name}</span>
+          {item.priority === "high" && (
+            <Badge variant="destructive" className="text-[9px] px-1 py-0 h-3.5">
+              High
+            </Badge>
+          )}
+        </div>
+      </KanbanCard>
+    );
+  };
 
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Drag cards between columns. WIP limit of 3 on &quot;In Progress&quot;.
+        Drag cards between columns or reorder within. Click position badge to edit. WIP limit of 3 on &quot;In Progress&quot;.
       </p>
       <div className="h-48 overflow-hidden">
         <KanbanBoard
@@ -1197,6 +1244,8 @@ function KanbanBoardDemo() {
           getItemColumn={getItemColumn}
           renderCard={renderCard}
           onCardMove={handleCardMove}
+          onCardReorder={handleCardReorder}
+          cardReorderable={true}
           columnGap="sm"
           minColumnWidth={120}
           className="h-full"

@@ -1051,9 +1051,14 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     status: string,
     priority: number | null
   ) => {
+    console.log('[TaskHubContext] reorderBoardTask called:', { taskId, status, priority });
+
     // Find the current task to get existing board_priority
     const currentTask = tasks.find(t => t.id === taskId);
-    if (!currentTask) return;
+    if (!currentTask) {
+      console.log('[TaskHubContext] Task not found:', taskId);
+      return;
+    }
 
     // Build new board_priority object
     const currentPriority = currentTask.board_priority || {};
@@ -1067,6 +1072,8 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       newPriority[status] = priority;
     }
 
+    console.log('[TaskHubContext] Updating board_priority:', { taskId, newPriority });
+
     // Optimistic update
     const originalTasks = [...tasks];
     setTasks(prev => prev.map(t =>
@@ -1074,11 +1081,13 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     ));
 
     try {
+      console.log('[TaskHubContext] Making API call...');
       await api.patch(`/api/v1/sm_tasks/${taskId}`, {
         sm_task: { board_priority: newPriority }
       });
+      console.log('[TaskHubContext] API call successful');
     } catch (err) {
-      console.error('Failed to reorder board task:', err);
+      console.error('[TaskHubContext] Failed to reorder board task:', err);
       setTasks(originalTasks);
       throw err;
     }

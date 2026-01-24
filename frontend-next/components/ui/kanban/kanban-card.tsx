@@ -24,6 +24,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { GripVertical } from "lucide-react";
+import { ItemBadge } from "@/components/ui/dnd";
 import type { KanbanCardProps } from "./types";
 
 export function KanbanCard({
@@ -34,6 +35,11 @@ export function KanbanCard({
   className,
   onClick,
   onDoubleClick,
+  // Position badge props (SSoT)
+  position,
+  maxPosition,
+  positionEditable = false,
+  onPositionChange,
 }: KanbanCardProps) {
   const {
     attributes,
@@ -45,6 +51,7 @@ export function KanbanCard({
   } = useSortable({
     id,
     disabled,
+    data: { type: "card", cardId: id },
   });
 
   const isDragging = isDraggingProp ?? isSortableDragging;
@@ -52,6 +59,20 @@ export function KanbanCard({
   // Track if drag occurred to prevent click after drag
   const dragOccurredRef = React.useRef(false);
   const pointerStartRef = React.useRef<{ x: number; y: number } | null>(null);
+
+  // Delay single-click to distinguish from double-click
+  // Without this, the first click of a double-click opens the sheet,
+  // covering the card before the second click can be detected
+  const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -77,17 +98,44 @@ export function KanbanCard({
     }
   };
 
-  // Handle click - only fire if drag didn't occur
+  // Handle click - delay to distinguish from double-click
+  // ⚠️ DO NOT SIMPLIFY - Single vs double-click timing (Jan 2026)
+  // ════════════════════════════════════════════════════════════
+  // Why: Without delay, first click opens sheet covering the card,
+  //      preventing second click of double-click from registering
+  // ❌ WRONG: Immediate onClick fires, sheet opens, dblclick lost
+  // ✅ CORRECT: Delay onClick, cancel if dblclick detected
+  // ════════════════════════════════════════════════════════════
   const handleClick = (e: React.MouseEvent) => {
-    if (!dragOccurredRef.current && onClick) {
-      onClick(e);
+    if (dragOccurredRef.current) {
+      pointerStartRef.current = null;
+      return;
+    }
+
+    // Clear any pending click timeout
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
+
+    // Delay single-click to allow double-click to fire first
+    if (onClick) {
+      clickTimeoutRef.current = setTimeout(() => {
+        clickTimeoutRef.current = null;
+        onClick(e);
+      }, 200); // Standard double-click threshold
     }
     pointerStartRef.current = null;
   };
 
-  // Handle double-click - browser only fires dblclick for actual double-clicks (not drags)
-  // No need to check dragOccurredRef since the browser handles this distinction
+  // Handle double-click - cancel pending single-click and fire
   const handleDoubleClick = (e: React.MouseEvent) => {
+    // Cancel pending single-click
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
+
     if (onDoubleClick) {
       e.preventDefault();
       e.stopPropagation();
@@ -127,9 +175,24 @@ export function KanbanCard({
         </div>
       )}
 
-      {/* Card content */}
-      <div className={cn(!disabled && "pl-1")}>
-        {children}
+      {/* Card content with optional position badge */}
+      <div className={cn("flex items-start gap-1", !disabled && "pl-1")}>
+        {/* Position badge (SSoT) - shown when position is provided */}
+        {position !== undefined && (
+          <div className="shrink-0 pt-1.5 pl-1">
+            <ItemBadge
+              position={position}
+              size="sm"
+              editable={positionEditable}
+              onPositionChange={onPositionChange}
+              maxPosition={maxPosition}
+            />
+          </div>
+        )}
+        {/* Card children content */}
+        <div className="flex-1 min-w-0">
+          {children}
+        </div>
       </div>
     </div>
   );
