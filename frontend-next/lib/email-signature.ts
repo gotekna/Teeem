@@ -415,8 +415,9 @@ function generateCompact(
   user: SignatureUserData,
   company?: SignatureCompanyData
 ): string {
+  const brandColor = company?.brand_color || DEFAULT_COMPANY.brand_color;
   const parts = [
-    `<strong style="color: #1a3c34;">${user.name}</strong>`,
+    `<strong style="color: ${brandColor};">${user.name}</strong>`,
     user.job_title ? `<span style="color: #666666;">${user.job_title}</span>` : null,
     user.mobile_phone ? `<span style="color: #333333;">${user.mobile_phone}</span>` : null,
     `<span style="color: #333333;">${user.email}</span>`,
@@ -426,7 +427,7 @@ function generateCompact(
 
   return `
 <br><br>
-<div style="font-family: Arial, sans-serif; font-size: 12px; border-top: 1px solid #1a3c34; padding-top: 8px; max-width: 500px;">
+<div style="font-family: Arial, sans-serif; font-size: 12px; border-top: 1px solid ${brandColor}; padding-top: 8px; max-width: 500px;">
   <div>${parts.join(' <span style="color: #cccccc;">|</span> ')}</div>
   <div style="color: #888888; font-size: 11px; margin-top: 4px;">${website}</div>
 </div>
@@ -456,6 +457,7 @@ function generateDetailed(
   const cityState = company?.city_state || DEFAULT_COMPANY.city_state;
   const website = company?.website || DEFAULT_COMPANY.website;
   const phone = company?.phone;
+  const brandColor = company?.brand_color || DEFAULT_COMPANY.brand_color;
 
   const phoneRow = phone
     ? `<tr>
@@ -467,14 +469,14 @@ function generateDetailed(
   const companyName = company?.name || DEFAULT_COMPANY.name;
   const logoHtml = company?.logo_light
     ? `<img src="${company.logo_light}" alt="${companyName}" style="height: 40px; width: auto;" />`
-    : `<span style="color: #1a3c34; font-weight: bold; font-size: 18px;">${companyName}</span>`;
+    : `<span style="color: ${brandColor}; font-weight: bold; font-size: 18px;">${companyName}</span>`;
 
   return `
 <br><br>
 <table cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 6px; width: 420px; max-width: 100%; font-family: Arial, sans-serif; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
   <tr>
     <td style="padding: 16px;">
-      <div style="font-weight: bold; color: #1a3c34; font-size: 16px; margin-bottom: 4px;">${user.name}</div>
+      <div style="font-weight: bold; color: ${brandColor}; font-size: 16px; margin-bottom: 4px;">${user.name}</div>
       ${jobTitleLine}
       <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
         <tr>
@@ -489,7 +491,7 @@ function generateDetailed(
         </tr>
         <tr>
           <td style="color: #888888; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Web</td>
-          <td style="color: #333333; font-size: 12px; padding: 3px 0;"><a href="https://${website}" style="color: #1a3c34; text-decoration: none;">${website}</a></td>
+          <td style="color: #333333; font-size: 12px; padding: 3px 0;"><a href="https://${website}" style="color: ${brandColor}; text-decoration: none;">${website}</a></td>
         </tr>
       </table>
     </td>
@@ -528,16 +530,17 @@ function generateSocial(
     : "";
 
   const companyName = company?.name || DEFAULT_COMPANY.name;
+  const brandColor = company?.brand_color || DEFAULT_COMPANY.brand_color;
   const logoHtml = company?.logo_light
     ? `<img src="${company.logo_light}" alt="${companyName}" style="height: 28px; width: auto;" />`
-    : `<span style="color: #1a3c34; font-weight: bold; font-size: 14px;">${companyName}</span>`;
+    : `<span style="color: ${brandColor}; font-weight: bold; font-size: 14px;">${companyName}</span>`;
 
   return `
 <br><br>
 <table cellpadding="0" cellspacing="0" border="0" style="width: 400px; max-width: 100%; font-family: Arial, sans-serif;">
   <tr>
-    <td style="border-left: 3px solid #1a3c34; padding-left: 14px;">
-      <div style="font-weight: bold; color: #1a3c34; font-size: 15px;">${user.name}</div>
+    <td style="border-left: 3px solid ${brandColor}; padding-left: 14px;">
+      <div style="font-weight: bold; color: ${brandColor}; font-size: 15px;">${user.name}</div>
       ${jobTitleLine}
       <div style="margin-top: 8px;">
         <div style="color: #333333; font-size: 13px;">${user.email}</div>
@@ -560,14 +563,18 @@ function generateSocial(
 
 /**
  * Check if body already contains a signature (any style)
+ * Uses structural markers that work regardless of brand color
  */
 export function hasSignature(body: string): boolean {
-  // Check for various signature indicators
+  // Check for various signature structural indicators (color-agnostic)
   return (
-    body.includes("background-color: #1a3c34") || // Modern dark
-    body.includes("border-left: 4px solid #1a3c34") || // Modern light
-    body.includes("border-left: 3px solid #1a3c34") || // Social
-    body.includes('font-family: Georgia, serif') || // Classic
+    body.includes('border-radius: 4px; width: 400px') || // Modern dark/light table
+    body.includes('border-radius: 6px; width: 420px') || // Detailed table
+    body.includes('border-radius: 8px 8px 0 0') || // Creative top header
+    body.includes('border-left: 4px solid') || // Modern light accent
+    body.includes('border-left: 3px solid') || // Social accent
+    body.includes('font-family: Georgia, serif') || // Classic serif font
+    body.includes('border-top: 1px solid') || // Compact/Minimal separator
     body.includes("--<br>") // Traditional text signature marker
   );
 }

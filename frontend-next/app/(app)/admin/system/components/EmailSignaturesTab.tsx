@@ -58,6 +58,10 @@ export function EmailSignaturesTab() {
           address?: string;
           website?: string;
           phone?: string;
+          brand_colors?: {
+            primary?: string;
+            primaryForeground?: string;
+          };
         }
         const response = await api.get<{ success: boolean; data?: CompanySettingsResponse }>("/api/v1/company_settings");
         if (response?.success && response.data) {
@@ -70,6 +74,8 @@ export function EmailSignaturesTab() {
             address: data.address,
             website: data.website,
             phone: data.phone,
+            brand_color: data.brand_colors?.primary,
+            brand_color_foreground: data.brand_colors?.primaryForeground,
           });
         }
       } catch (error) {

@@ -131,8 +131,16 @@ export function ComposeEmailModal({
   // Get current user for signature generation
   const { user: currentUser } = useAuth();
 
-  // Company settings for signature logo
-  const [companySettings, setCompanySettings] = useState<{ logo_dark?: string } | null>(null);
+  // Company settings for signature
+  const [companySettings, setCompanySettings] = useState<{
+    logo_dark?: string;
+    logo_url?: string;
+    company_name?: string;
+    address?: string;
+    website?: string;
+    phone?: string;
+    brand_colors?: { primary?: string; primaryForeground?: string };
+  } | null>(null);
 
   // Store signature separately (not in editor) to preserve HTML formatting
   const [signatureHtml, setSignatureHtml] = useState<string>("");
@@ -214,15 +222,33 @@ export function ComposeEmailModal({
         mobile_phone: currentUser.mobile_phone as string | undefined,
         job_title: currentUser.job_title as string | undefined,
       },
-      companySettings ? { logo_dark: companySettings.logo_dark } : undefined
+      companySettings ? {
+        name: companySettings.company_name,
+        logo_dark: companySettings.logo_dark,
+        logo_light: companySettings.logo_url,
+        address: companySettings.address,
+        website: companySettings.website,
+        phone: companySettings.phone,
+        brand_color: companySettings.brand_colors?.primary,
+        brand_color_foreground: companySettings.brand_colors?.primaryForeground,
+      } : undefined
     );
   };
 
-  // Fetch company settings for logo
+  // Fetch company settings for signature
   useEffect(() => {
     const fetchCompanySettings = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: { logo_dark?: string } }>(
+        interface CompanySettingsData {
+          logo_dark?: string;
+          logo_url?: string;
+          company_name?: string;
+          address?: string;
+          website?: string;
+          phone?: string;
+          brand_colors?: { primary?: string; primaryForeground?: string };
+        }
+        const response = await api.get<{ success: boolean; data: CompanySettingsData }>(
           "/api/v1/company_settings"
         );
         if (response?.data) {
