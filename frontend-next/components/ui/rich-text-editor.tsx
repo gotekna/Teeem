@@ -1,20 +1,10 @@
 "use client";
 
+// SSoT: TipTap warning suppression - must be first import
+import "@/lib/tiptap-utils";
+
 import * as React from "react";
 import { useEditor, EditorContent, Editor, Extension } from "@tiptap/react";
-
-// Suppress TipTap duplicate extension warning (happens in dev with HMR/Strict Mode)
-// This is a known TipTap issue that doesn't affect functionality
-if (typeof window !== "undefined") {
-  const originalWarn = console.warn;
-  console.warn = (...args: unknown[]) => {
-    const message = args[0];
-    if (typeof message === "string" && message.includes("[tiptap warn]: Duplicate extension names")) {
-      return; // Suppress this specific warning
-    }
-    originalWarn.apply(console, args);
-  };
-}
 
 // Re-export Editor type for external use
 export type { Editor } from "@tiptap/react";

@@ -1,5 +1,8 @@
 "use client";
 
+// SSoT: TipTap warning suppression - must be first import
+import "@/lib/tiptap-utils";
+
 import { Extension } from "@tiptap/react";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -353,31 +356,49 @@ export const WritingChecker = Extension.create({
       extension.storage.isTooltipOpen = false;
     };
 
-    // Helper to position tooltip smartly
+    // Helper to position tooltip smartly within bounds
     const positionTooltip = (
       container: HTMLDivElement,
       coords: { top: number; bottom: number; left: number; right: number },
       width: number,
-      height: number
+      height: number,
+      boundsElement?: Element | null
     ) => {
       const padding = 8;
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
 
-      // Horizontal: prefer left-aligned, but shift if needed
-      let left = coords.left;
-      if (left + width + padding > viewportWidth) {
-        left = Math.max(padding, viewportWidth - width - padding);
+      // Get bounds - either from the containing element or viewport
+      let boundsLeft = 0;
+      let boundsTop = 0;
+      let boundsRight = window.innerWidth;
+      let boundsBottom = window.innerHeight;
+
+      if (boundsElement) {
+        const boundsRect = boundsElement.getBoundingClientRect();
+        boundsLeft = boundsRect.left;
+        boundsTop = boundsRect.top;
+        boundsRight = boundsRect.right;
+        boundsBottom = boundsRect.bottom;
       }
+
+      // Horizontal: prefer left-aligned with the issue, but constrain within bounds
+      let left = coords.left;
+      // If tooltip would overflow right side, shift left
+      if (left + width + padding > boundsRight) {
+        left = boundsRight - width - padding;
+      }
+      // Don't go past left bound
+      left = Math.max(boundsLeft + padding, left);
 
       // Vertical: prefer below, flip above if needed
       let top: number;
-      if (coords.bottom + height + padding > viewportHeight) {
+      if (coords.bottom + height + padding > boundsBottom) {
+        // Not enough room below, try above
         top = coords.top - height - padding;
       } else {
         top = coords.bottom + padding;
       }
-      top = Math.max(padding, top);
+      // Don't go past top bound
+      top = Math.max(boundsTop + padding, top);
 
       container.style.left = `${left}px`;
       container.style.top = `${top}px`;
@@ -481,8 +502,8 @@ export const WritingChecker = Extension.create({
                   }
 
                   const coords = view.coordsAtPos(hoveredIssue.from);
-                  // Use full tooltip size (320x200)
-                  positionTooltip(hoverContainer, coords, 320, 200);
+                  // Position within dialog bounds if inside a dialog
+                  positionTooltip(hoverContainer, coords, 320, 200, dialogContent);
 
                   extension.storage.hoverContainer = hoverContainer;
                   extension.storage.hoverRoot = createRoot(hoverContainer);
@@ -785,7 +806,8 @@ export const WritingChecker = Extension.create({
             }
 
             const coords = view.coordsAtPos(issue.from);
-            positionTooltip(tooltipContainer, coords, 320, 200);
+            // Position within dialog bounds if inside a dialog
+            positionTooltip(tooltipContainer, coords, 320, 200, dialogContent);
 
             extension.storage.tooltipContainer = tooltipContainer;
             extension.storage.tooltipRoot = createRoot(tooltipContainer);

@@ -1,5 +1,8 @@
 "use client";
 
+// SSoT: TipTap warning suppression - must be first import
+import "@/lib/tiptap-utils";
+
 import * as React from "react";
 import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";

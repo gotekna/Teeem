@@ -1,5 +1,8 @@
 "use client";
 
+// SSoT: TipTap warning suppression - must be first import
+import "@/lib/tiptap-utils";
+
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEditor, EditorContent } from "@tiptap/react";
