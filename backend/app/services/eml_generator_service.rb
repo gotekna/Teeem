@@ -73,8 +73,11 @@ class EmlGeneratorService
       content = generate(email)
       return nil unless content
 
-      # Upload to S3
-      provider = DocumentProviders.for_organization(Organization.first)
+      # Upload to S3 - get organization from email's credential
+      organization = email.microsoft_credential&.organization ||
+                     email.imap_credential&.organization ||
+                     Organization.first
+      provider = DocumentProviders.for_organization(organization)
       return nil unless provider
 
       # Use StorageConfiguration for path template
