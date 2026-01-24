@@ -1475,6 +1475,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         cc_emails: undefined,
         body_text: undefined,
         body_html: undefined,
+        conversation_id: undefined, // Required for SSoT conversation threading
       };
     }
 
@@ -3542,6 +3543,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return !linkedToQuestion;
     });
 
+    // SSoT: Only include emails from the SAME conversation thread as the email being replied to
+    // This prevents mixing emails from different matters that happen to be from the same sender
+    const originalConversationId = originalEmailData?.conversation_id;
+
     // Separate by option type (documents and emails)
     // 'both' option includes item in BOTH attached AND linked lists
     const attachedFiles = generalResponseAttachments.filter(att => {
@@ -3550,7 +3555,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     });
     const attachedEmails = generalResponseAttachments.filter(att => {
       const opt = attachmentEmailOptions[att.id];
-      return (opt === 'attach' || opt === 'both') && att.email;
+      if (!((opt === 'attach' || opt === 'both') && att.email)) return false;
+
+      // Filter by conversation_id - only include emails from the same thread
+      if (originalConversationId && att.email?.conversation_id) {
+        return att.email.conversation_id === originalConversationId;
+      }
+      // If no conversation_id, fall back to including the email (legacy behavior)
+      return true;
     });
     const linkedFiles = generalResponseAttachments.filter(att => {
       const opt = attachmentEmailOptions[att.id];
@@ -3558,7 +3570,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     });
     const linkedEmails = generalResponseAttachments.filter(att => {
       const opt = attachmentEmailOptions[att.id];
-      return (opt === 'link' || opt === 'both') && att.email;
+      if (!((opt === 'link' || opt === 'both') && att.email)) return false;
+
+      // Filter by conversation_id - only include emails from the same thread
+      if (originalConversationId && att.email?.conversation_id) {
+        return att.email.conversation_id === originalConversationId;
+      }
+      // If no conversation_id, fall back to including the email (legacy behavior)
+      return true;
     });
     // 'none' files are excluded
 
