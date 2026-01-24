@@ -29,8 +29,9 @@ class WritingAssistantService
   # @param text [String] The text to check
   # @param context [String] The context type (task_name, question, action, etc.)
   # @param mode [String] "auto" (default), "basic" (free tier only), or "ai" (AI only)
+  # @param user_dictionary [Array<String>] Optional array of user's custom dictionary words
   # @return [Hash] Result with issues, corrected_text, and quality
-  def check(text, context: "general", mode: "auto")
+  def check(text, context: "general", mode: "auto", user_dictionary: [])
     Rails.logger.info "[WritingAssistant] Checking text (#{text.length} chars, mode: #{mode}): #{text.truncate(100)}"
 
     if text.blank? || text.length < MIN_CHECK_LENGTH
@@ -45,37 +46,37 @@ class WritingAssistantService
     case mode
     when "basic"
       Rails.logger.info "[WritingAssistant] Using basic (free) spell check"
-      return basic_check(text)
+      return basic_check(text, user_dictionary: user_dictionary)
     when "ai"
-      return ai_check(text, context)
+      return ai_check(text, context, user_dictionary: user_dictionary)
     else # "auto"
       # Try AI if configured, otherwise use basic
       if ENV["ANTHROPIC_API_KEY"].present?
-        result = ai_check(text, context)
+        result = ai_check(text, context, user_dictionary: user_dictionary)
         return result if result[:issues].any? || result[:quality] != "excellent"
       end
       # Fall back to or supplement with basic check
       Rails.logger.info "[WritingAssistant] Using basic spell check (AI not available or found no issues)"
-      return basic_check(text)
+      return basic_check(text, user_dictionary: user_dictionary)
     end
   end
 
   private
 
   # Free tier: Basic spell check using local dictionary
-  def basic_check(text)
-    BasicSpellCheckService.new.check(text)
+  def basic_check(text, user_dictionary: [])
+    BasicSpellCheckService.new.check(text, user_dictionary: user_dictionary)
   end
 
   # AI tier: Full grammar, tone, and spell check using Claude
-  def ai_check(text, context)
+  def ai_check(text, context, user_dictionary: [])
     if ENV["ANTHROPIC_API_KEY"].blank?
       Rails.logger.warn "[WritingAssistant] ANTHROPIC_API_KEY not configured, falling back to basic"
       return empty_result(text)
     end
 
     response = call_claude(
-      prompt: build_prompt(text, context),
+      prompt: build_prompt(text, context, user_dictionary),
       model: CLAUDE_HAIKU,
       max_tokens: 500
     )
@@ -83,6 +84,16 @@ class WritingAssistantService
     Rails.logger.info "[WritingAssistant] Claude raw response: #{response.inspect.truncate(500)}"
 
     result = parse_response(response, text)
+
+    # Filter out any issues for words in user dictionary
+    if user_dictionary.any?
+      user_dict_set = Set.new(user_dictionary.map(&:downcase))
+      result[:issues] = result[:issues].reject do |issue|
+        user_dict_set.include?(issue[:original]&.downcase) ||
+          user_dict_set.include?(issue["original"]&.downcase)
+      end
+    end
+
     Rails.logger.info "[WritingAssistant] AI check result: #{result[:issues].length} issues"
 
     result
@@ -91,15 +102,18 @@ class WritingAssistantService
     Rails.logger.error "[WritingAssistant] Backtrace: #{e.backtrace.first(3).join("\n")}"
     # Fall back to basic check on AI failure
     Rails.logger.info "[WritingAssistant] Falling back to basic spell check"
-    basic_check(text)
+    basic_check(text, user_dictionary: user_dictionary)
   end
 
-  def build_prompt(text, context)
+  def build_prompt(text, context, user_dictionary = [])
+    # Combine business terms with user dictionary for the prompt
+    all_ignore_words = BUSINESS_TERMS + user_dictionary.map(&:to_s)
+
     <<~PROMPT
       You are a writing assistant checking #{context_description(context)} for spelling, grammar, and tone issues.
 
       IMPORTANT RULES:
-      1. These business/technical terms are VALID - do NOT flag them: #{BUSINESS_TERMS.join(", ")}
+      1. These terms are VALID - do NOT flag them: #{all_ignore_words.join(", ")}
       2. Don't flag proper nouns or company names
       3. Be lenient with informal but clear language
       4. Focus on actual errors, not stylistic preferences

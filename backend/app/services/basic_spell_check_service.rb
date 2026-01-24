@@ -199,8 +199,13 @@ class BasicSpellCheckService
     qty po rfi eot pc sow wbs nte cod eta etd moq bom cad pdf dwg
   ].freeze
 
-  def check(text)
+  # @param text [String] The text to check
+  # @param user_dictionary [Array<String>] Optional array of user's custom dictionary words
+  def check(text, user_dictionary: [])
     return empty_result(text) if text.blank? || text.length < 3
+
+    # Build set of words to ignore (includes user dictionary)
+    ignore_set = build_ignore_set(user_dictionary)
 
     words = extract_words(text)
     issues = []
@@ -209,8 +214,8 @@ class BasicSpellCheckService
       word = word_info[:word]
       word_lower = word.downcase
 
-      # Skip ignored words
-      next if IGNORE_WORDS.any? { |iw| iw.casecmp?(word) }
+      # Skip ignored words (includes user dictionary)
+      next if ignore_set.include?(word_lower)
 
       # Check known misspellings
       if COMMON_MISSPELLINGS.key?(word_lower)
@@ -253,6 +258,15 @@ class BasicSpellCheckService
   end
 
   private
+
+  # Build a set of words to ignore (case-insensitive)
+  # Combines IGNORE_WORDS constant with user's custom dictionary
+  def build_ignore_set(user_dictionary)
+    set = Set.new
+    IGNORE_WORDS.each { |w| set.add(w.downcase) }
+    user_dictionary.each { |w| set.add(w.to_s.downcase) }
+    set
+  end
 
   def extract_words(text)
     words = []

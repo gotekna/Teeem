@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from "@/components/ui/spinner";
 import { useSpellCheck, type SpellCheckIssue } from "@/hooks/useSpellCheck";
-import { Check, ChevronRight, Loader2, SpellCheck as SpellCheckIcon, Sparkles } from "lucide-react";
+import { Check, ChevronRight, Loader2, SpellCheck as SpellCheckIcon, Sparkles, BookPlus } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -54,7 +54,7 @@ export function TextEditor({
   maxLength,
   multiline = false,
   rows = 3,
-  enableSpellCheck = false,
+  enableSpellCheck = true,
 }: TextEditorProps) {
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -68,6 +68,7 @@ export function TextEditor({
     applyFix,
     applyAllFixes,
     dismissIssue,
+    addToDictionary,
   } = useSpellCheck(value, {
     enabled: shouldSpellCheck,
     context: multiline ? "notes" : "general",
@@ -153,6 +154,14 @@ export function TextEditor({
     setIsPopoverOpen(false);
   }, [applyAllFixes, value, onChange]);
 
+  // Handle add to dictionary
+  const handleAddToDictionary = useCallback(
+    async (issue: SpellCheckIssue) => {
+      await addToDictionary(issue.original);
+    },
+    [addToDictionary]
+  );
+
   // Common props for both Input and Textarea
   const commonProps = {
     value: value ?? '',
@@ -215,6 +224,7 @@ export function TextEditor({
                   onFix={handleSpellFix}
                   onDismiss={dismissIssue}
                   onFixAll={handleFixAll}
+                  onAddToDictionary={handleAddToDictionary}
                 />
               </PopoverContent>
             </Popover>
@@ -245,11 +255,13 @@ function SpellCheckPopover({
   onFix,
   onDismiss,
   onFixAll,
+  onAddToDictionary,
 }: {
   issues: SpellCheckIssue[];
   onFix: (issue: SpellCheckIssue) => void;
   onDismiss: (issue: SpellCheckIssue) => void;
   onFixAll: () => void;
+  onAddToDictionary: (issue: SpellCheckIssue) => void;
 }) {
   const issueTypeConfig = {
     spelling: {
@@ -323,6 +335,17 @@ function SpellCheckPopover({
                   <Check className="h-2.5 w-2.5 mr-1" />
                   Fix
                 </Button>
+                {issue.type === "spelling" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onAddToDictionary(issue)}
+                    className="h-6 text-[10px] px-2"
+                    title="Add to Dictionary"
+                  >
+                    <BookPlus className="h-2.5 w-2.5" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"

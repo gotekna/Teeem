@@ -74,6 +74,10 @@ interface UseSpellCheckReturn {
   clear: () => void;
   /** Dismiss a specific issue (won't show again for this text) */
   dismissIssue: (issue: SpellCheckIssue) => void;
+  /** Add a word to the user's dictionary (won't be flagged in future) */
+  addToDictionary: (word: string) => Promise<boolean>;
+  /** Whether addToDictionary is in progress */
+  isAddingToDictionary: boolean;
 }
 
 /**
@@ -109,12 +113,14 @@ export function useSpellCheck(
   const [isChecking, setIsChecking] = useState(false);
   const [correctedText, setCorrectedText] = useState<string | null>(null);
   const [quality, setQuality] = useState<"excellent" | "good" | "needs_work" | null>(null);
+  const [isAddingToDictionary, setIsAddingToDictionary] = useState(false);
 
   // Track state
   const lastCheckedText = useRef<string>("");
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortController = useRef<AbortController | null>(null);
   const dismissedIssues = useRef<Set<string>>(new Set());
+  const localDictionary = useRef<Set<string>>(new Set()); // Local cache of added words
 
   // Normalize text
   const normalizedText = (text || "").trim();
@@ -319,6 +325,50 @@ export function useSpellCheck(
     [issues, onIssuesChange]
   );
 
+  // Add a word to the user's dictionary
+  const addToDictionary = useCallback(
+    async (word: string): Promise<boolean> => {
+      const normalizedWord = word.trim().toLowerCase();
+      if (!normalizedWord) return false;
+
+      // Add to local cache immediately for instant UI feedback
+      localDictionary.current.add(normalizedWord);
+
+      // Remove all issues for this word from current issues
+      const newIssues = issues.filter(
+        (issue) => issue.original.toLowerCase() !== normalizedWord
+      );
+      if (newIssues.length !== issues.length) {
+        setIssues(newIssues);
+        onIssuesChange?.(newIssues);
+      }
+
+      // Persist to server
+      setIsAddingToDictionary(true);
+      try {
+        const response = await api.post<{
+          success: boolean;
+          data?: { word: string };
+          error?: string;
+        }>("/api/v1/user_dictionary", { word: normalizedWord });
+
+        if (response?.success) {
+          // Force re-check on next text change
+          lastCheckedText.current = "";
+          return true;
+        }
+        console.error("[useSpellCheck] Failed to add to dictionary:", response?.error);
+        return false;
+      } catch (error) {
+        console.error("[useSpellCheck] Error adding to dictionary:", error);
+        return false;
+      } finally {
+        setIsAddingToDictionary(false);
+      }
+    },
+    [issues, onIssuesChange]
+  );
+
   return {
     issues,
     isChecking,
@@ -329,6 +379,8 @@ export function useSpellCheck(
     applyAllFixes,
     clear,
     dismissIssue,
+    addToDictionary,
+    isAddingToDictionary,
   };
 }
 

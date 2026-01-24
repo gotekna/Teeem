@@ -1481,6 +1481,9 @@ Rails.application.routes.draw do
       # Writing Assistant (AI-powered spell check, grammar, tone)
       post "writing_assistant/check", to: "writing_assistant#check"
 
+      # User Dictionary (custom words for spell check)
+      resources :user_dictionary, only: [ :index, :create, :destroy ]
+
       # IMAP Email Credentials (unified inbox)
       resources :imap_credentials, only: [ :index, :show, :create, :update, :destroy ] do
         collection do

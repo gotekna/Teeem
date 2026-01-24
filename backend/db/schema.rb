@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_24_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_24_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9878,6 +9878,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_24_130000) do
     t.index ["user_id"], name: "index_user_absences_on_user_id"
   end
 
+  create_table "user_dictionary_words", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "word", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "word"], name: "index_user_dictionary_words_on_user_id_and_word", unique: true
+    t.index ["user_id"], name: "index_user_dictionary_words_on_user_id"
+  end
+
   create_table "user_documents", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "document_type_id"
@@ -11543,6 +11552,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_24_130000) do
   add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
   add_foreign_key "user_absences", "users"
   add_foreign_key "user_absences", "users", column: "approved_by_id"
+  add_foreign_key "user_dictionary_words", "users"
   add_foreign_key "user_documents", "document_types"
   add_foreign_key "user_documents", "storage_blobs"
   add_foreign_key "user_documents", "users"

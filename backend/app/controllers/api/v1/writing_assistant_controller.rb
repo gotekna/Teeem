@@ -31,9 +31,13 @@ class Api::V1::WritingAssistantController < ApplicationController
       }
     end
 
+    # Get user's custom dictionary words
+    user_dictionary = current_user ? UserDictionaryWord.words_for_user(current_user) : []
+    Rails.logger.info "[WritingAssistant] User dictionary: #{user_dictionary.length} words"
+
     # Service handles fallback from AI to basic automatically
     service = WritingAssistantService.new
-    result = service.check(text, context: context, mode: mode)
+    result = service.check(text, context: context, mode: mode, user_dictionary: user_dictionary)
 
     Rails.logger.info "[WritingAssistant] Controller returning #{result[:issues].length} issues"
     render json: { success: true, data: result }

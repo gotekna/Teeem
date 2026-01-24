@@ -7,7 +7,7 @@ import { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import * as React from "react";
 import { createRoot, Root } from "react-dom/client";
 import { api } from "@/lib/api";
-import { Check, X, Sparkles, ChevronRight } from "lucide-react";
+import { Check, X, Sparkles, ChevronRight, BookPlus } from "lucide-react";
 
 // Types for writing issues
 export interface WritingIssue {
@@ -153,22 +153,26 @@ function DetailTooltip({
   onFix,
   onDismiss,
   onClose,
+  onAddToDictionary,
 }: {
   issue: WritingIssue;
   onFix: () => void;
   onDismiss: () => void;
   onClose: () => void;
+  onAddToDictionary?: () => void;
 }) {
   const config = issueTypeConfig[issue.type];
   const applyFixRef = React.useRef<HTMLButtonElement>(null);
   const ignoreRef = React.useRef<HTMLButtonElement>(null);
+  const addToDictRef = React.useRef<HTMLButtonElement>(null);
 
   // Use native DOM events since React events don't work reliably in createRoot portals
   React.useEffect(() => {
     console.log('[WritingChecker] DetailTooltip useEffect running');
     const applyBtn = applyFixRef.current;
     const ignoreBtn = ignoreRef.current;
-    console.log('[WritingChecker] Refs:', { applyBtn: !!applyBtn, ignoreBtn: !!ignoreBtn });
+    const addToDictBtn = addToDictRef.current;
+    console.log('[WritingChecker] Refs:', { applyBtn: !!applyBtn, ignoreBtn: !!ignoreBtn, addToDictBtn: !!addToDictBtn });
 
     const handleApplyClick = (e: MouseEvent) => {
       console.log('[WritingChecker] Apply Fix native click');
@@ -184,6 +188,13 @@ function DetailTooltip({
       onDismiss();
     };
 
+    const handleAddToDictClick = (e: MouseEvent) => {
+      console.log('[WritingChecker] Add to Dictionary native click');
+      e.preventDefault();
+      e.stopPropagation();
+      onAddToDictionary?.();
+    };
+
     if (applyBtn) {
       console.log('[WritingChecker] Adding click listener to Apply Fix button');
       applyBtn.addEventListener('click', handleApplyClick);
@@ -191,12 +202,16 @@ function DetailTooltip({
     if (ignoreBtn) {
       ignoreBtn.addEventListener('click', handleIgnoreClick);
     }
+    if (addToDictBtn) {
+      addToDictBtn.addEventListener('click', handleAddToDictClick);
+    }
 
     return () => {
       applyBtn?.removeEventListener('click', handleApplyClick);
       ignoreBtn?.removeEventListener('click', handleIgnoreClick);
+      addToDictBtn?.removeEventListener('click', handleAddToDictClick);
     };
-  }, [onFix, onDismiss]);
+  }, [onFix, onDismiss, onAddToDictionary]);
 
   return (
     <div
@@ -257,6 +272,16 @@ function DetailTooltip({
           <Check className="h-4 w-4" />
           Apply Fix
         </button>
+        {issue.type === "spelling" && onAddToDictionary && (
+          <button
+            ref={addToDictRef}
+            type="button"
+            className="px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+            title="Add to Dictionary"
+          >
+            <BookPlus className="h-4 w-4" />
+          </button>
+        )}
         <button
           ref={ignoreRef}
           type="button"
@@ -662,12 +687,47 @@ export const WritingChecker = Extension.create({
               view.focus();
             };
 
+            const handleAddToDictionary = async () => {
+              console.log('[WritingChecker] Adding to dictionary:', issue.original);
+              try {
+                const response = await api.post<{
+                  success: boolean;
+                  data?: { word: string };
+                  error?: string;
+                }>("/api/v1/user_dictionary", { word: issue.original });
+
+                if (response?.success) {
+                  // Remove this issue and any others with the same word
+                  const currentState = writingCheckerKey.getState(view.state);
+                  if (currentState) {
+                    const wordLower = issue.original.toLowerCase();
+                    const newIssues = currentState.issues.filter(
+                      (i) => i.original.toLowerCase() !== wordLower
+                    );
+                    const decorations = createDecorations(view.state.doc, newIssues);
+                    const tr = view.state.tr.setMeta(writingCheckerKey, {
+                      decorations,
+                      issues: newIssues,
+                    });
+                    view.dispatch(tr);
+                  }
+                  // Force re-check on next text change
+                  extension.storage.lastCheckedText = "";
+                  cleanupTooltip();
+                  view.focus();
+                }
+              } catch (error) {
+                console.error('[WritingChecker] Error adding to dictionary:', error);
+              }
+            };
+
             extension.storage.tooltipRoot.render(
               <DetailTooltip
                 issue={issue}
                 onFix={handleFix}
                 onDismiss={handleDismiss}
                 onClose={handleClose}
+                onAddToDictionary={issue.type === "spelling" ? handleAddToDictionary : undefined}
               />
             );
 
