@@ -110,17 +110,9 @@ class NotebookPageAttachment < ApplicationRecord
   # StorageBlob File Access (SSoT)
   # ========================================
 
-  # Check if attachment has a file
-  def has_file?
-    storage_blob_id.present?
-  end
+  # has_file? is provided by BlobStorable concern (SSoT)
 
-  # Get presigned download URL for the file
-  def file_url(expires_in: 3600)
-    return nil unless storage_blob
-
-    storage_blob.presigned_url(expires_in: expires_in, filename: file_name)
-  end
+  # file_url is provided by BlobStorable concern (SSoT)
 
   # download_file is provided by BlobStorable concern (SSoT)
 

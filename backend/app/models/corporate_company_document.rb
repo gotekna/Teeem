@@ -268,14 +268,11 @@ class CorporateCompanyDocument < ApplicationRecord
   # StorageBlob File Access (SSoT - Jan 2026)
   # ========================================
 
-  def has_file?
-    storage_blob_id.present?
-  end
+  # has_file? is provided by StorableDocument concern (SSoT)
 
-  def file_url(expires_in: 3600)
-    return nil unless storage_blob
-    storage_blob.presigned_url(expires_in: expires_in, filename: file_name)
-  end
+  # file_url is provided by StorableDocument concern (SSoT)
+
+  # download_file is provided by StorableDocument concern (SSoT)
 
   def attach_file(content, filename:, content_type: nil)
     blob = StorageBlob.find_or_create_for_content!(

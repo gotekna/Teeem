@@ -299,19 +299,9 @@ class JobDocument < ApplicationRecord
   # StorageBlob File Access (SSoT)
   # ========================================
 
-  # Check if document has an attached file
-  def has_file?
-    storage_blob_id.present?
-  end
+  # has_file? is provided by StorableDocument concern (SSoT)
 
-  # Get presigned download URL for the file
-  # @param expires_in [Integer] Expiry time in seconds (default: 3600)
-  # @return [String, nil] Presigned download URL or nil if no file
-  def file_url(expires_in: 3600)
-    return nil unless storage_blob
-
-    storage_blob.presigned_url(expires_in: expires_in, filename: file_name)
-  end
+  # file_url is provided by StorableDocument concern (SSoT)
 
   # download_file is provided by StorableDocument concern (SSoT)
 

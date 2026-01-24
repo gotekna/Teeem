@@ -167,6 +167,16 @@ module StorableDocument
     end
   end
 
+  # Get presigned download URL for the file (SSoT)
+  # @param expires_in [Integer] Expiry time in seconds (default: 3600)
+  # @return [String, nil] Presigned download URL or nil if no file
+  def file_url(expires_in: 3600)
+    return nil unless respond_to?(:storage_blob) && storage_blob
+
+    filename = respond_to?(:file_name) ? file_name : nil
+    storage_blob.presigned_url(expires_in: expires_in, filename: filename)
+  end
+
   # ========================================
   # Migration Methods
   # ========================================

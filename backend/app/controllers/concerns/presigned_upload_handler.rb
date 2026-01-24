@@ -116,29 +116,8 @@ module PresignedUploadHandler
     nil
   end
 
+  # SSoT: ContentTypeDetector (lib/utils/content_type_detector.rb)
   def detect_content_type(filename)
-    extension = File.extname(filename).downcase
-    CONTENT_TYPES[extension] || "application/octet-stream"
+    ContentTypeDetector.detect(filename)
   end
-
-  CONTENT_TYPES = {
-    ".pdf" => "application/pdf",
-    ".doc" => "application/msword",
-    ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".xls" => "application/vnd.ms-excel",
-    ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".csv" => "text/csv",
-    ".txt" => "text/plain",
-    ".jpg" => "image/jpeg",
-    ".jpeg" => "image/jpeg",
-    ".png" => "image/png",
-    ".gif" => "image/gif",
-    ".zip" => "application/zip",
-    ".json" => "application/json",
-    ".xml" => "application/xml",
-    ".mp4" => "video/mp4",
-    ".mov" => "video/quicktime",
-    ".mpp" => "application/vnd.ms-project",
-    ".eml" => "message/rfc822"
-  }.freeze
 end

@@ -166,15 +166,9 @@ class MigrateAllDocumentsToBlobStorageJob < ApplicationJob
     end
   end
 
-  def detect_content_type(extension)
-    case extension.downcase
-    when ".pdf" then "application/pdf"
-    when ".eml" then "message/rfc822"
-    when ".jpg", ".jpeg" then "image/jpeg"
-    when ".png" then "image/png"
-    when ".docx" then "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    when ".xlsx" then "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    else "application/octet-stream"
-    end
+  # SSoT: ContentTypeDetector (lib/utils/content_type_detector.rb)
+  # Note: accepts extension (e.g., ".pdf") or filename
+  def detect_content_type(extension_or_filename)
+    ContentTypeDetector.detect(extension_or_filename)
   end
 end

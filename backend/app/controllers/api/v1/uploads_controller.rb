@@ -301,29 +301,10 @@ module Api
         filename.to_s.gsub(/[^a-zA-Z0-9._-]/, "_").strip
       end
 
+      # SSoT: ContentTypeDetector (lib/utils/content_type_detector.rb)
       def detect_content_type(filename)
-        return "application/octet-stream" unless filename
-
-        ext = File.extname(filename).downcase
-        CONTENT_TYPES[ext] || "application/octet-stream"
+        ContentTypeDetector.detect(filename)
       end
-
-      CONTENT_TYPES = {
-        ".pdf" => "application/pdf",
-        ".doc" => "application/msword",
-        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ".xls" => "application/vnd.ms-excel",
-        ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ".csv" => "text/csv",
-        ".txt" => "text/plain",
-        ".jpg" => "image/jpeg",
-        ".jpeg" => "image/jpeg",
-        ".png" => "image/png",
-        ".gif" => "image/gif",
-        ".zip" => "application/zip",
-        ".json" => "application/json",
-        ".xml" => "application/xml"
-      }.freeze
     end
   end
 end

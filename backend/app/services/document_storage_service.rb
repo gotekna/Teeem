@@ -358,24 +358,9 @@ class DocumentStorageService
     end
   end
 
-  def detect_content_type(filename, content = nil)
-    return "application/octet-stream" unless filename
-
-    case File.extname(filename).downcase
-    when ".pdf" then "application/pdf"
-    when ".doc" then "application/msword"
-    when ".docx" then "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    when ".xls" then "application/vnd.ms-excel"
-    when ".xlsx" then "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    when ".png" then "image/png"
-    when ".jpg", ".jpeg" then "image/jpeg"
-    when ".gif" then "image/gif"
-    when ".txt" then "text/plain"
-    when ".csv" then "text/csv"
-    when ".eml" then "message/rfc822"
-    when ".zip" then "application/zip"
-    else "application/octet-stream"
-    end
+  # SSoT: ContentTypeDetector (lib/utils/content_type_detector.rb)
+  def detect_content_type(filename, _content = nil)
+    ContentTypeDetector.detect(filename)
   end
 
   def sanitize_filename(filename)
