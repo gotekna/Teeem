@@ -235,6 +235,7 @@ module DocumentProviders
       key = resolve_key(path_or_id)
       expires_in = options.fetch(:expires_in, 3600)
       filename = options[:filename]
+      disposition = options.fetch(:disposition, :attachment) # :attachment or :inline
 
       presign_params = {
         bucket: @bucket,
@@ -244,10 +245,14 @@ module DocumentProviders
 
       # SSoT: Send Name - custom filename for downloads
       # Uses Content-Disposition header to override browser download filename
+      # disposition: :attachment forces download, :inline allows browser to display
       if filename.present?
         # Sanitize and encode filename for Content-Disposition header
         safe_filename = sanitize_download_filename(filename)
-        presign_params[:response_content_disposition] = "attachment; filename=\"#{safe_filename}\""
+        presign_params[:response_content_disposition] = "#{disposition}; filename=\"#{safe_filename}\""
+      elsif disposition == :inline
+        # For inline without filename, just set disposition
+        presign_params[:response_content_disposition] = "inline"
       end
 
       # Use browser-safe client with virtual-hosted style URLs

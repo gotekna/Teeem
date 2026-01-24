@@ -1326,6 +1326,8 @@ module Api
       # POST /api/v1/sm_tasks/:id/attachments/:attachment_id/share_link
       # Create anonymous sharing link ("Anyone with the link")
       # SSoT: Uses DocumentStorageService.create_share_link (provider-agnostic)
+      # @param open [Boolean] If true, returns inline disposition (browser displays file)
+      #   If false/missing, returns attachment disposition (browser downloads file)
       def create_attachment_share_link
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
         attachable = attachment.attachable
@@ -1335,10 +1337,13 @@ module Api
           return render json: { success: false, error: "Attachment type not supported for sharing" }, status: :unprocessable_entity
         end
 
+        # Disposition: inline (open in browser) vs attachment (download)
+        disposition = params[:open].to_s == "true" ? :inline : :attachment
+
         # SSoT: Use DocumentStorageService for provider-agnostic share link creation
         # Handles both S3 (presigned URLs) and SharePoint (share links)
         service = DocumentStorageService.new
-        result = service.create_share_link(attachable, type: "view", scope: "anonymous")
+        result = service.create_share_link(attachable, type: "view", scope: "anonymous", disposition: disposition)
 
         if result[:success]
           render json: { success: true, share_url: result[:share_url] }

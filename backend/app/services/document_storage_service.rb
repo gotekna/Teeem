@@ -174,9 +174,10 @@ class DocumentStorageService
   # @param expires_in [Integer] Expiry in seconds for S3 URLs (default: 7 days)
   # @param type [String] SharePoint link type: "view" or "edit" (default: "view")
   # @param scope [String] SharePoint scope: "anonymous" or "organization" (default: "anonymous")
+  # @param disposition [Symbol] :attachment (download) or :inline (view in browser)
   # @return [Hash] { success: true, share_url: "...", provider: :s3/:sharepoint }
   #                or { success: false, error: "..." }
-  def create_share_link(record, expires_in: 604800, type: "view", scope: "anonymous")
+  def create_share_link(record, expires_in: 604800, type: "view", scope: "anonymous", disposition: :attachment)
     return error_result("No record provided") unless record
 
     # SSoT Priority:
@@ -185,12 +186,12 @@ class DocumentStorageService
     # 3. SyncedEmail → Lazy self-heal (generate .eml from database)
 
     if has_s3_storage?(record)
-      create_s3_share_link(record, expires_in: expires_in)
+      create_s3_share_link(record, expires_in: expires_in, disposition: disposition)
     elsif has_sharepoint_storage?(record)
       create_sharepoint_share_link(record, type: type, scope: scope)
     elsif record.is_a?(SyncedEmail)
       # Ultra: Lazy self-heal - generate .eml and create share link
-      create_s3_share_link(record, expires_in: expires_in)
+      create_s3_share_link(record, expires_in: expires_in, disposition: disposition)
     else
       error_result("Document not in storage (missing storage_path and storage_reference)")
     end
@@ -264,8 +265,9 @@ class DocumentStorageService
   #
   # @param record [ActiveRecord::Base] Document model
   # @param expires_in [Integer] URL expiry in seconds (default: 3600)
+  # @param disposition [Symbol] :attachment (download) or :inline (view in browser)
   # @return [Hash] { success: true, url: "...", filename: "..." }
-  def download_url(record, expires_in: 3600)
+  def download_url(record, expires_in: 3600, disposition: :attachment)
     return error_result("No record provided", status: :bad_request) unless record
 
     # SSoT: StorageBlob is THE ONE source for file paths
@@ -310,7 +312,7 @@ class DocumentStorageService
         # This is the filename used when downloading (Content-Disposition header)
         send_name = resolve_send_name(record)
 
-        url = provider.download_url(s3_key, expires_in: expires_in, filename: send_name)
+        url = provider.download_url(s3_key, expires_in: expires_in, filename: send_name, disposition: disposition)
         { success: true, url: url, filename: send_name }
       rescue DocumentProviders::NotFoundError
         error_result("File not found in S3 storage: #{s3_key}", status: :not_found)
@@ -327,7 +329,7 @@ class DocumentStorageService
         new_path = EmlGeneratorService.generate_and_upload(record)
         if new_path.present?
           # Recursively call download_url now that the file exists
-          return download_url(record, expires_in: expires_in)
+          return download_url(record, expires_in: expires_in, disposition: disposition)
         else
           Rails.logger.warn "[DocumentStorage] Failed to lazy-load email #{record.id}"
           return error_result("Could not generate email file", status: :not_found)
@@ -611,8 +613,8 @@ class DocumentStorageService
   end
 
   # Create S3 presigned URL as share link
-  def create_s3_share_link(record, expires_in:)
-    result = download_url(record, expires_in: expires_in)
+  def create_s3_share_link(record, expires_in:, disposition: :attachment)
+    result = download_url(record, expires_in: expires_in, disposition: disposition)
     if result[:success]
       { success: true, share_url: result[:url], provider: :s3_compatible, expires_in: expires_in }
     else

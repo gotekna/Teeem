@@ -2633,11 +2633,33 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   };
 
   // Open an attachment in a new window
-  const handleOpenAttachmentInNewWindow = (att: TaskAttachment) => {
+  // Uses share_link API with open=true to get inline disposition (browser displays file)
+  const handleOpenAttachmentInNewWindow = async (att: TaskAttachment) => {
     if (!att.document) return;
-    const url = att.document.storage_url || att.document.file_url;
-    if (url) {
-      window.open(url, '_blank');
+
+    try {
+      // Get presigned URL with inline disposition for browser viewing
+      const response = await api.post<{ success: boolean; share_url?: string; error?: string }>(
+        `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`,
+        { open: true }
+      );
+
+      if (response?.success && response?.share_url) {
+        window.open(response.share_url, '_blank');
+      } else {
+        // Fallback to direct URL if API fails
+        const url = att.document.storage_url || att.document.file_url;
+        if (url) {
+          window.open(url, '_blank');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to get open link:', err);
+      // Fallback to direct URL on error
+      const url = att.document.storage_url || att.document.file_url;
+      if (url) {
+        window.open(url, '_blank');
+      }
     }
   };
 
