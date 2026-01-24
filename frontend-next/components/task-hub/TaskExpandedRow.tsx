@@ -466,6 +466,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [cascadeDialogOpen, setCascadeDialogOpen] = useState(false);
   const [cascadeDialogLoading, setCascadeDialogLoading] = useState(false);
 
+  // Create case state
+  const [creatingCase, setCreatingCase] = useState(false);
+
   // Load followers on mount for all tasks
   useEffect(() => {
     getFollowers(task.id).then(setFollowers).catch(console.error);
@@ -513,6 +516,34 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       console.error('Failed to toggle follow:', error);
     } finally {
       setFollowersLoading(false);
+    }
+  };
+
+  // Create or open case linked to this task
+  const handleCreateCase = async () => {
+    // If task already has a case, just open it
+    if (task.case_id) {
+      window.open(`/cases/${task.case_id}`, '_blank');
+      return;
+    }
+
+    setCreatingCase(true);
+    try {
+      const response = await api.post<{ success: boolean; case?: { id: number; case_number: string; title: string }; error?: string }>(
+        `/api/v1/sm_tasks/${task.id}/create_case`
+      );
+      if (response?.success && response.case) {
+        toast.success(`Case ${response.case.case_number} created`);
+        window.open(`/cases/${response.case.id}`, '_blank');
+        refresh(); // Refresh task list to show case_id
+      } else {
+        toast.error(response?.error || 'Failed to create case');
+      }
+    } catch (error) {
+      console.error('Failed to create case:', error);
+      toast.error('Failed to create case');
+    } finally {
+      setCreatingCase(false);
     }
   };
 
@@ -2055,6 +2086,18 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             Documents
           </Button>
         )}
+
+        {/* Create Case / Open Case */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs gap-1"
+          onClick={handleCreateCase}
+          disabled={creatingCase}
+        >
+          {creatingCase ? <Spinner size={12} /> : <Briefcase className="h-3 w-3" />}
+          {task.case_id ? 'Open Case' : 'Create Case'}
+        </Button>
 
       </div>
 

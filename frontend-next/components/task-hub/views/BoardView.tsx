@@ -38,6 +38,7 @@ import {
 import { Lock, AlertTriangle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getOverdueColorClasses } from '../TaskColorSettings';
+import { PositionBadge } from '@/components/ui/dnd';
 
 // Extend SmTask to include KanbanItem requirements
 interface TaskItem extends SmTask {
@@ -74,7 +75,15 @@ const columns: KanbanColumnDef<TaskItem>[] = [
 ];
 
 // Task card content renderer
-function TaskCardContent({ task, currentUserId }: { task: TaskItem; currentUserId?: number }) {
+interface TaskCardContentProps {
+  task: TaskItem;
+  currentUserId?: number;
+  position?: number;
+  maxPosition?: number;
+  onPositionChange?: (newPosition: number) => void;
+}
+
+function TaskCardContent({ task, currentUserId, position, maxPosition, onPositionChange }: TaskCardContentProps) {
   // Get overdue gradient colors
   const overdueColors = task.is_overdue && task.status !== TASK_STATUS.COMPLETED && task.days_overdue
     ? getOverdueColorClasses(task.days_overdue)
@@ -87,6 +96,16 @@ function TaskCardContent({ task, currentUserId }: { task: TaskItem; currentUserI
   return (
     <div className={cn('px-2 py-1.5 text-xs', overdueColors && overdueColors.bg)}>
       <div className="flex items-center gap-1.5">
+        {/* Position badge for manual reordering */}
+        {position !== undefined && onPositionChange && (
+          <PositionBadge
+            position={position}
+            editable
+            onPositionChange={onPositionChange}
+            maxPosition={maxPosition}
+            size="sm"
+          />
+        )}
         <span
           className={cn(
             'flex-1 truncate',
@@ -261,6 +280,24 @@ export function BoardView() {
     window.open(`/sm_tasks/${task.id}`, '_blank');
   };
 
+  // Handle position change via typed number input
+  const handlePositionChange = useCallback(async (task: TaskItem, newPosition: number) => {
+    const columnTasks = sortedTasks.filter(t => t.status === task.status);
+    const currentIndex = columnTasks.findIndex(t => t.id === task.id);
+    const newIndex = newPosition - 1; // Convert 1-indexed to 0-indexed
+
+    if (currentIndex === -1 || newIndex === currentIndex) return;
+
+    // Calculate the new priority for the target position
+    const newPriority = calculateInsertPriority(columnTasks, currentIndex, newIndex, task.status);
+
+    try {
+      await reorderBoardTask(task.id, task.status, newPriority);
+    } catch (error) {
+      console.error('Failed to reorder task:', error);
+    }
+  }, [sortedTasks, reorderBoardTask]);
+
   // Render a task card
   const renderCard = (task: TaskItem, isDragging: boolean) => {
     // Get overdue gradient colors
@@ -268,27 +305,31 @@ export function BoardView() {
       ? getOverdueColorClasses(task.days_overdue)
       : null;
 
+    // Calculate position within this column (1-indexed for display)
+    const columnTasks = sortedTasks.filter(t => t.status === task.status);
+    const position = columnTasks.findIndex(t => t.id === task.id) + 1;
+    const maxPosition = columnTasks.length;
+
     return (
       <KanbanCard
         key={task.id}
         id={task.id}
         isDragging={isDragging}
         className={cn(
-          overdueColors && overdueColors.border
+          overdueColors && overdueColors.border,
+          "cursor-pointer"
         )}
-      >
-      <div
         onClick={() => handleCardClick(task)}
-        onDoubleClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          handleCardDoubleClick(task);
-        }}
-        className="cursor-pointer"
+        onDoubleClick={() => handleCardDoubleClick(task)}
       >
-        <TaskCardContent task={task} currentUserId={user?.id} />
-      </div>
-    </KanbanCard>
+        <TaskCardContent
+          task={task}
+          currentUserId={user?.id}
+          position={position}
+          maxPosition={maxPosition}
+          onPositionChange={(newPos) => handlePositionChange(task, newPos)}
+        />
+      </KanbanCard>
     );
   };
 

@@ -429,6 +429,9 @@ export const WritingChecker = Extension.create({
                   const hoverContainer = document.createElement("div");
                   hoverContainer.style.position = "fixed";
                   hoverContainer.style.zIndex = "9999";
+                  // Add padding around the tooltip so mouse doesn't leave accidentally
+                  hoverContainer.style.padding = "8px";
+                  hoverContainer.style.margin = "-8px";
                   document.body.appendChild(hoverContainer);
 
                   const coords = view.coordsAtPos(hoveredIssue.from);
@@ -437,28 +440,47 @@ export const WritingChecker = Extension.create({
                   extension.storage.hoverContainer = hoverContainer;
                   extension.storage.hoverRoot = createRoot(hoverContainer);
 
+                  // Track when mouse leaves the hover container
+                  hoverContainer.addEventListener("mouseleave", () => {
+                    // Small delay before cleanup in case user is moving back
+                    setTimeout(() => {
+                      if (!hoverContainer.matches(":hover")) {
+                        cleanupHover();
+                      }
+                    }, 150);
+                  });
+
                   const handleFix = () => {
-                    // Fix THIS specific issue only
-                    const tr = view.state.tr.replaceWith(
+                    console.log('[WritingChecker] HoverTooltip handleFix called');
+                    // Fix THIS specific issue only - use insertText for reliable replacement
+                    const tr = view.state.tr.insertText(
+                      hoveredIssue.suggestion,
                       hoveredIssue.from,
-                      hoveredIssue.to,
-                      view.state.schema.text(hoveredIssue.suggestion)
+                      hoveredIssue.to
                     );
 
-                    // Remove this issue from the list
+                    // Remove this issue and recalculate positions for remaining issues
                     const currentState = writingCheckerKey.getState(view.state);
                     if (currentState) {
-                      const newIssues = currentState.issues.filter((i) => i !== hoveredIssue);
-                      const decorations = createDecorations(tr.doc, newIssues);
+                      const remainingIssues = currentState.issues.filter((i) => i !== hoveredIssue);
+                      // Recalculate positions for remaining issues in the new document
+                      const recalculatedIssues = recalculateIssuePositions(tr.doc, remainingIssues);
+                      const decorations = createDecorations(tr.doc, recalculatedIssues);
                       tr.setMeta(writingCheckerKey, {
                         decorations,
-                        issues: newIssues,
+                        issues: recalculatedIssues,
                       });
                     }
 
+                    // Dispatch the transaction - this updates the editor content
                     view.dispatch(tr);
-                    cleanupHover();
-                    view.focus();
+                    console.log('[WritingChecker] HoverTooltip transaction dispatched');
+
+                    // Cleanup after dispatch (use setTimeout to ensure DOM updates)
+                    setTimeout(() => {
+                      cleanupHover();
+                      view.focus();
+                    }, 0);
                   };
 
                   const handleShowDetails = () => {
@@ -499,12 +521,23 @@ export const WritingChecker = Extension.create({
                 target.classList.contains("writing-issue-grammar") ||
                 target.classList.contains("writing-issue-tone")
               ) {
-                // Delay cleanup to allow moving to hover tooltip
+                // Delay cleanup to allow moving to hover tooltip (500ms for slow mouse movements)
                 setTimeout(() => {
-                  if (!extension.storage.hoverContainer?.matches(":hover")) {
-                    cleanupHover();
-                  }
-                }, 100);
+                  // Check multiple times if tooltip is being hovered
+                  const checkHover = () => {
+                    const container = extension.storage.hoverContainer;
+                    if (!container) return;
+
+                    // Check if mouse is over the container or any of its children
+                    const isHovered = container.matches(":hover") ||
+                      container.querySelector(":hover") !== null;
+
+                    if (!isHovered) {
+                      cleanupHover();
+                    }
+                  };
+                  checkHover();
+                }, 300);
               }
 
               return false;
@@ -560,33 +593,42 @@ export const WritingChecker = Extension.create({
               });
 
               try {
-                // Fix THIS specific issue only
-                const tr = view.state.tr.replaceWith(
+                // Fix THIS specific issue only - use insertText for reliable text replacement
+                const tr = view.state.tr.insertText(
+                  issue.suggestion,
                   issue.from,
-                  issue.to,
-                  view.state.schema.text(issue.suggestion)
+                  issue.to
                 );
 
                 console.log('[WritingChecker] Transaction created', {
                   docChanged: tr.docChanged,
                   steps: tr.steps.length,
+                  textBefore: view.state.doc.textContent.substring(issue.from - 1, issue.to + 10),
                 });
 
-                // Remove this issue from the list
+                // Remove this issue and recalculate positions for remaining issues
                 const currentState = writingCheckerKey.getState(view.state);
                 if (currentState) {
-                  const newIssues = currentState.issues.filter((i) => i !== issue);
-                  const decorations = createDecorations(tr.doc, newIssues);
+                  const remainingIssues = currentState.issues.filter((i) => i !== issue);
+                  // Recalculate positions for remaining issues in the new document
+                  const recalculatedIssues = recalculateIssuePositions(tr.doc, remainingIssues);
+                  const decorations = createDecorations(tr.doc, recalculatedIssues);
                   tr.setMeta(writingCheckerKey, {
                     decorations,
-                    issues: newIssues,
+                    issues: recalculatedIssues,
                   });
                 }
 
+                // Dispatch the transaction - this updates the editor content
                 view.dispatch(tr);
-                console.log('[WritingChecker] Transaction dispatched');
-                cleanupTooltip();
-                view.focus();
+                console.log('[WritingChecker] Transaction dispatched, new content:',
+                  view.state.doc.textContent.substring(Math.max(0, issue.from - 5), issue.from + issue.suggestion.length + 5));
+
+                // Cleanup tooltip after dispatch (use setTimeout to ensure DOM updates)
+                setTimeout(() => {
+                  cleanupTooltip();
+                  view.focus();
+                }, 0);
               } catch (error) {
                 console.error('[WritingChecker] handleFix error:', error);
               }
@@ -714,6 +756,9 @@ export const WritingChecker = Extension.create({
             }, extension.options.debounceMs);
           };
 
+          // Trigger initial check when editor loads with content
+          scheduleCheck();
+
           return {
             update(view, prevState) {
               if (!view.state.doc.eq(prevState.doc)) {
@@ -743,6 +788,59 @@ export const WritingChecker = Extension.create({
   },
 });
 
+// Convert text content index to actual ProseMirror document position
+// ProseMirror positions include node boundaries, so we need to traverse the doc
+function textIndexToDocPos(doc: ProseMirrorNode, textIndex: number): number {
+  let currentTextIndex = 0;
+  let resultPos = -1;
+
+  doc.descendants((node, pos) => {
+    if (resultPos !== -1) return false; // Already found
+
+    if (node.isText && node.text) {
+      const nodeTextLength = node.text.length;
+      if (currentTextIndex + nodeTextLength > textIndex) {
+        // Found the node containing our target index
+        const offsetInNode = textIndex - currentTextIndex;
+        resultPos = pos + offsetInNode;
+        return false;
+      }
+      currentTextIndex += nodeTextLength;
+    }
+    return true;
+  });
+
+  return resultPos;
+}
+
+// Recalculate positions for issues after document changes
+// This finds the original text in the new document and updates positions
+function recalculateIssuePositions(
+  doc: ProseMirrorNode,
+  issues: WritingIssue[]
+): WritingIssue[] {
+  const text = doc.textContent;
+  const result: WritingIssue[] = [];
+
+  for (const issue of issues) {
+    // Find the issue's original text in the new document
+    const index = text.indexOf(issue.original);
+    if (index === -1) continue; // Text no longer exists
+
+    const from = textIndexToDocPos(doc, index);
+    if (from === -1) continue;
+    const to = from + issue.original.length;
+
+    result.push({
+      ...issue,
+      from,
+      to,
+    });
+  }
+
+  return result;
+}
+
 // Find positions of issues in the document
 function findIssuePositions(
   doc: ProseMirrorNode,
@@ -758,7 +856,12 @@ function findIssuePositions(
       const index = text.indexOf(issue.original, searchPos);
       if (index === -1) break;
 
-      const from = index + 1;
+      // Convert text index to document position
+      const from = textIndexToDocPos(doc, index);
+      if (from === -1) {
+        searchPos = index + 1;
+        continue;
+      }
       const to = from + issue.original.length;
 
       const dismissKey = `${issue.original}:${from}`;

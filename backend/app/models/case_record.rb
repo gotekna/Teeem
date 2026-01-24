@@ -29,6 +29,9 @@ class CaseRecord < ApplicationRecord
   has_many :case_jobs, foreign_key: :case_id, dependent: :destroy
   has_many :jobs, through: :case_jobs
 
+  # Tasks linked to this case
+  has_many :sm_tasks, foreign_key: :case_id, dependent: :nullify
+
   # Case content
   has_many :case_actions, foreign_key: :case_id, dependent: :destroy
   has_many :case_documents, foreign_key: :case_id, dependent: :destroy

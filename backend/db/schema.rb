@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_24_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_24_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8880,7 +8880,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_24_120000) do
     t.bigint "dependency_broken_by_id"
     t.bigint "tenant_id"
     t.jsonb "board_priority", default: {}
+    t.bigint "case_id"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
+    t.index ["case_id"], name: "index_sm_tasks_on_case_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
     t.index ["complete_workflow_id"], name: "index_sm_tasks_on_complete_workflow_id"
     t.index ["completion_document_type_id"], name: "index_sm_tasks_on_completion_document_type_id"
@@ -11449,6 +11451,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_24_120000) do
   add_foreign_key "sm_task_photos", "users", column: "uploaded_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "bpmn_processes", column: "complete_workflow_id"
   add_foreign_key "sm_tasks", "bpmn_processes", column: "start_workflow_id"
+  add_foreign_key "sm_tasks", "cases"
   add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "document_types", column: "completion_document_type_id"
   add_foreign_key "sm_tasks", "job_claim_stages"

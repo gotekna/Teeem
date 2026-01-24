@@ -229,6 +229,10 @@ export interface KanbanCardProps {
   disabled?: boolean;
   /** Additional classes */
   className?: string;
+  /** Click handler (fires if drag didn't activate) */
+  onClick?: (e: React.MouseEvent) => void;
+  /** Double-click handler (fires if drag didn't activate) */
+  onDoubleClick?: (e: React.MouseEvent) => void;
 }
 
 /**

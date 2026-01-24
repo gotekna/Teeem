@@ -15,7 +15,7 @@ module Api
         :follow, :unfollow, :followers, :add_follower, :remove_follower,
         :history,
         :compare_to_template, :sync_from_template,
-        :email_supplier,
+        :email_supplier, :create_case,
         :email_link_options, :bulk_link_emails, :search_contacts, :match_keywords, :clear_matched_emails, :link_email_thread
       ]
 
@@ -26,7 +26,7 @@ module Api
         @tasks = SmTask.ordered.includes(
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
           :start_workflow, :complete_workflow, :completion_document_type,
-          :created_by, :task_followers, :source_action_item, :parent_task,
+          :created_by, :task_followers, :source_action_item, :parent_task, :case_record,
           # N+1 fix: action_items needs checked_by and responded_by for action_item_to_json
           action_items: [:checked_by, :responded_by],
           # N+1 fix: sm_task_attachments needs added_by for attachment_to_json
@@ -782,6 +782,56 @@ module Api
           render json: {
             success: false,
             error: "Failed to send email: #{e.message}"
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/sm_tasks/:id/create_case
+      # Creates a new case linked to this task
+      def create_case
+        if @task.case_id.present?
+          return render json: {
+            success: false,
+            error: "Task already linked to a case"
+          }, status: :unprocessable_entity
+        end
+
+        case_attrs = {
+          title: "Case: #{@task.name}",
+          case_type: "other",
+          description: build_case_description(@task),
+          priority: "normal",
+          status: "open",
+          assigned_to: current_user,
+          created_by: current_user
+        }
+
+        # Add job context
+        if @task.job.present?
+          case_attrs[:contact_id] = @task.job.client_id
+          case_attrs[:company_id] = @task.job.corporate_company_id
+        end
+
+        @case = CaseRecord.new(case_attrs)
+
+        if @case.save
+          @task.update!(case_id: @case.id)
+
+          # Link job to case if available
+          @case.add_job(@task.job, relevance: "direct") if @task.job.present?
+
+          render json: {
+            success: true,
+            case: {
+              id: @case.id,
+              case_number: @case.case_number,
+              title: @case.title
+            }
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: @case.errors.full_messages
           }, status: :unprocessable_entity
         end
       end
@@ -2320,6 +2370,14 @@ module Api
         }, status: :not_found
       end
 
+      # Build case description from task context
+      def build_case_description(task)
+        parts = ["Created from task: #{task.name}"]
+        parts << "Task description: #{task.description}" if task.description.present?
+        parts << "Job: #{task.job.job_number} - #{task.job.title}" if task.job.present?
+        parts.join("\n\n")
+      end
+
       def sm_task_params
         params.require(:sm_task).permit(
           # Core fields
@@ -2964,7 +3022,10 @@ module Api
           # Delegation fields
           is_delegated_question: task.is_delegated_question,
           source_action_item_id: task.source_action_item&.id,
-          parent_task_name: task.parent_task&.name
+          parent_task_name: task.parent_task&.name,
+          # Case relationship
+          case_id: task.case_id,
+          case_number: task.case_record&.case_number
         }
 
         if include_dependencies

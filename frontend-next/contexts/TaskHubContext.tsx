@@ -196,6 +196,10 @@ export interface SmTask {
     assigned_user_id?: number;
     assigned_user_name?: string;
   }>;
+
+  // Case relationship - task can be linked to a case for investigation
+  case_id?: number;
+  case_number?: string;
 }
 
 export interface TaskFilters {

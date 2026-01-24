@@ -217,6 +217,9 @@ class SmTask < ApplicationRecord
   # SaaS Customer association (for tickets and customer-linked tasks)
   belongs_to :saas_customer, class_name: "Contact", optional: true
 
+  # Case relationship - task can belong to a case for investigation tracking
+  belongs_to :case_record, class_name: "CaseRecord", foreign_key: :case_id, optional: true
+
   # Follow/unfollow helper methods
   def follow_by(user)
     task_followers.find_or_create_by(user: user)

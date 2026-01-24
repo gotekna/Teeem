@@ -95,16 +95,15 @@ export function ListView() {
     setEditingTaskName('');
   };
 
-  const { overdue, today, thisWeek, upcoming, completed } = useMemo(() => {
+  const { overdue, waitingForResponse, waitingForInfo, thisWeek, upcoming, completed } = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const todayEnd = new Date(todayStart);
-    todayEnd.setDate(todayEnd.getDate() + 1);
     const weekEnd = new Date(todayStart);
     weekEnd.setDate(weekEnd.getDate() + 7);
 
     const overdue: SmTask[] = [];
-    const today: SmTask[] = [];
+    const waitingForResponse: SmTask[] = [];
+    const waitingForInfo: SmTask[] = [];
     const thisWeek: SmTask[] = [];
     const upcoming: SmTask[] = [];
     const completed: SmTask[] = [];
@@ -115,12 +114,21 @@ export function ListView() {
         return;
       }
 
+      // Group waiting statuses separately (not in overdue)
+      if (task.status === TASK_STATUS.WAITING_FOR_RESPONSE) {
+        waitingForResponse.push(task);
+        return;
+      }
+
+      if (task.status === TASK_STATUS.WAITING_FOR_INFO) {
+        waitingForInfo.push(task);
+        return;
+      }
+
       const endDate = new Date(task.end_date);
 
       if (endDate < todayStart) {
         overdue.push(task);
-      } else if (endDate < todayEnd) {
-        today.push(task);
       } else if (endDate < weekEnd) {
         thisWeek.push(task);
       } else {
@@ -133,12 +141,13 @@ export function ListView() {
       new Date(a.end_date).getTime() - new Date(b.end_date).getTime();
 
     overdue.sort(sortByEndDate);
-    today.sort(sortByEndDate);
+    waitingForResponse.sort(sortByEndDate);
+    waitingForInfo.sort(sortByEndDate);
     thisWeek.sort(sortByEndDate);
     upcoming.sort(sortByEndDate);
     completed.sort((a, b) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime()); // Most recent first
 
-    return { overdue, today, thisWeek, upcoming, completed };
+    return { overdue, waitingForResponse, waitingForInfo, thisWeek, upcoming, completed };
   }, [filteredTasks]);
 
   const editingProps = {
@@ -160,9 +169,10 @@ export function ListView() {
   return (
     <div className="space-y-2">
       <Section title="Overdue" tasks={overdue} variant="danger" {...editingProps} />
-      <Section title="Today" tasks={today} variant="warning" {...editingProps} />
       <Section title="This Week" tasks={thisWeek} {...editingProps} />
-      <Section title="Upcoming" tasks={upcoming} defaultOpen={overdue.length === 0 && today.length === 0} {...editingProps} />
+      <Section title="Upcoming" tasks={upcoming} defaultOpen={overdue.length === 0} {...editingProps} />
+      <Section title="Waiting for Response" tasks={waitingForResponse} {...editingProps} />
+      <Section title="Waiting for More Info" tasks={waitingForInfo} {...editingProps} />
       <Section title="Completed" tasks={completed} defaultOpen={false} {...editingProps} />
     </div>
   );
