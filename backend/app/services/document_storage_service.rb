@@ -527,11 +527,12 @@ class DocumentStorageService
   # SSoT: Resolve the Send Name for a document download
   #
   # Priority:
-  #   1. record.display_name (user-friendly name, generated from templates)
-  #   2. warehouse_document.download_filename (Phase 3 SSoT - sanitized + templated)
-  #   3. record.file_name (original filename)
-  #   4. storage_blob.original_filename (fallback)
-  #   5. "document" (last resort)
+  #   1. SyncedEmail: Use subject as filename (simple, no date prefix)
+  #   2. record.display_name (user-friendly name, generated from templates)
+  #   3. warehouse_document.download_filename (Phase 3 SSoT - sanitized + templated)
+  #   4. record.file_name (original filename)
+  #   5. storage_blob.original_filename (fallback)
+  #   6. "document" (last resort)
   #
   # Note: display_name is checked FIRST because CorporateCompanyDocument generates
   # nice display names (e.g., "Invoice INV-0520") but the warehouse_document may
@@ -540,6 +541,14 @@ class DocumentStorageService
   # @param record [ActiveRecord::Base] Document model
   # @return [String] The filename to use for download
   def resolve_send_name(record)
+    # 0. SyncedEmail: Use subject directly (no date prefix needed for emails)
+    if record.is_a?(SyncedEmail)
+      subject = record.subject.presence || "Email"
+      # Sanitize filename (remove characters that break filenames)
+      safe_subject = subject.gsub(/[<>:"\/\\|?*\r\n]/, " ").gsub(/\s+/, " ").strip.truncate(100, omission: "")
+      return "#{safe_subject}.eml"
+    end
+
     # 1. Try display_name FIRST - this is the user-friendly name
     # CorporateCompanyDocument.generate_display_name creates names like "Invoice INV-0520"
     if record.respond_to?(:display_name) && record.display_name.present?
