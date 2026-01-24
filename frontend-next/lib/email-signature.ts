@@ -579,20 +579,14 @@ export const SIGNATURE_MARKER = '<!-- TEEEM-EMAIL-SIGNATURE -->';
 /**
  * Check if body already contains a TEEEM signature
  * Uses unique marker for reliable detection (not generic CSS that could appear in quoted emails)
+ *
+ * IMPORTANT: Only checks for marker, NOT legacy CSS patterns. This prevents false positives
+ * when replying to email threads that contain old TEEEM signatures in the quoted content.
  */
 export function hasSignature(body: string): boolean {
-  // Primary check: look for our unique marker
-  if (body.includes(SIGNATURE_MARKER)) {
-    return true;
-  }
-
-  // Legacy fallback: check for very specific TEEEM signature patterns
-  // (for drafts saved before marker was added)
-  return (
-    body.includes('width: 400px; max-width: 100%') || // Modern dark/light table (specific combo)
-    body.includes('width: 420px; max-width: 100%') || // Detailed table (specific combo)
-    body.includes('TEEEM Email Warehouse') // Reconstructed email marker
-  );
+  // Only check for our unique marker - don't use CSS patterns as they cause
+  // false positives when quoted email threads contain old TEEEM signatures
+  return body.includes(SIGNATURE_MARKER);
 }
 
 /**
