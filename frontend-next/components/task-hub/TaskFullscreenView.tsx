@@ -181,6 +181,7 @@ interface SortableQuestionItemProps {
   onAddChild?: () => void;  // For adding question under header
   onFileDrop?: (file: File, itemId: number) => void;  // For dropping files on questions
   onAttachmentDrop?: (attachmentId: number, itemId: number) => void;  // For dropping existing attachments on questions
+  onDocumentDrop?: (docId: number, sourceType: string, itemId: number) => void;  // For dropping documents from picker
   editingItemId: number | null;
   editingItemText: string;
   setEditingItemText: (text: string) => void;
@@ -206,6 +207,7 @@ interface SortableQuestionItemProps {
   delegationUsers?: User[];
   handleDelegateQuestion?: (itemId: number, userId: number) => void;
   handleUndelegateQuestion?: (itemId: number) => void;  // Unlink a delegated task
+  openDelegateModal?: (item: TaskActionItem) => void;  // Open delegation modal
   onCreateAction?: (text: string) => void;  // Create action item from question
   setSelectedEmailId?: (id: number | null) => void;  // For viewing linked emails
   // Attachment rename props
@@ -231,6 +233,7 @@ function SortableQuestionItem({
   onAddChild,
   onFileDrop,
   onAttachmentDrop,
+  onDocumentDrop,
   editingItemId,
   editingItemText,
   setEditingItemText,
@@ -254,6 +257,7 @@ function SortableQuestionItem({
   delegationUsers,
   handleDelegateQuestion,
   handleUndelegateQuestion,
+  openDelegateModal,
   onCreateAction,
   setSelectedEmailId,
   renamingAttachmentId,
@@ -421,6 +425,15 @@ function SortableQuestionItem({
       return;
     }
 
+    // Check for document being dragged from Documents tab in AttachmentPicker
+    const documentId = e.dataTransfer.getData('application/x-document-id');
+    const documentSource = e.dataTransfer.getData('application/x-document-source');
+    if (documentId && documentSource && onDocumentDrop) {
+      console.log('[SortableQuestionItem] Linking document:', documentId, 'source:', documentSource, 'to question:', item.id);
+      onDocumentDrop(parseInt(documentId), documentSource, item.id);
+      return;
+    }
+
     // Log everything about the drop to debug OneDrive drags
     const files = Array.from(e.dataTransfer.files);
     const items = Array.from(e.dataTransfer.items);
@@ -433,10 +446,10 @@ function SortableQuestionItem({
     console.log('  - Types:', types);
 
     // Log each item's kind and type
-    items.forEach((item, i) => {
-      console.log(`  - Item ${i}: kind=${item.kind}, type=${item.type}`);
-      if (item.kind === 'string') {
-        item.getAsString((s) => console.log(`    String data: ${s.substring(0, 200)}...`));
+    items.forEach((dtItem, i) => {
+      console.log(`  - Item ${i}: kind=${dtItem.kind}, type=${dtItem.type}`);
+      if (dtItem.kind === 'string') {
+        dtItem.getAsString((s) => console.log(`    String data: ${s.substring(0, 200)}...`));
       }
     });
 
@@ -887,7 +900,7 @@ function SortableQuestionItem({
             variant="ghost"
             size="sm"
             className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
-            onClick={() => setDelegatingQuestionId?.(item.id)}
+            onClick={() => openDelegateModal?.(item)}
           >
             → Task
           </Button>
@@ -993,6 +1006,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [delegatingQuestionId, setDelegatingQuestionId] = useState<number | null>(null);
   const [delegatingActionId, setDelegatingActionId] = useState<number | null>(null);
   const [delegationUsers, setDelegationUsers] = useState<User[]>([]);
+
+  // Delegate modal state (for questions and actions)
+  const [delegateModalData, setDelegateModalData] = useState<{
+    itemId: number;
+    itemText: string;
+    itemType: 'question' | 'action';
+  } | null>(null);
+  const [delegateModalUserId, setDelegateModalUserId] = useState<number | null>(null);
+  const [delegateModalInstructions, setDelegateModalInstructions] = useState('');
+  const [delegateModalDueDate, setDelegateModalDueDate] = useState<Date | undefined>(undefined);
+  const [delegateModalLoading, setDelegateModalLoading] = useState(false);
 
   // Delete confirmation for items with delegated tasks
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<TaskActionItem | null>(null);
@@ -2003,6 +2027,60 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setActionItemLoading(null);
   };
 
+  // Open delegate modal for a question or action
+  const openDelegateModal = (item: TaskActionItem) => {
+    const isQuestion = item.item_type === 'question';
+    setDelegateModalData({
+      itemId: item.id,
+      itemText: item.text,
+      itemType: isQuestion ? 'question' : 'action',
+    });
+    setDelegateModalUserId(null);
+    setDelegateModalInstructions('');
+    // Default due date to parent task's end_date
+    setDelegateModalDueDate(task.end_date ? new Date(task.end_date) : undefined);
+  };
+
+  // Submit delegation from modal
+  const handleSubmitDelegation = async () => {
+    if (!delegateModalData || !delegateModalUserId) return;
+
+    setDelegateModalLoading(true);
+    try {
+      await delegateActionItem(
+        task.id,
+        delegateModalData.itemId,
+        delegateModalUserId,
+        {
+          instructions: delegateModalInstructions || undefined,
+          dueDate: delegateModalDueDate?.toISOString().split('T')[0],
+        }
+      );
+      // Reset modal state
+      setDelegateModalData(null);
+      setDelegateModalUserId(null);
+      setDelegateModalInstructions('');
+      setDelegateModalDueDate(undefined);
+      setDelegatingQuestionId(null);
+      setDelegatingActionId(null);
+      refresh();
+    } catch (err) {
+      console.error('Failed to delegate:', err);
+      toast.error('Failed to create task');
+    } finally {
+      setDelegateModalLoading(false);
+    }
+  };
+
+  // Close delegate modal
+  const closeDelegateModal = () => {
+    setDelegateModalData(null);
+    setDelegateModalUserId(null);
+    setDelegateModalInstructions('');
+    setDelegateModalDueDate(undefined);
+  };
+
+  // Legacy handlers - still used for backward compatibility with ComboboxDropdown immediate selection
   const handleDelegateQuestion = async (itemId: number, userId: number) => {
     setActionItemLoading(itemId);
     await delegateActionItem(task.id, itemId, userId);
@@ -2045,12 +2123,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         setShowAttachmentPicker(false);
       } else if (attachment.id) {
         // Email or document - link existing record
+        // Map source_type to attachment_type for backend API
+        const sourceType = (attachment.metadata as { source_type?: string })?.source_type;
+        let attachmentType: string;
+        if (attachment.type === 'email') {
+          attachmentType = 'email';
+        } else if (sourceType === 'user') {
+          attachmentType = 'user_document';
+        } else if (sourceType && ['job', 'contact', 'task'].includes(sourceType)) {
+          attachmentType = 'warehouse_document';
+        } else {
+          attachmentType = 'document';  // Default to corporate document
+        }
+
         const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
           `/api/v1/sm_tasks/${task.id}/attachments`,
           {
-            attachment_type: attachment.type,
+            attachment_type: attachmentType,
             attachable_id: attachment.id,
-            attachable_type: attachment.type === 'email' ? 'SyncedEmail' : 'CorporateCompanyDocument',
           }
         );
         if (response?.success && response.attachment) {
@@ -2062,6 +2152,44 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       console.error('Failed to add attachment:', err);
     }
     setAttachmentLoading(false);
+  };
+
+  // Handle dropping a document from the Documents tab directly onto a question
+  const handleDocumentDropOnQuestion = async (
+    docId: number,
+    sourceType: string,
+    actionItemId: number
+  ) => {
+    console.log('[TaskFullscreenView] handleDocumentDropOnQuestion:', { docId, sourceType, actionItemId });
+    setAttachmentLoading(true);
+    try {
+      // Map source_type to attachment_type for backend API
+      let attachmentType: string;
+      if (sourceType === 'user') {
+        attachmentType = 'user_document';
+      } else if (['job', 'contact', 'task'].includes(sourceType)) {
+        attachmentType = 'warehouse_document';
+      } else {
+        attachmentType = 'document';  // Default to corporate document
+      }
+
+      const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
+        `/api/v1/sm_tasks/${task.id}/attachments`,
+        {
+          attachment_type: attachmentType,
+          attachable_id: docId,
+          action_item_id: actionItemId,
+        }
+      );
+      if (response?.success) {
+        console.log('[TaskFullscreenView] Document linked to question successfully');
+        await refresh();
+      }
+    } catch (error) {
+      console.error('[TaskFullscreenView] Failed to link document:', error);
+    } finally {
+      setAttachmentLoading(false);
+    }
   };
 
   const handleRemovePendingAttachment = (index: number) => {
@@ -2869,9 +2997,52 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return;
     }
 
+    // Check for document being dragged from Documents tab in AttachmentPicker
+    const documentId = e.dataTransfer.getData('application/x-document-id');
+    const documentSource = e.dataTransfer.getData('application/x-document-source');
+    if (documentId && documentSource) {
+      console.log('[TaskFullscreenView] handleDrop - Document dropped:', documentId, 'source:', documentSource);
+      // Add document as a general attachment (not linked to a question)
+      handleDocumentDropAsAttachment(parseInt(documentId), documentSource);
+      return;
+    }
+
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       handleFileDrop(files[0]);
+    }
+  };
+
+  // Handle dropping a document from the Documents tab as a general attachment (not linked to question)
+  const handleDocumentDropAsAttachment = async (docId: number, sourceType: string) => {
+    console.log('[TaskFullscreenView] handleDocumentDropAsAttachment:', { docId, sourceType });
+    setAttachmentLoading(true);
+    try {
+      // Map source_type to attachment_type for backend API
+      let attachmentType: string;
+      if (sourceType === 'user') {
+        attachmentType = 'user_document';
+      } else if (['job', 'contact', 'task'].includes(sourceType)) {
+        attachmentType = 'warehouse_document';
+      } else {
+        attachmentType = 'document';  // Default to corporate document
+      }
+
+      const response = await api.post<{ success: boolean; attachment: TaskAttachment }>(
+        `/api/v1/sm_tasks/${task.id}/attachments`,
+        {
+          attachment_type: attachmentType,
+          attachable_id: docId,
+        }
+      );
+      if (response?.success && response.attachment) {
+        console.log('[TaskFullscreenView] Document attached successfully');
+        setLocalAttachments(prev => [...prev, response.attachment]);
+      }
+    } catch (error) {
+      console.error('[TaskFullscreenView] Failed to attach document:', error);
+    } finally {
+      setAttachmentLoading(false);
     }
   };
 
@@ -4001,6 +4172,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               onRemove={() => handleRemoveItem(child.id)}
                               onFileDrop={handleFileDropOnQuestion}
                               onAttachmentDrop={handleAttachmentDropOnQuestion}
+                              onDocumentDrop={handleDocumentDropOnQuestion}
                               editingItemId={editingItemId}
                               editingItemText={editingItemText}
                               setEditingItemText={setEditingItemText}
@@ -4023,6 +4195,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               delegationUsers={delegationUsers}
                               handleDelegateQuestion={handleDelegateQuestion}
                               handleUndelegateQuestion={handleUndelegateQuestion}
+                              openDelegateModal={openDelegateModal}
                               onCreateAction={(text) => addActionItem(task.id, text, 'action')}
                               setSelectedEmailId={setSelectedEmailId}
                               renamingAttachmentId={renamingAttachmentId}
@@ -4049,6 +4222,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       onRemove={() => handleRemoveItem(item.id)}
                       onFileDrop={handleFileDropOnQuestion}
                       onAttachmentDrop={handleAttachmentDropOnQuestion}
+                              onDocumentDrop={handleDocumentDropOnQuestion}
                       editingItemId={editingItemId}
                       editingItemText={editingItemText}
                       setEditingItemText={setEditingItemText}
@@ -4071,6 +4245,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       delegationUsers={delegationUsers}
                       handleDelegateQuestion={handleDelegateQuestion}
                       handleUndelegateQuestion={handleUndelegateQuestion}
+                      openDelegateModal={openDelegateModal}
                       onCreateAction={(text) => addActionItem(task.id, text, 'action')}
                       setSelectedEmailId={setSelectedEmailId}
                       renamingAttachmentId={renamingAttachmentId}

@@ -346,37 +346,54 @@ module Api
       #   search: Full-text search query (uses PostgreSQL tsvector + GIN index)
       #   folder: Filter by folder path
       #   limit: Max results (default: 100)
+      #   sources: Comma-separated source types to search (default: "corporate")
+      #            Options: corporate, user, job, contact, task
       def index
-        documents = CorporateCompanyDocument.includes(:corporate_company, :user, :document_type_record)
-                                   .order(created_at: :desc)
-                                   .limit(params[:limit] || 100)
+        limit = (params[:limit] || 100).to_i
+        search_term = params[:search].presence
+        sources = (params[:sources] || "corporate").split(",").map(&:strip)
 
-        # Full-text search using Searchable concern (GIN-indexed tsvector)
-        if params[:search].present?
-          documents = documents.search_text(params[:search])
+        results = []
+
+        # Corporate docs (existing behavior)
+        if sources.include?("corporate")
+          results += search_corporate_documents(search_term, limit)
         end
 
-        # Filter by folder if provided
-        documents = documents.by_folder(params[:folder]) if params[:folder].present?
+        # User's personal docs
+        if sources.include?("user")
+          results += search_user_documents(search_term, limit)
+        end
 
-        # Get unique folders with counts in a single query (avoids N+1)
-        # Performance: 1 query instead of N queries for N folders
-        folder_counts = CorporateCompanyDocument.where.not(folder: [ nil, "" ])
-                                                .group(:folder)
-                                                .count
+        # Warehouse documents (job, contact, task - non-email sources)
+        warehouse_sources = sources & %w[job contact task]
+        if warehouse_sources.any?
+          results += search_warehouse_documents(search_term, warehouse_sources, limit)
+        end
 
-        folders = folder_counts.keys.sort.map.with_index do |folder_name, index|
-          {
-            id: (index + 1).to_s,
-            name: folder_name.titleize,
-            path: "/#{folder_name.downcase}",
-            documents_count: folder_counts[folder_name]
-          }
+        # Sort merged results by created_at desc and limit
+        results = results.sort_by { |r| r[:uploaded_at] || "" }.reverse.first(limit)
+
+        # Only include folders for corporate-only queries (backward compatibility)
+        folders = if sources == ["corporate"]
+          folder_counts = CorporateCompanyDocument.where.not(folder: [ nil, "" ])
+                                                  .group(:folder)
+                                                  .count
+          folder_counts.keys.sort.map.with_index do |folder_name, index|
+            {
+              id: (index + 1).to_s,
+              name: folder_name.titleize,
+              path: "/#{folder_name.downcase}",
+              documents_count: folder_counts[folder_name]
+            }
+          end
+        else
+          []
         end
 
         render json: {
           success: true,
-          documents: documents.map { |doc| document_to_json(doc) },
+          documents: results,
           folders: folders
         }
       end
@@ -1007,6 +1024,96 @@ module Api
       end
 
       private
+
+      # ========================================
+      # Multi-Source Search Helpers (AttachmentPicker)
+      # ========================================
+
+      # Search corporate documents (CorporateCompanyDocument)
+      def search_corporate_documents(search_term, limit)
+        scope = CorporateCompanyDocument.includes(:corporate_company, :user, :document_type_record)
+                                        .order(created_at: :desc)
+                                        .limit(limit)
+
+        scope = scope.search_text(search_term) if search_term.present?
+
+        scope.map do |doc|
+          {
+            id: doc.id,
+            name: doc.file_name,
+            display_title: doc.display_name || doc.file_name,
+            source_type: "corporate",
+            document_type: doc.document_type_record ? {
+              id: doc.document_type_record.id,
+              name: doc.document_type_record.name,
+              abbreviation: doc.document_type_record.abbreviation || doc.document_type_record.name[0..2].upcase
+            } : nil,
+            url: doc.storage_url || doc.file_url,
+            file_url: doc.storage_url || doc.file_url,
+            uploaded_at: doc.created_at&.iso8601
+          }
+        end
+      end
+
+      # Search user's personal documents (UserDocument)
+      def search_user_documents(search_term, limit)
+        scope = UserDocument.where(user: current_user)
+                           .order(created_at: :desc)
+                           .limit(limit)
+
+        if search_term.present?
+          search_pattern = "%#{search_term.downcase}%"
+          scope = scope.where("LOWER(file_name) LIKE ?", search_pattern)
+        end
+
+        scope.map do |doc|
+          {
+            id: doc.id,
+            name: doc.file_name,
+            display_title: doc.display_name || doc.file_name,
+            source_type: "user",
+            document_type: nil,
+            url: doc.download_url,
+            file_url: doc.download_url,
+            uploaded_at: doc.created_at&.iso8601
+          }
+        end
+      end
+
+      # Search warehouse documents (job, contact, task - excludes email)
+      def search_warehouse_documents(search_term, source_types, limit)
+        scope = WarehouseDocument.includes(:storage_blob)
+                                 .where(source_type: source_types)
+                                 .order(created_at: :desc)
+                                 .limit(limit)
+
+        if search_term.present?
+          search_pattern = "%#{search_term.downcase}%"
+          scope = scope.where("LOWER(display_name) LIKE ? OR LOWER(original_filename) LIKE ?",
+                             search_pattern, search_pattern)
+        end
+
+        organization = Organization.first
+        provider = DocumentProviders::S3Compatible.for_organization(organization) rescue nil
+
+        scope.map do |wd|
+          blob = wd.storage_blob
+          download_url = if blob&.storage_path.present? && provider
+            provider.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
+          end
+
+          {
+            id: wd.id,
+            name: wd.original_filename || wd.display_name,
+            display_title: wd.display_name,
+            source_type: wd.source_type,
+            document_type: nil,
+            url: download_url,
+            file_url: download_url,
+            uploaded_at: wd.created_at&.iso8601
+          }
+        end
+      end
 
       # Phase 5: Build live folder tree from DB relationships (SSoT)
       # Computes folder structure from source tables instead of stored paths

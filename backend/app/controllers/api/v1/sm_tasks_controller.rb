@@ -932,22 +932,33 @@ module Api
       end
 
       # POST /api/v1/sm_tasks/:id/attachments
+      # Supports multiple document sources:
+      #   - email → SyncedEmail
+      #   - document → CorporateCompanyDocument (legacy/default)
+      #   - user_document → UserDocument (My Docs)
+      #   - warehouse_document → WarehouseDocument (job, contact, task docs)
       def add_attachment
         attachment_type = params[:attachment_type]
         attachable_id = params[:attachable_id]
+        action_item_id = params[:action_item_id]  # Optional: link to specific question
 
         attachable = case attachment_type
         when "email"
           SyncedEmail.find(attachable_id)
         when "document"
           CorporateCompanyDocument.find(attachable_id)
+        when "user_document"
+          UserDocument.find(attachable_id)
+        when "warehouse_document"
+          WarehouseDocument.find(attachable_id)
         else
-          return render json: { success: false, error: "Invalid attachment type" }, status: :unprocessable_entity
+          return render json: { success: false, error: "Invalid attachment type: #{attachment_type}" }, status: :unprocessable_entity
         end
 
         attachment = @task.sm_task_attachments.create!(
           attachable: attachable,
           attachment_type: attachment_type,
+          action_item_id: action_item_id,
           notes: params[:notes],
           added_by: current_user
         )
@@ -2017,13 +2028,22 @@ module Api
 
       # POST /api/v1/sm_tasks/:id/action_items/:item_id/delegate
       # Delegate a question to another user by creating a sub-task
+      # Params:
+      #   user_id: required - the user to assign the task to
+      #   instructions: optional - custom instructions/context for the assignee
+      #   due_date: optional - due date for the task (defaults to parent task's end_date)
       def delegate_action_item
         @task = SmTask.find(params[:id])
         item = @task.action_items.find(params[:item_id])
 
         user = User.find(params[:user_id])
 
-        result = item.delegate_to!(user, created_by: current_user)
+        result = item.delegate_to!(
+          user,
+          created_by: current_user,
+          instructions: params[:instructions],
+          due_date: params[:due_date]
+        )
 
         if result[:success]
           render json: {
