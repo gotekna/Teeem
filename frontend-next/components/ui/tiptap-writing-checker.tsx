@@ -366,7 +366,7 @@ function DetailTooltip({
           <button
             ref={addToDictRef}
             type="button"
-            className="px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer border-l"
             title="Add to Dictionary"
             onPointerDown={(e) => {
               console.log('[WritingChecker] Add to Dict React onPointerDown');
@@ -382,6 +382,7 @@ function DetailTooltip({
             }}
           >
             <BookPlus className="h-4 w-4" />
+            <span className="text-xs">Dictionary</span>
           </button>
         )}
         <button
@@ -581,7 +582,13 @@ export const WritingChecker = Extension.create({
                   // Add padding around the tooltip so mouse doesn't leave accidentally
                   hoverContainer.style.padding = "8px";
                   hoverContainer.style.margin = "-8px";
-                  document.body.appendChild(hoverContainer);
+                  // Append to dialog content if inside a dialog, otherwise document.body
+                  const dialogContent = view.dom.closest('[role="dialog"]');
+                  if (dialogContent) {
+                    dialogContent.appendChild(hoverContainer);
+                  } else {
+                    document.body.appendChild(hoverContainer);
+                  }
 
                   const coords = view.coordsAtPos(hoveredIssue.from);
                   positionTooltip(hoverContainer, coords, 280, 80);
@@ -738,14 +745,44 @@ export const WritingChecker = Extension.create({
               if (button) {
                 console.log('[WritingChecker] Window capture - clicking button:', button.textContent?.trim());
                 // Stop event from reaching Radix's document-level listeners
-                // Then manually trigger the button's click
                 e.stopPropagation();
                 e.preventDefault();
 
-                // Use setTimeout to click after this event cycle completes
+                // Dispatch proper mouse events that React can handle
+                // React uses mousedown + mouseup + click sequence
                 setTimeout(() => {
-                  console.log('[WritingChecker] Dispatching synthetic click to button');
-                  button.click();
+                  console.log('[WritingChecker] Dispatching synthetic events to button');
+                  const rect = button.getBoundingClientRect();
+                  const x = rect.left + rect.width / 2;
+                  const y = rect.top + rect.height / 2;
+
+                  // Dispatch pointerdown first (React listens for this)
+                  const pointerdown = new PointerEvent('pointerdown', {
+                    bubbles: true, cancelable: true, view: window,
+                    clientX: x, clientY: y, button: 0, pointerType: 'mouse'
+                  });
+                  button.dispatchEvent(pointerdown);
+
+                  // Then mousedown
+                  const mousedown = new MouseEvent('mousedown', {
+                    bubbles: true, cancelable: true, view: window,
+                    clientX: x, clientY: y, button: 0
+                  });
+                  button.dispatchEvent(mousedown);
+
+                  // Then mouseup
+                  const mouseup = new MouseEvent('mouseup', {
+                    bubbles: true, cancelable: true, view: window,
+                    clientX: x, clientY: y, button: 0
+                  });
+                  button.dispatchEvent(mouseup);
+
+                  // Finally click
+                  const click = new MouseEvent('click', {
+                    bubbles: true, cancelable: true, view: window,
+                    clientX: x, clientY: y, button: 0
+                  });
+                  button.dispatchEvent(click);
                 }, 0);
               }
             }
@@ -771,7 +808,17 @@ export const WritingChecker = Extension.create({
             tooltipContainer.setAttribute('data-writing-checker-tooltip', 'true');
             tooltipContainer.style.position = "fixed";
             tooltipContainer.style.zIndex = "9999";
-            document.body.appendChild(tooltipContainer);
+            // Find the dialog content element (has role="dialog") and append tooltip there
+            // This ensures Radix treats tooltip clicks as "inside" the dialog
+            const dialogContent = view.dom.closest('[role="dialog"]');
+            console.log('[WritingChecker] Dialog content found:', !!dialogContent);
+            if (dialogContent) {
+              dialogContent.appendChild(tooltipContainer);
+              console.log('[WritingChecker] Tooltip appended to dialog content');
+            } else {
+              document.body.appendChild(tooltipContainer);
+              console.log('[WritingChecker] Tooltip appended to body (no dialog)');
+            }
 
             const coords = view.coordsAtPos(issue.from);
             positionTooltip(tooltipContainer, coords, 320, 200);
