@@ -13,7 +13,10 @@ class EmlGeneratorService
   class << self
     # Generate .eml content from a SyncedEmail record
     def generate(email)
-      return nil unless email.is_a?(SyncedEmail)
+      unless email.is_a?(SyncedEmail)
+        Rails.logger.warn("[EmlGenerator] Cannot generate: not a SyncedEmail (got #{email.class.name})")
+        return nil
+      end
 
       mail = Mail.new
 
@@ -22,8 +25,9 @@ class EmlGeneratorService
       mail.subject = email.subject
       mail.date = email.received_at || email.sent_at || email.created_at
 
-      # Addresses
-      mail.from = format_address(email.from_name, email.from_email)
+      # Addresses - handle missing from gracefully
+      from_addr = format_address(email.from_name, email.from_email)
+      mail.from = from_addr.presence || "unknown@teeem.app"
       mail.to = email.to_emails if email.to_emails.present?
       mail.cc = email.cc_emails if email.cc_emails.present?
       mail.bcc = email.bcc_emails if email.bcc_emails.present?
@@ -58,6 +62,10 @@ class EmlGeneratorService
       add_attachments(mail, email) if email.email_attachments.any?
 
       mail.to_s
+    rescue StandardError => e
+      Rails.logger.error("[EmlGenerator] Failed to generate .eml for email #{email.id}: #{e.class} - #{e.message}")
+      Rails.logger.error(e.backtrace.first(5).join("\n"))
+      nil
     end
 
     # Generate and upload to S3, returning the storage path
