@@ -45,6 +45,7 @@ import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api, getApiBaseUrl } from '@/lib/api';
 import { getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
+import { generateEmailSignature } from '@/lib/email-signature';
 // Note: Uses sonner's toast (imported below) for toast.success/error/info API
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -72,6 +73,7 @@ import {
   Building2,
   Calendar as CalendarIcon,
   Check,
+  CheckSquare,
   ChevronDown,
   ChevronRight,
   Download,
@@ -172,6 +174,7 @@ interface SuggestedEmailsGrouped {
 interface SortableQuestionItemProps {
   item: TaskActionItem;
   task?: SmTask;
+  questionNumber?: string;  // e.g., "1", "1.1", "2.3" for numbered display
   isHeader?: boolean;
   isCollapsed?: boolean;
   isDropTarget?: boolean;  // Visual feedback when item is being dragged over
@@ -206,7 +209,7 @@ interface SortableQuestionItemProps {
   setDelegatingQuestionId?: (id: number | null) => void;
   delegationUsers?: User[];
   handleDelegateQuestion?: (itemId: number, userId: number) => void;
-  handleUndelegateQuestion?: (itemId: number) => void;  // Unlink a delegated task
+  handleUndelegateQuestion?: (item: TaskActionItem) => void;  // Open undelegate modal
   openDelegateModal?: (item: TaskActionItem) => void;  // Open delegation modal
   onCreateAction?: (text: string) => void;  // Create action item from question
   setSelectedEmailId?: (id: number | null) => void;  // For viewing linked emails
@@ -224,6 +227,7 @@ interface SortableQuestionItemProps {
 function SortableQuestionItem({
   item,
   task,
+  questionNumber,
   isHeader = false,
   isCollapsed = false,
   isDropTarget = false,
@@ -354,9 +358,14 @@ function SortableQuestionItem({
             />
           ) : (
             <span
-              className="flex-1 cursor-pointer"
+              className="flex-1 cursor-pointer flex items-center gap-2"
               onClick={() => onEdit(item.text)}
             >
+              {questionNumber && (
+                <Badge variant="secondary" className="shrink-0 text-xs font-mono px-1.5">
+                  {questionNumber}
+                </Badge>
+              )}
               {item.text}
             </span>
           )}
@@ -518,10 +527,15 @@ function SortableQuestionItem({
           />
         ) : (
           <span
-            className="flex-1 cursor-pointer"
+            className="flex-1 cursor-pointer flex items-start gap-2"
             onClick={() => onEdit(item.text)}
           >
-            {item.text}
+            {questionNumber && (
+              <Badge variant="secondary" className="shrink-0 text-xs font-mono px-1.5 mt-0.5">
+                {questionNumber}
+              </Badge>
+            )}
+            <span>{item.text}</span>
           </span>
         )}
         {/* Hidden file input for click-to-attach */}
@@ -823,8 +837,8 @@ function SortableQuestionItem({
               variant="ghost"
               size="sm"
               className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-              onClick={() => handleUndelegateQuestion?.(item.id)}
-              title="Unlink task"
+              onClick={() => handleUndelegateQuestion?.(item)}
+              title="Remove task"
             >
               <X className="h-3 w-3" />
             </Button>
@@ -832,7 +846,7 @@ function SortableQuestionItem({
               variant="ghost"
               size="sm"
               className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
-              onClick={() => setDelegatingQuestionId?.(item.id)}
+              onClick={() => openDelegateModal?.(item)}
             >
               → Task
             </Button>
@@ -953,7 +967,7 @@ function UngroupDropZone({
 export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Note: Uses sonner's toast (imported at top) for toast.success/error/info API
   const { user: currentUser } = useAuth();
-  const { calculateEndDate, calculateDuration } = useWorkingDays();
+  const { calculateEndDate, calculateDuration, isWorkingDay, addWorkingDays } = useWorkingDays();
   const {
     updateTask,
     startTask,
@@ -970,6 +984,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     removeActionItem,
     delegateActionItem,
     undelegateActionItem,
+    moveDelegatedTask,
     toggleIncludeInResponse,
     reorderActionItems,
     setTaskPrivacy,
@@ -1017,6 +1032,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [delegateModalInstructions, setDelegateModalInstructions] = useState('');
   const [delegateModalDueDate, setDelegateModalDueDate] = useState<Date | undefined>(undefined);
   const [delegateModalLoading, setDelegateModalLoading] = useState(false);
+
+  // Undelegate modal state (for moving or deleting delegated tasks)
+  const [undelegateModalItem, setUndelegateModalItem] = useState<TaskActionItem | null>(null);
+  const [undelegateTargetQuestionId, setUndelegateTargetQuestionId] = useState<number | null>(null);
+  const [undelegateModalLoading, setUndelegateModalLoading] = useState(false);
 
   // Delete confirmation for items with delegated tasks
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<TaskActionItem | null>(null);
@@ -1225,6 +1245,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Collapsible sections
   const [emailsCollapsed, setEmailsCollapsed] = useState(false);
   const [documentsCollapsed, setDocumentsCollapsed] = useState(false);
+  const [responseFilesCollapsed, setResponseFilesCollapsed] = useState(false);
+  const [emailSourceCollapsed, setEmailSourceCollapsed] = useState(true); // Start collapsed
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
   const [collapsedEmailMonths, setCollapsedEmailMonths] = useState<Set<string>>(new Set());
   const [moreSendersOpen, setMoreSendersOpen] = useState(false);
@@ -1351,9 +1373,62 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     return { thread, matched, linked };
   }, [allEmailAttachments]);
 
+  // Parse forwarded email info from task description
+  // Looks for patterns like "From: Name <email>" or "From: Name" in forwarded messages
+  const forwardedEmailInfo = useMemo(() => {
+    if (!task.description) return null;
+
+    // Look for forwarded message pattern
+    const forwardedMatch = task.description.match(/(?:Begin forwarded message:|Forwarded message:)[\s\S]*?From:\s*([^<\n]+?)(?:\s*<([^>]+)>)?(?:\s*Date:|$)/i);
+    if (forwardedMatch) {
+      const name = forwardedMatch[1]?.trim();
+      const email = forwardedMatch[2]?.trim();
+      if (name || email) {
+        return { from_name: name || null, from_email: email || null };
+      }
+    }
+
+    // Also try simple "From: Name" pattern at start of description
+    const simpleMatch = task.description.match(/^From:\s*([^<\n]+?)(?:\s*<([^>]+)>)?(?:\n|$)/i);
+    if (simpleMatch) {
+      const name = simpleMatch[1]?.trim();
+      const email = simpleMatch[2]?.trim();
+      if (name || email) {
+        return { from_name: name || null, from_email: email || null };
+      }
+    }
+
+    return null;
+  }, [task.description]);
+
   // Find the original email sender for pre-populating "To" field in responses
-  // Priority: oldest thread email, then oldest matched, then oldest linked
+  // Priority: forwarded email in description, then oldest thread email, then oldest matched, then oldest linked
   const originalEmailSender = useMemo(() => {
+    // First check if we parsed a forwarded email from description
+    if (forwardedEmailInfo?.from_email) {
+      return forwardedEmailInfo.from_email;
+    }
+
+    // Helper to find email address by name in our stored emails
+    const findEmailByName = (name: string): string | null => {
+      const normalizedName = name.toLowerCase().trim();
+      for (const att of allEmailAttachments) {
+        const email = att.email;
+        if (!email) continue;
+        // Check from_name
+        if (email.from_name?.toLowerCase().trim() === normalizedName && email.from_email) {
+          return email.from_email;
+        }
+      }
+      return null;
+    };
+
+    // If we have a name from forwarded email but no email, search our stored emails
+    if (forwardedEmailInfo?.from_name) {
+      const foundEmail = findEmailByName(forwardedEmailInfo.from_name);
+      if (foundEmail) return foundEmail;
+    }
+
     const findOldestEmailSender = (emails: typeof allEmailAttachments): string | null => {
       if (emails.length === 0) return null;
       // Sort by received_at ascending (oldest first)
@@ -1375,10 +1450,31 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     // Finally try linked emails
     return findOldestEmailSender(categorizedEmails.linked);
-  }, [categorizedEmails]);
+  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments]);
 
   // Find the original email data for quoted reply
   const originalEmailData = useMemo(() => {
+    // If we have forwarded email info, try to find the actual email record
+    if (forwardedEmailInfo?.from_name) {
+      const normalizedName = forwardedEmailInfo.from_name.toLowerCase().trim();
+      // Search our stored emails for this sender
+      for (const att of allEmailAttachments) {
+        const email = att.email;
+        if (!email) continue;
+        if (email.from_name?.toLowerCase().trim() === normalizedName) {
+          return email;
+        }
+      }
+      // If not found in stored emails, return what we have from parsing
+      return {
+        from_name: forwardedEmailInfo.from_name,
+        from_email: forwardedEmailInfo.from_email,
+        received_at: null,
+        subject: null,
+        body_preview: null,
+      };
+    }
+
     const findOldestEmail = (emails: typeof allEmailAttachments) => {
       if (emails.length === 0) return null;
       const sorted = [...emails].sort((a, b) => {
@@ -1399,7 +1495,39 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     // Finally linked
     return findOldestEmail(categorizedEmails.linked);
-  }, [categorizedEmails]);
+  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments]);
+
+  // Collect CC recipients from the original email's To and CC fields
+  // Excludes the sender (goes in To) and current user's email
+  const suggestedCcRecipients = useMemo(() => {
+    const ccEmails = new Set<string>();
+    const senderEmail = originalEmailSender?.toLowerCase();
+
+    if (!originalEmailData) return [];
+
+    // Add original To recipients (except sender and current user robert@tekna)
+    originalEmailData.to_emails?.forEach((addr: string) => {
+      const lower = addr.toLowerCase();
+      // Exclude: the sender, robert@tekna (current user), and @teeem internal
+      if (lower !== senderEmail &&
+          !lower.includes('robert@tekna') &&
+          !lower.includes('@teeem.')) {
+        ccEmails.add(addr);
+      }
+    });
+
+    // Add original CC recipients
+    originalEmailData.cc_emails?.forEach((addr: string) => {
+      const lower = addr.toLowerCase();
+      if (lower !== senderEmail &&
+          !lower.includes('robert@tekna') &&
+          !lower.includes('@teeem.')) {
+        ccEmails.add(addr);
+      }
+    });
+
+    return Array.from(ccEmails);
+  }, [originalEmailData, originalEmailSender]);
 
   // Apply person filter to each category (for tree view)
   const filteredCategories = useMemo(() => {
@@ -1534,6 +1662,33 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const actionItems = task.action_items?.filter(item => item.item_type === 'action') || [];
   const questionItems = task.action_items?.filter(item => item.item_type === 'question') || [];
   const headerItems = task.action_items?.filter(item => item.item_type === 'header') || [];
+
+  // Parse email source metadata from description (if task was created from email)
+  const emailSourceData = useMemo(() => {
+    if (!task.description?.startsWith('**Created from email:**')) return null;
+
+    const lines = task.description.split('\n');
+    const fromMatch = lines.find(l => l.startsWith('From:'));
+    const dateMatch = lines.find(l => l.startsWith('Date:'));
+
+    // Find where the email body starts (after the metadata lines)
+    let bodyStartIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith('From:') || lines[i].startsWith('Date:') || lines[i].startsWith('**Created from email:**')) {
+        bodyStartIndex = i + 1;
+      } else if (lines[i].trim() !== '') {
+        break;
+      }
+    }
+
+    const body = lines.slice(bodyStartIndex).join('\n').trim();
+
+    return {
+      from: fromMatch?.replace('From:', '').trim() || 'Unknown',
+      date: dateMatch?.replace('Date:', '').trim() || '',
+      body: body
+    };
+  }, [task.description]);
 
   // Group questions by parent header
   const groupedQuestions = useMemo(() => {
@@ -2037,8 +2192,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     });
     setDelegateModalUserId(null);
     setDelegateModalInstructions('');
-    // Default due date to parent task's end_date
-    setDelegateModalDueDate(task.end_date ? new Date(task.end_date) : undefined);
+    // Default due date to today
+    setDelegateModalDueDate(new Date());
   };
 
   // Submit delegation from modal
@@ -2097,17 +2252,48 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     refresh();
   };
 
-  const handleUndelegateQuestion = async (itemId: number) => {
-    setActionItemLoading(itemId);
+  // Open undelegate modal instead of immediately unlinking
+  const handleUndelegateQuestion = (item: TaskActionItem) => {
+    setUndelegateModalItem(item);
+    setUndelegateTargetQuestionId(null);
+  };
+
+  // Handle moving task to another question
+  const handleMoveToQuestion = async () => {
+    if (!undelegateModalItem || !undelegateTargetQuestionId) return;
+
+    setUndelegateModalLoading(true);
     try {
-      await undelegateActionItem(task.id, itemId, false);  // Don't delete the task, just unlink
-      toast.success('Task unlinked');
+      await moveDelegatedTask(task.id, undelegateModalItem.id, undelegateTargetQuestionId);
+      const targetQuestion = groupedQuestions.allItems.find((q: TaskActionItem) => q.id === undelegateTargetQuestionId);
+      toast.success(`Task moved to: ${targetQuestion?.text?.substring(0, 50) || 'another question'}...`);
+      setUndelegateModalItem(null);
+      setUndelegateTargetQuestionId(null);
+      refresh();
     } catch (err) {
-      console.error('Failed to unlink task:', err);
-      toast.error('Failed to unlink task');
+      console.error('Failed to move task:', err);
+      toast.error('Failed to move task');
+    } finally {
+      setUndelegateModalLoading(false);
     }
-    setActionItemLoading(null);
-    refresh();
+  };
+
+  // Handle deleting the delegated task
+  const handleDeleteDelegatedTask = async () => {
+    if (!undelegateModalItem) return;
+
+    setUndelegateModalLoading(true);
+    try {
+      await undelegateActionItem(task.id, undelegateModalItem.id, true);  // Delete the task
+      toast.success('Task deleted');
+      setUndelegateModalItem(null);
+      refresh();
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+      toast.error('Failed to delete task');
+    } finally {
+      setUndelegateModalLoading(false);
+    }
   };
 
   // Attachments
@@ -3107,6 +3293,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return fileName;
     };
 
+    // Add greeting with recipient's name
+    if (originalEmailData) {
+      const recipientName = originalEmailData.from_name?.split(' ')[0] || 'there';
+      body += `<p>Hi ${recipientName},<br><br>Please see my responses below:</p>\n\n`;
+    }
+
     // Get all included questions (with answers OR attachments)
     // A question is included if marked AND has either a text response or attachments
     const includedQuestions = questionItems.filter(q =>
@@ -3126,7 +3318,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     console.log('[generateResponseBody] Filtered to include:', includedQuestions.length, 'of', questionItems.length);
 
     if (includedQuestions.length > 0) {
-      body += '<p><strong>Responses to your questions:</strong></p>\n\n';
 
       // Group questions by their parent header
       const headerMap = new Map<number | null, typeof includedQuestions>();
@@ -3145,60 +3336,117 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         return header?.text || null;
       };
 
-      // Sort headers: named headers first, then ungrouped (null)
-      const sortedParentIds = Array.from(headerMap.keys()).sort((a, b) => {
-        if (a === null) return 1;
-        if (b === null) return -1;
-        return 0;
-      });
+      // Build hierarchical numbering: use the same structure as groupedQuestions
+      // Headers are numbered 1, 2, 3...
+      // Questions under headers are 1.1, 1.2, 2.1, 2.2...
+      // Ungrouped questions get next header number: e.g., if 2 headers, ungrouped are 3.1, 3.2...
 
-      let questionNum = 1;
-      sortedParentIds.forEach(parentId => {
-        const questions = headerMap.get(parentId) || [];
-        const headerName = getHeaderName(parentId);
+      // First, process headers in order
+      let headerNum = 0;
+      groupedQuestions.headers.forEach(header => {
+        headerNum++;
+        const headerQuestions = headerMap.get(header.id) || [];
+        if (headerQuestions.length === 0) return; // Skip headers with no included questions
 
-        // Add header if it exists
-        if (headerName) {
-          body += `<p><strong><u>${headerName}</u></strong></p>\n`;
-        }
+        // Add header with its number (bold)
+        body += `<p><strong>${headerNum}. ${header.text}</strong></p>\n`;
 
         // Add questions under this header
-        questions.forEach(q => {
-          body += `<p>${questionNum}. ${q.text}<br>\n`;
+        headerQuestions.forEach((q, qIdx) => {
+          const qNum = `${headerNum}.${qIdx + 1}`;
+          body += `<p><strong>${qNum}</strong> ${q.text}</p>\n`;
 
-          // Show text response if present
+          // Show text response (no extra spacing before attachments)
           if (q.response) {
-            body += `&nbsp;&nbsp;&nbsp;→ ${q.response}</p>\n`;
+            body += `<p>${q.response}`;
+            // If there are attachments, add them immediately after (no gap)
+            if (q.attachments && q.attachments.length > 0) {
+              q.attachments.forEach(att => {
+                if (att.email) {
+                  const subject = att.email.subject || '(No subject)';
+                  const url = shareLinksMap[att.id];
+                  body += `\n📧 ${formatFileLink(subject, url)}`;
+                } else if (att.document) {
+                  const fileName = att.document.display_name || att.document.file_name || 'Document';
+                  const shareUrl = shareLinksMap[att.id];
+                  const fallbackUrl = att.document.storage_url || att.document.file_url;
+                  const url = shareUrl || fallbackUrl;
+                  body += `\n📎 ${formatFileLink(fileName, url)}`;
+                }
+              });
+            }
+            body += `</p>\n`;
           } else if (q.attachments && q.attachments.length > 0) {
-            // No text response but has attachments - the attachments ARE the answer
-            body += `&nbsp;&nbsp;&nbsp;→ See attached</p>\n`;
-          } else {
-            body += '</p>\n';
-          }
-
-          // Include attachments linked to this question (documents OR emails)
-          if (q.attachments && q.attachments.length > 0) {
-            q.attachments.forEach(att => {
+            // Attachments only (no text response)
+            body += `<p>`;
+            q.attachments.forEach((att, attIdx) => {
+              if (attIdx > 0) body += `<br>`;
               if (att.email) {
-                // Email attachment - use subject as the display name
                 const subject = att.email.subject || '(No subject)';
                 const url = shareLinksMap[att.id];
-                body += `<p>&nbsp;&nbsp;&nbsp;📧 See attached: ${formatFileLink(subject, url)}</p>\n`;
+                body += `📧 ${formatFileLink(subject, url)}`;
               } else if (att.document) {
-                // Document attachment
                 const fileName = att.document.display_name || att.document.file_name || 'Document';
-                // Use SharePoint share link if available, otherwise fall back to storage_url or file_url
                 const shareUrl = shareLinksMap[att.id];
                 const fallbackUrl = att.document.storage_url || att.document.file_url;
                 const url = shareUrl || fallbackUrl;
-                body += `<p>&nbsp;&nbsp;&nbsp;📎 See attached: ${formatFileLink(fileName, url)}</p>\n`;
+                body += `📎 ${formatFileLink(fileName, url)}`;
               }
             });
+            body += `</p>\n`;
           }
-          questionNum++;
         });
-        body += '\n';
       });
+
+      // Then process ungrouped questions
+      const ungroupedQuestions = headerMap.get(null) || [];
+      if (ungroupedQuestions.length > 0) {
+        ungroupedQuestions.forEach((q, qIdx) => {
+          // Simple numbering for ungrouped questions
+          const qNum = `${qIdx + 1}`;
+          body += `<p><strong>${qNum}.</strong> ${q.text}</p>\n`;
+
+          // Show text response (no extra spacing before attachments)
+          if (q.response) {
+            body += `<p>${q.response}`;
+            // If there are attachments, add them immediately after (no gap)
+            if (q.attachments && q.attachments.length > 0) {
+              q.attachments.forEach(att => {
+                if (att.email) {
+                  const subject = att.email.subject || '(No subject)';
+                  const url = shareLinksMap[att.id];
+                  body += `\n📧 ${formatFileLink(subject, url)}`;
+                } else if (att.document) {
+                  const fileName = att.document.display_name || att.document.file_name || 'Document';
+                  const shareUrl = shareLinksMap[att.id];
+                  const fallbackUrl = att.document.storage_url || att.document.file_url;
+                  const url = shareUrl || fallbackUrl;
+                  body += `\n📎 ${formatFileLink(fileName, url)}`;
+                }
+              });
+            }
+            body += `</p>\n`;
+          } else if (q.attachments && q.attachments.length > 0) {
+            // Attachments only (no text response)
+            body += `<p>`;
+            q.attachments.forEach((att, attIdx) => {
+              if (attIdx > 0) body += `<br>`;
+              if (att.email) {
+                const subject = att.email.subject || '(No subject)';
+                const url = shareLinksMap[att.id];
+                body += `📧 ${formatFileLink(subject, url)}`;
+              } else if (att.document) {
+                const fileName = att.document.display_name || att.document.file_name || 'Document';
+                const shareUrl = shareLinksMap[att.id];
+                const fallbackUrl = att.document.storage_url || att.document.file_url;
+                const url = shareUrl || fallbackUrl;
+                body += `📎 ${formatFileLink(fileName, url)}`;
+              }
+            });
+            body += `</p>\n`;
+          }
+        });
+      }
     }
 
     // Add actions marked for inclusion in response
@@ -3242,20 +3490,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     });
     // 'none' files are excluded
 
-    // Show files/emails that are attached to the email (no hyperlink - they're attachments)
-    if (attachedFiles.length > 0 || attachedEmails.length > 0) {
-      body += '<p><strong>Files attached:</strong></p>\n';
-      body += '<ul>\n';
-      attachedFiles.forEach(att => {
-        const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-        body += `<li>📎 ${fileName}</li>\n`;
-      });
-      attachedEmails.forEach(att => {
-        const subject = att.email?.subject || '(No subject)';
-        body += `<li>📧 ${subject}.eml</li>\n`;
-      });
-      body += '</ul>\n';
-    }
+    // Note: Removed "Files attached:" section - recipients see attachments in their email client
 
     // Show files with SharePoint sharing links
     if (linkedFiles.length > 0) {
@@ -3284,6 +3519,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       body += '</ul>\n';
     }
 
+    // Add closing line
+    body += '<p>Please let me know if you have any further questions.</p>\n';
+
+    // Add signature BEFORE quoted original (ComposeEmailModal will detect and not duplicate)
+    if (currentUser) {
+      const signature = generateEmailSignature({
+        name: currentUser.name || '',
+        email: currentUser.email || '',
+        mobile_phone: currentUser.mobile_phone,
+        job_title: currentUser.job_title,
+      });
+      if (signature) {
+        body += '\n' + signature + '\n';
+      }
+    }
+
     // Include original email as quoted reply if enabled
     if (includeOriginalEmail && originalEmailData) {
       const fromName = originalEmailData.from_name || originalEmailData.from_email || 'Unknown';
@@ -3292,14 +3543,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         ? format(new Date(originalEmailData.received_at), 'EEE, MMM d, yyyy \'at\' h:mm a')
         : '';
       const subject = originalEmailData.subject || '(No subject)';
-      // Use body_preview since full body isn't loaded in task attachments
-      const originalBody = originalEmailData.body_preview || '';
+      // Use body_html for full formatted content, fallback to body_text with line breaks
+      const originalBody = originalEmailData.body_html
+        || (originalEmailData.body_text || originalEmailData.body_preview || '').replace(/\n/g, '<br>');
 
       body += '\n<br><hr>\n';
       body += `<p style="color: #666; font-size: 12px;">On ${sentDate}, ${fromName} &lt;${fromEmail}&gt; wrote:</p>\n`;
       body += `<blockquote style="margin: 10px 0; padding: 10px 15px; border-left: 3px solid #ccc; color: #555;">\n`;
       body += `<p><strong>Subject:</strong> ${subject}</p>\n`;
-      body += `<p>${originalBody}</p>\n`;
+      body += `${originalBody}\n`;
       body += '</blockquote>\n';
     }
 
@@ -3697,14 +3949,39 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           {/* Column 1: Description */}
           <div className={cn("flex flex-col gap-4", columnsCollapsed.description && "overflow-hidden")}>
             <div
-              className="flex items-center gap-2 cursor-pointer mb-2"
+              className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors mb-2"
               onClick={() => toggleColumn('description')}
             >
-              <ExpandChevron expanded={!columnsCollapsed.description} size={14} />
-              <h2 className="text-sm font-medium text-muted-foreground">Description</h2>
+              {columnsCollapsed.description ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">Description</span>
             </div>
             {!columnsCollapsed.description && (
               <>
+                {/* Email Source Header (if task was created from email) */}
+                {emailSourceData && (
+                  <div className="border rounded-md overflow-hidden">
+                    <div
+                      className="flex items-center gap-2 p-2 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => setEmailSourceCollapsed(!emailSourceCollapsed)}
+                    >
+                      {emailSourceCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                      <Mail className="h-4 w-4 text-primary" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium">Created from email</span>
+                        <span className="text-xs text-muted-foreground ml-2">from {emailSourceData.from}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{emailSourceData.date}</span>
+                    </div>
+                    {!emailSourceCollapsed && emailSourceData.body && (
+                      <div className="p-3 text-sm whitespace-pre-wrap border-t bg-background">
+                        {emailSourceData.body}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Description (hide raw email content if we have structured email source) */}
                 <div>
                   {isEditingDescription ? (
                     <SmartTextField
@@ -3716,7 +3993,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       minHeight={150}
                       autoFocus
                     />
-                  ) : (
+                  ) : !emailSourceData ? (
                     <div className="relative">
                       <div
                         className={cn(
@@ -3741,7 +4018,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         </Button>
                       )}
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="border-t pt-4 space-y-3">
@@ -3952,11 +4229,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             )}
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div
-                className="flex items-center gap-2 cursor-pointer"
+                className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
                 onClick={() => toggleColumn('questions')}
               >
-                <ExpandChevron expanded={!columnsCollapsed.questions} size={14} />
-                <h2 className="text-sm font-medium text-muted-foreground">Questions</h2>
+                {columnsCollapsed.questions ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Questions</span>
                 <Badge variant="secondary" className="text-xs">{questionItems.length + headerItems.length}</Badge>
               </div>
               {!columnsCollapsed.questions && (
@@ -4089,11 +4367,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   strategy={verticalListSortingStrategy}
                 >
                   {/* Headers with their children */}
-                  {groupedQuestions.headers.map((header) => (
+                  {groupedQuestions.headers.map((header, headerIdx) => (
                     <div key={header.id} className="space-y-1">
                       {/* Header row */}
                       <SortableQuestionItem
                         item={header}
+                        questionNumber={`${headerIdx + 1}`}
                         isHeader
                         isCollapsed={collapsedHeaders.has(header.id)}
                         isDropTarget={overHeaderId === header.id && activeDragId !== header.id}
@@ -4163,11 +4442,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             </div>
                           )}
                           {/* Existing children */}
-                          {header.children.map((child) => (
+                          {header.children.map((child, childIdx) => (
                             <SortableQuestionItem
                               key={child.id}
                               item={child}
                               task={task}
+                              questionNumber={`${headerIdx + 1}.${childIdx + 1}`}
                               onEdit={(text) => openEditModal('question', child.id, text, 'Edit Question')}
                               onRemove={() => handleRemoveItem(child.id)}
                               onFileDrop={handleFileDropOnQuestion}
@@ -4213,11 +4493,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   ))}
 
                   {/* Ungrouped questions */}
-                  {groupedQuestions.ungrouped.map((item) => (
+                  {groupedQuestions.ungrouped.map((item, idx) => (
                     <SortableQuestionItem
                       key={item.id}
                       item={item}
                       task={task}
+                      questionNumber={groupedQuestions.headers.length > 0 ? `${groupedQuestions.headers.length + 1}.${idx + 1}` : `${idx + 1}`}
                       onEdit={(text) => openEditModal('question', item.id, text, 'Edit Question')}
                       onRemove={() => handleRemoveItem(item.id)}
                       onFileDrop={handleFileDropOnQuestion}
@@ -4377,11 +4658,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           <div className={cn("flex flex-col h-full", columnsCollapsed.actions && "overflow-hidden")}>
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div
-                className="flex items-center gap-2 cursor-pointer"
+                className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
                 onClick={() => toggleColumn('actions')}
               >
-                <ExpandChevron expanded={!columnsCollapsed.actions} size={14} />
-                <h2 className="text-sm font-medium text-muted-foreground">Actions</h2>
+                {columnsCollapsed.actions ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                <CheckSquare className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Actions</span>
                 <Badge variant="secondary" className="text-xs">{actionItems.length}</Badge>
               </div>
               {!columnsCollapsed.actions && (
@@ -4517,7 +4799,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         variant="ghost"
                         size="sm"
                         className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
-                        onClick={() => setDelegatingActionId(item.id)}
+                        onClick={() => openDelegateModal(item)}
                       >
                         → Task
                       </Button>
@@ -4557,12 +4839,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             {/* Header with + Add button */}
             <div className="flex items-center justify-between mb-2 shrink-0">
               <div
-                className="flex items-center gap-2 cursor-pointer"
+                className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
                 onClick={() => toggleColumn('attachments')}
               >
-                <ExpandChevron expanded={!columnsCollapsed.attachments} size={14} />
+                {columnsCollapsed.attachments ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 <Paperclip className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-sm font-medium text-muted-foreground">Attachments</h2>
+                <span className="text-sm font-medium text-muted-foreground">Attachments</span>
               </div>
               {!columnsCollapsed.attachments && (
                 <Button
@@ -4598,19 +4880,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Emails Section */}
             <div className="mb-3">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <div
-                  className="flex items-center gap-2 cursor-pointer flex-1"
+                  className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
                   onClick={() => setEmailsCollapsed(!emailsCollapsed)}
                 >
-                  {emailsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {emailsCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium text-muted-foreground">Emails</span>
                   <Badge variant="secondary" className="text-xs">
                     {emailSourceFilter.type !== 'all' ? `${emailAttachments.length}/${allEmailAttachments.length}` : allEmailAttachments.length}
                   </Badge>
-                  {/* Quick filter chips */}
-                  {!emailsCollapsed && matchedEmailCount > 0 && (
+                </div>
+                {/* Quick filter chips - outside clickable area */}
+                {!emailsCollapsed && matchedEmailCount > 0 && (
                     <Button
                       variant={emailSourceFilter.type === 'matched' ? 'default' : 'ghost'}
                       size="sm"
@@ -4730,7 +5013,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       )}
                     </div>
                   )}
-                </div>
 
                 {/* Bulk Link Emails Button */}
                 <Popover open={bulkLinkOpen} onOpenChange={(open) => {
@@ -5644,10 +5926,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             <div className="mb-3">
               <div className="flex items-center gap-2 mb-2">
                 <div
-                  className="flex items-center gap-2 cursor-pointer flex-1"
+                  className="flex items-center gap-2 cursor-pointer flex-1 hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
                   onClick={() => setDocumentsCollapsed(!documentsCollapsed)}
                 >
-                  {documentsCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {documentsCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   <FileText className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium text-muted-foreground">Documents</span>
                   <Badge variant="secondary" className="text-xs">{infoAttachments.length}</Badge>
@@ -5763,13 +6045,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Response Files Section */}
             <div className="border-t pt-3">
-              <div className="flex items-center gap-2 mb-2">
+              <div
+                className="flex items-center gap-2 mb-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
+                onClick={() => setResponseFilesCollapsed(!responseFilesCollapsed)}
+              >
+                {responseFilesCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                 <Send className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">Response Files</span>
                 <Badge variant="secondary" className="text-xs">{responseAttachments.length}</Badge>
               </div>
 
-              {responseAttachments.length > 0 ? (
+              {!responseFilesCollapsed && (
+                <>
+                {responseAttachments.length > 0 ? (
                 <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10 mb-2">
                   {responseAttachments.map((att) => {
                     const hasExternalStorage = att.document?.storage_url;
@@ -6015,8 +6303,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   {prepareEmailStatus}
                 </p>
               )}
-            </div>
               </>
+            )}
+            </div>
+            </>
             )}
           </div>
         </div>
@@ -6105,6 +6395,223 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           open={!!selectedEmailId}
           onOpenChange={(open) => !open && setSelectedEmailId(null)}
         />
+      )}
+
+      {/* Undelegate modal - when clicking X on a delegated task */}
+      {undelegateModalItem && (
+        <Dialog open={!!undelegateModalItem} onOpenChange={(open) => !open && setUndelegateModalItem(null)}>
+          <DialogContent className="sm:max-w-md" onOpenAutoFocus={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>Remove Delegated Task</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <div className="font-medium text-sm">
+                  Task #{undelegateModalItem.delegated_task_id}: {undelegateModalItem.delegated_task?.name}
+                </div>
+                {undelegateModalItem.delegated_task?.assigned_user_name && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Assigned to: {undelegateModalItem.delegated_task.assigned_user_name}
+                  </div>
+                )}
+              </div>
+
+              <p className="text-sm">What would you like to do?</p>
+
+              {/* Hidden focus trap to prevent auto-opening the dropdown */}
+              <button className="sr-only" tabIndex={0} aria-hidden="true" />
+
+              {/* Move to another question option */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Move to another question:</label>
+                <ComboboxDropdown
+                  items={groupedQuestions.allItems
+                    .filter((q: TaskActionItem) => q.item_type === 'question' && q.id !== undelegateModalItem.id && !q.delegated_task_id)
+                    .map((q: TaskActionItem) => ({ id: q.id.toString(), label: q.text.substring(0, 60) + (q.text.length > 60 ? '...' : '') }))}
+                  placeholder="Select a question..."
+                  selectedItem={undelegateTargetQuestionId ? {
+                    id: undelegateTargetQuestionId.toString(),
+                    label: groupedQuestions.allItems.find((q: TaskActionItem) => q.id === undelegateTargetQuestionId)?.text.substring(0, 60) || ''
+                  } : undefined}
+                  onSelect={(selected) => setUndelegateTargetQuestionId(parseInt(selected.id))}
+                  className="w-full"
+                />
+                {undelegateTargetQuestionId && (
+                  <Button
+                    className="w-full"
+                    onClick={handleMoveToQuestion}
+                    disabled={undelegateModalLoading}
+                  >
+                    {undelegateModalLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Move to Selected Question
+                  </Button>
+                )}
+              </div>
+
+              <div className="border-t pt-4 flex flex-col gap-2">
+                <Button
+                  variant="outline"
+                  className="justify-start text-destructive hover:text-destructive"
+                  onClick={handleDeleteDelegatedTask}
+                  disabled={undelegateModalLoading}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete task permanently
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setUndelegateModalItem(null)}
+                  disabled={undelegateModalLoading}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Delegate question/action modal */}
+      {delegateModalData && (
+        <Dialog open={!!delegateModalData} onOpenChange={(open) => !open && closeDelegateModal()}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                Delegate {delegateModalData.itemType === 'question' ? 'Question' : 'Action'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {/* Question/Action text (read-only) */}
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  {delegateModalData.itemType === 'question' ? 'Question' : 'Action'}
+                </label>
+                <div className="mt-1 p-3 bg-muted rounded-lg text-sm">
+                  {delegateModalData.itemText}
+                </div>
+              </div>
+
+              {/* Assign to (required) */}
+              <div>
+                <label className="text-sm font-medium">
+                  Assign to <span className="text-destructive">*</span>
+                </label>
+                <div className="mt-1">
+                  <ComboboxDropdown
+                    items={delegationUsers.map(u => ({ id: u.id.toString(), label: u.name }))}
+                    placeholder="Select person..."
+                    selectedItem={delegateModalUserId ? { id: delegateModalUserId.toString(), label: delegationUsers.find(u => u.id === delegateModalUserId)?.name || '' } : undefined}
+                    onSelect={(selected) => setDelegateModalUserId(parseInt(selected.id))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
+              {/* Instructions (optional) */}
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Instructions (optional)
+                </label>
+                <Textarea
+                  value={delegateModalInstructions}
+                  onChange={(e) => setDelegateModalInstructions(e.target.value)}
+                  placeholder="Add any specific instructions or context for the assignee..."
+                  className="mt-1"
+                  rows={3}
+                />
+              </div>
+
+              {/* Due date */}
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">
+                  Due date
+                </label>
+                {/* Quick date buttons */}
+                <div className="flex gap-2 mt-1 mb-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setDelegateModalDueDate(new Date())}
+                  >
+                    Today
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setDelegateModalDueDate(addWorkingDays(new Date(), 7))}
+                  >
+                    +7 days
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setDelegateModalDueDate(addWorkingDays(new Date(), 30))}
+                  >
+                    +30 days
+                  </Button>
+                </div>
+                <div>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {delegateModalDueDate
+                          ? delegateModalDueDate.toLocaleDateString('en-AU', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric'
+                            })
+                          : 'Select date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={delegateModalDueDate}
+                        onSelect={setDelegateModalDueDate}
+                        disabled={(date) => !isWorkingDay(date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="ghost"
+                  onClick={closeDelegateModal}
+                  disabled={delegateModalLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmitDelegation}
+                  disabled={!delegateModalUserId || delegateModalLoading}
+                >
+                  {delegateModalLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Task'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Bulk paste dialog - large for organizing */}
@@ -6314,7 +6821,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           open={showComposeEmail}
           onOpenChange={setShowComposeEmail}
           defaultTo={originalEmailSender || ''}
-          defaultSubject={`Re: Task #${task.task_number} - ${task.name}`}
+          defaultCc={suggestedCcRecipients.join(', ')}
+          defaultSubject={originalEmailData?.subject
+            ? `Re: ${originalEmailData.subject.replace(/^(RE:|FW:|FWD:)\s*/gi, '')}`
+            : `Re: Task #${task.task_number}  |  ${task.name}`}
           defaultBody={generateResponseBody()}
           initialAttachments={emailFileAttachments}
           smTaskId={task.id}

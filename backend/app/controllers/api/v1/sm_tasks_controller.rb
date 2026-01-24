@@ -2068,17 +2068,47 @@ module Api
 
         delegated_task = SmTask.find_by(id: item.delegated_task_id)
 
-        # Option to also delete the spawned task
+        # First unlink the task from the action item (must happen before delete due to FK constraint)
+        item.update!(delegated_task_id: nil)
+
+        # Then optionally delete the spawned task
         if params[:delete_task] && delegated_task
           delegated_task.destroy
         end
 
-        # Unlink the task from the action item
-        item.update!(delegated_task_id: nil)
-
         render json: {
           success: true,
           action_item: action_item_to_json(item.reload)
+        }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: "Not found" }, status: :not_found
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/:item_id/move_delegated_task
+      # Move a delegated task from one action item to another
+      def move_delegated_task
+        @task = SmTask.find(params[:id])
+        source_item = @task.action_items.find(params[:item_id])
+        target_item = @task.action_items.find(params[:target_item_id])
+
+        unless source_item.delegated_task_id.present?
+          return render json: { success: false, error: "No task linked to source item" }, status: :unprocessable_entity
+        end
+
+        if target_item.delegated_task_id.present?
+          return render json: { success: false, error: "Target item already has a delegated task" }, status: :unprocessable_entity
+        end
+
+        delegated_task_id = source_item.delegated_task_id
+
+        # Move the delegation from source to target
+        source_item.update!(delegated_task_id: nil)
+        target_item.update!(delegated_task_id: delegated_task_id)
+
+        render json: {
+          success: true,
+          source_item: action_item_to_json(source_item.reload),
+          target_item: action_item_to_json(target_item.reload)
         }
       rescue ActiveRecord::RecordNotFound => e
         render json: { success: false, error: "Not found" }, status: :not_found
@@ -2549,12 +2579,15 @@ module Api
               from_email: email.from_email,
               from_name: email.from_name,
               to_emails: email.to_emails,
+              cc_emails: email.cc_emails,
               received_at: email.received_at,
               has_attachments: email.document_attachments_count > 0,
               document_attachments_count: email.document_attachments_count,
               conversation_id: email.conversation_id,
               thread_count: email.thread_count,
               body_preview: email.body_preview || email.body_text&.truncate(200),
+              body_text: email.body_text, # Full plain text body
+              body_html: email.body_html, # Full HTML body for quoted replies (preserves formatting)
               # SSoT: Download entire email as .eml file
               # Endpoint: GET /api/v1/synced_emails/:id/download_eml
               download_eml_url: "/api/v1/synced_emails/#{email.id}/download_eml",

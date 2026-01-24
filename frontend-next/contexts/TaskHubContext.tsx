@@ -15,12 +15,15 @@ export interface TaskAttachmentEmail {
   from_email: string;
   from_name?: string;
   to_emails?: string[];
+  cc_emails?: string[];
   received_at: string;
   has_attachments: boolean;
   document_attachments_count?: number; // Count of real documents (excludes signature images)
   conversation_id?: string;
   thread_count?: number;
   body_preview?: string;
+  body_text?: string; // Full plain text body
+  body_html?: string; // Full HTML body (preserves formatting)
   attachment_content_hashes?: string[]; // Content hashes of email file attachments for linking to documents
   download_eml_url?: string; // SSoT: API endpoint to download email as .eml file
 }

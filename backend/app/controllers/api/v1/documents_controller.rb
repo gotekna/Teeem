@@ -1073,8 +1073,8 @@ module Api
             display_title: doc.display_name || doc.file_name,
             source_type: "user",
             document_type: nil,
-            url: doc.download_url,
-            file_url: doc.download_url,
+            url: doc.file_url,
+            file_url: doc.file_url,
             uploaded_at: doc.created_at&.iso8601
           }
         end
