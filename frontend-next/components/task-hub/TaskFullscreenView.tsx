@@ -3887,12 +3887,29 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // Process documents to link - use storage_url directly (S3/Wasabi presigned URLs)
+      // Process documents to link - call share_link API for proper filename in download
+      // The share_link API creates presigned URLs with Content-Disposition header
+      // so external recipients download files with correct names (not just dates)
       for (const att of documentsToLink) {
-        // Use existing storage_url - no API call needed for S3/Wasabi
-        const url = att.document?.storage_url;
-        if (url) {
-          shareLinks[att.id] = url;
+        const fileName = att.document?.display_name || att.document?.file_name || 'Document';
+        setPrepareEmailStatus(`Creating link for "${fileName}"... (${processed + 1}/${totalToProcess})`);
+        try {
+          const shareResponse = await api.post<{ success: boolean; share_url?: string; error?: string }>(
+            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
+          );
+          if (shareResponse?.success && shareResponse.share_url) {
+            shareLinks[att.id] = shareResponse.share_url;
+          } else {
+            // Fallback to storage_url if share link creation fails
+            console.warn(`[prepareEmailResponse] No share link for document ${att.id}: ${shareResponse?.error || 'unknown error'}`);
+            const url = att.document?.storage_url;
+            if (url) shareLinks[att.id] = url;
+          }
+        } catch (err) {
+          console.error(`Failed to create share link for document ${att.id}:`, err);
+          // Fallback to storage_url
+          const url = att.document?.storage_url;
+          if (url) shareLinks[att.id] = url;
         }
         processed++;
       }
@@ -3924,17 +3941,30 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // Process question attachments to link - use storage_url directly
+      // Process question attachments to link - call share_link API for proper filename
       for (const att of questionAttachmentsToLink) {
         // Skip if we already have a link for this attachment
         if (shareLinks[att.id]) {
           processed++;
           continue;
         }
-        // Use existing storage_url - no API call needed for S3/Wasabi
-        const url = att.document?.storage_url;
-        if (url) {
-          shareLinks[att.id] = url;
+        const fileName = att.document?.display_name || att.document?.file_name || 'Document';
+        setPrepareEmailStatus(`Creating link for "${fileName}"... (${processed + 1}/${totalToProcess})`);
+        try {
+          const shareResponse = await api.post<{ success: boolean; share_url?: string; error?: string }>(
+            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
+          );
+          if (shareResponse?.success && shareResponse.share_url) {
+            shareLinks[att.id] = shareResponse.share_url;
+          } else {
+            // Fallback to storage_url if share link creation fails
+            const url = att.document?.storage_url;
+            if (url) shareLinks[att.id] = url;
+          }
+        } catch (err) {
+          console.error(`Failed to create share link for question attachment ${att.id}:`, err);
+          const url = att.document?.storage_url;
+          if (url) shareLinks[att.id] = url;
         }
         processed++;
       }
