@@ -27,8 +27,8 @@ module Api
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
           :start_workflow, :complete_workflow, :completion_document_type,
           :created_by, :task_followers, :source_action_item, :parent_task, :case_record,
-          # N+1 fix: action_items needs checked_by and responded_by for action_item_to_json
-          action_items: [:checked_by, :responded_by],
+          # N+1 fix: action_items needs checked_by, responded_by, and delegated_task with children/counts for action_item_to_json
+          action_items: [:checked_by, :responded_by, { delegated_task: [:action_items, :sm_task_attachments, { children: :assigned_user }] }],
           # N+1 fix: sm_task_attachments needs added_by for attachment_to_json
           sm_task_attachments: [:added_by, :attachable],
           # N+1 fix: children (subtasks) with assigned_user for SubtaskList display
@@ -2362,7 +2362,11 @@ module Api
       end
 
       def set_sm_task
-        @task = SmTask.find(params[:id])
+        # Eager load associations needed for task_to_json and action_item_to_json
+        @task = SmTask.includes(
+          :job, :assigned_user, :children,
+          action_items: [:checked_by, :responded_by, { delegated_task: [:action_items, :sm_task_attachments, { children: :assigned_user }] }]
+        ).find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
@@ -2604,7 +2608,20 @@ module Api
             name: delegated.name,
             status: delegated.status,
             assigned_user_id: delegated.assigned_user_id,
-            assigned_user_name: delegated.assigned_user&.name
+            assigned_user_name: delegated.assigned_user&.name,
+            # Counts for delete confirmation dialog - show what will be deleted
+            action_items_count: delegated.action_items.size,
+            attachments_count: delegated.sm_task_attachments.size,
+            # Include children (subtasks) for display under questions
+            children: delegated.children.map do |child|
+              {
+                id: child.id,
+                name: child.name,
+                status: child.status,
+                assigned_user_id: child.assigned_user_id,
+                assigned_user_name: child.assigned_user&.name
+              }
+            end
           }
         end
 

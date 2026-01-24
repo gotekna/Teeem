@@ -7,7 +7,7 @@ import { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import * as React from "react";
 import { createRoot, Root } from "react-dom/client";
 import { api } from "@/lib/api";
-import { Check, X, Sparkles, ChevronRight, BookPlus } from "lucide-react";
+import { Check, X, Sparkles, BookPlus } from "lucide-react";
 
 // Types for writing issues
 export interface WritingIssue {
@@ -67,117 +67,7 @@ const issueTypeConfig = {
   },
 };
 
-// Compact hover tooltip - shows just the suggestion for quick fix
-function HoverTooltip({
-  issue,
-  onFix,
-  onShowDetails,
-}: {
-  issue: WritingIssue;
-  onFix: () => void;
-  onShowDetails: () => void;
-}) {
-  const config = issueTypeConfig[issue.type];
-  const fixBtnRef = React.useRef<HTMLButtonElement>(null);
-  const whyBtnRef = React.useRef<HTMLButtonElement>(null);
-
-  // Use pointerdown/mousedown to bypass modal focus trap interference
-  React.useEffect(() => {
-    const fixBtn = fixBtnRef.current;
-    const whyBtn = whyBtnRef.current;
-
-    const handleFixPointerDown = (e: PointerEvent | MouseEvent) => {
-      console.log('[WritingChecker] HoverTooltip Fix pointerdown');
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      onFix();
-    };
-
-    const handleWhyPointerDown = (e: PointerEvent | MouseEvent) => {
-      console.log('[WritingChecker] HoverTooltip Why pointerdown');
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      onShowDetails();
-    };
-
-    fixBtn?.addEventListener('pointerdown', handleFixPointerDown, { capture: true });
-    fixBtn?.addEventListener('mousedown', handleFixPointerDown, { capture: true });
-    whyBtn?.addEventListener('pointerdown', handleWhyPointerDown, { capture: true });
-    whyBtn?.addEventListener('mousedown', handleWhyPointerDown, { capture: true });
-
-    return () => {
-      fixBtn?.removeEventListener('pointerdown', handleFixPointerDown, { capture: true });
-      fixBtn?.removeEventListener('mousedown', handleFixPointerDown, { capture: true });
-      whyBtn?.removeEventListener('pointerdown', handleWhyPointerDown, { capture: true });
-      whyBtn?.removeEventListener('mousedown', handleWhyPointerDown, { capture: true });
-    };
-  }, [onFix, onShowDetails]);
-
-  return (
-    <div
-      className="bg-popover text-popover-foreground shadow-lg rounded-lg border overflow-hidden min-w-[200px] max-w-[320px] animate-in fade-in-0 zoom-in-95 duration-100"
-    >
-      {/* Quick suggestion bar */}
-      <div className="flex items-center gap-2 p-2 border-b bg-muted/30">
-        <span className={`text-[10px] font-semibold uppercase tracking-wide ${config.color}`}>
-          {config.label}
-        </span>
-        <span className="text-xs text-muted-foreground">→</span>
-        <span className="text-sm font-medium text-green-600 dark:text-green-400 flex-1 truncate">
-          {issue.suggestion}
-        </span>
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex items-stretch divide-x">
-        <button
-          ref={fixBtnRef}
-          type="button"
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-          onPointerDown={(e) => {
-            console.log('[WritingChecker] HoverTooltip Fix React onPointerDown');
-            e.preventDefault();
-            e.stopPropagation();
-            onFix();
-          }}
-          onClick={(e) => {
-            console.log('[WritingChecker] HoverTooltip Fix React onClick');
-            e.preventDefault();
-            e.stopPropagation();
-            onFix();
-          }}
-        >
-          <Check className="h-3.5 w-3.5" />
-          Fix
-        </button>
-        <button
-          ref={whyBtnRef}
-          type="button"
-          className="flex items-center justify-center gap-1 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-          onPointerDown={(e) => {
-            console.log('[WritingChecker] HoverTooltip Why React onPointerDown');
-            e.preventDefault();
-            e.stopPropagation();
-            onShowDetails();
-          }}
-          onClick={(e) => {
-            console.log('[WritingChecker] HoverTooltip Why React onClick');
-            e.preventDefault();
-            e.stopPropagation();
-            onShowDetails();
-          }}
-        >
-          <span className="text-xs">Why?</span>
-          <ChevronRight className="h-3 w-3" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Full detail tooltip - shows explanation
+// Full detail tooltip - shows explanation and all actions
 function DetailTooltip({
   issue,
   onFix,
@@ -591,7 +481,8 @@ export const WritingChecker = Extension.create({
                   }
 
                   const coords = view.coordsAtPos(hoveredIssue.from);
-                  positionTooltip(hoverContainer, coords, 280, 80);
+                  // Use full tooltip size (320x200)
+                  positionTooltip(hoverContainer, coords, 320, 200);
 
                   extension.storage.hoverContainer = hoverContainer;
                   extension.storage.hoverRoot = createRoot(hoverContainer);
@@ -607,7 +498,7 @@ export const WritingChecker = Extension.create({
                   });
 
                   const handleFix = () => {
-                    console.log('[WritingChecker] HoverTooltip handleFix called');
+                    console.log('[WritingChecker] Tooltip handleFix called');
 
                     // Cleanup hover FIRST
                     cleanupHover();
@@ -615,44 +506,117 @@ export const WritingChecker = Extension.create({
                     // Use setTimeout to escape event handling context
                     setTimeout(() => {
                       try {
-                        console.log('[WritingChecker] HoverTooltip applying fix');
+                        console.log('[WritingChecker] Tooltip applying fix');
 
-                        // Get fresh state and create transaction
-                        const tr = view.state.tr;
-                        tr.delete(hoveredIssue.from, hoveredIssue.to);
-                        tr.insertText(hoveredIssue.suggestion, hoveredIssue.from);
+                        // Try to get TipTap editor instance
+                        const editorElement = view.dom.closest('.ProseMirror')?.parentElement;
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const tiptapEditor = (editorElement as any)?.editor;
+
+                        if (tiptapEditor && typeof tiptapEditor.chain === 'function') {
+                          console.log('[WritingChecker] Using TipTap editor commands');
+                          tiptapEditor
+                            .chain()
+                            .focus()
+                            .setTextSelection({ from: hoveredIssue.from, to: hoveredIssue.to })
+                            .deleteSelection()
+                            .insertContent(hoveredIssue.suggestion)
+                            .run();
+                        } else {
+                          // Fallback to direct ProseMirror manipulation
+                          const tr = view.state.tr;
+                          tr.delete(hoveredIssue.from, hoveredIssue.to);
+                          tr.insertText(hoveredIssue.suggestion, hoveredIssue.from);
+                          tr.setMeta(writingCheckerKey, {
+                            decorations: DecorationSet.empty,
+                            issues: [],
+                            isChecking: false,
+                          });
+                          view.dispatch(tr);
+                        }
 
                         // Clear decorations
-                        tr.setMeta(writingCheckerKey, {
+                        const clearTr = view.state.tr.setMeta(writingCheckerKey, {
                           decorations: DecorationSet.empty,
                           issues: [],
                           isChecking: false,
                         });
-
-                        // Dispatch the transaction
-                        view.dispatch(tr);
-                        console.log('[WritingChecker] HoverTooltip transaction dispatched');
+                        view.dispatch(clearTr);
 
                         // Clear last checked text to force re-check
                         extension.storage.lastCheckedText = "";
                         view.focus();
                       } catch (error) {
-                        console.error('[WritingChecker] HoverTooltip handleFix error:', error);
+                        console.error('[WritingChecker] Tooltip handleFix error:', error);
                       }
                     }, 10);
                   };
 
-                  const handleShowDetails = () => {
+                  const handleDismiss = () => {
+                    extension.storage.dismissedIssues.add(`${hoveredIssue.original}:${hoveredIssue.from}`);
+
+                    const currentState = writingCheckerKey.getState(view.state);
+                    if (currentState) {
+                      const newIssues = currentState.issues.filter((i) => i !== hoveredIssue);
+                      const decorations = createDecorations(view.state.doc, newIssues);
+                      const tr = view.state.tr.setMeta(writingCheckerKey, {
+                        decorations,
+                        issues: newIssues,
+                      });
+                      view.dispatch(tr);
+                    }
+
                     cleanupHover();
-                    // Trigger the click handler to show full tooltip
-                    showDetailTooltip(view, hoveredIssue);
+                    view.focus();
                   };
 
+                  const handleClose = () => {
+                    cleanupHover();
+                    view.focus();
+                  };
+
+                  const handleAddToDictionary = async () => {
+                    console.log('[WritingChecker] Adding to dictionary:', hoveredIssue.original);
+                    try {
+                      const response = await api.post<{
+                        success: boolean;
+                        data?: { word: string };
+                        error?: string;
+                      }>("/api/v1/user_dictionary", { word: hoveredIssue.original });
+
+                      if (response?.success) {
+                        // Remove this issue and any others with the same word
+                        const currentState = writingCheckerKey.getState(view.state);
+                        if (currentState) {
+                          const wordLower = hoveredIssue.original.toLowerCase();
+                          const newIssues = currentState.issues.filter(
+                            (i) => i.original.toLowerCase() !== wordLower
+                          );
+                          const decorations = createDecorations(view.state.doc, newIssues);
+                          const tr = view.state.tr.setMeta(writingCheckerKey, {
+                            decorations,
+                            issues: newIssues,
+                          });
+                          view.dispatch(tr);
+                        }
+                        extension.storage.lastCheckedText = "";
+                        cleanupHover();
+                        view.focus();
+                      }
+                    } catch (error) {
+                      console.error('[WritingChecker] Error adding to dictionary:', error);
+                    }
+                  };
+
+                  // Render full DetailTooltip (not compact HoverTooltip)
+                  // This gives users all options immediately on hover
                   extension.storage.hoverRoot.render(
-                    <HoverTooltip
+                    <DetailTooltip
                       issue={hoveredIssue}
                       onFix={handleFix}
-                      onShowDetails={handleShowDetails}
+                      onDismiss={handleDismiss}
+                      onClose={handleClose}
+                      onAddToDictionary={hoveredIssue.type === "spelling" ? handleAddToDictionary : undefined}
                     />
                   );
                 }

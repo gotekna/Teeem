@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/context-menu';
 import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
+import { SubtaskList } from './SubtaskList';
 import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api, getApiBaseUrl } from '@/lib/api';
@@ -780,29 +781,88 @@ function SortableQuestionItem({
 
       {/* Delegated task link or create task button */}
       {item.delegated_task_id ? (
-        <div className="ml-6 flex items-center gap-1">
-          <Button
-            variant="link"
-            size="sm"
-            className="h-6 text-xs p-0 text-primary"
-            onClick={() => window.open(`/sm_tasks/${item.delegated_task_id}`, '_blank')}
-          >
-            → Task #{item.delegated_task_id}
-          </Button>
-          {item.delegated_task?.assigned_user_name && (
-            <span className="text-xs text-muted-foreground">
-              ({item.delegated_task.assigned_user_name})
-            </span>
+        <div className="ml-6">
+          <div className="flex items-center gap-1">
+            <Button
+              variant="link"
+              size="sm"
+              className="h-6 text-xs p-0 text-primary"
+              onClick={() => window.open(`/sm_tasks/${item.delegated_task_id}`, '_blank')}
+            >
+              → Task #{item.delegated_task_id}
+            </Button>
+            {item.delegated_task?.assigned_user_name && (
+              <span className="text-xs text-muted-foreground">
+                ({item.delegated_task.assigned_user_name})
+              </span>
+            )}
+            {item.delegated_task?.status && (
+              <span className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded",
+                item.delegated_task.status === 'completed' && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+                item.delegated_task.status === 'in_progress' && "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+                item.delegated_task.status === 'not_started' && "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+              )}>
+                {item.delegated_task.status.replace('_', ' ')}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+              onClick={() => handleUndelegateQuestion?.(item.id)}
+              title="Unlink task"
+            >
+              <X className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
+              onClick={() => setDelegatingQuestionId?.(item.id)}
+            >
+              → Task
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 text-xs p-0 text-muted-foreground hover:text-green-600 dark:text-green-400"
+              onClick={() => onCreateAction?.(item.text)}
+            >
+              → Action
+            </Button>
+          </div>
+          {/* Subtasks of delegated task */}
+          {item.delegated_task?.children && item.delegated_task.children.length > 0 && (
+            <div className="mt-1 ml-4 space-y-0.5">
+              {item.delegated_task.children.map((subtask) => (
+                <div key={subtask.id} className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span className="text-muted-foreground/50">└</span>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-5 text-xs p-0 text-muted-foreground hover:text-primary"
+                    onClick={() => window.open(`/sm_tasks/${subtask.id}`, '_blank')}
+                  >
+                    {subtask.name}
+                  </Button>
+                  {subtask.assigned_user_name && (
+                    <span className="text-muted-foreground/70">
+                      ({subtask.assigned_user_name})
+                    </span>
+                  )}
+                  <span className={cn(
+                    "text-[10px] px-1 rounded",
+                    subtask.status === 'completed' && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+                    subtask.status === 'in_progress' && "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+                    subtask.status === 'not_started' && "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                  )}>
+                    {subtask.status.replace('_', ' ')}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-            onClick={() => handleUndelegateQuestion?.(item.id)}
-            title="Unlink task"
-          >
-            <X className="h-3 w-3" />
-          </Button>
         </div>
       ) : delegatingQuestionId === item.id ? (
         <div className="ml-6 flex gap-2 items-center">
@@ -932,6 +992,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [delegatingQuestionId, setDelegatingQuestionId] = useState<number | null>(null);
   const [delegatingActionId, setDelegatingActionId] = useState<number | null>(null);
   const [delegationUsers, setDelegationUsers] = useState<User[]>([]);
+
+  // Delete confirmation for items with delegated tasks
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<TaskActionItem | null>(null);
 
   // Attachment state
   const [localAttachments, setLocalAttachments] = useState<TaskAttachment[]>(task.attachments || []);
@@ -1808,10 +1871,40 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     scrollToSavedItem();  // Scroll back to the saved question
   };
 
-  const handleRemoveItem = async (itemId: number) => {
+  const handleRemoveItem = async (itemId: number, skipConfirm = false) => {
+    // Find the item to check if it has a delegated task
+    const item = task.action_items?.find(i => i.id === itemId);
+
+    // If item has a delegated task and we haven't confirmed, show dialog
+    if (item?.delegated_task_id && !skipConfirm) {
+      setDeleteConfirmItem(item);
+      return;
+    }
+
     setActionItemLoading(itemId);
     await removeActionItem(task.id, itemId);
     setActionItemLoading(null);
+  };
+
+  // Handle confirmed delete with subtask option
+  const handleConfirmedDelete = async (keepSubtask: boolean) => {
+    if (!deleteConfirmItem) return;
+
+    const itemId = deleteConfirmItem.id;
+    setDeleteConfirmItem(null);
+
+    if (keepSubtask && deleteConfirmItem.delegated_task_id) {
+      // First unlink the subtask, then delete the question
+      await undelegateActionItem(task.id, itemId, false); // false = don't delete task
+    }
+
+    // Now delete the question (if keepSubtask was true, it's already unlinked)
+    setActionItemLoading(itemId);
+    await removeActionItem(task.id, itemId);
+    setActionItemLoading(null);
+
+    // Refresh to update subtasks list
+    await refresh();
   };
 
   const handleBulkPaste = async () => {
@@ -3613,6 +3706,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 </Popover>
               </div>
             </div>
+
+            {/* Subtasks - shows all children (from delegated questions/actions or direct subtasks) */}
+            {task.children && task.children.length > 0 && (
+              <div className="border-t pt-4">
+                <SubtaskList subtasks={task.children} compact={false} />
+              </div>
+            )}
 
             {/* Quick Links */}
             <div className="border-t pt-4 flex flex-wrap gap-2">
@@ -5713,6 +5813,71 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         />
       )}
 
+      {/* Delete question confirmation dialog - when item has a delegated subtask */}
+      {deleteConfirmItem && (
+        <Dialog open={!!deleteConfirmItem} onOpenChange={(open) => !open && setDeleteConfirmItem(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete {deleteConfirmItem.item_type === 'question' ? 'Question' : 'Action'}?</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This {deleteConfirmItem.item_type} has a linked subtask:
+              </p>
+              <div className="p-3 bg-muted rounded-lg">
+                <div className="font-medium text-sm">
+                  Task #{deleteConfirmItem.delegated_task_id}: {deleteConfirmItem.delegated_task?.name}
+                </div>
+                {deleteConfirmItem.delegated_task?.assigned_user_name && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Assigned to: {deleteConfirmItem.delegated_task.assigned_user_name}
+                  </div>
+                )}
+                {deleteConfirmItem.delegated_task?.children && deleteConfirmItem.delegated_task.children.length > 0 && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Has {deleteConfirmItem.delegated_task.children.length} subtask(s)
+                  </div>
+                )}
+                {(deleteConfirmItem.delegated_task?.action_items_count ?? 0) > 0 && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Has {deleteConfirmItem.delegated_task?.action_items_count} action item(s)
+                  </div>
+                )}
+                {(deleteConfirmItem.delegated_task?.attachments_count ?? 0) > 0 && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Has {deleteConfirmItem.delegated_task?.attachments_count} attachment(s)
+                  </div>
+                )}
+              </div>
+              <p className="text-sm">What would you like to do with the subtask?</p>
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => handleConfirmedDelete(true)}
+                >
+                  <Check className="h-4 w-4 mr-2 text-green-600" />
+                  Keep subtask (will become a standalone subtask)
+                </Button>
+                <Button
+                  variant="outline"
+                  className="justify-start text-destructive hover:text-destructive"
+                  onClick={() => handleConfirmedDelete(false)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete subtask and all its contents
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setDeleteConfirmItem(null)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {selectedEmailId && (
         <EmailDetailDialog

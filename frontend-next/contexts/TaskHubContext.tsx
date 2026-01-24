@@ -80,6 +80,16 @@ export interface TaskActionItem {
     status: string;
     assigned_user_id?: number;
     assigned_user_name?: string;
+    // Counts for delete confirmation dialog
+    action_items_count?: number;
+    attachments_count?: number;
+    children?: Array<{
+      id: number;
+      name: string;
+      status: string;
+      assigned_user_id?: number;
+      assigned_user_name?: string;
+    }>;
   };
   // Response attachments linked to this question
   attachments?: TaskAttachment[];

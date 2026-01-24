@@ -90,6 +90,7 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
   renderCard,
   renderColumnHeader,
   renderEmptyColumn,
+  renderColumnContent,
   onCardMove,
   onCardReorder,
   onColumnReorder,
@@ -312,11 +313,14 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
           (item) => getItemColumn(item) === column.id
         );
 
+        // Collapsed columns should be thin, expanded columns should flex to fill space
+        const isCollapsed = column.collapsed;
+
         return (
           <div
             key={column.id}
-            className="flex-1"
-            style={{ minWidth: minColumnWidth }}
+            className={isCollapsed ? "shrink-0" : "flex-1"}
+            style={isCollapsed ? undefined : { minWidth: minColumnWidth }}
           >
             <KanbanColumn
               column={column}
@@ -324,6 +328,7 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
               isOver={overColumnId === column.id}
               renderCard={renderCard}
               renderHeader={renderColumnHeader}
+              renderContent={renderColumnContent ? (items, rc) => renderColumnContent(column, items, rc) : undefined}
               renderEmpty={renderEmptyColumn}
               onCollapse={
                 columnsCollapsible

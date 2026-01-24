@@ -20,6 +20,9 @@ class TaskActionItem < ApplicationRecord
   validates :text, presence: true
   validates :item_type, inclusion: { in: ITEM_TYPES }
 
+  # Note: When a question/action with a delegated task is deleted, the UI asks
+  # whether to keep or delete the subtask. No auto-cascade here - user decides.
+
   default_scope { order(:position) }
 
   # Scopes

@@ -14,7 +14,7 @@
  * See: frontend-next/components/ui/kanban
  */
 
-import { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { TASK_STATUS } from '@/lib/constants/task-status';
@@ -35,7 +35,7 @@ import {
   type CardMoveEvent,
   type CardReorderEvent,
 } from '@/components/ui/kanban';
-import { Lock, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Lock, AlertTriangle, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getOverdueColorClasses } from '../TaskColorSettings';
 
@@ -65,11 +65,13 @@ const columns: KanbanColumnDef<TaskItem>[] = [
     id: TASK_STATUS.WAITING_FOR_INFO,
     title: 'Waiting for More Info',
     color: 'orange',
+    collapsed: true, // Collapsed by default
   },
   {
     id: TASK_STATUS.COMPLETED,
     title: 'Completed',
     color: 'green',
+    collapsed: true, // Collapsed by default
   },
 ];
 
@@ -120,6 +122,128 @@ function TaskCardContent({ task, currentUserId }: TaskCardContentProps) {
       {/* Subtasks section */}
       {showSubtasks && (
         <SubtaskList subtasks={task.children} compact={true} />
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// TIME-BASED GROUPING FOR COMPLETED COLUMN
+// =============================================================================
+
+type TimeGroup = 'thisWeek' | 'lastMonth' | 'thisYear' | string; // string for year like "2024"
+
+interface GroupedTasks {
+  id: TimeGroup;
+  label: string;
+  tasks: TaskItem[];
+}
+
+/**
+ * Group tasks by completion date into time periods
+ */
+function groupTasksByCompletionDate(tasks: TaskItem[]): GroupedTasks[] {
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+  const groups: Record<TimeGroup, TaskItem[]> = {
+    thisWeek: [],
+    lastMonth: [],
+    thisYear: [],
+  };
+  const yearGroups: Record<string, TaskItem[]> = {};
+
+  for (const task of tasks) {
+    // Use completed_at as completion date (when task was marked complete)
+    const completedDate = task.completed_at ? new Date(task.completed_at) : null;
+
+    if (!completedDate) {
+      groups.thisWeek.push(task); // No date, show in most recent
+      continue;
+    }
+
+    if (completedDate >= startOfWeek) {
+      groups.thisWeek.push(task);
+    } else if (completedDate >= startOfMonth) {
+      groups.lastMonth.push(task);
+    } else if (completedDate >= startOfYear) {
+      groups.thisYear.push(task);
+    } else {
+      // Group by year
+      const year = completedDate.getFullYear().toString();
+      if (!yearGroups[year]) yearGroups[year] = [];
+      yearGroups[year].push(task);
+    }
+  }
+
+  // Build ordered result
+  const result: GroupedTasks[] = [];
+
+  if (groups.thisWeek.length > 0) {
+    result.push({ id: 'thisWeek', label: 'This Week', tasks: groups.thisWeek });
+  }
+  if (groups.lastMonth.length > 0) {
+    result.push({ id: 'lastMonth', label: 'Last Month', tasks: groups.lastMonth });
+  }
+  if (groups.thisYear.length > 0) {
+    result.push({ id: 'thisYear', label: 'This Year', tasks: groups.thisYear });
+  }
+
+  // Add year groups in descending order
+  const years = Object.keys(yearGroups).sort((a, b) => parseInt(b) - parseInt(a));
+  for (const year of years) {
+    result.push({ id: year, label: year, tasks: yearGroups[year] });
+  }
+
+  return result;
+}
+
+/**
+ * Collapsible section for time-grouped completed tasks
+ */
+function CompletedGroupSection({
+  group,
+  renderCard,
+  defaultCollapsed = true,
+}: {
+  group: GroupedTasks;
+  renderCard: (task: TaskItem, isDragging: boolean) => React.ReactNode;
+  defaultCollapsed?: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
+  return (
+    <div className="mb-2">
+      {/* Group header */}
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex items-center gap-1.5 w-full px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded transition-colors"
+      >
+        {collapsed ? (
+          <ChevronRight className="h-3 w-3" />
+        ) : (
+          <ChevronDown className="h-3 w-3" />
+        )}
+        <span>{group.label}</span>
+        <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0">
+          {group.tasks.length}
+        </Badge>
+      </button>
+
+      {/* Group content */}
+      {!collapsed && (
+        <div className="space-y-2 mt-1.5">
+          {group.tasks.map((task) => (
+            <React.Fragment key={task.id}>
+              {renderCard(task, false)}
+            </React.Fragment>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -358,10 +482,41 @@ export function BoardView() {
         onCardMove={handleCardMove}
         onCardReorder={handleCardReorder}
         cardReorderable={true}
-        columnsCollapsible={false}
+        columnsCollapsible={true}
         columnGap="sm"
         minColumnWidth={200}
         className="h-full"
+        // Custom grouped view for Completed column only
+        renderColumnContent={(column, items, rc) => {
+          // Only use grouped view for Completed column
+          if (column.id !== TASK_STATUS.COMPLETED) {
+            return undefined; // Use default rendering
+          }
+
+          // Group completed tasks by time period
+          const groups = groupTasksByCompletionDate(items as TaskItem[]);
+
+          if (groups.length === 0) {
+            return (
+              <div className="flex items-center justify-center h-20 text-muted-foreground text-sm">
+                No completed tasks
+              </div>
+            );
+          }
+
+          return (
+            <div>
+              {groups.map((group, index) => (
+                <CompletedGroupSection
+                  key={group.id}
+                  group={group}
+                  renderCard={rc as (task: TaskItem, isDragging: boolean) => React.ReactNode}
+                  defaultCollapsed={index > 0} // First group expanded, rest collapsed
+                />
+              ))}
+            </div>
+          );
+        }}
       />
 
       {/* Task Detail Sheet */}

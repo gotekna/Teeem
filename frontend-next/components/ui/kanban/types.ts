@@ -167,6 +167,8 @@ export interface KanbanBoardProps<T extends KanbanItem = KanbanItem> {
   renderColumnHeader?: (column: KanbanColumnDef<T>, itemCount: number) => React.ReactNode;
   /** Optional empty column content */
   renderEmptyColumn?: (column: KanbanColumnDef<T>) => React.ReactNode;
+  /** Optional custom column content renderer (overrides default card list) */
+  renderColumnContent?: (column: KanbanColumnDef<T>, items: T[], renderCard: (item: T, isDragging: boolean) => React.ReactNode) => React.ReactNode;
 
   // Events
   /** Called when a card moves between columns */
@@ -207,6 +209,8 @@ export interface KanbanColumnProps<T extends KanbanItem = KanbanItem> {
   renderHeader?: (column: KanbanColumnDef<T>, itemCount: number) => React.ReactNode;
   /** Empty state renderer */
   renderEmpty?: (column: KanbanColumnDef<T>) => React.ReactNode;
+  /** Custom column content renderer (overrides default card list) */
+  renderContent?: (items: T[], renderCard: (item: T, isDragging: boolean) => React.ReactNode) => React.ReactNode;
   /** Collapse toggle handler */
   onCollapse?: (collapsed: boolean) => void;
   /** Whether cards can be reordered */

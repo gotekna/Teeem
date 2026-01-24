@@ -162,13 +162,12 @@ export function KanbanCard({
         className
       )}
     >
-      {/* Drag handle indicator - visible on hover */}
+      {/* Drag handle indicator - always visible */}
       {!disabled && (
         <div
           className={cn(
             "absolute left-0 top-0 bottom-0 w-5 flex items-center justify-center",
-            "opacity-0 group-hover:opacity-100 transition-opacity",
-            "text-muted-foreground pointer-events-none"
+            "text-muted-foreground/50 pointer-events-none"
           )}
         >
           <GripVertical className="h-3.5 w-3.5" />
@@ -176,10 +175,10 @@ export function KanbanCard({
       )}
 
       {/* Card content with optional position badge */}
-      <div className={cn("flex items-start gap-1", !disabled && "pl-1")}>
+      <div className={cn("flex items-center gap-1", !disabled && "pl-1")}>
         {/* Position badge (SSoT) - shown when position is provided */}
         {position !== undefined && (
-          <div className="shrink-0 pt-1.5 pl-1">
+          <div className="shrink-0 pl-4">
             <ItemBadge
               position={position}
               size="sm"

@@ -58,6 +58,7 @@ export function KanbanColumn<T extends KanbanItem = KanbanItem>({
   renderCard,
   renderHeader,
   renderEmpty,
+  renderContent,
   onCollapse,
   cardReorderable = true,
   className,
@@ -128,6 +129,47 @@ export function KanbanColumn<T extends KanbanItem = KanbanItem>({
     </div>
   );
 
+  // Collapsed: render as thin vertical strip
+  if (collapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        onClick={() => onCollapse?.(false)}
+        className={cn(
+          "flex flex-col items-center rounded-lg border-t-4 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors",
+          "w-10 min-w-10", // Thin strip
+          columnColorClasses[color],
+          className
+        )}
+      >
+        {/* Expand icon */}
+        <div className="p-2">
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </div>
+
+        {/* Vertical title */}
+        <div
+          className={cn(
+            "flex-1 flex items-center justify-center",
+            columnHeaderColorClasses[color]
+          )}
+          style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+        >
+          <span className="text-xs font-medium whitespace-nowrap">
+            {title}
+          </span>
+        </div>
+
+        {/* Count at bottom */}
+        <div className="p-2">
+          <Badge variant="secondary" className="text-xs px-1.5 py-0">
+            {itemCount}
+          </Badge>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={setNodeRef}
@@ -144,11 +186,18 @@ export function KanbanColumn<T extends KanbanItem = KanbanItem>({
       </div>
 
       {/* Content */}
-      {!collapsed && (
-        <div className="flex-1 p-2 min-h-[120px] overflow-y-auto">
-          {items.length === 0 ? (
-            renderEmpty ? renderEmpty(column) : defaultEmpty
-          ) : (
+      <div className="flex-1 p-2 min-h-[120px] overflow-y-auto">
+        {(() => {
+          // Try custom content renderer first
+          const customContent = renderContent?.(items, renderCard);
+          if (customContent !== undefined) {
+            return customContent;
+          }
+          // Default rendering
+          if (items.length === 0) {
+            return renderEmpty ? renderEmpty(column) : defaultEmpty;
+          }
+          return (
             <SortableContext
               items={itemIds}
               strategy={verticalListSortingStrategy}
@@ -162,16 +211,9 @@ export function KanbanColumn<T extends KanbanItem = KanbanItem>({
                 ))}
               </div>
             </SortableContext>
-          )}
-        </div>
-      )}
-
-      {/* Collapsed indicator */}
-      {collapsed && (
-        <div className="p-2 text-center text-muted-foreground text-sm">
-          {itemCount} item{itemCount !== 1 && "s"}
-        </div>
-      )}
+          );
+        })()}
+      </div>
     </div>
   );
 }

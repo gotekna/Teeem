@@ -77,9 +77,9 @@ export interface ItemBadgeProps {
 
 // Size classes for badge - must match inputSizeClasses for seamless edit mode transition
 const sizeClasses = {
-  sm: "text-[9px] px-1 py-0 h-3.5 min-w-[16px] leading-[14px]",
-  md: "text-[10px] px-1.5 py-0 h-4 min-w-[20px] leading-4",
-  lg: "text-xs px-2 py-0.5 h-5 min-w-[24px] leading-5",
+  sm: "text-[9px] px-1 py-0 h-3.5 w-6 leading-[14px]",
+  md: "text-[10px] px-1.5 py-0 h-4 w-7 leading-4",
+  lg: "text-xs px-2 py-0.5 h-5 w-8 leading-5",
 };
 
 // Size classes for input (editing mode) - must match badge sizeClasses exactly
@@ -216,7 +216,8 @@ export function ItemBadge({
         onMouseDown={stopEvent}
         className={cn(
           contentType === "label" ? "w-12" : inputSizeClasses[size],
-          "p-0 text-center font-mono border-primary",
+          // Match Badge's inline-flex display (override Input's block-level flex)
+          "inline-flex items-center justify-center p-0 font-mono border-primary",
           // Hide number input spinners to match badge size exactly
           "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
           className
