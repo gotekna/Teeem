@@ -3,9 +3,12 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, FileCode, FormInput } from "lucide-react";
+import { FileText, FileCode, FormInput, Landmark, Receipt, Mail } from "lucide-react";
 import { DocumentTypesTab } from "./DocumentTypesTab";
-import { DocumentTemplatesTab } from "./DocumentTemplatesTab";
+import { DocumentTemplatesContent } from "./DocumentTemplatesTab";
+import { BankStatementTemplatesTab } from "./BankStatementTemplatesTab";
+import { InvoiceTemplatesTab } from "./InvoiceTemplatesTab";
+import { EmailSignaturesTab } from "./EmailSignaturesTab";
 import { PdfFieldsTab } from "./PdfFieldsTab";
 
 /**
@@ -14,13 +17,23 @@ import { PdfFieldsTab } from "./PdfFieldsTab";
  * SSoT: This is THE ONE location for document settings.
  * Contains:
  * - Document Types (categories for documents)
- * - Templates (document templates)
+ * - Document Templates (Tekna document templates)
+ * - Bank Statements (bank statement parsing templates)
+ * - Invoice Templates (invoice PDF templates)
+ * - Email Signatures (signature style preferences)
  * - PDF Fields (field mappings for PDFs)
+ *
+ * Note: This was flattened from a nested structure in Jan 2026
+ * Previously: Documents > Templates > (Doc Templates, Bank Statements, Invoice Templates)
+ * Now: Documents > (Doc Types, Doc Templates, Bank Statements, Invoice Templates, Email Signatures, PDF Fields)
  */
 
 const DOCUMENTS_SUB_TABS = [
   { id: "types", label: "Document Types", icon: FileText },
-  { id: "templates", label: "Templates", icon: FileCode },
+  { id: "document-templates", label: "Document Templates", icon: FileCode },
+  { id: "bank-statements", label: "Bank Statements", icon: Landmark },
+  { id: "invoice-templates", label: "Invoice Templates", icon: Receipt },
+  { id: "email-signatures", label: "Email Signatures", icon: Mail },
   { id: "pdf-fields", label: "PDF Fields", icon: FormInput },
 ];
 
@@ -44,7 +57,7 @@ export function DocumentsTab({ subTab, basePath = DEFAULT_DOCUMENTS_BASE_PATH }:
   return (
     <div className="space-y-6">
       <Tabs value={activeSubTab} onValueChange={handleSubTabChange}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto gap-1">
           {DOCUMENTS_SUB_TABS.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -60,8 +73,17 @@ export function DocumentsTab({ subTab, basePath = DEFAULT_DOCUMENTS_BASE_PATH }:
           <TabsContent value="types">
             <DocumentTypesTab basePath={`${basePath}/types`} />
           </TabsContent>
-          <TabsContent value="templates">
-            <DocumentTemplatesTab basePath={`${basePath}/templates`} />
+          <TabsContent value="document-templates">
+            <DocumentTemplatesContent basePath={`${basePath}/document-templates`} />
+          </TabsContent>
+          <TabsContent value="bank-statements">
+            <BankStatementTemplatesTab />
+          </TabsContent>
+          <TabsContent value="invoice-templates">
+            <InvoiceTemplatesTab />
+          </TabsContent>
+          <TabsContent value="email-signatures">
+            <EmailSignaturesTab />
           </TabsContent>
           <TabsContent value="pdf-fields">
             <PdfFieldsTab />

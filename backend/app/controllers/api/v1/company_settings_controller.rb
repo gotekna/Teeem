@@ -148,6 +148,9 @@ module Api
         # This determines which backend environment the company uses (production/beta/staging)
         base[:api_environment] = CorporateCompanySetting.api_environment
 
+        # Brand colors in hex format (for email signatures, PDFs, etc.)
+        base[:brand_colors] = CorporateCompanySetting.brand_colors_hex
+
         base
       end
 

@@ -275,6 +275,56 @@ class CorporateCompanySetting < ApplicationRecord
     "#{(h * 360).round} #{(s * 100).round}% #{(l * 100).round}%"
   end
 
+  # Convert HSL string back to hex color
+  # Input: "161 63% 13%" (HSL format from CSS variables)
+  # Output: "#0c352d"
+  def self.hsl_to_hex(hsl_string)
+    return nil if hsl_string.blank?
+
+    # Parse "161 63% 13%" format
+    match = hsl_string.match(/(\d+)\s+(\d+)%\s+(\d+)%/)
+    return nil unless match
+
+    h = match[1].to_f / 360.0
+    s = match[2].to_f / 100.0
+    l = match[3].to_f / 100.0
+
+    if s == 0
+      r = g = b = l
+    else
+      q = l < 0.5 ? l * (1 + s) : l + s - l * s
+      p = 2 * l - q
+      r = hue_to_rgb(p, q, h + 1.0/3.0)
+      g = hue_to_rgb(p, q, h)
+      b = hue_to_rgb(p, q, h - 1.0/3.0)
+    end
+
+    "#%02x%02x%02x" % [(r * 255).round, (g * 255).round, (b * 255).round]
+  end
+
+  # Helper for HSL to RGB conversion
+  def self.hue_to_rgb(p, q, t)
+    t += 1 if t < 0
+    t -= 1 if t > 1
+    return p + (q - p) * 6 * t if t < 1.0/6.0
+    return q if t < 1.0/2.0
+    return p + (q - p) * (2.0/3.0 - t) * 6 if t < 2.0/3.0
+    p
+  end
+
+  # Get brand colors in HEX format (for email signatures, PDFs, etc.)
+  # Returns hex values like "#0c352d"
+  def self.brand_colors_hex
+    setting = instance
+    {
+      primary: hsl_to_hex(setting.brand_color_primary) || "#1a3c34",
+      primaryForeground: hsl_to_hex(setting.brand_color_primary_foreground) || "#ffffff",
+      secondary: hsl_to_hex(setting.brand_color_secondary) || "#64748b",
+      muted: hsl_to_hex(setting.brand_color_muted) || "#f1f5f9",
+      accent: hsl_to_hex(setting.brand_color_accent) || "#0ea5e9"
+    }
+  end
+
   # Update brand colors from hex values (for API convenience)
   def self.update_brand_colors_from_hex(colors)
     updates = {}

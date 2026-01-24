@@ -221,6 +221,8 @@ module Api
             id: @current_user.id,
             email: @current_user.email,
             name: @current_user.name,
+            mobile_phone: @current_user.mobile_phone,
+            job_title: @current_user.job_title,
             role_names: @current_user.role_names,  # SSoT: Return role names array
             permissions: @current_user.permissions,
             preload_price_books: @current_user.preload_price_books,
@@ -231,7 +233,9 @@ module Api
             primary_role_id: @current_user.primary_role_id,
             default_task_view: @current_user.default_task_view,
             default_theme_from_role: @current_user.default_theme_from_role,
-            sidebar_collapsed_by_default: @current_user.sidebar_collapsed_by_default?
+            sidebar_collapsed_by_default: @current_user.sidebar_collapsed_by_default?,
+            # Email signature style preference (Jan 2026)
+            email_signature_style: @current_user.email_signature_style || 'modern-dark'
           },
           # Environment info for auto-login redirect check
           api_url: env_config[:api_url],

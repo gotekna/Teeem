@@ -31,7 +31,12 @@ import { EmailContactAutocomplete } from "./EmailContactAutocomplete";
 import { useUndoSend } from "@/hooks/useUndoSend";
 import { useAutoSaveDraft, useEmailDrafts } from "@/hooks/useEmailDrafts";
 import { useAuth } from "@/contexts/AuthContext";
-import { generateEmailSignature, hasSignature } from "@/lib/email-signature";
+import {
+  generateSignatureByStyle,
+  hasSignature,
+  type SignatureStyleId,
+  DEFAULT_SIGNATURE_STYLE,
+} from "@/lib/email-signature";
 import {
   CONTACT_SEARCH_DEBOUNCE_MS,
   CONTACT_SEARCH_MIN_CHARS,
@@ -193,10 +198,16 @@ export function ComposeEmailModal({
     return () => clearTimeout(timer);
   }, [contactSearch, ccSearch, bccSearch]);
 
-  // Generate signature from current user data (SSoT: branded Teeem signature)
+  // Generate signature from current user data (SSoT: uses user's preferred signature style)
   const getUserSignature = (): string => {
     if (!currentUser) return "";
-    return generateEmailSignature(
+
+    // Get user's preferred signature style or fall back to default
+    const signatureStyle = ((currentUser as { email_signature_style?: string }).email_signature_style as SignatureStyleId)
+      || DEFAULT_SIGNATURE_STYLE;
+
+    return generateSignatureByStyle(
+      signatureStyle,
       {
         name: currentUser.name,
         email: currentUser.email,

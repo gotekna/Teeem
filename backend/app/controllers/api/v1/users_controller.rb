@@ -170,7 +170,7 @@ class Api::V1::UsersController < ApplicationController
     params.require(:user).permit(
       :name, :email, :mobile_phone, :job_title, :preferred_theme,
       :qbcc_licence_number, :qbcc_licence_class, :signature, :photo,
-      :enable_ai_writing_assistant
+      :enable_ai_writing_assistant, :email_signature_style
     )
   end
 
@@ -287,7 +287,9 @@ class Api::V1::UsersController < ApplicationController
       signature_url: nil,
       qbcc_licence_number: user.qbcc_licence_number,
       qbcc_licence_class: user.qbcc_licence_class,
-      can_sign_certificates: user.can_sign_certificates?
+      can_sign_certificates: user.can_sign_certificates?,
+      # Email signature style preference (Jan 2026)
+      email_signature_style: user.email_signature_style || 'modern-dark'
     )
   end
 end

@@ -45,7 +45,6 @@ import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api, getApiBaseUrl } from '@/lib/api';
 import { getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
-import { generateEmailSignature } from '@/lib/email-signature';
 // Note: Uses sonner's toast (imported below) for toast.success/error/info API
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -1472,6 +1471,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         received_at: null,
         subject: null,
         body_preview: null,
+        to_emails: undefined,
+        cc_emails: undefined,
+        body_text: undefined,
+        body_html: undefined,
       };
     }
 
@@ -3522,18 +3525,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     // Add closing line
     body += '<p>Please let me know if you have any further questions.</p>\n';
 
-    // Add signature BEFORE quoted original (ComposeEmailModal will detect and not duplicate)
-    if (currentUser) {
-      const signature = generateEmailSignature({
-        name: currentUser.name || '',
-        email: currentUser.email || '',
-        mobile_phone: currentUser.mobile_phone,
-        job_title: currentUser.job_title,
-      });
-      if (signature) {
-        body += '\n' + signature + '\n';
-      }
-    }
+    // Note: Signature is handled by ComposeEmailModal (renders separately with proper HTML)
 
     // Include original email as quoted reply if enabled
     if (includeOriginalEmail && originalEmailData) {
