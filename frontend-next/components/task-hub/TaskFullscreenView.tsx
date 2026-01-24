@@ -972,6 +972,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [editedName, setEditedName] = useState(task.name);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editedDescription, setEditedDescription] = useState(task.description || '');
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [duration, setDuration] = useState(task.duration_days);
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -3545,11 +3546,29 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       autoFocus
                     />
                   ) : (
-                    <div
-                      className="min-h-[100px] p-3 rounded-md border bg-muted/30 cursor-pointer hover:bg-muted/50 text-sm whitespace-pre-wrap"
-                      onClick={() => setIsEditingDescription(true)}
-                    >
-                      {task.description || <span className="text-muted-foreground italic">Click to add description...</span>}
+                    <div className="relative">
+                      <div
+                        className={cn(
+                          "p-3 rounded-md border bg-muted/30 cursor-pointer hover:bg-muted/50 text-sm whitespace-pre-wrap",
+                          !descriptionExpanded && task.description && task.description.length > 300 && "line-clamp-5"
+                        )}
+                        onClick={() => setIsEditingDescription(true)}
+                      >
+                        {task.description || <span className="text-muted-foreground italic">Click to add description...</span>}
+                      </div>
+                      {task.description && task.description.length > 300 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs mt-1 text-muted-foreground hover:text-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDescriptionExpanded(!descriptionExpanded);
+                          }}
+                        >
+                          {descriptionExpanded ? "Show less" : "Show more"}
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -4107,15 +4126,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               )}
             </div>
 
-            {/* Response section - shows documents and emails attached as responses */}
-            {responseAttachments.length > 0 && (
+            {/* Info attachments - reference docs that can be dragged onto questions */}
+            {infoAttachments.length > 0 && (
               <div className="mt-3 pt-3 border-t shrink-0">
                 <div className="flex items-center gap-2 mb-2">
-                  <Paperclip className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  <span className="text-sm font-medium text-green-600 dark:text-green-400">See attached:</span>
+                  <Paperclip className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Reference docs:</span>
                 </div>
                 <div className="space-y-1">
-                  {responseAttachments.map((att) => (
+                  {infoAttachments.map((att) => (
                     <div
                       key={att.id}
                       draggable
@@ -4123,11 +4142,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         e.dataTransfer.setData('application/x-attachment-id', att.id.toString());
                         e.dataTransfer.effectAllowed = 'link';
                       }}
-                      className="flex items-center gap-2 p-2 rounded bg-green-50 dark:bg-green-950/30 text-sm group cursor-grab active:cursor-grabbing"
+                      className="flex items-center gap-2 p-2 rounded bg-blue-50 dark:bg-blue-950/30 text-sm group cursor-grab active:cursor-grabbing"
                     >
                       {att.email ? (
                         <>
-                          <Mail className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+                          <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
                           <EmailAttachmentLink
                             emailId={att.email.id}
                             subject={att.email.subject || '(No subject)'}
@@ -4139,9 +4158,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       ) : (
                         <>
                           {downloadingAttachmentId === att.id ? (
-                            <Loader2 className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0 animate-spin" />
+                            <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 animate-spin" />
                           ) : (
-                            <FileText className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+                            <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
                           )}
                           <button
                             onClick={() => handleDownloadAttachment(att)}
@@ -5589,7 +5608,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             if (att.email) {
                               setSelectedEmailId(att.email.id);
                             } else if (att.document) {
-                              handleDownloadAttachment(att);
+                              // Single click = open preview (consistent with Questions section)
+                              const url = att.document?.storage_url || att.document?.file_url;
+                              const fileName = att.document?.display_name || att.document?.file_name || 'Document';
+                              const ext = (att.document?.file_name || '').split('.').pop()?.toLowerCase() || '';
+                              const fileType: 'pdf' | 'image' | 'other' = ext === 'pdf' ? 'pdf'
+                                : ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext) ? 'image'
+                                : 'other';
+                              if (url) {
+                                setViewerDocument({ url, fileName, fileType });
+                              }
                             }
                           }}
                           onDoubleClick={(e) => {
@@ -5601,14 +5629,31 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               handleOpenAttachmentInNewWindow(att);
                             }
                           }}
-                          title={att.email ? "Click to view, double-click to open in new tab" : "Click to download, double-click to open in new window"}
+                          title={att.email ? "Click to view, double-click to open in new tab" : "Click to preview, double-click to open in new tab"}
                         >
                           {isEmail ? (
                             <Mail className="h-3 w-3 text-primary shrink-0" />
-                          ) : downloadingAttachmentId === att.id ? (
-                            <Loader2 className="h-3 w-3 text-primary shrink-0 animate-spin" />
                           ) : (
-                            <FileText className="h-3 w-3 text-primary shrink-0" />
+                            <>
+                              <FileText className="h-3 w-3 text-primary shrink-0" />
+                              {/* Download button - separate from preview (consistent with Questions section) */}
+                              {(att.document?.storage_url || att.document?.file_url) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownloadAttachment(att);
+                                  }}
+                                  className="text-muted-foreground hover:text-foreground"
+                                  title="Download"
+                                >
+                                  {downloadingAttachmentId === att.id ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Download className="h-3 w-3" />
+                                  )}
+                                </button>
+                              )}
+                            </>
                           )}
                           <div className="flex-1 min-w-0">
                             {renamingAttachmentId === att.id ? (
