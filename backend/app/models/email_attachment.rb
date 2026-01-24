@@ -67,14 +67,14 @@ class EmailAttachment < ApplicationRecord
     blob
   end
 
-  # Get effective storage path (from blob or direct column)
+  # SSoT: StorageBlob is THE ONE source for file paths
   def effective_storage_path
-    storage_blob&.storage_path || read_attribute(:storage_path)
+    storage_blob&.storage_path
   end
 
-  # Check if file is stored
+  # Check if file is stored via StorageBlob (SSoT)
   def stored?
-    storage_blob_id.present? || read_attribute(:storage_path).present?
+    storage_blob_id.present?
   end
 
   # Download file content

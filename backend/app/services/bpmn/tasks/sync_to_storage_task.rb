@@ -100,20 +100,15 @@ module Bpmn
         content = nil
         filename = nil
 
+        # SSoT: StorageBlob is THE ONE source - no fallback to storage_path
         if doc.respond_to?(:storage_blob) && doc.storage_blob.present?
-          # SSoT: Use StorageBlob for content
           content = download_from_provider(doc.storage_blob.storage_path)
           filename = doc.respond_to?(:file_name) ? doc.file_name : doc.storage_blob.original_filename
-        elsif doc.respond_to?(:storage_path) && doc.storage_path.present?
-          # Direct storage path
-          content = download_from_provider(doc.storage_path)
-          filename = doc.respond_to?(:file_name) ? doc.file_name : File.basename(doc.storage_path)
-        elsif doc.respond_to?(:file) && doc.file.attached?
-          # ActiveStorage (legacy)
-          content = doc.file.download
-          filename = doc.file.filename.to_s
+        elsif doc.respond_to?(:warehouse_document) && doc.warehouse_document&.storage_blob.present?
+          content = download_from_provider(doc.warehouse_document.storage_blob.storage_path)
+          filename = doc.respond_to?(:file_name) ? doc.file_name : doc.warehouse_document.storage_blob.original_filename
         else
-          log_warn("Cannot get content for document #{doc.id}: no storage_blob, storage_path, or file")
+          log_warn("Cannot get content for document #{doc.id}: no storage_blob - needs migration")
           return nil
         end
 

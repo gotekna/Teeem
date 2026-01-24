@@ -109,15 +109,13 @@ class WarehouseDocument < ApplicationRecord
     storage_blob&.storage_path
   end
 
-  # SSoT: Get presigned download URL with custom filename
-  # Falls back to legacy path for unmigrated files (Phase 5 compatibility)
+  # SSoT: Get presigned download URL - storage_blob is THE ONE source
   def download_url(expires_in: 3600)
-    path = storage_blob&.storage_path || legacy_storage_path
-    return nil unless path.present?
+    return nil unless storage_blob&.storage_path.present?
 
     provider = DocumentProviders.for_organization(Organization.first)
     provider.download_url(
-      path,
+      storage_blob.storage_path,
       expires_in: expires_in,
       filename: download_filename
     )

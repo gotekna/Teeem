@@ -223,15 +223,14 @@ class DocumentStorageService
   def download(record)
     return error_result("No record provided", status: :bad_request) unless record
 
-    # SSoT: Prefer StorageBlob (deduplicated storage)
+    # SSoT: StorageBlob is THE ONE source - no fallback to storage_path
     if record.respond_to?(:storage_blob) && record.storage_blob.present?
       download_from_storage_blob(record)
-    # Fallback: Direct S3/Wasabi storage
-    elsif record.respond_to?(:storage_path) && record.storage_path.present?
-      download_from_s3(record)
+    elsif record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?
+      download_from_storage_blob_via_warehouse(record)
     else
-      Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage - needs migration"
-      error_result("Document not in storage (missing storage_blob and storage_path)", status: :not_found)
+      Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage_blob - needs migration"
+      error_result("Document not in storage (missing storage_blob)", status: :not_found)
     end
   end
 
@@ -251,11 +250,12 @@ class DocumentStorageService
   def download_url(record, expires_in: 3600)
     return error_result("No record provided", status: :bad_request) unless record
 
-    # SSoT: Prefer StorageBlob path
+    # SSoT: StorageBlob is THE ONE source for file paths
+    # No fallback to storage_path - fail fast if blob is missing
     storage_path = if record.respond_to?(:storage_blob) && record.storage_blob.present?
       record.storage_blob.storage_path
-    elsif record.respond_to?(:storage_path) && record.storage_path.present?
-      record.storage_path
+    elsif record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?
+      record.warehouse_document.storage_blob.storage_path
     end
 
     if storage_path.present?
@@ -412,8 +412,11 @@ class DocumentStorageService
     error_result("Failed to download file: #{e.message}", status: :internal_server_error)
   end
 
-  def download_from_s3(record)
-    s3_key = build_s3_key(record)
+  # Download via WarehouseDocument's StorageBlob (Phase 3 SSoT)
+  # Used for records like SyncedEmail that have warehouse_document but no direct storage_blob
+  def download_from_storage_blob_via_warehouse(record)
+    blob = record.warehouse_document.storage_blob
+    s3_key = blob.storage_path.to_s.sub(%r{^/}, "")
     provider = s3_provider
     return error_result("S3 storage not configured", status: :service_unavailable) unless provider
 
@@ -421,66 +424,16 @@ class DocumentStorageService
     {
       success: true,
       content: content,
-      content_type: detect_content_type(record.file_name),
-      filename: record.file_name
+      content_type: blob.content_type || detect_content_type(record.respond_to?(:file_name) ? record.file_name : nil),
+      filename: record.respond_to?(:file_name) ? record.file_name : blob.original_filename
     }
   rescue DocumentProviders::NotFoundError
-    error_result("File not found in S3 storage: #{s3_key}", status: :not_found)
+    error_result("File not found in storage: #{s3_key}", status: :not_found)
   rescue DocumentProviders::NotConnectedError
     error_result("S3 storage not configured", status: :service_unavailable)
   rescue => e
-    Rails.logger.error "[DocumentStorage] S3 download error for #{record.class.name}##{record.id}: #{e.message}"
-    error_result("Failed to download file from S3: #{e.message}", status: :internal_server_error)
-  end
-
-  # NOTE: download_from_sharepoint removed - S3/Wasabi is SSoT, no SharePoint fallback
-  # NOTE: download_from_active_storage removed (Jan 2026) - ActiveStorage no longer used
-
-  # NOTE: has_sharepoint_id? removed - S3/Wasabi is SSoT, no SharePoint fallback
-
-  # Build the S3 key from storage_path + file_name
-  # Handles legacy records where storage_path is just the folder (missing filename)
-  #
-  # ⚠️ EDGE CASE: Duplicate filename in path
-  # Some records have storage_path like: "Tasks/2339/Attachments/ASIC Teeem Registration/ASIC Teeem Registration"
-  # where the filename appears TWICE (folder/file both named the same).
-  # The actual S3 object is at: "Tasks/2339/Attachments/ASIC Teeem Registration"
-  # We detect and remove the duplication.
-  def build_s3_key(record)
-    path = record.storage_path.to_s.sub(%r{^/}, "")
-    filename = record.file_name.to_s
-
-    # ⚠️ Check for duplicate filename at end of path
-    # If path ends with "/filename/filename" (same name twice), remove the duplicate
-    # This handles bad data where storage_path was saved incorrectly with duplication
-    if filename.present? && !filename.match?(/\.\w{2,5}$/)
-      # Filename has no extension - check for duplicate pattern
-      duplicate_suffix = "/#{filename}/#{filename}"
-      if path.end_with?(duplicate_suffix)
-        # Remove the duplicate - keep only one copy of filename
-        return path.sub(/\/#{Regexp.escape(filename)}$/, "")
-      end
-    end
-
-    # If storage_path already ends with a file extension, use it as-is
-    # Common extensions: .pdf, .doc, .docx, .xls, .xlsx, .png, .jpg, etc.
-    if path.match?(/\.\w{2,5}$/)
-      path
-    elsif filename.present?
-      # Check if path already ends with the filename (even without extension)
-      # This handles cases like: path="Tasks/123/ASIC Registration", filename="ASIC Registration"
-      path_basename = File.basename(path)
-      if path_basename == filename || path_basename == File.basename(filename, ".*")
-        # Path already includes filename - use as-is
-        path
-      else
-        # Storage path is just folder - append filename
-        "#{path.chomp('/')}/#{filename}"
-      end
-    else
-      # No filename available, use path as-is (will likely fail)
-      path
-    end
+    Rails.logger.error "[DocumentStorage] WarehouseDocument download error for #{record.class.name}##{record.id}: #{e.message}"
+    error_result("Failed to download file: #{e.message}", status: :internal_server_error)
   end
 
   def s3_provider
@@ -550,10 +503,10 @@ class DocumentStorageService
   # SHARE LINK HELPERS (Private)
   # ============================================================================
 
-  # Check if record has S3/Wasabi storage
+  # Check if record has S3/Wasabi storage via StorageBlob (SSoT)
   def has_s3_storage?(record)
     (record.respond_to?(:storage_blob) && record.storage_blob.present?) ||
-      (record.respond_to?(:storage_path) && record.storage_path.present?)
+      (record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?)
   end
 
   # Check if record has SharePoint storage (legacy)
