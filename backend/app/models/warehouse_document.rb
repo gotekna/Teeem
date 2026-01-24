@@ -380,51 +380,59 @@ class WarehouseDocument < ApplicationRecord
   private
 
   # Compute email legacy path if not stored
+  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
   def compute_email_legacy_path(email)
     return nil unless email.id.present?
 
+    emails_folder = StorageConfiguration.instance&.path_for(:emails) || "Emails"
     year = email.received_at&.year || Time.current.year
     month = format("%02d", email.received_at&.month || 1)
-    "Emails/Email Body/#{year}/#{month}/#{email.id}.eml"
+    "#{emails_folder}/Email Body/#{year}/#{month}/#{email.id}.eml"
   end
 
   # Compute attachment legacy path if not stored
+  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
   def compute_attachment_legacy_path(att)
     return nil unless att.id.present? && att.filename.present?
 
     email = att.email_warehouse
     return nil unless email
 
+    emails_folder = StorageConfiguration.instance&.path_for(:emails) || "Emails"
     year = email.received_at&.year || Time.current.year
     month = format("%02d", email.received_at&.month || 1)
     safe_filename = att.filename.gsub(/[<>:"|?*\\\/]/, "_")
-    "Emails/Attachments/#{year}/#{month}/#{att.id}_#{safe_filename}"
+    "#{emails_folder}/Attachments/#{year}/#{month}/#{att.id}_#{safe_filename}"
   end
 
   # Compute job document legacy path if not stored
+  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
   def compute_job_document_legacy_path(doc)
     return nil unless doc.id.present?
 
     job = doc.job
     return nil unless job
 
+    jobs_folder = StorageConfiguration.instance&.path_for(:jobs) || "Jobs"
     doc_type = doc.document_type&.name || "Documents"
     filename = doc.filename.presence || "#{doc.id}"
     safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")
-    "Jobs/#{job.job_code}/#{doc_type}/#{safe_filename}"
+    "#{jobs_folder}/#{job.job_code}/#{doc_type}/#{safe_filename}"
   end
 
   # Compute corporate document legacy path if not stored
+  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
   def compute_corporate_document_legacy_path(doc)
     return nil unless doc.id.present?
 
     company = doc.corporate_company
     return nil unless company
 
+    corporate_folder = StorageConfiguration.instance&.path_for(:corporate) || "Corporate"
     doc_type = doc.document_type_record&.name || "Documents"
     filename = doc.filename.presence || "#{doc.id}"
     safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")
-    "Corporate/#{company.company_code}/#{doc_type}/#{safe_filename}"
+    "#{corporate_folder}/#{company.company_code}/#{doc_type}/#{safe_filename}"
   end
 
   # Full sanitization for 100% accurate filenames

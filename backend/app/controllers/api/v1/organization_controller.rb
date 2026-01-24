@@ -40,8 +40,8 @@ module Api
         # SSoT: Use MicrosoftCredential
         all_credentials = MicrosoftCredential.app_credentials.order(:name)
 
-        # SSoT: Use MicrosoftCredential::KNOWN_ORG_NAMES for all possible orgs
-        all_org_names = MicrosoftCredential::KNOWN_ORG_NAMES
+        # SSoT: Get org names dynamically from database (Jan 2026)
+        all_org_names = MicrosoftCredential.known_org_names
 
         org_stats = all_org_names.map do |org_name|
           credential = all_credentials.find { |c| c.name == org_name }

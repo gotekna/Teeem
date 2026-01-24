@@ -3624,8 +3624,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         : '';
       const subject = originalEmailData.subject || '(No subject)';
       // Use body_html for full formatted content, fallback to body_text with line breaks
-      const originalBody = originalEmailData.body_html
+      let originalBody = originalEmailData.body_html
         || (originalEmailData.body_text || originalEmailData.body_preview || '').replace(/\n/g, '<br>');
+
+      // Strip nested blockquotes (previous thread) to reduce email size
+      // Email clients embed the full thread as nested blockquotes - we only want the first-level content
+      const blockquoteMatch = originalBody.match(/<blockquote[^>]*>/i);
+      if (blockquoteMatch) {
+        const blockquoteIndex = originalBody.indexOf(blockquoteMatch[0]);
+        if (blockquoteIndex !== -1) {
+          originalBody = originalBody.slice(0, blockquoteIndex).trim();
+          // Add note that thread was truncated
+          if (originalBody) {
+            originalBody += '<p style="color: #999; font-size: 11px;">[Previous email thread trimmed]</p>';
+          }
+        }
+      }
 
       body += '\n<br><hr>\n';
       body += `<p style="color: #666; font-size: 12px;">On ${sentDate}, ${fromName} &lt;${fromEmail}&gt; wrote:</p>\n`;
@@ -6164,7 +6178,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 {responseAttachments.length > 0 ? (
                 <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10 mb-2">
                   {responseAttachments.map((att) => {
-                    const hasExternalStorage = att.document?.storage_url;
+                    // SSoT: Check all available URL sources for documents
+                    const hasExternalStorage = att.document?.storage_url || att.document?.file_url;
                     const emailOption = attachmentEmailOptions[att.id] || 'link';
                     const isEmail = !!att.email;
                     return (

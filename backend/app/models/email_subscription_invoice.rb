@@ -59,17 +59,21 @@ class EmailSubscriptionInvoice < ApplicationRecord
   end
 
   # Create GL invoice for internal accounting
+  # SSoT: Use configured billing company from settings, not hardcoded name (Jan 2026)
   def create_gl_invoice!
     return gl_invoice if gl_invoice.present?
 
-    teeem_company = CorporateCompany.find_by("name ILIKE ?", "%teeem%")
-    raise "TEEEM corporate company not found" unless teeem_company
+    # Look up billing company from CorporateCompanySetting or find by company name
+    company_name = CorporateCompanySetting.instance.company_name
+    billing_company = CorporateCompany.find_by("name ILIKE ?", "%#{company_name}%") ||
+                      CorporateCompany.first
+    raise "Billing company not found - please configure in Settings" unless billing_company
 
     contact = email_subscription.contact
     period_label = billing_period_start.strftime("%B %Y")
 
     invoice = Gl::Invoice.create!(
-      corporate_company: teeem_company,
+      corporate_company: billing_company,
       contact: contact,
       invoice_type: "sales_invoice",
       status: "draft",

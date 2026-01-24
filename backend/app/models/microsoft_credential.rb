@@ -36,9 +36,15 @@ class MicrosoftCredential < ApplicationRecord
   CREDENTIAL_TYPES = %w[app delegated].freeze
   STATUSES = %w[pending connected error dead disconnected].freeze
 
-  # Known Microsoft 365 tenant organization names (SSoT)
-  # These are the organizations that can have app credentials configured
-  KNOWN_ORG_NAMES = ["Tekna", "100xBestLife", "Homes of Hope", "Love Your World"].freeze
+  # SSoT: Get organization names dynamically from database (Jan 2026)
+  # No hardcoded org names - reads from configured app credentials
+  def self.known_org_names
+    app_credentials.distinct.pluck(:name).compact.reject(&:blank?)
+  end
+
+  # DEPRECATED: Use known_org_names method instead
+  # Kept for backwards compatibility during transition
+  KNOWN_ORG_NAMES = [].freeze
 
   # UNIFIED refresh buffer - 20 minutes (SSoT - same everywhere)
   # Microsoft access tokens typically expire after 60 minutes
@@ -368,9 +374,10 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   # SharePoint configuration helpers
-  # SSoT: Now uses StorageConfiguration for site_id/drive_id
+  # SSoT: Now uses StorageConfiguration for site_id/drive_id (Jan 2026)
   # MicrosoftCredential only provides the authentication credential
-  def self.teeem_sharepoint_config
+  # No hardcoded org names - configuration is tenant-specific
+  def self.sharepoint_config
     storage_config = StorageConfiguration.instance
     return nil unless storage_config&.connected?
 
@@ -380,6 +387,11 @@ class MicrosoftCredential < ApplicationRecord
       drive_name: storage_config.drive_name,
       credential: sharepoint_credential
     }
+  end
+
+  # DEPRECATED: Use sharepoint_config instead (Jan 2026)
+  def self.teeem_sharepoint_config
+    sharepoint_config
   end
 
   # Check if SharePoint is configured (SSoT: StorageConfiguration)

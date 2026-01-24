@@ -3,10 +3,10 @@
 # S3PathCleanupJob - Renames S3 objects to clean, human-readable paths
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: StorageConfiguration.SCOPE_FOLDERS defines folder names   ║
-# ║  - Jobs/ (with J{id} prefix from job.job_code)                    ║
-# ║  - Corporate/                                                      ║
-# ║  - Corporate/People/                                               ║
+# ║  SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)  ║
+# ║  - path_for(:jobs) → default "Jobs" (with job.job_code prefix)    ║
+# ║  - path_for(:corporate) → default "Corporate"                     ║
+# ║  - path_for(:people) → default "People"                           ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 # Moves files within S3 (no re-download from SharePoint) using copy + delete.
@@ -41,12 +41,22 @@ class S3PathCleanupJob < ApplicationJob
   end
 
   # Check if path uses SSoT folder structure (TitleCase, proper prefixes)
-  # SSoT: Jobs/J{id}/, Corporate/, Corporate/People/
+  # SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)
   def self.clean_path?(path)
     return true if path.blank?
 
-    # SSoT paths: TitleCase folders, job_code format (J{id}), no URL encoding
-    path.match?(/\A(Jobs\/J\d+|Corporate\/\d+|Corporate\/People\/\d+)\/[a-zA-Z0-9\-\/\._\s]+\z/)
+    # Get configured folder names from StorageConfiguration
+    config = StorageConfiguration.instance
+    jobs_folder = config&.path_for(:jobs) || "Jobs"
+    corporate_folder = config&.path_for(:corporate) || "Corporate"
+    people_folder = config&.path_for(:people) || "People"
+
+    # SSoT paths: Configured folders, job_code format (J{id}), no URL encoding
+    jobs_pattern = Regexp.escape(jobs_folder)
+    corporate_pattern = Regexp.escape(corporate_folder)
+    people_pattern = Regexp.escape(people_folder)
+
+    path.match?(/\A(#{jobs_pattern}\/J\d+|#{corporate_pattern}\/\d+|#{corporate_pattern}\/#{people_pattern}\/\d+)\/[a-zA-Z0-9\-\/\._\s]+\z/)
   end
 
   def perform(document_id, options = {})
@@ -143,8 +153,10 @@ class S3PathCleanupJob < ApplicationJob
   private
 
   # Build clean path for document using SSoT from StorageConfiguration
-  # SSoT: StorageConfiguration.SCOPE_FOLDERS defines folder names
+  # SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)
   def build_clean_path(document, document_type)
+    config = StorageConfiguration.instance
+
     case document_type
     when 'JobDocument'
       job = document.job
@@ -152,29 +164,33 @@ class S3PathCleanupJob < ApplicationJob
       job_code = job.job_code
       subfolder = clean_subfolder(document.folder_path.presence || "Documents")
       filename = clean_filename(document.file_name)
-      # SSoT: Jobs/ folder with J{id} prefix
-      "Jobs/#{job_code}/#{subfolder}/#{filename}"
+      # SSoT: path_for(:jobs) folder with job_code prefix (Jan 2026)
+      jobs_folder = config&.path_for(:jobs) || "Jobs"
+      "#{jobs_folder}/#{job_code}/#{subfolder}/#{filename}"
 
     when 'CorporateCompanyDocument'
       company = document.corporate_company
+      # SSoT: path_for(:corporate) folder (Jan 2026)
+      corporate_folder = config&.path_for(:corporate) || "Corporate"
       if company
         folder = clean_subfolder(document.folder.presence || "Documents")
         filename = clean_filename(document.file_name)
-        # SSoT: Corporate/ folder
-        "Corporate/#{company.id}/#{folder}/#{filename}"
+        "#{corporate_folder}/#{company.id}/#{folder}/#{filename}"
       else
-        "Corporate/unassigned/#{clean_filename(document.file_name)}"
+        "#{corporate_folder}/unassigned/#{clean_filename(document.file_name)}"
       end
 
     when 'PeopleDocument'
       contact = document.contact
+      # SSoT: path_for(:corporate) + path_for(:people) folder (Jan 2026)
+      corporate_folder = config&.path_for(:corporate) || "Corporate"
+      people_folder = config&.path_for(:people) || "People"
       if contact
         folder = clean_subfolder(document.folder.presence || "Documents")
         filename = clean_filename(document.file_name)
-        # SSoT: Corporate/People/ folder
-        "Corporate/People/#{contact.id}/#{folder}/#{filename}"
+        "#{corporate_folder}/#{people_folder}/#{contact.id}/#{folder}/#{filename}"
       else
-        "Corporate/People/unassigned/#{clean_filename(document.file_name)}"
+        "#{corporate_folder}/#{people_folder}/unassigned/#{clean_filename(document.file_name)}"
       end
 
     else

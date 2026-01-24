@@ -111,7 +111,11 @@ class EmailAttachment < ApplicationRecord
   # Configure at: /settings/company/entity-config → Storage Config → Emails
   def virtual_folder_path
     email = synced_email
-    return "Emails/Unknown" unless email
+    unless email
+      # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
+      emails_folder = StorageConfiguration.instance&.path_for(:emails) || "Emails"
+      return "#{emails_folder}/Unknown"
+    end
 
     # SSoT: Use parent email's folder - attachments appear alongside .eml files
     email.virtual_folder_path

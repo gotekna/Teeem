@@ -197,14 +197,14 @@ class SyncEmailsToSharePointJob < ApplicationJob
   end
 
   def upload_attachment_to_sharepoint(client, filename, content, content_type, file_size, email_date)
-    # Check SharePoint configuration (TEEEM's single SharePoint)
-    sp_config = MicrosoftCredential.teeem_sharepoint_config
+    # SSoT: Get SharePoint configuration from StorageConfiguration (Jan 2026)
+    sp_config = MicrosoftCredential.sharepoint_config
     unless sp_config
-      raise "SharePoint not configured. Please configure TEEEM's SharePoint site and drive."
+      raise "SharePoint not configured. Please configure SharePoint site and drive in Settings."
     end
 
-    # Use TEEEM's SharePoint credential for upload
-    teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
+    # Use configured SharePoint credential for upload
+    sp_client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
     # Build folder path: /emails/attachments/{org_name}/{year}/{month}
     folder_path = build_folder_path(email_date)
@@ -215,22 +215,22 @@ class SyncEmailsToSharePointJob < ApplicationJob
     safe_filename = sanitize_filename(filename)
     final_filename = "#{hash_prefix}_#{safe_filename}"
 
-    # Upload based on size (to TEEEM's SharePoint)
-    if teeem_client.large_file?(file_size)
+    # Upload based on size to configured SharePoint
+    if sp_client.large_file?(file_size)
       # Large file upload (>= 4MB)
       Rails.logger.info "[SyncToSharePoint] Large file detected (#{file_size} bytes), using upload session"
 
-      session = teeem_client.create_upload_session(
+      session = sp_client.create_upload_session(
         sp_config[:site_id],
         sp_config[:drive_id],
         folder_path,
         final_filename
       )
 
-      result = teeem_client.upload_large_file(session["uploadUrl"], content)
+      result = sp_client.upload_large_file(session["uploadUrl"], content)
     else
       # Small file upload (< 4MB)
-      result = teeem_client.upload_file_content(
+      result = sp_client.upload_file_content(
         sp_config[:site_id],
         sp_config[:drive_id],
         folder_path,
@@ -256,8 +256,8 @@ class SyncEmailsToSharePointJob < ApplicationJob
     uploaded = 0
     skipped = 0
 
-    # Check SharePoint configuration
-    sp_config = MicrosoftCredential.teeem_sharepoint_config
+    # SSoT: Get SharePoint configuration from StorageConfiguration (Jan 2026)
+    sp_config = MicrosoftCredential.sharepoint_config
     unless sp_config
       Rails.logger.info "[SyncEmailsToSharePoint] SharePoint not configured, skipping email upload"
       return { uploaded: 0, skipped: 0 }
@@ -277,7 +277,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
     return { uploaded: 0, skipped: 0 } if emails_to_upload.empty?
 
     client = MicrosoftAppGraphClient.new(@credential)
-    teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
+    sp_client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
     emails_to_upload.each do |email|
       begin
@@ -292,7 +292,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
 
         # Upload to SharePoint
         result = upload_email_to_sharepoint(
-          teeem_client,
+          sp_client,
           email,
           email_mime_content
         )
@@ -317,8 +317,8 @@ class SyncEmailsToSharePointJob < ApplicationJob
     { uploaded: uploaded, skipped: skipped }
   end
 
-  def upload_email_to_sharepoint(teeem_client, email, mime_content)
-    sp_config = MicrosoftCredential.teeem_sharepoint_config
+  def upload_email_to_sharepoint(sp_client, email, mime_content)
+    sp_config = MicrosoftCredential.sharepoint_config
 
     # SSoT: Build folder path from StorageConfiguration
     year = email.received_at.year
@@ -333,16 +333,16 @@ class SyncEmailsToSharePointJob < ApplicationJob
     # Upload email
     if mime_content.bytesize >= 4 * 1024 * 1024
       # Large email (>= 4MB) - use chunked upload
-      session = teeem_client.create_upload_session(
+      session = sp_client.create_upload_session(
         sp_config[:site_id],
         sp_config[:drive_id],
         folder_path,
         filename
       )
-      result = teeem_client.upload_large_file(session["uploadUrl"], mime_content)
+      result = sp_client.upload_large_file(session["uploadUrl"], mime_content)
     else
       # Small email (< 4MB)
-      result = teeem_client.upload_file_content(
+      result = sp_client.upload_file_content(
         sp_config[:site_id],
         sp_config[:drive_id],
         folder_path,

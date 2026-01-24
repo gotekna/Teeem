@@ -26,15 +26,16 @@ class CorporateCompanySetting < ApplicationRecord
   validates :company_name, presence: true
   validates :api_environment, inclusion: { in: VALID_API_ENVIRONMENTS }, allow_nil: true
 
-  # Singleton pattern - only one company settings record should exist
+  # Singleton pattern - only one company settings record should exist per tenant
+  # SSoT: No hardcoded org names - tenant must configure their own details (Jan 2026)
   def self.instance
     first_or_create!(
-      company_name: "Tekna Homes",
-      abn: "TBD",
-      gst_number: "TBD",
-      email: "info@teknahomes.com.au",
-      phone: "TBD",
-      address: "TBD",
+      company_name: "My Company",  # Tenant must update this
+      abn: "",
+      gst_number: "",
+      email: "",  # Tenant must configure their email
+      phone: "",
+      address: "",
       timezone: "Australia/Brisbane",
       working_days: {
         monday: true,
@@ -164,11 +165,13 @@ class CorporateCompanySetting < ApplicationRecord
   # Email Configuration (SSoT)
   # ========================================
 
-  # Default internal email domains (used if not configured)
-  DEFAULT_INTERNAL_DOMAINS = %w[tekna.com.au teeem.au teeem.com].freeze
+  # SSoT: No hardcoded domains - tenant must configure their own (Jan 2026)
+  # Empty array means all emails treated as external until configured
+  DEFAULT_INTERNAL_DOMAINS = [].freeze
 
   # Get internal email domains as array
   # SSoT: Used for detecting internal vs external emails
+  # Tenant must configure via Settings > Company > Email Config
   def self.internal_email_domains
     domains = instance.internal_email_domains.presence
     return DEFAULT_INTERNAL_DOMAINS if domains.blank?
@@ -179,32 +182,35 @@ class CorporateCompanySetting < ApplicationRecord
   # Check if an email address is internal
   def self.internal_email?(email)
     return false if email.blank?
+    return false if internal_email_domains.empty?  # No domains configured = all external
 
     domain = email.to_s.split("@").last&.downcase
     internal_email_domains.any? { |d| domain == d.downcase }
   end
 
   # Get internal domains formatted for SQL LIKE patterns
-  # Returns: ["@tekna.com.au", "@teeem.au", "@teeem.com"]
+  # Returns configured domains with @ prefix, e.g., ["@example.com", "@company.com"]
   def self.internal_domain_patterns
     internal_email_domains.map { |d| "@#{d}" }
   end
 
   # Monitored mailbox addresses (SSoT)
+  # SSoT: No hardcoded emails - returns nil if not configured (Jan 2026)
+  # Tenant must configure via Settings > Company > Email Config
   def self.monitored_mailbox_pay
-    instance.monitored_mailbox_pay.presence || "Pay@tekna.com.au"
+    instance.monitored_mailbox_pay.presence
   end
 
   def self.monitored_mailbox_newtask
-    instance.monitored_mailbox_newtask.presence || "newtask@tekna.com.au"
+    instance.monitored_mailbox_newtask.presence
   end
 
   def self.monitored_mailbox_newjob
-    instance.monitored_mailbox_newjob.presence || "newjob@tekna.com.au"
+    instance.monitored_mailbox_newjob.presence
   end
 
   def self.monitored_mailbox_newcase
-    instance.monitored_mailbox_newcase.presence || "newcase@tekna.com.au"
+    instance.monitored_mailbox_newcase.presence
   end
 
   # Get email config hash for API responses
@@ -224,14 +230,15 @@ class CorporateCompanySetting < ApplicationRecord
   # Brand Colors (SSoT for UI Theming)
   # ========================================
 
-  # Default brand colors (Tekna's colors as fallback)
+  # Default brand colors (generic professional colors)
+  # Tenant should configure their own brand colors via Settings > Company > Brand Colors
   # These are HSL values to match CSS variable format
   DEFAULT_BRAND_COLORS = {
-    primary: "161 63% 13%",           # #0c352d - Tekna dark teal
-    primary_foreground: "0 0% 100%",  # #ffffff - White
-    secondary: "0 0% 97%",            # #f8f8f8 - Light gray
-    muted: "0 0% 38%",                # #616161 - Gray
-    accent: "40 11% 77%"              # #cbc9c0 - Beige/tan
+    primary: "220 70% 50%",           # Professional blue
+    primary_foreground: "0 0% 100%",  # White
+    secondary: "0 0% 97%",            # Light gray
+    muted: "0 0% 38%",                # Gray
+    accent: "200 80% 50%"             # Accent blue
   }.freeze
 
   # Get brand colors for API responses and CSS injection

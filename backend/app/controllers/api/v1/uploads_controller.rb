@@ -131,7 +131,10 @@ module Api
         VALID_SCOPES.include?(scope)
       end
 
+      # SSoT: Uses StorageConfiguration for base folders (Jan 2026)
       def build_folder_path(scope, metadata)
+        storage_config = StorageConfiguration.instance
+
         case scope
         when "documents"
           "Documents/Uploads"
@@ -140,7 +143,8 @@ module Api
         when "job_documents"
           job_id = metadata[:job_id] || metadata["job_id"]
           job = Job.find_by(id: job_id)
-          job ? "Jobs/#{job.job_code}/Documents" : "Jobs/Uploads"
+          jobs_folder = storage_config&.path_for(:jobs) || "Jobs"
+          job ? "#{jobs_folder}/#{job.job_code}/Documents" : "#{jobs_folder}/Uploads"
         when "imports"
           "Imports/#{Time.current.strftime('%Y/%m')}"
         when "chat"

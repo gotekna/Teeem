@@ -469,8 +469,19 @@ export function ComposeEmailModal({
 
     setSending(true);
     try {
-      // Combine body with signature (signature is stored separately to preserve HTML)
-      const fullBody = signatureHtml ? formData.body + signatureHtml : formData.body;
+      // Combine body with signature - insert BEFORE quoted thread (blockquote)
+      let fullBody = formData.body;
+      if (signatureHtml) {
+        // Find first blockquote (start of quoted email thread)
+        const blockquoteIndex = fullBody.indexOf('<blockquote');
+        if (blockquoteIndex !== -1) {
+          // Insert signature before quoted content
+          fullBody = fullBody.slice(0, blockquoteIndex) + signatureHtml + fullBody.slice(blockquoteIndex);
+        } else {
+          // No quoted content, append signature at end
+          fullBody = fullBody + signatureHtml;
+        }
+      }
 
       if (isScheduled) {
         // Schedule the email
@@ -817,7 +828,7 @@ export function ComposeEmailModal({
                 value={formData.subject}
                 onChange={(value: string) => setFormData({ ...formData, subject: value })}
                 context="email_subject"
-                className="border-0 shadow-none text-base px-0 h-8 focus-visible:ring-0"
+                className="flex-1 w-full border-0 shadow-none text-base px-0 h-8 focus-visible:ring-0"
               />
             </div>
 

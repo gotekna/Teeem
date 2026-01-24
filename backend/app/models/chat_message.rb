@@ -87,15 +87,18 @@ class ChatMessage < ApplicationRecord
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)
 
-    # Determine context folder based on associations
+    # SSoT: Determine context folder using StorageConfiguration paths (Jan 2026)
     context = if job_id.present?
-                "Jobs/#{job&.job_code || job_id}"
+                jobs_folder = config&.path_for(:jobs) || "Jobs"
+                "#{jobs_folder}/#{job&.job_code || job_id}"
               elsif contact_id.present?
-                "Contacts/#{contact&.display_name || contact_id}"
+                contacts_folder = config&.path_for(:contacts) || "Contacts"
+                "#{contacts_folder}/#{contact&.display_name || contact_id}"
               elsif project_id.present?
                 "Projects/#{project&.name || project_id}"
               elsif case_id.present?
-                "Cases/#{legal_case&.reference || case_id}"
+                cases_folder = config&.path_for(:cases) || "Cases"
+                "#{cases_folder}/#{legal_case&.reference || case_id}"
               else
                 "General"
               end

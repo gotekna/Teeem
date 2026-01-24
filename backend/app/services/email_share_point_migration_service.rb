@@ -209,7 +209,9 @@ class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCam
   def upload_to_wasabi(email, content)
     year = email.received_at&.year || email.created_at.year
     month = (email.received_at || email.created_at).strftime("%m")
-    folder_path = "Emails/eml/#{year}/#{month}"
+    # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
+    emails_folder = StorageConfiguration.instance&.path_for(:emails) || "Emails"
+    folder_path = "#{emails_folder}/eml/#{year}/#{month}"
     filename = "#{email.id}.eml"
 
     @wasabi_provider.upload_file(folder_path, content, filename, content_type: "message/rfc822")
