@@ -261,30 +261,6 @@ module Api
         }
       end
 
-      # ============================================================================
-      # Helpers
-      # ============================================================================
-
-      def get_or_create_staging_folder(client, credential)
-        staging_folder_name = "_plan_staging"
-
-        begin
-          # SSoT: Get drive path from StorageConfiguration (Jan 2026)
-          storage_drive_id = StorageConfiguration.instance&.drive_id
-          drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
-          response = client.get("#{drive_path}/root/children")
-          folders = response["value"] || []
-          staging_folder = folders.find { |f| f["name"] == staging_folder_name && f["folder"] }
-
-          return staging_folder["id"] if staging_folder
-        rescue => e
-          Rails.logger.warn("[BatchOperation] Error finding staging folder: #{e.message}")
-        end
-
-        # Create staging folder
-        result = client.create_folder(staging_folder_name)
-        result["id"]
-      end
     end
   end
 end

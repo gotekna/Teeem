@@ -28,6 +28,8 @@
 #   }
 
 class BulkEmailSyncJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :low
 
   # Batch sizes for memory efficiency
@@ -58,17 +60,17 @@ class BulkEmailSyncJob < ApplicationJob
         save_progress!
       end
 
-      # Phase 2: Upload attachments to SharePoint
+      # Phase 2: Upload attachments to storage
       unless @progress["phase2_complete"]
-        sync_attachments_to_sharepoint
+        sync_attachments_to_storage
         @progress["phase2_complete"] = true
         save_progress!
       end
 
-      # Phase 3: Upload email .eml files to SharePoint
+      # Phase 3: Upload email .eml files to storage
       # DISABLED - EML upload takes too long and times out on Heroku
       # unless @progress["phase3_complete"]
-      #   sync_emails_to_sharepoint
+      #   sync_emails_to_storage
       #   @progress["phase3_complete"] = true
       #   save_progress!
       # end
@@ -155,14 +157,14 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "[BulkSync] Phase 1 complete: #{@progress["emails_synced"]} emails synced"
   end
 
-  # Phase 2: Upload attachments to SharePoint
-  def sync_attachments_to_sharepoint
-    Rails.logger.info "[BulkSync] Phase 2: Uploading attachments to SharePoint..."
+  # Phase 2: Upload attachments to storage (provider-agnostic)
+  def sync_attachments_to_storage
+    Rails.logger.info "[BulkSync] Phase 2: Uploading attachments to storage..."
 
-    # SSoT: Use MicrosoftCredential for SharePoint config
-    sp_config = MicrosoftCredential.teeem_sharepoint_config
-    unless sp_config
-      raise "SharePoint not configured"
+    # SSoT: Use DocumentProviderAware for provider-agnostic storage
+    setup_default_provider!
+    unless document_provider_available?
+      raise "Storage provider not configured"
     end
 
     # Get emails with unprocessed attachments
@@ -182,15 +184,14 @@ class BulkEmailSyncJob < ApplicationJob
     total_to_process = scope.count
     Rails.logger.info "[BulkSync] Found #{total_to_process} emails with unprocessed attachments"
 
-    # Force fresh token
+    # Force fresh token for Graph API (to fetch attachments from Outlook)
     @credential.fetch_access_token!
     client = MicrosoftAppGraphClient.new(@credential)
-    teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
     processed = 0
     scope.find_each(batch_size: EMAIL_BATCH_SIZE) do |email|
       begin
-        process_email_attachments(email, client, teeem_client, sp_config)
+        process_email_attachments(email, client)
         @progress["last_processed_attachment_email_id"] = email.id
         processed += 1
 
@@ -208,7 +209,7 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "[BulkSync] Phase 2 complete: #{@progress['attachments_uploaded']} uploaded, #{@progress['attachments_deduplicated']} deduplicated"
   end
 
-  def process_email_attachments(email, client, teeem_client, sp_config)
+  def process_email_attachments(email, client)
     attachments = client.get_email_attachments(email.mailbox_owner_email, email.outlook_id)
 
     attachments.each do |attachment_data|
@@ -243,8 +244,8 @@ class BulkEmailSyncJob < ApplicationJob
 
         @progress["attachments_deduplicated"] += 1
       else
-        # Upload new attachment
-        result = upload_attachment(teeem_client, sp_config, filename, content_binary, content_type, file_size, email.received_at, content_hash)
+        # Upload new attachment (provider-agnostic)
+        result = upload_attachment(filename, content_binary, content_type, file_size, email.received_at, content_hash)
 
         attachment = Attachment.create!(
           storage_file_id: result[:id],
@@ -275,40 +276,37 @@ class BulkEmailSyncJob < ApplicationJob
     email.update!(attachment_count: email.email_attachments.count)
   end
 
-  def upload_attachment(teeem_client, sp_config, filename, content, content_type, file_size, email_date, content_hash)
+  def upload_attachment(filename, content, content_type, file_size, email_date, content_hash)
     year = email_date.year
     month = email_date.strftime("%m")
-    # SSoT: Use centralized SharePoint path sanitization
+    # SSoT: Use centralized path sanitization
     org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
     # SSoT: Get base path from StorageConfiguration
-    base_path = StorageConfiguration.instance.path_for(:email_attachments)
+    base_path = scope_folder_path(:email_attachments)
     folder_path = "#{base_path}/#{org_name}/#{year}/#{month}"
 
     hash_prefix = content_hash[0..7]
-    # SSoT: Use centralized SharePoint filename sanitization
+    # SSoT: Use centralized filename sanitization
     safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
     final_filename = "#{hash_prefix}_#{safe_filename}"
 
-    result = if file_size >= 4 * 1024 * 1024
-      session = teeem_client.create_upload_session(sp_config[:site_id], sp_config[:drive_id], folder_path, final_filename)
-      teeem_client.upload_large_file(session["uploadUrl"], content)
-    else
-      teeem_client.upload_file_content(sp_config[:site_id], sp_config[:drive_id], folder_path, final_filename, content)
-    end
+    # SSoT: Use provider-agnostic upload (provider handles large files automatically)
+    result = upload_to_provider(folder_path, content, final_filename, content_type: content_type)
 
-    # Ensure path is always set (large file upload may not include it)
+    # Ensure path is always set
     result[:path] ||= "#{folder_path}/#{final_filename}"
     result
   end
 
-  # Phase 3: Upload email .eml files to SharePoint
-  def sync_emails_to_sharepoint
-    Rails.logger.info "[BulkSync] Phase 3: Uploading emails to SharePoint..."
+  # Phase 3: Upload email .eml files to storage (provider-agnostic)
+  def sync_emails_to_storage
+    Rails.logger.info "[BulkSync] Phase 3: Uploading emails to storage..."
 
-    # SSoT: Use MicrosoftCredential for SharePoint config
-    sp_config = MicrosoftCredential.teeem_sharepoint_config
-    unless sp_config
-      Rails.logger.info "[BulkSync] SharePoint not configured, skipping email upload"
+    # SSoT: Use DocumentProviderAware for provider-agnostic storage
+    # Provider was already set up in Phase 2, but ensure it's ready
+    setup_default_provider! unless document_provider_available?
+    unless document_provider_available?
+      Rails.logger.info "[BulkSync] Storage provider not configured, skipping email upload"
       return
     end
 
@@ -328,13 +326,13 @@ class BulkEmailSyncJob < ApplicationJob
 
     return if total_to_process == 0
 
+    # Graph API client to fetch email content from Outlook
     client = MicrosoftAppGraphClient.new(@credential)
-    teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
     processed = 0
     scope.find_each(batch_size: EMAIL_BATCH_SIZE) do |email|
       begin
-        upload_email_to_sharepoint(email, client, teeem_client, sp_config)
+        upload_email_to_storage(email, client)
         @progress["last_uploaded_email_id"] = email.id
         @progress["emails_uploaded_to_sharepoint"] += 1
         processed += 1
@@ -356,12 +354,12 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "[BulkSync] Phase 3 complete: #{@progress['emails_uploaded_to_sharepoint']} emails uploaded"
   end
 
-  def upload_email_to_sharepoint(email, client, teeem_client, sp_config)
+  def upload_email_to_storage(email, client)
     mime_content = client.get_email_mime_content(email.mailbox_owner_email, email.outlook_id)
 
     year = email.received_at.year
     month = email.received_at.strftime("%m")
-    # SSoT: Use centralized SharePoint path sanitization
+    # SSoT: Use centralized path sanitization
     org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
 
     # SSoT: Get email storage path from EntityTab (system-managed)
@@ -374,14 +372,10 @@ class BulkEmailSyncJob < ApplicationJob
     )
     filename = "#{email.id}.eml"
 
-    result = if mime_content.bytesize >= 4 * 1024 * 1024
-      session = teeem_client.create_upload_session(sp_config[:site_id], sp_config[:drive_id], folder_path, filename)
-      teeem_client.upload_large_file(session["uploadUrl"], mime_content)
-    else
-      teeem_client.upload_file_content(sp_config[:site_id], sp_config[:drive_id], folder_path, filename, mime_content)
-    end
+    # SSoT: Use provider-agnostic upload (provider handles large files automatically)
+    result = upload_to_provider(folder_path, mime_content, filename, content_type: "message/rfc822")
 
-    # Ensure path is always set (large file upload may not include it)
+    # Ensure path is always set
     result[:path] ||= "#{folder_path}/#{filename}"
 
     email.update!(

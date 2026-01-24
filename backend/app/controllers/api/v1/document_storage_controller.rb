@@ -1409,10 +1409,8 @@ module Api
       #   - folder_id: Target folder ID in OneDrive (or null for root)
       #   - new_folder_name: Optional - create a new folder with this name
       def copy_files
-        credential = MicrosoftCredential.sharepoint_credential
-
-        # Use valid_access_token which auto-refreshes expired tokens
-        unless credential&.valid_access_token
+        # SSoT: Use helper methods for credential and client
+        unless sharepoint_connected?
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
@@ -1426,7 +1424,7 @@ module Api
         end
 
         begin
-          client = MicrosoftGraphClient.new(credential)
+          client = sharepoint_client
           # SSoT: Get storage config for drive_id/root_folder_id (Jan 2026)
           storage_config = StorageConfiguration.instance
           storage_root_folder_id = storage_config&.root_folder_id
