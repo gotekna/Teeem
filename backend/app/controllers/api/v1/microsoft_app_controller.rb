@@ -701,37 +701,32 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
-  # POST /api/v1/microsoft_app/sync_to_sharepoint
-  # Sync emails to SyncedEmail and attachments to SharePoint for a specific organization
-  def sync_to_sharepoint
+  # POST /api/v1/microsoft_app/sync_to_storage
+  # Sync emails to SyncedEmail and upload to configured storage provider (SSoT: StorageConfiguration)
+  def sync_to_storage
     unless current_user_admin?
-      return render json: { error: "Only admins can trigger SharePoint sync" }, status: :forbidden
+      return render json: { error: "Only admins can trigger storage sync" }, status: :forbidden
     end
 
-    organization_id = params[:organization_id]
-    unless organization_id.present?
-      return render json: { error: "organization_id is required" }, status: :bad_request
-    end
-
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.find_by(id: organization_id)
-    unless credential&.status == "connected"
-      return render json: { error: "Organization not connected" }, status: :not_found
-    end
-
-    # Queue the sync job
-    SyncEmailsToSharePointJob.perform_later(credential.id)
+    # Queue the storage upload job (respects StorageConfiguration provider)
+    UploadEmailsToStorageJob.perform_later(batch_size: 500)
 
     render json: {
       success: true,
-      message: "Sync job queued for #{credential.name}. Emails will be synced to warehouse and attachments uploaded to SharePoint."
+      message: "Email storage upload job queued. Emails will be uploaded to configured storage provider."
     }
   rescue StandardError => e
-    Rails.logger.error "[MicrosoftApp] Sync to SharePoint failed: #{e.message}"
+    Rails.logger.error "[MicrosoftApp] Sync to storage failed: #{e.message}"
     render json: {
       success: false,
       error: e.message
     }, status: :unprocessable_entity
+  end
+
+  # POST /api/v1/microsoft_app/sync_to_sharepoint
+  # Legacy endpoint - redirects to sync_to_storage for backwards compatibility
+  def sync_to_sharepoint
+    sync_to_storage
   end
 
   # ==========================================

@@ -5,7 +5,8 @@ module Bpmn
       "generate_document" => "Bpmn::Tasks::GenerateDocumentTask",
       "update_record" => "Bpmn::Tasks::UpdateRecordTask",
       "create_xero_invoice" => "Bpmn::Tasks::CreateXeroInvoiceTask",
-      "sync_to_sharepoint" => "Bpmn::Tasks::SyncToSharepointTask",
+      "sync_to_storage" => "Bpmn::Tasks::SyncToStorageTask",
+      "sync_to_sharepoint" => "Bpmn::Tasks::SyncToStorageTask", # Legacy alias for backwards compatibility
       "send_notification" => "Bpmn::Tasks::SendNotificationTask",
       "call_webhook" => "Bpmn::Tasks::CallWebhookTask",
       "set_variable" => "Bpmn::Tasks::SetVariableTask",

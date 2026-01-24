@@ -1299,7 +1299,8 @@ Rails.application.routes.draw do
           post :test
           get :users
           post :configure_sync
-          post :sync_to_sharepoint
+          post :sync_to_storage
+          post :sync_to_sharepoint # Legacy alias for sync_to_storage
           delete :disconnect
           # Mailbox access configuration (who can see which mailboxes)
           get :organizations_with_mailboxes
