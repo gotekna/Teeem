@@ -182,11 +182,15 @@ class DocumentStorageService
     # SSoT Priority:
     # 1. StorageBlob/storage_path → S3 presigned URL (new architecture)
     # 2. storage_reference → SharePoint share link (legacy)
+    # 3. SyncedEmail → Lazy self-heal (generate .eml from database)
 
     if has_s3_storage?(record)
       create_s3_share_link(record, expires_in: expires_in)
     elsif has_sharepoint_storage?(record)
       create_sharepoint_share_link(record, type: type, scope: scope)
+    elsif record.is_a?(SyncedEmail)
+      # Ultra: Lazy self-heal - generate .eml and create share link
+      create_s3_share_link(record, expires_in: expires_in)
     else
       error_result("Document not in storage (missing storage_path and storage_reference)")
     end
@@ -225,10 +229,24 @@ class DocumentStorageService
 
     # SSoT: StorageBlob is THE ONE source - no fallback to storage_path
     if record.respond_to?(:storage_blob) && record.storage_blob.present?
-      download_from_storage_blob(record)
+      result = download_from_storage_blob(record)
+      # Ultra: Lazy self-heal if file not found
+      if !result[:success] && result[:status] == :not_found && record.is_a?(SyncedEmail)
+        return lazy_load_and_download(record)
+      end
+      result
     elsif record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?
-      download_from_storage_blob_via_warehouse(record)
+      result = download_from_storage_blob_via_warehouse(record)
+      # Ultra: Lazy self-heal if file not found
+      if !result[:success] && result[:status] == :not_found && record.is_a?(SyncedEmail)
+        return lazy_load_and_download(record)
+      end
+      result
     else
+      # Ultra: Lazy self-heal for SyncedEmail with no storage
+      if record.is_a?(SyncedEmail)
+        return lazy_load_and_download(record)
+      end
       Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage_blob - needs migration"
       error_result("Document not in storage (missing storage_blob)", status: :not_found)
     end
@@ -270,8 +288,22 @@ class DocumentStorageService
         begin
           provider.get_file(s3_key)
         rescue DocumentProviders::NotFoundError
-          Rails.logger.warn "[DocumentStorage] File not found in S3: #{s3_key} (record: #{record.class.name}##{record.id})"
-          return error_result("File not found in storage: #{s3_key}", status: :not_found)
+          # Ultra: Lazy self-heal for SyncedEmail
+          # Instead of failing, generate .eml from database and upload
+          if record.is_a?(SyncedEmail)
+            Rails.logger.info "[DocumentStorage] Lazy-loading email #{record.id}: generating .eml from database"
+            new_path = EmlGeneratorService.generate_and_upload(record)
+            if new_path.present?
+              s3_key = new_path.to_s.gsub(%r{^/+}, "")
+              Rails.logger.info "[DocumentStorage] Email #{record.id} lazy-loaded to: #{s3_key}"
+            else
+              Rails.logger.warn "[DocumentStorage] Failed to lazy-load email #{record.id}"
+              return error_result("Could not generate email file", status: :not_found)
+            end
+          else
+            Rails.logger.warn "[DocumentStorage] File not found in S3: #{s3_key} (record: #{record.class.name}##{record.id})"
+            return error_result("File not found in storage: #{s3_key}", status: :not_found)
+          end
         end
 
         # SSoT: Get Send Name from warehouse_document (Phase 3)
@@ -289,6 +321,19 @@ class DocumentStorageService
         error_result("Failed to generate S3 URL: #{e.message}", status: :internal_server_error)
       end
     else
+      # Ultra: Lazy self-heal for SyncedEmail with no storage_path
+      if record.is_a?(SyncedEmail)
+        Rails.logger.info "[DocumentStorage] Lazy-loading email #{record.id} (no storage_path): generating .eml from database"
+        new_path = EmlGeneratorService.generate_and_upload(record)
+        if new_path.present?
+          # Recursively call download_url now that the file exists
+          return download_url(record, expires_in: expires_in)
+        else
+          Rails.logger.warn "[DocumentStorage] Failed to lazy-load email #{record.id}"
+          return error_result("Could not generate email file", status: :not_found)
+        end
+      end
+
       # No storage = document not properly configured
       Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage - needs migration"
       error_result("Document not in storage (missing storage_blob and storage_path)", status: :not_found)
@@ -441,6 +486,38 @@ class DocumentStorageService
       credential = S3CompatibleCredential.active.connected.first
       DocumentProviders::S3Compatible.new(credential) if credential
     end
+  end
+
+  # ============================================================================
+  # LAZY SELF-HEALING (Ultra Pattern - Jan 2026)
+  # ============================================================================
+
+  # Ultra: Generate .eml from database and download
+  # Used when file doesn't exist in S3 but we have the email data
+  def lazy_load_and_download(email)
+    Rails.logger.info "[DocumentStorage] Lazy-loading email #{email.id}: generating .eml from database"
+
+    # Generate .eml content from database fields
+    content = EmlGeneratorService.generate(email)
+    unless content
+      Rails.logger.warn "[DocumentStorage] Failed to generate .eml for email #{email.id}"
+      return error_result("Could not generate email file", status: :internal_server_error)
+    end
+
+    # Upload to S3 for caching (so next access is fast)
+    new_path = EmlGeneratorService.generate_and_upload(email)
+    Rails.logger.info "[DocumentStorage] Email #{email.id} lazy-loaded to: #{new_path}" if new_path
+
+    # Return the generated content directly
+    {
+      success: true,
+      content: content,
+      content_type: "message/rfc822",
+      filename: "#{email.subject.presence || 'Email'}.eml"
+    }
+  rescue StandardError => e
+    Rails.logger.error "[DocumentStorage] Lazy-load failed for email #{email.id}: #{e.message}"
+    error_result("Failed to generate email file: #{e.message}", status: :internal_server_error)
   end
 
   # ============================================================================
