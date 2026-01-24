@@ -128,9 +128,10 @@ class CorporateGroup < ApplicationRecord
   # Multi-Tenant Methods
   # =============================================================================
 
-  # Check if this is the master TEEEM tenant
+  # SSoT: Master tenant is identified by is_master_tenant flag only (Jan 2026)
+  # No hardcoded slug - any tenant can be the master
   def master_tenant?
-    is_master_tenant? || slug == "teeem"
+    is_master_tenant?
   end
 
   # Get subdomain for this tenant
@@ -139,13 +140,16 @@ class CorporateGroup < ApplicationRecord
   end
 
   # Get login URL for this tenant
+  # SSoT: Base domain should come from configuration (Jan 2026)
   def login_url
-    "https://#{subdomain}.teeem.com.au"
+    base_domain = ENV["APP_DOMAIN"] || "teeem.com.au"
+    "https://#{subdomain}.#{base_domain}"
   end
 
   # Class method to find the master tenant
+  # SSoT: Use is_master_tenant flag only, not hardcoded slug (Jan 2026)
   def self.find_master_tenant
-    find_by(is_master_tenant: true) || find_by(slug: "teeem")
+    find_by(is_master_tenant: true)
   end
 
   # Get or create tenant settings for this tenant

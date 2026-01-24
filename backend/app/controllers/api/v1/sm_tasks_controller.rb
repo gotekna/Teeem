@@ -2620,6 +2620,9 @@ module Api
               # SSoT: Use StorableDocument#storage_url for provider-agnostic download URL
               # ActiveStorage has_one_attached :file was REMOVED (Jan 2026)
               storage_url: doc.storage_url,
+              # SSoT: has_storage = can create share links (storage_blob, storage_path, or storage_reference)
+              # Used by frontend to show Link option even if storage_url is nil (legacy SharePoint docs)
+              has_storage: doc.storage_blob.present? || doc.storage_path.present? || doc.has_storage_reference?,
               created_at: doc.created_at,
               content_hash: doc.content_hash
             }

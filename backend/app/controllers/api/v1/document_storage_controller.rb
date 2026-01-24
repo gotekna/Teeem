@@ -195,20 +195,24 @@ module Api
               Rails.logger.error "Failed to get personal OneDrive info: #{e.message}"
             end
           else
-            # Use TEEEM SharePoint site
-            Rails.logger.info "Switching to TEEEM SharePoint site..."
+            # SSoT: Get SharePoint site name from StorageConfiguration (Jan 2026)
+            storage_config = StorageConfiguration.instance
+            site_name = storage_config&.site_name.presence || CorporateCompanySetting.instance.company_name
+            site_name_lower = site_name&.downcase || ""
+
+            Rails.logger.info "Switching to #{site_name} SharePoint site..."
             begin
-              result = client.use_sharepoint_site("TEEEM")
-              Rails.logger.info "Connected to SharePoint site: #{result[:site]['displayName'] || 'TEEEM'}"
+              result = client.use_sharepoint_site(site_name)
+              Rails.logger.info "Connected to SharePoint site: #{result[:site]['displayName'] || site_name}"
             rescue StandardError => e
-              Rails.logger.warn "Could not find TEEEM SharePoint site, trying search..."
+              Rails.logger.warn "Could not find #{site_name} SharePoint site, trying search..."
               sites = client.list_sharepoint_sites
-              teeem_site = sites.find { |s| s[:name]&.downcase&.include?("teeem") }
-              if teeem_site
-                result = client.use_sharepoint_site(teeem_site[:id])
-                Rails.logger.info "Connected to SharePoint site via search: #{teeem_site[:name]}"
+              matching_site = sites.find { |s| s[:name]&.downcase&.include?(site_name_lower) }
+              if matching_site
+                result = client.use_sharepoint_site(matching_site[:id])
+                Rails.logger.info "Connected to SharePoint site via search: #{matching_site[:name]}"
               else
-                Rails.logger.warn "TEEEM SharePoint site not found, falling back to default drive"
+                Rails.logger.warn "#{site_name} SharePoint site not found, falling back to default drive"
               end
             end
 

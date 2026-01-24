@@ -2535,7 +2535,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     try {
       const url = att.document.storage_url || att.document.file_url;
       if (url) {
-        // Create hidden link and trigger download
+        // Direct download via presigned URL
         const link = document.createElement('a');
         link.href = url;
         link.download = att.document.display_name || att.document.file_name || 'document';
@@ -2543,6 +2543,37 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+      } else if (att.document.has_storage) {
+        // Fallback: Use API endpoint for legacy SharePoint documents
+        const response = await api.get<{
+          success: boolean;
+          filename: string;
+          content: string;
+          content_type: string;
+        }>(`/api/v1/sm_tasks/${task.id}/attachments/${att.id}/download`);
+
+        if (response?.success && response.content) {
+          // Convert base64 to blob and download
+          const byteCharacters = atob(response.content);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: response.content_type });
+
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = response.filename || att.document.display_name || 'document';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(link.href);
+        } else {
+          toast.error('Failed to download file');
+        }
+      } else {
+        toast.error('File not available for download');
       }
     } catch (err) {
       console.error('Failed to download attachment:', err);
@@ -6178,8 +6209,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 {responseAttachments.length > 0 ? (
                 <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10 mb-2">
                   {responseAttachments.map((att) => {
-                    // SSoT: Check all available URL sources for documents
-                    const hasExternalStorage = att.document?.storage_url || att.document?.file_url;
+                    // SSoT: has_storage indicates share links can be created (even for legacy SharePoint docs)
+                    const hasExternalStorage = att.document?.has_storage || att.document?.storage_url || att.document?.file_url;
                     const emailOption = attachmentEmailOptions[att.id] || 'link';
                     const isEmail = !!att.email;
                     return (
@@ -6219,7 +6250,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             <>
                               <FileText className="h-3 w-3 text-primary shrink-0" />
                               {/* Download button - separate from preview (consistent with Questions section) */}
-                              {(att.document?.storage_url || att.document?.file_url) && (
+                              {(att.document?.has_storage || att.document?.storage_url || att.document?.file_url) && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
