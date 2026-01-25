@@ -541,6 +541,20 @@ export function isRelatedPath(path1: string, path2: string): boolean {
         return false; // Force trail rebuild when switching between tabs at different depths
       }
     }
+
+    // Detect navigation between different settings sections
+    // e.g., /settings/profile → /settings/integrations/xero
+    // Without this check, both paths share "settings" as first segment,
+    // so they'd incorrectly be marked as "related" and trail wouldn't rebuild
+    if (segments1.length >= 2 && segments2.length >= 2) {
+      const section1 = segments1[1];
+      const section2 = segments2[1];
+
+      // Different settings sections = unrelated, force trail rebuild
+      if (section1 !== section2) {
+        return false;
+      }
+    }
   }
 
   // Check if first segment matches (e.g., both under /jobs)
