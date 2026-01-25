@@ -46,15 +46,19 @@ class XeroAttachmentSyncService
     return error_result("Tenant not found for tenant_id #{external_invoice.tenant_id}") unless @tenant
     return error_result("StorageConfiguration not found for tenant #{@tenant.name}") unless @storage_config
 
-    Rails.logger.info("[XeroAttachmentSync] Starting sync for invoice #{external_invoice.id} (#{external_invoice.invoice_number})")
+    # SSoT: Wrap entire sync in tenant context (Jan 2026 fix)
+    # Many models (Contact, ContactDocument) call StorageConfiguration.instance which requires tenant
+    ActsAsTenant.with_tenant(@tenant) do
+      Rails.logger.info("[XeroAttachmentSync] Starting sync for invoice #{external_invoice.id} (#{external_invoice.invoice_number})")
 
-    # 1. Sync the invoice PDF (Xero-generated)
-    sync_invoice_pdf
+      # 1. Sync the invoice PDF (Xero-generated)
+      sync_invoice_pdf
 
-    # 2. Sync any additional attachments
-    sync_attachments
+      # 2. Sync any additional attachments
+      sync_attachments
 
-    Rails.logger.info("[XeroAttachmentSync] Complete for invoice #{external_invoice.id}: PDF=#{results[:pdf].present?}, Attachments=#{results[:attachments].count}")
+      Rails.logger.info("[XeroAttachmentSync] Complete for invoice #{external_invoice.id}: PDF=#{results[:pdf].present?}, Attachments=#{results[:attachments].count}")
+    end
 
     results
   end
@@ -422,10 +426,8 @@ class XeroAttachmentSyncService
     return nil unless external_invoice.contact.present?
 
     begin
-      # SSoT: Set tenant context for DocumentProviderAware (Jan 2026 fix)
-      ActsAsTenant.with_tenant(@tenant) do
-        setup_default_provider!
-      end
+      # Tenant context is set by sync! wrapper - just set up provider
+      setup_default_provider!
 
       # SSoT: Get contacts folder path from StorageConfiguration
       return nil unless @storage_config
