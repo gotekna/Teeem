@@ -522,8 +522,8 @@ export function DataWarehouseTab() {
       if (response?.success) {
         setMicrosoftOrgStats(response);
       }
-    } catch (error) {
-      console.error("Failed to load Microsoft org stats:", error);
+    } catch {
+      // Expected to fail when Microsoft/SharePoint not connected - fail silently
     }
   };
 
