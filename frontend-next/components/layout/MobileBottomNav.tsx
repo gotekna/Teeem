@@ -84,9 +84,9 @@ const MORE_MENU_ITEMS: NavItem[] = [
     icon: Home,
   },
   {
-    id: "documents",
-    label: "Documents",
-    href: "/documents",
+    id: "warehouse",
+    label: "Warehouse",
+    href: "/warehouse",
     icon: FolderOpen,
   },
   {

@@ -57,9 +57,23 @@ export default function SettingsLayout({
   const pathParts = pathname.replace("/settings", "").split("/").filter(Boolean);
   const currentTab = pathParts[0] || "profile";
 
+  // Hide navigation on detail pages (e.g., /settings/integrations/xero)
+  // Detail pages are 2+ levels deep under a non-company section
+  // Company sub-tabs still show navigation (e.g., /settings/company/info)
+  const isDetailPage = pathParts.length >= 2 && pathParts[0] !== "company";
+
   const handleTabChange = (value: string) => {
     router.push(`/settings/${value}`);
   };
+
+  // Detail pages show only their own content without settings navigation
+  if (isDetailPage) {
+    return (
+      <div className="space-y-6">
+        {children}
+      </div>
+    );
+  }
 
   return (
     <TabbedSettingsPage

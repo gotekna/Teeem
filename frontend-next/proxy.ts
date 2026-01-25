@@ -295,12 +295,17 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // === Documents ===
-  if (pathname === "/documents") {
+  // === File Warehouse ===
+  if (pathname === "/warehouse") {
     const tab = searchParams.get("tab");
     if (tab) {
-      redirectPath = `/documents/${tab}`;
+      redirectPath = `/warehouse/${tab}`;
     }
+  }
+
+  // === Legacy /documents redirect ===
+  if (pathname === "/documents" || pathname.startsWith("/documents/")) {
+    redirectPath = pathname.replace("/documents", "/warehouse");
   }
 
   // === Portal Routes ===

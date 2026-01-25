@@ -12,7 +12,7 @@ export const PERSONA_CONFIG: Record<Persona, PersonaConfig> = {
   site: {
     label: 'Site',
     description: 'Field workers on-site',
-    items: ['/dashboard', '/jobs', '/tasks', '/admin/system/schedule-master/data-view', '/whs', '/documents']
+    items: ['/dashboard', '/jobs', '/tasks', '/admin/system/schedule-master/data-view', '/whs', '/warehouse']
   },
   office: {
     label: 'Office',
