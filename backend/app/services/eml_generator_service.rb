@@ -39,8 +39,15 @@ class EmlGeneratorService
       # Restore original headers we captured
       add_internet_headers(mail, email.internet_headers) if email.internet_headers.present?
 
-      # Body - prefer multipart if we have both
-      if email.body_html.present? && email.body_text.present?
+      # Separate inline images (have content_id) from regular attachments
+      inline_images = email.email_attachments.select { |a| a.content_id.present? && a.storage_blob.present? }
+      regular_attachments = email.email_attachments.select { |a| a.content_id.blank? && a.storage_blob.present? }
+
+      # Build body with proper MIME structure for inline images
+      if email.body_html.present? && inline_images.any?
+        # Use multipart/related to wrap HTML with inline images
+        build_multipart_related(mail, email, inline_images)
+      elsif email.body_html.present? && email.body_text.present?
         mail.text_part = Mail::Part.new do
           content_type "text/plain; charset=UTF-8"
           body email.body_text
@@ -58,8 +65,8 @@ class EmlGeneratorService
         mail.body = email.body_text || ""
       end
 
-      # Add attachments if they exist and have content
-      add_attachments(mail, email) if email.email_attachments.any?
+      # Add regular (non-inline) attachments
+      add_attachments(mail, regular_attachments) if regular_attachments.any?
 
       mail.to_s
     rescue StandardError => e
@@ -175,8 +182,57 @@ class EmlGeneratorService
       end
     end
 
-    def add_attachments(mail, email)
-      email.email_attachments.each do |attachment|
+    # Build multipart/related structure for HTML with inline images
+    # This allows cid: references in HTML to resolve to embedded images
+    def build_multipart_related(mail, email, inline_images)
+      # Create the related part that will contain HTML + inline images
+      related_part = Mail::Part.new
+      related_part.content_type = "multipart/related; type=\"multipart/alternative\""
+
+      # Add alternative part (text/plain + text/html)
+      alternative_part = Mail::Part.new
+      alternative_part.content_type = "multipart/alternative"
+
+      if email.body_text.present?
+        text_part = Mail::Part.new
+        text_part.content_type = "text/plain; charset=UTF-8"
+        text_part.body = email.body_text
+        alternative_part.add_part(text_part)
+      end
+
+      html_part = Mail::Part.new
+      html_part.content_type = "text/html; charset=UTF-8"
+      html_part.body = email.body_html
+      alternative_part.add_part(html_part)
+
+      related_part.add_part(alternative_part)
+
+      # Add inline images with Content-ID headers
+      inline_images.each do |attachment|
+        begin
+          content = attachment.download
+          next unless content
+
+          image_part = Mail::Part.new
+          image_part.content_type = attachment.storage_blob&.content_type || "application/octet-stream"
+          image_part.content_transfer_encoding = "base64"
+          image_part.content_disposition = "inline; filename=\"#{attachment.filename}\""
+          # Content-ID must be wrapped in angle brackets
+          image_part.content_id = "<#{attachment.content_id}>"
+          image_part.body = Base64.strict_encode64(content)
+
+          related_part.add_part(image_part)
+          Rails.logger.debug("[EmlGenerator] Added inline image: #{attachment.filename} (cid:#{attachment.content_id})")
+        rescue StandardError => e
+          Rails.logger.warn("[EmlGenerator] Could not add inline image #{attachment.id}: #{e.message}")
+        end
+      end
+
+      mail.add_part(related_part)
+    end
+
+    def add_attachments(mail, attachments)
+      attachments.each do |attachment|
         next unless attachment.storage_blob.present?
 
         begin
@@ -184,7 +240,7 @@ class EmlGeneratorService
           next unless content
 
           mail.attachments[attachment.filename || "attachment"] = {
-            mime_type: attachment.content_type || "application/octet-stream",
+            mime_type: attachment.storage_blob&.content_type || "application/octet-stream",
             content: content
           }
         rescue StandardError => e
