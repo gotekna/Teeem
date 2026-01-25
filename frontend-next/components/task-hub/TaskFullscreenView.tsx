@@ -4301,13 +4301,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // Show warnings for attachments that couldn't be shared
+      // BLOCK email if any files are missing - don't send incomplete emails
+      // User must fix root cause (re-upload files) before sending
       if (docsWithoutShareLinks.length > 0) {
-        const docList = docsWithoutShareLinks.slice(0, 3).join(', ');
-        const moreCount = docsWithoutShareLinks.length > 3 ? ` (+${docsWithoutShareLinks.length - 3} more)` : '';
-        toast.warning(`Some documents couldn't be shared externally (file not in storage): ${docList}${moreCount}`, {
-          duration: 8000,
+        const docList = docsWithoutShareLinks.join('\n  • ');
+        toast.error(`Cannot send email - ${docsWithoutShareLinks.length} document(s) have missing files:\n  • ${docList}\n\nPlease re-upload these files before sending.`, {
+          duration: 15000,
         });
+        setPrepareEmailLoading(false);
+        setPrepareEmailStatus(null);
+        return; // STOP - don't proceed with incomplete email
       }
 
       setPrepareEmailStatus('Preparing viewer context...');

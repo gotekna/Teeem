@@ -314,8 +314,16 @@ class DocumentStorageService
               return error_result("Could not generate email file", status: :not_found)
             end
           else
+            # File is missing from S3 - log details for debugging but show user-friendly message
             Rails.logger.warn "[DocumentStorage] File not found in S3: #{s3_key} (record: #{record.class.name}##{record.id})"
-            return error_result("File not found in storage: #{s3_key}", status: :not_found)
+
+            # Mark document as having missing file (for tracking/cleanup) if it supports this
+            if record.respond_to?(:update_column) && record.respond_to?(:file_missing)
+              record.update_column(:file_missing, true) rescue nil
+            end
+
+            # User-friendly error - don't expose internal paths
+            return error_result("Document file is unavailable - the file may have been moved or deleted", status: :not_found)
           end
         end
 
@@ -326,7 +334,9 @@ class DocumentStorageService
         url = provider.download_url(s3_key, expires_in: expires_in, filename: send_name, disposition: disposition)
         { success: true, url: url, filename: send_name }
       rescue DocumentProviders::NotFoundError
-        error_result("File not found in S3 storage: #{s3_key}", status: :not_found)
+        # User-friendly error - don't expose internal paths
+        Rails.logger.warn "[DocumentStorage] File not found after URL generation: #{s3_key}"
+        error_result("Document file is unavailable - the file may have been moved or deleted", status: :not_found)
       rescue DocumentProviders::NotConnectedError
         error_result("S3 storage not configured", status: :service_unavailable)
       rescue => e
