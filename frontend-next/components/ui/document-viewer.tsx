@@ -127,18 +127,10 @@ export function getFileIcon(filename: string, className?: string) {
 }
 
 /**
- * Parse EML content into structured email data
+ * Parse a single MIME part and extract headers and body
  */
-function parseEmlContent(content: string): {
-  from: string;
-  to: string;
-  cc?: string;
-  subject: string;
-  date: string;
-  body: string;
-  isHtml: boolean;
-} {
-  const lines = content.split(/\r?\n/);
+function parseMimePart(partContent: string): { headers: Record<string, string>; body: string } {
+  const lines = partContent.split(/\r?\n/);
   const headers: Record<string, string> = {};
   let headerEnd = 0;
   let currentHeader = "";
@@ -160,31 +152,104 @@ function parseEmlContent(content: string): {
     }
   }
 
-  let body = lines.slice(headerEnd + 1).join("\n");
+  return {
+    headers,
+    body: lines.slice(headerEnd + 1).join("\n")
+  };
+}
+
+/**
+ * Decode quoted-printable content
+ */
+function decodeQuotedPrintable(str: string): string {
+  return str
+    .replace(/=\r?\n/g, "")
+    .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+/**
+ * Parse EML content into structured email data with inline image support
+ */
+function parseEmlContent(content: string): {
+  from: string;
+  to: string;
+  cc?: string;
+  subject: string;
+  date: string;
+  body: string;
+  isHtml: boolean;
+} {
+  const { headers, body: rawBody } = parseMimePart(content);
+  let body = rawBody;
   let isHtml = false;
+  const cidMap: Record<string, string> = {}; // Content-ID -> data URL
 
   const contentType = headers["content-type"] || "";
-  if (contentType.includes("text/html")) {
-    isHtml = true;
-  }
 
+  // Handle multipart messages
   if (contentType.includes("multipart")) {
     const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
     if (boundaryMatch) {
       const boundary = boundaryMatch[1];
-      const parts = body.split(new RegExp(`--${boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+      const escapedBoundary = boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const parts = body.split(new RegExp(`--${escapedBoundary}`));
+
       let htmlPart = "";
       let textPart = "";
 
       for (const part of parts) {
-        if (part.includes("Content-Type: text/html")) {
-          const partLines = part.split(/\r?\n/);
-          const partBodyStart = partLines.findIndex(l => l === "") + 1;
-          htmlPart = partLines.slice(partBodyStart).join("\n");
-        } else if (part.includes("Content-Type: text/plain")) {
-          const partLines = part.split(/\r?\n/);
-          const partBodyStart = partLines.findIndex(l => l === "") + 1;
-          textPart = partLines.slice(partBodyStart).join("\n");
+        if (part.trim() === "" || part.trim() === "--") continue;
+
+        const { headers: partHeaders, body: partBody } = parseMimePart(part);
+        const partContentType = partHeaders["content-type"] || "";
+        const contentId = partHeaders["content-id"]?.replace(/[<>]/g, "");
+        const transferEncoding = partHeaders["content-transfer-encoding"] || "";
+
+        // Handle nested multipart (e.g., multipart/related containing multipart/alternative)
+        if (partContentType.includes("multipart")) {
+          const nestedBoundaryMatch = partContentType.match(/boundary="?([^";\s]+)"?/);
+          if (nestedBoundaryMatch) {
+            const nestedBoundary = nestedBoundaryMatch[1];
+            const escapedNestedBoundary = nestedBoundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const nestedParts = partBody.split(new RegExp(`--${escapedNestedBoundary}`));
+
+            for (const nestedPart of nestedParts) {
+              if (nestedPart.trim() === "" || nestedPart.trim() === "--") continue;
+
+              const { headers: nestedHeaders, body: nestedBody } = parseMimePart(nestedPart);
+              const nestedContentType = nestedHeaders["content-type"] || "";
+              const nestedContentId = nestedHeaders["content-id"]?.replace(/[<>]/g, "");
+              const nestedTransferEncoding = nestedHeaders["content-transfer-encoding"] || "";
+
+              if (nestedContentType.includes("text/html")) {
+                htmlPart = nestedTransferEncoding.includes("quoted-printable")
+                  ? decodeQuotedPrintable(nestedBody)
+                  : nestedBody;
+              } else if (nestedContentType.includes("text/plain") && !htmlPart) {
+                textPart = nestedTransferEncoding.includes("quoted-printable")
+                  ? decodeQuotedPrintable(nestedBody)
+                  : nestedBody;
+              } else if (nestedContentType.includes("image/") && nestedContentId) {
+                // Extract inline image
+                const mimeType = nestedContentType.split(";")[0].trim();
+                const imageData = nestedBody.replace(/\s/g, "");
+                cidMap[nestedContentId] = `data:${mimeType};base64,${imageData}`;
+              }
+            }
+          }
+        } else if (partContentType.includes("text/html")) {
+          htmlPart = transferEncoding.includes("quoted-printable")
+            ? decodeQuotedPrintable(partBody)
+            : partBody;
+        } else if (partContentType.includes("text/plain") && !htmlPart) {
+          textPart = transferEncoding.includes("quoted-printable")
+            ? decodeQuotedPrintable(partBody)
+            : partBody;
+        } else if (partContentType.includes("image/") && contentId) {
+          // Extract inline image with Content-ID
+          const mimeType = partContentType.split(";")[0].trim();
+          const imageData = partBody.replace(/\s/g, "");
+          cidMap[contentId] = `data:${mimeType};base64,${imageData}`;
         }
       }
 
@@ -196,14 +261,24 @@ function parseEmlContent(content: string): {
         isHtml = false;
       }
     }
+  } else if (contentType.includes("text/html")) {
+    isHtml = true;
+    if (headers["content-transfer-encoding"]?.includes("quoted-printable")) {
+      body = decodeQuotedPrintable(body);
+    }
+  } else if (headers["content-transfer-encoding"]?.includes("quoted-printable")) {
+    body = decodeQuotedPrintable(body);
   }
 
-  if (headers["content-transfer-encoding"]?.includes("quoted-printable") || body.includes("=\n")) {
-    body = body
-      .replace(/=\r?\n/g, "")
-      .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  // Replace cid: references with data URLs
+  if (isHtml && Object.keys(cidMap).length > 0) {
+    for (const [cid, dataUrl] of Object.entries(cidMap)) {
+      // Replace both src="cid:xxx" and src='cid:xxx' formats
+      body = body.replace(new RegExp(`src=["']cid:${cid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'gi'), `src="${dataUrl}"`);
+    }
   }
 
+  // Clean up trailing boundary markers
   body = body.replace(/--[^\n]+--\s*$/g, "").trim();
 
   return {
