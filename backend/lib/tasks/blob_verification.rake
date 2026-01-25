@@ -5,6 +5,15 @@ namespace :blob do
   task verify: :environment do |_t, args|
     require "aws-sdk-s3"
 
+    # Set tenant context (required for StorageConfiguration)
+    tenant = Tenant.first
+    unless tenant
+      puts "No tenant found"
+      exit 1
+    end
+    ActsAsTenant.current_tenant = tenant
+    puts "Using tenant: #{tenant.name}"
+
     credential = S3CompatibleCredential.active.first
     unless credential
       puts "No S3 credential found"
