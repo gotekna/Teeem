@@ -760,6 +760,10 @@ export default function EmailPage() {
   const [selectedAccount, setSelectedAccount] = useAtom(selectedAccountAtom);
   const [expandedAccounts, setExpandedAccounts] = useAtom(expandedAccountsAtom);
 
+  // Historical mailbox filter (for Warehouse links to mailboxes without connected accounts)
+  // When set, filters by mailbox_owner_email instead of account credential
+  const [historicalMailbox, setHistoricalMailbox] = useState<string | null>(null);
+
   // Selected/popout email (SSoT: atoms)
   const [selectedEmailAtomValue, setSelectedEmailAtomValue] = useAtom(selectedEmailAtom);
   const selectedEmail = selectedEmailAtomValue as Email | null;
@@ -1113,8 +1117,11 @@ export default function EmailPage() {
       params.set("per_page", "50");
       params.set("my_emails", "true");
 
-      // Filter by specific account (skip filtering if "all" for combined view)
-      if (selectedAccount && selectedAccount !== "all") {
+      // Filter by historical mailbox (Warehouse links to mailboxes without connected accounts)
+      if (historicalMailbox) {
+        params.append("mailbox_owner_email", historicalMailbox);
+      } else if (selectedAccount && selectedAccount !== "all") {
+        // Filter by specific account (skip filtering if "all" for combined view)
         if (selectedAccount === "outlook") {
           params.append("source_type", "outlook");
         } else if (selectedAccount.startsWith("ms365_")) {
@@ -1161,7 +1168,7 @@ export default function EmailPage() {
         setLoading(false);
       }
     }
-  }, [toURLParams, selectedAccount, selectedFolder]);
+  }, [toURLParams, selectedAccount, selectedFolder, historicalMailbox]);
 
   // Performance: Infinite scroll - auto-load more emails when scrolling near bottom
   // Use refs to store latest state to avoid effect re-running on every state change
@@ -1318,7 +1325,17 @@ export default function EmailPage() {
             setExpandedAccounts(new Set([targetAccountId]));
             // Fetch folders for selected account (pass account for ms365 type)
             fetchFolders(targetAccountId, accountToSelect, true);
+            // Clear historical mailbox if we matched a connected account
+            setHistoricalMailbox(null);
+          } else {
+            // No matching connected account - use historical mailbox filter
+            // This is for Warehouse links to mailboxes without connected accounts
+            setHistoricalMailbox(accountParam);
+            // Stay on "all" but filter by mailbox_owner_email in fetchEmails
           }
+        } else {
+          // No accountParam - clear historical mailbox
+          setHistoricalMailbox(null);
         }
       }
 
@@ -1382,7 +1399,7 @@ export default function EmailPage() {
     }
   }, [accounts, toast]);
 
-  // Handle URL account param changes (e.g., clicking different mailbox in nav)
+  // Handle URL account param changes (e.g., clicking different mailbox in nav or Warehouse links)
   useEffect(() => {
     if (accountParam && accounts.length > 0) {
       const matchingAccount = accounts.find(a => a.email_address === accountParam || String(a.id) === accountParam);
@@ -1393,26 +1410,36 @@ export default function EmailPage() {
 
         const accountId = String(matchingAccount.id);
         setSelectedAccount(accountId);
+        setHistoricalMailbox(null); // Clear historical mailbox when matching account found
         // Immediately set folder to Inbox when switching accounts via URL
         setSelectedFolder("Inbox");
         setSelectedFolderId("");
         setExpandedAccounts(new Set([accountId]));
         fetchFolders(accountId, matchingAccount, true);
+      } else if (!matchingAccount && historicalMailbox !== accountParam) {
+        // No matching connected account - switch to historical mailbox mode
+        // This is for Warehouse links to mailboxes without connected accounts
+        setHistoricalMailbox(accountParam);
+        setSelectedAccount("all");
+        // Clear folder selection (historical mailboxes show all emails)
+        setSelectedFolder("");
+        setSelectedFolderId("");
       }
-    } else if (!accountParam && accounts.length > 0 && selectedAccount !== "all") {
+    } else if (!accountParam && accounts.length > 0 && (selectedAccount !== "all" || historicalMailbox)) {
       // No account param but we have a specific account selected - switch to All Inbox
       skipNextAutoFetchRef.current = true;
       setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
       setSelectedAccount("all");
+      setHistoricalMailbox(null);
     }
-  }, [accountParam, accounts]);
+  }, [accountParam, accounts, historicalMailbox]);
 
   useEffect(() => {
-    // Fetch emails when account changes OR when accounts finish loading
+    // Fetch emails when account changes, historicalMailbox changes, OR when accounts finish loading
     if (accountsLoaded) {
       fetchEmails();
     }
-  }, [selectedAccount, fetchEmails, accountsLoaded]);
+  }, [selectedAccount, fetchEmails, accountsLoaded, historicalMailbox]);
 
   // Cache email state for instant loading on next visit
   useEffect(() => {
@@ -1975,6 +2002,32 @@ To: ${email.to_emails?.join(", ") || ""}
         />
 
         <div className="flex-1 overflow-y-auto py-2">
+          {/* Historical Mailbox Indicator - for Warehouse links to non-connected mailboxes */}
+          {historicalMailbox && (
+            <div className="mb-2">
+              <div className="px-1 py-1.5 text-sm bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-sm border border-amber-500/20">
+                <div className="flex items-center gap-2 font-medium">
+                  <Archive className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-left truncate" title={historicalMailbox}>
+                    {historicalMailbox}
+                  </span>
+                </div>
+                <div className="text-xs text-amber-600 dark:text-amber-500 mt-1 pl-6">
+                  Historical mailbox (not connected)
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setHistoricalMailbox(null);
+                  router.push("/email", { scroll: false });
+                }}
+                className="w-full mt-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-sm"
+              >
+                ← Back to All Inbox
+              </button>
+            </div>
+          )}
+
           {/* All Inbox - Combined view from all accounts */}
           <button
             onClick={() => {
@@ -1983,6 +2036,7 @@ To: ${email.to_emails?.join(", ") || ""}
               setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
 
               setSelectedAccount("all");
+              setHistoricalMailbox(null);
               setSelectedFolder("Inbox");
               setSelectedFolderId("ALL_INBOX");
               // Update URL to be bookmarkable (remove account param for "all")
@@ -1990,7 +2044,7 @@ To: ${email.to_emails?.join(", ") || ""}
             }}
             className={cn(
               "w-full flex items-center gap-2 px-1 py-1.5 text-sm hover:bg-muted/50 rounded-sm font-medium",
-              selectedAccount === "all" && "bg-primary/10 text-primary"
+              selectedAccount === "all" && !historicalMailbox && "bg-primary/10 text-primary"
             )}
           >
             <Inbox className="h-4 w-4 shrink-0" />

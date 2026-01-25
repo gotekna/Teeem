@@ -126,6 +126,12 @@ class Api::V1::SyncedEmailsController < ApplicationController
       emails = emails.where(imap_credential_id: params[:imap_credential_id])
     end
 
+    # Filter by mailbox_owner_email (for Warehouse links to historical mailboxes)
+    # This allows filtering by mailbox even if it's not a connected account
+    if params[:mailbox_owner_email].present?
+      emails = emails.where("LOWER(mailbox_owner_email) = LOWER(?)", params[:mailbox_owner_email])
+    end
+
     # Filter by folder name or ID (e.g., "Sent Items", "Inbox", etc.)
     # SSoT: Use in_folder scope for case-insensitive matching (Gmail=INBOX, Outlook=Inbox, etc.)
     if params[:folder_id].present?
