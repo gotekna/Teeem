@@ -26,6 +26,8 @@ class XeroAttachmentSyncService
   def sync!
     return error_result("No external_id on invoice") unless external_invoice.external_id.present?
     return error_result("No tenant_id on invoice") unless external_invoice.tenant_id.present?
+    return error_result("Tenant not found for tenant_id #{external_invoice.tenant_id}") unless @tenant
+    return error_result("StorageConfiguration not found for tenant #{@tenant.name}") unless @storage_config
 
     Rails.logger.info("[XeroAttachmentSync] Starting sync for invoice #{external_invoice.id} (#{external_invoice.invoice_number})")
 
