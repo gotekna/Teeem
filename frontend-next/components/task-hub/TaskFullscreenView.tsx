@@ -4309,7 +4309,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           duration: 15000,
         });
         setPrepareEmailLoading(false);
-        setPrepareEmailStatus(null);
+        setPrepareEmailStatus('');
         return; // STOP - don't proceed with incomplete email
       }
 
