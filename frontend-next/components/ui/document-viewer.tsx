@@ -344,13 +344,24 @@ function parseEmlContent(content: string): {
     body = decodeQuotedPrintable(body);
   }
 
+  // Always log what image references exist in the HTML (for debugging)
+  if (isHtml) {
+    const allImgSrcs = body.match(/src=["']([^"']+)["']/gi) || [];
+    const cidRefs = body.match(/src=["']cid:([^"']+)["']/gi) || [];
+    const httpRefs = allImgSrcs.filter(s => s.includes('http'));
+    const dataRefs = allImgSrcs.filter(s => s.includes('data:'));
+    console.log(`[EML Parser] Image sources in HTML: ${allImgSrcs.length} total, ${cidRefs.length} cid:, ${httpRefs.length} http(s):, ${dataRefs.length} data:`);
+    if (cidRefs.length > 0) console.log(`[EML Parser] cid: refs:`, cidRefs.slice(0, 5));
+    if (httpRefs.length > 0) console.log(`[EML Parser] http refs:`, httpRefs.slice(0, 3));
+  }
+
   // Replace cid: references with data URLs
   if (isHtml && Object.keys(cidMap).length > 0) {
     console.log(`[EML Parser] Found ${Object.keys(cidMap).length} images to replace`);
 
     // First, find all cid: references in the HTML
     const cidRefs = body.match(/src=["']cid:([^"']+)["']/gi) || [];
-    console.log(`[EML Parser] Found ${cidRefs.length} cid: references in HTML:`, cidRefs.slice(0, 5));
+    console.log(`[EML Parser] Replacing ${cidRefs.length} cid: references`);
 
     for (const [cid, dataUrl] of Object.entries(cidMap)) {
       // Escape special regex characters in the cid
