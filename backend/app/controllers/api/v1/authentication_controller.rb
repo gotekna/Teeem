@@ -107,7 +107,9 @@ module Api
           # Skip redirect for TEEEM staff OR localhost requests
           frontend_url = (is_teeem_staff || is_localhost) ? nil : env_config[:frontend_url]
 
-          token = JsonWebToken.encode(user_id: user.id)
+          # Remember me: 1 year expiry, otherwise 1 day
+          token_expiry = login_params[:remember_me] == true || login_params[:remember_me] == "true" ? 1.year.from_now : 1.day.from_now
+          token = JsonWebToken.encode({ user_id: user.id }, token_expiry)
           render json: {
             success: true,
             token: token,
@@ -255,7 +257,7 @@ module Api
       end
 
       def login_params
-        params.require(:user).permit(:email, :password)
+        params.require(:user).permit(:email, :password, :remember_me)
       end
     end
   end

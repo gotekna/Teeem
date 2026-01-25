@@ -16,7 +16,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; error?: string }>;
   signup: (name: string, email: string, password: string, passwordConfirmation: string) => Promise<{ success: boolean; errors?: string[] }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -45,10 +45,13 @@ interface AuthResponse {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 // Helper to set auth token in both localStorage and cookie (for SSR)
-const setAuthToken = (token: string) => {
+// When rememberMe is true, cookie lasts 1 year; otherwise 1 day
+const setAuthToken = (token: string, rememberMe?: boolean) => {
   setStorageItem(STORAGE_KEYS.TOKEN, token);
-  // Set cookie for server-side access (expires in 7 days)
-  document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+  // Set cookie for server-side access
+  // rememberMe: 1 year, otherwise: 1 day (matches backend token expiry)
+  const maxAge = rememberMe ? 365 * 24 * 60 * 60 : 24 * 60 * 60;
+  document.cookie = `auth_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
 };
 
 // Helper to clear auth token from both localStorage and cookie
@@ -220,12 +223,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setLoading(false);
   };
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (email: string, password: string, rememberMe?: boolean): Promise<{ success: boolean; error?: string }> => {
     try {
       // Use loginToProduction - production backend is the "router" that returns api_url
       // for the company's chosen environment
       const response = await api.loginToProduction<AuthResponse>({
-        user: { email, password }
+        user: { email, password, remember_me: rememberMe }
       });
 
       if (response?.success && response.token && response.user) {
@@ -251,7 +254,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           return { success: true };
         }
 
-        setAuthToken(response.token);
+        setAuthToken(response.token, rememberMe);
         setToken(response.token);
         setUser(response.user);
         applyUserTheme(response.user);

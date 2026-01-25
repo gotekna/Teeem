@@ -15,6 +15,7 @@ import Link from "next/link";
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true); // Default to checked for convenience
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState("");
@@ -66,7 +67,7 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const result = await login(email, password);
+      const result = await login(email, password, rememberMe);
       if (result.success) {
         router.push("/dashboard");
       } else {
@@ -151,9 +152,13 @@ function LoginForm() {
               />
             </div>
             <div className="flex items-center space-x-2">
-              <Checkbox id="remember" />
+              <Checkbox
+                id="remember"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+              />
               <Label htmlFor="remember" className="text-sm font-normal">
-                Remember me for 30 days
+                Remember me
               </Label>
             </div>
           </CardContent>

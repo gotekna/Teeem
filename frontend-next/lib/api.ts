@@ -718,7 +718,7 @@ export const api = {
    * - environment: The environment name ('production', 'beta', 'staging')
    * - user: User data
    */
-  async loginToProduction<T = unknown>(data: { user: { email: string; password: string } }): Promise<T | null> {
+  async loginToProduction<T = unknown>(data: { user: { email: string; password: string; remember_me?: boolean } }): Promise<T | null> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES } = {};
 
     // In dev mode: login directly to dev backend (skip production router)
