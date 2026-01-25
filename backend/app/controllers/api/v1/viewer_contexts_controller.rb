@@ -15,8 +15,9 @@ module Api
     #
     # Context stored in Rails.cache with 24-hour expiry (anonymous access, no auth needed)
     class ViewerContextsController < ApplicationController
-      skip_before_action :authenticate_user!, only: [:show, :create]
-      skip_before_action :set_current_tenant, only: [:show, :create]
+      # Public endpoint - viewer contexts are anonymous/ephemeral
+      skip_before_action :authorize_request, only: [:show, :create]
+      skip_before_action :set_tenant, only: [:show, :create]
 
       # POST /api/v1/viewer_contexts
       # Store viewer context and return a short ID

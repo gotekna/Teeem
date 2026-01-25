@@ -1056,6 +1056,8 @@ module Api
           if attachment.warehouse_document.present?
             # Phase 3 SSoT: Update warehouse_document directly
             attachment.warehouse_document.update!(display_name: params[:display_name])
+            # Clear association cache so attachment.display_name sees updated value
+            attachment.reload
           else
             # Fallback for attachments without warehouse_document (emails, legacy)
             attachment.update!(display_name: params[:display_name])
@@ -1068,7 +1070,7 @@ module Api
 
         render json: {
           success: true,
-          attachment: attachment_to_json(attachment).merge(
+          attachment: attachment_to_json(attachment.reload).merge(
             action_item_id: attachment.action_item_id
           )
         }
@@ -2496,9 +2498,11 @@ module Api
 
       def set_sm_task
         # Eager load associations needed for task_to_json and action_item_to_json
+        # SSoT: sm_task_attachments needs warehouse_document for display_name (Phase 3)
         @task = SmTask.includes(
           :job, :assigned_user, :children,
-          action_items: [:checked_by, :responded_by, { delegated_task: [:action_items, :sm_task_attachments, { children: :assigned_user }] }]
+          sm_task_attachments: [:warehouse_document, :attachable, :added_by],
+          action_items: [:checked_by, :responded_by, { delegated_task: [:action_items, { sm_task_attachments: [:warehouse_document, :attachable] }, { children: :assigned_user }] }]
         ).find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: {

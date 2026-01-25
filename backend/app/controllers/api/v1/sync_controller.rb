@@ -14,7 +14,7 @@ module Api
     class SyncController < ApplicationController
       # Skip standard auth - we use our own desktop client authentication
       skip_before_action :authorize_request
-      skip_before_action :authenticate_user!, raise: false
+      skip_before_action :set_tenant
 
       # verify_device_code needs web user auth (to link device to user)
       before_action :require_web_user!, only: [:verify_device_code]
