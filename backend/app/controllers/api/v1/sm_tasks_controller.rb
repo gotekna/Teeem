@@ -1044,19 +1044,27 @@ module Api
 
       # PATCH /api/v1/sm_tasks/:id/attachments/:attachment_id
       # Update attachment properties (e.g., link to a question via action_item_id)
-      # Also supports renaming via:
-      #   - display_name: stored on attachment as custom display name (works for all types)
-      #   - document_display_name: updates the linked CorporateCompanyDocument (legacy)
+      #
+      # Renaming SSoT:
+      #   - If warehouse_document exists: Update warehouse_document.display_name (Phase 3 SSoT)
+      #   - Fallback: Update attachment.display_name (for emails or legacy attachments)
       def update_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
 
-        permitted = params.permit(:action_item_id, :category, :notes, :display_name)
-        attachment.update!(permitted)
-
-        # Legacy: If document_display_name provided, update the linked document
-        if params[:document_display_name].present? && attachment.attachable_type == "CorporateCompanyDocument"
-          attachment.attachable.update!(display_name: params[:document_display_name])
+        # Handle display_name update - SSoT is warehouse_document.display_name
+        if params[:display_name].present?
+          if attachment.warehouse_document.present?
+            # Phase 3 SSoT: Update warehouse_document directly
+            attachment.warehouse_document.update!(display_name: params[:display_name])
+          else
+            # Fallback for attachments without warehouse_document (emails, legacy)
+            attachment.update!(display_name: params[:display_name])
+          end
         end
+
+        # Update other permitted fields
+        permitted = params.permit(:action_item_id, :category, :notes)
+        attachment.update!(permitted) if permitted.present?
 
         render json: {
           success: true,
@@ -2689,7 +2697,8 @@ module Api
             document: {
               id: doc.id,
               file_name: doc.file_name,
-              display_name: doc.display_name,
+              # SSoT: Use attachment.display_name which checks warehouse_document first
+              display_name: attachment.display_name,
               document_type: doc.document_type,
               # SSoT: Use StorableDocument#storage_url for provider-agnostic download URL
               # ActiveStorage has_one_attached :file was REMOVED (Jan 2026)

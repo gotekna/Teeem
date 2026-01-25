@@ -75,14 +75,22 @@ class SmTaskAttachment < ApplicationRecord
     end
   end
 
-  # Get display name - prefer stored custom name, fall back to attachable's name
-  # SSoT: User-set display_name (stored in DB column) takes priority over original filename/subject
+  # Get display name - SSoT hierarchy for renamed attachments
+  # Priority:
+  #   1. warehouse_document.display_name (Phase 3 SSoT - editable)
+  #   2. attachment.display_name (stored locally for emails/legacy)
+  #   3. attachable's original name (file_name or subject)
   def display_name
-    # Check if custom display_name is stored in the database column
+    # Phase 3 SSoT: Check warehouse_document first
+    if warehouse_document&.display_name.present?
+      return warehouse_document.display_name
+    end
+
+    # Fallback: Check if custom display_name is stored on attachment
     stored_name = read_attribute(:display_name)
     return stored_name if stored_name.present?
 
-    # Fall back to attachable's name
+    # Fall back to attachable's original name
     case attachable_type
     when "SyncedEmail"
       attachable&.subject || "Email"
