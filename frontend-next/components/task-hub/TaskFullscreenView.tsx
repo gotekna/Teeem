@@ -3488,6 +3488,44 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     };
 
+    // Helper to detect file type for viewer URL - tries multiple sources
+    const getFileTypeHint = (displayName: string, actualFileName?: string | null, contentType?: string | null): string | undefined => {
+      // Try content-type first (most reliable)
+      if (contentType) {
+        if (contentType.includes('pdf')) return 'pdf';
+        if (contentType.startsWith('image/')) return 'image';
+        if (contentType === 'message/rfc822') return 'eml';
+        if (contentType.includes('spreadsheet') || contentType.includes('excel') || contentType === 'text/csv') return 'excel';
+      }
+
+      // Try actual filename with extension
+      if (actualFileName) {
+        const ext = actualFileName.split('.').pop()?.toLowerCase() || '';
+        if (ext === 'pdf') return 'pdf';
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'image';
+        if (ext === 'eml') return 'eml';
+        if (['xlsx', 'xls', 'csv'].includes(ext)) return 'excel';
+      }
+
+      // Try display name (may not have extension)
+      const ext = displayName.split('.').pop()?.toLowerCase() || '';
+      if (ext === 'pdf') return 'pdf';
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'image';
+      if (ext === 'eml') return 'eml';
+      if (['xlsx', 'xls', 'csv'].includes(ext)) return 'excel';
+
+      return undefined;
+    };
+
+    // SSoT: THE ONE function for attachment display names
+    // Priority: user-renamed (att.display_name) > document name > email subject
+    const getAttachmentDisplayName = (att: TaskAttachment): string => {
+      if (att.display_name) return att.display_name;
+      if (att.document) return att.document.display_name || att.document.file_name || 'Document';
+      if (att.email) return att.email.subject || '(No subject)';
+      return 'Attachment';
+    };
+
     // Helper to format a file link as HTML hyperlink with Download/Open options
     // For external email recipients - makes actions more discoverable
     // downloadUrl = presigned URL with Content-Disposition: attachment (forces download)
@@ -3497,10 +3535,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       fileName: string,
       downloadUrl?: string,
       openUrl?: string,
-      context?: { question?: string; answer?: string; allFiles?: ViewerFile[]; currentIndex?: number; allQA?: QAPair[] }
+      context?: { question?: string; answer?: string; allFiles?: ViewerFile[]; currentIndex?: number; allQA?: QAPair[]; actualFileName?: string | null; contentType?: string | null }
     ): string => {
       if (downloadUrl && openUrl) {
         let viewerUrl: string;
+        const typeHint = getFileTypeHint(fileName, context?.actualFileName, context?.contentType);
 
         // If we have context with multiple files or Q&A, use the enhanced viewer
         if (context && (context.allFiles?.length || context.question || context.answer || context.allQA?.length)) {
@@ -3519,12 +3558,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           if (enhancedUrl.length <= 1800) {
             viewerUrl = enhancedUrl;
           } else {
-            // Fallback: simple URL for this file only
+            // Fallback: simple URL for this file only (pass type hint for blob URLs without extension)
             const viewerParams = new URLSearchParams({
               url: openUrl,
               name: fileName,
               download: downloadUrl
             });
+            if (typeHint) viewerParams.set('type', typeHint);
             viewerUrl = `https://teeem.vercel.app/view?${viewerParams.toString()}`;
           }
         } else {
@@ -3534,6 +3574,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             name: fileName,
             download: downloadUrl
           });
+          if (typeHint) viewerParams.set('type', typeHint);
           viewerUrl = `https://teeem.vercel.app/view?${viewerParams.toString()}`;
         }
 
@@ -3628,10 +3669,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           const allFiles: ViewerFile[] = (q.attachments || [])
             .filter(att => att.document)
             .map(att => {
-              const name = att.document?.display_name || att.document?.file_name || 'Document';
               const links = shareLinksMap[att.id];
               const fallback = att.document?.storage_url || att.document?.file_url || '';
-              return { name, downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+              return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
             });
 
           // Show text response (no extra spacing before attachments)
@@ -3641,15 +3681,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             if (q.attachments && q.attachments.length > 0) {
               q.attachments.forEach((att, attIdx) => {
                 if (att.document) {
-                  const fileName = att.document.display_name || att.document.file_name || 'Document';
                   const links = shareLinksMap[att.id];
                   const fallbackUrl = att.document.storage_url || att.document.file_url;
-                  body += `\n📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
+                  body += `\n📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                     question: q.text,
                     answer: q.response,
                     allFiles,
                     currentIndex: attIdx,
-                    allQA
+                    allQA,
+                    actualFileName: att.document.file_name
                   })}`;
                 }
               });
@@ -3661,14 +3701,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             q.attachments.forEach((att, attIdx) => {
               if (attIdx > 0) body += `<br>`;
               if (att.document) {
-                const fileName = att.document.display_name || att.document.file_name || 'Document';
                 const links = shareLinksMap[att.id];
                 const fallbackUrl = att.document.storage_url || att.document.file_url;
-                body += `📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
+                body += `📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                   question: q.text,
                   allFiles,
                   currentIndex: attIdx,
-                  allQA
+                  allQA,
+                  actualFileName: att.document.file_name
                 })}`;
               }
             });
@@ -3689,10 +3729,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           const allFiles: ViewerFile[] = (q.attachments || [])
             .filter(att => att.document)
             .map(att => {
-              const name = att.document?.display_name || att.document?.file_name || 'Document';
               const links = shareLinksMap[att.id];
               const fallback = att.document?.storage_url || att.document?.file_url || '';
-              return { name, downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+              return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
             });
 
           // Show text response (no extra spacing before attachments)
@@ -3702,15 +3741,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             if (q.attachments && q.attachments.length > 0) {
               q.attachments.forEach((att, attIdx) => {
                 if (att.document) {
-                  const fileName = att.document.display_name || att.document.file_name || 'Document';
                   const links = shareLinksMap[att.id];
                   const fallbackUrl = att.document.storage_url || att.document.file_url;
-                  body += `\n📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
+                  body += `\n📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                     question: q.text,
                     answer: q.response,
                     allFiles,
                     currentIndex: attIdx,
-                    allQA
+                    allQA,
+                    actualFileName: att.document.file_name
                   })}`;
                 }
               });
@@ -3722,14 +3761,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             q.attachments.forEach((att, attIdx) => {
               if (attIdx > 0) body += `<br>`;
               if (att.document) {
-                const fileName = att.document.display_name || att.document.file_name || 'Document';
                 const links = shareLinksMap[att.id];
                 const fallbackUrl = att.document.storage_url || att.document.file_url;
-                body += `📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
+                body += `📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                   question: q.text,
                   allFiles,
                   currentIndex: attIdx,
-                  allQA
+                  allQA,
+                  actualFileName: att.document.file_name
                 })}`;
               }
             });
@@ -3794,22 +3833,21 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     if (linkedFiles.length > 0) {
       // Build file list for viewer navigation (if multiple linked files)
       const linkedFilesForViewer: ViewerFile[] = linkedFiles.map(att => {
-        const name = att.document?.display_name || att.document?.file_name || 'Document';
         const links = shareLinksMap[att.id];
         const fallback = att.document?.storage_url || att.document?.file_url || '';
-        return { name, downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+        return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
       });
 
       body += '<p><strong>File links:</strong></p>\n';
       body += '<ul>\n';
       linkedFiles.forEach((att, attIdx) => {
-        const fileName = att.document?.display_name || att.document?.file_name || 'Document';
         const links = shareLinksMap[att.id];
         const fallbackUrl = att.document?.storage_url || att.document?.file_url;
-        body += `<li>${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
+        body += `<li>${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
           allFiles: linkedFilesForViewer,
           currentIndex: attIdx,
-          allQA
+          allQA,
+          actualFileName: att.document?.file_name
         })}</li>\n`;
       });
       body += '</ul>\n';

@@ -4,12 +4,28 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { Download, ExternalLink, FileText, Image as ImageIcon, Mail, User, Users, Calendar } from "lucide-react";
 
-// Detect file type from filename
-function getFileType(filename: string): "pdf" | "image" | "eml" | "other" {
+// Detect file type from filename or URL
+function getFileType(filename: string, url?: string | null): "pdf" | "image" | "eml" | "excel" | "other" {
+  // Try filename first
   const ext = filename.split(".").pop()?.toLowerCase() || "";
   if (ext === "pdf") return "pdf";
   if (["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)) return "image";
   if (ext === "eml") return "eml";
+  if (["xlsx", "xls", "csv"].includes(ext)) return "excel";
+
+  // Fallback: try to detect from URL path (before query params)
+  if (url) {
+    try {
+      const urlPath = new URL(url).pathname.toLowerCase();
+      if (urlPath.endsWith(".pdf")) return "pdf";
+      if (/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/.test(urlPath)) return "image";
+      if (urlPath.endsWith(".eml")) return "eml";
+      if (/\.(xlsx|xls|csv)$/.test(urlPath)) return "excel";
+    } catch {
+      // Invalid URL, ignore
+    }
+  }
+
   return "other";
 }
 
@@ -116,11 +132,14 @@ function ViewerContent() {
   const url = searchParams.get("url");
   const name = searchParams.get("name") || "Document";
   const downloadUrl = searchParams.get("download"); // Separate download URL if provided
+  const typeHint = searchParams.get("type"); // Explicit file type hint (pdf, image, eml, excel)
 
   const [error, setError] = useState<string | null>(null);
   const [emlData, setEmlData] = useState<ReturnType<typeof parseEmlContent> | null>(null);
   const [emlLoading, setEmlLoading] = useState(false);
-  const fileType = getFileType(name);
+
+  // Determine file type: explicit hint > filename extension > URL path
+  const fileType = (typeHint as "pdf" | "image" | "eml" | "excel" | "other") || getFileType(name, url);
 
   // Set document title
   useEffect(() => {
