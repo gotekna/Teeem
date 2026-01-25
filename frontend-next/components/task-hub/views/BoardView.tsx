@@ -65,7 +65,6 @@ const columns: KanbanColumnDef<TaskItem>[] = [
     id: TASK_STATUS.WAITING_FOR_INFO,
     title: 'Waiting for More Info',
     color: 'orange',
-    collapsed: true, // Collapsed by default
   },
   {
     id: TASK_STATUS.COMPLETED,
