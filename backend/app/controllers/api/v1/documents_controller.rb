@@ -579,16 +579,41 @@ module Api
             { name: name, path: name, count: count }
           end
 
-          # Add Emails folder as placeholder (links to /email page, doesn't load files here)
-          # This shows users that emails are in the warehouse without loading 122k+ records
+          # Add Emails folder as expandable - shows individual mailboxes when expanded
+          # Each mailbox links to its specific email page
           unless include_emails
             email_count = WarehouseDocument.where(source_type: "email").count
+            mailbox_count = SyncedEmail.where.not(mailbox_owner_email: [ nil, "" ])
+                                        .distinct
+                                        .count(:mailbox_owner_email)
             if email_count > 0
-              folders << { name: "Emails", path: "Emails", count: email_count, external_link: "/email" }
+              folders << {
+                name: "Emails",
+                path: "Emails",
+                count: email_count,
+                mailbox_count: mailbox_count,  # Show "X mailboxes" in UI
+                expandable: true               # User can expand to see mailboxes
+              }
             end
           end
 
           folders = folders.sort_by { |f| f[:name].to_s.downcase }
+          files = []
+        elsif path == "Emails"
+          # Emails folder expanded: Show individual mailboxes with links to their email page
+          # Each mailbox is clickable and navigates to /email?mailbox=xxx
+          mailboxes = SyncedEmail.where.not(mailbox_owner_email: [ nil, "" ])
+                                  .group(:mailbox_owner_email)
+                                  .count
+
+          folders = mailboxes.map do |email, count|
+            {
+              name: email,
+              path: "Emails/#{email}",
+              count: count,
+              external_link: "/email?mailbox=#{CGI.escape(email)}"  # Opens this mailbox in email page
+            }
+          end.sort_by { |f| f[:name].to_s.downcase }
           files = []
         else
           # Subfolder level: Get immediate subfolders and files at this exact path

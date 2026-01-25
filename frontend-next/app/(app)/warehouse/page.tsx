@@ -133,6 +133,8 @@ interface TreeNode {
   progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
   // External link - when set, clicking folder navigates to this URL instead of expanding
   externalLink?: string;
+  // Mailbox count - shown on Emails folder to indicate synced mailboxes
+  mailboxCount?: number;
 }
 
 type ViewMode = "tree" | "list" | "gallery";
@@ -420,7 +422,7 @@ export default function AllDocumentsPage() {
   // SSoT: S3 folder contents - loaded lazily when expanding folders
   // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
   const [s3Folders, setS3Folders] = useState<Record<string, {
-    folders: Array<{ name: string; path: string; count?: number; external_link?: string }>;
+    folders: Array<{ name: string; path: string; count?: number; external_link?: string; mailbox_count?: number; expandable?: boolean }>;
     files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string }>;
     loading?: boolean;
     message?: string;
@@ -1199,9 +1201,12 @@ export default function AllDocumentsPage() {
           children: subChildren,
           // For lazy loading - track the S3 path
           fullPath: folder.path,
-          fileCount: subfolderData ? subfolderData.folders.length + subfolderData.files.length : undefined,
-          // External link - clicking navigates instead of expanding (e.g., Emails → /email)
+          // Use folder's count from API (e.g., Emails count) or calculate from loaded subfolders
+          fileCount: folder.count ?? (subfolderData ? subfolderData.folders.length + subfolderData.files.length : undefined),
+          // External link - clicking navigates instead of expanding (e.g., individual mailboxes)
           externalLink: folder.external_link,
+          // Mailbox count - shown on Emails folder
+          mailboxCount: folder.mailbox_count,
         };
       });
 
@@ -1601,11 +1606,13 @@ export default function AllDocumentsPage() {
             )}
           </div>
           {/* Show count - for S3 folders show folder+file count once loaded */}
-          {(fileCount > 0 || hasS3Data) && (
+          {(fileCount > 0 || hasS3Data || node.mailboxCount) && (
             <Badge variant="secondary" className="text-xs">
               {hasS3Data
                 ? `${s3Data!.folders.length + s3Data!.files.length} items`
-                : `${fileCount} ${fileCount === 1 ? "file" : "files"}`
+                : node.mailboxCount
+                  ? `${fileCount.toLocaleString()} emails • ${node.mailboxCount} ${node.mailboxCount === 1 ? "mailbox" : "mailboxes"}`
+                  : `${fileCount} ${fileCount === 1 ? "file" : "files"}`
               }
             </Badge>
           )}
