@@ -50,16 +50,32 @@ class MigrateStorageConfigurationToTenant < ActiveRecord::Migration[7.2]
       WHERE tenant_id IS NULL
     SQL
 
-    # Step 5: Make tenant_id NOT NULL now that all records have values
+    # Step 5: Delete duplicate storage_configurations per tenant, keeping only the one
+    # linked to the primary organization (lowest ID per tenant)
+    # This is necessary because multiple organizations may belong to the same tenant,
+    # but we only need ONE storage configuration per tenant (SSoT)
+    execute <<-SQL
+      DELETE FROM storage_configurations
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM storage_configurations
+        GROUP BY tenant_id
+      )
+    SQL
+
+    # Log how many were kept vs deleted
+    say "Kept one StorageConfiguration per tenant (deleted duplicates)"
+
+    # Step 6: Make tenant_id NOT NULL now that all records have values
     change_column_null :storage_configurations, :tenant_id, false
 
-    # Step 6: Add unique constraint on tenant_id (one storage config per tenant)
+    # Step 7: Add unique constraint on tenant_id (one storage config per tenant)
     add_index :storage_configurations, :tenant_id, unique: true, name: 'index_storage_configurations_on_tenant_id_unique'
 
-    # Step 7: Make organization_id nullable (soft deprecation)
+    # Step 8: Make organization_id nullable (soft deprecation)
     change_column_null :storage_configurations, :organization_id, true
 
-    # Step 8: Add foreign key constraint for tenant_id
+    # Step 9: Add foreign key constraint for tenant_id
     add_foreign_key :storage_configurations, :tenants
 
     say "Migrated #{StorageConfiguration.count rescue 'unknown'} storage configurations to tenant-level"
