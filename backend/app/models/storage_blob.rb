@@ -188,7 +188,7 @@ class StorageBlob < ApplicationRecord
       # Try documentable chain
       if doc.documentable.present?
         return doc.documentable.tenant if doc.documentable.respond_to?(:tenant) && doc.documentable.tenant.present?
-        return doc.documentable.microsoft_credential&.tenant if doc.documentable.respond_to?(:microsoft_credential)
+        return doc.documentable.microsoft_credential&.organization&.tenant if doc.documentable.respond_to?(:microsoft_credential)
       end
     end
 
@@ -196,7 +196,7 @@ class StorageBlob < ApplicationRecord
     if email_attachments.any?
       att = email_attachments.first
       if att.respond_to?(:synced_email) && att.synced_email.present?
-        return att.synced_email.microsoft_credential&.tenant if att.synced_email.respond_to?(:microsoft_credential)
+        return att.synced_email.microsoft_credential&.organization&.tenant if att.synced_email.respond_to?(:microsoft_credential)
         return att.synced_email.tenant if att.synced_email.respond_to?(:tenant)
       end
     end

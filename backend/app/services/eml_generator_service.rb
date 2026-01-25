@@ -74,8 +74,9 @@ class EmlGeneratorService
       return nil unless content
 
       # SSoT: Derive tenant from email's credential chain (Jan 2026 fix)
-      tenant = email.microsoft_credential&.tenant ||
-               email.imap_credential&.tenant ||
+      # Credentials belong to organization/user, not tenant directly
+      tenant = email.microsoft_credential&.organization&.tenant ||
+               email.imap_credential&.user&.tenant ||
                ActsAsTenant.current_tenant
 
       unless tenant

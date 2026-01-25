@@ -67,15 +67,15 @@ module TenantResolvable
       return tenant
     end
 
-    # 2. Through credential association
-    if respond_to?(:microsoft_credential) && microsoft_credential&.tenant.present?
-      return microsoft_credential.tenant
+    # 2. Through credential association (credentials belong to organization or user, not tenant)
+    if respond_to?(:microsoft_credential) && microsoft_credential&.organization&.tenant.present?
+      return microsoft_credential.organization.tenant
     end
-    if respond_to?(:imap_credential) && imap_credential&.tenant.present?
-      return imap_credential.tenant
+    if respond_to?(:imap_credential) && imap_credential&.user&.tenant.present?
+      return imap_credential.user.tenant
     end
-    if respond_to?(:s3_compatible_credential) && s3_compatible_credential&.tenant.present?
-      return s3_compatible_credential.tenant
+    if respond_to?(:s3_compatible_credential) && s3_compatible_credential&.organization&.tenant.present?
+      return s3_compatible_credential.organization.tenant
     end
 
     # 3. Through parent record associations
