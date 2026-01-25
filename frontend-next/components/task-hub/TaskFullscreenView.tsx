@@ -1283,13 +1283,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [selectedConfirmDate, setSelectedConfirmDate] = useState<Date | undefined>(new Date());
   const [selectedSupplierDate, setSelectedSupplierDate] = useState<Date | undefined>(new Date());
 
-  // Collapsible sections
-  const [emailsCollapsed, setEmailsCollapsed] = useState(false);
-  const [documentsCollapsed, setDocumentsCollapsed] = useState(false);
-  const [responseFilesCollapsed, setResponseFilesCollapsed] = useState(false);
+  // Collapsible sections - all collapsed by default for cleaner initial view
+  const [emailsCollapsed, setEmailsCollapsed] = useState(true);
+  const [documentsCollapsed, setDocumentsCollapsed] = useState(true);
+  const [responseFilesCollapsed, setResponseFilesCollapsed] = useState(true);
   const [emailSourceCollapsed, setEmailSourceCollapsed] = useState(true); // Start collapsed
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
   const [collapsedEmailMonths, setCollapsedEmailMonths] = useState<Set<string>>(new Set());
+  const initialHeaderCollapseRef = useRef(false);
   const [moreSendersOpen, setMoreSendersOpen] = useState(false);
 
   // Email tree view expansion state (by source category) - array of expanded item keys
@@ -1707,6 +1708,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const actionItems = task.action_items?.filter(item => item.item_type === 'action') || [];
   const questionItems = task.action_items?.filter(item => item.item_type === 'question') || [];
   const headerItems = task.action_items?.filter(item => item.item_type === 'header') || [];
+
+  // Collapse all question headers on initial load for cleaner view
+  useEffect(() => {
+    if (!initialHeaderCollapseRef.current && headerItems.length > 0) {
+      initialHeaderCollapseRef.current = true;
+      setCollapsedHeaders(new Set(headerItems.map(h => h.id)));
+    }
+  }, [headerItems]);
 
   // Parse email source metadata from description (if task was created from email)
   const emailSourceData = useMemo(() => {
