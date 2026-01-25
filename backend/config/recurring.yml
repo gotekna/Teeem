@@ -96,12 +96,15 @@ generate_email_eml:
 # - xero_invoice_incremental_sync (was: every 30 minutes)
 # - xero_contact_sync (was: every 30 minutes)
 
-# SELF-HEALING: Health monitor catches any webhook failures
-# Runs less frequently now that webhooks are primary
+# SELF-HEALING: Health monitor catches sync failures and triggers recovery
+# Runs every 15 minutes for responsive self-healing
+# - Clears orphaned jobs blocking self-heal
+# - Clears stale batch locks
+# - Triggers stalled syncs (pdfs, invoices, contacts)
 xero_health_monitor:
   class: XeroHealthMonitorJob
   queue: default
-  schedule: every 2 hours
+  schedule: every 15 minutes
 
 # Bank transaction sync (no webhook available for bank transactions)
 xero_bank_transaction_sync:

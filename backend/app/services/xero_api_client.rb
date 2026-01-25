@@ -343,21 +343,60 @@ class XeroApiClient
         needs_attention: needs_attention_count
       }
     else
-      # All good - green
+      # Credentials all good - now check sync health for orange indicator
       primary = XeroCredential.current
       primary_health = primary ? XeroConnectionHealth.for_credential(primary) : nil
-      {
-        connected: true,
-        status: "connected",
-        display_status: "connected",
-        tenant_name: primary&.tenant_name,
-        tenant_id: primary&.tenant_id,
-        expires_at: primary_health&.expires_at,
-        expired: primary&.expired?,
-        total: total,
-        connected_count: working_count,
-        needs_attention: 0
-      }
+
+      # SSoT: Check sync health - show orange if any sync is stalled
+      sync_health = XeroSyncStatus.health_summary
+      sync_stalled = sync_health[:overall_health] == "red" || sync_health[:overall_health] == "yellow"
+
+      # Determine specific sync issue for message
+      sync_issue_message = nil
+      if sync_stalled
+        stalled_types = []
+        sync_health[:sync_types]&.each do |type, info|
+          if info[:health_status] == "red" || info[:health_status] == "yellow"
+            stalled_types << type
+          end
+        end
+        sync_issue_message = "Sync stalled: #{stalled_types.join(', ')}" if stalled_types.any?
+      end
+
+      if sync_stalled
+        # Credentials connected but sync is stalled - orange
+        {
+          connected: true,
+          status: "degraded",
+          display_status: "warning",
+          message: sync_issue_message || "Sync health degraded",
+          tenant_name: primary&.tenant_name,
+          tenant_id: primary&.tenant_id,
+          expires_at: primary_health&.expires_at,
+          expired: primary&.expired?,
+          total: total,
+          connected_count: working_count,
+          needs_attention: 0,
+          sync_stalled: true,
+          sync_health: sync_health[:overall_health]
+        }
+      else
+        # All good - green
+        {
+          connected: true,
+          status: "connected",
+          display_status: "connected",
+          tenant_name: primary&.tenant_name,
+          tenant_id: primary&.tenant_id,
+          expires_at: primary_health&.expires_at,
+          expired: primary&.expired?,
+          total: total,
+          connected_count: working_count,
+          needs_attention: 0,
+          sync_stalled: false,
+          sync_health: "green"
+        }
+      end
     end
   end
 

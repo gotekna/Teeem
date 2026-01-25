@@ -56,6 +56,11 @@ import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { EmailContactAutocomplete } from "@/components/emails/EmailContactAutocomplete";
+import type { EmailContact } from "@/lib/email-types";
+
+const CONTACT_SEARCH_MIN_CHARS = 2;
+const CONTACT_SEARCH_DEBOUNCE_MS = 300;
 
 interface RecurringInvoice {
   id: number;
@@ -155,6 +160,12 @@ export default function RecurringInvoicesTab() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filter, setFilter] = useState<"all" | "active" | "paused">("all");
 
+  // Email autocomplete state
+  const [emailContacts, setEmailContacts] = useState<EmailContact[]>([]);
+  const [emailContactsLoading, setEmailContactsLoading] = useState(false);
+  const [emailToSearch, setEmailToSearch] = useState("");
+  const [emailCcSearch, setEmailCcSearch] = useState("");
+
   // Form state
   const [formData, setFormData] = useState({
     name: "",
@@ -178,6 +189,41 @@ export default function RecurringInvoicesTab() {
       { description: "", quantity: 1, unit_price: 0, tax_rate: 10 },
     ] as LineItem[],
   });
+
+  // Search contacts for email autocomplete
+  const searchEmailContacts = async (search: string) => {
+    if (!search || search.length < CONTACT_SEARCH_MIN_CHARS) {
+      setEmailContacts([]);
+      return;
+    }
+    setEmailContactsLoading(true);
+    try {
+      const response = await api.get<{ contacts: EmailContact[] }>(
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&per_page=20`
+      );
+      const typedResponse = response as { contacts: EmailContact[] };
+      setEmailContacts((typedResponse.contacts || []).filter(c =>
+        c.email || (c.contact_emails && c.contact_emails.length > 0)
+      ));
+    } catch (err) {
+      console.error("Failed to search contacts:", err);
+    } finally {
+      setEmailContactsLoading(false);
+    }
+  };
+
+  // Debounced email contact search
+  useEffect(() => {
+    const activeSearch = emailToSearch || emailCcSearch;
+    const timer = setTimeout(() => {
+      if (activeSearch) {
+        searchEmailContacts(activeSearch);
+      } else {
+        setEmailContacts([]);
+      }
+    }, CONTACT_SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [emailToSearch, emailCcSearch]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -870,22 +916,26 @@ export default function RecurringInvoicesTab() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email_to">Email To</Label>
-                    <Input
-                      id="email_to"
-                      type="email"
-                      placeholder="recipient@example.com"
+                    <EmailContactAutocomplete
                       value={formData.email_to}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, email_to: e.target.value }))}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, email_to: value }))}
+                      contacts={emailContacts}
+                      isLoading={emailContactsLoading}
+                      onSearch={setEmailToSearch}
+                      placeholder="Search contacts or enter email..."
+                      minSearchChars={CONTACT_SEARCH_MIN_CHARS}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email_cc">Email CC</Label>
-                    <Input
-                      id="email_cc"
-                      type="email"
-                      placeholder="cc@example.com"
+                    <EmailContactAutocomplete
                       value={formData.email_cc}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, email_cc: e.target.value }))}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, email_cc: value }))}
+                      contacts={emailContacts}
+                      isLoading={emailContactsLoading}
+                      onSearch={setEmailCcSearch}
+                      placeholder="Search contacts or enter email..."
+                      minSearchChars={CONTACT_SEARCH_MIN_CHARS}
                     />
                   </div>
                 </div>

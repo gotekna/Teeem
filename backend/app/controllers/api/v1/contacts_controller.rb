@@ -73,11 +73,15 @@ module Api
                                     .where(search_sql, q: search_term)
                                     .distinct
 
+          direct_match_ids = direct_matches.pluck(:id)
+
           # Find companies that match the search term
           company_search_sql = search_mode == 'exact' ? "LOWER(display_name) = LOWER(?)" : "display_name ILIKE ?"
           matching_company_ids = Contact.where(company_search_sql, search_term)
                                        .where(entity_type: %w[company trust sole_trader])
                                        .pluck(:id)
+
+          all_contact_ids = direct_match_ids
 
           if matching_company_ids.any?
             # Find employees of those companies (via primary_company_id OR via relationships)
@@ -92,10 +96,73 @@ module Api
             employee_ids = (employee_relationship_ids + employee_primary_company_ids).uniq
 
             # Combine direct matches with employees of matching companies
-            @contacts = @contacts.where(id: direct_matches.pluck(:id) + matching_company_ids + employee_ids)
-          else
-            @contacts = direct_matches
+            all_contact_ids = (direct_match_ids + matching_company_ids + employee_ids).uniq
           end
+
+          # EXPANDED SEARCH: When include_jobs=true, also find other contacts on same jobs
+          # This allows "search pam" to also show other clients/employees on Pam's jobs
+          # Only expand from contacts that have emails (otherwise we expand from contacts
+          # that won't even show in results due to with_email filter)
+          if params[:include_jobs] == "true" && direct_match_ids.any?
+            # Get job IDs for matching contacts (only those with emails)
+            matching_contacts_with_email = Contact.where(id: direct_match_ids).with_email.pluck(:id)
+            job_ids_from_matches = JobContact.where(contact_id: matching_contacts_with_email).pluck(:job_id).uniq
+
+            if job_ids_from_matches.any?
+              # Find all other contacts on those same jobs (colleagues)
+              job_colleague_ids = JobContact.where(job_id: job_ids_from_matches)
+                                            .where.not(contact_id: direct_match_ids)
+                                            .pluck(:contact_id)
+                                            .uniq
+
+              # Store which jobs each colleague is related to (for display)
+              @colleague_job_map = {}
+              if job_colleague_ids.any?
+                JobContact.where(contact_id: job_colleague_ids, job_id: job_ids_from_matches)
+                          .includes(:job)
+                          .each do |jc|
+                  @colleague_job_map[jc.contact_id] ||= []
+                  @colleague_job_map[jc.contact_id] << {
+                    id: jc.job_id,
+                    name: jc.job&.name,
+                    location: jc.job&.location
+                  }
+                end
+              end
+
+              all_contact_ids = (all_contact_ids + job_colleague_ids).uniq
+            end
+
+            # Also find other contacts in the same companies
+            # Only expand from contacts that have emails (otherwise we expand from contacts
+            # that won't even show in results due to with_email filter)
+            primary_company_ids_from_matches = Contact.where(id: direct_match_ids)
+                                                      .where.not(primary_company_id: nil)
+                                                      .with_email  # Only expand from contacts with emails
+                                                      .pluck(:primary_company_id)
+                                                      .uniq
+
+            if primary_company_ids_from_matches.any?
+              # Find other employees of those same companies
+              company_colleague_ids = Contact.where(primary_company_id: primary_company_ids_from_matches)
+                                             .where.not(id: direct_match_ids)
+                                             .where(is_active: true)
+                                             .pluck(:id)
+
+              all_contact_ids = (all_contact_ids + company_colleague_ids).uniq
+
+              # Also include the company contacts themselves (the company's own email)
+              # e.g., when Dan Ryan matches, also include "Davidson Ryan Lawyers" company contact
+              company_contact_ids = Contact.where(id: primary_company_ids_from_matches)
+                                           .with_email
+                                           .where(is_active: true)
+                                           .where.not(id: direct_match_ids)
+                                           .pluck(:id)
+              all_contact_ids = (all_contact_ids + company_contact_ids).uniq
+            end
+          end
+
+          @contacts = @contacts.where(id: all_contact_ids)
         end
 
         # Filter by role (updated from deprecated contact_types to roles)
@@ -320,11 +387,22 @@ module Api
 
         # Note: Removed is_customer?, is_supplier?, is_director?, company_group_memberships_count from methods
         # These are pre-computed above to avoid N+1 queries
+        #
+        # Include contact_emails when with_email=true (for email compose autocomplete)
+        # This allows frontend to show/select from multiple emails per contact
+        include_all_emails = params[:with_email] == "true"
+
+        json_includes = {
+          portal_user: {},
+          corporate_groups_via_membership: {}
+        }
+
+        if include_all_emails
+          json_includes[:contact_emails] = { only: [ :id, :email, :is_primary, :label ] }
+        end
+
         contacts_json = @contacts.as_json(
-          include: {
-            portal_user: {},
-            corporate_groups_via_membership: {}
-          },
+          include: json_includes,
           methods: [ :is_sales?, :is_land_agent?, :display_name, :xero_linked_count, :xero_customer?, :xero_supplier?, :email ]
         )
 
@@ -372,6 +450,29 @@ module Api
             {}
           end
 
+          # Performance: Pre-fetch ALL jobs for each contact (for email compose display)
+          # Returns array of jobs per contact, showing location/address for context
+          jobs_by_contact = {}
+          if include_jobs
+            job_contacts = JobContact
+              .where(contact_id: contact_ids)
+              .includes(job: :job_status)
+              .joins(:job)
+              .order("jobs.created_at DESC")
+
+            # Group all jobs by contact_id
+            job_contacts.each do |jc|
+              jobs_by_contact[jc.contact_id] ||= []
+              jobs_by_contact[jc.contact_id] << {
+                id: jc.job.id,
+                name: jc.job.name,
+                job_code: jc.job.job_code,
+                location: jc.job.location,
+                role: jc.role
+              }
+            end
+          end
+
           contacts_json.each do |contact_json|
             contact = contacts_by_id[contact_json["id"]]
             next unless contact
@@ -407,6 +508,18 @@ module Api
             if include_jobs
               # Use pre-fetched count (avoids N+1)
               contact_json["jobs_count"] = job_counts_by_contact[contact.id] || 0
+
+              # Include ALL jobs for this contact (for email compose job linking)
+              if jobs_by_contact[contact.id]
+                contact_json["jobs"] = jobs_by_contact[contact.id]
+              end
+
+              # Mark contacts found via job colleague expansion (for UI display)
+              # These are contacts who share a job with the original search match
+              if @colleague_job_map && @colleague_job_map[contact.id]
+                contact_json["found_via_job"] = true
+                contact_json["related_jobs"] = @colleague_job_map[contact.id]
+              end
             end
           end
         end

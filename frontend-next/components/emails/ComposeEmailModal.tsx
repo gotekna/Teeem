@@ -178,7 +178,9 @@ export function ComposeEmailModal({
     existingDraftId: draft?.id,
   });
 
-  // Search contacts by name/email (include company info for grouping)
+  // Search contacts by name/email (include company info for grouping, job info for context)
+  // with_email=true returns contact_emails array for multi-email contacts
+  // include_jobs=true returns recent_job for job context
   const searchContacts = async (search: string) => {
     if (!search || search.length < CONTACT_SEARCH_MIN_CHARS) {
       setContacts([]);
@@ -187,10 +189,13 @@ export function ComposeEmailModal({
     setContactsLoading(true);
     try {
       const response = await api.get<{ contacts: Contact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&include_jobs=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
       );
       const typedResponse = response as { contacts: Contact[] };
-      setContacts((typedResponse.contacts || []).filter(c => c.email));
+      // Filter to contacts that have at least one email (primary or in contact_emails)
+      setContacts((typedResponse.contacts || []).filter(c =>
+        c.email || (c.contact_emails && c.contact_emails.length > 0)
+      ));
     } catch (err) {
       console.error("Failed to search contacts:", err);
     } finally {
