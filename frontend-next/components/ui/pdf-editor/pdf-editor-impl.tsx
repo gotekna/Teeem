@@ -275,8 +275,8 @@ export function PDFEditorImpl({
           {selectedPage ? (
             <AnnotationCanvas
               pageImage={selectedPage.thumbnail}
-              width={selectedPage.width * 3} // Scale up from thumbnail
-              height={selectedPage.height * 3}
+              width={selectedPage.width} // Use actual rendered dimensions (now at 1.5x * dpr)
+              height={selectedPage.height}
               zoom={zoom}
               currentTool={currentTool}
               strokeColor={strokeColor}
