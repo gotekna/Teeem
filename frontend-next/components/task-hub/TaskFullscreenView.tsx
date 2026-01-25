@@ -4198,8 +4198,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               openUrl: links?.open || fallback
             };
           } else if (att.email) {
+            // Ensure .eml extension for proper file type detection in document viewer
+            const baseName = att.display_name || att.email.subject || 'Email';
+            const emlName = baseName.toLowerCase().endsWith('.eml') ? baseName : `${baseName}.eml`;
             return {
-              name: att.display_name || att.email.subject || 'Email',
+              name: emlName,
               downloadUrl: links?.download || '',
               openUrl: links?.open || ''
             };
