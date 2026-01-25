@@ -16,13 +16,17 @@ interface ViewerContext {
   allQA?: QAPair[];
 }
 
-// Decode base64url to context
+// Decode base64url to context (handles Unicode via UTF-8)
 function decodeContext(encoded: string): ViewerContext | null {
   try {
     // Base64url decode
     const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
     const padded = base64 + '=='.slice(0, (4 - base64.length % 4) % 4);
-    const json = atob(padded);
+    const utf8Bytes = atob(padded);
+    // Decode UTF-8 bytes back to Unicode string
+    const json = decodeURIComponent(
+      utf8Bytes.split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
     return JSON.parse(json);
   } catch (e) {
     console.error("Failed to decode context:", e);
@@ -33,7 +37,11 @@ function decodeContext(encoded: string): ViewerContext | null {
 // Encode context to base64url (exported for use in TaskFullscreenView)
 export function encodeContext(context: ViewerContext): string {
   const json = JSON.stringify(context);
-  const base64 = btoa(json);
+  // Handle Unicode: encode UTF-8 bytes, then base64
+  const utf8Bytes = encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+    String.fromCharCode(parseInt(p1, 16))
+  );
+  const base64 = btoa(utf8Bytes);
   // Make URL-safe
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }

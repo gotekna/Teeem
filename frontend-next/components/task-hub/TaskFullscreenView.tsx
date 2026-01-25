@@ -3480,7 +3480,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
     const encodeViewerContext = (context: ViewerContext): string => {
       const json = JSON.stringify(context);
-      const base64 = btoa(json);
+      // Handle Unicode: encode UTF-8 bytes, then base64
+      const utf8Bytes = encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (_, p1) =>
+        String.fromCharCode(parseInt(p1, 16))
+      );
+      const base64 = btoa(utf8Bytes);
       return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     };
 

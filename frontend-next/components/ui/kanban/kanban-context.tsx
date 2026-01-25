@@ -50,14 +50,25 @@ export function KanbanProvider<T extends KanbanItem = KanbanItem>({
   columns,
   items,
   getItemColumn,
-  initialCollapsedColumns = [],
+  initialCollapsedColumns,
   initialCollapsedSwimlanes = [],
   onColumnCollapse,
   onSwimlaneCollapse,
 }: KanbanProviderProps<T>) {
   const [activeId, setActiveId] = React.useState<string | number | null>(null);
   const [collapsedColumns, setCollapsedColumns] = React.useState<Set<string>>(
-    () => new Set(initialCollapsedColumns)
+    () => {
+      // If explicit initialCollapsedColumns provided, use those
+      if (initialCollapsedColumns) {
+        return new Set(initialCollapsedColumns);
+      }
+      // Otherwise, derive from column definitions that have collapsed: true
+      return new Set(
+        columns
+          .filter((col) => col.collapsed === true)
+          .map((col) => col.id)
+      );
+    }
   );
   const [collapsedSwimlanes, setCollapsedSwimlanes] = React.useState<Set<string>>(
     () => new Set(initialCollapsedSwimlanes)
