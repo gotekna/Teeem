@@ -13,8 +13,9 @@ module Api
   module V1
     module Admin
       class Task2236UploadController < ApplicationController
-        skip_before_action :verify_authenticity_token
-        skip_before_action :require_login, raise: false
+        # Skip authentication for this temporary endpoint
+        skip_before_action :authorize_request
+        skip_before_action :set_tenant
         before_action :verify_admin_key
 
         # Document ID to expected filename mapping
