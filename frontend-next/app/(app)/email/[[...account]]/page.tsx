@@ -763,6 +763,8 @@ export default function EmailPage() {
   // Historical mailbox filter (for Warehouse links to mailboxes without connected accounts)
   // When set, filters by mailbox_owner_email instead of account credential
   const [historicalMailbox, setHistoricalMailbox] = useState<string | null>(null);
+  // Only load historical mailbox emails when user clicks "Load Emails" button
+  const [historicalMailboxActivated, setHistoricalMailboxActivated] = useState(false);
 
   // Selected/popout email (SSoT: atoms)
   const [selectedEmailAtomValue, setSelectedEmailAtomValue] = useAtom(selectedEmailAtom);
@@ -1337,6 +1339,7 @@ export default function EmailPage() {
             // No matching connected account - use historical mailbox filter
             // This is for Warehouse links to mailboxes without connected accounts
             setHistoricalMailbox(accountParam);
+            setHistoricalMailboxActivated(false); // Reset - require click to load
             // Stay on "all" but filter by mailbox_owner_email in fetchEmails
           }
         } else {
@@ -1426,6 +1429,7 @@ export default function EmailPage() {
         // No matching connected account - switch to historical mailbox mode
         // This is for Warehouse links to mailboxes without connected accounts
         setHistoricalMailbox(accountParam);
+        setHistoricalMailboxActivated(false); // Reset - require click to load
         setSelectedAccount("all");
         // Clear folder selection (historical mailboxes show all emails)
         setSelectedFolder("");
@@ -1441,11 +1445,16 @@ export default function EmailPage() {
   }, [accountParam, accounts, historicalMailbox]);
 
   useEffect(() => {
-    // Fetch emails when account changes, historicalMailbox changes, OR when accounts finish loading
+    // Fetch emails when account changes, historicalMailbox is activated, OR when accounts finish loading
+    // For historical mailboxes, only fetch when user clicks "Load Emails" (historicalMailboxActivated = true)
     if (accountsLoaded) {
+      if (historicalMailbox && !historicalMailboxActivated) {
+        // Historical mailbox set but not activated - don't auto-fetch, wait for user click
+        return;
+      }
       fetchEmails();
     }
-  }, [selectedAccount, fetchEmails, accountsLoaded, historicalMailbox]);
+  }, [selectedAccount, fetchEmails, accountsLoaded, historicalMailbox, historicalMailboxActivated]);
 
   // Cache email state for instant loading on next visit
   useEffect(() => {
@@ -2022,9 +2031,20 @@ To: ${email.to_emails?.join(", ") || ""}
                   Historical mailbox (not connected)
                 </div>
               </div>
+              {!historicalMailboxActivated && (
+                <button
+                  onClick={() => {
+                    setHistoricalMailboxActivated(true);
+                  }}
+                  className="w-full mt-1 px-2 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-400 bg-amber-500/20 hover:bg-amber-500/30 rounded-sm border border-amber-500/30"
+                >
+                  Load Emails
+                </button>
+              )}
               <button
                 onClick={() => {
                   setHistoricalMailbox(null);
+                  setHistoricalMailboxActivated(false);
                   router.push("/email", { scroll: false });
                 }}
                 className="w-full mt-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-sm"
@@ -2328,9 +2348,11 @@ To: ${email.to_emails?.join(", ") || ""}
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <Inbox className="h-8 w-8 mb-2 opacity-50" />
               <p className="text-sm">
-                {viewMode === "split"
-                  ? `No emails in ${splitInbox.selectedCategory}`
-                  : "No emails"}
+                {historicalMailbox && !historicalMailboxActivated
+                  ? "Click 'Load Emails' to view emails from this mailbox"
+                  : viewMode === "split"
+                    ? `No emails in ${splitInbox.selectedCategory}`
+                    : "No emails"}
               </p>
             </div>
           ) : (
