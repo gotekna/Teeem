@@ -275,33 +275,36 @@ export function DocumentViewer({
   const hasSidebar = showSidebar ?? (hasQA || hasMultipleFiles);
   const effectiveDownloadUrl = downloadUrl || url;
 
-  // Fetch and parse EML content
+  // Fetch and parse EML content when URL changes
   useEffect(() => {
-    if (fileType === "eml" && url && !emlLoading) {
-      setEmlLoading(true);
-      setEmlData(null);
-      fetch(url)
-        .then(res => {
-          if (!res.ok) throw new Error("Failed to fetch email");
-          return res.text();
-        })
-        .then(content => {
-          const parsed = parseEmlContent(content);
-          setEmlData(parsed);
-        })
-        .catch(err => {
-          console.error("EML fetch error:", err);
-          setError("Unable to load email content");
-        })
-        .finally(() => setEmlLoading(false));
+    if (fileType !== "eml" || !url) {
+      return;
     }
-  }, [fileType, url, emlLoading]);
 
-  // Reset state when file changes
-  useEffect(() => {
+    // Use AbortController to cancel fetch if URL changes mid-flight
+    const controller = new AbortController();
+    setEmlLoading(true);
     setEmlData(null);
     setError(null);
-  }, [url, fileName]);
+
+    fetch(url, { signal: controller.signal })
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch email");
+        return res.text();
+      })
+      .then(content => {
+        const parsed = parseEmlContent(content);
+        setEmlData(parsed);
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return; // Ignore aborted fetches
+        console.error("EML fetch error:", err);
+        setError("Unable to load email content");
+      })
+      .finally(() => setEmlLoading(false));
+
+    return () => controller.abort();
+  }, [fileType, url]);
 
   const goToFile = (index: number) => {
     if (files && index >= 0 && index < files.length && onFileChange) {
