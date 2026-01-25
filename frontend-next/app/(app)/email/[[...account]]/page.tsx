@@ -1115,21 +1115,27 @@ export default function EmailPage() {
       const params = toURLParams();
       params.set("page", String(page));
       params.set("per_page", "50");
-      params.set("my_emails", "true");
 
       // Filter by historical mailbox (Warehouse links to mailboxes without connected accounts)
+      // For historical mailbox, skip my_emails filter to show all emails from that mailbox
       if (historicalMailbox) {
         params.append("mailbox_owner_email", historicalMailbox);
-      } else if (selectedAccount && selectedAccount !== "all") {
+        // Don't set my_emails - show all emails from this historical mailbox
+      } else {
+        // For normal viewing (All Inbox or specific account), filter to user's emails
+        params.set("my_emails", "true");
+
         // Filter by specific account (skip filtering if "all" for combined view)
-        if (selectedAccount === "outlook") {
-          params.append("source_type", "outlook");
-        } else if (selectedAccount.startsWith("ms365_")) {
-          // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
-          const parts = selectedAccount.split("_");
-          params.append("microsoft_credential_id", parts[1]);
-        } else {
-          params.append("imap_credential_id", selectedAccount);
+        if (selectedAccount && selectedAccount !== "all") {
+          if (selectedAccount === "outlook") {
+            params.append("source_type", "outlook");
+          } else if (selectedAccount.startsWith("ms365_")) {
+            // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
+            const parts = selectedAccount.split("_");
+            params.append("microsoft_credential_id", parts[1]);
+          } else {
+            params.append("imap_credential_id", selectedAccount);
+          }
         }
       }
 
