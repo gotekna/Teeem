@@ -37,6 +37,25 @@ export interface QAPair {
   question: string;
   answer?: string;
   fileIndex?: number;
+  /** Indices into files array for attachments belonging to this question */
+  attachmentIndices?: number[];
+}
+
+/**
+ * Strip HTML tags from text (for displaying answers without raw HTML)
+ */
+function stripHtmlTags(html: string): string {
+  // Remove HTML tags but preserve line breaks
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim();
 }
 
 export interface DocumentViewerProps {
@@ -387,8 +406,32 @@ export function DocumentViewer({
                         <MessageSquareText className="h-5 w-5 text-green-400 shrink-0 mt-0.5" />
                         <div className="min-w-0">
                           <span className={cn("text-xs uppercase tracking-wide", isDark ? "text-gray-500" : "text-gray-400")}>Answer</span>
-                          <p className={cn("text-sm whitespace-pre-wrap", isDark ? "text-gray-200" : "text-gray-800")}>{qa.answer}</p>
+                          <p className={cn("text-sm whitespace-pre-wrap", isDark ? "text-gray-200" : "text-gray-800")}>{stripHtmlTags(qa.answer)}</p>
                         </div>
+                      </div>
+                    )}
+                    {/* Attachments for this question */}
+                    {qa.attachmentIndices && qa.attachmentIndices.length > 0 && files && (
+                      <div className="ml-8 mt-2 space-y-1">
+                        {qa.attachmentIndices.map((fileIdx) => {
+                          const file = files[fileIdx];
+                          if (!file) return null;
+                          return (
+                            <button
+                              key={fileIdx}
+                              onClick={() => goToFile(fileIdx)}
+                              className={cn(
+                                "w-full text-left px-2 py-1 rounded text-xs transition-colors flex items-center gap-2",
+                                fileIdx === currentIndex
+                                  ? "bg-blue-600/20 text-blue-300"
+                                  : isDark ? "text-gray-400 hover:bg-gray-700/50 hover:text-gray-200" : "text-gray-500 hover:bg-gray-100"
+                              )}
+                            >
+                              {getFileIcon(file.name, "h-3 w-3")}
+                              <span className="truncate">{file.name}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                     {index < qaContext!.length - 1 && (

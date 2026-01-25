@@ -3989,10 +3989,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         // Include any document (backend can download via DocumentStorageService)
         return (opt === 'link' || opt === 'both') && a.document;
       });
-      // NOTE: emailsToLink removed - external recipients don't need .eml downloads
+      // Emails to include in viewer (show in FILES list for navigation)
+      const emailsToLink = responseAttachments.filter(a => {
+        const opt = attachmentEmailOptions[a.id] || 'link';  // Default to 'link'
+        return (opt === 'link' || opt === 'both') && a.email;
+      });
 
       const totalToProcess = documentsToAttach.length + emailsToAttach.length +
-        documentsToLink.length + questionAttachmentsToLink.length;
+        documentsToLink.length + emailsToLink.length + questionAttachmentsToLink.length;
       let processed = 0;
 
       // Process documents to attach
@@ -4083,7 +4087,38 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // NOTE: Email link processing removed - external recipients don't need .eml downloads
+      // Process emails to link - generate share links for email attachments (for viewer navigation)
+      for (const att of emailsToLink) {
+        if (shareLinks[att.id]) {
+          processed++;
+          continue;
+        }
+        const emailSubject = att.email?.subject || att.display_name || 'Email';
+        setPrepareEmailStatus(`Creating links for "${emailSubject}"... (${processed + 1}/${totalToProcess})`);
+        try {
+          const [downloadResponse, openResponse] = await Promise.all([
+            api.post<{ success: boolean; share_url?: string; error?: string }>(
+              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
+            ),
+            api.post<{ success: boolean; share_url?: string; error?: string }>(
+              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`,
+              { open: true }
+            )
+          ]);
+
+          if (downloadResponse?.success && downloadResponse.share_url) {
+            shareLinks[att.id] = {
+              download: downloadResponse.share_url,
+              open: openResponse?.share_url || downloadResponse.share_url
+            };
+          } else {
+            console.warn(`[prepareEmailResponse] No share link for email ${att.id}: ${downloadResponse?.error || 'unknown error'}`);
+          }
+        } catch (err) {
+          console.error(`Failed to create share link for email ${att.id}:`, err);
+        }
+        processed++;
+      }
 
       // Process question attachments to link - call share_link API for both download and open URLs
       // Note: failures are added to docsWithoutShareLinks (defined above)
@@ -4140,34 +4175,69 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       setEmailFileAttachments(filesToAttach);
 
       // Store viewer context server-side (avoids URL length limits)
-      // Build context with all Q&A and all files
+      // Build context with all Q&A and all files (documents AND emails)
       try {
-        // Deduplicate attachments by ID (an attachment might be in both documentsToLink AND questionAttachmentsToLink)
-        const allDocAttsMap = new Map<number, typeof documentsToLink[0]>();
-        for (const att of [...documentsToLink, ...questionAttachmentsToLink]) {
-          if (!allDocAttsMap.has(att.id)) {
-            allDocAttsMap.set(att.id, att);
+        // Deduplicate all attachments by ID (documents + emails + question attachments)
+        const allAttsMap = new Map<number, typeof documentsToLink[0]>();
+        for (const att of [...documentsToLink, ...emailsToLink, ...questionAttachmentsToLink]) {
+          if (!allAttsMap.has(att.id)) {
+            allAttsMap.set(att.id, att);
           }
         }
-        const allDocAtts = Array.from(allDocAttsMap.values());
-        const viewerFiles = allDocAtts.map(att => {
+        const allAtts = Array.from(allAttsMap.values());
+
+        // Build viewer files from all attachments (documents and emails)
+        const viewerFiles = allAtts.map(att => {
           const links = shareLinks[att.id];
-          const fallback = att.document?.storage_url || att.document?.file_url || '';
+          // Handle both documents and emails
+          if (att.document) {
+            const fallback = att.document.storage_url || att.document.file_url || '';
+            return {
+              name: att.display_name || att.document.display_name || att.document.file_name || 'Document',
+              downloadUrl: links?.download || fallback,
+              openUrl: links?.open || fallback
+            };
+          } else if (att.email) {
+            return {
+              name: att.display_name || att.email.subject || 'Email',
+              downloadUrl: links?.download || '',
+              openUrl: links?.open || ''
+            };
+          }
           return {
-            name: att.display_name || att.document?.display_name || att.document?.file_name || 'Document',
-            downloadUrl: links?.download || fallback,
-            openUrl: links?.open || fallback
+            name: att.display_name || 'Attachment',
+            downloadUrl: links?.download || '',
+            openUrl: links?.open || ''
           };
         });
 
-        // Build Q&A list from included questions
+        // Create mapping from attachment ID to file index for question attachments
+        const attIdToFileIndex = new Map<number, number>();
+        allAtts.forEach((att, idx) => {
+          attIdToFileIndex.set(att.id, idx);
+        });
+
+        // Build Q&A list from included questions with attachment indices
         const includedQs = questionItems.filter(q =>
           q.include_in_response && (q.response || (q.attachments && q.attachments.length > 0))
         );
-        const viewerQA = includedQs.map(q => ({
-          question: q.text,
-          answer: q.response || undefined
-        }));
+        const viewerQA = includedQs.map(q => {
+          // Find file indices for this question's attachments
+          const attachmentIndices: number[] = [];
+          if (q.attachments) {
+            for (const att of q.attachments) {
+              const fileIdx = attIdToFileIndex.get(att.id);
+              if (fileIdx !== undefined) {
+                attachmentIndices.push(fileIdx);
+              }
+            }
+          }
+          return {
+            question: q.text,
+            answer: q.response || undefined,
+            attachmentIndices: attachmentIndices.length > 0 ? attachmentIndices : undefined
+          };
+        });
 
         // Store context via API
         const contextResponse = await api.post<{ success: boolean; id?: string; error?: string }>(
