@@ -14,8 +14,9 @@ class XeroAttachmentSyncService
     @external_invoice = external_invoice
     @xero_client = XeroApiClient.new
     @skip_sharepoint = skip_sharepoint
-    # SSoT: Derive tenant from invoice (Jan 2026 fix)
-    @tenant = external_invoice.tenant
+    # SSoT: Derive tenant from invoice's tenant_id (Jan 2026 fix)
+    # ExternalInvoice has tenant_id column but no belongs_to :tenant association
+    @tenant = external_invoice.tenant_id.present? ? Tenant.find_by(id: external_invoice.tenant_id) : nil
     @storage_config = @tenant ? StorageConfiguration.for_tenant(@tenant) : nil
     @results = { pdf: nil, attachments: [], errors: [], sharepoint_uploads: [] }
   end
