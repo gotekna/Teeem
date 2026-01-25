@@ -2,13 +2,18 @@
 
 # EmailStorageUploadService - SSoT for uploading emails to storage
 #
+# Architecture (Jan 2026):
+#   - Content-addressed storage: Files stored at Blobs/{hash-prefix}/{hash}.eml
+#   - Deduplication: Same email content = same StorageBlob (saves space)
+#   - Virtual folders: WarehouseDocument.folder stores UI path (e.g., "inbox@tekna.com.au/2026/01")
+#   - Files NEVER move in S3 - only virtual folder paths change in database
+#
 # Provider-agnostic: Uses StorageConfiguration to determine Wasabi/S3 vs SharePoint
-# Parallel processing: 5 threads for Wasabi (instant), sequential for SharePoint
+# Parallel processing: 2 threads (Microsoft Graph API MailboxConcurrency limit)
 #
 # Usage:
-#   service = EmailStorageUploadService.new(progress: progress)
+#   service = EmailStorageUploadService.new(progress: progress, tenant: tenant)
 #   result = service.upload_missing_emails          # Fetch from Outlook → Wasabi
-#   result = service.migrate_from_sharepoint        # Download SharePoint → Wasabi
 #   # => { uploaded: 66489, skipped: 830, errors: [] }
 #
 # Background Job:
@@ -227,38 +232,34 @@ class EmailStorageUploadService
 
     Rails.logger.info "[EmailUpload] Email #{email_id} - Got #{mime_content.bytesize} bytes, uploading..."
 
-    # Check provider is available
-    unless @provider
-      Rails.logger.error "[EmailUpload] Email #{email_id} - No storage provider available!"
-      skip_email(email, "No storage provider")
-      return
+    # SSoT: Use StorageBlob for content-addressed storage (Jan 2026 fix)
+    # Files stored at Blobs/{hash-prefix}/{hash}.eml for deduplication
+    # Virtual folders in WarehouseDocument.folder enable UI organization
+    blob = ActsAsTenant.with_tenant(@tenant) do
+      StorageBlob.find_or_create_for_content!(
+        mime_content,
+        filename: "#{email.id}.eml",
+        content_type: "message/rfc822"
+      )
     end
 
-    # Build storage path
-    year = email.received_at&.year || email.created_at.year
-    month = (email.received_at || email.created_at).strftime("%m")
-    base_path = @storage_config.path_for(:email)
-    folder_path = "#{base_path}/#{year}/#{month}"
-    filename = "#{email.id}.eml"
-
-    # Upload to storage
-    result = @provider.upload_file(folder_path, mime_content, filename, content_type: "message/rfc822")
-
-    # Update email record with provider-agnostic storage columns
+    # Update email record with content-addressed path
     # Use update_columns to bypass uniqueness validation on internet_message_id
     # (duplicates exist in DB, but we still want to upload their .eml files)
     email.update_columns(
-      storage_path: result[:path],
-      storage_file_id: result[:id],
-      storage_email_path: result[:path],
-      storage_email_file_id: result[:id]
+      storage_path: blob.storage_path,
+      storage_file_id: blob.id.to_s,
+      storage_email_path: blob.storage_path,
+      storage_email_file_id: blob.id.to_s
     )
 
     # SSoT: Create WarehouseDocument for virtual folder rendering (Phase 4)
     # This enables the File Warehouse to show emails in folder structure
-    create_warehouse_document_for_email(email, result[:path], mime_content.bytesize)
+    # Virtual folder path (e.g., "inbox@tekna.com.au/Email Body/2026/01")
+    # is stored in WarehouseDocument.folder - files never move in S3
+    create_warehouse_document_for_email(email, blob)
 
-    Rails.logger.info "[EmailUpload] Email #{email_id} - SUCCESS: #{result[:path]}"
+    Rails.logger.info "[EmailUpload] Email #{email_id} - SUCCESS: #{blob.storage_path}"
     increment_uploaded!
     @progress&.increment!(success: true)
   rescue StandardError => e
@@ -290,24 +291,16 @@ class EmailStorageUploadService
   # SSoT: Create WarehouseDocument for email (Phase 4: Virtual File Warehouse)
   # This enables emails to appear in the File Warehouse folder structure.
   # The folder column is set to the virtual_folder_path, enabling instant reorganization.
+  # Physical storage is content-addressed (Blobs/{hash}.eml) - virtual folders are DB-only.
   #
   # @param email [SyncedEmail] The email record
-  # @param storage_path [String] The S3 path where the .eml file is stored
-  # @param file_size [Integer] Size of the .eml file in bytes
-  def create_warehouse_document_for_email(email, storage_path, file_size)
+  # @param blob [StorageBlob] The blob containing the .eml file (already uploaded)
+  def create_warehouse_document_for_email(email, blob)
     # Skip if warehouse_document already exists
     return if email.warehouse_document.present?
 
-    # Find or create StorageBlob for this file
-    blob = StorageBlob.find_or_create_by!(storage_path: storage_path) do |b|
-      b.content_hash = Digest::SHA256.hexdigest("#{email.id}-#{storage_path}")
-      b.file_size = file_size
-      b.original_filename = "#{email.id}.eml"
-      b.content_type = "message/rfc822"
-      b.reference_count = 0
-    end
-
     # Create WarehouseDocument with virtual folder path
+    # The blob is already created by StorageBlob.find_or_create_for_content!
     WarehouseDocument.create!(
       documentable: email,
       storage_blob: blob,

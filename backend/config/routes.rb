@@ -4248,6 +4248,10 @@ Rails.application.routes.draw do
       # Admin API (TEEEM staff internal tools)
       # =============================================================
       namespace :admin do
+        # TEMPORARY: Task #2236 file re-upload (delete after use)
+        # POST /api/v1/admin/task2236_upload -> Upload missing file for Task #2236
+        post "task2236_upload", to: "task2236_upload#create"
+
         # Tenant Management (multi-tenancy)
         # GET    /api/v1/admin/tenants          -> List all tenants (TEEEM staff only)
         # GET    /api/v1/admin/tenants/current  -> Current tenant info (all users)
