@@ -14,7 +14,9 @@ class XeroAttachmentSyncService
     @external_invoice = external_invoice
     @xero_client = XeroApiClient.new
     @skip_sharepoint = skip_sharepoint
-    @storage_config = StorageConfiguration.instance
+    # SSoT: Derive tenant from invoice (Jan 2026 fix)
+    @tenant = external_invoice.tenant
+    @storage_config = @tenant ? StorageConfiguration.for_tenant(@tenant) : nil
     @results = { pdf: nil, attachments: [], errors: [], sharepoint_uploads: [] }
   end
 
@@ -310,8 +312,8 @@ class XeroAttachmentSyncService
   # SSoT: Uses StorageConfiguration.path_for(:contacts) + contact folder name + invoice type folder
   # e.g., "Contacts/123 - ABC Supplies/BILLS/BILL-001234.pdf"
   def expected_document_path(filename)
-    storage_config = StorageConfiguration.instance
-    base_path = storage_config.path_for(:contacts)
+    return nil unless @storage_config
+    base_path = @storage_config.path_for(:contacts)
     contact_folder = contact_folder_name
     type_folder = folder_for_invoice_type
 
@@ -400,11 +402,14 @@ class XeroAttachmentSyncService
     return nil unless external_invoice.contact.present?
 
     begin
-      setup_default_provider!
+      # SSoT: Set tenant context for DocumentProviderAware (Jan 2026 fix)
+      ActsAsTenant.with_tenant(@tenant) do
+        setup_default_provider!
+      end
 
       # SSoT: Get contacts folder path from StorageConfiguration
-      storage_config = StorageConfiguration.instance
-      base_folder_name = storage_config.path_for(:contacts)
+      return nil unless @storage_config
+      base_folder_name = @storage_config.path_for(:contacts)
 
       # Get contact folder name
       contact_name = contact_folder_name()

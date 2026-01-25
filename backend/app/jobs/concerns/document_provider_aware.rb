@@ -45,8 +45,10 @@ module DocumentProviderAware
   # @raise [DocumentProviders::NotConnectedError] If no provider is configured
   def setup_default_provider!
     tenant = ActsAsTenant.current_tenant
-    @organization = tenant&.organizations&.first || Organization.first
-    @storage_config = tenant ? StorageConfiguration.for_tenant(tenant) : StorageConfiguration.instance
+    raise DocumentProviders::TenantNotFoundError, "Tenant context required for setup_default_provider! - use ActsAsTenant.with_tenant or set ActsAsTenant.current_tenant" unless tenant
+
+    @organization = tenant.organizations&.first || Organization.first
+    @storage_config = StorageConfiguration.for_tenant(tenant)
 
     # SSoT: StorageConfiguration.provider_type determines which provider to use
     # Only 3 types: sharepoint, s3_compatible, local
@@ -253,20 +255,22 @@ module DocumentProviderAware
   private
 
   def setup_s3_provider
+    tenant = ActsAsTenant.current_tenant
     credential = S3CompatibleCredential.active.connected.first
     raise DocumentProviders::NotConnectedError, "S3/Wasabi storage not configured. Check Admin > System > Storage." unless credential
-    DocumentProviders::S3Compatible.new(credential)
+    DocumentProviders::S3Compatible.new(credential, tenant: tenant)
   end
 
   def setup_sharepoint_provider
+    tenant = ActsAsTenant.current_tenant
     credential = MicrosoftCredential.sharepoint_credential
     raise DocumentProviders::NotConnectedError, "SharePoint not connected. Check Admin > System > Connections." unless credential
-    DocumentProviders::SharePoint.new(credential)
+    DocumentProviders::SharePoint.new(credential, tenant: tenant)
   end
 
   def setup_local_provider
-    config = @storage_config || StorageConfiguration.instance
-    DocumentProviders::Local.new(config)
+    raise DocumentProviders::NotConnectedError, "Storage configuration required for local provider - setup_default_provider! must be called first" unless @storage_config
+    DocumentProviders::Local.new(@storage_config, tenant: ActsAsTenant.current_tenant)
   end
 
   def ensure_provider_configured!
