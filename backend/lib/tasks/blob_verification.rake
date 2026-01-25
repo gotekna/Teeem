@@ -6,7 +6,8 @@ namespace :blob do
     require "aws-sdk-s3"
 
     # Set tenant context (required for StorageConfiguration)
-    tenant = Tenant.first
+    # Use Tekna tenant which has S3 storage configured
+    tenant = Tenant.find_by(name: "Tekna") || Tenant.first
     unless tenant
       puts "No tenant found"
       exit 1
