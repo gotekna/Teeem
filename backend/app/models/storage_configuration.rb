@@ -611,12 +611,14 @@ class StorageConfiguration < ApplicationRecord
         status: credential.connected? ? "connected" : "disconnected"
       )
     when S3CompatibleCredential
+      # SSoT (Jan 2026): bucket is stored in StorageConfiguration only, NOT synced from credential
+      # Credential stores auth only (endpoint, region for client init)
       update!(
         provider_type: "s3_compatible",
         connection_config: connection_config.merge(
           "endpoint" => credential.endpoint,
-          "bucket" => credential.bucket,
           "region" => credential.region
+          # bucket intentionally NOT synced - StorageConfiguration.connection_config['bucket'] is SSoT
         ).compact,
         status: credential.status == "connected" ? "connected" : "disconnected"
       )
@@ -641,10 +643,12 @@ class StorageConfiguration < ApplicationRecord
         "drive_name" => credential.respond_to?(:drive_name) ? credential.drive_name : nil
       }.compact
     when S3CompatibleCredential
+      # SSoT (Jan 2026): bucket comes from StorageConfiguration only
+      # This fallback only returns auth-related config, not bucket
       {
         "endpoint" => credential.endpoint,
-        "bucket" => credential.bucket,
         "region" => credential.region
+        # bucket intentionally omitted - must be set in StorageConfiguration
       }.compact
     else
       {}

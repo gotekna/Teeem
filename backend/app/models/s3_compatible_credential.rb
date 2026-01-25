@@ -17,10 +17,15 @@
 #     provider_type: "backblaze_b2",
 #     endpoint: "https://s3.us-west-004.backblazeb2.com",
 #     region: "us-west-004",
-#     bucket: "teeem-documents",
+#     bucket: "teeem-documents",  # For connection testing only
 #     access_key_id: "...",
 #     secret_access_key: "..."
 #   )
+#
+# SSoT (Jan 2026): This model stores AUTH credentials only.
+# The BUCKET to use is determined by StorageConfiguration.connection_config['bucket']
+# The credential.bucket is used ONLY for test_connection! validation.
+# DocumentProviders should NEVER read bucket from credential.
 #
 class S3CompatibleCredential < ApplicationRecord
   # Associations

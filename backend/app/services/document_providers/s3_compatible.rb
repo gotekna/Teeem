@@ -87,10 +87,11 @@ module DocumentProviders
       @client = credential.build_client
       @tenant = tenant
 
-      # SSoT: StorageConfiguration can override bucket per tenant (Jan 2026)
-      # This allows different tenants to use different buckets with same credential
+      # SSoT: StorageConfiguration.connection_config['bucket'] is THE ONE source (Jan 2026)
+      # No fallback to credential - fail fast if bucket not configured
       config = tenant ? StorageConfiguration.for_tenant(tenant) : StorageConfiguration.instance
-      @bucket = config&.connection_config&.dig("bucket").presence || credential.bucket
+      @bucket = config&.connection_config&.dig("bucket").presence
+      raise DocumentProviders::ConfigurationError, "Bucket not configured in StorageConfiguration (SSoT). Configure at /settings/company/connections" unless @bucket
       @root_path = config&.root_path.to_s.sub(%r{^/+}, "").sub(%r{/+$}, "")
     end
 
