@@ -1016,19 +1016,14 @@ export default function RolesSettingsPage() {
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
+  // Default to DEFAULT_TAB if no tab specified - no redirect needed
+  // This allows breadcrumb navigation to /settings/roles to work
   const activeTab = useMemo(() => {
     const parts = pathname.replace("/settings/roles", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     // Validate tab exists
     return ROLES_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
   }, [pathname]);
-
-  // Redirect to default tab if no tab in URL
-  useEffect(() => {
-    if (!pathname.includes("/settings/roles/")) {
-      router.replace(`/settings/roles/${DEFAULT_TAB}`, { scroll: false });
-    }
-  }, [pathname, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
     router.push(`/settings/roles/${tabId}`, { scroll: false });

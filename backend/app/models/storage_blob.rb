@@ -95,12 +95,15 @@ class StorageBlob < ApplicationRecord
   end
 
   # Get presigned download URL
-  # @param expires_in [Integer] Expiry time in seconds (default: 3600)
+  # @param expires_in [Integer] Expiry time in seconds (default: from CorporateCompanySetting.link_expiry_seconds)
   # @param filename [String] Custom download filename (optional)
   # @param disposition [Symbol] :inline (view in browser) or :attachment (force download)
   #   Default: :inline for PDFs/images, :attachment for other files
   # @return [String] Presigned download URL
-  def presigned_url(expires_in: 3600, filename: nil, disposition: nil)
+  def presigned_url(expires_in: nil, filename: nil, disposition: nil)
+    # Default expiry from company settings (SSoT)
+    expires_in ||= CorporateCompanySetting.link_expiry_seconds
+
     # Default disposition based on content type:
     # - PDFs and images open inline (in browser)
     # - Other files force download

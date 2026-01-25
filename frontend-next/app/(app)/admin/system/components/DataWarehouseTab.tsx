@@ -51,6 +51,8 @@ import {
   X,
   Users,
   Settings,
+  Paperclip,
+  Briefcase,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -208,6 +210,23 @@ interface OrgDataStats {
     pdf_files: number;
     image_files: number;
     total_size: number;
+  };
+  warehouse_breakdown?: Array<{
+    source_type: string;
+    label: string;
+    total: number;
+    with_blob: number;
+    with_file: number;
+    without_blob: number;
+    storage_rate: number;
+    file_rate: number;
+  }>;
+  blob_stats?: {
+    total_blobs: number;
+    total_bytes: number;
+    blobs_format: number;
+    legacy_format: number;
+    migration_rate: number;
   };
   last_updated: string;
 }
@@ -1376,6 +1395,101 @@ export function DataWarehouseTab() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Warehouse Document Breakdown (SSoT) */}
+      {stats.warehouse_breakdown && stats.warehouse_breakdown.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Document Storage Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Source Type</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Linked</TableHead>
+                  <TableHead className="text-right">Has File</TableHead>
+                  <TableHead className="text-right">Missing</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats.warehouse_breakdown.map((row) => {
+                  const missingFile = row.with_blob - (row.with_file || 0);
+                  return (
+                    <TableRow key={row.source_type}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {row.source_type === "email_body" && <Mail className="h-4 w-4 text-purple-500" />}
+                          {row.source_type === "email_attachment" && <Paperclip className="h-4 w-4 text-purple-400" />}
+                          {row.source_type === "email" && <Mail className="h-4 w-4 text-purple-500" />}
+                          {row.source_type === "corporate" && <Building2 className="h-4 w-4 text-blue-500" />}
+                          {row.source_type === "contact" && <Users className="h-4 w-4 text-green-500" />}
+                          {row.source_type === "job" && <Briefcase className="h-4 w-4 text-amber-600" />}
+                          {row.source_type === "task" && <CheckCircle className="h-4 w-4 text-teal-500" />}
+                          {row.source_type === "people" && <Users className="h-4 w-4 text-pink-500" />}
+                          {row.source_type === "warehouse" && <Box className="h-4 w-4 text-gray-500" />}
+                          {row.source_type === "user" && <Users className="h-4 w-4 text-indigo-500" />}
+                          {row.label}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">{row.total.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {row.with_blob.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right text-green-600 dark:text-green-400">
+                        {(row.with_file || 0).toLocaleString()}
+                        {row.file_rate !== undefined && (
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({row.file_rate}%)
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {missingFile > 0 ? (
+                          <span className="text-red-600 dark:text-red-400">{missingFile.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-green-600 dark:text-green-400">-</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            {/* Blob Storage Summary */}
+            {stats.blob_stats && (
+              <div className="mt-4 pt-4 border-t flex flex-wrap gap-4 text-sm text-muted-foreground">
+                <div>
+                  <span className="font-medium text-foreground">{stats.blob_stats.total_blobs.toLocaleString()}</span>{" "}
+                  unique blobs
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">{formatFileSize(stats.blob_stats.total_bytes)}</span>{" "}
+                  total storage
+                </div>
+                <div>
+                  <span className="font-medium text-green-600 dark:text-green-400">
+                    {stats.blob_stats.blobs_format.toLocaleString()}
+                  </span>{" "}
+                  content-addressed
+                </div>
+                {stats.blob_stats.legacy_format > 0 && (
+                  <div>
+                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                      {stats.blob_stats.legacy_format.toLocaleString()}
+                    </span>{" "}
+                    legacy format
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Integrations Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

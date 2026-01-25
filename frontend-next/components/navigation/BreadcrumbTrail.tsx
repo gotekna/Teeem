@@ -135,7 +135,11 @@ export function BreadcrumbTrail({ topOffset = 48 }: BreadcrumbTrailProps) {
 
                   {/* Breadcrumb button */}
                   <button
-                    onClick={() => !isLast && handleItemClick(item)}
+                    onClick={() => {
+                      if (!isLast) {
+                        handleItemClick(item);
+                      }
+                    }}
                     disabled={isLast}
                     className={cn(
                       "flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors",

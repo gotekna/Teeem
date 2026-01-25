@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -54,32 +54,21 @@ export default function CompanySettingsPage() {
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
+  // Default to DEFAULT_TAB if no tab specified - no redirect needed
+  // This allows breadcrumb navigation to /settings/company to work
   const { activeTab, subTab } = useMemo(() => {
     const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     const sub = parts[1] || undefined;
     // Validate tab exists
+    // For connections tab without subTab, default to "provider"
+    const validTab = COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+    const effectiveSubTab = (validTab === "connections" && !sub) ? "provider" : sub;
     return {
-      activeTab: COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB,
-      subTab: sub,
+      activeTab: validTab,
+      subTab: effectiveSubTab,
     };
   }, [pathname]);
-
-  // Redirect to default tab if no tab in URL
-  useEffect(() => {
-    if (!pathname.includes("/settings/company/")) {
-      router.replace(`/settings/company/${DEFAULT_TAB}`, { scroll: false });
-    }
-  }, [pathname, router]);
-
-  // Redirect to default sub-tab for tabs with sub-tabs
-  useEffect(() => {
-    if (!subTab) {
-      if (activeTab === "connections") {
-        router.replace("/settings/company/connections/provider", { scroll: false });
-      }
-    }
-  }, [activeTab, subTab, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
     router.push(`/settings/company/${tabId}`, { scroll: false });

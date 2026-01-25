@@ -1440,15 +1440,16 @@ module Api
           upload_result = provider.upload_file(temp_folder_path, zip_data.read, timestamped_filename, content_type: "application/zip")
 
           if upload_result[:path]
-            # Get presigned download URL (24 hour expiry for external recipients)
-            download_url = provider.download_url(upload_result[:path], expires_in: 86400)
+            # Get presigned download URL (expiry from company settings - SSoT)
+            download_url = provider.download_url(upload_result[:path], expires_in: CorporateCompanySetting.link_expiry_seconds)
 
             render json: {
               success: true,
               download_method: "presigned_url",
               share_url: download_url,
               filename: zip_filename,
-              file_count: document_attachments.size
+              file_count: document_attachments.size,
+              expiry_days: CorporateCompanySetting.link_expiry_days
             }
           else
             render json: { success: false, error: "Failed to upload zip file" }, status: :unprocessable_entity

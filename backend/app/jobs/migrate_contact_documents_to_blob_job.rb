@@ -151,7 +151,7 @@ class MigrateContactDocumentsToBlobJob < ApplicationJob
   end
 
   def wasabi_bucket
-    @wasabi_bucket ||= S3CompatibleCredential.active.first&.bucket || "teeem-docs"
+    @wasabi_bucket ||= StorageConfiguration.bucket
   end
 
   def log_info(message)

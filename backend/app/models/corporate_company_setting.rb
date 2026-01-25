@@ -345,6 +345,24 @@ class CorporateCompanySetting < ApplicationRecord
   end
 
   # ========================================
+  # Link Expiry Configuration (SSoT)
+  # ========================================
+
+  # Default expiry for presigned download URLs (in days)
+  DEFAULT_LINK_EXPIRY_DAYS = 7
+
+  # Get link expiry duration in days
+  # Used for presigned URLs sent to external parties (zip downloads, document shares)
+  def self.link_expiry_days
+    instance.link_expiry_days.presence || DEFAULT_LINK_EXPIRY_DAYS
+  end
+
+  # Get link expiry duration in seconds (for presigned URL generation)
+  def self.link_expiry_seconds
+    link_expiry_days.days.to_i
+  end
+
+  # ========================================
   # API Environment Methods (SSoT)
   # ========================================
 
