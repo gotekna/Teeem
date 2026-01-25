@@ -116,7 +116,7 @@ class StorageConfiguration < ApplicationRecord
   # @param tenant [Tenant] The tenant to get storage config for
   # @return [StorageConfiguration] The storage configuration
   def self.for_tenant(tenant)
-    raise TenantNotFoundError, "Tenant required for storage configuration" unless tenant
+    raise ::TenantNotFoundError, "Tenant required for storage configuration" unless tenant
 
     find_by(tenant: tenant) || create_default_for_tenant(tenant)
   end
@@ -135,7 +135,7 @@ class StorageConfiguration < ApplicationRecord
   # Raises TenantNotFoundError if no tenant context (fail-fast)
   def self.instance
     tenant = ActsAsTenant.current_tenant
-    raise TenantNotFoundError, "Tenant context required for StorageConfiguration.instance - use for_tenant(tenant) or set ActsAsTenant.current_tenant" unless tenant
+    raise ::TenantNotFoundError, "Tenant context required for StorageConfiguration.instance - use for_tenant(tenant) or set ActsAsTenant.current_tenant" unless tenant
 
     for_tenant(tenant)
   end

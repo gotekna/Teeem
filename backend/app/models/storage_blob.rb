@@ -146,7 +146,7 @@ class StorageBlob < ApplicationRecord
   # SSoT: Get storage provider for a tenant (Jan 2026 fix)
   # Class method for creating blobs - requires explicit tenant
   def self.storage_provider_for_tenant(tenant)
-    raise TenantNotFoundError, "Tenant required for storage_provider" unless tenant
+    raise ::TenantNotFoundError, "Tenant required for storage_provider" unless tenant
 
     DocumentProviders.for_tenant(tenant)
   end
@@ -158,13 +158,13 @@ class StorageBlob < ApplicationRecord
     if organization
       # Derive tenant from organization
       tenant = organization.tenant
-      raise TenantNotFoundError.new(context: "StorageBlob.storage_provider - organization has no tenant") unless tenant
+      raise ::TenantNotFoundError.new(context: "StorageBlob.storage_provider - organization has no tenant") unless tenant
       return DocumentProviders.for_tenant(tenant)
     end
 
     # Try current tenant from ActsAsTenant
     tenant = ActsAsTenant.current_tenant
-    raise TenantNotFoundError, "Tenant context required for StorageBlob.storage_provider" unless tenant
+    raise ::TenantNotFoundError, "Tenant context required for StorageBlob.storage_provider" unless tenant
 
     DocumentProviders.for_tenant(tenant)
   end
@@ -209,6 +209,6 @@ class StorageBlob < ApplicationRecord
 
     # FAIL FAST - No tenant found
     Rails.logger.error "[StorageBlob] No tenant found for #{id}"
-    raise TenantNotFoundError.new(record: self, context: "StorageBlob#find_tenant_from_links")
+    raise ::TenantNotFoundError.new(record: self, context: "StorageBlob#find_tenant_from_links")
   end
 end

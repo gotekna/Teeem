@@ -45,7 +45,7 @@ module DocumentProviderAware
   # @raise [DocumentProviders::NotConnectedError] If no provider is configured
   def setup_default_provider!
     tenant = ActsAsTenant.current_tenant
-    raise TenantNotFoundError, "Tenant context required for setup_default_provider! - use ActsAsTenant.with_tenant or set ActsAsTenant.current_tenant" unless tenant
+    raise ::TenantNotFoundError, "Tenant context required for setup_default_provider! - use ActsAsTenant.with_tenant or set ActsAsTenant.current_tenant" unless tenant
 
     @organization = tenant.organizations&.first || Organization.first
     @storage_config = StorageConfiguration.for_tenant(tenant)

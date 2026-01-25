@@ -81,7 +81,7 @@ class EmlGeneratorService
 
       unless tenant
         Rails.logger.error "[EmlGenerator] No tenant found for email #{email.id}"
-        raise TenantNotFoundError.new(record: email, context: "EmlGeneratorService#generate_and_upload")
+        raise ::TenantNotFoundError.new(record: email, context: "EmlGeneratorService#generate_and_upload")
       end
 
       provider = DocumentProviders.for_tenant(tenant)

@@ -482,7 +482,7 @@ function SortableQuestionItem({
       style={style}
       data-item-id={item.id}
       className={cn(
-        "p-2 rounded-md border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-sm space-y-2 transition-all",
+        "p-2 rounded-md border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-sm space-y-1 transition-all",
         isDragging && "shadow-lg",
         isFileDropTarget && "ring-2 ring-green-500 ring-offset-1 bg-green-50 dark:bg-green-950/30"
       )}
@@ -490,8 +490,9 @@ function SortableQuestionItem({
       onDragLeave={handleQuestionFileDragLeave}
       onDrop={handleQuestionFileDropEvent}
     >
-      <div className="flex items-start gap-2">
-        <div {...attributes} {...listeners} className="cursor-grab touch-none mt-0.5">
+      {/* Header row: controls only */}
+      <div className="flex items-center gap-1.5">
+        <div {...attributes} {...listeners} className="cursor-grab touch-none">
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
         {/* Include in response checkbox */}
@@ -499,45 +500,17 @@ function SortableQuestionItem({
           <Checkbox
             checked={item.include_in_response || false}
             onCheckedChange={() => toggleIncludeInResponse(task.id, item.id)}
-            className="mt-0.5 shrink-0 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+            className="shrink-0 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
             title="Include Q&A in response email"
           />
         )}
-        <HelpCircle className="h-4 w-4 text-blue-500 dark:text-blue-400 mt-0.5 shrink-0" />
-        {editingItemId === item.id ? (
-          <Textarea
-            value={editingItemText}
-            onChange={(e) => setEditingItemText(e.target.value)}
-            onBlur={() => handleUpdateItem(item.id)}
-            onKeyDown={(e) => {
-              // Shift+Enter for newline, Enter to save
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleUpdateItem(item.id);
-              }
-              if (e.key === 'Escape') {
-                setEditingItemId(null);
-                setEditingItemText('');
-              }
-            }}
-            className="text-sm flex-1 min-h-[100px] w-full resize-y p-3 border-2 border-primary/50 rounded-md shadow-sm"
-            autoFocus
-            spellCheck={true}
-            rows={Math.max(3, Math.ceil(editingItemText.length / 40))}
-          />
-        ) : (
-          <span
-            className="flex-1 cursor-pointer flex items-start gap-2"
-            onClick={() => onEdit(item.text)}
-          >
-            {questionNumber && (
-              <Badge variant="secondary" className="shrink-0 text-xs font-mono px-1.5 mt-0.5">
-                {questionNumber}
-              </Badge>
-            )}
-            <span>{item.text}</span>
-          </span>
+        <HelpCircle className="h-4 w-4 text-blue-500 dark:text-blue-400 shrink-0" />
+        {questionNumber && (
+          <Badge variant="secondary" className="shrink-0 text-xs font-mono px-1.5">
+            {questionNumber}
+          </Badge>
         )}
+        <div className="flex-1" />
         {/* Hidden file input for click-to-attach */}
         <input
           ref={fileInputRef}
@@ -549,7 +522,7 @@ function SortableQuestionItem({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 text-muted-foreground hover:text-green-600 dark:text-green-400"
+          className="h-5 w-5 p-0 text-muted-foreground hover:text-green-600 dark:text-green-400"
           onClick={() => fileInputRef.current?.click()}
           title="Attach file to this question"
         >
@@ -558,17 +531,47 @@ function SortableQuestionItem({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0"
+          className="h-5 w-5 p-0"
           onClick={onRemove}
         >
           <X className="h-3 w-3" />
         </Button>
       </div>
+      {/* Question text: full width */}
+      {editingItemId === item.id ? (
+        <Textarea
+          value={editingItemText}
+          onChange={(e) => setEditingItemText(e.target.value)}
+          onBlur={() => handleUpdateItem(item.id)}
+          onKeyDown={(e) => {
+            // Shift+Enter for newline, Enter to save
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleUpdateItem(item.id);
+            }
+            if (e.key === 'Escape') {
+              setEditingItemId(null);
+              setEditingItemText('');
+            }
+          }}
+          className="text-sm w-full min-h-[60px] resize-y p-2 border-2 border-primary/50 rounded-md shadow-sm"
+          autoFocus
+          spellCheck={true}
+          rows={Math.max(2, Math.ceil(editingItemText.length / 50))}
+        />
+      ) : (
+        <div
+          className="cursor-pointer text-sm leading-snug"
+          onClick={() => onEdit(item.text)}
+        >
+          {item.text}
+        </div>
+      )}
 
       {/* Answer section */}
       {item.response ? (
         editingAnswerId === item.id ? (
-          <div className="ml-6 space-y-2">
+          <div className="space-y-1.5">
             <SmartTextField
               value={editingAnswerText ?? ''}
               onChange={(value) => setEditingAnswerText?.(value)}
@@ -578,7 +581,7 @@ function SortableQuestionItem({
                   setEditingAnswerText?.('');
                 }
               }}
-              className="min-h-[120px] text-sm border-2 border-primary/50 rounded-md shadow-sm"
+              className="min-h-[80px] text-sm border-2 border-primary/50 rounded-md shadow-sm"
               context="answer"
               autoFocus
             />
@@ -590,11 +593,11 @@ function SortableQuestionItem({
                   setEditingAnswerId?.(null);
                   setEditingAnswerText?.('');
                 }}
-                className="h-7"
+                className="h-6 text-xs"
               >
                 Cancel
               </Button>
-              <Button size="sm" onClick={() => handleUpdateAnswer?.(item.id)} className="h-7">
+              <Button size="sm" onClick={() => handleUpdateAnswer?.(item.id)} className="h-6 text-xs">
                 <Check className="h-3 w-3 mr-1" />
                 Save
               </Button>
@@ -602,7 +605,7 @@ function SortableQuestionItem({
           </div>
         ) : (
           <div
-            className="ml-6 p-2 rounded bg-green-50 dark:bg-green-950/30 border-l-2 border-green-500 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/40"
+            className="pl-2 border-l-2 border-green-500 cursor-pointer hover:bg-green-50 dark:hover:bg-green-900/20 rounded-r"
             onClick={() => {
               if (onEditAnswer) {
                 // Use rich text editor modal
@@ -616,18 +619,18 @@ function SortableQuestionItem({
           >
             <span className="text-xs text-green-600 dark:text-green-400">Answer:</span>
             <div
-              className="text-sm prose prose-sm dark:prose-invert max-w-none [&>p]:my-0"
+              className="text-sm prose prose-sm dark:prose-invert max-w-none [&>p]:my-0 leading-snug"
               dangerouslySetInnerHTML={{ __html: item.response || '' }}
             />
           </div>
         )
       ) : answeringItemId === item.id ? (
-        <div className="ml-6 space-y-2">
+        <div className="space-y-1.5">
           <SmartTextField
             value={answerText ?? ''}
             onChange={(value) => setAnswerText?.(value)}
             placeholder="Type answer..."
-            className="min-h-[120px] text-sm border-2 border-primary/50 rounded-md shadow-sm"
+            className="min-h-[80px] text-sm border-2 border-primary/50 rounded-md shadow-sm"
             context="answer"
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
@@ -645,18 +648,18 @@ function SortableQuestionItem({
                 setAnsweringItemId?.(null);
                 setAnswerText?.('');
               }}
-              className="h-7"
+              className="h-6 text-xs"
             >
               Cancel
             </Button>
-            <Button size="sm" onClick={() => handleAnswerItem?.(item.id)} className="h-7">
+            <Button size="sm" onClick={() => handleAnswerItem?.(item.id)} className="h-6 text-xs">
               <Send className="h-3 w-3 mr-1" />
               Save
             </Button>
           </div>
         </div>
       ) : (
-        <div className="ml-6">
+        <div>
           <Button
             variant="ghost"
             size="sm"
@@ -678,7 +681,7 @@ function SortableQuestionItem({
 
       {/* Attached response documents/emails - displayed as hyperlinks (v3 - handles both document and email types, empty emails return null) */}
       {item.attachments && item.attachments.length > 0 && (
-        <div className="ml-6 space-y-1">
+        <div className="space-y-0.5">
           {item.attachments.map((att) => {
             // Handle document attachments (CorporateCompanyDocument)
             if (att.document) {
@@ -808,7 +811,7 @@ function SortableQuestionItem({
 
       {/* Delegated task link or create task button */}
       {item.delegated_task_id ? (
-        <div className="ml-6">
+        <div>
           <div className="flex items-center gap-1">
             <Button
               variant="link"
@@ -909,7 +912,7 @@ function SortableQuestionItem({
           </Button>
         </div>
       ) : (
-        <div className="ml-6 flex gap-2">
+        <div className="flex gap-2">
           <Button
             variant="ghost"
             size="sm"

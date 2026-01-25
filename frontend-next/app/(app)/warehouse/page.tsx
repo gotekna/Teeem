@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -130,6 +131,8 @@ interface TreeNode {
   pathTemplate?: string;
   // Loading state progress
   progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
+  // External link - when set, clicking folder navigates to this URL instead of expanding
+  externalLink?: string;
 }
 
 type ViewMode = "tree" | "list" | "gallery";
@@ -355,6 +358,7 @@ const buildScopeTree = (
 
 export default function AllDocumentsPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>("tree");
   const [treeDisplayMode, setTreeDisplayMode] = useState<TreeDisplayMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
@@ -416,7 +420,7 @@ export default function AllDocumentsPage() {
   // SSoT: S3 folder contents - loaded lazily when expanding folders
   // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
   const [s3Folders, setS3Folders] = useState<Record<string, {
-    folders: Array<{ name: string; path: string; count?: number }>;
+    folders: Array<{ name: string; path: string; count?: number; external_link?: string }>;
     files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string }>;
     loading?: boolean;
     message?: string;
@@ -1196,6 +1200,8 @@ export default function AllDocumentsPage() {
           // For lazy loading - track the S3 path
           fullPath: folder.path,
           fileCount: subfolderData ? subfolderData.folders.length + subfolderData.files.length : undefined,
+          // External link - clicking navigates instead of expanding (e.g., Emails → /email)
+          externalLink: folder.external_link,
         };
       });
 
@@ -1244,7 +1250,13 @@ export default function AllDocumentsPage() {
 
   // Toggle folder expansion and fetch S3 folders if needed
   // SSoT: Pure S3 Browsing - ALL folders come from Wasabi
-  const toggleFolder = useCallback((folderId: string, folderPath?: string) => {
+  const toggleFolder = useCallback((folderId: string, folderPath?: string, externalLink?: string) => {
+    // If folder has external link (e.g., Emails → /email), navigate instead of expanding
+    if (externalLink) {
+      router.push(externalLink);
+      return;
+    }
+
     // Check if already expanded (will collapse) or needs to expand
     const wasExpanded = expandedFolders.has(folderId);
 
@@ -1264,7 +1276,7 @@ export default function AllDocumentsPage() {
     if (!wasExpanded && folderPath) {
       fetchS3Folders(folderPath);
     }
-  }, [expandedFolders, fetchS3Folders]);
+  }, [expandedFolders, fetchS3Folders, router]);
 
   // Open file in new window (for double-click)
   const openFileInNewWindow = useCallback((doc: DocumentItem) => {
@@ -1556,11 +1568,12 @@ export default function AllDocumentsPage() {
             node.type === "category" && "font-semibold"
           )}
           style={{ paddingLeft: `${paddingLeft + 12}px` }}
-          onClick={() => toggleFolder(node.id, folderPath)}
+          onClick={() => toggleFolder(node.id, folderPath, node.externalLink)}
           title={node.fullPath || undefined}
         >
-          {/* Show chevron if has children OR has files OR is S3-driven folder (expandable) */}
-          {(hasChildren || fileCount > 0 || node.id.startsWith("s3-folder-") || ["job", "corporate", "corporate_entity", "contact", "contacts"].includes(node.id)) ? (
+          {/* Show chevron if expandable (has children OR files OR is S3-driven folder)
+              BUT NOT for external link folders (they navigate away, not expand) */}
+          {!node.externalLink && (hasChildren || fileCount > 0 || node.id.startsWith("s3-folder-") || ["job", "corporate", "corporate_entity", "contact", "contacts"].includes(node.id)) ? (
             isLoading ? (
               <Loader2 className="h-4 w-4 text-muted-foreground animate-spin shrink-0" />
             ) : (
@@ -1595,6 +1608,10 @@ export default function AllDocumentsPage() {
                 : `${fileCount} ${fileCount === 1 ? "file" : "files"}`
               }
             </Badge>
+          )}
+          {/* External link indicator for folders that navigate away (e.g., Emails → /email) */}
+          {node.externalLink && (
+            <ExternalLink className="h-4 w-4 text-muted-foreground" />
           )}
         </div>
 

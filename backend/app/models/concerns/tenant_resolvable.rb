@@ -25,7 +25,7 @@
 # 4. Through documentable association
 # 5. Through organization association (legacy)
 # 6. ActsAsTenant.current_tenant (thread context)
-# 7. FAIL FAST - raise TenantNotFoundError
+# 7. FAIL FAST - raise ::TenantNotFoundError
 #
 module TenantResolvable
   extend ActiveSupport::Concern
@@ -117,7 +117,7 @@ module TenantResolvable
 
     # 7. FAIL FAST - No tenant found
     Rails.logger.error "[TenantResolvable] No tenant found for #{self.class}##{id}"
-    raise TenantNotFoundError.new(record: self, context: "TenantResolvable#derive_tenant")
+    raise ::TenantNotFoundError.new(record: self, context: "TenantResolvable#derive_tenant")
   end
 
   # Resolve tenant from a documentable record

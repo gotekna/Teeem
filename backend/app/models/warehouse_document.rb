@@ -132,7 +132,7 @@ class WarehouseDocument < ApplicationRecord
       expires_in: expires_in,
       filename: download_filename
     )
-  rescue TenantNotFoundError => e
+  rescue ::TenantNotFoundError => e
     Rails.logger.error "[WarehouseDocument] download_url failed - no tenant: #{e.message}"
     nil
   end
@@ -400,7 +400,7 @@ class WarehouseDocument < ApplicationRecord
     return if tenant_id.present?
 
     self.tenant_id = resolved_tenant&.id
-  rescue TenantNotFoundError
+  rescue ::TenantNotFoundError
     # Allow creation without tenant if can't be derived (legacy data)
     Rails.logger.debug "[WarehouseDocument] Could not derive tenant for new document"
     nil

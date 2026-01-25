@@ -85,7 +85,7 @@ module WarehouseSyncable
     # SSoT: Use resolved_tenant (from TenantResolvable) to get storage config
     tenant = resolved_tenant
     StorageConfiguration.for_tenant(tenant).warehouse_sync_enabled?
-  rescue TenantNotFoundError => e
+  rescue ::TenantNotFoundError => e
     Rails.logger.warn "[WarehouseSyncable] Sync disabled - no tenant: #{e.message}"
     false
   rescue StandardError => e
@@ -97,7 +97,7 @@ module WarehouseSyncable
     # SSoT: Use resolved_tenant (from TenantResolvable) to get provider
     tenant = resolved_tenant
     DocumentProviders.for_tenant(tenant)
-  rescue TenantNotFoundError => e
+  rescue ::TenantNotFoundError => e
     Rails.logger.warn "[WarehouseSyncable] No provider - no tenant: #{e.message}"
     nil
   rescue StandardError => e

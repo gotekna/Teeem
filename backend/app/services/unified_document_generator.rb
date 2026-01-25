@@ -97,7 +97,7 @@ class UnifiedDocumentGenerator
 
     unless tenant
       Rails.logger.error "[UnifiedDocumentGenerator] No tenant found for upload"
-      raise TenantNotFoundError, "Tenant required for UnifiedDocumentGenerator upload"
+      raise ::TenantNotFoundError, "Tenant required for UnifiedDocumentGenerator upload"
     end
 
     provider = DocumentProviders.for_tenant(tenant)

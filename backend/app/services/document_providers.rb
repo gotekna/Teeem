@@ -26,7 +26,7 @@ module DocumentProviders
   # @param tenant [Tenant] The tenant
   # @return [DocumentProviders::Base] The configured provider
   def self.for_tenant(tenant)
-    raise TenantNotFoundError, "Tenant required for DocumentProviders.for_tenant" unless tenant
+    raise ::TenantNotFoundError, "Tenant required for DocumentProviders.for_tenant" unless tenant
 
     config = StorageConfiguration.for_tenant(tenant)
     provider_type = config.provider_type
@@ -53,7 +53,7 @@ module DocumentProviders
 
     # SSoT: Derive tenant from organization and delegate to for_tenant
     tenant = organization&.tenant
-    raise TenantNotFoundError.new(context: "DocumentProviders.for_organization - organization has no tenant") unless tenant
+    raise ::TenantNotFoundError.new(context: "DocumentProviders.for_organization - organization has no tenant") unless tenant
 
     for_tenant(tenant)
   end

@@ -49,7 +49,7 @@ class DocumentStorageService
   # @param tenant [Tenant] The tenant context (optional, uses ActsAsTenant.current_tenant if not provided)
   def initialize(tenant: nil)
     @tenant = tenant || ActsAsTenant.current_tenant
-    raise TenantNotFoundError, "Tenant required for DocumentStorageService" unless @tenant
+    raise ::TenantNotFoundError, "Tenant required for DocumentStorageService" unless @tenant
 
     @storage_config = StorageConfiguration.for_tenant(@tenant)
     @provider = get_storage_provider
@@ -352,7 +352,7 @@ class DocumentStorageService
   def get_storage_provider
     # SSoT: Use tenant for provider (Jan 2026 fix)
     DocumentProviders.for_tenant(@tenant)
-  rescue TenantNotFoundError => e
+  rescue ::TenantNotFoundError => e
     Rails.logger.error "[DocumentStorage] Failed to get provider - no tenant: #{e.message}"
     nil
   rescue StandardError => e

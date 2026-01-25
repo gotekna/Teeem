@@ -547,92 +547,89 @@ module Api
         end
       end
 
-      # Phase 3: Render virtual folders from WarehouseDocument computed paths
-      # SSoT: Uses computed_folder_path (not stored folder column) for dynamic folder structure
-      # This enables instant reorganization when templates change in Entity Config - no migration needed
+      # Phase 3: Render virtual folders from WarehouseDocument.folder column
+      # SSoT: Uses indexed `folder` column for instant queries (no cache needed)
+      # The `folder` column is populated/updated by callbacks when documents are saved
+      #
+      # Performance: All queries use the index on `folder` column - O(1) not O(n)
+      # - Root level: GROUP BY split_part(folder, '/', 1)
+      # - Subfolders: WHERE folder LIKE 'path/%' GROUP BY next level
+      # - Files: WHERE folder = 'exact/path'
       #
       # @param path [String] The folder path to list (e.g., "" for root, "Contacts", "Contacts/Acme")
       def render_virtual_folders(path = "")
         path = path.to_s.strip.gsub(%r{^/+|/+$}, "")
 
-        # Cache the full folder tree for 1 hour (invalidated by template changes)
-        # Pre-warm with: rails warehouse:warmup_cache
-        cache_key = "warehouse_folder_tree_v2"
-
-        # Check if tree is already cached
-        folder_tree = Rails.cache.read(cache_key)
-
-        if folder_tree.nil?
-          # Cache not built - return message telling user to wait
-          # Admin should run: heroku run rails warehouse:warmup_cache
-          return render json: {
-            success: true,
-            loading: true,
-            message: "Folder index is being built. Please refresh in a minute.",
-            path: path,
-            folders: [],
-            files: [],
-            count: { folders: 0, files: 0, total: 0 }
-          }
-        end
+        # SSoT: Exclude emails from File Warehouse by default
+        # Emails have their own dedicated Email page with full search/threading
+        # This reduces documents from ~150k to ~26k for instant loading
+        # Pass ?include_emails=true to include emails (for admin/audit use)
+        include_emails = params[:include_emails] == "true"
+        base_scope = WarehouseDocument.where.not(folder: [ nil, "" ])
+        base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
         if path.blank?
-          # Root level: return top-level folders with counts
-          folders = folder_tree[:root_folders].map do |name, count|
+          # Root level: Get top-level folders with counts using indexed column
+          # SQL: SELECT split_part(folder, '/', 1), COUNT(*) GROUP BY 1
+          folder_counts = base_scope
+            .group(Arel.sql("split_part(folder, '/', 1)"))
+            .count
+
+          folders = folder_counts.map do |name, count|
             { name: name, path: name, count: count }
-          end.sort_by { |f| f[:name].downcase }
+          end
 
-          files = []
-        else
-          # Subfolder: compute subfolders and files at this path
-          path_depth = path.count("/") + 1
-          subfolder_counts = Hash.new(0)
-          file_ids_at_path = []
-
-          folder_tree[:paths].each do |doc_id, computed_path|
-            next if computed_path.blank?
-            next unless computed_path.start_with?(path)
-
-            # Check if exact match or starts with path/
-            remaining = computed_path[path.length..]
-            next unless remaining.blank? || remaining.start_with?("/")
-
-            folder_parts = computed_path.split("/")
-
-            if folder_parts.length > path_depth
-              # Has subfolders - count the immediate subfolder
-              subfolder_name = folder_parts[path_depth]
-              subfolder_counts[subfolder_name] += 1
-            elsif computed_path == path
-              # File at this exact path
-              file_ids_at_path << doc_id
+          # Add Emails folder as placeholder (links to /email page, doesn't load files here)
+          # This shows users that emails are in the warehouse without loading 122k+ records
+          unless include_emails
+            email_count = WarehouseDocument.where(source_type: "email").count
+            if email_count > 0
+              folders << { name: "Emails", path: "Emails", count: email_count, external_link: "/email" }
             end
           end
 
+          folders = folders.sort_by { |f| f[:name].to_s.downcase }
+          files = []
+        else
+          # Subfolder level: Get immediate subfolders and files at this exact path
+          path_depth = path.count("/") + 2  # +2 because split_part is 1-indexed and we want next level
+
+          # Get subfolders: documents where folder starts with 'path/' and has more levels
+          # SQL: SELECT split_part(folder, '/', depth), COUNT(*) WHERE folder LIKE 'path/%' GROUP BY 1
+          subfolder_counts = base_scope
+            .where("folder LIKE ?", "#{sanitize_sql_like(path)}/%")
+            .group(Arel.sql("split_part(folder, '/', #{path_depth})"))
+            .count
+
+          # Filter out empty subfolder names (documents at this exact path level)
+          subfolder_counts.reject! { |name, _| name.blank? }
+
           folders = subfolder_counts.map do |name, count|
             { name: name, path: "#{path}/#{name}", count: count }
-          end.sort_by { |f| f[:name].downcase }
+          end.sort_by { |f| f[:name].to_s.downcase }
 
-          # Fetch full document records for files at this path
-          files = if file_ids_at_path.any?
-            WarehouseDocument.where(id: file_ids_at_path).includes(:storage_blob).map do |doc|
-              blob = doc.storage_blob
-              url = doc.download_url rescue nil
+          # Get files at this exact folder path (not in subfolders)
+          # SQL: SELECT * WHERE folder = 'exact/path'
+          docs_at_path = base_scope
+            .where(folder: path)
+            .includes(:storage_blob)
+            .limit(500)  # Paginate for performance
 
-              {
-                name: doc.display_name || doc.original_filename || "Document #{doc.id}",
-                path: blob&.storage_path,
-                size: doc.file_size || blob&.file_size || 0,
-                content_type: doc.content_type || blob&.content_type || "application/octet-stream",
-                last_modified: doc.updated_at&.iso8601,
-                url: url,
-                id: doc.id,
-                warehouse_document_id: doc.id
-              }
-            end.sort_by { |f| f[:name].to_s.downcase }
-          else
-            []
-          end
+          files = docs_at_path.map do |doc|
+            blob = doc.storage_blob
+            url = doc.download_url rescue nil
+
+            {
+              name: doc.display_name || doc.original_filename || "Document #{doc.id}",
+              path: blob&.storage_path,
+              size: doc.file_size || blob&.file_size || 0,
+              content_type: doc.content_type || blob&.content_type || "application/octet-stream",
+              last_modified: doc.updated_at&.iso8601,
+              url: url,
+              id: doc.id,
+              warehouse_document_id: doc.id
+            }
+          end.sort_by { |f| f[:name].to_s.downcase }
         end
 
         render json: {
@@ -646,6 +643,11 @@ module Api
             total: folders.size + files.size
           }
         }
+      end
+
+      # Helper to escape LIKE wildcards in path
+      def sanitize_sql_like(string)
+        string.gsub(/[%_\\]/) { |x| "\\#{x}" }
       end
 
       # Build a complete folder tree by computing paths for all warehouse documents

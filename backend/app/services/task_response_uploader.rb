@@ -40,7 +40,7 @@ class TaskResponseUploader
 
     unless @tenant
       Rails.logger.error "[TaskResponseUploader] No tenant found"
-      raise TenantNotFoundError, "Tenant required for TaskResponseUploader"
+      raise ::TenantNotFoundError, "Tenant required for TaskResponseUploader"
     end
   end
 

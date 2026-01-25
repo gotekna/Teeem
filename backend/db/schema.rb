@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_24_150000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_25_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9172,7 +9172,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_24_150000) do
   end
 
   create_table "storage_configurations", force: :cascade do |t|
-    t.bigint "organization_id", null: false
+    t.bigint "organization_id"
     t.string "provider_type", default: "sharepoint", null: false
     t.string "status", default: "disconnected", null: false
     t.jsonb "connection_config", default: {}, null: false
@@ -9187,8 +9187,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_24_150000) do
     t.jsonb "virtual_warehouses", default: {}, null: false
     t.jsonb "warehouse_root_folders", default: {}, null: false
     t.boolean "exclude_sm_tasks", default: false, null: false
+    t.bigint "tenant_id", null: false
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
     t.index ["organization_id"], name: "index_storage_configurations_on_organization_id", unique: true
+    t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id"
+    t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id_unique", unique: true
   end
 
   create_table "stripe_configurations", force: :cascade do |t|
@@ -11499,6 +11502,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_24_150000) do
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "specification_templates", "job_types"
   add_foreign_key "storage_configurations", "organizations"
+  add_foreign_key "storage_configurations", "tenants"
   add_foreign_key "stripe_configurations", "organizations"
   add_foreign_key "stripe_payments", "contacts"
   add_foreign_key "stripe_payments", "external_invoices", column: "invoice_id"

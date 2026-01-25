@@ -20,7 +20,7 @@ class EmailStorageUploadService
   # SSoT: Requires explicit tenant or ActsAsTenant.current_tenant (Jan 2026 fix)
   def initialize(progress: nil, tenant: nil)
     @tenant = tenant || ActsAsTenant.current_tenant
-    raise TenantNotFoundError, "Tenant required for EmailStorageUploadService" unless @tenant
+    raise ::TenantNotFoundError, "Tenant required for EmailStorageUploadService" unless @tenant
 
     @storage_config = StorageConfiguration.for_tenant(@tenant)
     @provider = get_storage_provider
@@ -94,7 +94,7 @@ class EmailStorageUploadService
   def get_storage_provider
     # SSoT: Use tenant for provider (Jan 2026 fix)
     DocumentProviders.for_tenant(@tenant)
-  rescue TenantNotFoundError => e
+  rescue ::TenantNotFoundError => e
     Rails.logger.error "[EmailUpload] No tenant for storage provider: #{e.message}"
     nil
   rescue ActiveRecord::Encryption::Errors::Decryption => e
