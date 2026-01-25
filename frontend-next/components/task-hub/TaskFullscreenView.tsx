@@ -3681,17 +3681,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       const opt = attachmentEmailOptions[att.id];
       return (opt === 'link' || opt === 'both') && att.document;
     });
-    const linkedEmails = generalResponseAttachments.filter(att => {
-      const opt = attachmentEmailOptions[att.id];
-      if (!((opt === 'link' || opt === 'both') && att.email)) return false;
-
-      // Filter by conversation_id - only include emails from the same thread
-      if (originalConversationId && att.email?.conversation_id) {
-        return att.email.conversation_id === originalConversationId;
-      }
-      // If no conversation_id, fall back to including the email (legacy behavior)
-      return true;
-    });
+    // NOTE: linkedEmails removed - external recipients don't need .eml downloads
     // 'none' files are excluded
 
     // Note: Removed "Files attached:" section - recipients see attachments in their email client
@@ -3711,17 +3701,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       body += '</ul>\n';
     }
 
-    // Show emails with app links
-    if (linkedEmails.length > 0) {
-      body += '<p><strong>Email links:</strong></p>\n';
-      body += '<ul>\n';
-      linkedEmails.forEach(att => {
-        const subject = att.email?.subject || '(No subject)';
-        const url = shareLinksMap[att.id];
-        body += `<li>📧 ${formatFileLink(subject, url)}</li>\n`;
-      });
-      body += '</ul>\n';
-    }
+    // NOTE: Email links removed - external recipients don't need .eml downloads of conversations they're part of
 
     // Count total document attachments (question attachments + general response files)
     const questionDocCount = includedQuestions.reduce((count, q) => {
@@ -3733,6 +3713,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     // Use ref for synchronous access (avoids React state timing issues)
     const downloadUrl = downloadAllShareUrlRef.current;
     if (downloadUrl && totalDocuments > 1) {
+      body += `<p>For your convenience, you can download all ${totalDocuments} files in a single ZIP archive:</p>\n`;
       body += `<p>📦 <a href="${downloadUrl}"><strong>Download All Files (ZIP)</strong></a></p>\n`;
     }
 
@@ -3848,13 +3829,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         // Include any document (backend can download via DocumentStorageService)
         return (opt === 'link' || opt === 'both') && a.document;
       });
-      const emailsToLink = responseAttachments.filter(a => {
-        const opt = attachmentEmailOptions[a.id] || 'link';  // Default to 'link'
-        return (opt === 'link' || opt === 'both') && a.email;
-      });
+      // NOTE: emailsToLink removed - external recipients don't need .eml downloads
 
       const totalToProcess = documentsToAttach.length + emailsToAttach.length +
-        documentsToLink.length + emailsToLink.length + questionAttachmentsToLink.length;
+        documentsToLink.length + questionAttachmentsToLink.length;
       let processed = 0;
 
       // Process documents to attach
@@ -3936,41 +3914,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // Process emails to create shareable links (presigned S3 URLs for EML files)
-      // External recipients can download the .eml file without Teeem login
-      // Track emails that couldn't get share links (file not in storage)
-      const emailsWithoutShareLinks: string[] = [];
-      for (const att of emailsToLink) {
-        const subject = att.email?.subject || '(No subject)';
-        setPrepareEmailStatus(`Creating link for "${subject}"... (${processed + 1}/${totalToProcess})`);
-        try {
-          // Call share_link API to get presigned S3 URL for the EML file
-          const shareResponse = await api.post<{ success: boolean; share_url?: string; error?: string }>(
-            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
-          );
-          if (shareResponse?.success && shareResponse.share_url) {
-            shareLinks[att.id] = shareResponse.share_url;
-          } else {
-            // Email doesn't have EML file in storage - can't share externally
-            // Don't include a broken link - just skip this email and warn user
-            console.warn(`[prepareEmailResponse] No share link for email ${att.id}: ${shareResponse?.error || 'unknown error'}`);
-            emailsWithoutShareLinks.push(subject);
-          }
-        } catch (err) {
-          console.error(`Failed to create share link for email ${att.id}:`, err);
-          emailsWithoutShareLinks.push(subject);
-        }
-        processed++;
-      }
-
-      // Show warning if some emails couldn't be shared
-      if (emailsWithoutShareLinks.length > 0) {
-        const emailList = emailsWithoutShareLinks.slice(0, 3).join(', ');
-        const moreCount = emailsWithoutShareLinks.length > 3 ? ` (+${emailsWithoutShareLinks.length - 3} more)` : '';
-        toast.warning(`Some emails couldn't be shared externally (file not in storage): ${emailList}${moreCount}`, {
-          duration: 8000,
-        });
-      }
+      // NOTE: Email link processing removed - external recipients don't need .eml downloads
 
       // Process question attachments to link - call share_link API for proper filename
       // Note: failures are added to docsWithoutShareLinks (defined above)
