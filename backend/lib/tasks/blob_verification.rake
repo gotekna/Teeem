@@ -40,12 +40,18 @@ namespace :blob do
     token = nil
     loop do
       resp = client.list_objects_v2(bucket: bucket, max_keys: 1000, continuation_token: token)
-      resp.contents.each { |obj| existing_keys << obj.key }
-      print "\r  Found #{existing_keys.size} files..."
+      # Normalize: store both with and without leading slash
+      resp.contents.each do |obj|
+        key = obj.key
+        existing_keys << key
+        existing_keys << key.sub(%r{^/}, "")  # Without leading slash
+        existing_keys << "/#{key}" unless key.start_with?("/")  # With leading slash
+      end
+      print "\r  Found #{existing_keys.size / 2} files..."  # Approx since we store variants
       break unless resp.is_truncated
       token = resp.next_continuation_token
     end
-    puts "\n  Total: #{existing_keys.size} files in bucket"
+    puts "\n  Total: ~#{existing_keys.size / 2} files in bucket (normalized)"
 
     puts ""
     puts "Marking blobs as verified..."
@@ -56,7 +62,11 @@ namespace :blob do
 
     unverified.find_each.with_index do |blob, idx|
       key = blob.storage_path
-      if existing_keys.include?(key)
+      # Check both with and without leading slash
+      found = existing_keys.include?(key) ||
+              existing_keys.include?(key.sub(%r{^/}, "")) ||
+              existing_keys.include?("/#{key}")
+      if found
         blob.mark_verified!
         verified_count += 1
       else
