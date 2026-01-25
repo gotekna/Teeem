@@ -92,14 +92,31 @@ class StorageBlob < ApplicationRecord
   # Get presigned download URL
   # @param expires_in [Integer] Expiry time in seconds (default: 3600)
   # @param filename [String] Custom download filename (optional)
+  # @param disposition [Symbol] :inline (view in browser) or :attachment (force download)
+  #   Default: :inline for PDFs/images, :attachment for other files
   # @return [String] Presigned download URL
-  def presigned_url(expires_in: 3600, filename: nil)
+  def presigned_url(expires_in: 3600, filename: nil, disposition: nil)
+    # Default disposition based on content type:
+    # - PDFs and images open inline (in browser)
+    # - Other files force download
+    disposition ||= viewable_content_type? ? :inline : :attachment
+
     provider = storage_provider
     provider.download_url(
       storage_path,
       expires_in: expires_in,
-      filename: filename || original_filename
+      filename: filename || original_filename,
+      disposition: disposition
     )
+  end
+
+  # Check if content type can be viewed inline in browser
+  def viewable_content_type?
+    return false unless content_type.present?
+
+    content_type.start_with?("image/") ||
+      content_type == "application/pdf" ||
+      content_type.start_with?("text/")
   end
 
   # Delete file from storage (only if orphaned)
