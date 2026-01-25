@@ -5465,8 +5465,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 </div>
               </div>
             )}
-              </>
-            )}
 
           </div>
 
@@ -5490,33 +5488,31 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 </div>
               </div>
             ) : (
-              // Expanded header - clear column name with border
-              <div className="h-10 flex items-center justify-between border-b border-border mb-3">
-                <div
-                  className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-2 transition-colors"
-                  onClick={() => toggleColumn('actions')}
-                >
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-semibold">Actions</span>
-                  <Badge variant="secondary" className="text-xs">{actionItems.length}</Badge>
+              <div className="flex flex-col rounded-lg border border-border bg-background h-full">
+                {/* Expanded header */}
+                <div className="h-10 flex items-center justify-between border-b border-border px-3">
+                  <div
+                    className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-2 -ml-2 transition-colors"
+                    onClick={() => toggleColumn('actions')}
+                  >
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-semibold">Actions</span>
+                    <Badge variant="secondary" className="text-xs">{actionItems.length}</Badge>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-muted-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNewActionItemType('action');
+                      setShowBulkPaste(true);
+                    }}
+                  >
+                    + Paste
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs text-muted-foreground"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setNewActionItemType('action');
-                    setShowBulkPaste(true);
-                  }}
-                >
-                  + Paste
-                </Button>
-              </div>
-            )}
-
-            {!columnsCollapsed.actions && (
-              <>
+                <div className="flex-1 p-3 space-y-4 overflow-auto">
             {/* Add action input */}
             <div className="flex gap-2 mb-3 shrink-0">
               <Input
@@ -5644,7 +5640,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 <p className="text-sm text-muted-foreground text-center py-4">No action items yet</p>
               )}
             </div>
-              </>
+                </div>
+              </div>
             )}
 
           </div>
@@ -5687,28 +5684,26 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 </div>
               </div>
             ) : (
-              // Expanded header - clear column name with border
-              <div className="h-10 flex items-center justify-between border-b border-border mb-3">
-                <div
-                  className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-2 transition-colors"
-                  onClick={() => toggleColumn('attachments')}
-                >
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-semibold">Attachments</span>
+              <div className="flex flex-col rounded-lg border border-border bg-background h-full">
+                {/* Expanded header */}
+                <div className="h-10 flex items-center justify-between border-b border-border px-3">
+                  <div
+                    className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-2 -ml-2 transition-colors"
+                    onClick={() => toggleColumn('attachments')}
+                  >
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-semibold">Attachments</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-muted-foreground"
+                    onClick={(e) => { e.stopPropagation(); setShowAttachmentPicker(!showAttachmentPicker); }}
+                  >
+                    {showAttachmentPicker ? 'Close' : '+ Add'}
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs text-muted-foreground"
-                  onClick={(e) => { e.stopPropagation(); setShowAttachmentPicker(!showAttachmentPicker); }}
-                >
-                  {showAttachmentPicker ? 'Close' : '+ Add'}
-                </Button>
-              </div>
-            )}
-
-            {!columnsCollapsed.attachments && (
-              <>
+                <div className="flex-1 p-3 space-y-4 overflow-auto">
             {/* Attachment Picker (inline) */}
             {showAttachmentPicker && (
               <div className="p-2 border rounded bg-muted/30 mb-3 shrink-0">
@@ -7174,7 +7169,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               </>
             )}
             </div>
-            </>
+                </div>
+              </div>
             )}
           </div>
         </div>
