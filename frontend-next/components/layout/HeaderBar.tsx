@@ -134,10 +134,12 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           setXeroStatus('connected');
           setXeroTooltip(`Xero: Connected${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
         } else if (xeroData?.status === 'degraded' || needsReauth) {
-          // Token expired or needs attention
+          // Token expired, needs attention, or sync stalled
           setXeroStatus('degraded');
-          setXeroTooltip('Xero: Token expired - click to reconnect');
-          console.info('[Xero] Token issue detected - user should reconnect via settings');
+          // Show specific message from backend (e.g., "Sync stalled: pdfs")
+          const message = xeroData?.message || (needsReauth ? 'Token expired - click to reconnect' : 'Needs attention');
+          setXeroTooltip(`Xero: ${message}`);
+          console.info(`[Xero] Issue detected: ${message}`);
         } else {
           // Not connected - show actual disconnected state
           setXeroStatus('disconnected');

@@ -12,17 +12,46 @@ import type { AccountType } from "./email-constants";
 // =============================================================================
 
 /**
+ * Individual email address for a contact.
+ */
+export interface ContactEmail {
+  id: number;
+  email: string;
+  is_primary: boolean;
+  label: string | null;
+}
+
+/**
  * Basic contact for email recipient selection.
  */
 export interface EmailContact {
   id: number;
   display_name: string;
+  /** Primary email (convenience field - use contact_emails for full list) */
   email: string | null;
+  /** All emails for this contact (when include_emails=true) */
+  contact_emails?: ContactEmail[];
   /** Company the contact belongs to (for grouping in autocomplete) */
   primary_company?: {
     id: number;
     name: string;
   };
+  /** All jobs linked to this contact (when include_jobs=true) */
+  jobs?: Array<{
+    id: number;
+    name: string;
+    job_code: string | null;
+    location: string | null;
+    role: string | null;
+  }>;
+  /** True if contact was found via job colleague expansion (shares job with search match) */
+  found_via_job?: boolean;
+  /** Jobs shared with the original search match (when found_via_job=true) */
+  related_jobs?: Array<{
+    id: number;
+    name: string;
+    location: string | null;
+  }>;
 }
 
 // =============================================================================
