@@ -632,11 +632,12 @@ for file in $(grep -rl "Anthropic::Client" backend/app/services --include="*.rb"
 done
 echo "(empty = good)"
 
-# 5. Deprecated StorageConfiguration patterns
+# 5. Deprecated Storage Patterns (should use StorageConfiguration)
 echo ""
 echo "=== DEPRECATED STORAGE PATTERNS ==="
-grep -rn "credential\.sharepoint_site_id\|credential\.sharepoint_drive_id\|credential\.drive_id" backend/app --include="*.rb" 2>/dev/null | head -5
-echo "(empty = good)"
+echo "Checking for direct credential access instead of StorageConfiguration..."
+grep -rn "credential\.sharepoint_\|credential\.drive_id\|credential\.site_id" backend/app --include="*.rb" 2>/dev/null | head -5
+echo "(empty = good - use StorageConfiguration.instance instead)"
 ```
 
 ### Frontend SSoT Checks

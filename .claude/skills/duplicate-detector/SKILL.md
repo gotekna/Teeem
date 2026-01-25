@@ -179,7 +179,7 @@ grep -n "root_path\|site_id\|drive_id" backend/db/schema.rb 2>/dev/null | \
   grep -v "storage_configurations" || echo "None found (good)"
 
 echo ""
-echo "=== 3. LEGACY SHAREPOINT/ONEDRIVE COLUMNS ==="
+echo "=== 3. LEGACY PROVIDER-SPECIFIC COLUMNS ==="
 grep -n "sharepoint_\|onedrive_\|outlook_" backend/db/schema.rb 2>/dev/null || echo "None found (good)"
 
 echo ""
@@ -214,7 +214,7 @@ I found `root_path` in 3 different tables:
    t.string "root_path", default: ""
 
 2. backend/db/schema.rb:234 - corporate_company_settings
-   t.string "sharepoint_root_path", default: "/Shared Documents"
+   t.string "storage_root_path"  (legacy)
 
 3. backend/db/schema.rb:412 - storage_configurations
    t.string "root_path"  ← THIS IS THE SSoT
@@ -296,9 +296,9 @@ Want me to consolidate?
 
 | Thing | SSoT Location | ❌ NOT Here |
 |-------|---------------|-------------|
-| Storage paths | `StorageConfiguration.paths` | `CorporateCompanySetting.sharepoint_*` |
-| Root path | `StorageConfiguration.root_path` | `S3CompatibleCredential.root_path` |
-| Site ID, Drive ID | `StorageConfiguration.connection_config` | `MicrosoftCredential` |
-| Auth tokens | `MicrosoftCredential` | `StorageConfiguration` |
-| S3 credentials | `S3CompatibleCredential` | Any other table |
+| Provider type | `StorageConfiguration.provider_type` | Hardcoded or guessed |
+| Storage paths | `StorageConfiguration.paths` | `CorporateCompanySetting` (legacy) |
+| Root path | `StorageConfiguration.root_path` | Any credential table |
+| Connection config | `StorageConfiguration.connection_config` | Spread across credentials |
+| Auth tokens | Provider-specific credential model | `StorageConfiguration` |
 | Company settings | `CompanySetting` | `CorporateCompanySetting` (legacy) |
