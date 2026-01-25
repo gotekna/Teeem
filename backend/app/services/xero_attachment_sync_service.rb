@@ -14,11 +14,28 @@ class XeroAttachmentSyncService
     @external_invoice = external_invoice
     @xero_client = XeroApiClient.new
     @skip_sharepoint = skip_sharepoint
-    # SSoT: Derive tenant from invoice's tenant_id (Jan 2026 fix)
-    # ExternalInvoice has tenant_id column but no belongs_to :tenant association
-    @tenant = external_invoice.tenant_id.present? ? Tenant.find_by(id: external_invoice.tenant_id) : nil
+    # SSoT: Derive TEEEM tenant from Xero tenant_id (Jan 2026 fix)
+    # ExternalInvoice.tenant_id is Xero tenant UUID, not TEEEM Tenant.id
+    # Flow: Xero tenant_id -> XeroCredential -> Organization -> Tenant
+    @tenant = find_teeem_tenant_from_xero_tenant_id(external_invoice.tenant_id)
     @storage_config = @tenant ? StorageConfiguration.for_tenant(@tenant) : nil
     @results = { pdf: nil, attachments: [], errors: [], sharepoint_uploads: [] }
+  end
+
+  # Map Xero tenant_id (UUID) to TEEEM Tenant
+  # @param xero_tenant_id [String] The Xero tenant UUID
+  # @return [Tenant, nil] The matching TEEEM tenant
+  def find_teeem_tenant_from_xero_tenant_id(xero_tenant_id)
+    return nil unless xero_tenant_id.present?
+
+    # Find XeroCredential with this Xero tenant ID
+    xero_credential = XeroCredential.find_by(tenant_id: xero_tenant_id)
+    return nil unless xero_credential
+
+    # For now, get the first active organization's tenant
+    # Future: Add xero_credential_id to Organization for direct link
+    org = Organization.where(is_active: true).first
+    org&.tenant
   end
 
   # Sync all attachments for this invoice
