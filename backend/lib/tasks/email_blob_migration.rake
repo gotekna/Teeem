@@ -52,9 +52,9 @@ namespace :email do
         with_storage = SyncedEmail.where.not(storage_path: [nil, ""]).count
         without_storage = total - with_storage
 
-        # Count emails with old vs new path format
-        old_format = SyncedEmail.where("storage_path LIKE 'Emails/%'").count
-        new_format = SyncedEmail.where("storage_path LIKE 'Blobs/%'").count
+        # Count emails with old vs new path format (handle leading slash)
+        old_format = SyncedEmail.where("storage_path LIKE 'Emails/%' OR storage_path LIKE '/Emails/%'").count
+        new_format = SyncedEmail.where("storage_path LIKE 'Blobs/%' OR storage_path LIKE '/Blobs/%'").count
         other_format = with_storage - old_format - new_format
 
         puts "SyncedEmails:"
@@ -80,12 +80,12 @@ namespace :email do
           puts ""
         end
 
-        # StorageBlob stats
+        # StorageBlob stats (handle leading slash)
         blobs_total = StorageBlob.count
         blobs_with_hash = StorageBlob.where.not(content_hash: nil).count
         blobs_without_hash = blobs_total - blobs_with_hash
-        blobs_old_path = StorageBlob.where("storage_path LIKE 'Emails/%'").count
-        blobs_new_path = StorageBlob.where("storage_path LIKE 'Blobs/%'").count
+        blobs_old_path = StorageBlob.where("storage_path LIKE 'Emails/%' OR storage_path LIKE '/Emails/%'").count
+        blobs_new_path = StorageBlob.where("storage_path LIKE 'Blobs/%' OR storage_path LIKE '/Blobs/%'").count
 
         puts "StorageBlobs:"
         puts "  Total:                    #{blobs_total}"
@@ -139,8 +139,8 @@ namespace :email do
 
         stats = { migrated: 0, skipped: 0, errors: [], already_new: 0 }
 
-        # Find emails with old path format
-        scope = SyncedEmail.where("storage_path LIKE 'Emails/%'")
+        # Find emails with old path format (handle leading slash)
+        scope = SyncedEmail.where("storage_path LIKE 'Emails/%' OR storage_path LIKE '/Emails/%'")
                            .order(:id)
                            .limit(limit)
 
@@ -156,8 +156,8 @@ namespace :email do
         scope.find_each.with_index do |email, i|
           old_path = email.storage_path
 
-          # Skip if already in new format
-          if old_path&.start_with?("Blobs/")
+          # Skip if already in new format (handle leading slash)
+          if old_path&.start_with?("Blobs/") || old_path&.start_with?("/Blobs/")
             stats[:already_new] += 1
             next
           end
@@ -276,8 +276,8 @@ namespace :email do
           end
         end
 
-        # Show remaining count
-        remaining = SyncedEmail.where("storage_path LIKE 'Emails/%'").count
+        # Show remaining count (handle leading slash)
+        remaining = SyncedEmail.where("storage_path LIKE 'Emails/%' OR storage_path LIKE '/Emails/%'").count
         if remaining > 0
           puts ""
           puts "Remaining: #{remaining} emails still need migration"
@@ -304,8 +304,8 @@ namespace :email do
           exit 1
         end
 
-        # Check if any emails still use old format
-        old_format_count = SyncedEmail.where("storage_path LIKE 'Emails/%'").count
+        # Check if any emails still use old format (handle leading slash)
+        old_format_count = SyncedEmail.where("storage_path LIKE 'Emails/%' OR storage_path LIKE '/Emails/%'").count
         if old_format_count > 0
           puts "WARNING: #{old_format_count} emails still use old format!"
           puts "Run 'rails email:blob:migrate' first to migrate all emails."

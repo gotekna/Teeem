@@ -16,6 +16,7 @@ module DocumentProviders
   # Error classes
   class Error < StandardError; end
   class AuthenticationError < Error; end
+  class ConfigurationError < Error; end  # Missing/invalid configuration (SSoT Jan 2026)
   class NotConnectedError < Error; end
   class NotFoundError < Error; end
   class PermissionError < Error; end

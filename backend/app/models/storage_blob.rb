@@ -41,6 +41,18 @@ class StorageBlob < ApplicationRecord
   # Scopes
   scope :orphaned, -> { where(reference_count: 0) }
   scope :with_references, -> { where("reference_count > 0") }
+  scope :verified, -> { where.not(verified_at: nil) }
+  scope :unverified, -> { where(verified_at: nil) }
+
+  # Mark blob as verified (file exists in storage)
+  def mark_verified!
+    update_column(:verified_at, Time.current)
+  end
+
+  # Bulk mark blobs as verified
+  def self.mark_verified!(ids)
+    where(id: ids).update_all(verified_at: Time.current)
+  end
 
   # Find or create blob for content
   # Returns existing blob if content_hash matches, otherwise creates new

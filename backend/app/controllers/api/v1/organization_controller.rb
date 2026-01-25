@@ -763,10 +763,11 @@ module Api
         warehouse_breakdown = if defined?(WarehouseDocument) && defined?(StorageBlob)
           results = []
 
-          # Helper to count docs with actual file path in StorageBlob
+          # Helper to count docs with verified file in StorageBlob (Jan 2026)
+          # Uses verified_at timestamp - set when file confirmed to exist in storage
           count_with_file = ->(scope) {
             scope.joins(:storage_blob)
-                 .where("storage_blobs.storage_path IS NOT NULL AND storage_blobs.storage_path != ''")
+                 .where("storage_blobs.verified_at IS NOT NULL")
                  .count
           }
 
@@ -809,10 +810,10 @@ module Api
           # Other source types (exclude "email" since we split it above)
           by_source = WarehouseDocument.where.not(source_type: "email").group(:source_type).count
           with_blob = WarehouseDocument.where.not(source_type: "email").where.not(storage_blob_id: nil).group(:source_type).count
-          # Count with actual file path per source type
+          # Count with verified file per source type (Jan 2026 - uses verified_at)
           with_file_by_source = WarehouseDocument.where.not(source_type: "email")
             .joins(:storage_blob)
-            .where("storage_blobs.storage_path IS NOT NULL AND storage_blobs.storage_path != ''")
+            .where("storage_blobs.verified_at IS NOT NULL")
             .group(:source_type)
             .count
 
