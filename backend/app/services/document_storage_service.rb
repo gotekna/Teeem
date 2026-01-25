@@ -222,27 +222,30 @@ class DocumentStorageService
   # Download file content from storage
   #
   # SSoT Priority (Jan 2026):
-  #   1. StorageBlob (preferred - deduplicated storage)
-  #   2. storage_path (S3/Wasabi direct)
+  #   1. WarehouseDocument.storage_blob (Phase 3 SSoT - Blobs/ path)
+  #   2. record.storage_blob (legacy fallback)
   #
-  # ActiveStorage REMOVED (Jan 2026) - all files now use StorageBlob or storage_path
+  # ActiveStorage REMOVED (Jan 2026) - all files now use StorageBlob
   #
-  # @param record [ActiveRecord::Base] Document with storage_blob or storage_path
+  # @param record [ActiveRecord::Base] Document with storage_blob or warehouse_document
   # @return [Hash] { success: true, content: binary, content_type: "...", filename: "..." }
   #                or { success: false, error: "...", status: :symbol }
   def download(record)
     return error_result("No record provided", status: :bad_request) unless record
 
-    # SSoT: StorageBlob is THE ONE source - no fallback to storage_path
-    if record.respond_to?(:storage_blob) && record.storage_blob.present?
-      result = download_from_storage_blob(record)
+    # SSoT: Phase 3 WarehouseDocument.storage_blob is THE ONE source
+    # Priority: warehouse_document.storage_blob (Blobs/) > record.storage_blob (legacy)
+    if record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?
+      # Phase 3 SSoT: Use Blobs/ path from warehouse_document
+      result = download_from_storage_blob_via_warehouse(record)
       # Ultra: Lazy self-heal if file not found
       if !result[:success] && result[:status] == :not_found && record.is_a?(SyncedEmail)
         return lazy_load_and_download(record)
       end
       result
-    elsif record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?
-      result = download_from_storage_blob_via_warehouse(record)
+    elsif record.respond_to?(:storage_blob) && record.storage_blob.present?
+      # Legacy fallback: direct storage_blob on record
+      result = download_from_storage_blob(record)
       # Ultra: Lazy self-heal if file not found
       if !result[:success] && result[:status] == :not_found && record.is_a?(SyncedEmail)
         return lazy_load_and_download(record)
@@ -275,12 +278,15 @@ class DocumentStorageService
   def download_url(record, expires_in: 3600, disposition: :attachment)
     return error_result("No record provided", status: :bad_request) unless record
 
-    # SSoT: StorageBlob is THE ONE source for file paths
-    # No fallback to storage_path - fail fast if blob is missing
-    storage_path = if record.respond_to?(:storage_blob) && record.storage_blob.present?
-      record.storage_blob.storage_path
-    elsif record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?
+    # SSoT: Phase 3 WarehouseDocument.storage_blob is THE ONE source for file paths
+    # Priority: warehouse_document.storage_blob (Blobs/ path) > record.storage_blob (legacy path)
+    # This ensures migrated documents use the correct content-addressed storage path
+    storage_path = if record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?
+      # Phase 3 SSoT: Use Blobs/ path from warehouse_document (actual file location)
       record.warehouse_document.storage_blob.storage_path
+    elsif record.respond_to?(:storage_blob) && record.storage_blob.present?
+      # Legacy fallback: direct storage_blob on record
+      record.storage_blob.storage_path
     end
 
     if storage_path.present?
@@ -601,9 +607,10 @@ class DocumentStorageService
   # ============================================================================
 
   # Check if record has S3/Wasabi storage via StorageBlob (SSoT)
+  # Priority: warehouse_document.storage_blob (Phase 3 SSoT) > record.storage_blob (legacy)
   def has_s3_storage?(record)
-    (record.respond_to?(:storage_blob) && record.storage_blob.present?) ||
-      (record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?)
+    (record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?) ||
+      (record.respond_to?(:storage_blob) && record.storage_blob.present?)
   end
 
   # Check if record has SharePoint storage (legacy)

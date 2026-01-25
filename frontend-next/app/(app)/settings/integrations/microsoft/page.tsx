@@ -116,8 +116,9 @@ interface HealthDashboard {
 }
 
 // Pre-defined organizations that can be connected
+// SSoT: Must match backend MicrosoftAppController#health_dashboard available_org_names
 const AVAILABLE_ORGANIZATIONS = [
-  { name: "Teeem", description: "Teeem Group Microsoft 365" },
+  { name: "Tekna", description: "Tekna Group Microsoft 365" },
   { name: "100xBestLife", description: "100x Best Life Microsoft 365" },
   { name: "Homes of Hope", description: "Homes of Hope Microsoft 365" },
   { name: "Love Your World", description: "Love Your World Microsoft 365" },
@@ -464,7 +465,13 @@ export default function MicrosoftIntegrationPage() {
                 </CardDescription>
               </div>
             </div>
-            <Badge className={connectedCount > 0 ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300" : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"}>
+            <Badge className={
+              connectedCount === AVAILABLE_ORGANIZATIONS.length
+                ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300"  // All connected = green
+                : connectedCount > 0
+                  ? "bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-300"  // Partial = yellow (needs attention)
+                  : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"  // None = grey
+            }>
               {connectedCount}/{AVAILABLE_ORGANIZATIONS.length} Connected
             </Badge>
           </div>
