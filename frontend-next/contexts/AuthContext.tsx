@@ -117,10 +117,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       }
 
-      if (storedToken) {
-        // Ensure cookie is in sync with localStorage for SSR
-        document.cookie = `auth_token=${storedToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
-      }
+      // Note: Don't re-set the cookie here - it already has the correct expiry from login
+      // Re-setting would overwrite the "remember me" expiry with a shorter one
       setToken(storedToken || null);
       setTokenChecked(true);
     }
