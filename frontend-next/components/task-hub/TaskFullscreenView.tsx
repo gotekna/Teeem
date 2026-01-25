@@ -4142,7 +4142,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       // Store viewer context server-side (avoids URL length limits)
       // Build context with all Q&A and all files
       try {
-        const allDocAtts = [...documentsToLink, ...questionAttachmentsToLink];
+        // Deduplicate attachments by ID (an attachment might be in both documentsToLink AND questionAttachmentsToLink)
+        const allDocAttsMap = new Map<number, typeof documentsToLink[0]>();
+        for (const att of [...documentsToLink, ...questionAttachmentsToLink]) {
+          if (!allDocAttsMap.has(att.id)) {
+            allDocAttsMap.set(att.id, att);
+          }
+        }
+        const allDocAtts = Array.from(allDocAttsMap.values());
         const viewerFiles = allDocAtts.map(att => {
           const links = shareLinks[att.id];
           const fallback = att.document?.storage_url || att.document?.file_url || '';
@@ -4182,8 +4189,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       setPrepareEmailStatus('Opening email...');
 
       // Generate "Download All" zip link if there are multiple documents to link
-      // Note: questionAttachmentsToLink already filtered to only include items with documents
-      const allDocumentsToLink = [...documentsToLink, ...questionAttachmentsToLink];
+      // Note: Use same deduplicated list (allDocAtts is already deduped above, but may not be in scope here)
+      const allDocsMap = new Map<number, typeof documentsToLink[0]>();
+      for (const att of [...documentsToLink, ...questionAttachmentsToLink]) {
+        if (!allDocsMap.has(att.id)) allDocsMap.set(att.id, att);
+      }
+      const allDocumentsToLink = Array.from(allDocsMap.values());
       if (allDocumentsToLink.length > 1) {
         setPrepareEmailStatus('Creating download all link...');
         try {
