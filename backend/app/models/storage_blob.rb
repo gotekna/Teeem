@@ -140,11 +140,39 @@ class StorageBlob < ApplicationRecord
     blob.storage_path = result[:path] if result[:path].present?
   end
 
-  def self.storage_provider
-    DocumentProviders.for_organization(Organization.first)
+  # Get storage provider for an organization
+  # SSoT: Organization must be passed or derived from linked records
+  def self.storage_provider(organization = nil)
+    org = organization || Organization.first # TODO: Remove Organization.first fallback after full multi-tenancy migration
+    raise ArgumentError, "Organization required for storage_provider" unless org
+
+    DocumentProviders.for_organization(org)
   end
 
+  # Instance method finds org from linked records
   def storage_provider
-    self.class.storage_provider
+    org = find_organization_from_links
+    self.class.storage_provider(org)
+  end
+
+  private
+
+  # Find organization through linked records (warehouse_documents -> documentable -> organization)
+  def find_organization_from_links
+    # Try warehouse_document first
+    if warehouse_documents.any?
+      doc = warehouse_documents.first
+      return doc.documentable.organization if doc.documentable.respond_to?(:organization)
+      return doc.documentable.microsoft_credential&.organization if doc.documentable.respond_to?(:microsoft_credential)
+    end
+
+    # Try email_attachments -> synced_email -> microsoft_credential -> organization
+    if email_attachments.any?
+      att = email_attachments.first
+      return att.synced_email&.microsoft_credential&.organization if att.respond_to?(:synced_email)
+    end
+
+    # Fallback - will be removed after full migration
+    Organization.first
   end
 end

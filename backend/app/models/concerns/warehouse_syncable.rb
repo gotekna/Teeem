@@ -84,10 +84,22 @@ module WarehouseSyncable
   end
 
   def warehouse_provider
-    organization = Organization.first
+    organization = resolved_organization_for_warehouse
     DocumentProviders::S3Compatible.for_organization(organization)
   rescue StandardError
     nil
+  end
+
+  # Derive organization from the record itself
+  def resolved_organization_for_warehouse
+    return self.organization if respond_to?(:organization) && self.organization.present?
+    return microsoft_credential&.organization if respond_to?(:microsoft_credential)
+    return imap_credential&.organization if respond_to?(:imap_credential)
+    return job&.organization if respond_to?(:job) && job&.respond_to?(:organization)
+    return contact&.organization if respond_to?(:contact) && contact&.respond_to?(:organization)
+
+    # Fallback - TODO: Remove after full multi-tenancy migration
+    Organization.first
   end
 
   def warehouse_filename

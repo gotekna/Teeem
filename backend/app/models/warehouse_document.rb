@@ -113,12 +113,22 @@ class WarehouseDocument < ApplicationRecord
   def download_url(expires_in: 3600)
     return nil unless storage_blob&.storage_path.present?
 
-    provider = DocumentProviders.for_organization(Organization.first)
+    provider = DocumentProviders.for_organization(resolved_organization)
     provider.download_url(
       storage_blob.storage_path,
       expires_in: expires_in,
       filename: download_filename
     )
+  end
+
+  # Derive organization from documentable association chain
+  def resolved_organization
+    return documentable.organization if documentable.respond_to?(:organization)
+    return documentable.microsoft_credential&.organization if documentable.respond_to?(:microsoft_credential)
+    return documentable.imap_credential&.organization if documentable.respond_to?(:imap_credential)
+
+    # Fallback - TODO: Remove after full multi-tenancy migration
+    Organization.first
   end
 
   # Update folder (instant - just DB update, no S3 copy)
