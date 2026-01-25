@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -39,6 +39,8 @@ export default function DeveloperSettingsPage() {
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
+  // Default to DEFAULT_TAB if no tab specified - no redirect needed
+  // This allows breadcrumb navigation to /settings/developer to work
   const { activeTab, subtab } = useMemo(() => {
     const parts = pathname.replace("/settings/developer", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
@@ -47,13 +49,6 @@ export default function DeveloperSettingsPage() {
     const validTab = DEVELOPER_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
     return { activeTab: validTab, subtab: sub };
   }, [pathname]);
-
-  // Redirect to default tab if no tab in URL
-  useEffect(() => {
-    if (!pathname.includes("/settings/developer/")) {
-      router.replace(`/settings/developer/${DEFAULT_TAB}`, { scroll: false });
-    }
-  }, [pathname, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
     router.push(`/settings/developer/${tabId}`, { scroll: false });

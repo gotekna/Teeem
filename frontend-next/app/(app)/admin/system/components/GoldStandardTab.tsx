@@ -2321,14 +2321,9 @@ interface GoldStandardTabProps {
 
 export function GoldStandardTab({ subtab, basePath = DEFAULT_GOLD_STANDARD_BASE_PATH }: GoldStandardTabProps) {
   const router = useRouter();
+  // Default to "table" tab if no subtab specified - no redirect needed
+  // This allows breadcrumb navigation to /settings/developer/components to work
   const activeTab = subtab || "table";
-
-  // Redirect to include default subtab in URL if not present
-  React.useEffect(() => {
-    if (!subtab) {
-      router.replace(`${basePath}/table`, { scroll: false });
-    }
-  }, [subtab, basePath, router]);
 
   const setActiveTab = React.useCallback((tab: string) => {
     router.push(`${basePath}/${tab}`, { scroll: false });

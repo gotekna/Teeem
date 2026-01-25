@@ -395,6 +395,18 @@ plan_staging_cleanup:
   schedule: at 4am every day
 
 # ============================================
+# STORAGE TEMP FILES MAINTENANCE
+# ============================================
+
+# Clean up old TaskResponseZips (7+ days old)
+# These accumulate from "Download All Response Files" feature
+# Runs daily at 5am to delete expired temp zip files
+cleanup_temp_files:
+  class: CleanupTempFilesJob
+  queue: low
+  schedule: at 5am every day
+
+# ============================================
 # SCHEDULE MASTER (SM GANTT)
 # ============================================
 

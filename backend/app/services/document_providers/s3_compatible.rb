@@ -85,10 +85,12 @@ module DocumentProviders
     def initialize(credential, tenant: nil)
       super(credential)
       @client = credential.build_client
-      @bucket = credential.bucket
       @tenant = tenant
-      # SSoT: root_path comes from StorageConfiguration (THE ONE), not credential
+
+      # SSoT: StorageConfiguration can override bucket per tenant (Jan 2026)
+      # This allows different tenants to use different buckets with same credential
       config = tenant ? StorageConfiguration.for_tenant(tenant) : StorageConfiguration.instance
+      @bucket = config&.connection_config&.dig("bucket").presence || credential.bucket
       @root_path = config&.root_path.to_s.sub(%r{^/+}, "").sub(%r{/+$}, "")
     end
 

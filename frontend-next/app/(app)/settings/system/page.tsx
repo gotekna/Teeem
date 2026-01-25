@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -47,19 +47,14 @@ export default function SystemSettingsPage() {
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
+  // Default to DEFAULT_TAB if no tab specified - no redirect needed
+  // This allows breadcrumb navigation to /settings/system to work
   const activeTab = useMemo(() => {
     const parts = pathname.replace("/settings/system", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     // Validate tab exists
     return SYSTEM_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
   }, [pathname]);
-
-  // Redirect to default tab if no tab in URL
-  useEffect(() => {
-    if (!pathname.includes("/settings/system/")) {
-      router.replace(`/settings/system/${DEFAULT_TAB}`, { scroll: false });
-    }
-  }, [pathname, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
     router.push(`/settings/system/${tabId}`, { scroll: false });

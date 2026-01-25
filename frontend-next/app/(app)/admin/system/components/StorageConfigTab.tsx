@@ -43,6 +43,7 @@ import {
   FileBox,
   ClipboardList,
   FolderHeart,
+  Clock,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -170,6 +171,8 @@ interface StorageConfig {
   virtual_warehouses: Record<string, boolean>;
   // SM task exclusion setting
   exclude_sm_tasks: boolean;
+  // Link expiry for presigned download URLs (days)
+  link_expiry_days: number;
 }
 
 // Tree node structure for folder hierarchy
@@ -1293,6 +1296,8 @@ export function StorageConfigTab() {
     virtual_warehouses: {} as Record<string, boolean>,
     // SM task exclusion setting
     exclude_sm_tasks: false,
+    // Link expiry for presigned download URLs (days)
+    link_expiry_days: 7,
   });
   // Tree view state
   const [expandedPaths, setExpandedPaths] = React.useState<Set<string>>(new Set());
@@ -1680,6 +1685,8 @@ export function StorageConfigTab() {
           virtual_warehouses: response.data.virtual_warehouses || {},
           // SM task exclusion setting
           exclude_sm_tasks: response.data.exclude_sm_tasks ?? false,
+          // Link expiry for presigned download URLs (days)
+          link_expiry_days: response.data.link_expiry_days || 7,
         });
       }
     } catch (error) {
@@ -1711,6 +1718,7 @@ export function StorageConfigTab() {
             config_links: formData.config_links,
             virtual_warehouses: formData.virtual_warehouses,  // Phase 4: Virtual File Warehouse
             exclude_sm_tasks: formData.exclude_sm_tasks,      // SM task exclusion setting
+            link_expiry_days: formData.link_expiry_days,      // Download link expiry (days)
             // Map SharePoint fields (frontend uses sharepoint_* prefix, backend expects bare names)
             site_url: formData.sharepoint_site_url,
             site_id: formData.sharepoint_site_id,
@@ -2297,6 +2305,45 @@ export function StorageConfigTab() {
               Loading tabs...
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Download Link Settings */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Download Link Settings
+          </CardTitle>
+          <CardDescription>
+            Configure how long download links remain valid
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="link-expiry" className="text-sm whitespace-nowrap">
+                Link expiry:
+              </Label>
+              <Input
+                id="link-expiry"
+                type="number"
+                min={1}
+                max={30}
+                className="w-20"
+                value={formData.link_expiry_days}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || 7;
+                  const clamped = Math.max(1, Math.min(30, value));
+                  setFormData(prev => ({ ...prev, link_expiry_days: clamped }));
+                }}
+              />
+              <span className="text-sm text-muted-foreground">days</span>
+            </div>
+            <p className="text-xs text-muted-foreground flex-1">
+              Presigned download URLs will expire after this many days. Applies to document downloads and task attachment zips.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
