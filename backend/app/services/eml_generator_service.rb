@@ -128,6 +128,7 @@ class EmlGeneratorService
           folder: email.virtual_folder_path,
           display_name: email.subject.presence || "No Subject",
           original_filename: filename,
+          tenant_id: tenant.id,  # SSoT: Always set tenant for multi-tenant support
           metadata: {
             subject: email.subject,
             from_email: email.from_email,

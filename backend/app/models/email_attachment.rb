@@ -123,6 +123,20 @@ class EmailAttachment < ApplicationRecord
 
   private
 
+  # SSoT: Derive tenant from parent email's credential chain
+  # Used for setting tenant_id on WarehouseDocument
+  def resolved_tenant_id
+    email = synced_email
+    return nil unless email
+
+    # Try MS credential first, then IMAP
+    tenant = email.microsoft_credential&.organization&.tenant ||
+             email.imap_credential&.user&.tenant ||
+             ActsAsTenant.current_tenant
+
+    tenant&.id
+  end
+
   # Create WarehouseDocument entry for File Warehouse
   def create_warehouse_entry
     return unless storage_blob
@@ -133,6 +147,7 @@ class EmailAttachment < ApplicationRecord
       display_name: filename || "Attachment",
       original_filename: filename,
       storage_blob: storage_blob,
+      tenant_id: resolved_tenant_id,  # SSoT: Always set tenant for multi-tenant support
       metadata: {
         email_attachment_id: id,
         synced_email_id: email_warehouse_id,

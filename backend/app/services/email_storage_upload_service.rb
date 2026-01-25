@@ -315,6 +315,7 @@ class EmailStorageUploadService
       folder: email.virtual_folder_path,
       display_name: email.subject.presence || "No Subject",
       original_filename: "#{email.id}.eml",
+      tenant_id: @tenant.id,  # SSoT: Always set tenant for multi-tenant support
       metadata: {
         subject: email.subject,
         from_email: email.from_email,
