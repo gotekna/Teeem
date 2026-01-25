@@ -3673,12 +3673,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           body += `<p><strong>${qNum}</strong> ${q.text}</p>\n`;
 
           // Build file list for viewer navigation (if multiple attachments)
+          // Includes both documents and emails
           const allFiles: ViewerFile[] = (q.attachments || [])
-            .filter(att => att.document)
+            .filter(att => att.document || att.email)
             .map(att => {
               const links = shareLinksMap[att.id];
-              const fallback = att.document?.storage_url || att.document?.file_url || '';
-              return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+              if (att.document) {
+                const fallback = att.document?.storage_url || att.document?.file_url || '';
+                return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+              } else {
+                // Email attachment - use .eml extension for proper viewer handling
+                const emailName = getAttachmentDisplayName(att);
+                const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
+                return { name: emlName, downloadUrl: links?.download || '', openUrl: links?.open || '' };
+              }
             });
 
           // Show text response (no extra spacing before attachments)
@@ -3698,6 +3706,21 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     allQA,
                     actualFileName: att.document.file_name
                   })}`;
+                } else if (att.email) {
+                  // Email attachment - add link with .eml extension
+                  const links = shareLinksMap[att.id];
+                  const emailName = getAttachmentDisplayName(att);
+                  const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
+                  if (links?.download || links?.open) {
+                    body += `\n📧 ${formatFileLink(emlName, links?.download, links?.open, {
+                      question: q.text,
+                      answer: q.response,
+                      allFiles,
+                      currentIndex: attIdx,
+                      allQA,
+                      contentType: 'message/rfc822'
+                    })}`;
+                  }
                 }
               });
             }
@@ -3717,6 +3740,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   allQA,
                   actualFileName: att.document.file_name
                 })}`;
+              } else if (att.email) {
+                // Email attachment - add link with .eml extension
+                const links = shareLinksMap[att.id];
+                const emailName = getAttachmentDisplayName(att);
+                const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
+                if (links?.download || links?.open) {
+                  body += `📧 ${formatFileLink(emlName, links?.download, links?.open, {
+                    question: q.text,
+                    allFiles,
+                    currentIndex: attIdx,
+                    allQA,
+                    contentType: 'message/rfc822'
+                  })}`;
+                }
               }
             });
             body += `</p>\n`;
@@ -3733,12 +3770,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           body += `<p><strong>${qNum}.</strong> ${q.text}</p>\n`;
 
           // Build file list for viewer navigation (if multiple attachments)
+          // Includes both documents and emails
           const allFiles: ViewerFile[] = (q.attachments || [])
-            .filter(att => att.document)
+            .filter(att => att.document || att.email)
             .map(att => {
               const links = shareLinksMap[att.id];
-              const fallback = att.document?.storage_url || att.document?.file_url || '';
-              return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+              if (att.document) {
+                const fallback = att.document?.storage_url || att.document?.file_url || '';
+                return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+              } else {
+                // Email attachment - use .eml extension for proper viewer handling
+                const emailName = getAttachmentDisplayName(att);
+                const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
+                return { name: emlName, downloadUrl: links?.download || '', openUrl: links?.open || '' };
+              }
             });
 
           // Show text response (no extra spacing before attachments)
@@ -3758,6 +3803,21 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     allQA,
                     actualFileName: att.document.file_name
                   })}`;
+                } else if (att.email) {
+                  // Email attachment - add link with .eml extension
+                  const links = shareLinksMap[att.id];
+                  const emailName = getAttachmentDisplayName(att);
+                  const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
+                  if (links?.download || links?.open) {
+                    body += `\n📧 ${formatFileLink(emlName, links?.download, links?.open, {
+                      question: q.text,
+                      answer: q.response,
+                      allFiles,
+                      currentIndex: attIdx,
+                      allQA,
+                      contentType: 'message/rfc822'
+                    })}`;
+                  }
                 }
               });
             }
@@ -3777,6 +3837,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   allQA,
                   actualFileName: att.document.file_name
                 })}`;
+              } else if (att.email) {
+                // Email attachment - add link with .eml extension
+                const links = shareLinksMap[att.id];
+                const emailName = getAttachmentDisplayName(att);
+                const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
+                if (links?.download || links?.open) {
+                  body += `📧 ${formatFileLink(emlName, links?.download, links?.open, {
+                    question: q.text,
+                    allFiles,
+                    currentIndex: attIdx,
+                    allQA,
+                    contentType: 'message/rfc822'
+                  })}`;
+                }
               }
             });
             body += `</p>\n`;
@@ -3974,6 +4048,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       const questionAttachmentsToLink = allQuestionAttachments
         .filter(att => att.document);
 
+      // Also collect email attachments from questions (need share links for response body)
+      const questionEmailsToLink = allQuestionAttachments
+        .filter(att => att.email);
+
       // Separate documents and emails for processing
       // 'both' option includes item in BOTH attach AND link lists
       const documentsToAttach = responseAttachments.filter(a => {
@@ -3996,7 +4074,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       });
 
       const totalToProcess = documentsToAttach.length + emailsToAttach.length +
-        documentsToLink.length + emailsToLink.length + questionAttachmentsToLink.length;
+        documentsToLink.length + emailsToLink.length + questionAttachmentsToLink.length + questionEmailsToLink.length;
       let processed = 0;
 
       // Process documents to attach
@@ -4159,6 +4237,41 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
+      // Process question email attachments to link - generate share links for emails linked to questions
+      for (const att of questionEmailsToLink) {
+        // Skip if we already have a link for this attachment
+        if (shareLinks[att.id]) {
+          processed++;
+          continue;
+        }
+        const emailSubject = att.email?.subject || att.display_name || 'Email';
+        setPrepareEmailStatus(`Creating links for email "${emailSubject}"... (${processed + 1}/${totalToProcess})`);
+        try {
+          // Generate both download and open URLs in parallel
+          const [downloadResponse, openResponse] = await Promise.all([
+            api.post<{ success: boolean; share_url?: string; error?: string }>(
+              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
+            ),
+            api.post<{ success: boolean; share_url?: string; error?: string }>(
+              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`,
+              { open: true }
+            )
+          ]);
+
+          if (downloadResponse?.success && downloadResponse.share_url) {
+            shareLinks[att.id] = {
+              download: downloadResponse.share_url,
+              open: openResponse?.share_url || downloadResponse.share_url
+            };
+          } else {
+            console.warn(`[prepareEmailResponse] No share link for question email ${att.id}: ${downloadResponse?.error || 'unknown error'}`);
+          }
+        } catch (err) {
+          console.error(`Failed to create share link for question email ${att.id}:`, err);
+        }
+        processed++;
+      }
+
       // Show warnings for attachments that couldn't be shared
       if (docsWithoutShareLinks.length > 0) {
         const docList = docsWithoutShareLinks.slice(0, 3).join(', ');
@@ -4177,9 +4290,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       // Store viewer context server-side (avoids URL length limits)
       // Build context with all Q&A and all files (documents AND emails)
       try {
-        // Deduplicate all attachments by ID (documents + emails + question attachments)
+        // Deduplicate all attachments by ID (documents + emails + question attachments + question emails)
         const allAttsMap = new Map<number, typeof documentsToLink[0]>();
-        for (const att of [...documentsToLink, ...emailsToLink, ...questionAttachmentsToLink]) {
+        for (const att of [...documentsToLink, ...emailsToLink, ...questionAttachmentsToLink, ...questionEmailsToLink]) {
           if (!allAttsMap.has(att.id)) {
             allAttsMap.set(att.id, att);
           }

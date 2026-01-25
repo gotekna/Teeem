@@ -446,7 +446,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
             <div>
               <CardTitle className="text-base">Xero Document Sync</CardTitle>
               <CardDescription>
-                Invoice data, PDFs, and SharePoint uploads
+                Invoice data, PDFs, and cloud storage uploads
               </CardDescription>
             </div>
           </div>
@@ -598,7 +598,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
           <div className="p-3 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Cloud className="h-3 w-3" />
-              On SharePoint
+              Uploaded
             </div>
             <div className="text-lg font-semibold text-green-600 dark:text-green-400">
               {data.sharepoint_uploads.toLocaleString()}

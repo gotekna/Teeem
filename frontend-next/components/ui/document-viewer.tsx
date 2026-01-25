@@ -235,6 +235,8 @@ function processMimePart(
   const contentId = extractContentId(headers["content-id"]);
   const transferEncoding = (headers["content-transfer-encoding"] || "").toLowerCase();
 
+  console.log(`[EML Parser] Processing part - Type: ${contentType.substring(0, 50)}, CID: ${contentId || 'none'}, Encoding: ${transferEncoding || 'none'}`);
+
   // Handle nested multipart
   if (isMultipartContentType(contentType)) {
     const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/i);
@@ -254,20 +256,26 @@ function processMimePart(
     htmlPart = isQuotedPrintable(transferEncoding) ? decodeQuotedPrintable(body) : body;
   } else if (isPlainTextContentType(contentType)) {
     textPart = isQuotedPrintable(transferEncoding) ? decodeQuotedPrintable(body) : body;
-  } else if (isImageContentType(contentType) && contentId) {
-    // Extract inline image with Content-ID
-    const mimeType = contentType.split(";")[0].trim().toLowerCase();
-    // Remove all whitespace from base64 data (line breaks, spaces, etc.)
-    const imageData = body.replace(/[\s\r\n]/g, "");
-    // Only add if we have actual data
-    if (imageData.length > 0) {
-      cidMap[contentId] = `data:${mimeType};base64,${imageData}`;
-      // Also add without the @domain part for matching flexibility
-      const atIndex = contentId.indexOf("@");
-      if (atIndex > 0) {
-        cidMap[contentId.substring(0, atIndex)] = `data:${mimeType};base64,${imageData}`;
+  } else if (isImageContentType(contentType)) {
+    // Extract inline image
+    if (!contentId) {
+      console.log(`[EML Parser] Found image (${contentType}) but NO Content-ID - skipping`);
+    } else {
+      const mimeType = contentType.split(";")[0].trim().toLowerCase();
+      // Remove all whitespace from base64 data (line breaks, spaces, etc.)
+      const imageData = body.replace(/[\s\r\n]/g, "");
+      // Only add if we have actual data
+      if (imageData.length > 0) {
+        cidMap[contentId] = `data:${mimeType};base64,${imageData}`;
+        // Also add without the @domain part for matching flexibility
+        const atIndex = contentId.indexOf("@");
+        if (atIndex > 0) {
+          cidMap[contentId.substring(0, atIndex)] = `data:${mimeType};base64,${imageData}`;
+        }
+        console.log(`[EML Parser] Found inline image: ${contentId}, size: ${imageData.length}, type: ${mimeType}`);
+      } else {
+        console.log(`[EML Parser] Found image with CID ${contentId} but body is empty`);
       }
-      console.log(`[EML Parser] Found inline image: ${contentId}, size: ${imageData.length}`);
     }
   }
 
@@ -286,26 +294,34 @@ function parseEmlContent(content: string): {
   body: string;
   isHtml: boolean;
 } {
+  console.log(`[EML Parser] Starting parse, content length: ${content.length}`);
+
   const { headers, body: rawBody } = parseMimePart(content);
   let body = rawBody;
   let isHtml = false;
   const cidMap: Record<string, string> = {}; // Content-ID -> data URL
 
   const contentType = headers["content-type"] || "";
+  console.log(`[EML Parser] Top-level Content-Type: ${contentType}`);
 
   // Handle multipart messages
   if (isMultipartContentType(contentType)) {
     const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/i);
+    console.log(`[EML Parser] Boundary match:`, boundaryMatch ? boundaryMatch[1] : 'NOT FOUND');
     if (boundaryMatch) {
       const boundary = boundaryMatch[1];
       const escapedBoundary = boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const parts = rawBody.split(new RegExp(`--${escapedBoundary}`));
+      console.log(`[EML Parser] Found ${parts.length} parts`);
 
       let htmlPart = "";
       let textPart = "";
 
-      for (const part of parts) {
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
         if (part.trim() === "" || part.trim() === "--") continue;
+        // Log first 200 chars of each part to see what we're working with
+        console.log(`[EML Parser] Part ${i}: ${part.substring(0, 200).replace(/\n/g, '\\n')}`);
         const result = processMimePart(part, cidMap);
         if (result.htmlPart && !htmlPart) htmlPart = result.htmlPart;
         if (result.textPart && !textPart) textPart = result.textPart;
@@ -369,6 +385,8 @@ function parseEmlContent(content: string): {
 
   // Clean up trailing boundary markers
   body = body.replace(/--[^\n]+--\s*$/g, "").trim();
+
+  console.log(`[EML Parser] Final result - isHtml: ${isHtml}, images found: ${Object.keys(cidMap).length}, body length: ${body.length}`);
 
   return {
     from: headers["from"] || "Unknown",
@@ -451,12 +469,15 @@ export function DocumentViewer({
     setEmlData(null);
     setError(null);
 
+    console.log(`[EML Viewer] Fetching EML from: ${url}`);
     fetch(url, { signal: controller.signal })
       .then(res => {
+        console.log(`[EML Viewer] Fetch response status: ${res.status}`);
         if (!res.ok) throw new Error("Failed to fetch email");
         return res.text();
       })
       .then(content => {
+        console.log(`[EML Viewer] Received content, length: ${content.length}, first 500 chars: ${content.substring(0, 500)}`);
         const parsed = parseEmlContent(content);
         setEmlData(parsed);
       })

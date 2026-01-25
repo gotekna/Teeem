@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TabbedSettingsPage } from "@/components/ui/page-wrappers";
+import { TabbedSettingsPage, ScrollablePage } from "@/components/ui/page-wrappers";
 import { useSettingsAccess } from "@/lib/hooks/useSettingsAccess";
 import {
   User,
@@ -68,11 +68,7 @@ export default function SettingsLayout({
 
   // Detail pages show only their own content without settings navigation
   if (isDetailPage) {
-    return (
-      <div className="space-y-6">
-        {children}
-      </div>
-    );
+    return <ScrollablePage>{children}</ScrollablePage>;
   }
 
   return (

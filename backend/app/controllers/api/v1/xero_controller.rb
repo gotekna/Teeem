@@ -1580,32 +1580,42 @@ module Api
           # Breakdown by invoice type (for PDF stage)
           # ============================================
           # SSoT: Breakdown by type using document_type (matches XeroAttachmentSyncService)
-          bills_total = invoices_with_contacts.bills.count
+          # SSoT FIX: Must use same filters as pdf_eligible_invoices (non-draft, non-voided/deleted)
+          # to ensure breakdown totals match the aggregate counts
+          bills_total = pdf_eligible_invoices.bills.count
           bills_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Bill" })
                                            .where(external_invoices: { invoice_type: "bill" })
+                                           .where.not(external_invoices: { status: "draft" })
+                                           .where.not(external_invoices: { status: %w[voided deleted] })
           bills_query = bills_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
           bills_with_pdfs = bills_query.distinct.count("corporate_company_documents.documentable_id")
 
-          sales_total = invoices_with_contacts.sales_invoices.count
+          sales_total = pdf_eligible_invoices.sales_invoices.count
           sales_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Invoice" })
                                            .where(external_invoices: { invoice_type: "sales_invoice" })
+                                           .where.not(external_invoices: { status: "draft" })
+                                           .where.not(external_invoices: { status: %w[voided deleted] })
           sales_query = sales_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
           sales_with_pdfs = sales_query.distinct.count("corporate_company_documents.documentable_id")
 
-          quotes_total = invoices_with_contacts.quotes.count
+          quotes_total = pdf_eligible_invoices.quotes.count
           quotes_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                             .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Invoice" })
                                             .where(external_invoices: { invoice_type: "quote" })
+                                            .where.not(external_invoices: { status: "draft" })
+                                            .where.not(external_invoices: { status: %w[voided deleted] })
           quotes_query = quotes_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
           quotes_with_pdfs = quotes_query.distinct.count("corporate_company_documents.documentable_id")
 
           # Credit notes breakdown
-          credit_notes_total = invoices_with_contacts.where(invoice_type: "credit_note").count
+          credit_notes_total = pdf_eligible_invoices.where(invoice_type: "credit_note").count
           credit_notes_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                                   .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Credit Note" })
                                                   .where(external_invoices: { invoice_type: "credit_note" })
+                                                  .where.not(external_invoices: { status: "draft" })
+                                                  .where.not(external_invoices: { status: %w[voided deleted] })
           credit_notes_query = credit_notes_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
           credit_notes_with_pdfs = credit_notes_query.distinct.count("corporate_company_documents.documentable_id")
 
@@ -1685,10 +1695,17 @@ module Api
           end
 
           # Stage 3 blocker info
+          # SSoT: Get storage provider name from StorageConfiguration
+          storage_provider_name = case StorageConfiguration.instance&.provider_type
+                                  when "s3_compatible" then "Wasabi"
+                                  when "sharepoint" then "SharePoint"
+                                  when "local" then "Local Storage"
+                                  else "Cloud Storage"
+                                  end
           stage3_blocker = if sharepoint_pending > 0
             {
-              reason: "Uploading to SharePoint",
-              detail: "#{sharepoint_pending} PDFs queued for SharePoint upload",
+              reason: "Uploading to #{storage_provider_name}",
+              detail: "#{sharepoint_pending} PDFs queued for upload",
               pending_count: sharepoint_pending
             }
           else
