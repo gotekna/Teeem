@@ -1103,8 +1103,8 @@ class SyncedEmail < ApplicationRecord
   end
 
   # Auto-link to SM Task if another email in this conversation thread is already linked
-  # This ensures email thread replies automatically appear in the task's Response Files
-  # (e.g., user sends email from task, recipient replies, reply auto-links to same task)
+  # Thread replies appear in the task's Emails section (not Response Files)
+  # Only emails SENT from the task should have category: response
   def inherit_task_from_thread
     return if conversation_id.blank?  # No thread to inherit from
 
@@ -1119,7 +1119,7 @@ class SyncedEmail < ApplicationRecord
     # Find tasks that have any of these emails attached
     task_attachments = SmTaskAttachment
       .where(attachable_type: "SyncedEmail", attachable_id: thread_email_ids)
-      .select(:sm_task_id, :category, :added_by_id)
+      .select(:sm_task_id, :added_by_id)
       .distinct
 
     return if task_attachments.empty?
@@ -1137,8 +1137,8 @@ class SyncedEmail < ApplicationRecord
         sm_task_id: ta.sm_task_id,
         attachable: self,
         attachment_type: "email",
-        category: ta.category || "response",  # Inherit category, default to response
-        added_by_id: ta.added_by_id  # Inherit who added the original
+        category: "info",  # Incoming emails are always info, not response
+        added_by_id: ta.added_by_id
       )
 
       Rails.logger.info "[SyncedEmail] Auto-linked email #{id} to task #{ta.sm_task_id} via thread inheritance"
