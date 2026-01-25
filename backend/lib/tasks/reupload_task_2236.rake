@@ -57,8 +57,22 @@ namespace :task2236 do
       exit 1
     end
 
+    # Set tenant context - get from Task #2236
+    task = SmTask.find_by(id: 2236)
+    unless task&.tenant_id
+      puts "ERROR: Task #2236 not found or has no tenant"
+      exit 1
+    end
+    tenant = Tenant.find_by(id: task.tenant_id)
+    unless tenant
+      puts "ERROR: Tenant not found for tenant_id #{task.tenant_id}"
+      exit 1
+    end
+    ActsAsTenant.current_tenant = tenant
+
     puts "=" * 60
     puts "Re-uploading missing files for Task #2236"
+    puts "Tenant: #{tenant.name}"
     puts "Source folder: #{folder}"
     puts "=" * 60
     puts ""
