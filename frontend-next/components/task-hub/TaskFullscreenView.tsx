@@ -304,7 +304,33 @@ function SortableQuestionItem({
   };
 
   if (isHeader) {
-    // Header rendering
+    // Collapsed header: thin horizontal strip with vertical text
+    if (isCollapsed) {
+      return (
+        <div
+          ref={setNodeRef}
+          style={style}
+          data-item-id={item.id}
+          className={cn(
+            "flex items-center gap-2 h-8 px-2 bg-muted/50 hover:bg-muted/80 cursor-pointer transition-all rounded-none border-l-2 border-muted-foreground/30",
+            isDragging && "shadow-lg opacity-50"
+          )}
+          onClick={() => onToggleCollapse?.()}
+        >
+          <div {...attributes} {...listeners} className="cursor-grab touch-none" onClick={(e) => e.stopPropagation()}>
+            <GripVertical className="h-3 w-3 text-muted-foreground" />
+          </div>
+          <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+          <span className="text-[11px] font-mono text-muted-foreground">{questionNumber}</span>
+          <span className="text-xs text-muted-foreground truncate flex-1">{item.text}</span>
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
+            {childCount}
+          </Badge>
+        </div>
+      );
+    }
+
+    // Expanded header rendering
     return (
       <div
         ref={setNodeRef}
@@ -321,21 +347,44 @@ function SortableQuestionItem({
         )}
         <div
           className={cn(
-            "flex items-center gap-2 p-2 bg-muted/50 rounded-md font-medium text-sm transition-all",
+            "transition-all space-y-1",
             isDragging && "shadow-lg opacity-50",
-            isDropTarget && "ring-2 ring-primary bg-primary/20 scale-[1.02] shadow-lg"
+            isDropTarget && "ring-2 ring-primary bg-primary/10 rounded-md scale-[1.02] shadow-lg p-1"
           )}
         >
-          <div {...attributes} {...listeners} className="cursor-grab touch-none">
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <button onClick={onToggleCollapse} className="shrink-0">
-            {isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
+          {/* Header row 1: controls only */}
+          <div className="flex items-center gap-1.5">
+            <div {...attributes} {...listeners} className="cursor-grab touch-none">
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <button onClick={onToggleCollapse} className="shrink-0">
               <ChevronDown className="h-4 w-4" />
+            </button>
+            {isDropTarget && (
+              <span className="text-[11px] text-primary font-semibold bg-primary/20 px-2 py-0.5 rounded-none animate-pulse">
+                Drop here
+              </span>
             )}
-          </button>
+            <div className="flex-1" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-1.5 text-[11px] shrink-0"
+              onClick={onAddChild}
+              title="Add question to this header"
+            >
+              + Add
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 shrink-0"
+              onClick={onRemove}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+          {/* Header row 2: number + text (full width) */}
           {editingItemId === item.id ? (
             <Textarea
               value={editingItemText}
@@ -351,52 +400,21 @@ function SortableQuestionItem({
                   setEditingItemText('');
                 }
               }}
-              className="text-sm font-medium flex-1 min-h-[80px] w-full resize-y p-3 border-2 border-primary/50 rounded-md shadow-sm"
+              className="text-sm font-medium w-full min-h-[40px] resize-y p-2 border-2 border-primary/50 rounded-none shadow-sm"
               autoFocus
               spellCheck={true}
-              rows={Math.max(2, Math.ceil(editingItemText.length / 40))}
             />
           ) : (
-            <span
-              className="flex-1 cursor-pointer flex items-center gap-2"
+            <div
+              className="cursor-pointer text-base font-semibold leading-snug"
               onClick={() => onEdit(item.text)}
             >
               {questionNumber && (
-                <Badge variant="secondary" className="shrink-0 text-xs font-mono px-1.5">
-                  {questionNumber}
-                </Badge>
+                <span className="font-mono text-muted-foreground mr-1.5">{questionNumber}</span>
               )}
               {item.text}
-            </span>
+            </div>
           )}
-          {isCollapsed && childCount > 0 && !isDropTarget && (
-            <span className="text-xs text-muted-foreground">
-              ({childCount} questions)
-            </span>
-          )}
-          {isDropTarget && (
-            <span className="text-xs text-primary font-semibold bg-primary/20 px-2 py-0.5 rounded animate-pulse">
-              Drop here
-            </span>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs shrink-0"
-            onClick={onAddChild}
-            title="Add question to this header"
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            Add
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0 shrink-0"
-            onClick={onRemove}
-          >
-            <X className="h-3 w-3" />
-          </Button>
         </div>
         {/* Drop zone indicator below header when hovering */}
         {isDropTarget && (
@@ -482,7 +500,7 @@ function SortableQuestionItem({
       style={style}
       data-item-id={item.id}
       className={cn(
-        "p-2 rounded-md border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 text-sm space-y-1 transition-all",
+        "p-2 rounded-md border border-border bg-background text-sm space-y-1 transition-all",
         isDragging && "shadow-lg",
         isFileDropTarget && "ring-2 ring-green-500 ring-offset-1 bg-green-50 dark:bg-green-950/30"
       )}
@@ -503,12 +521,6 @@ function SortableQuestionItem({
             className="shrink-0 data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
             title="Include Q&A in response email"
           />
-        )}
-        <HelpCircle className="h-4 w-4 text-blue-500 dark:text-blue-400 shrink-0" />
-        {questionNumber && (
-          <Badge variant="secondary" className="shrink-0 text-xs font-mono px-1.5">
-            {questionNumber}
-          </Badge>
         )}
         <div className="flex-1" />
         {/* Hidden file input for click-to-attach */}
@@ -564,6 +576,11 @@ function SortableQuestionItem({
           className="cursor-pointer text-sm leading-snug"
           onClick={() => onEdit(item.text)}
         >
+          {questionNumber && (
+            <Badge variant="secondary" className="text-xs font-mono px-1.5 mr-1.5 align-text-top">
+              {questionNumber}
+            </Badge>
+          )}
           {item.text}
         </div>
       )}
@@ -4676,28 +4693,47 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       {/* 4-Column Content */}
       <div className="flex-1 overflow-auto">
         <div
-          className="grid gap-6 p-6 min-h-full transition-all duration-200"
+          className="grid p-6 h-full transition-all duration-200"
           style={{
+            gap: '8px',
+            alignItems: 'stretch',
             gridTemplateColumns: [
-              columnsCollapsed.description ? '48px' : '1fr',
-              columnsCollapsed.questions ? '48px' : '1fr',
-              columnsCollapsed.actions ? '48px' : '1fr',
-              columnsCollapsed.attachments ? '48px' : '1fr',
+              columnsCollapsed.description ? '40px' : '1fr',
+              columnsCollapsed.questions ? '40px' : '1fr',
+              columnsCollapsed.actions ? '40px' : '1fr',
+              columnsCollapsed.attachments ? '40px' : '1fr',
             ].join(' ')
           }}
         >
           {/* Column 1: Description */}
-          <div className={cn("flex flex-col gap-4", columnsCollapsed.description && "overflow-hidden")}>
+          {columnsCollapsed.description ? (
+            // Collapsed: clean vertical strip
             <div
-              className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors mb-2"
+              className="flex flex-col items-center rounded-lg border border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors w-10 min-w-10 h-full"
               onClick={() => toggleColumn('description')}
             >
-              {columnsCollapsed.description ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">Description</span>
+              <div className="p-2">
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div
+                className="flex-1 flex items-center justify-start pt-2 text-muted-foreground"
+                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+              >
+                <span className="text-xs font-medium whitespace-nowrap">Description</span>
+              </div>
             </div>
-            {!columnsCollapsed.description && (
-              <>
+          ) : (
+            <div className="flex flex-col">
+              {/* Expanded header - clear column name with border */}
+              <div className="h-10 flex items-center justify-between border-b border-border mb-3">
+                <div
+                  className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-2 transition-colors"
+                  onClick={() => toggleColumn('description')}
+                >
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">Description</span>
+                </div>
+              </div>
                 {/* Email Source Header (if task was created from email) */}
                 {emailSourceData && (
                   <div className="border rounded-md overflow-hidden">
@@ -4944,15 +4980,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 </Button>
               )}
             </div>
-              </>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Column 2: Questions */}
           <div
             className={cn(
               "flex flex-col h-full relative",
-              columnsCollapsed.questions && "overflow-hidden",
+              columnsCollapsed.questions && "items-center",
               dragTargetColumn === 'questions' && "after:absolute after:inset-0 after:border-2 after:border-dashed after:border-green-500 after:bg-green-500/5 after:rounded-lg after:pointer-events-none"
             )}
             onDragOver={handleQuestionsDragOver}
@@ -4967,22 +5002,41 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 </div>
               </div>
             )}
-            <div className="flex items-center justify-between mb-2 shrink-0">
+            {columnsCollapsed.questions ? (
+              // Collapsed: clean vertical strip
               <div
-                className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
+                className="flex flex-col items-center rounded-lg border border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors w-10 min-w-10 h-full"
                 onClick={() => toggleColumn('questions')}
               >
-                {columnsCollapsed.questions ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Questions</span>
-                <Badge variant="secondary" className="text-xs">{questionItems.length + headerItems.length}</Badge>
+                <div className="p-2">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div
+                  className="flex-1 flex items-center justify-start pt-2 text-muted-foreground"
+                  style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                >
+                  <span className="text-xs font-medium whitespace-nowrap">Questions</span>
+                </div>
+                <div className="p-2">
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0">{questionItems.length + headerItems.length}</Badge>
+                </div>
               </div>
-              {!columnsCollapsed.questions && (
+            ) : (
+              // Expanded header - clear column name with border
+              <div className="h-10 flex items-center justify-between border-b border-border mb-3">
+                <div
+                  className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-2 transition-colors"
+                  onClick={() => toggleColumn('questions')}
+                >
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">Questions</span>
+                  <Badge variant="secondary" className="text-xs">{questionItems.length + headerItems.length}</Badge>
+                </div>
                 <div className="flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-xs"
+                    className="h-6 text-xs text-muted-foreground"
                     onClick={(e) => { e.stopPropagation(); setShowAddHeader(!showAddHeader); }}
                   >
                     + Header
@@ -4990,18 +5044,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-xs"
+                    className="h-6 text-xs text-muted-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       setNewActionItemType('question');
                       setShowBulkPaste(true);
                     }}
                   >
-                    + Paste List
+                    + Paste
                   </Button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {!columnsCollapsed.questions && (
               <>
@@ -5419,32 +5473,51 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           </div>
 
           {/* Column 3: Actions */}
-          <div className={cn("flex flex-col h-full", columnsCollapsed.actions && "overflow-hidden")}>
-            <div className="flex items-center justify-between mb-2 shrink-0">
+          <div className={cn("flex flex-col h-full", columnsCollapsed.actions && "items-center")}>
+            {columnsCollapsed.actions ? (
+              // Collapsed: clean vertical strip
               <div
-                className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
+                className="flex flex-col items-center rounded-lg border border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors w-10 min-w-10 h-full"
                 onClick={() => toggleColumn('actions')}
               >
-                {columnsCollapsed.actions ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                <CheckSquare className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Actions</span>
-                <Badge variant="secondary" className="text-xs">{actionItems.length}</Badge>
+                <div className="p-2">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div
+                  className="flex-1 flex items-center justify-start pt-2 text-muted-foreground"
+                  style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                >
+                  <span className="text-xs font-medium whitespace-nowrap">Actions</span>
+                </div>
+                <div className="p-2">
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0">{actionItems.length}</Badge>
+                </div>
               </div>
-              {!columnsCollapsed.actions && (
+            ) : (
+              // Expanded header - clear column name with border
+              <div className="h-10 flex items-center justify-between border-b border-border mb-3">
+                <div
+                  className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-2 transition-colors"
+                  onClick={() => toggleColumn('actions')}
+                >
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">Actions</span>
+                  <Badge variant="secondary" className="text-xs">{actionItems.length}</Badge>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-xs"
+                  className="h-6 text-xs text-muted-foreground"
                   onClick={(e) => {
                     e.stopPropagation();
                     setNewActionItemType('action');
                     setShowBulkPaste(true);
                   }}
                 >
-                  + Paste List
+                  + Paste
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
 
             {!columnsCollapsed.actions && (
               <>
@@ -5584,7 +5657,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           <div
             className={cn(
               "flex flex-col h-full relative",
-              columnsCollapsed.attachments && "overflow-hidden",
+              columnsCollapsed.attachments && "items-center",
               isDragging && "after:absolute after:inset-0 after:border-2 after:border-dashed after:border-primary after:bg-primary/5 after:rounded-lg after:pointer-events-none"
             )}
             onDragOver={handleDragOver}
@@ -5601,26 +5674,42 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             )}
 
             {/* Header with + Add button */}
-            <div className="flex items-center justify-between mb-2 shrink-0">
+            {columnsCollapsed.attachments ? (
+              // Collapsed: clean vertical strip
               <div
-                className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
+                className="flex flex-col items-center rounded-lg border border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors w-10 min-w-10 h-full"
                 onClick={() => toggleColumn('attachments')}
               >
-                {columnsCollapsed.attachments ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                <Paperclip className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Attachments</span>
+                <div className="p-2">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div
+                  className="flex-1 flex items-center justify-start pt-2 text-muted-foreground"
+                  style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                >
+                  <span className="text-xs font-medium whitespace-nowrap">Attachments</span>
+                </div>
               </div>
-              {!columnsCollapsed.attachments && (
+            ) : (
+              // Expanded header - clear column name with border
+              <div className="h-10 flex items-center justify-between border-b border-border mb-3">
+                <div
+                  className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded-md py-1 px-2 transition-colors"
+                  onClick={() => toggleColumn('attachments')}
+                >
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-semibold">Attachments</span>
+                </div>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="h-6 text-xs"
+                  className="h-6 text-xs text-muted-foreground"
                   onClick={(e) => { e.stopPropagation(); setShowAttachmentPicker(!showAttachmentPicker); }}
                 >
                   {showAttachmentPicker ? 'Close' : '+ Add'}
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
 
             {!columnsCollapsed.attachments && (
               <>
