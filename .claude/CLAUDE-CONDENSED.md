@@ -115,7 +115,7 @@ When I say something seems impossible, that's your cue to ultrathink harder. The
 | **Column Types** | `TEEEM_DOCS/GOLD_STANDARD_TABLE.md` | Different definitions in code |
 | **Microsoft Creds** | `MicrosoftCredential` model | Legacy models (`OrganizationMicrosoftAppCredential`, etc.) |
 | **Xero Sync** | Webhooks (live) | Scheduled sync jobs |
-| **SharePoint Paths** | `CorporateCompanySetting.sharepoint_full_path(:scope)` | Hardcoded paths |
+| **Storage Config** | `StorageConfiguration.instance` | Hardcoded paths or provider-specific code |
 | **Timezones** | `CompanySetting.in_company_timezone {}` | Raw `Date.today` or `Time.now` |
 
 ### Frontend SSoT Constant Files
@@ -260,12 +260,15 @@ MicrosoftCredential.active.first                  # ❌ DANGEROUS - no org conte
 
 ### Document Storage (StorageConfiguration SSoT)
 ```ruby
+# Check current provider first
+StorageConfiguration.instance.provider_type  # → s3_compatible | sharepoint | local
+
+# Use SSoT for all paths
 StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001")  # ✅ SSoT
-"/Shared Documents/Jobs/J-001"  # ❌ Hardcoded (path differs by provider)
-"/"  # S3: root_path = "/"
-"/Shared Documents"  # SharePoint: root_path = "/Shared Documents"
+"/Jobs/J-001"  # ❌ Hardcoded (path format varies by provider)
 ```
 **CRITICAL:** Frontend NEVER handles paths - uses scopes, backend resolves.
+**ALWAYS:** Check `provider_type` before assuming storage behavior.
 
 ---
 

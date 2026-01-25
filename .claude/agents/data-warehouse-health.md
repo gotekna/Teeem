@@ -49,7 +49,7 @@ Performs comprehensive health checks across all central data stores in TEEEM: Em
 - Monitor storage health (ActiveStorage blobs)
 - Track email classification and search index health
 - Measure email-to-contact match rates
-- Monitor SSoT architecture health (direction, owner, SharePoint sync)
+- Monitor SSoT architecture health (direction, owner, external storage sync)
 - Track AI summarization coverage
 - Monitor spam detection and cleanup status
 
@@ -206,14 +206,16 @@ SELECT 'PDFs needing thumbnail', COUNT(*) FROM active_storage_blobs b
 
 #### DOC-SPEED-003: Remote Storage Latency
 ```sql
--- Documents stored on SharePoint (may be slower)
-SELECT 'Docs on SharePoint', COUNT(*) FROM company_documents
-  WHERE sharepoint_file_id IS NOT NULL;
+-- Check storage provider from StorageConfiguration.instance.provider_type
+-- Queries may vary based on configured provider (s3_compatible, sharepoint, local)
 
--- Documents on local storage (faster)
-SELECT 'Docs on local/S3', COUNT(*) FROM company_documents cd
-  JOIN active_storage_attachments a ON a.record_type = 'CompanyDocument' AND a.record_id = cd.id
-  WHERE cd.sharepoint_file_id IS NULL;
+-- Documents with external storage reference
+SELECT 'Docs on external storage', COUNT(*) FROM company_documents
+  WHERE storage_blob_id IS NOT NULL;
+
+-- Documents on local ActiveStorage
+SELECT 'Docs on local/ActiveStorage', COUNT(*) FROM company_documents cd
+  JOIN active_storage_attachments a ON a.record_type = 'CompanyDocument' AND a.record_id = cd.id;
 ```
 
 #### DOC-SPEED-004: API Endpoint Speed (Manual Check)
@@ -246,7 +248,7 @@ Frontend checks for slow PDF rendering:
 |-------|--------|-----|
 | PDF > 10MB | 5-10s load | Compress or split large PDFs |
 | No thumbnail | Slow list view | Generate preview on upload |
-| SharePoint-only | Network latency | Cache locally after first view |
+| External storage | Network latency | Cache locally after first view |
 | No lazy loading | Full PDF in memory | Use PDF.js with page-level loading |
 | No CDN | Slow download | Serve via CloudFront/CDN |
 
@@ -271,9 +273,9 @@ SELECT 'Received emails', COUNT(*) FROM email_warehouse WHERE direction = 'recei
 SELECT 'Emails missing SSoT owner', COUNT(*) FROM email_warehouse WHERE ssot_owner_id IS NULL;
 SELECT 'Emails with owner', COUNT(*) FROM email_warehouse WHERE ssot_owner_id IS NOT NULL;
 
--- SharePoint sync status
-SELECT 'Emails synced to SharePoint', COUNT(*) FROM email_warehouse WHERE sharepoint_file_id IS NOT NULL;
-SELECT 'Emails pending SharePoint sync', COUNT(*) FROM email_warehouse WHERE sharepoint_file_id IS NULL;
+-- External storage sync status (check StorageConfiguration.instance.provider_type)
+SELECT 'Emails synced to external storage', COUNT(*) FROM email_warehouse WHERE storage_blob_id IS NOT NULL;
+SELECT 'Emails pending storage sync', COUNT(*) FROM email_warehouse WHERE storage_blob_id IS NULL;
 
 -- Body preview status
 SELECT 'Emails with body_preview', COUNT(*) FROM email_warehouse WHERE body_preview IS NOT NULL;
@@ -313,7 +315,7 @@ SELECT 'Recipients unlinked', COUNT(*) FROM email_recipients WHERE user_id IS NU
 -- Email attachments table health
 SELECT 'Email attachments total', COUNT(*) FROM email_attachments;
 SELECT 'Attachments linked to company_documents', COUNT(*) FROM email_attachments WHERE company_document_id IS NOT NULL;
-SELECT 'Attachments synced to SharePoint', COUNT(*) FROM email_attachments WHERE sharepoint_file_id IS NOT NULL;
+SELECT 'Attachments synced to storage', COUNT(*) FROM email_attachments WHERE storage_blob_id IS NOT NULL;
 ```
 
 ## Pass/Fail Criteria
@@ -530,7 +532,7 @@ Contact.where(mobile_phone: [nil, ''])
 | **SSoT Metrics** | | |
 | Emails with direction set | 100% | - |
 | Emails with SSoT owner | 100% | - |
-| Emails synced to SharePoint | > 90% | 0% |
+| Emails synced to storage | > 90% | - |
 | Emails with body_preview | 100% | - |
 | Emails with AI summary | > 80% (business) | - |
 | Spam deleted from Outlook | 100% | - |

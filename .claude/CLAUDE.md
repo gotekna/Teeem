@@ -571,26 +571,26 @@ cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 - Email: `robert@tekna.com.au`
 - Password: `Wisdom50-50`
 
-## 🔴 Microsoft 365 (Auth vs Config Separation)
+## 🔴 Storage Provider Authentication
 
-**MicrosoftCredential = Auth ONLY.** Storage config lives in StorageConfiguration.
+**Credential models = Auth ONLY.** Storage config lives in StorageConfiguration.
+
+| Provider | Credential Model | Config SSoT |
+|----------|------------------|-------------|
+| S3/Wasabi | `S3CompatibleCredential` | `StorageConfiguration.instance` |
+| SharePoint | `MicrosoftCredential` | `StorageConfiguration.instance` |
+| Local | None (filesystem) | `StorageConfiguration.instance` |
 
 ```ruby
-# Auth (tokens)
-MicrosoftCredential.sharepoint_credential  # Gets auth token
-MicrosoftAppGraphClient.for_org(organization)
+# Auth (tokens/keys) - separate per provider
+S3CompatibleCredential.active             # S3/Wasabi auth
+MicrosoftCredential.sharepoint_credential # SharePoint auth
 
-# Config (paths, site_id, drive_id)
-StorageConfiguration.instance  # SSoT for all storage config
+# Config (paths, provider settings) - ALWAYS from SSoT
+StorageConfiguration.instance  # THE ONE source for all storage config
 ```
 
-| Need | SSoT | NOT This |
-|------|------|----------|
-| Auth token | `MicrosoftCredential.sharepoint_credential` | - |
-| Site ID / Drive ID | `StorageConfiguration.instance.site_id` | `credential.sharepoint_site_id` ❌ REMOVED |
-| Storage paths | `StorageConfiguration.instance.path_for(:scope)` | `CorporateCompanySetting.sharepoint_*` ❌ DEPRECATED |
-
-**UI Term:** "SharePoint" (never "OneDrive" to users)
+**Check current provider:** `StorageConfiguration.instance.provider_type`
 
 ## 🔴 Xero (SSoT: Webhooks)
 
@@ -611,8 +611,7 @@ StorageConfiguration.instance.path_for(:jobs)      # → "Jobs"
 StorageConfiguration.instance.path_for(:contacts)  # → "Contacts"
 StorageConfiguration.instance.path_for(:people)    # → "People"
 StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Plans")
-# → SharePoint: "/Shared Documents/Jobs/J-001/Plans"
-# → S3/Wasabi:  "/Jobs/J-001/Plans" (root_path = "/" for S3)
+# → Full path varies by provider (handled internally)
 ```
 
 ### Architecture (Provider-Agnostic)
@@ -622,19 +621,23 @@ StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Pl
 │                    StorageConfiguration                      │
 │                      (THE ONE SSoT)                          │
 ├─────────────────────────────────────────────────────────────┤
-│  provider_type:    sharepoint | s3_compatible | local       │
+│  provider_type:    s3_compatible | sharepoint | local       │
 │  status:           connected | disconnected | error          │
-│  connection_config: { site_id, drive_id } (JSONB)           │
-│  root_path:        "/" (S3) or "/Shared Documents" (SP)     │
+│  connection_config: { provider-specific } (JSONB)           │
+│  root_path:        Provider-specific root                    │
 │  paths:            { jobs: "Jobs", contacts: "Contacts" }   │
 │  templates:        { job: "{{JobCode}}/{{Category}}" }      │
 └─────────────────────────────────────────────────────────────┘
-         ↓ provides auth (depends on provider)
+         ↓ auth depends on provider_type
 ┌─────────────────────────────────────────────────────────────┐
-│  MicrosoftCredential (SharePoint auth)                       │
 │  S3CompatibleCredential (S3/Wasabi auth)                     │
+│  MicrosoftCredential (SharePoint auth)                       │
+│  (none for local)                                            │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**DocumentProviderAware concern:** Use `include DocumentProviderAware` in services to get
+provider-agnostic file operations (upload, download, list, delete).
 
 **CRITICAL (Jan 2026):** Frontend NEVER knows about paths.
 - Frontend sends: `{ scope: "emails", tokens: { mailbox: "inbox@tekna.com.au" } }`
@@ -645,13 +648,15 @@ StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Pl
 
 | Need | SSoT | ❌ NEVER |
 |------|------|----------|
+| Current provider | `StorageConfiguration.instance.provider_type` | Guessing/assuming |
 | Base path for scope | `StorageConfiguration.instance.path_for(:contacts)` | `"Contacts"` hardcoded |
 | Full resolved path | `StorageConfiguration.instance.resolve_path(:job, ...)` | Manual string building |
-| Site ID | `StorageConfiguration.instance.site_id` | `credential.sharepoint_site_id` |
-| Drive ID | `StorageConfiguration.instance.drive_id` | `credential.sharepoint_drive_id` |
-| Root path | `StorageConfiguration.instance.root_path` | `"/"` or `"/Shared Documents"` hardcoded |
+| Connection config | `StorageConfiguration.instance.connection_config` | Direct credential access |
+| Root path | `StorageConfiguration.instance.root_path` | Hardcoded paths |
 | Provider type | `StorageConfiguration.instance.provider_type` | Checking multiple sources |
 | Frontend path handling | Backend resolves, frontend uses scopes | Hardcoding paths in frontend |
+
+**ALWAYS check provider_type before assuming storage behavior.**
 
 ### Available Scopes
 
@@ -667,12 +672,10 @@ StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Pl
 ### Deprecated (DO NOT USE)
 
 ```ruby
-# ❌ REMOVED from MicrosoftCredential (Jan 2026):
-credential.sharepoint_site_id    # Use StorageConfiguration.instance.site_id
-credential.sharepoint_drive_id   # Use StorageConfiguration.instance.drive_id
-credential.sharepoint_drive_name # Use StorageConfiguration.instance.drive_name
-credential.drive_id              # Use StorageConfiguration.instance.drive_id
-credential.drive_name            # Use StorageConfiguration.instance.drive_name
+# ❌ REMOVED - Direct credential config access:
+credential.sharepoint_site_id    # Use StorageConfiguration.instance
+credential.sharepoint_drive_id   # Use StorageConfiguration.instance
+# All storage config is now in StorageConfiguration, not credentials
 
 # ❌ DEPRECATED in CorporateCompanySetting:
 CorporateCompanySetting.sharepoint_full_path(:jobs)  # Use StorageConfiguration
@@ -681,10 +684,10 @@ CorporateCompanySetting.contact_documents_path       # Use StorageConfiguration.
 
 ### Admin UI
 
-**Configure at:** `/admin/system/entity-config/sharepoint_config`
+**Configure at:** `/settings/company/connections` (Storage Provider tab)
 - Edit paths (Jobs, Contacts, People, etc.)
 - Edit path templates with drag-and-drop tokens
-- View SharePoint connection status
+- View storage provider connection status
 
 ## 🔴 File Warehouse (Phase 3: Universal Documents)
 
