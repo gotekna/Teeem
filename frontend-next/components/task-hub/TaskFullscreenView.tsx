@@ -1197,6 +1197,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [attachmentEmailOptions, setAttachmentEmailOptions] = useState<Record<number, 'attach' | 'link' | 'both' | 'none'>>({});
   // Store share links created for 'link' option - both download (attachment) and open (inline) URLs
   const [shareLinksMap, setShareLinksMap] = useState<Record<number, { download: string; open: string }>>({});
+  // Viewer context ID - stored server-side to avoid URL length limits
+  // When set, formatFileLink uses /view/ctx/{id} instead of encoding context in URL
+  const viewerContextIdRef = useRef<string | null>(null);
   // Download All URL - use both state and ref for synchronous access in generateResponseBody
   const [downloadAllShareUrl, setDownloadAllShareUrl] = useState<string | null>(null);
   const downloadAllShareUrlRef = useRef<string | null>(null);
@@ -3557,8 +3560,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           // Presigned S3 URLs can be 300+ chars each, so fall back for long URLs
           if (enhancedUrl.length <= 1800) {
             viewerUrl = enhancedUrl;
+          } else if (viewerContextIdRef.current) {
+            // Use server-stored context (preserves Q&A sidebar)
+            const idx = context.currentIndex ?? 0;
+            viewerUrl = `https://teeem.vercel.app/view/ctx/${viewerContextIdRef.current}?idx=${idx}`;
           } else {
-            // Fallback: simple URL for this file only (pass type hint for blob URLs without extension)
+            // Last resort: simple URL for this file only (pass type hint for blob URLs without extension)
             const viewerParams = new URLSearchParams({
               url: openUrl,
               name: fileName,
@@ -4126,11 +4133,53 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         });
       }
 
-      setPrepareEmailStatus('Opening email...');
+      setPrepareEmailStatus('Preparing viewer context...');
 
       // Store the share links and file attachments
       setShareLinksMap(shareLinks);
       setEmailFileAttachments(filesToAttach);
+
+      // Store viewer context server-side (avoids URL length limits)
+      // Build context with all Q&A and all files
+      try {
+        const allDocAtts = [...documentsToLink, ...questionAttachmentsToLink];
+        const viewerFiles = allDocAtts.map(att => {
+          const links = shareLinks[att.id];
+          const fallback = att.document?.storage_url || att.document?.file_url || '';
+          return {
+            name: att.display_name || att.document?.display_name || att.document?.file_name || 'Document',
+            downloadUrl: links?.download || fallback,
+            openUrl: links?.open || fallback
+          };
+        });
+
+        // Build Q&A list from included questions
+        const includedQs = questionItems.filter(q =>
+          q.include_in_response && (q.response || (q.attachments && q.attachments.length > 0))
+        );
+        const viewerQA = includedQs.map(q => ({
+          question: q.text,
+          answer: q.response || undefined
+        }));
+
+        // Store context via API
+        const contextResponse = await api.post<{ success: boolean; id?: string; error?: string }>(
+          '/api/v1/viewer_contexts',
+          { context: { files: viewerFiles, allQA: viewerQA, currentIndex: 0 } }
+        );
+
+        if (contextResponse?.success && contextResponse?.id) {
+          viewerContextIdRef.current = contextResponse.id;
+        } else {
+          console.warn('[prepareEmailResponse] Failed to store viewer context:', contextResponse?.error);
+          viewerContextIdRef.current = null;
+        }
+      } catch (err) {
+        console.error('[prepareEmailResponse] Failed to store viewer context:', err);
+        viewerContextIdRef.current = null;
+      }
+
+      setPrepareEmailStatus('Opening email...');
 
       // Generate "Download All" zip link if there are multiple documents to link
       // Note: questionAttachmentsToLink already filtered to only include items with documents

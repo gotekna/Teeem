@@ -86,6 +86,10 @@ Rails.application.routes.draw do
       post "documents/run_migration", to: "document_storage#run_migration"
       post "documents/upload_signed_version", to: "document_storage#upload_signed_version"
 
+      # Viewer Context Storage (for document viewer with Q&A sidebar)
+      # Stores viewer context server-side to avoid URL length limits
+      resources :viewer_contexts, only: [:create, :show]
+
       # All Documents - unified view across JobDocument, CorporateCompanyDocument, PeopleDocument
       get "documents/all", to: "documents#all"
 
