@@ -3463,9 +3463,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     // For external email recipients - makes actions more discoverable
     // downloadUrl = presigned URL with Content-Disposition: attachment (forces download)
     // openUrl = presigned URL with Content-Disposition: inline (browser displays file)
+    // Open link uses the public viewer page (/view) which shows proper filename in browser tab
     const formatFileLink = (fileName: string, downloadUrl?: string, openUrl?: string): string => {
       if (downloadUrl && openUrl) {
-        return `<a href="${downloadUrl}">${fileName}</a> · <a href="${downloadUrl}" style="color: #666; font-size: 0.9em;">Download</a> · <a href="${openUrl}" target="_blank" style="color: #666; font-size: 0.9em;">Open</a>`;
+        // Build viewer page URL with params: url (for inline viewing), name (for tab title), download (for download button)
+        const viewerParams = new URLSearchParams({
+          url: openUrl,
+          name: fileName,
+          download: downloadUrl
+        });
+        // Use teeem.vercel.app for production viewer (public, no auth required)
+        const viewerUrl = `https://teeem.vercel.app/view?${viewerParams.toString()}`;
+        return `<a href="${downloadUrl}">${fileName}</a> · <a href="${downloadUrl}" style="color: #666; font-size: 0.9em;">Download</a> · <a href="${viewerUrl}" target="_blank" style="color: #666; font-size: 0.9em;">Open</a>`;
       } else if (downloadUrl) {
         return `<a href="${downloadUrl}">${fileName}</a>`;
       }
