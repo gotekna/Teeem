@@ -210,6 +210,17 @@ function isQuotedPrintable(encoding: string): boolean {
 }
 
 /**
+ * Extract and normalize Content-ID from header value
+ * Handles formats like: <image001.jpg@01DAE8A3.1F7B3200>
+ */
+function extractContentId(headerValue: string | undefined): string | null {
+  if (!headerValue) return null;
+  // Remove angle brackets and trim whitespace
+  const cid = headerValue.replace(/[<>]/g, "").trim();
+  return cid || null;
+}
+
+/**
  * Process a MIME part and extract content/images
  */
 function processMimePart(
@@ -221,8 +232,8 @@ function processMimePart(
 
   const { headers, body } = parseMimePart(partContent);
   const contentType = headers["content-type"] || "";
-  const contentId = headers["content-id"]?.replace(/[<>]/g, "");
-  const transferEncoding = headers["content-transfer-encoding"] || "";
+  const contentId = extractContentId(headers["content-id"]);
+  const transferEncoding = (headers["content-transfer-encoding"] || "").toLowerCase();
 
   // Handle nested multipart
   if (isMultipartContentType(contentType)) {
@@ -246,8 +257,18 @@ function processMimePart(
   } else if (isImageContentType(contentType) && contentId) {
     // Extract inline image with Content-ID
     const mimeType = contentType.split(";")[0].trim().toLowerCase();
-    const imageData = body.replace(/\s/g, "");
-    cidMap[contentId] = `data:${mimeType};base64,${imageData}`;
+    // Remove all whitespace from base64 data (line breaks, spaces, etc.)
+    const imageData = body.replace(/[\s\r\n]/g, "");
+    // Only add if we have actual data
+    if (imageData.length > 0) {
+      cidMap[contentId] = `data:${mimeType};base64,${imageData}`;
+      // Also add without the @domain part for matching flexibility
+      const atIndex = contentId.indexOf("@");
+      if (atIndex > 0) {
+        cidMap[contentId.substring(0, atIndex)] = `data:${mimeType};base64,${imageData}`;
+      }
+      console.log(`[EML Parser] Found inline image: ${contentId}, size: ${imageData.length}`);
+    }
   }
 
   return { htmlPart, textPart };
@@ -309,9 +330,40 @@ function parseEmlContent(content: string): {
 
   // Replace cid: references with data URLs
   if (isHtml && Object.keys(cidMap).length > 0) {
+    console.log(`[EML Parser] Found ${Object.keys(cidMap).length} images to replace`);
+
+    // First, find all cid: references in the HTML
+    const cidRefs = body.match(/src=["']cid:([^"']+)["']/gi) || [];
+    console.log(`[EML Parser] Found ${cidRefs.length} cid: references in HTML:`, cidRefs.slice(0, 5));
+
     for (const [cid, dataUrl] of Object.entries(cidMap)) {
+      // Escape special regex characters in the cid
+      const escapedCid = cid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // Replace both src="cid:xxx" and src='cid:xxx' formats
-      body = body.replace(new RegExp(`src=["']cid:${cid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`, 'gi'), `src="${dataUrl}"`);
+      const regex = new RegExp(`src=["']cid:${escapedCid}["']`, 'gi');
+      const before = body;
+      body = body.replace(regex, `src="${dataUrl}"`);
+      if (body !== before) {
+        console.log(`[EML Parser] Replaced cid:${cid}`);
+      }
+    }
+
+    // Also try matching just the filename part (without @domain) for any remaining cid: refs
+    const remainingCids = body.match(/src=["']cid:([^"'@]+)(?:@[^"']+)?["']/gi) || [];
+    for (const ref of remainingCids) {
+      // Extract the filename part
+      const match = ref.match(/cid:([^"'@]+)/i);
+      if (match) {
+        const filename = match[1];
+        // Check if we have this filename in our cidMap (might be stored with full ID)
+        for (const [cid, dataUrl] of Object.entries(cidMap)) {
+          if (cid.startsWith(filename) || cid.toLowerCase().startsWith(filename.toLowerCase())) {
+            body = body.replace(ref, `src="${dataUrl}"`);
+            console.log(`[EML Parser] Replaced cid:${filename} (matched ${cid})`);
+            break;
+          }
+        }
+      }
     }
   }
 
