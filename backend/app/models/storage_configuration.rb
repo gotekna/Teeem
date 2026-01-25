@@ -570,8 +570,17 @@ class StorageConfiguration < ApplicationRecord
     connection_config["endpoint"]
   end
 
+  # SSoT: Bucket for S3-compatible storage (Jan 2026)
+  # No fallback - fail fast if not configured
   def bucket
     connection_config["bucket"]
+  end
+
+  # Class method for easy access without instance
+  # Usage: StorageConfiguration.bucket or StorageConfiguration.bucket(tenant)
+  def self.bucket(tenant = nil)
+    config = tenant ? for_tenant(tenant) : instance
+    config&.bucket
   end
 
   def region
@@ -951,6 +960,8 @@ class StorageConfiguration < ApplicationRecord
       virtual_warehouses: effective_virtual_warehouses,
       # SM task exclusion setting
       exclude_sm_tasks: exclude_sm_tasks,
+      # Link expiry days for presigned URLs (from CorporateCompanySetting - SSoT)
+      link_expiry_days: CorporateCompanySetting.link_expiry_days,
 
       # SSoT: Legacy aliases REMOVED (Jan 2026 cleanup)
       # Use warehouse_root_folders, warehouse_folders, virtual_warehouses, exclude_sm_tasks

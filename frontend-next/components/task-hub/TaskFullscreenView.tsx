@@ -1223,6 +1223,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Download All URL - use both state and ref for synchronous access in generateResponseBody
   const [downloadAllShareUrl, setDownloadAllShareUrl] = useState<string | null>(null);
   const downloadAllShareUrlRef = useRef<string | null>(null);
+  // Download All expiry days - from company settings
+  const downloadAllExpiryDaysRef = useRef<number>(7);
   // Company settings for email signature
   // Use both state (for re-renders) and ref (for synchronous access in generateResponseBody)
   const [companySettings, setCompanySettings] = useState<{
@@ -3975,8 +3977,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     // Use ref for synchronous access (avoids React state timing issues)
     const downloadUrl = downloadAllShareUrlRef.current;
     if (downloadUrl && totalDocuments > 1) {
+      const expiryDays = downloadAllExpiryDaysRef.current;
       body += `<p>For your convenience, you can download all ${totalDocuments} files in a single ZIP archive:</p>\n`;
       body += `<p>📦 <a href="${downloadUrl}"><strong>Download All Files (ZIP)</strong></a></p>\n`;
+      body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
     }
 
     // Add closing line (with blank line before for visual separation)
@@ -4423,6 +4427,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             content?: string;
             filename?: string;
             content_type?: string;
+            expiry_days?: number;
             error?: string
           }>(
             `/api/v1/sm_tasks/${task.id}/download_all_response_files`
@@ -4431,6 +4436,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             // Presigned URL (production with Wasabi/S3)
             downloadAllShareUrlRef.current = zipResponse.share_url;
             setDownloadAllShareUrl(zipResponse.share_url);
+            // Store expiry days from company settings (default 7 if not provided)
+            downloadAllExpiryDaysRef.current = zipResponse.expiry_days || 7;
           } else if (zipResponse.success && zipResponse.download_method === 'base64' && zipResponse.content) {
             // Base64 fallback (local dev without storage connection)
             // Create a blob URL for local testing - note: only works in same browser session

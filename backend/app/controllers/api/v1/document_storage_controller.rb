@@ -54,7 +54,7 @@ module Api
             render json: {
               connected: true,
               provider_type: provider,
-              bucket: credential.bucket,
+              bucket: storage_config&.bucket,
               endpoint: credential.endpoint,
               region: credential.region,
               root_path: storage_config&.root_path

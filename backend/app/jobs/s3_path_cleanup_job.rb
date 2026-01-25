@@ -106,7 +106,7 @@ class S3PathCleanupJob < ApplicationJob
       force_path_style: true
     )
 
-    bucket = credential.bucket
+    bucket = StorageConfiguration.bucket
 
     begin
       # Step 1: Copy object to new key

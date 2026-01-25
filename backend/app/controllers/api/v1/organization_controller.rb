@@ -757,6 +757,103 @@ module Api
           }
         end
 
+        # Phase 3: Warehouse Document Breakdown (SSoT for all stored files)
+        # Shows documents by source_type with storage status
+        # Special handling: Split "email" into email_body vs email_attachment
+        warehouse_breakdown = if defined?(WarehouseDocument) && defined?(StorageBlob)
+          results = []
+
+          # Helper to count docs with actual file path in StorageBlob
+          count_with_file = ->(scope) {
+            scope.joins(:storage_blob)
+                 .where("storage_blobs.storage_path IS NOT NULL AND storage_blobs.storage_path != ''")
+                 .count
+          }
+
+          # Email bodies (SyncedEmail)
+          email_body_scope = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail")
+          email_body_total = email_body_scope.count
+          email_body_with_blob = email_body_scope.where.not(storage_blob_id: nil).count
+          email_body_with_file = count_with_file.call(email_body_scope)
+          if email_body_total > 0
+            results << {
+              source_type: "email_body",
+              label: "Email Bodies",
+              total: email_body_total,
+              with_blob: email_body_with_blob,
+              with_file: email_body_with_file,
+              without_blob: email_body_total - email_body_with_blob,
+              storage_rate: ((email_body_with_blob.to_f / email_body_total) * 100).round(1),
+              file_rate: ((email_body_with_file.to_f / email_body_total) * 100).round(1)
+            }
+          end
+
+          # Email attachments
+          email_attach_scope = WarehouseDocument.where(source_type: "email", documentable_type: "EmailAttachment")
+          email_attach_total = email_attach_scope.count
+          email_attach_with_blob = email_attach_scope.where.not(storage_blob_id: nil).count
+          email_attach_with_file = count_with_file.call(email_attach_scope)
+          if email_attach_total > 0
+            results << {
+              source_type: "email_attachment",
+              label: "Email Attachments",
+              total: email_attach_total,
+              with_blob: email_attach_with_blob,
+              with_file: email_attach_with_file,
+              without_blob: email_attach_total - email_attach_with_blob,
+              storage_rate: ((email_attach_with_blob.to_f / email_attach_total) * 100).round(1),
+              file_rate: ((email_attach_with_file.to_f / email_attach_total) * 100).round(1)
+            }
+          end
+
+          # Other source types (exclude "email" since we split it above)
+          by_source = WarehouseDocument.where.not(source_type: "email").group(:source_type).count
+          with_blob = WarehouseDocument.where.not(source_type: "email").where.not(storage_blob_id: nil).group(:source_type).count
+          # Count with actual file path per source type
+          with_file_by_source = WarehouseDocument.where.not(source_type: "email")
+            .joins(:storage_blob)
+            .where("storage_blobs.storage_path IS NOT NULL AND storage_blobs.storage_path != ''")
+            .group(:source_type)
+            .count
+
+          by_source.each do |source_type, total|
+            next if source_type.blank? || total == 0
+            with_storage = with_blob[source_type] || 0
+            with_file_count = with_file_by_source[source_type] || 0
+            results << {
+              source_type: source_type,
+              label: source_type.titleize,
+              total: total,
+              with_blob: with_storage,
+              with_file: with_file_count,
+              without_blob: total - with_storage,
+              storage_rate: total > 0 ? ((with_storage.to_f / total) * 100).round(1) : 0,
+              file_rate: total > 0 ? ((with_file_count.to_f / total) * 100).round(1) : 0
+            }
+          end
+
+          results.sort_by { |r| -r[:total] }  # Sort by total descending
+        else
+          []
+        end
+
+        # StorageBlob totals (deduplicated file storage)
+        blob_stats = if defined?(StorageBlob)
+          total_blobs = StorageBlob.count
+          total_bytes = StorageBlob.sum(:file_size) || 0
+          blobs_path = StorageBlob.where("storage_path LIKE 'Blobs/%'").count
+          emails_path = StorageBlob.where("storage_path LIKE 'Emails/%'").count
+          {
+            total_blobs: total_blobs,
+            total_bytes: total_bytes,
+            blobs_format: blobs_path,
+            legacy_format: emails_path,
+            migration_rate: total_blobs > 0 ? ((blobs_path.to_f / total_blobs) * 100).round(1) : 0
+          }
+        else
+          { total_blobs: 0, total_bytes: 0, blobs_format: 0, legacy_format: 0, migration_rate: 0 }
+        end
+
         # Corporate (Companies) stats
         active_companies = CorporateCompany.where(active: [ true, nil ])
         total_companies = active_companies.count
@@ -794,6 +891,8 @@ module Api
             storage: storage_stats,
             xero: xero_stats,
             job_documents: job_doc_stats,
+            warehouse_breakdown: warehouse_breakdown,
+            blob_stats: blob_stats,
             last_updated: Time.current
           }
         }
@@ -806,14 +905,14 @@ module Api
 
       private
 
-      # SSoT: Connection info from credentials directly
+      # SSoT: Connection info - bucket from StorageConfiguration (Jan 2026)
       def storage_connection_info_for(provider_type, s3_credential, ms_credential, storage_config)
         case provider_type
         when "s3_compatible"
           return {} unless s3_credential
           {
             endpoint: s3_credential.endpoint,
-            bucket: s3_credential.bucket,
+            bucket: storage_config&.bucket,
             region: s3_credential.region
           }
         when "sharepoint"

@@ -128,6 +128,11 @@ module Api
           update_attrs[:exclude_sm_tasks] = sp[:scope_options][:task][:exclude_sm_linked].to_s == "true"
         end
 
+        # Update link_expiry_days in CorporateCompanySetting (SSoT)
+        if sp.key?(:link_expiry_days)
+          CorporateCompanySetting.instance.update!(link_expiry_days: sp[:link_expiry_days].to_i)
+        end
+
         if storage_config.update(update_attrs)
           render json: {
             success: true,
@@ -182,6 +187,7 @@ module Api
           :base_path,  # Local
           :root_path,
           :exclude_sm_tasks,  # SM task exclusion setting (replaces scope_options)
+          :link_expiry_days,  # Link expiry for presigned URLs (saved to CorporateCompanySetting)
           # SSoT: warehouse_root_folders is THE ONE place for warehouse type roots (includes identifier patterns)
           warehouse_root_folders: {},
           scope_root_folders: {},  # Legacy backwards compat
