@@ -15,13 +15,22 @@ module DocumentProviders
     # Default storage path if not configured
     DEFAULT_ROOT = Rails.root.join("storage/documents").to_s.freeze
 
-    def self.for_organization(organization)
-      config = StorageConfiguration.for_organization(organization)
-      new(config)
+    # SSoT: Factory method to create provider for a tenant (Jan 2026 fix)
+    def self.for_tenant(tenant)
+      config = StorageConfiguration.for_tenant(tenant)
+      new(config, tenant: tenant)
     end
 
-    def initialize(config)
+    # DEPRECATED: Use for_tenant instead
+    def self.for_organization(organization)
+      Rails.logger.warn "[DEPRECATED] Local.for_organization - use for_tenant instead"
+      config = StorageConfiguration.for_organization(organization)
+      new(config, tenant: organization&.tenant)
+    end
+
+    def initialize(config, tenant: nil)
       @config = config
+      @tenant = tenant
       @root_path = config&.root_path.presence || DEFAULT_ROOT
 
       # Ensure root directory exists

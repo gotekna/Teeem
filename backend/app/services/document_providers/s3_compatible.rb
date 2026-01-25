@@ -30,16 +30,45 @@ module DocumentProviders
     MULTIPART_THRESHOLD = 5 * 1024 * 1024  # 5MB
     MULTIPART_CHUNK_SIZE = 5 * 1024 * 1024  # 5MB
 
+    # SSoT: Factory method to create provider for a tenant (Jan 2026 fix)
+    # @param tenant [Tenant] The tenant
+    # @return [DocumentProviders::S3Compatible] The provider instance
+    def self.for_tenant(tenant)
+      credential = find_credential_for_tenant(tenant)
+      raise NotConnectedError, "S3 storage not configured. Please configure in Admin > System > Storage." unless credential
+      new(credential, tenant: tenant)
+    end
+
+    # DEPRECATED: Use for_tenant instead
     # Factory method to create a provider for an organization
     # @param organization [Organization] The organization
     # @return [DocumentProviders::S3Compatible] The provider instance
     def self.for_organization(organization)
+      Rails.logger.warn "[DEPRECATED] S3Compatible.for_organization - use for_tenant instead"
       credential = find_credential_for_organization(organization)
       raise NotConnectedError, "S3 storage not configured. Please configure in Admin > System > Storage." unless credential
-      new(credential)
+      new(credential, tenant: organization&.tenant)
     end
 
-    # Find credential for organization
+    # Find credential for tenant (SSoT: Jan 2026 fix)
+    def self.find_credential_for_tenant(tenant)
+      return nil unless defined?(S3CompatibleCredential)
+      return nil unless tenant
+
+      # Get all organizations in this tenant
+      org_ids = tenant.organizations.pluck(:id)
+
+      # Try tenant's org-specific credentials first
+      if org_ids.any?
+        cred = S3CompatibleCredential.active.connected.where(organization_id: org_ids).first
+        return cred if cred
+      end
+
+      # Fall back to global credential (no org)
+      S3CompatibleCredential.active.connected.where(organization_id: nil).first
+    end
+
+    # Find credential for organization (legacy)
     def self.find_credential_for_organization(organization)
       return nil unless defined?(S3CompatibleCredential)
 
@@ -53,12 +82,13 @@ module DocumentProviders
       S3CompatibleCredential.active.connected.where(organization_id: nil).first
     end
 
-    def initialize(credential)
+    def initialize(credential, tenant: nil)
       super(credential)
       @client = credential.build_client
       @bucket = credential.bucket
+      @tenant = tenant
       # SSoT: root_path comes from StorageConfiguration (THE ONE), not credential
-      config = StorageConfiguration.instance
+      config = tenant ? StorageConfiguration.for_tenant(tenant) : StorageConfiguration.instance
       @root_path = config&.root_path.to_s.sub(%r{^/+}, "").sub(%r{/+$}, "")
     end
 

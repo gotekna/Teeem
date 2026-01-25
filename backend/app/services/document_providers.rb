@@ -22,24 +22,39 @@ module DocumentProviders
   class QuotaExceededError < Error; end
   class ProviderError < Error; end
 
+  # SSoT: Factory method to get provider for a tenant (Jan 2026 fix)
+  # @param tenant [Tenant] The tenant
+  # @return [DocumentProviders::Base] The configured provider
+  def self.for_tenant(tenant)
+    raise TenantNotFoundError, "Tenant required for DocumentProviders.for_tenant" unless tenant
+
+    config = StorageConfiguration.for_tenant(tenant)
+    provider_type = config.provider_type
+
+    case provider_type.to_s
+    when "sharepoint"
+      DocumentProviders::SharePoint.for_tenant(tenant)
+    when "s3_compatible"
+      DocumentProviders::S3Compatible.for_tenant(tenant)
+    when "local"
+      DocumentProviders::Local.for_tenant(tenant)
+    else
+      raise Error, "Unknown document provider: #{provider_type}. Valid types: sharepoint, s3_compatible, local"
+    end
+  end
+
+  # DEPRECATED: Use for_tenant instead
   # Factory method to get the appropriate provider for an organization
   # SSoT: StorageConfiguration.provider_type determines which provider to use
   # @param organization [Organization] The organization
   # @return [DocumentProviders::Base] The configured provider
   def self.for_organization(organization)
-    # SSoT: StorageConfiguration determines provider type based on active credentials
-    config = StorageConfiguration.for_organization(organization)
-    provider_type = config.provider_type
+    Rails.logger.warn "[DEPRECATED] DocumentProviders.for_organization - use for_tenant instead"
 
-    case provider_type.to_s
-    when "sharepoint"
-      DocumentProviders::SharePoint.for_organization(organization)
-    when "s3_compatible"
-      DocumentProviders::S3Compatible.for_organization(organization)
-    when "local"
-      DocumentProviders::Local.for_organization(organization)
-    else
-      raise Error, "Unknown document provider: #{provider_type}. Valid types: sharepoint, s3_compatible, local"
-    end
+    # SSoT: Derive tenant from organization and delegate to for_tenant
+    tenant = organization&.tenant
+    raise TenantNotFoundError.new(context: "DocumentProviders.for_organization - organization has no tenant") unless tenant
+
+    for_tenant(tenant)
   end
 end
