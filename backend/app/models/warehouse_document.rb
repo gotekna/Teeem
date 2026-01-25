@@ -26,6 +26,15 @@
 #
 class WarehouseDocument < ApplicationRecord
   include TenantResolvable
+
+  # ========================================
+  # Callbacks
+  # ========================================
+
+  # SSoT: Auto-set tenant_id from documentable chain if not provided
+  # This ensures ALL creation points get tenant_id without manual assignment
+  before_validation :set_tenant_from_documentable, on: :create
+
   # ========================================
   # Associations
   # ========================================
@@ -126,24 +135,6 @@ class WarehouseDocument < ApplicationRecord
   rescue TenantNotFoundError => e
     Rails.logger.error "[WarehouseDocument] download_url failed - no tenant: #{e.message}"
     nil
-  end
-
-  # DEPRECATED: Use resolved_tenant instead (from TenantResolvable concern)
-  # Kept for backward compatibility during migration
-  def resolved_organization
-    Rails.logger.warn "[DEPRECATED] WarehouseDocument#resolved_organization - use resolved_tenant instead"
-
-    # Try to derive from documentable chain
-    return documentable.organization if documentable.respond_to?(:organization) && documentable.organization.present?
-    return documentable.microsoft_credential&.organization if documentable.respond_to?(:microsoft_credential)
-    return documentable.imap_credential&.organization if documentable.respond_to?(:imap_credential)
-
-    # Use resolved_tenant and get first organization if needed for legacy code
-    begin
-      resolved_tenant.organizations.first
-    rescue TenantNotFoundError
-      nil
-    end
   end
 
   # Update folder (instant - just DB update, no S3 copy)
@@ -401,6 +392,19 @@ class WarehouseDocument < ApplicationRecord
   end
 
   private
+
+  # SSoT: Auto-set tenant_id from documentable chain if not provided
+  # Uses TenantResolvable#resolved_tenant which handles ALL derivation paths:
+  # 1. Direct tenant → 2. Credential chain → 3. Parent record → 4. Documentable → 5. ActsAsTenant
+  def set_tenant_from_documentable
+    return if tenant_id.present?
+
+    self.tenant_id = resolved_tenant&.id
+  rescue TenantNotFoundError
+    # Allow creation without tenant if can't be derived (legacy data)
+    Rails.logger.debug "[WarehouseDocument] Could not derive tenant for new document"
+    nil
+  end
 
   # Compute email legacy path if not stored
   # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
