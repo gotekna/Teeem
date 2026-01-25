@@ -1195,8 +1195,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [prepareEmailStatus, setPrepareEmailStatus] = useState('');
   // Track how each attachment should be included: 'attach' (file), 'link' (URL), 'both' (attach + link), 'none' (exclude)
   const [attachmentEmailOptions, setAttachmentEmailOptions] = useState<Record<number, 'attach' | 'link' | 'both' | 'none'>>({});
-  // Store SharePoint share links created for 'link' option
-  const [shareLinksMap, setShareLinksMap] = useState<Record<number, string>>({});
+  // Store share links created for 'link' option - both download (attachment) and open (inline) URLs
+  const [shareLinksMap, setShareLinksMap] = useState<Record<number, { download: string; open: string }>>({});
   // Download All URL - use both state and ref for synchronous access in generateResponseBody
   const [downloadAllShareUrl, setDownloadAllShareUrl] = useState<string | null>(null);
   const downloadAllShareUrlRef = useRef<string | null>(null);
@@ -3461,9 +3461,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     // Helper to format a file link as HTML hyperlink with Download/Open options
     // For external email recipients - makes actions more discoverable
-    const formatFileLink = (fileName: string, url?: string): string => {
-      if (url) {
-        return `<a href="${url}">${fileName}</a> · <a href="${url}" download style="color: #666; font-size: 0.9em;">Download</a> · <a href="${url}" target="_blank" style="color: #666; font-size: 0.9em;">Open</a>`;
+    // downloadUrl = presigned URL with Content-Disposition: attachment (forces download)
+    // openUrl = presigned URL with Content-Disposition: inline (browser displays file)
+    const formatFileLink = (fileName: string, downloadUrl?: string, openUrl?: string): string => {
+      if (downloadUrl && openUrl) {
+        return `<a href="${downloadUrl}">${fileName}</a> · <a href="${downloadUrl}" style="color: #666; font-size: 0.9em;">Download</a> · <a href="${openUrl}" target="_blank" style="color: #666; font-size: 0.9em;">Open</a>`;
+      } else if (downloadUrl) {
+        return `<a href="${downloadUrl}">${fileName}</a>`;
       }
       return fileName;
     };
@@ -3548,16 +3552,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             // If there are attachments, add them immediately after (no gap)
             if (q.attachments && q.attachments.length > 0) {
               q.attachments.forEach(att => {
-                if (att.email) {
-                  const subject = att.email.subject || '(No subject)';
-                  const url = shareLinksMap[att.id];
-                  body += `\n📧 ${formatFileLink(subject, url)}`;
-                } else if (att.document) {
+                if (att.document) {
                   const fileName = att.document.display_name || att.document.file_name || 'Document';
-                  const shareUrl = shareLinksMap[att.id];
+                  const links = shareLinksMap[att.id];
                   const fallbackUrl = att.document.storage_url || att.document.file_url;
-                  const url = shareUrl || fallbackUrl;
-                  body += `\n📎 ${formatFileLink(fileName, url)}`;
+                  body += `\n📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open)}`;
                 }
               });
             }
@@ -3567,16 +3566,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             body += `<p>`;
             q.attachments.forEach((att, attIdx) => {
               if (attIdx > 0) body += `<br>`;
-              if (att.email) {
-                const subject = att.email.subject || '(No subject)';
-                const url = shareLinksMap[att.id];
-                body += `📧 ${formatFileLink(subject, url)}`;
-              } else if (att.document) {
+              if (att.document) {
                 const fileName = att.document.display_name || att.document.file_name || 'Document';
-                const shareUrl = shareLinksMap[att.id];
+                const links = shareLinksMap[att.id];
                 const fallbackUrl = att.document.storage_url || att.document.file_url;
-                const url = shareUrl || fallbackUrl;
-                body += `📎 ${formatFileLink(fileName, url)}`;
+                body += `📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open)}`;
               }
             });
             body += `</p>\n`;
@@ -3598,16 +3592,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             // If there are attachments, add them immediately after (no gap)
             if (q.attachments && q.attachments.length > 0) {
               q.attachments.forEach(att => {
-                if (att.email) {
-                  const subject = att.email.subject || '(No subject)';
-                  const url = shareLinksMap[att.id];
-                  body += `\n📧 ${formatFileLink(subject, url)}`;
-                } else if (att.document) {
+                if (att.document) {
                   const fileName = att.document.display_name || att.document.file_name || 'Document';
-                  const shareUrl = shareLinksMap[att.id];
+                  const links = shareLinksMap[att.id];
                   const fallbackUrl = att.document.storage_url || att.document.file_url;
-                  const url = shareUrl || fallbackUrl;
-                  body += `\n📎 ${formatFileLink(fileName, url)}`;
+                  body += `\n📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open)}`;
                 }
               });
             }
@@ -3617,16 +3606,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             body += `<p>`;
             q.attachments.forEach((att, attIdx) => {
               if (attIdx > 0) body += `<br>`;
-              if (att.email) {
-                const subject = att.email.subject || '(No subject)';
-                const url = shareLinksMap[att.id];
-                body += `📧 ${formatFileLink(subject, url)}`;
-              } else if (att.document) {
+              if (att.document) {
                 const fileName = att.document.display_name || att.document.file_name || 'Document';
-                const shareUrl = shareLinksMap[att.id];
+                const links = shareLinksMap[att.id];
                 const fallbackUrl = att.document.storage_url || att.document.file_url;
-                const url = shareUrl || fallbackUrl;
-                body += `📎 ${formatFileLink(fileName, url)}`;
+                body += `📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open)}`;
               }
             });
             body += `</p>\n`;
@@ -3686,17 +3670,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     // Note: Removed "Files attached:" section - recipients see attachments in their email client
 
-    // Show files with SharePoint sharing links
+    // Show files with sharing links (both download and open URLs)
     if (linkedFiles.length > 0) {
       body += '<p><strong>File links:</strong></p>\n';
       body += '<ul>\n';
       linkedFiles.forEach(att => {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-        // Use SharePoint share link if available, otherwise fall back to existing URL
-        const shareUrl = shareLinksMap[att.id];
+        const links = shareLinksMap[att.id];
         const fallbackUrl = att.document?.storage_url || att.document?.file_url;
-        const url = shareUrl || fallbackUrl;
-        body += `<li>${formatFileLink(fileName, url)}</li>\n`;
+        body += `<li>${formatFileLink(fileName, links?.download || fallbackUrl, links?.open)}</li>\n`;
       });
       body += '</ul>\n';
     }
@@ -3803,7 +3785,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       }
 
       const filesToAttach: File[] = [];
-      const shareLinks: Record<number, string> = {};
+      // Store both download (attachment disposition) and open (inline disposition) URLs
+      const shareLinks: Record<number, { download: string; open: string }> = {};
 
       // Collect all question attachments that have document URLs (SharePoint or fallback)
       const allQuestionAttachments = questionItems
@@ -3881,30 +3864,39 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           }
         } catch (err) {
           console.error(`Failed to download email ${att.email?.id}:`, err);
-          // Fallback: create a link instead if download fails
-          const emailUrl = `${window.location.origin}/emails?open=${att.email?.id}`;
-          shareLinks[att.id] = emailUrl;
+          // Note: No fallback needed - we're not including email links in response body
         }
         processed++;
       }
 
-      // Process documents to link - call share_link API for proper filename in download
-      // The share_link API creates presigned URLs with Content-Disposition header
-      // so external recipients download files with correct names (not just dates)
+      // Process documents to link - call share_link API TWICE per document:
+      // 1. Default (no open param) = attachment disposition = Download link
+      // 2. open=true = inline disposition = Open link (browser displays file)
       // Track documents that couldn't get share links (file might not exist in storage)
       const docsWithoutShareLinks: string[] = [];
       for (const att of documentsToLink) {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-        setPrepareEmailStatus(`Creating link for "${fileName}"... (${processed + 1}/${totalToProcess})`);
+        setPrepareEmailStatus(`Creating links for "${fileName}"... (${processed + 1}/${totalToProcess})`);
         try {
-          const shareResponse = await api.post<{ success: boolean; share_url?: string; error?: string }>(
-            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
-          );
-          if (shareResponse?.success && shareResponse.share_url) {
-            shareLinks[att.id] = shareResponse.share_url;
+          // Generate both download and open URLs in parallel
+          const [downloadResponse, openResponse] = await Promise.all([
+            api.post<{ success: boolean; share_url?: string; error?: string }>(
+              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
+            ),
+            api.post<{ success: boolean; share_url?: string; error?: string }>(
+              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`,
+              { open: true }
+            )
+          ]);
+
+          if (downloadResponse?.success && downloadResponse.share_url) {
+            shareLinks[att.id] = {
+              download: downloadResponse.share_url,
+              open: openResponse?.share_url || downloadResponse.share_url // fallback to download if open fails
+            };
           } else {
             // Document file not found in storage - skip and warn user
-            console.warn(`[prepareEmailResponse] No share link for document ${att.id}: ${shareResponse?.error || 'unknown error'}`);
+            console.warn(`[prepareEmailResponse] No share link for document ${att.id}: ${downloadResponse?.error || 'unknown error'}`);
             docsWithoutShareLinks.push(fileName);
           }
         } catch (err) {
@@ -3916,7 +3908,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       // NOTE: Email link processing removed - external recipients don't need .eml downloads
 
-      // Process question attachments to link - call share_link API for proper filename
+      // Process question attachments to link - call share_link API for both download and open URLs
       // Note: failures are added to docsWithoutShareLinks (defined above)
       for (const att of questionAttachmentsToLink) {
         // Skip if we already have a link for this attachment
@@ -3925,13 +3917,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           continue;
         }
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-        setPrepareEmailStatus(`Creating link for "${fileName}"... (${processed + 1}/${totalToProcess})`);
+        setPrepareEmailStatus(`Creating links for "${fileName}"... (${processed + 1}/${totalToProcess})`);
         try {
-          const shareResponse = await api.post<{ success: boolean; share_url?: string; error?: string }>(
-            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
-          );
-          if (shareResponse?.success && shareResponse.share_url) {
-            shareLinks[att.id] = shareResponse.share_url;
+          // Generate both download and open URLs in parallel
+          const [downloadResponse, openResponse] = await Promise.all([
+            api.post<{ success: boolean; share_url?: string; error?: string }>(
+              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`
+            ),
+            api.post<{ success: boolean; share_url?: string; error?: string }>(
+              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/share_link`,
+              { open: true }
+            )
+          ]);
+
+          if (downloadResponse?.success && downloadResponse.share_url) {
+            shareLinks[att.id] = {
+              download: downloadResponse.share_url,
+              open: openResponse?.share_url || downloadResponse.share_url
+            };
           } else {
             // Question attachment file not found - skip and add to warning
             console.warn(`[prepareEmailResponse] No share link for question attachment ${att.id}`);
