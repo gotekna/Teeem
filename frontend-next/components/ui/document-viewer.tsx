@@ -4,6 +4,7 @@ import * as React from "react";
 import { useState, useEffect } from "react";
 import {
   Download,
+  DownloadCloud,
   ExternalLink,
   FileText,
   Image as ImageIcon,
@@ -473,12 +474,43 @@ export function DocumentViewer({
   const [emlData, setEmlData] = useState<ReturnType<typeof parseEmlContent> | null>(null);
   const [emlLoading, setEmlLoading] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [downloadingAll, setDownloadingAll] = useState(false);
 
   const fileType = getFileType(fileName);
   const hasMultipleFiles = files && files.length > 1;
   const hasQA = qaContext && qaContext.length > 0;
   const hasSidebar = showSidebar ?? (hasQA || hasMultipleFiles);
   const effectiveDownloadUrl = downloadUrl || url;
+
+  // Download all files sequentially with small delays to avoid browser blocking
+  const handleDownloadAll = async () => {
+    if (!files || files.length === 0 || downloadingAll) return;
+
+    setDownloadingAll(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const downloadLink = file.downloadUrl || file.openUrl;
+        if (!downloadLink) continue;
+
+        // Create a temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = downloadLink;
+        link.download = file.name;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Small delay between downloads to prevent browser blocking
+        if (i < files.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
 
   // Fetch and parse EML content when URL changes
   useEffect(() => {
@@ -566,6 +598,24 @@ export function DocumentViewer({
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Download</span>
             </a>
+            {hasMultipleFiles && (
+              <button
+                onClick={handleDownloadAll}
+                disabled={downloadingAll}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-md transition-colors",
+                  downloadingAll
+                    ? "bg-gray-500 cursor-wait text-gray-300"
+                    : "bg-green-600 hover:bg-green-700 text-white"
+                )}
+                title={`Download all ${files?.length} files`}
+              >
+                <DownloadCloud className={cn("h-4 w-4", downloadingAll && "animate-pulse")} />
+                <span className="hidden sm:inline">
+                  {downloadingAll ? "Downloading..." : `All (${files?.length})`}
+                </span>
+              </button>
+            )}
             <a
               href={url}
               target="_blank"
