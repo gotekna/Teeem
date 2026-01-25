@@ -2080,6 +2080,45 @@ export function StorageConfigTab() {
         </Card>
       )}
 
+      {/* Download Link Settings */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Download Link Settings
+          </CardTitle>
+          <CardDescription>
+            Configure how long download links remain valid
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="link-expiry" className="text-sm whitespace-nowrap">
+                Link expiry:
+              </Label>
+              <Input
+                id="link-expiry"
+                type="number"
+                min={1}
+                max={30}
+                className="w-20"
+                value={formData.link_expiry_days}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || 7;
+                  const clamped = Math.max(1, Math.min(30, value));
+                  setFormData(prev => ({ ...prev, link_expiry_days: clamped }));
+                }}
+              />
+              <span className="text-sm text-muted-foreground">days</span>
+            </div>
+            <p className="text-xs text-muted-foreground flex-1">
+              Presigned download URLs will expire after this many days. Applies to document downloads and task attachment zips.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Root Path Configuration */}
       <Card>
         <CardHeader>
@@ -2305,45 +2344,6 @@ export function StorageConfigTab() {
               Loading tabs...
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Download Link Settings */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Download Link Settings
-          </CardTitle>
-          <CardDescription>
-            Configure how long download links remain valid
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="link-expiry" className="text-sm whitespace-nowrap">
-                Link expiry:
-              </Label>
-              <Input
-                id="link-expiry"
-                type="number"
-                min={1}
-                max={30}
-                className="w-20"
-                value={formData.link_expiry_days}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value) || 7;
-                  const clamped = Math.max(1, Math.min(30, value));
-                  setFormData(prev => ({ ...prev, link_expiry_days: clamped }));
-                }}
-              />
-              <span className="text-sm text-muted-foreground">days</span>
-            </div>
-            <p className="text-xs text-muted-foreground flex-1">
-              Presigned download URLs will expire after this many days. Applies to document downloads and task attachment zips.
-            </p>
-          </div>
         </CardContent>
       </Card>
 
