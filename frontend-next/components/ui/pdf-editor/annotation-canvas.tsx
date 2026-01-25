@@ -96,7 +96,7 @@ export function AnnotationCanvas({
       // Performance optimizations
       renderOnAddRemove: false, // Manual render control
       skipTargetFind: false,
-      enableRetinaScaling: false, // Disable retina for performance
+      enableRetinaScaling: true, // Enable for crisp rendering on Retina/high-DPI displays
     });
 
     fabricRef.current = canvas;
