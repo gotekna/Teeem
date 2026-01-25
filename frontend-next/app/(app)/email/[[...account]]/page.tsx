@@ -677,7 +677,8 @@ export default function EmailPage() {
   // With standalone: /email/robert@teeem.au/standalone → params.account = ["robert@teeem.au", "standalone"]
   const pathSegments = params.account as string[] | undefined;
   // Decode URL param - Next.js may URL-encode special chars like @ → %40
-  const rawAccountParam = pathSegments?.[0] || searchParams.get("account"); // Legacy query param support
+  // Support both "account" and "mailbox" query params (mailbox used by Warehouse links)
+  const rawAccountParam = pathSegments?.[0] || searchParams.get("account") || searchParams.get("mailbox");
   const accountParam = rawAccountParam ? decodeURIComponent(rawAccountParam) : undefined;
   const emailIdParam = searchParams.get("id");
   // Standalone mode: check path segment first, then legacy query param
