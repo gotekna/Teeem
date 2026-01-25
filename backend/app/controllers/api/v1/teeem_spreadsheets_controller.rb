@@ -159,9 +159,8 @@ module Api
           TeeemXl.write(workbook, temp_file.path)
           temp_file.rewind
 
-          # Upload to S3 using SSoT warehouse_path
-          organization = Organization.first
-          provider = DocumentProviders::S3Compatible.for_organization(organization)
+          # SSoT (Jan 2026): Use tenant for storage provider
+          provider = DocumentProviders.for_tenant(current_tenant)
 
           folder_path = @spreadsheet.warehouse_folder_path
           filename = "#{@spreadsheet.safe_filename}.xlsx"

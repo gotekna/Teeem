@@ -163,10 +163,13 @@ module Api
           # Deactivate any existing org-level delegated credentials
           MicrosoftCredential.delegated_credentials.org_level.active.update_all(is_active: false)
 
+          # SSoT (Jan 2026): Derive organization from tenant
+          org = current_tenant&.organizations&.first
+
           # Create new credential with refresh token
           credential = MicrosoftCredential.create!(
             credential_type: "delegated",
-            organization: Organization.first,
+            organization: org,
             access_token: token_data[:access_token],
             refresh_token: token_data[:refresh_token],
             token_expires_at: token_data[:expires_at],
@@ -2704,14 +2707,12 @@ module Api
 
       # Download document content from S3 (for JobDocument records)
       def download_from_s3(document, is_preview)
-        organization = Organization.first
-        credential = S3CompatibleCredential.active.connected.first
+        # SSoT (Jan 2026): Use tenant for storage provider
+        provider = DocumentProviders.for_tenant(current_tenant)
 
-        unless credential
+        unless provider
           raise DocumentProviders::NotConnectedError, "S3 storage not configured"
         end
-
-        provider = DocumentProviders::S3Compatible.new(credential)
         storage_ref = document.storage_reference
 
         unless storage_ref.present?

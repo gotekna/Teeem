@@ -48,6 +48,7 @@ import {
   Link2,
   Mail,
   Briefcase,
+  Building,
   Building2,
   ClipboardList,
   Archive,
@@ -217,7 +218,7 @@ export default function ArchitectureMap() {
 
       {/* View Tabs */}
       <Tabs value={activeView} onValueChange={setActiveView}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="beginner" className="gap-2">
             <BookOpen className="h-4 w-4" />
             <span className="hidden sm:inline">Beginner</span>
@@ -241,6 +242,10 @@ export default function ArchitectureMap() {
           <TabsTrigger value="health" className="gap-2">
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Health Check</span>
+          </TabsTrigger>
+          <TabsTrigger value="tenancy" className="gap-2">
+            <Building className="h-4 w-4" />
+            <span className="hidden sm:inline">Tenancy</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1834,6 +1839,203 @@ export default function JobsPage() {
                 <div className="p-2 bg-muted rounded">
                   <p className="text-muted-foreground"># Check schema for existing columns</p>
                   <p>grep -n &quot;COLUMN_NAME&quot; backend/db/schema.rb</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tenancy View */}
+        <TabsContent value="tenancy" className="space-y-6 mt-6">
+          {/* Ultra Design Vision */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-purple-500" />
+                Ultra Design Vision
+              </CardTitle>
+              <CardDescription>
+                Construction companies have many SPVs (Special Purpose Vehicles).
+                User logs in ONCE, sees ALL their companies in ONE dashboard.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-4">
+                {/* Tenant Level */}
+                <div className="p-4 rounded-lg border-2 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40">
+                  <div className="text-center mb-4">
+                    <Badge variant="outline" className="text-purple-700 dark:text-purple-300">
+                      Tenant = Customer Account
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center text-sm">
+                    <div className="p-3 bg-background rounded border">
+                      <p className="font-semibold">TEEEM (id=1)</p>
+                      <p className="text-xs text-muted-foreground">Master Tenant</p>
+                      <Badge variant="secondary" className="mt-1">is_master_tenant: true</Badge>
+                    </div>
+                    <div className="p-3 bg-background rounded border">
+                      <p className="font-semibold">Tekna (id=2)</p>
+                      <p className="text-xs text-muted-foreground">Customer Tenant</p>
+                      <Badge variant="outline" className="mt-1">4 Organizations</Badge>
+                    </div>
+                    <div className="p-3 bg-background rounded border">
+                      <p className="font-semibold">Pilgrim (id=3)</p>
+                      <p className="text-xs text-muted-foreground">Customer Tenant</p>
+                      <Badge variant="outline" className="mt-1">0 Organizations</Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <FlowArrow direction="down" label="has_many :organizations" />
+
+                {/* Organization Level */}
+                <div className="p-4 rounded-lg border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40">
+                  <div className="text-center mb-4">
+                    <Badge variant="outline" className="text-blue-700 dark:text-blue-300">
+                      Organization = Credential Scope (SPVs)
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-center text-muted-foreground mb-4">
+                    Each SPV has its OWN Microsoft 365, OWN Xero, OWN bank account
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-xs">
+                    <div className="p-2 bg-background rounded border">
+                      <Building2 className="h-4 w-4 mx-auto mb-1 text-blue-500" />
+                      <p className="font-semibold">Tekna</p>
+                      <p className="text-muted-foreground">id=1, main</p>
+                    </div>
+                    <div className="p-2 bg-background rounded border">
+                      <Building2 className="h-4 w-4 mx-auto mb-1 text-blue-500" />
+                      <p className="font-semibold">100xBestLife</p>
+                      <p className="text-muted-foreground">id=2, ministry</p>
+                    </div>
+                    <div className="p-2 bg-background rounded border">
+                      <Building2 className="h-4 w-4 mx-auto mb-1 text-blue-500" />
+                      <p className="font-semibold">Homes of Hope</p>
+                      <p className="text-muted-foreground">id=3, ministry</p>
+                    </div>
+                    <div className="p-2 bg-background rounded border">
+                      <Building2 className="h-4 w-4 mx-auto mb-1 text-blue-500" />
+                      <p className="font-semibold">Love Your World</p>
+                      <p className="text-muted-foreground">id=4, ministry</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* SSoT Ownership */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5 text-green-500" />
+                SSoT: Who Owns What?
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 font-semibold">Concept</th>
+                    <th className="text-left py-2 font-semibold">SSoT Owner</th>
+                    <th className="text-left py-2 font-semibold">Why</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b">
+                    <td className="py-2">Multi-tenancy</td>
+                    <td><code className="text-xs bg-green-100 dark:bg-green-900/30 px-1 rounded">Tenant</code></td>
+                    <td className="text-muted-foreground">acts_as_tenant scopes all data</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-2">Storage Config</td>
+                    <td><code className="text-xs bg-green-100 dark:bg-green-900/30 px-1 rounded">Tenant</code></td>
+                    <td className="text-muted-foreground">One S3 bucket per customer</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-2">Users</td>
+                    <td><code className="text-xs bg-green-100 dark:bg-green-900/30 px-1 rounded">Tenant</code></td>
+                    <td className="text-muted-foreground">User sees ALL orgs in dashboard</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-2">Microsoft Credentials</td>
+                    <td><code className="text-xs bg-blue-100 dark:bg-blue-900/30 px-1 rounded">Organization</code></td>
+                    <td className="text-muted-foreground">Each SPV has own Microsoft 365</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-2">Xero Credentials</td>
+                    <td><code className="text-xs bg-blue-100 dark:bg-blue-900/30 px-1 rounded">Organization</code></td>
+                    <td className="text-muted-foreground">Each SPV has own Xero account</td>
+                  </tr>
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+
+          {/* External Tenant IDs Warning */}
+          <Card className="border-orange-200 dark:border-orange-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                <AlertCircle className="h-5 w-5" />
+                Warning: tenant_id Naming Collision
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                The field name &quot;tenant_id&quot; means DIFFERENT things in different contexts:
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div className="p-3 rounded border bg-purple-50 dark:bg-purple-950/30">
+                  <p className="font-semibold text-purple-700 dark:text-purple-300">Our Tenant</p>
+                  <code className="text-xs">Tenant.id</code>
+                  <p className="text-xs text-muted-foreground mt-1">TEEEM platform multi-tenancy</p>
+                </div>
+                <div className="p-3 rounded border bg-blue-50 dark:bg-blue-950/30">
+                  <p className="font-semibold text-blue-700 dark:text-blue-300">Xero tenant_id</p>
+                  <code className="text-xs">xero_tenant_id</code>
+                  <p className="text-xs text-muted-foreground mt-1">Xero&apos;s multi-org identifier</p>
+                </div>
+                <div className="p-3 rounded border bg-green-50 dark:bg-green-950/30">
+                  <p className="font-semibold text-green-700 dark:text-green-300">Azure tenant_id</p>
+                  <code className="text-xs">MicrosoftCredential.tenant_id</code>
+                  <p className="text-xs text-muted-foreground mt-1">Microsoft Azure AD tenant</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bandaids to Fix */}
+          <Card className="border-red-200 dark:border-red-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                <XCircle className="h-5 w-5" />
+                Bandaids to Remove (3-Month Fix)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3 p-3 rounded bg-red-50 dark:bg-red-950/30">
+                  <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                  <div>
+                    <p className="font-medium">Organization.first in 34 files</p>
+                    <p className="text-xs text-muted-foreground">Breaks multi-tenancy - derive from record chain instead</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded bg-red-50 dark:bg-red-950/30">
+                  <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                  <div>
+                    <p className="font-medium">StorageConfiguration at Organization level</p>
+                    <p className="text-xs text-muted-foreground">Should be at Tenant level - one bucket per customer</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded bg-red-50 dark:bg-red-950/30">
+                  <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                  <div>
+                    <p className="font-medium">No fail-fast error handling</p>
+                    <p className="text-xs text-muted-foreground">Add TenantNotFoundError exception class</p>
+                  </div>
                 </div>
               </div>
             </CardContent>

@@ -71,7 +71,14 @@ class MigrateAllDocumentsToBlobStorageJob < ApplicationJob
   private
 
   def get_storage_provider
-    DocumentProviders.for_organization(Organization.first)
+    # SSoT (Jan 2026): Use tenant for storage provider
+    tenant = ActsAsTenant.current_tenant
+    if tenant
+      DocumentProviders.for_tenant(tenant)
+    else
+      Rails.logger.warn "[BlobMigration] No tenant context - using first organization"
+      DocumentProviders.for_organization(Organization.first)
+    end
   end
 
   def migrate_document(wd, provider, dry_run:)

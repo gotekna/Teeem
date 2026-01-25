@@ -200,13 +200,16 @@ class DocumentMigrationJob < ApplicationJob
 
   private
 
-  # Find the organization for a document based on its type
-  # For single-tenant usage (Tekna), Organization.first is the SSoT.
-  # Note: Most models don't have direct organization associations.
+  # SSoT (Jan 2026): Derive organization from tenant
+  # Uses ActsAsTenant.current_tenant which should be set when job is enqueued
   def find_organization(_document)
-    # Single-tenant: Always use the primary organization (Tekna)
-    # which has S3/SharePoint configured
-    Organization.first
+    tenant = ActsAsTenant.current_tenant
+    if tenant
+      tenant.organizations.first
+    else
+      Rails.logger.warn "[DocumentMigration] No tenant context - falling back to first organization"
+      Organization.first
+    end
   end
 
   # Get the appropriate provider for a given type

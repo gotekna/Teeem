@@ -300,7 +300,8 @@ module Api
       # GET /api/v1/organization/document_provider
       # Returns the organization's current document storage provider configuration
       def document_provider
-        organization = Organization.first
+        # SSoT (Jan 2026): Derive from tenant, not Organization.first
+        organization = current_organization
 
         if organization.nil?
           return render json: {
@@ -350,7 +351,8 @@ module Api
       # PUT /api/v1/organization/document_provider
       # Updates the organization's document storage provider
       def update_document_provider
-        organization = Organization.first
+        # SSoT (Jan 2026): Derive from tenant, not Organization.first
+        organization = current_organization
 
         if organization.nil?
           return render json: {

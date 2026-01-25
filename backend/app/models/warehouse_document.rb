@@ -22,7 +22,10 @@
 # Virtual Folders:
 #   - folder: Virtual path, changing is instant (DB update only, no S3 copy)
 #
+# SSoT: Uses TenantResolvable for fail-fast tenant derivation (Jan 2026 fix)
+#
 class WarehouseDocument < ApplicationRecord
+  include TenantResolvable
   # ========================================
   # Associations
   # ========================================
@@ -110,25 +113,37 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # SSoT: Get presigned download URL - storage_blob is THE ONE source
+  # Uses resolved_tenant (from TenantResolvable) for provider - Jan 2026 fix
   def download_url(expires_in: 3600)
     return nil unless storage_blob&.storage_path.present?
 
-    provider = DocumentProviders.for_organization(resolved_organization)
+    provider = DocumentProviders.for_tenant(resolved_tenant)
     provider.download_url(
       storage_blob.storage_path,
       expires_in: expires_in,
       filename: download_filename
     )
+  rescue TenantNotFoundError => e
+    Rails.logger.error "[WarehouseDocument] download_url failed - no tenant: #{e.message}"
+    nil
   end
 
-  # Derive organization from documentable association chain
+  # DEPRECATED: Use resolved_tenant instead (from TenantResolvable concern)
+  # Kept for backward compatibility during migration
   def resolved_organization
-    return documentable.organization if documentable.respond_to?(:organization)
+    Rails.logger.warn "[DEPRECATED] WarehouseDocument#resolved_organization - use resolved_tenant instead"
+
+    # Try to derive from documentable chain
+    return documentable.organization if documentable.respond_to?(:organization) && documentable.organization.present?
     return documentable.microsoft_credential&.organization if documentable.respond_to?(:microsoft_credential)
     return documentable.imap_credential&.organization if documentable.respond_to?(:imap_credential)
 
-    # Fallback - TODO: Remove after full multi-tenancy migration
-    Organization.first
+    # Use resolved_tenant and get first organization if needed for legacy code
+    begin
+      resolved_tenant.organizations.first
+    rescue TenantNotFoundError
+      nil
+    end
   end
 
   # Update folder (instant - just DB update, no S3 copy)

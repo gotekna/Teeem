@@ -39,13 +39,14 @@ module DocumentProviderAware
   # PROVIDER SETUP
   # ========================================
 
-  # Initialize the default document provider (single-tenant mode)
-  # Uses StorageConfiguration to detect the active provider (Wasabi, SharePoint, etc.)
+  # Initialize the default document provider
+  # SSoT (Jan 2026): Uses tenant for storage configuration
   # @return [DocumentProviders::Base] The configured provider
   # @raise [DocumentProviders::NotConnectedError] If no provider is configured
   def setup_default_provider!
-    @organization = Organization.first
-    @storage_config = StorageConfiguration.instance
+    tenant = ActsAsTenant.current_tenant
+    @organization = tenant&.organizations&.first || Organization.first
+    @storage_config = tenant ? StorageConfiguration.for_tenant(tenant) : StorageConfiguration.instance
 
     # SSoT: StorageConfiguration.provider_type determines which provider to use
     # Only 3 types: sharepoint, s3_compatible, local

@@ -5,6 +5,9 @@
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  THE ONE concern for warehouse document sync                       ║
 # ║  All warehouse documents (Excel, Word, PPT, PDF, Notes) use this  ║
+# ║                                                                   ║
+# ║  SSoT: Uses TenantResolvable for fail-fast tenant derivation      ║
+# ║  (Jan 2026 fix - removed Organization.first fallback)             ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 # Usage:
@@ -24,6 +27,8 @@ module WarehouseSyncable
   extend ActiveSupport::Concern
 
   included do
+    include TenantResolvable
+
     class_attribute :warehouse_document_type, default: nil
 
     after_save :sync_to_warehouse, if: :should_sync_to_warehouse?
@@ -77,29 +82,27 @@ module WarehouseSyncable
   end
 
   def warehouse_sync_enabled?
-    # Check if warehouse sync is enabled in StorageConfiguration
-    StorageConfiguration.instance.warehouse_sync_enabled?
-  rescue StandardError
+    # SSoT: Use resolved_tenant (from TenantResolvable) to get storage config
+    tenant = resolved_tenant
+    StorageConfiguration.for_tenant(tenant).warehouse_sync_enabled?
+  rescue TenantNotFoundError => e
+    Rails.logger.warn "[WarehouseSyncable] Sync disabled - no tenant: #{e.message}"
+    false
+  rescue StandardError => e
+    Rails.logger.warn "[WarehouseSyncable] Sync disabled - error: #{e.message}"
     false
   end
 
   def warehouse_provider
-    organization = resolved_organization_for_warehouse
-    DocumentProviders::S3Compatible.for_organization(organization)
-  rescue StandardError
+    # SSoT: Use resolved_tenant (from TenantResolvable) to get provider
+    tenant = resolved_tenant
+    DocumentProviders.for_tenant(tenant)
+  rescue TenantNotFoundError => e
+    Rails.logger.warn "[WarehouseSyncable] No provider - no tenant: #{e.message}"
     nil
-  end
-
-  # Derive organization from the record itself
-  def resolved_organization_for_warehouse
-    return self.organization if respond_to?(:organization) && self.organization.present?
-    return microsoft_credential&.organization if respond_to?(:microsoft_credential)
-    return imap_credential&.organization if respond_to?(:imap_credential)
-    return job&.organization if respond_to?(:job) && job&.respond_to?(:organization)
-    return contact&.organization if respond_to?(:contact) && contact&.respond_to?(:organization)
-
-    # Fallback - TODO: Remove after full multi-tenancy migration
-    Organization.first
+  rescue StandardError => e
+    Rails.logger.warn "[WarehouseSyncable] No provider - error: #{e.message}"
+    nil
   end
 
   def warehouse_filename

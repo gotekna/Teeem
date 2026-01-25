@@ -3459,21 +3459,73 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const generateResponseBody = (): string => {
     let body = '';
 
+    // Context-aware viewer URL with Q&A and file navigation
+    // Encodes question, answer, and all sibling files into URL for navigation in viewer
+    interface ViewerFile {
+      name: string;
+      downloadUrl: string;
+      openUrl: string;
+    }
+    interface ViewerContext {
+      files: ViewerFile[];
+      currentIndex: number;
+      question?: string;
+      answer?: string;
+    }
+    const encodeViewerContext = (context: ViewerContext): string => {
+      const json = JSON.stringify(context);
+      const base64 = btoa(json);
+      return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    };
+
     // Helper to format a file link as HTML hyperlink with Download/Open options
     // For external email recipients - makes actions more discoverable
     // downloadUrl = presigned URL with Content-Disposition: attachment (forces download)
     // openUrl = presigned URL with Content-Disposition: inline (browser displays file)
-    // Open link uses the public viewer page (/view) which shows proper filename in browser tab
-    const formatFileLink = (fileName: string, downloadUrl?: string, openUrl?: string): string => {
+    // Open link uses the enhanced viewer page (/view/[id]) with Q&A context and file navigation
+    const formatFileLink = (
+      fileName: string,
+      downloadUrl?: string,
+      openUrl?: string,
+      context?: { question?: string; answer?: string; allFiles?: ViewerFile[]; currentIndex?: number }
+    ): string => {
       if (downloadUrl && openUrl) {
-        // Build viewer page URL with params: url (for inline viewing), name (for tab title), download (for download button)
-        const viewerParams = new URLSearchParams({
-          url: openUrl,
-          name: fileName,
-          download: downloadUrl
-        });
-        // Use teeem.vercel.app for production viewer (public, no auth required)
-        const viewerUrl = `https://teeem.vercel.app/view?${viewerParams.toString()}`;
+        let viewerUrl: string;
+
+        // If we have context with multiple files or Q&A, use the enhanced viewer
+        if (context && (context.allFiles?.length || context.question || context.answer)) {
+          const viewerContext: ViewerContext = {
+            files: context.allFiles || [{ name: fileName, downloadUrl, openUrl }],
+            currentIndex: context.currentIndex ?? 0,
+            question: context.question,
+            answer: context.answer
+          };
+          const encoded = encodeViewerContext(viewerContext);
+          const enhancedUrl = `https://teeem.vercel.app/view/${encoded}`;
+
+          // URL length limit: browsers support ~2000 chars, but keep under 1800 to be safe
+          // Presigned S3 URLs can be 300+ chars each, so fall back for long URLs
+          if (enhancedUrl.length <= 1800) {
+            viewerUrl = enhancedUrl;
+          } else {
+            // Fallback: simple URL for this file only
+            const viewerParams = new URLSearchParams({
+              url: openUrl,
+              name: fileName,
+              download: downloadUrl
+            });
+            viewerUrl = `https://teeem.vercel.app/view?${viewerParams.toString()}`;
+          }
+        } else {
+          // Fallback to simple query params for single files without Q&A context
+          const viewerParams = new URLSearchParams({
+            url: openUrl,
+            name: fileName,
+            download: downloadUrl
+          });
+          viewerUrl = `https://teeem.vercel.app/view?${viewerParams.toString()}`;
+        }
+
         return `<a href="${downloadUrl}">${fileName}</a> · <a href="${downloadUrl}" style="color: #666; font-size: 0.9em;">Download</a> · <a href="${viewerUrl}" target="_blank" style="color: #666; font-size: 0.9em;">Open</a>`;
       } else if (downloadUrl) {
         return `<a href="${downloadUrl}">${fileName}</a>`;
@@ -3555,17 +3607,32 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           const qNum = `${headerNum}.${qIdx + 1}`;
           body += `<p><strong>${qNum}</strong> ${q.text}</p>\n`;
 
+          // Build file list for viewer navigation (if multiple attachments)
+          const allFiles: ViewerFile[] = (q.attachments || [])
+            .filter(att => att.document)
+            .map(att => {
+              const name = att.document?.display_name || att.document?.file_name || 'Document';
+              const links = shareLinksMap[att.id];
+              const fallback = att.document?.storage_url || att.document?.file_url || '';
+              return { name, downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+            });
+
           // Show text response (no extra spacing before attachments)
           if (q.response) {
             body += `<p>${q.response}`;
             // If there are attachments, add them immediately after (no gap)
             if (q.attachments && q.attachments.length > 0) {
-              q.attachments.forEach(att => {
+              q.attachments.forEach((att, attIdx) => {
                 if (att.document) {
                   const fileName = att.document.display_name || att.document.file_name || 'Document';
                   const links = shareLinksMap[att.id];
                   const fallbackUrl = att.document.storage_url || att.document.file_url;
-                  body += `\n📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open)}`;
+                  body += `\n📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
+                    question: q.text,
+                    answer: q.response,
+                    allFiles,
+                    currentIndex: attIdx
+                  })}`;
                 }
               });
             }
@@ -3579,7 +3646,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 const fileName = att.document.display_name || att.document.file_name || 'Document';
                 const links = shareLinksMap[att.id];
                 const fallbackUrl = att.document.storage_url || att.document.file_url;
-                body += `📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open)}`;
+                body += `📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
+                  question: q.text,
+                  allFiles,
+                  currentIndex: attIdx
+                })}`;
               }
             });
             body += `</p>\n`;
@@ -3595,17 +3666,32 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           const qNum = `${qIdx + 1}`;
           body += `<p><strong>${qNum}.</strong> ${q.text}</p>\n`;
 
+          // Build file list for viewer navigation (if multiple attachments)
+          const allFiles: ViewerFile[] = (q.attachments || [])
+            .filter(att => att.document)
+            .map(att => {
+              const name = att.document?.display_name || att.document?.file_name || 'Document';
+              const links = shareLinksMap[att.id];
+              const fallback = att.document?.storage_url || att.document?.file_url || '';
+              return { name, downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+            });
+
           // Show text response (no extra spacing before attachments)
           if (q.response) {
             body += `<p>${q.response}`;
             // If there are attachments, add them immediately after (no gap)
             if (q.attachments && q.attachments.length > 0) {
-              q.attachments.forEach(att => {
+              q.attachments.forEach((att, attIdx) => {
                 if (att.document) {
                   const fileName = att.document.display_name || att.document.file_name || 'Document';
                   const links = shareLinksMap[att.id];
                   const fallbackUrl = att.document.storage_url || att.document.file_url;
-                  body += `\n📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open)}`;
+                  body += `\n📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
+                    question: q.text,
+                    answer: q.response,
+                    allFiles,
+                    currentIndex: attIdx
+                  })}`;
                 }
               });
             }
@@ -3619,7 +3705,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 const fileName = att.document.display_name || att.document.file_name || 'Document';
                 const links = shareLinksMap[att.id];
                 const fallbackUrl = att.document.storage_url || att.document.file_url;
-                body += `📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open)}`;
+                body += `📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
+                  question: q.text,
+                  allFiles,
+                  currentIndex: attIdx
+                })}`;
               }
             });
             body += `</p>\n`;
@@ -3681,13 +3771,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     // Show files with sharing links (both download and open URLs)
     if (linkedFiles.length > 0) {
+      // Build file list for viewer navigation (if multiple linked files)
+      const linkedFilesForViewer: ViewerFile[] = linkedFiles.map(att => {
+        const name = att.document?.display_name || att.document?.file_name || 'Document';
+        const links = shareLinksMap[att.id];
+        const fallback = att.document?.storage_url || att.document?.file_url || '';
+        return { name, downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+      });
+
       body += '<p><strong>File links:</strong></p>\n';
       body += '<ul>\n';
-      linkedFiles.forEach(att => {
+      linkedFiles.forEach((att, attIdx) => {
         const fileName = att.document?.display_name || att.document?.file_name || 'Document';
         const links = shareLinksMap[att.id];
         const fallbackUrl = att.document?.storage_url || att.document?.file_url;
-        body += `<li>${formatFileLink(fileName, links?.download || fallbackUrl, links?.open)}</li>\n`;
+        body += `<li>${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
+          allFiles: linkedFilesForViewer,
+          currentIndex: attIdx
+        })}</li>\n`;
       });
       body += '</ul>\n';
     }

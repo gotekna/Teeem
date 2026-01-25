@@ -16,8 +16,13 @@ class CreateJobStorageFoldersJob < ApplicationJob
 
   def perform(job_id)
     job = Job.find(job_id)
-    # TEEEM is single-tenant, always use the primary organization
-    organization = Organization.first
+    # SSoT (Jan 2026): Derive organization from job's tenant
+    tenant = job.tenant || ActsAsTenant.current_tenant
+    organization = tenant&.organizations&.first
+
+    unless organization
+      Rails.logger.warn "[CreateJobStorageFolders] No organization found for job #{job_id}"
+    end
 
     Rails.logger.info "[DocumentProvider] Creating folders for job #{job_id}: #{job.title}"
 

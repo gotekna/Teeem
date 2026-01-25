@@ -163,12 +163,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
       )
       credential = existing
     else
-      # Get default organization for new credentials
-      default_org = Organization.first
+      # SSoT (Jan 2026): Derive organization from tenant
+      org = current_tenant&.organizations&.first
       credential = MicrosoftCredential.create!(
         name: org_name,
         credential_type: "app",
-        organization: default_org,
+        organization: org,
         client_id: client_id,
         client_secret: client_secret,
         tenant_id: tenant_id,
@@ -228,12 +228,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
       )
       credential = existing
     else
-      # Get default organization for new credentials
-      default_org = Organization.first
+      # SSoT (Jan 2026): Derive organization from tenant
+      org = current_tenant&.organizations&.first
       credential = MicrosoftCredential.create!(
         name: org_name,
         credential_type: "app",
-        organization: default_org,
+        organization: org,
         client_id: client_id,
         client_secret: client_secret,
         tenant_id: tenant_id,

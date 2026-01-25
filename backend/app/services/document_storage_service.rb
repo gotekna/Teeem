@@ -43,10 +43,15 @@
 #   :job, :corporate, :people, :contact, :task, :email, :email_attachments, etc.
 #
 class DocumentStorageService
-  attr_reader :storage_config, :provider
+  attr_reader :storage_config, :provider, :tenant
 
-  def initialize
-    @storage_config = StorageConfiguration.instance
+  # SSoT: Requires explicit tenant or ActsAsTenant.current_tenant (Jan 2026 fix)
+  # @param tenant [Tenant] The tenant context (optional, uses ActsAsTenant.current_tenant if not provided)
+  def initialize(tenant: nil)
+    @tenant = tenant || ActsAsTenant.current_tenant
+    raise TenantNotFoundError, "Tenant required for DocumentStorageService" unless @tenant
+
+    @storage_config = StorageConfiguration.for_tenant(@tenant)
     @provider = get_storage_provider
   end
 
@@ -345,8 +350,12 @@ class DocumentStorageService
   private
 
   def get_storage_provider
-    DocumentProviders.for_organization(Organization.first)
-  rescue => e
+    # SSoT: Use tenant for provider (Jan 2026 fix)
+    DocumentProviders.for_tenant(@tenant)
+  rescue TenantNotFoundError => e
+    Rails.logger.error "[DocumentStorage] Failed to get provider - no tenant: #{e.message}"
+    nil
+  rescue StandardError => e
     Rails.logger.error "[DocumentStorage] Failed to get provider: #{e.message}"
     nil
   end

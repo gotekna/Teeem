@@ -96,9 +96,8 @@ module Api
         begin
           file = params[:file]
 
-          # Upload to S3 using SSoT warehouse_path
-          organization = Organization.first
-          provider = DocumentProviders::S3Compatible.for_organization(organization)
+          # SSoT (Jan 2026): Use tenant for storage provider
+          provider = DocumentProviders.for_tenant(current_tenant)
 
           folder_path = @presentation.warehouse_folder_path
           filename = "#{@presentation.safe_filename}.pptx"

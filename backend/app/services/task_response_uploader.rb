@@ -24,22 +24,31 @@
 class TaskResponseUploader
   class UploadError < StandardError; end
 
-  attr_reader :job, :task, :organization, :category
+  attr_reader :job, :task, :tenant, :category
 
-  def initialize(job: nil, task:, category: "response", organization: nil)
+  # SSoT: Uses tenant for storage (Jan 2026 fix)
+  def initialize(job: nil, task:, category: "response", tenant: nil)
     @job = job
     @task = task
     @category = category
-    # Get organization - use Organization.first for single-tenant app
-    # Job doesn't have .organization association, so we use the global org
-    @organization = organization || Organization.first
+
+    # SSoT: Derive tenant from task/job chain or explicit parameter
+    @tenant = tenant ||
+              task&.respond_to?(:tenant) && task.tenant ||
+              job&.respond_to?(:tenant) && job.tenant ||
+              ActsAsTenant.current_tenant
+
+    unless @tenant
+      Rails.logger.error "[TaskResponseUploader] No tenant found"
+      raise TenantNotFoundError, "Tenant required for TaskResponseUploader"
+    end
   end
 
   # Upload a file to the appropriate SharePoint folder
   # @param file [ActionDispatch::Http::UploadedFile] The file to upload
   # @return [Hash] { success: true, sharepoint_url: "...", file_id: "...", filename: "..." }
   def upload(file)
-    config = StorageConfiguration.for_organization(organization)
+    config = StorageConfiguration.for_tenant(@tenant)
 
     # Check if task storage scope is enabled
     unless config.scope_enabled?(:task)
@@ -132,8 +141,8 @@ class TaskResponseUploader
   private
 
   def document_provider
-    # SSoT: Use generic provider factory which respects StorageConfiguration
-    DocumentProviders.for_organization(organization)
+    # SSoT: Use tenant for provider (Jan 2026 fix)
+    DocumentProviders.for_tenant(@tenant)
   end
 
   # Scope based on category - determines which StorageConfiguration path to use

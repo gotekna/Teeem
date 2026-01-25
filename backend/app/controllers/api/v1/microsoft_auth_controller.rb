@@ -391,9 +391,13 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   def update_unified_microsoft_credential(user, tokens, email)
     Rails.logger.info "[Microsoft Auth] SSoT: Updating MicrosoftCredential for user #{user.id}..."
 
-    # Get default organization for user-level credentials
-    # TODO: Use user.organization when User model has organization association
-    default_org = Organization.first
+    # SSoT (Jan 2026): Derive organization from tenant, not Organization.first
+    tenant = user.tenant || ActsAsTenant.current_tenant
+    default_org = tenant&.organizations&.first
+
+    unless default_org
+      Rails.logger.warn "[Microsoft Auth] No organization found for user #{user.id} - tenant: #{tenant&.name}"
+    end
 
     # Find or create user's MicrosoftCredential
     credential = MicrosoftCredential.find_or_initialize_by(
@@ -428,10 +432,14 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     # Deactivate any existing org-level delegated credentials
     MicrosoftCredential.delegated_credentials.org_level.active.update_all(is_active: false)
 
+    # SSoT (Jan 2026): Derive organization from tenant
+    tenant = user.tenant || ActsAsTenant.current_tenant
+    org = tenant&.organizations&.first
+
     # Create new credential
     credential = MicrosoftCredential.create!(
       credential_type: "delegated",
-      organization: Organization.first,
+      organization: org,
       access_token: tokens[:access_token],
       refresh_token: tokens[:refresh_token],
       token_expires_at: Time.current + tokens[:expires_in].to_i.seconds,

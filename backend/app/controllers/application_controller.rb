@@ -91,9 +91,27 @@ class ApplicationController < ActionController::API
   end
 
   # Get the organization for the current request
+  # SSoT (Jan 2026): Derive from tenant, not Organization.first
   # TODO: Add proper multi-org support when users can belong to multiple orgs
   def current_organization
-    @current_organization ||= Organization.first
+    @current_organization ||= begin
+      if current_tenant
+        current_tenant.organizations.first
+      else
+        Rails.logger.warn "[ApplicationController] No tenant context - cannot determine organization"
+        nil
+      end
+    end
+  end
+
+  # SSoT (Jan 2026): Require tenant context for operations that need storage
+  def require_tenant!
+    return if current_tenant.present?
+
+    render json: {
+      success: false,
+      error: "Tenant context required for this operation"
+    }, status: :unprocessable_entity
   end
 
   def require_admin

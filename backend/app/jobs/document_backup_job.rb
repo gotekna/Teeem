@@ -113,7 +113,14 @@ class DocumentBackupJob < ApplicationJob
   end
 
   def download_from_primary(doc)
-    provider = DocumentProviders.for_organization(Organization.first)
+    # SSoT (Jan 2026): Use tenant for storage provider
+    tenant = ActsAsTenant.current_tenant
+    provider = if tenant
+      DocumentProviders.for_tenant(tenant)
+    else
+      Rails.logger.warn "[DocumentBackup] No tenant context - using first organization"
+      DocumentProviders.for_organization(Organization.first)
+    end
     storage_path = doc.storage_blob&.storage_path
 
     return nil unless storage_path.present?

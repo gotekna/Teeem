@@ -182,11 +182,15 @@ class EmailAttachmentMigrationJob < ApplicationJob
     cred = MicrosoftCredential.sharepoint_credential
     raise DocumentProviders::NotConnectedError, "No SharePoint credential configured" unless cred
 
-    storage_config = StorageConfiguration.instance
+    # SSoT (Jan 2026): Derive tenant and storage config
+    tenant = ActsAsTenant.current_tenant
+    raise TenantNotFoundError, "Tenant context required for EmailAttachmentMigrationJob" unless tenant
+
+    storage_config = StorageConfiguration.for_tenant(tenant)
     raise DocumentProviders::NotConnectedError, "No storage configuration" unless storage_config&.drive_id.present?
 
     @document_provider = DocumentProviders::SharePoint.new(cred)
-    @organization = Organization.first
+    @organization = tenant.organizations.first
     @storage_config = storage_config
   end
 

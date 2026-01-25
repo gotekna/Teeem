@@ -67,8 +67,8 @@ module Api
         # SSoT: Path matches StorageConfiguration.SCOPE_FOLDERS["my_docs"] = "Users/MyDocs"
         # Note: list_folder returns an array of items directly, not a hash
         my_docs_count = begin
-          organization = Organization.first
-          provider = DocumentProviders::S3Compatible.for_organization(organization)
+          # SSoT (Jan 2026): Use tenant for storage provider
+          provider = DocumentProviders.for_tenant(current_tenant)
           items = provider.list_folder("Users/MyDocs", recursive: false) rescue []
           # Count only files (items with :type == :file), not folders
           items.is_a?(Array) ? items.count { |item| item[:type] == :file } : 0
@@ -420,9 +420,8 @@ module Api
         s3_key = "Users/#{folder}/#{safe_filename}"
 
         begin
-          # Upload to S3
-          organization = Organization.first
-          provider = DocumentProviders::S3Compatible.for_organization(organization)
+          # SSoT (Jan 2026): Use tenant for storage provider
+          provider = DocumentProviders.for_tenant(current_tenant)
 
           result = provider.upload_file(
             "Users/#{folder}",
@@ -471,8 +470,8 @@ module Api
         recursive = params[:recursive] == "true"
 
         begin
-          organization = Organization.first
-          provider = DocumentProviders::S3Compatible.for_organization(organization)
+          # SSoT (Jan 2026): Use tenant for storage provider
+          provider = DocumentProviders.for_tenant(current_tenant)
           # Note: list_folder returns an array directly, not a hash
           # Use recursive for warehouse folders (files nested in user/year subfolders)
           items = provider.list_folder(s3_path, recursive: recursive) || []
@@ -951,8 +950,8 @@ module Api
         end
 
         begin
-          organization = Organization.first
-          provider = DocumentProviders::S3Compatible.for_organization(organization)
+          # SSoT (Jan 2026): Use tenant for storage provider
+          provider = DocumentProviders.for_tenant(current_tenant)
 
           # Rename in S3 (copy + delete)
           result = provider.rename_file(path, safe_new_name)
@@ -1076,8 +1075,8 @@ module Api
                              search_pattern, search_pattern)
         end
 
-        organization = Organization.first
-        provider = DocumentProviders::S3Compatible.for_organization(organization) rescue nil
+        # SSoT (Jan 2026): Use tenant for storage provider
+        provider = DocumentProviders.for_tenant(current_tenant) rescue nil
 
         scope.map do |wd|
           blob = wd.storage_blob
@@ -2119,9 +2118,9 @@ module Api
 
         # Build download URL using WarehouseDocument.download_filename for Send Name
         download_url = if blob&.storage_path.present?
-          organization = Organization.first
-          provider = DocumentProviders::S3Compatible.for_organization(organization)
-          provider.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
+          # SSoT (Jan 2026): Use tenant for storage provider
+          provider = DocumentProviders.for_tenant(current_tenant)
+          provider&.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
         end
 
         # Get parent context based on documentable type

@@ -286,9 +286,15 @@ module Api
       end
 
       def current_organization
-        # For now, use the first organization (single-tenant mode)
-        # TODO: When multi-org support is needed, add organization_id param or user association
-        @current_organization ||= Organization.first
+        # SSoT (Jan 2026): Derive from tenant, not Organization.first
+        @current_organization ||= begin
+          if current_tenant
+            current_tenant.organizations.first
+          else
+            Rails.logger.warn "[BasiqController] No tenant context - cannot determine organization"
+            nil
+          end
+        end
       end
 
       def handle_connection_event(data)

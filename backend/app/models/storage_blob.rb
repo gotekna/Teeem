@@ -17,11 +17,14 @@
 # Deduplication:
 #   Same file sent to 100 users = 1 StorageBlob, 100 EmailAttachments
 #
+# SSoT: Uses TenantResolvable for fail-fast tenant derivation (Jan 2026 fix)
+#
 # Usage:
-#   blob = StorageBlob.find_or_create_for_content!(content, filename: "doc.pdf")
+#   blob = StorageBlob.find_or_create_for_content!(content, filename: "doc.pdf", tenant: current_tenant)
 #   attachment.update!(storage_blob: blob)
 #
 class StorageBlob < ApplicationRecord
+  include TenantResolvable
   # Associations
   has_many :email_attachments, dependent: :nullify
   has_many :corporate_company_documents, dependent: :nullify
@@ -140,39 +143,72 @@ class StorageBlob < ApplicationRecord
     blob.storage_path = result[:path] if result[:path].present?
   end
 
-  # Get storage provider for an organization
-  # SSoT: Organization must be passed or derived from linked records
-  def self.storage_provider(organization = nil)
-    org = organization || Organization.first # TODO: Remove Organization.first fallback after full multi-tenancy migration
-    raise ArgumentError, "Organization required for storage_provider" unless org
+  # SSoT: Get storage provider for a tenant (Jan 2026 fix)
+  # Class method for creating blobs - requires explicit tenant
+  def self.storage_provider_for_tenant(tenant)
+    raise TenantNotFoundError, "Tenant required for storage_provider" unless tenant
 
-    DocumentProviders.for_organization(org)
+    DocumentProviders.for_tenant(tenant)
   end
 
-  # Instance method finds org from linked records
+  # DEPRECATED: Use storage_provider_for_tenant instead
+  def self.storage_provider(organization = nil)
+    Rails.logger.warn "[DEPRECATED] StorageBlob.storage_provider(org) - use storage_provider_for_tenant(tenant) instead"
+
+    if organization
+      # Derive tenant from organization
+      tenant = organization.tenant
+      raise TenantNotFoundError.new(context: "StorageBlob.storage_provider - organization has no tenant") unless tenant
+      return DocumentProviders.for_tenant(tenant)
+    end
+
+    # Try current tenant from ActsAsTenant
+    tenant = ActsAsTenant.current_tenant
+    raise TenantNotFoundError, "Tenant context required for StorageBlob.storage_provider" unless tenant
+
+    DocumentProviders.for_tenant(tenant)
+  end
+
+  # Instance method: finds tenant from linked records via TenantResolvable
   def storage_provider
-    org = find_organization_from_links
-    self.class.storage_provider(org)
+    tenant = find_tenant_from_links
+    self.class.storage_provider_for_tenant(tenant)
   end
 
   private
 
-  # Find organization through linked records (warehouse_documents -> documentable -> organization)
-  def find_organization_from_links
+  # Find tenant through linked records (warehouse_documents -> documentable -> tenant)
+  # Uses TenantResolvable pattern for fail-fast behavior
+  def find_tenant_from_links
     # Try warehouse_document first
     if warehouse_documents.any?
       doc = warehouse_documents.first
-      return doc.documentable.organization if doc.documentable.respond_to?(:organization)
-      return doc.documentable.microsoft_credential&.organization if doc.documentable.respond_to?(:microsoft_credential)
+      # Try direct tenant access
+      return doc.tenant if doc.respond_to?(:tenant) && doc.tenant.present?
+      # Try documentable chain
+      if doc.documentable.present?
+        return doc.documentable.tenant if doc.documentable.respond_to?(:tenant) && doc.documentable.tenant.present?
+        return doc.documentable.microsoft_credential&.tenant if doc.documentable.respond_to?(:microsoft_credential)
+      end
     end
 
-    # Try email_attachments -> synced_email -> microsoft_credential -> organization
+    # Try email_attachments -> synced_email -> microsoft_credential -> tenant
     if email_attachments.any?
       att = email_attachments.first
-      return att.synced_email&.microsoft_credential&.organization if att.respond_to?(:synced_email)
+      if att.respond_to?(:synced_email) && att.synced_email.present?
+        return att.synced_email.microsoft_credential&.tenant if att.synced_email.respond_to?(:microsoft_credential)
+        return att.synced_email.tenant if att.synced_email.respond_to?(:tenant)
+      end
     end
 
-    # Fallback - will be removed after full migration
-    Organization.first
+    # Try ActsAsTenant.current_tenant
+    if ActsAsTenant.current_tenant.present?
+      Rails.logger.debug "[StorageBlob] Using ActsAsTenant.current_tenant for #{id}"
+      return ActsAsTenant.current_tenant
+    end
+
+    # FAIL FAST - No tenant found
+    Rails.logger.error "[StorageBlob] No tenant found for #{id}"
+    raise TenantNotFoundError.new(record: self, context: "StorageBlob#find_tenant_from_links")
   end
 end

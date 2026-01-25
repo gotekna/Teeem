@@ -660,10 +660,16 @@ module Api
         ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
       end
 
-      # Default organization for single-tenant system
-      # TODO: Implement proper user-organization mapping when multi-tenancy is needed
+      # SSoT (Jan 2026): Derive organization from tenant, not Organization.first
       def default_organization
-        @default_organization ||= Organization.first
+        @default_organization ||= begin
+          if current_tenant
+            current_tenant.organizations.first
+          else
+            Rails.logger.warn "[SyncController] No tenant context - cannot determine organization"
+            nil
+          end
+        end
       end
 
       # SSoT: Uses StorageConfiguration for base paths

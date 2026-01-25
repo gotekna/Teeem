@@ -158,9 +158,9 @@ module Api
       # GET /api/v1/user_documents/:id/download
       def download
         if @document.storage_blob&.storage_path.present?
-          config = StorageConfiguration.instance
-          provider = DocumentProviders::S3Compatible.for_organization(Organization.first)
-          url = provider.download_url(
+          # SSoT (Jan 2026): Use tenant for storage provider
+          provider = DocumentProviders.for_tenant(current_tenant)
+          url = provider&.download_url(
             @document.storage_blob.storage_path,
             expires_in: 3600,
             filename: @document.file_name
@@ -267,8 +267,9 @@ module Api
       def document_to_json(doc)
         blob = doc.storage_blob
         download_url = if blob&.storage_path.present?
-          provider = DocumentProviders::S3Compatible.for_organization(Organization.first)
-          provider.download_url(blob.storage_path, expires_in: 3600, filename: doc.file_name) rescue nil
+          # SSoT (Jan 2026): Use tenant for storage provider
+          provider = DocumentProviders.for_tenant(current_tenant)
+          provider&.download_url(blob.storage_path, expires_in: 3600, filename: doc.file_name) rescue nil
         end
 
         {

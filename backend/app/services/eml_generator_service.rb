@@ -73,15 +73,21 @@ class EmlGeneratorService
       content = generate(email)
       return nil unless content
 
-      # Upload to S3 - get organization from email's credential
-      organization = email.microsoft_credential&.organization ||
-                     email.imap_credential&.organization ||
-                     Organization.first
-      provider = DocumentProviders.for_organization(organization)
+      # SSoT: Derive tenant from email's credential chain (Jan 2026 fix)
+      tenant = email.microsoft_credential&.tenant ||
+               email.imap_credential&.tenant ||
+               ActsAsTenant.current_tenant
+
+      unless tenant
+        Rails.logger.error "[EmlGenerator] No tenant found for email #{email.id}"
+        raise TenantNotFoundError.new(record: email, context: "EmlGeneratorService#generate_and_upload")
+      end
+
+      provider = DocumentProviders.for_tenant(tenant)
       return nil unless provider
 
-      # Use StorageConfiguration for path template (org-specific)
-      storage_config = StorageConfiguration.for_organization(organization)
+      # Use StorageConfiguration for path template (tenant-specific)
+      storage_config = StorageConfiguration.for_tenant(tenant)
       year = (email.received_at || email.created_at).year
       month = (email.received_at || email.created_at).strftime("%m")
       mailbox = email.mailbox_owner_email&.split("@")&.first || "unknown"

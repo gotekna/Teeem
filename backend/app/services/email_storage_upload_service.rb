@@ -15,10 +15,14 @@
 #   UploadEmailsToStorageJob.perform_later(batch_size: 1000)
 #
 class EmailStorageUploadService
-  attr_reader :progress
+  attr_reader :progress, :tenant
 
-  def initialize(progress: nil)
-    @storage_config = StorageConfiguration.instance
+  # SSoT: Requires explicit tenant or ActsAsTenant.current_tenant (Jan 2026 fix)
+  def initialize(progress: nil, tenant: nil)
+    @tenant = tenant || ActsAsTenant.current_tenant
+    raise TenantNotFoundError, "Tenant required for EmailStorageUploadService" unless @tenant
+
+    @storage_config = StorageConfiguration.for_tenant(@tenant)
     @provider = get_storage_provider
     @stats = { uploaded: 0, skipped: 0, errors: [], total: 0 }
     @stats_mutex = Mutex.new
@@ -88,11 +92,15 @@ class EmailStorageUploadService
   end
 
   def get_storage_provider
-    DocumentProviders.for_organization(Organization.first)
+    # SSoT: Use tenant for provider (Jan 2026 fix)
+    DocumentProviders.for_tenant(@tenant)
+  rescue TenantNotFoundError => e
+    Rails.logger.error "[EmailUpload] No tenant for storage provider: #{e.message}"
+    nil
   rescue ActiveRecord::Encryption::Errors::Decryption => e
     Rails.logger.error "[EmailUpload] Credential decryption failed - check encryption keys: #{e.message}"
     nil
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "[EmailUpload] Failed to get storage provider: #{e.class} - #{e.message}"
     nil
   end
