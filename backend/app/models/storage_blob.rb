@@ -50,7 +50,12 @@ class StorageBlob < ApplicationRecord
     find_or_create_by!(content_hash: hash) do |blob|
       blob.file_size = content.bytesize
       blob.original_filename = filename
-      blob.content_type = content_type || detect_content_type(content, filename)
+      # Guard: Ensure content_type is correct, especially for PDFs
+      # Curl uploads often send wrong content_type (octet-stream)
+      blob.content_type = ensure_correct_content_type(
+        content_type || detect_content_type(content, filename),
+        filename
+      )
       blob.storage_path = generate_storage_path(hash, filename)
       blob.reference_count = 0
 
@@ -137,6 +142,39 @@ class StorageBlob < ApplicationRecord
     Marcel::MimeType.for(content, name: filename)
   rescue StandardError
     nil
+  end
+
+  # Guard: Fix common content_type misdetections
+  # Curl uploads often send application/octet-stream for valid PDFs/images
+  # This ensures we use filename extension when content_type is generic
+  EXTENSION_CONTENT_TYPES = {
+    ".pdf" => "application/pdf",
+    ".jpg" => "image/jpeg",
+    ".jpeg" => "image/jpeg",
+    ".png" => "image/png",
+    ".gif" => "image/gif",
+    ".webp" => "image/webp",
+    ".svg" => "image/svg+xml",
+    ".txt" => "text/plain",
+    ".csv" => "text/csv",
+    ".json" => "application/json",
+    ".xml" => "application/xml",
+    ".doc" => "application/msword",
+    ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xls" => "application/vnd.ms-excel",
+    ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  }.freeze
+
+  def self.ensure_correct_content_type(detected_type, filename)
+    return detected_type if filename.blank?
+
+    # If detected type is generic (octet-stream or nil), use filename extension
+    if detected_type.blank? || detected_type == "application/octet-stream"
+      ext = File.extname(filename).downcase
+      return EXTENSION_CONTENT_TYPES[ext] if EXTENSION_CONTENT_TYPES[ext]
+    end
+
+    detected_type
   end
 
   def self.generate_storage_path(hash, filename)
