@@ -130,20 +130,25 @@ export function getFileIcon(filename: string, className?: string) {
  * Parse a single MIME part and extract headers and body
  */
 function parseMimePart(partContent: string): { headers: Record<string, string>; body: string } {
-  const lines = partContent.split(/\r?\n/);
+  // Normalize line endings and trim leading whitespace (parts after boundary split often start with newline)
+  const normalizedContent = partContent.replace(/\r\n/g, '\n').replace(/^\n+/, '');
+  const lines = normalizedContent.split('\n');
   const headers: Record<string, string> = {};
-  let headerEnd = 0;
+  let headerEnd = -1;
   let currentHeader = "";
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (line === "") {
+    // Empty line or line with only whitespace marks end of headers
+    if (line.trim() === "") {
       headerEnd = i;
       break;
     }
+    // Continuation line (starts with whitespace)
     if (/^\s+/.test(line) && currentHeader) {
       headers[currentHeader] += " " + line.trim();
     } else {
+      // Header line
       const match = line.match(/^([^:]+):\s*(.*)$/);
       if (match) {
         currentHeader = match[1].toLowerCase();
@@ -152,9 +157,11 @@ function parseMimePart(partContent: string): { headers: Record<string, string>; 
     }
   }
 
+  // If no empty line found, assume all content is body (no headers)
+  const bodyStartIndex = headerEnd >= 0 ? headerEnd + 1 : 0;
   return {
     headers,
-    body: lines.slice(headerEnd + 1).join("\n")
+    body: lines.slice(bodyStartIndex).join("\n")
   };
 }
 
@@ -165,6 +172,85 @@ function decodeQuotedPrintable(str: string): string {
   return str
     .replace(/=\r?\n/g, "")
     .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+/**
+ * Check if content type indicates HTML (case-insensitive)
+ */
+function isHtmlContentType(contentType: string): boolean {
+  return contentType.toLowerCase().includes("text/html");
+}
+
+/**
+ * Check if content type indicates plain text (case-insensitive)
+ */
+function isPlainTextContentType(contentType: string): boolean {
+  return contentType.toLowerCase().includes("text/plain");
+}
+
+/**
+ * Check if content type indicates image (case-insensitive)
+ */
+function isImageContentType(contentType: string): boolean {
+  return contentType.toLowerCase().includes("image/");
+}
+
+/**
+ * Check if content type indicates multipart (case-insensitive)
+ */
+function isMultipartContentType(contentType: string): boolean {
+  return contentType.toLowerCase().includes("multipart");
+}
+
+/**
+ * Check if transfer encoding is quoted-printable (case-insensitive)
+ */
+function isQuotedPrintable(encoding: string): boolean {
+  return encoding.toLowerCase().includes("quoted-printable");
+}
+
+/**
+ * Process a MIME part and extract content/images
+ */
+function processMimePart(
+  partContent: string,
+  cidMap: Record<string, string>
+): { htmlPart: string; textPart: string } {
+  let htmlPart = "";
+  let textPart = "";
+
+  const { headers, body } = parseMimePart(partContent);
+  const contentType = headers["content-type"] || "";
+  const contentId = headers["content-id"]?.replace(/[<>]/g, "");
+  const transferEncoding = headers["content-transfer-encoding"] || "";
+
+  // Handle nested multipart
+  if (isMultipartContentType(contentType)) {
+    const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/i);
+    if (boundaryMatch) {
+      const boundary = boundaryMatch[1];
+      const escapedBoundary = boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const nestedParts = body.split(new RegExp(`--${escapedBoundary}`));
+
+      for (const nestedPart of nestedParts) {
+        if (nestedPart.trim() === "" || nestedPart.trim() === "--") continue;
+        const result = processMimePart(nestedPart, cidMap);
+        if (result.htmlPart && !htmlPart) htmlPart = result.htmlPart;
+        if (result.textPart && !textPart) textPart = result.textPart;
+      }
+    }
+  } else if (isHtmlContentType(contentType)) {
+    htmlPart = isQuotedPrintable(transferEncoding) ? decodeQuotedPrintable(body) : body;
+  } else if (isPlainTextContentType(contentType)) {
+    textPart = isQuotedPrintable(transferEncoding) ? decodeQuotedPrintable(body) : body;
+  } else if (isImageContentType(contentType) && contentId) {
+    // Extract inline image with Content-ID
+    const mimeType = contentType.split(";")[0].trim().toLowerCase();
+    const imageData = body.replace(/\s/g, "");
+    cidMap[contentId] = `data:${mimeType};base64,${imageData}`;
+  }
+
+  return { htmlPart, textPart };
 }
 
 /**
@@ -187,70 +273,21 @@ function parseEmlContent(content: string): {
   const contentType = headers["content-type"] || "";
 
   // Handle multipart messages
-  if (contentType.includes("multipart")) {
-    const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
+  if (isMultipartContentType(contentType)) {
+    const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/i);
     if (boundaryMatch) {
       const boundary = boundaryMatch[1];
       const escapedBoundary = boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const parts = body.split(new RegExp(`--${escapedBoundary}`));
+      const parts = rawBody.split(new RegExp(`--${escapedBoundary}`));
 
       let htmlPart = "";
       let textPart = "";
 
       for (const part of parts) {
         if (part.trim() === "" || part.trim() === "--") continue;
-
-        const { headers: partHeaders, body: partBody } = parseMimePart(part);
-        const partContentType = partHeaders["content-type"] || "";
-        const contentId = partHeaders["content-id"]?.replace(/[<>]/g, "");
-        const transferEncoding = partHeaders["content-transfer-encoding"] || "";
-
-        // Handle nested multipart (e.g., multipart/related containing multipart/alternative)
-        if (partContentType.includes("multipart")) {
-          const nestedBoundaryMatch = partContentType.match(/boundary="?([^";\s]+)"?/);
-          if (nestedBoundaryMatch) {
-            const nestedBoundary = nestedBoundaryMatch[1];
-            const escapedNestedBoundary = nestedBoundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const nestedParts = partBody.split(new RegExp(`--${escapedNestedBoundary}`));
-
-            for (const nestedPart of nestedParts) {
-              if (nestedPart.trim() === "" || nestedPart.trim() === "--") continue;
-
-              const { headers: nestedHeaders, body: nestedBody } = parseMimePart(nestedPart);
-              const nestedContentType = nestedHeaders["content-type"] || "";
-              const nestedContentId = nestedHeaders["content-id"]?.replace(/[<>]/g, "");
-              const nestedTransferEncoding = nestedHeaders["content-transfer-encoding"] || "";
-
-              if (nestedContentType.includes("text/html")) {
-                htmlPart = nestedTransferEncoding.includes("quoted-printable")
-                  ? decodeQuotedPrintable(nestedBody)
-                  : nestedBody;
-              } else if (nestedContentType.includes("text/plain") && !htmlPart) {
-                textPart = nestedTransferEncoding.includes("quoted-printable")
-                  ? decodeQuotedPrintable(nestedBody)
-                  : nestedBody;
-              } else if (nestedContentType.includes("image/") && nestedContentId) {
-                // Extract inline image
-                const mimeType = nestedContentType.split(";")[0].trim();
-                const imageData = nestedBody.replace(/\s/g, "");
-                cidMap[nestedContentId] = `data:${mimeType};base64,${imageData}`;
-              }
-            }
-          }
-        } else if (partContentType.includes("text/html")) {
-          htmlPart = transferEncoding.includes("quoted-printable")
-            ? decodeQuotedPrintable(partBody)
-            : partBody;
-        } else if (partContentType.includes("text/plain") && !htmlPart) {
-          textPart = transferEncoding.includes("quoted-printable")
-            ? decodeQuotedPrintable(partBody)
-            : partBody;
-        } else if (partContentType.includes("image/") && contentId) {
-          // Extract inline image with Content-ID
-          const mimeType = partContentType.split(";")[0].trim();
-          const imageData = partBody.replace(/\s/g, "");
-          cidMap[contentId] = `data:${mimeType};base64,${imageData}`;
-        }
+        const result = processMimePart(part, cidMap);
+        if (result.htmlPart && !htmlPart) htmlPart = result.htmlPart;
+        if (result.textPart && !textPart) textPart = result.textPart;
       }
 
       if (htmlPart) {
@@ -261,12 +298,12 @@ function parseEmlContent(content: string): {
         isHtml = false;
       }
     }
-  } else if (contentType.includes("text/html")) {
+  } else if (isHtmlContentType(contentType)) {
     isHtml = true;
-    if (headers["content-transfer-encoding"]?.includes("quoted-printable")) {
+    if (isQuotedPrintable(headers["content-transfer-encoding"] || "")) {
       body = decodeQuotedPrintable(body);
     }
-  } else if (headers["content-transfer-encoding"]?.includes("quoted-printable")) {
+  } else if (isQuotedPrintable(headers["content-transfer-encoding"] || "")) {
     body = decodeQuotedPrintable(body);
   }
 
