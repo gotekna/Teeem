@@ -766,6 +766,18 @@ const TIER_3_COMPONENTS: StandardComponent[] = [
 
 const TIER_4_COMPONENTS: StandardComponent[] = [
   {
+    id: "document-viewer",
+    name: "DocumentViewer",
+    displayName: "Document Viewer",
+    category: "document",
+    tier: 4,
+    status: "standard",
+    importPath: "@/components/ui/document-viewer",
+    description: "Universal document viewer with auto-detection for PDF, Image, Excel, and EML files. Supports Q&A context sidebar and multi-file navigation.",
+    whenToUse: "Public document sharing, email attachment preview, any context needing multi-format file viewing with optional Q&A context.",
+    usageCount: 1,
+  },
+  {
     id: "pdf-viewer",
     name: "PDFViewer",
     displayName: "PDF Viewer",

@@ -3466,11 +3466,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       downloadUrl: string;
       openUrl: string;
     }
+    interface QAPair {
+      question: string;
+      answer?: string;
+      fileIndex?: number;
+    }
     interface ViewerContext {
       files: ViewerFile[];
       currentIndex: number;
-      question?: string;
+      question?: string;  // Legacy single Q&A
       answer?: string;
+      allQA?: QAPair[];   // All Q&As from email
     }
     const encodeViewerContext = (context: ViewerContext): string => {
       const json = JSON.stringify(context);
@@ -3487,18 +3493,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       fileName: string,
       downloadUrl?: string,
       openUrl?: string,
-      context?: { question?: string; answer?: string; allFiles?: ViewerFile[]; currentIndex?: number }
+      context?: { question?: string; answer?: string; allFiles?: ViewerFile[]; currentIndex?: number; allQA?: QAPair[] }
     ): string => {
       if (downloadUrl && openUrl) {
         let viewerUrl: string;
 
         // If we have context with multiple files or Q&A, use the enhanced viewer
-        if (context && (context.allFiles?.length || context.question || context.answer)) {
+        if (context && (context.allFiles?.length || context.question || context.answer || context.allQA?.length)) {
           const viewerContext: ViewerContext = {
             files: context.allFiles || [{ name: fileName, downloadUrl, openUrl }],
             currentIndex: context.currentIndex ?? 0,
             question: context.question,
-            answer: context.answer
+            answer: context.answer,
+            allQA: context.allQA
           };
           const encoded = encodeViewerContext(viewerContext);
           const enhancedUrl = `https://teeem.vercel.app/view/${encoded}`;
@@ -3547,6 +3554,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     const includedQuestions = questionItems.filter(q =>
       q.include_in_response && (q.response || (q.attachments && q.attachments.length > 0))
     );
+
+    // Build allQA array for the viewer sidebar (shows all Q&As, not just current one)
+    const allQA: QAPair[] = includedQuestions.map(q => ({
+      question: q.text,
+      answer: q.response || undefined
+    }));
 
     // Debug: Log ALL questions to diagnose filtering
     console.log('[generateResponseBody] ALL questions:', questionItems.map(q => ({
@@ -3631,7 +3644,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     question: q.text,
                     answer: q.response,
                     allFiles,
-                    currentIndex: attIdx
+                    currentIndex: attIdx,
+                    allQA
                   })}`;
                 }
               });
@@ -3649,7 +3663,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 body += `📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
                   question: q.text,
                   allFiles,
-                  currentIndex: attIdx
+                  currentIndex: attIdx,
+                  allQA
                 })}`;
               }
             });
@@ -3690,7 +3705,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     question: q.text,
                     answer: q.response,
                     allFiles,
-                    currentIndex: attIdx
+                    currentIndex: attIdx,
+                    allQA
                   })}`;
                 }
               });
@@ -3708,7 +3724,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 body += `📎 ${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
                   question: q.text,
                   allFiles,
-                  currentIndex: attIdx
+                  currentIndex: attIdx,
+                  allQA
                 })}`;
               }
             });
@@ -3787,7 +3804,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         const fallbackUrl = att.document?.storage_url || att.document?.file_url;
         body += `<li>${formatFileLink(fileName, links?.download || fallbackUrl, links?.open, {
           allFiles: linkedFilesForViewer,
-          currentIndex: attIdx
+          currentIndex: attIdx,
+          allQA
         })}</li>\n`;
       });
       body += '</ul>\n';
