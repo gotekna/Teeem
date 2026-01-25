@@ -397,6 +397,18 @@ function parseEmlContent(content: string): {
   // Clean up trailing boundary markers
   body = body.replace(/--[^\n]+--\s*$/g, "").trim();
 
+  // Replace any remaining unresolved cid: references with a placeholder
+  // This happens when reply emails quote original messages with images that weren't included
+  const unresolvedCids = body.match(/src=["']cid:[^"']+["']/gi) || [];
+  if (unresolvedCids.length > 0) {
+    console.log(`[EML Parser] ${unresolvedCids.length} unresolved cid: images - replacing with placeholder`);
+    // Replace with a 1x1 transparent gif and add a data attribute for styling
+    body = body.replace(
+      /(<img[^>]*)(src=["']cid:[^"']+["'])([^>]*>)/gi,
+      '$1src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-missing-image="true" style="display:none;"$3'
+    );
+  }
+
   console.log(`[EML Parser] Final result - isHtml: ${isHtml}, images found: ${Object.keys(cidMap).length}, body length: ${body.length}`);
 
   return {
