@@ -249,6 +249,15 @@ warehouse_daily_snapshot:
   queue: low
   schedule: at 2am every day
 
+# Sync Xero invoice data from Xero API to database
+# Keeps Stage 1 (Xero Data) up-to-date even if webhooks fail
+# Syncs all connected tenants every 5 minutes
+xero_invoice_data_sync:
+  class: XeroInvoiceSyncJob
+  queue: default
+  args: [null]
+  schedule: every 5 minutes
+
 # Sync Xero invoice attachments (PDFs) - runs after invoice sync
 # Syncs invoices to WarehouseDocument (SSoT for all documents)
 warehouse_xero_attachments:

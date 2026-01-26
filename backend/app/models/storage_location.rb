@@ -11,6 +11,10 @@
 #           XeroFeatureTab, UserJobTabConfig
 #
 class StorageLocation < ApplicationRecord
+  # Table name kept as entity_tabs for backward compatibility
+  # Model renamed: EntityTab → StorageLocation (Jan 2026)
+  self.table_name = 'entity_tabs'
+
   # NOTE: Multi-tenancy REMOVED (Jan 2026)
   # StorageLocations are GLOBAL configuration shared across all tenants.
   # All StorageLocations have company_group_id=NULL by design.
@@ -80,7 +84,7 @@ class StorageLocation < ApplicationRecord
   has_many :children, class_name: 'StorageLocation', foreign_key: :parent_id, dependent: :destroy
 
   # Document type links (SSoT for tab-to-document-type associations)
-  has_many :storage_location_document_types, dependent: :destroy
+  has_many :storage_location_document_types, foreign_key: :entity_tab_id, dependent: :destroy
   has_many :document_types, through: :storage_location_document_types
 
   # SSoT: Auto-inherit warehouse folder flag from parent when document types assigned
