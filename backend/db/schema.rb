@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_26_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_26_133708) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3068,15 +3068,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_120000) do
   end
 
   create_table "entity_tab_document_types", force: :cascade do |t|
-    t.bigint "entity_tab_id", null: false
+    t.bigint "storage_location_id", null: false
     t.bigint "document_type_id", null: false
     t.boolean "is_primary", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["document_type_id", "is_primary"], name: "idx_entity_tab_doc_types_primary"
     t.index ["document_type_id"], name: "index_entity_tab_document_types_on_document_type_id"
-    t.index ["entity_tab_id", "document_type_id"], name: "idx_entity_tab_doc_types_unique", unique: true
-    t.index ["entity_tab_id"], name: "index_entity_tab_document_types_on_entity_tab_id"
+    t.index ["storage_location_id", "document_type_id"], name: "idx_entity_tab_doc_types_unique", unique: true
+    t.index ["storage_location_id"], name: "index_entity_tab_document_types_on_storage_location_id"
   end
 
   create_table "entity_tabs", force: :cascade do |t|
@@ -10891,7 +10891,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_120000) do
   add_foreign_key "email_user_states", "synced_emails", column: "email_warehouse_id"
   add_foreign_key "email_user_states", "users"
   add_foreign_key "entity_tab_document_types", "document_types"
-  add_foreign_key "entity_tab_document_types", "entity_tabs"
+  add_foreign_key "entity_tab_document_types", "entity_tabs", column: "storage_location_id"
   add_foreign_key "entity_tabs", "entity_tabs", column: "parent_id"
   add_foreign_key "entity_tabs", "jobs"
   add_foreign_key "entity_tabs", "tenants"
