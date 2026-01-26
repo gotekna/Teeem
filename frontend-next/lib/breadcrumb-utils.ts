@@ -167,6 +167,17 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "connections": "Connections",
   "job-setup": "Job Setup",
   "workflow-config": "Workflow Config",
+  "entity-config": "Folder Config",
+  "offline": "Offline",
+
+  // Settings > Company > Folder Config sub-tabs
+  "storage_config": "Storage Config",
+  "document_types": "Document Types",
+  "corporate_entity": "Corporate",
+  "job": "Jobs",
+  "contact": "Contacts",
+  "email_config": "Email Config",
+  "config_sync": "Sync",
 
   // Settings > Developer tabs
   "api-keys": "API Keys",
@@ -382,6 +393,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "connections": ["provider", "migration", "costs"],
   "security": ["users", "roles", "groups"],
   "corporate": ["groups", "companies", "company-tabs"],
+  "entity-config": ["storage_config", "document_types", "corporate_entity", "job", "contact", "email_config", "config_sync"],
 };
 
 /**

@@ -1155,12 +1155,12 @@ function TabNode({
                 showPreview={false}
                 separator="/"
                 placeholder="Click tokens or type path..."
-                defaultExpanded={true}
+                defaultExpanded={false}
               />
-              {/* Full path preview */}
-              <div className="text-[10px] text-muted-foreground">
-                <span className="font-medium">Preview: </span>
-                <span className="font-mono text-green-600 dark:text-green-400">{fullPathPreview || '/'}</span>
+              {/* Full path preview - shown directly under tokens (defaultExpanded=false keeps this visible) */}
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-2 py-1">
+                <span className="text-[10px] text-muted-foreground font-medium">Full Path: </span>
+                <span className="font-mono text-xs text-green-700 dark:text-green-400">{fullPathPreview || '/'}</span>
               </div>
             </div>
 
