@@ -826,7 +826,7 @@ module Api
             with_file_count = with_file_by_source[source_type] || 0
             results << {
               source_type: source_type,
-              label: source_type.titleize,
+              label: StorageConfiguration.label_for(source_type),  # SSoT: Use centralized labels
               total: total,
               with_blob: with_storage,
               with_file: with_file_count,

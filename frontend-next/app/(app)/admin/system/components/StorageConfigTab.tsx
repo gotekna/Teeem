@@ -60,14 +60,20 @@ import Link from "next/link";
 // Note: 'user' added for Teeem Docs (personal user documents)
 const SIMPLE_SCOPES = ['email', 'warehouse', 'task', 'user', 'overview'];
 // SSoT: Complex scopes need separate tab (have document types, entity filters)
-const COMPLEX_SCOPES = ['corporate_entity', 'job', 'contact'];
+const COMPLEX_SCOPES = ['corporate', 'job', 'contact'];
 
 // Human-readable labels for scope links
 const SCOPE_LABELS: Record<string, string> = {
-  corporate_entity: 'Corporate',
+  corporate: 'Corporate',
   job: 'Jobs',
   contact: 'Contacts',
   user: 'Teeem Docs',
+  // Template sub-scopes (Jan 2026)
+  template_documents: 'Document Templates',
+  template_bank_statements: 'Bank Statements',
+  template_invoices: 'Invoice Templates',
+  template_email_signatures: 'Email Signatures',
+  template_pdf_fields: 'PDF Fields',
 };
 
 // SSoT: Provider types match StorageConfiguration.PROVIDER_TYPES
@@ -126,7 +132,7 @@ interface EntityTab {
 
 // Scope to API scope mapping
 const SCOPE_TO_API_SCOPE: Record<string, string> = {
-  corporate_entity: 'corporate_entity',
+  corporate: 'corporate',
   job: 'job',
   contact: 'contact',
   email: 'email',
@@ -159,9 +165,9 @@ interface StorageConfig {
   region: string | null;
   // Root path and warehouse folders
   root_path: string;
-  // SSoT: warehouse_root_folders is THE ONE place for warehouse type roots
-  // warehouse_folders REMOVED (Jan 2026 SSoT fix) - use warehouse_root_folders only
-  warehouse_root_folders: ScopeFolders;
+  // SSoT: warehouse_folders is THE ONE place for warehouse type roots
+  // warehouse_folders REMOVED (Jan 2026 SSoT fix) - use warehouse_folders only
+  warehouse_folders: ScopeFolders;
   // SSoT: Templates for folder paths and filenames per warehouse type
   warehouse_folder_templates: Record<string, string>;
   file_name_templates: Record<string, string>;
@@ -219,7 +225,7 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
       // Exception: Keep scope root entries themselves (overview tabs for each scope)
       // These have keys like 'email', 'warehouse', 'job', 'user', etc.
       // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
-      const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user'].includes(key);
+      const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate', 'corporate', 'user'].includes(key);
       if (!isOverviewTab) return false;
     }
     return true;
@@ -236,12 +242,13 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   // SSoT: All scope keys that should show as badges in the tree view
   // Includes sub-scopes like task_attachments, task_responses that need separate configuration
   const mainScopeKeys = [
-    'email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user',
+    'email', 'warehouse', 'job', 'contact', 'task', 'corporate', 'user',
     'case', 'case_documents', 'case_emails',
     'asset', 'asset_expenses', 'asset_service', 'asset_readings',
     'financial', 'financial_transactions',
     'compliance', 'payment', 'payment_invoices', 'payment_proof',
     'bank_statement', 'template',
+    'template_documents', 'template_bank_statements', 'template_invoices', 'template_email_signatures', 'template_pdf_fields',
     'esignature', 'esignature_pending', 'esignature_completed',
     'plan',
     'task_attachments', 'task_responses'  // Task sub-scopes for attachments and responses
@@ -301,7 +308,7 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
           node.scopeKeys.push(key);
         }
         // SSoT: Main scope keys (email, job, task, etc.) should ALWAYS be the primary scopeKey
-        // because warehouse_root_folders only has entries for main scopes
+        // because warehouse_folders only has entries for main scopes
         // Without this, 'email-attachments' (alphabetically first) would steal primary from 'email'
         if (!node.scopeKey || (isMainScope && !mainScopeKeys.includes(node.scopeKey))) {
           node.scopeKey = key;
@@ -370,7 +377,7 @@ interface TreeNodeProps {
   // Phase 4: Virtual scopes
   virtualScopes: Record<string, boolean>;
   onToggleVirtual: (scopeKey: string, isVirtual: boolean) => Promise<void>;
-  // SSoT: warehouse_root_folders - full path patterns like Jobs/{{JobCode}}
+  // SSoT: warehouse_folders - full path patterns like Jobs/{{JobCode}}
   scopeRootFolders: Record<string, string>;
 }
 
@@ -637,7 +644,7 @@ function TreeNode({
         {hasConfigLink && configLinkUrl && !isEditingThisNode && (() => {
           // Get tab name from URL
           const getTabName = (url: string) => {
-            if (url.includes('corporate_entity')) return 'Corporate tab';
+            if (url.includes('corporate')) return 'Corporate tab';
             if (url.includes('/job')) return 'Jobs tab';
             if (url.includes('/contact')) return 'Contacts tab';
             return 'Configure';
@@ -660,7 +667,7 @@ function TreeNode({
         )}
       </div>
 
-      {/* SSoT: Show warehouse_root_folders path pattern under folder name */}
+      {/* SSoT: Show warehouse_folders path pattern under folder name */}
       {(() => {
         const scopeKey = node.scopeKey || node.scopeKeys?.[0];
         const rootFolderPath = scopeKey ? scopeRootFolders[scopeKey] : null;
@@ -887,7 +894,7 @@ function TreeNode({
                       <SelectValue placeholder="Select target tab..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="/admin/system/entity-config/corporate_entity">
+                      <SelectItem value="/admin/system/entity-config/corporate">
                         Corporate tab
                       </SelectItem>
                       <SelectItem value="/admin/system/entity-config/job">
@@ -953,7 +960,7 @@ function TreeNode({
                 for (const sk of node.scopeKeys) {
                   const template = scopeTemplates[sk] || '' || '';
                   const filename = fileNameTemplates[sk] || '{{OriginalFileName}}';
-                  // Skip COMPLEX_SCOPES - they show via tabs section exclusively (job, contact, corporate_entity)
+                  // Skip COMPLEX_SCOPES - they show via tabs section exclusively (job, contact, corporate)
                   // Skip scopes with config links (they show tabs instead)
                   if (!COMPLEX_SCOPES.includes(sk) && !configLinks[sk] && template) {
                     allTemplates.push({ scopeKey: sk, template, filename });
@@ -1025,7 +1032,7 @@ function TreeNode({
             </div>
           )}
           {/* For scopes with tabs: show tabs */}
-          {/* SSoT: Entity identifier (e.g., {{JobCode}}) comes from warehouse_root_folders, not extracted from template */}
+          {/* SSoT: Entity identifier (e.g., {{JobCode}}) comes from warehouse_folders, not extracted from template */}
           {hasTabs && node.scopeKey ? (
             <div className="ml-1">
               {node.tabs!.map((tab) => (
@@ -1325,9 +1332,9 @@ export function StorageConfigTab() {
     s3_region: "",
     // Root path
     root_path: "",  // SSoT: Matches backend field name
-    // SSoT: warehouse_root_folders is THE ONE source for warehouse type roots
+    // SSoT: warehouse_folders is THE ONE source for warehouse type roots
     // warehouse_folders REMOVED (Jan 2026 SSoT fix)
-    warehouse_root_folders: {} as ScopeFolders,
+    warehouse_folders: {} as ScopeFolders,
     // SSoT: Templates for folder paths and filenames per warehouse type
     warehouse_folder_templates: {} as Record<string, string>,
     file_name_templates: {} as Record<string, string>,
@@ -1416,10 +1423,10 @@ export function StorageConfigTab() {
     }
   };
 
-  // Build folder tree from warehouse_root_folders, attaching tabs to scope nodes
+  // Build folder tree from warehouse_folders, attaching tabs to scope nodes
   // SSoT: Use config from API (not formData which may have stale initial state)
   const folderTree = React.useMemo(() => {
-    const scopeFolders = config?.warehouse_root_folders || {};
+    const scopeFolders = config?.warehouse_folders || {};
     const tree = buildFolderTree(scopeFolders);
 
     // Helper: Check if tab has doc types directly
@@ -1487,7 +1494,7 @@ export function StorageConfigTab() {
 
     attachTabs(tree);
     return tree;
-  }, [config?.warehouse_root_folders, entityTabs]);
+  }, [config?.warehouse_folders, entityTabs]);
 
   // Toggle tree node expansion
   const toggleExpanded = (path: string) => {
@@ -1505,7 +1512,7 @@ export function StorageConfigTab() {
 
     // When collapsing, also close any edit panels for scopes at or under this path
     if (isCollapsing && editingKey) {
-      const scopesAtPath = Object.entries(formData.warehouse_root_folders)
+      const scopesAtPath = Object.entries(formData.warehouse_folders)
         .filter(([, folderPath]) => folderPath === path || folderPath.startsWith(path + '/'))
         .map(([scopeKey]) => scopeKey);
       if (scopesAtPath.includes(editingKey)) {
@@ -1583,7 +1590,7 @@ export function StorageConfigTab() {
         "/api/v1/storage_configuration",
         {
           storage: {
-            warehouse_root_folders: { [scopeKey]: fullPath },
+            warehouse_folders: { [scopeKey]: fullPath },
             warehouse_folder_templates: { [scopeKey]: folderTemplate },
             file_name_templates: { [scopeKey]: filenameTemplate },
             display_name_templates: { [scopeKey]: displayNameTemplate },
@@ -1602,7 +1609,7 @@ export function StorageConfigTab() {
           }
           return {
             ...prev,
-            warehouse_root_folders: { ...prev.warehouse_root_folders, [scopeKey]: fullPath },
+            warehouse_folders: { ...prev.warehouse_folders, [scopeKey]: fullPath },
             warehouse_folder_templates: { ...prev.warehouse_folder_templates, [scopeKey]: folderTemplate },
             file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
             display_name_templates: { ...prev.display_name_templates, [scopeKey]: displayNameTemplate },
@@ -1710,9 +1717,9 @@ export function StorageConfigTab() {
           s3_region: response.data.region || "",
           // Root path
           root_path: response.data.root_path || "",
-          // SSoT: warehouse_root_folders is THE ONE source for warehouse type roots
+          // SSoT: warehouse_folders is THE ONE source for warehouse type roots
           // warehouse_folders REMOVED (Jan 2026 SSoT fix)
-          warehouse_root_folders: response.data.warehouse_root_folders || {},
+          warehouse_folders: response.data.warehouse_folders || {},
           // SSoT: Templates from StorageConfiguration
           warehouse_folder_templates: response.data.warehouse_folder_templates || {},
           file_name_templates: response.data.file_name_templates || {},
@@ -1749,8 +1756,8 @@ export function StorageConfigTab() {
           storage: {
             provider_type: formData.provider_type,
             root_path: formData.root_path,
-            // SSoT: warehouse_root_folders is THE ONE place for warehouse type roots
-            warehouse_root_folders: config?.warehouse_root_folders,
+            // SSoT: warehouse_folders is THE ONE place for warehouse type roots
+            warehouse_folders: config?.warehouse_folders,
             warehouse_folder_templates: formData.warehouse_folder_templates,
             file_name_templates: formData.file_name_templates,
             display_name_templates: formData.display_name_templates,
@@ -2255,12 +2262,12 @@ export function StorageConfigTab() {
                     onSaveEdit={(key, value) => {
                       setFormData(prev => ({
                         ...prev,
-                        warehouse_root_folders: { ...prev.warehouse_root_folders, [key]: value }
+                        warehouse_folders: { ...prev.warehouse_folders, [key]: value }
                       }));
                       setEditingKey(null);
                     }}
                     onCancelEdit={() => setEditingKey(null)}
-                    currentPath={formData.warehouse_root_folders}
+                    currentPath={formData.warehouse_folders}
                     rootPath={formData.root_path}
                     editingTabId={editingTabId}
                     onStartTabEdit={setEditingTabId}
@@ -2273,7 +2280,7 @@ export function StorageConfigTab() {
                     onSaveTemplates={saveScopeTemplates}
                     virtualScopes={formData.virtual_warehouses}
                     onToggleVirtual={toggleVirtualScope}
-                    scopeRootFolders={formData.warehouse_root_folders || {}}
+                    scopeRootFolders={formData.warehouse_folders || {}}
                   />
                 ))}
               </div>
@@ -2426,7 +2433,7 @@ export function StorageConfigTab() {
                         <span className="text-muted-foreground text-xs">(root)</span>
                       </div>
                       {/* Render configured scopes with their computed paths */}
-                      {Object.entries(formData.warehouse_root_folders)
+                      {Object.entries(formData.warehouse_folders)
                         .filter(([, path]) => path)
                         .sort(([, a], [, b]) => a.localeCompare(b))
                         .map(([scopeKey, basePath]) => {
@@ -2438,7 +2445,6 @@ export function StorageConfigTab() {
                             job: <Briefcase className="h-3.5 w-3.5 text-green-500" />,
                             contact: <Users className="h-3.5 w-3.5 text-purple-500" />,
                             corporate: <Building2 className="h-3.5 w-3.5 text-orange-500" />,
-                            corporate_entity: <Building2 className="h-3.5 w-3.5 text-orange-500" />,
                             task: <ClipboardList className="h-3.5 w-3.5 text-red-500" />,
                             task_attachments: <ClipboardList className="h-3.5 w-3.5 text-red-500" />,
                             task_responses: <ClipboardList className="h-3.5 w-3.5 text-red-500" />,
