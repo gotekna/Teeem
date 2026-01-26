@@ -246,7 +246,7 @@ class StorageLocation < ApplicationRecord
 
   # SSoT: Derive warehouse_folder from StorageConfiguration.warehouse_folders
   # This replaces the now-dropped EntityTab.warehouse_folder column
-  # Uses template from SSoT and substitutes {{TabName}} with display_name
+  # Uses template from SSoT and substitutes {{TeeemXL}} with display_name
   def derived_warehouse_folder
     return nil unless warehouse_enabled
 
@@ -263,7 +263,9 @@ class StorageLocation < ApplicationRecord
     template = config.warehouse_folders&.dig(wt)
     return nil unless template.present?
 
-    template.gsub('{{TabName}}', display_name.to_s)
+    # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)
+    # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
+    template.gsub('{{TeeemXL}}', display_name.to_s).gsub('{{TabName}}', display_name.to_s)
   end
 
   # Alias for backwards compatibility

@@ -325,8 +325,9 @@ class XeroAttachmentSyncService
     template = config.root_folder_for(warehouse_type)
     return nil unless template.present?
 
-    # Substitute {{TabName}} with the tab's display name
-    template = template.gsub('{{TabName}}', entity_tab.display_name.to_s)
+    # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)
+    # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
+    template = template.gsub('{{TeeemXL}}', entity_tab.display_name.to_s).gsub('{{TabName}}', entity_tab.display_name.to_s)
 
     # Expand template with context from invoice/contact
     expand_folder_template(template)

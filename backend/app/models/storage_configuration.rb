@@ -200,12 +200,12 @@ class StorageConfiguration < ApplicationRecord
   WAREHOUSE_ROOT_DEFAULTS = {
     # User personal documents (Teeem Docs feature - Jan 2026)
     'user' => 'Teeem Docs/{{UserName}}/{{Folder}}',
-    # Job documents
-    'job' => 'Jobs/{{JobCode}}/{{TabName}}',
+    # Job documents - {{TeeemXL}} resolves to tab's display_name
+    'job' => 'Jobs/{{JobCode}}/{{TeeemXL}}',
     # Contact documents (SSoT for all individuals - Jan 2026 'people' merged into 'contact')
-    'contact' => 'Contacts/{{ContactName}}/{{TabName}}',
+    'contact' => 'Contacts/{{ContactName}}/{{TeeemXL}}',
     # Corporate documents (SSoT: 'corporate' is THE ONE - Jan 2026 consolidation)
-    'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
+    'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TeeemXL}}',
     # Task documents
     # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
     # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
@@ -252,7 +252,7 @@ class StorageConfiguration < ApplicationRecord
     'email_body' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}/Body',
     'email_attachments' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}/Attachments',
     # Warehousing sub-types (all under Warehousing/ root)
-    'warehouse' => 'Warehousing',
+    'warehouse' => 'Warehousing/{{TeeemXL}}',
     'chat' => 'Warehousing/Conversations/{{Context}}/{{Year}}/{{Month}}',
     'bill_inbox' => 'Warehousing/Bill Inbox/{{Status}}/{{Year}}/{{Month}}',
     'notebook' => 'Warehousing/Notebooks/{{UserName}}/{{NotebookName}}/{{Year}}'
