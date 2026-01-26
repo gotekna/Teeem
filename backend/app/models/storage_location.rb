@@ -72,8 +72,8 @@ class StorageLocation < ApplicationRecord
   alias_attribute :scope, :warehouse_type
   alias_attribute :has_storage_folder, :warehouse_enabled
   alias_attribute :has_sharepoint_folder, :warehouse_enabled  # Extra legacy alias
-  alias_attribute :storage_folder_path, :warehouse_folder
-  alias_attribute :sharepoint_folder_path, :warehouse_folder  # Extra legacy alias
+  # storage_folder_path and sharepoint_folder_path aliases removed - column dropped
+  # Now use derived_warehouse_folder method instead
   alias_attribute :storage_path_type, :warehouse_type_override
   alias_attribute :sharepoint_path_type, :warehouse_type_override  # Extra legacy alias
 
@@ -244,13 +244,39 @@ class StorageLocation < ApplicationRecord
       .count
   end
 
+  # SSoT: Derive warehouse_folder from StorageConfiguration.warehouse_folders
+  # This replaces the now-dropped EntityTab.warehouse_folder column
+  # Uses template from SSoT and substitutes {{TabName}} with display_name
+  def derived_warehouse_folder
+    return nil unless warehouse_enabled
+
+    # Handle missing tenant context gracefully (e.g., background jobs, serialization)
+    config = begin
+      StorageConfiguration.instance
+    rescue TenantNotFoundError
+      return nil
+    end
+
+    wt = warehouse_type || 'corporate'
+    # SSoT: Normalize aliased keys (e.g., 'corporate_entity' → 'corporate')
+    wt = StorageConfiguration::WAREHOUSE_KEY_ALIASES[wt] || wt
+    template = config.warehouse_folders&.dig(wt)
+    return nil unless template.present?
+
+    template.gsub('{{TabName}}', display_name.to_s)
+  end
+
+  # Alias for backwards compatibility
+  alias_method :warehouse_folder, :derived_warehouse_folder
+
   # Get the full storage path for this tab
-  # SSoT: Uses warehouse_base_path (which respects warehouse_type_override) + warehouse_folder
+  # SSoT: Uses warehouse_base_path + derived folder from StorageConfiguration.warehouse_folders
   def full_warehouse_path
-    return nil unless warehouse_enabled && warehouse_folder.present?
+    folder = derived_warehouse_folder
+    return nil unless warehouse_enabled && folder.present?
 
     base = warehouse_base_path || ''
-    "#{base}/#{warehouse_folder}".gsub(%r{//+}, '/')
+    "#{base}/#{folder}".gsub(%r{//+}, '/')
   end
 
   # Legacy aliases for backwards compatibility
@@ -544,7 +570,7 @@ class StorageLocation < ApplicationRecord
       tab.enabled = true
       tab.is_system_tab = true
       tab.warehouse_enabled = true
-      tab.warehouse_folder = 'Corporate'  # SSoT: Base folder for corporate_entity warehouse_type
+      # warehouse_folder removed - now derived from StorageConfiguration.warehouse_folders
     end
 
     # Overview sub-tabs
@@ -584,7 +610,7 @@ class StorageLocation < ApplicationRecord
         tab.enabled = true
         tab.is_system_tab = true
         tab.warehouse_enabled = true
-        tab.warehouse_folder = name.upcase
+        # warehouse_folder removed - derived from StorageConfiguration.warehouse_folders
       end
     end
 
@@ -620,7 +646,7 @@ class StorageLocation < ApplicationRecord
       tab.enabled = true
       tab.is_system_tab = true
       tab.warehouse_enabled = true
-      tab.warehouse_folder = 'Contacts'  # SSoT: Base folder for contact warehouse_type
+      # warehouse_folder removed - now derived from StorageConfiguration.warehouse_folders
     end
 
     # Other contact tabs (non-storage)
@@ -662,7 +688,7 @@ class StorageLocation < ApplicationRecord
       tab.enabled = true
       tab.is_system_tab = true
       tab.warehouse_enabled = true
-      tab.warehouse_folder = 'Jobs'  # SSoT: Base folder for job warehouse_type
+      # warehouse_folder removed - now derived from StorageConfiguration.warehouse_folders
     end
 
     # Other job tabs (non-storage)
@@ -700,7 +726,7 @@ class StorageLocation < ApplicationRecord
         tab.enabled = true
         tab.is_system_tab = true
         tab.warehouse_enabled = true
-        tab.warehouse_folder = name.upcase
+        # warehouse_folder removed - derived from StorageConfiguration.warehouse_folders
       end
     end
   end
@@ -736,7 +762,7 @@ class StorageLocation < ApplicationRecord
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
         tab.warehouse_enabled = true
-        tab.warehouse_folder = attrs[:folder]
+        # warehouse_folder removed - derived from StorageConfiguration.warehouse_folders
         tab.is_photo_category = attrs[:is_photo] || false
         tab.is_cad_category = attrs[:is_cad] || false
       end
@@ -760,7 +786,7 @@ class StorageLocation < ApplicationRecord
       tab.is_system_tab = true
       tab.icon_name = 'FolderOpen'  # Using FolderOpen for Overview (Paperclip reserved for Attachments)
       tab.warehouse_enabled = true
-      tab.warehouse_folder = 'Tasks'  # SSoT: Base folder for task_attachments warehouse_type
+      # warehouse_folder removed - now derived from StorageConfiguration.warehouse_folders
     end
 
     # Document folder tabs for task attachments
@@ -779,7 +805,7 @@ class StorageLocation < ApplicationRecord
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
         tab.warehouse_enabled = true
-        tab.warehouse_folder = attrs[:folder]
+        # warehouse_folder removed - derived from StorageConfiguration.warehouse_folders
         tab.is_photo_category = attrs[:is_photo] || false
       end
     end
@@ -807,7 +833,7 @@ class StorageLocation < ApplicationRecord
       tab.is_system_tab = true
       tab.icon_name = 'FolderOpen'  # Using FolderOpen for Overview (FileOutput reserved for Responses)
       tab.warehouse_enabled = true
-      tab.warehouse_folder = 'Tasks'  # SSoT: Base folder for task_responses warehouse_type
+      # warehouse_folder removed - now derived from StorageConfiguration.warehouse_folders
     end
 
     # Document folder tabs for task responses
@@ -825,7 +851,7 @@ class StorageLocation < ApplicationRecord
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
         tab.warehouse_enabled = true
-        tab.warehouse_folder = attrs[:folder]
+        # warehouse_folder removed - derived from StorageConfiguration.warehouse_folders
       end
     end
 
@@ -852,7 +878,7 @@ class StorageLocation < ApplicationRecord
       tab.is_system_tab = true
       tab.icon_name = 'Mail'
       tab.warehouse_enabled = true
-      tab.warehouse_folder = 'Emails'  # SSoT: Base folder for email warehouse_type
+      # warehouse_folder removed - now derived from StorageConfiguration.warehouse_folders
     end
 
     # Document folder tabs for email storage
@@ -871,7 +897,7 @@ class StorageLocation < ApplicationRecord
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
         tab.warehouse_enabled = true
-        tab.warehouse_folder = attrs[:folder]
+        # warehouse_folder removed - derived from StorageConfiguration.warehouse_folders
       end
     end
 
@@ -904,7 +930,7 @@ class StorageLocation < ApplicationRecord
       tab.is_system_tab = true
       tab.icon_name = nil  # No icon to avoid conflicts
       tab.warehouse_enabled = true
-      tab.warehouse_folder = 'Warehousing'  # SSoT: Base folder for warehouse warehouse_type
+      # warehouse_folder removed - now derived from StorageConfiguration.warehouse_folders
     end
 
     # Users storage paths (separate root folder "Users")
@@ -926,7 +952,7 @@ class StorageLocation < ApplicationRecord
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
         tab.warehouse_enabled = true
-        tab.warehouse_folder = attrs[:folder]
+        # warehouse_folder removed - derived from StorageConfiguration.warehouse_folders
       end
     end
 
@@ -951,7 +977,7 @@ class StorageLocation < ApplicationRecord
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
         tab.warehouse_enabled = true
-        tab.warehouse_folder = attrs[:folder]
+        # warehouse_folder removed - derived from StorageConfiguration.warehouse_folders
       end
     end
 
@@ -973,7 +999,7 @@ class StorageLocation < ApplicationRecord
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
         tab.warehouse_enabled = true
-        tab.warehouse_folder = attrs[:folder]
+        # warehouse_folder removed - derived from StorageConfiguration.warehouse_folders
       end
     end
 
@@ -994,7 +1020,7 @@ class StorageLocation < ApplicationRecord
         tab.is_system_tab = true
         tab.icon_name = attrs[:icon]
         tab.warehouse_enabled = true
-        tab.warehouse_folder = attrs[:folder]
+        # warehouse_folder removed - derived from StorageConfiguration.warehouse_folders
       end
     end
 

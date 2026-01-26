@@ -13,7 +13,12 @@ module Api
       # GET /api/v1/storage_configuration
       # Returns storage configuration for the current provider
       def show
-        config_hash = StorageConfiguration.instance&.to_config_hash || {}
+        config_hash = begin
+          StorageConfiguration.instance&.to_config_hash || {}
+        rescue TenantNotFoundError => e
+          Rails.logger.warn "[StorageConfiguration] No tenant context: #{e.message}"
+          {}
+        end
 
         render json: {
           success: true,
