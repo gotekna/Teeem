@@ -26,7 +26,8 @@ namespace :fix do
 
   desc "Queue email upload job"
   task emails: :environment do
-    tenant = Tenant.first
+    # SSoT: Use tenant 2 (Tekna) - all emails are in this tenant
+    tenant = Tenant.find(2)
     raise "No tenant found" unless tenant
 
     ActsAsTenant.with_tenant(tenant) do
