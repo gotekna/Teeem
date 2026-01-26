@@ -320,22 +320,25 @@ namespace :blob do
 
         # Bulk unlink from ALL associations with storage_blob_id foreign key
         puts "  Unlinking other associations..."
-        [
-          CorporateCompanyDocument,
-          ChatMessage,
-          BillInbox,
-          ContactDocument,
-          JobDocument,
-          TaskDocument,
+        %w[
+          CorporateCompanyDocument
+          ChatMessage
+          BillInbox
+          ContactDocument
+          JobDocument
+          CaseDocument
           SyncedEmail
-        ].each do |model|
+        ].each do |model_name|
           begin
+            model = model_name.constantize
             if model.column_names.include?("storage_blob_id")
               count = model.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil)
-              puts "    #{model.name}: #{count}" if count > 0
+              puts "    #{model_name}: #{count}" if count > 0
             end
+          rescue NameError
+            # Model doesn't exist, skip
           rescue => e
-            puts "    #{model.name}: skipped (#{e.message[0..50]})"
+            puts "    #{model_name}: skipped (#{e.message[0..50]})"
           end
         end
 
