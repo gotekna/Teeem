@@ -93,6 +93,13 @@ module Api
           existing_file_templates = storage_config.file_name_templates || {}
           update_attrs[:file_name_templates] = existing_file_templates.merge(sp[:file_name_templates].to_h)
         end
+
+        # Display name templates (for document display in UI)
+        if sp.key?(:display_name_templates)
+          existing_display_templates = storage_config.display_name_templates || {}
+          update_attrs[:display_name_templates] = existing_display_templates.merge(sp[:display_name_templates].to_h)
+        end
+
         if sp.key?(:config_links)
           existing_config_links = storage_config.config_links || {}
           new_config_links = sp[:config_links].to_h
@@ -192,6 +199,7 @@ module Api
           warehouse_root_folders: {},
           scope_root_folders: {},  # Legacy backwards compat
           file_name_templates: {},
+          display_name_templates: {},
           config_links: {},
           document_routing: {},  # SSoT: Which model to use for each document source
           virtual_warehouses: {},  # Phase 4: Virtual File Warehouse - which warehouse types render from DB
