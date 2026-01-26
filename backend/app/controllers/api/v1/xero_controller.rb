@@ -817,19 +817,21 @@ module Api
                                                .group(:contact_id)
                                                .maximum(:last_synced_at)
 
-          # Count PDFs per contact (documents linked to their invoices)
-          pdf_counts_by_contact = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                                  .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                                  .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
+          # SSoT: Count PDFs per contact via WarehouseDocument (universal document storage)
+          pdf_counts_by_contact = WarehouseDocument.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id AND warehouse_documents.documentable_type = 'ExternalInvoice'")
+                                                  .where(source_type: "xero")
+                                                  .where("warehouse_documents.metadata->>'is_primary' = ?", "true")
+                                                  .where.not(storage_blob_id: nil)
                                                   .group("external_invoices.contact_id")
                                                   .count
 
-          # Get latest PDF sync time per contact
-          pdf_sync_times = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                           .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice" })
-                                           .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
+          # Get latest PDF sync time per contact via WarehouseDocument
+          pdf_sync_times = WarehouseDocument.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id AND warehouse_documents.documentable_type = 'ExternalInvoice'")
+                                           .where(source_type: "xero")
+                                           .where("warehouse_documents.metadata->>'is_primary' = ?", "true")
+                                           .where.not(storage_blob_id: nil)
                                            .group("external_invoices.contact_id")
-                                           .maximum("corporate_company_documents.created_at")
+                                           .maximum("warehouse_documents.created_at")
 
           contacts_data = contacts.map do |contact|
             # Get invoice/bill counts for this contact
@@ -1509,19 +1511,19 @@ module Api
           pdf_eligible_invoices = invoices_with_contacts.where.not(status: "draft")
           total_pdf_eligible = pdf_eligible_invoices.count
 
-          # SSoT: Count PDFs that have been synced to storage
-          # storage_blob_id is THE ONE source of truth (Jan 2026 migration complete)
+          # SSoT: Count PDFs synced via WarehouseDocument (universal document storage)
+          # WarehouseDocument + StorageBlob is THE ONE source of truth (Jan 2026)
           # Must use EXACT same filters as total_pdf_eligible
           # CRITICAL: Check content_hash to verify blob has actual file content (not placeholder)
-          pdf_query = CorporateCompanyDocument.where(source: "xero")
-                                              .where(document_type: ["Xero Bill", "Xero Invoice", "Xero Credit Note"])
-                                              .where.not(storage_blob_id: nil)
-                                              .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
-                                              .where(documentable_type: "ExternalInvoice")
-                                              .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                              .where.not(external_invoices: { contact_id: nil })
-                                              .where.not(external_invoices: { status: "draft" })
-                                              .where.not(external_invoices: { status: %w[voided deleted] })
+          pdf_query = WarehouseDocument.where(source_type: "xero")
+                                       .where("metadata->>'is_primary' = ?", "true")
+                                       .where.not(storage_blob_id: nil)
+                                       .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
+                                       .where(documentable_type: "ExternalInvoice")
+                                       .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+                                       .where.not(external_invoices: { contact_id: nil })
+                                       .where.not(external_invoices: { status: "draft" })
+                                       .where.not(external_invoices: { status: %w[voided deleted] })
 
           if tenant_id.present?
             pdf_query = pdf_query.where(external_invoices: { tenant_id: tenant_id })
@@ -1540,24 +1542,24 @@ module Api
           end
           pdf_sync_status = pdf_sync_status_query.order(last_synced_at: :desc).first
 
-          pdf_docs_query = CorporateCompanyDocument.where(source: "xero")
-                                                   .where.not(storage_blob_id: nil)
-                                                   .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
-                                                   .where(documentable_type: "ExternalInvoice")
+          pdf_docs_query = WarehouseDocument.where(source_type: "xero")
+                                           .where.not(storage_blob_id: nil)
+                                           .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
+                                           .where(documentable_type: "ExternalInvoice")
           if tenant_id.present?
-            pdf_docs_query = pdf_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+            pdf_docs_query = pdf_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
                                            .where(external_invoices: { tenant_id: tenant_id })
           end
           last_pdf_sync = pdf_sync_status&.last_synced_at || pdf_docs_query.maximum(:created_at)
 
-          # Recent PDF activity (last 24 hours)
-          pdfs_last_24h_query = CorporateCompanyDocument.where(source: "xero")
+          # Recent PDF activity (last 24 hours) via WarehouseDocument
+          pdfs_last_24h_query = WarehouseDocument.where(source_type: "xero")
                                          .where.not(storage_blob_id: nil)
                                          .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                          .where(documentable_type: "ExternalInvoice")
-                                         .where("corporate_company_documents.created_at > ?", 24.hours.ago)
+                                         .where("warehouse_documents.created_at > ?", 24.hours.ago)
           if tenant_id.present?
-            pdfs_last_24h_query = pdfs_last_24h_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+            pdfs_last_24h_query = pdfs_last_24h_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
                                                      .where(external_invoices: { tenant_id: tenant_id })
           end
           pdfs_last_24h = pdfs_last_24h_query.count
@@ -1577,11 +1579,13 @@ module Api
           end
           sharepoint_sync_status = sharepoint_sync_status_query.order(last_synced_at: :desc).first
 
-          sharepoint_docs_query = CorporateCompanyDocument.where(source: "xero")
-                                                         .where(documentable_type: "ExternalInvoice")
-                                                         .where.not(storage_file_id: nil)
+          # SSoT: WarehouseDocument + StorageBlob replaces legacy SharePoint tracking
+          # storage_blob_id presence indicates document is stored (provider-agnostic)
+          sharepoint_docs_query = WarehouseDocument.where(source_type: "xero")
+                                                   .where(documentable_type: "ExternalInvoice")
+                                                   .where.not(storage_blob_id: nil)
           if tenant_id.present?
-            sharepoint_docs_query = sharepoint_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+            sharepoint_docs_query = sharepoint_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
                                                          .where(external_invoices: { tenant_id: tenant_id })
           end
           last_sharepoint_sync = sharepoint_sync_status&.last_synced_at || sharepoint_docs_query.maximum(:updated_at)
@@ -1589,56 +1593,61 @@ module Api
           # ============================================
           # Breakdown by invoice type (for PDF stage)
           # ============================================
-          # SSoT: storage_blob_id is THE ONE (Jan 2026 migration complete)
+          # SSoT: WarehouseDocument + StorageBlob is THE ONE (Jan 2026)
+          # metadata->>'invoice_type' stores the invoice type from ExternalInvoice
           # CRITICAL: Check content_hash to verify blob has actual file content (not placeholder)
           bills_total = pdf_eligible_invoices.bills.count
-          bills_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                           .joins(:storage_blob)
-                                           .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Bill" })
-                                           .where.not(corporate_company_documents: { storage_blob_id: nil })
-                                           .where.not(storage_blobs: { content_hash: nil })
-                                           .where(external_invoices: { invoice_type: "bill" })
-                                           .where.not(external_invoices: { status: "draft" })
-                                           .where.not(external_invoices: { status: %w[voided deleted] })
+          bills_query = WarehouseDocument.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+                                         .joins(:storage_blob)
+                                         .where(source_type: "xero", documentable_type: "ExternalInvoice")
+                                         .where("warehouse_documents.metadata->>'is_primary' = ?", "true")
+                                         .where.not(storage_blob_id: nil)
+                                         .where.not(storage_blobs: { content_hash: nil })
+                                         .where(external_invoices: { invoice_type: "bill" })
+                                         .where.not(external_invoices: { status: "draft" })
+                                         .where.not(external_invoices: { status: %w[voided deleted] })
           bills_query = bills_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
-          bills_with_pdfs = bills_query.distinct.count("corporate_company_documents.documentable_id")
+          bills_with_pdfs = bills_query.distinct.count("warehouse_documents.documentable_id")
 
           sales_total = pdf_eligible_invoices.sales_invoices.count
-          sales_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                           .joins(:storage_blob)
-                                           .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Invoice" })
-                                           .where.not(corporate_company_documents: { storage_blob_id: nil })
-                                           .where.not(storage_blobs: { content_hash: nil })
-                                           .where(external_invoices: { invoice_type: "sales_invoice" })
-                                           .where.not(external_invoices: { status: "draft" })
-                                           .where.not(external_invoices: { status: %w[voided deleted] })
+          sales_query = WarehouseDocument.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+                                         .joins(:storage_blob)
+                                         .where(source_type: "xero", documentable_type: "ExternalInvoice")
+                                         .where("warehouse_documents.metadata->>'is_primary' = ?", "true")
+                                         .where.not(storage_blob_id: nil)
+                                         .where.not(storage_blobs: { content_hash: nil })
+                                         .where(external_invoices: { invoice_type: "sales_invoice" })
+                                         .where.not(external_invoices: { status: "draft" })
+                                         .where.not(external_invoices: { status: %w[voided deleted] })
           sales_query = sales_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
-          sales_with_pdfs = sales_query.distinct.count("corporate_company_documents.documentable_id")
+          sales_with_pdfs = sales_query.distinct.count("warehouse_documents.documentable_id")
 
           quotes_total = pdf_eligible_invoices.quotes.count
-          quotes_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                            .joins(:storage_blob)
-                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Invoice" })
-                                            .where.not(corporate_company_documents: { storage_blob_id: nil })
-                                            .where.not(storage_blobs: { content_hash: nil })
-                                            .where(external_invoices: { invoice_type: "quote" })
-                                            .where.not(external_invoices: { status: "draft" })
-                                            .where.not(external_invoices: { status: %w[voided deleted] })
+          quotes_query = WarehouseDocument.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+                                          .joins(:storage_blob)
+                                          .where(source_type: "xero", documentable_type: "ExternalInvoice")
+                                          .where("warehouse_documents.metadata->>'is_primary' = ?", "true")
+                                          .where.not(storage_blob_id: nil)
+                                          .where.not(storage_blobs: { content_hash: nil })
+                                          .where(external_invoices: { invoice_type: "quote" })
+                                          .where.not(external_invoices: { status: "draft" })
+                                          .where.not(external_invoices: { status: %w[voided deleted] })
           quotes_query = quotes_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
-          quotes_with_pdfs = quotes_query.distinct.count("corporate_company_documents.documentable_id")
+          quotes_with_pdfs = quotes_query.distinct.count("warehouse_documents.documentable_id")
 
           # Credit notes breakdown
           credit_notes_total = pdf_eligible_invoices.where(invoice_type: "credit_note").count
-          credit_notes_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                                  .joins(:storage_blob)
-                                                  .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Credit Note" })
-                                                  .where.not(corporate_company_documents: { storage_blob_id: nil })
-                                                  .where.not(storage_blobs: { content_hash: nil })
-                                                  .where(external_invoices: { invoice_type: "credit_note" })
-                                                  .where.not(external_invoices: { status: "draft" })
-                                                  .where.not(external_invoices: { status: %w[voided deleted] })
+          credit_notes_query = WarehouseDocument.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+                                                .joins(:storage_blob)
+                                                .where(source_type: "xero", documentable_type: "ExternalInvoice")
+                                                .where("warehouse_documents.metadata->>'is_primary' = ?", "true")
+                                                .where.not(storage_blob_id: nil)
+                                                .where.not(storage_blobs: { content_hash: nil })
+                                                .where(external_invoices: { invoice_type: "credit_note" })
+                                                .where.not(external_invoices: { status: "draft" })
+                                                .where.not(external_invoices: { status: %w[voided deleted] })
           credit_notes_query = credit_notes_query.where(external_invoices: { tenant_id: tenant_id }) if tenant_id.present?
-          credit_notes_with_pdfs = credit_notes_query.distinct.count("corporate_company_documents.documentable_id")
+          credit_notes_with_pdfs = credit_notes_query.distinct.count("warehouse_documents.documentable_id")
 
           # Estimate time remaining for PDF sync (based on 10s per invoice)
           estimated_remaining_seconds = pdfs_pending * 10
@@ -1737,23 +1746,16 @@ module Api
           # SSoT VIOLATION TRACKING
           # ============================================
           # Check for documents with wrong external_id format
-          # SSoT (Bible #16.002): external_id for attachments should be "xero:attachment:ID" NOT "xero:invoice-uuid:attachment:ID"
-          # This catches both old formats:
-          #   - xero:invoice:123:attachment:456 (old integer format)
-          #   - xero:uuid:attachment:uuid (current wrong format with invoice UUID)
-          wrong_format_count = CorporateCompanyDocument.where(source: "xero")
-                                                       .where("external_id LIKE ? OR external_id LIKE ?",
-                                                              "%:invoice:%:attachment:%",
-                                                              "xero:%:attachment:%")
-                                                       .where.not("external_id LIKE ?", "xero:attachment:%")
-                                                       .count
+          # SSoT: WarehouseDocument uses metadata for tracking, no external_id format issues
+          # Legacy CorporateCompanyDocument external_id format validation removed (Jan 2026)
+          wrong_format_count = 0  # WarehouseDocument doesn't use external_id
 
-          # Check for PDF documents missing expected_storage_path (should all have it after upload)
-          pdfs_missing_storage_path = CorporateCompanyDocument.where(source: "xero")
-                                                              .where("external_id LIKE ?", "xero:%:pdf")
-                                                              .where(documentable_type: "ExternalInvoice")
-                                                              .where(expected_storage_path: nil)
-                                                              .count
+          # SSoT: Check for Xero PDFs missing storage_blob (should all have blobs after sync)
+          pdfs_missing_storage_path = WarehouseDocument.where(source_type: "xero")
+                                                       .where("metadata->>'is_primary' = ?", "true")
+                                                       .where(documentable_type: "ExternalInvoice")
+                                                       .where(storage_blob_id: nil)
+                                                       .count
 
           # Build violations array for Stage 3 display
           stage3_violations = []

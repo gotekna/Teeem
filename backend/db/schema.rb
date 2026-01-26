@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_26_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_26_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10056,8 +10056,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_100000) do
   end
 
   create_table "warehouse_documents", force: :cascade do |t|
-    t.string "documentable_type", null: false
-    t.bigint "documentable_id", null: false
+    t.string "documentable_type"
+    t.bigint "documentable_id"
     t.bigint "storage_blob_id"
     t.string "display_name", null: false
     t.string "send_name"
@@ -10077,11 +10077,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_100000) do
     t.integer "version_number", default: 1
     t.boolean "is_latest_version", default: true
     t.index ["display_name"], name: "index_warehouse_documents_on_display_name"
-    t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique", unique: true
+    t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["folder"], name: "index_warehouse_documents_on_folder"
     t.index ["linkable_type", "linkable_id"], name: "idx_warehouse_docs_linkable"
     t.index ["metadata"], name: "idx_warehouse_docs_metadata", using: :gin
+    t.index ["parent_document_id", "source_type"], name: "idx_warehouse_docs_parent_source", where: "(parent_document_id IS NOT NULL)"
     t.index ["parent_document_id"], name: "idx_warehouse_docs_parent"
     t.index ["source_type", "folder"], name: "idx_warehouse_docs_scope_folder"
     t.index ["source_type"], name: "index_warehouse_documents_on_source_type"

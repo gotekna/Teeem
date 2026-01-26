@@ -843,9 +843,9 @@ class StorageConfiguration < ApplicationRecord
   # ========================================
 
   # Default routing configuration (fallback when database doesn't have it)
+  # NOTE: Xero documents now use WarehouseDocument directly (Jan 2026 migration)
+  # xero_primary_invoice and xero_attachment routes REMOVED - see XeroAttachmentSyncService
   DEFAULT_DOCUMENT_ROUTING = {
-    "xero_primary_invoice" => { "model" => "ContactDocument", "warehouse_type" => "contact", "description" => "Primary Xero invoice/bill PDF" },
-    "xero_attachment" => { "model" => "CorporateCompanyDocument", "warehouse_type" => "corporate_entity", "description" => "Xero invoice/bill attachments" },
     "sharepoint_scan" => { "model" => "CorporateCompanyDocument", "warehouse_type" => "corporate_entity", "description" => "SharePoint scanned documents" },
     "email_attachment" => { "model" => "CorporateCompanyDocument", "warehouse_type" => "corporate_entity", "description" => "Email attachments" }
   }.freeze
