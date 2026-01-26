@@ -1462,8 +1462,13 @@ module Api
             .count
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
+          # Jan 2026: Always check BOTH tenant-specific AND global (nil) records
+          # Webhooks update global record; old scheduled jobs updated per-tenant records
           invoice_sync_status_query = XeroSyncStatus.where(sync_type: "invoices")
-          invoice_sync_status_query = invoice_sync_status_query.where(tenant_id: tenant_id) if tenant_id.present?
+          if tenant_id.present?
+            # Check both tenant-specific and global, take most recent
+            invoice_sync_status_query = invoice_sync_status_query.where(tenant_id: [tenant_id, nil])
+          end
           invoice_sync_status = invoice_sync_status_query.order(last_synced_at: :desc).first
           last_invoice_sync = invoice_sync_status&.last_synced_at || base_scope.maximum(:last_synced_at)
 
@@ -1525,8 +1530,11 @@ module Api
           pdf_progress = total_pdf_eligible.zero? ? 100 : [((invoices_with_pdfs.to_f / total_pdf_eligible) * 100).round(1), 100].min
 
           # SSoT: Use XeroSyncStatus for last sync time
+          # Jan 2026: Check both tenant-specific AND global records, use most recent
           pdf_sync_status_query = XeroSyncStatus.where(sync_type: "pdfs")
-          pdf_sync_status_query = pdf_sync_status_query.where(tenant_id: tenant_id) if tenant_id.present?
+          if tenant_id.present?
+            pdf_sync_status_query = pdf_sync_status_query.where(tenant_id: [tenant_id, nil])
+          end
           pdf_sync_status = pdf_sync_status_query.order(last_synced_at: :desc).first
 
           pdf_docs_query = CorporateCompanyDocument.where(source: "xero")
@@ -1557,8 +1565,11 @@ module Api
           storage_progress = [storage_progress, 100].min # Cap at 100%
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
+          # Jan 2026: Check both tenant-specific AND global records, use most recent
           sharepoint_sync_status_query = XeroSyncStatus.where(sync_type: "sharepoint")
-          sharepoint_sync_status_query = sharepoint_sync_status_query.where(tenant_id: tenant_id) if tenant_id.present?
+          if tenant_id.present?
+            sharepoint_sync_status_query = sharepoint_sync_status_query.where(tenant_id: [tenant_id, nil])
+          end
           sharepoint_sync_status = sharepoint_sync_status_query.order(last_synced_at: :desc).first
 
           sharepoint_docs_query = CorporateCompanyDocument.where(source: "xero")
