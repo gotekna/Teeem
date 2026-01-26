@@ -1453,13 +1453,17 @@ module Api
           # ============================================
           # STAGE 1: Invoice DATA Sync (Xero -> Database)
           # ============================================
+          # SSoT: Exclude drafts from both Stage 1 and Stage 2 for consistent denominator
+          # Drafts can't have PDFs (Xero only generates PDFs for finalized invoices)
           base_scope = tenant_id.present? ? ExternalInvoice.active.where(tenant_id: tenant_id) : ExternalInvoice.active
-          total_invoices_in_db = base_scope.count
-          invoices_with_contacts = base_scope.where.not(contact_id: nil)
+          base_scope_no_drafts = base_scope.where.not(status: "draft")
+          total_invoices_in_db = base_scope_no_drafts.count
+          invoices_with_contacts = base_scope_no_drafts.where.not(contact_id: nil)
           total_with_contacts = invoices_with_contacts.count
           # SSoT: Count unlinked invoices that have a real contact name (same logic as unlinked_contacts endpoint)
           # Excludes blank names and "No Contact" since those can't be matched
-          invoices_without_contacts = base_scope.where(contact_id: nil)
+          # Also excludes drafts for consistency with Stage 1/2 denominator
+          invoices_without_contacts = base_scope_no_drafts.where(contact_id: nil)
             .where.not(contact_name: [nil, "", "No Contact"])
             .count
 
@@ -1474,23 +1478,23 @@ module Api
           invoice_sync_status = invoice_sync_status_query.order(last_synced_at: :desc).first
           last_invoice_sync = invoice_sync_status&.last_synced_at || base_scope.maximum(:last_synced_at)
 
-          # Invoice breakdown by type
+          # Invoice breakdown by type (excludes drafts for consistency)
           invoice_breakdown = {
-            bills: base_scope.bills.count,
-            sales_invoices: base_scope.sales_invoices.count,
-            credit_notes: base_scope.where(invoice_type: "credit_note").count,
-            quotes: base_scope.quotes.count
+            bills: base_scope_no_drafts.bills.count,
+            sales_invoices: base_scope_no_drafts.sales_invoices.count,
+            credit_notes: base_scope_no_drafts.where(invoice_type: "credit_note").count,
+            quotes: base_scope_no_drafts.quotes.count
           }
 
           # Stage 1 blocker info - why aren't all invoices linked?
           stage1_blocker = if invoices_without_contacts > 0
             # Count unique Xero contacts (same grouping as unlinked_contacts endpoint)
-            unlinked_contact_count = base_scope.where(contact_id: nil)
+            unlinked_contact_count = base_scope_no_drafts.where(contact_id: nil)
               .where.not(contact_name: [nil, "", "No Contact"])
               .distinct
               .count(:contact_name)
             # Find example unlinked invoices to help diagnose
-            unlinked_sample = base_scope.where(contact_id: nil).limit(5).pluck(:external_id, :contact_name)
+            unlinked_sample = base_scope_no_drafts.where(contact_id: nil).limit(5).pluck(:external_id, :contact_name)
             {
               reason: "#{unlinked_contact_count} Xero contact#{'s' if unlinked_contact_count != 1} with #{invoices_without_contacts} invoice#{'s' if invoices_without_contacts != 1} not linked",
               detail: "Xero contacts need to be matched to TEEEM contacts first",
