@@ -3,9 +3,16 @@ module Api
     class XeroController < ApplicationController
       # GET /api/v1/xero/auth_url
       # Returns the Xero OAuth authorization URL
+      # Uses Origin header to determine redirect_uri for multi-environment support
       def auth_url
         begin
-          client = XeroApiClient.new
+          # Build redirect_uri from Origin header if whitelisted
+          origin = request.headers["Origin"]
+          redirect_uri = XeroApiClient.redirect_uri_for_origin(origin)
+
+          Rails.logger.info("[Xero] auth_url request from origin: #{origin}, redirect_uri: #{redirect_uri || 'using default'}")
+
+          client = XeroApiClient.new(redirect_uri: redirect_uri)
           url = client.authorization_url
 
           render json: {
@@ -29,6 +36,7 @@ module Api
 
       # POST /api/v1/xero/callback
       # Handles the OAuth callback and exchanges code for tokens
+      # Uses Origin header to determine redirect_uri (must match auth_url)
       def callback
         code = params[:code]
 
@@ -40,7 +48,13 @@ module Api
         end
 
         begin
-          client = XeroApiClient.new
+          # Use same redirect_uri logic as auth_url
+          origin = request.headers["Origin"]
+          redirect_uri = XeroApiClient.redirect_uri_for_origin(origin)
+
+          Rails.logger.info("[Xero] callback request from origin: #{origin}, redirect_uri: #{redirect_uri || 'using default'}")
+
+          client = XeroApiClient.new(redirect_uri: redirect_uri)
           result = client.exchange_code_for_token(code)
 
           # Trigger sync restart immediately after reconnection
