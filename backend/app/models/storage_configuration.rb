@@ -206,8 +206,7 @@ class StorageConfiguration < ApplicationRecord
     'job' => 'Jobs/{{JobCode}}/{{TabName}}',
     # Contact documents (SSoT for all individuals - Jan 2026 'people' merged into 'contact')
     'contact' => 'Contacts/{{ContactName}}/{{TabName}}',
-    # Corporate documents (alias 'corporate' maps here)
-    'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
+    # Corporate documents (SSoT: 'corporate_entity' is THE ONE, 'corporate' alias in WAREHOUSE_KEY_ALIASES)
     'corporate_entity' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
     # Task documents
     # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
@@ -280,6 +279,7 @@ class StorageConfiguration < ApplicationRecord
     'plans' => 'plan',              # Plural alias
     'cases' => 'case',              # Plural alias
     'payments' => 'payment',        # Plural alias
+    'corporate' => 'corporate_entity',  # SSoT: 'corporate_entity' is THE ONE (Jan 2026)
     'corporate_companies' => 'corporate_entity',  # Model name alias
   }.freeze
 
