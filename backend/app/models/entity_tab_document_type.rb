@@ -1,9 +1,5 @@
-# SSoT: Links DocumentTypes to EntityTabs
-# This replaces the old document_type_folders join table
-class EntityTabDocumentType < ApplicationRecord
-  belongs_to :entity_tab
-  belongs_to :document_type
+# frozen_string_literal: true
 
-  # Validations
-  validates :entity_tab_id, uniqueness: { scope: :document_type_id }
-end
+# DEPRECATED: Use StorageLocationDocumentType instead
+# This alias exists for backward compatibility during migration
+EntityTabDocumentType = StorageLocationDocumentType

@@ -192,7 +192,7 @@ export function DayView() {
                         event.status === "started" && "bg-blue-500 text-white"
                       )}
                     >
-                      {event.status.replace("_", " ")}
+                      {(event.status || 'not_started').replace("_", " ")}
                     </Badge>
 
                     {event.is_overdue && (

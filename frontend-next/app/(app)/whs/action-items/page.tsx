@@ -221,7 +221,7 @@ export default function WhsActionItemsPage() {
                   </TableCell>
                   <TableCell>
                     <Badge className={STATUS_COLORS[item.status] || ""}>
-                      {item.status.replace("_", " ")}
+                      {(item.status || 'pending').replace("_", " ")}
                     </Badge>
                   </TableCell>
                   <TableCell>{item.assigned_to_name}</TableCell>

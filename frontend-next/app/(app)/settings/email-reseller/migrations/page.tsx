@@ -183,7 +183,7 @@ export default function MigrationsPage() {
                       <div className="flex items-center gap-2">
                         <Badge className={cn("capitalize gap-1", STATUS_COLORS[migration.status])}>
                           {STATUS_ICONS[migration.status]}
-                          {migration.status.replace("_", " ")}
+                          {(migration.status || 'pending').replace("_", " ")}
                         </Badge>
                         {migration.status === "in_progress" && (
                           <Button

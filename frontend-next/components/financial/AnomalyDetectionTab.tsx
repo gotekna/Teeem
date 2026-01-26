@@ -659,7 +659,7 @@ export default function AnomalyDetectionTab() {
                         >
                           {review.status === "false_positive" && <CheckCircle className="h-3 w-3 mr-1" />}
                           {review.status === "confirmed" && <AlertTriangle className="h-3 w-3 mr-1" />}
-                          {review.status.replace("_", " ")}
+                          {(review.status || 'pending').replace("_", " ")}
                         </Badge>
                       </TableCell>
                       <TableCell className="max-w-[250px] truncate">

@@ -499,7 +499,7 @@ export function BillsInvoiceViewer({
                 )}
                 <span className="text-muted-foreground">|</span>
                 <span>{formatDate(bill.due_date)}</span>
-                <Badge className={cn("text-[10px] px-1.5 py-0", statusColors[bill.status] || "bg-muted")}>{bill.status.replace("_", " ")}</Badge>
+                <Badge className={cn("text-[10px] px-1.5 py-0", statusColors[bill.status] || "bg-muted")}>{(bill.status || 'draft').replace("_", " ")}</Badge>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 {onAmend && <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={onAmend} disabled={actionLoading}>Amend</Button>}
