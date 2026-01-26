@@ -254,7 +254,7 @@ export default function DepositsTab() {
             <div className="space-y-1">
               {summary?.by_type?.slice(0, 3).map((t) => (
                 <div key={t.type} className="flex justify-between text-xs">
-                  <span className="text-muted-foreground capitalize">{t.type.replace("_", " ")}</span>
+                  <span className="text-muted-foreground capitalize">{(t.type || 'other').replace("_", " ")}</span>
                   <span className="font-medium">{t.count}</span>
                 </div>
               ))}
