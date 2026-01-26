@@ -417,15 +417,13 @@ function TreeNode({
   // Use editingKey when available, otherwise primary scopeKey
   const activeScopeKey = currentEditingScopeKey || node.scopeKey;
   const [folderTemplate, setFolderTemplate] = React.useState(
-    activeScopeKey
-      ? scopeTemplates[activeScopeKey] || '' || '{{TabName}}'
-      : '{{TabName}}'
+    activeScopeKey ? scopeTemplates[activeScopeKey] || '' : ''
   );
   const [filenameTemplate, setFilenameTemplate] = React.useState(
-    activeScopeKey ? fileNameTemplates[activeScopeKey] || '{{OriginalFileName}}' : '{{OriginalFileName}}'
+    activeScopeKey ? fileNameTemplates[activeScopeKey] || '' : ''
   );
   const [displayNameTemplate, setDisplayNameTemplate] = React.useState(
-    activeScopeKey ? displayNameTemplates[activeScopeKey] || '{{OriginalFileName}}' : '{{OriginalFileName}}'
+    activeScopeKey ? displayNameTemplates[activeScopeKey] || '' : ''
   );
   // Config link: checkbox + URL for linking to external config page
   // SSoT: Initialize from configLinks prop (loaded from backend)
@@ -554,13 +552,13 @@ function TreeNode({
       if (scopeActuallyChanged) {
         setEditValue(currentPath[currentEditingScopeKey] || node.path);
         setFolderTemplate(
-          scopeTemplates[currentEditingScopeKey] || '' || '{{TabName}}'
+          scopeTemplates[currentEditingScopeKey] || ''
         );
         setFilenameTemplate(
-          fileNameTemplates[currentEditingScopeKey] || '{{OriginalFileName}}'
+          fileNameTemplates[currentEditingScopeKey] || ''
         );
         setDisplayNameTemplate(
-          displayNameTemplates[currentEditingScopeKey] || '{{OriginalFileName}}'
+          displayNameTemplates[currentEditingScopeKey] || ''
         );
         const linkValue = configLinks[currentEditingScopeKey] || '';
         setConfigLinkUrl(linkValue);
@@ -708,7 +706,7 @@ function TreeNode({
                 <span className="text-muted-foreground">/</span>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Storage folder path. Use same path for related scopes to group them on one row.
+                Storage folder path. Use the same path for related types to group them on one row.
               </p>
             </div>
 
@@ -958,8 +956,8 @@ function TreeNode({
                 // Collect all templates from all scopes sharing this path
                 const allTemplates: Array<{ scopeKey: string; template: string; filename: string }> = [];
                 for (const sk of node.scopeKeys) {
-                  const template = scopeTemplates[sk] || '' || '';
-                  const filename = fileNameTemplates[sk] || '{{OriginalFileName}}';
+                  const template = scopeTemplates[sk] || '';
+                  const filename = fileNameTemplates[sk] || '';
                   // Skip COMPLEX_SCOPES - they show via tabs section exclusively (job, contact, corporate)
                   // Skip scopes with config links (they show tabs instead)
                   if (!COMPLEX_SCOPES.includes(sk) && !configLinks[sk] && template) {
@@ -2165,35 +2163,7 @@ export function StorageConfigTab() {
         </CardContent>
       </Card>
 
-      {/* Root Path Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Root Path
-          </CardTitle>
-          <CardDescription>
-            Base path in the storage provider. All folder paths are relative to this root.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="root_path">Root Path</Label>
-            <Input
-              id="root_path"
-              value={formData.root_path}
-              onChange={(e) => handleChange("root_path", e.target.value)}
-              placeholder="/ (drive root)"
-              className="font-mono"
-            />
-            <p className="text-xs text-muted-foreground">
-              Base path for all storage. S3/Wasabi: use &quot;/&quot; (bucket root). SharePoint: use &quot;/Shared Documents&quot;.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Warehouse Folders - Tree View (SSoT for scope root paths) */}
+      {/* Warehouse Folders - Tree View (SSoT for scope folder paths) */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -2203,7 +2173,7 @@ export function StorageConfigTab() {
                 Warehouse Folders
               </CardTitle>
               <CardDescription>
-                Click a scope badge to edit root folder, templates, and filename patterns.
+                Click a badge to edit folder path, templates, and filename patterns.
               </CardDescription>
             </div>
             <div className="flex items-center gap-1">
@@ -2230,24 +2200,16 @@ export function StorageConfigTab() {
             </div>
           </div>
           <CardDescription>
-            Folder structure for each entity type. Click a scope label to edit its path.
+            Folder structure for each entity type. Click a label to edit its path.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {/* Tree view of folder structure */}
           <div className="border rounded-md p-3 bg-muted/20">
-            {/* Root path header */}
-            <div className="flex items-center gap-2 mb-2 pb-2 border-b">
-              <Folder className="h-4 w-4 text-amber-500" />
-              <span className="font-mono text-sm font-medium">
-                {formData.root_path || "/"}
-              </span>
-              <span className="text-xs text-muted-foreground">(root)</span>
-            </div>
 
             {/* Recursive tree render */}
             {folderTree.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">No scope folders configured</p>
+              <p className="text-sm text-muted-foreground py-2">No folders configured</p>
             ) : (
               <div className="space-y-0.5">
                 {folderTree.map((node) => (
@@ -2294,12 +2256,8 @@ export function StorageConfigTab() {
               Folder
             </span>
             <span className="flex items-center gap-1">
-              <Badge variant="outline" className="h-4 text-[10px] px-1">scope</Badge>
-              Scope folder
-            </span>
-            <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3 text-blue-500 dark:text-blue-400" />
-              Folder (click to edit path)
+              <Badge variant="outline" className="h-4 text-[10px] px-1">Jobs</Badge>
+              Entity type (click to edit)
             </span>
           </div>
 
@@ -2427,11 +2385,6 @@ export function StorageConfigTab() {
                   <div className="space-y-3">
                     <h3 className="text-sm font-medium">Folder Structure Preview</h3>
                     <div className="border rounded-lg p-4 bg-muted/20 font-mono text-sm space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Folder className="h-4 w-4 text-amber-500" />
-                        <span className="font-medium">{formData.root_path || "/"}</span>
-                        <span className="text-muted-foreground text-xs">(root)</span>
-                      </div>
                       {/* Render configured scopes with their computed paths */}
                       {Object.entries(formData.warehouse_folders)
                         .filter(([, path]) => path)

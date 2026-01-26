@@ -82,7 +82,13 @@ class MicrosoftCredential < ApplicationRecord
 
   # Scopes
   scope :active, -> { where(is_active: true) }
-  scope :connected, -> { active.where(status: "connected") }
+  # SSoT: "configured" = has been connected (status field only)
+  # Use this when you just need to know if credential was ever set up
+  scope :configured, -> { active.where(status: "connected") }
+  # SSoT: "connected" = actually usable RIGHT NOW (status + valid token)
+  # This matches the connected? instance method - both check token expiry
+  # All code using .connected scope now correctly filters out expired tokens
+  scope :connected, -> { configured.where("token_expires_at > ?", Time.current) }
   scope :app_credentials, -> { where(credential_type: "app") }
   scope :delegated_credentials, -> { where(credential_type: "delegated") }
   scope :for_user, ->(user) { where(owner_type: "User", owner_id: user.id) }
