@@ -2147,100 +2147,19 @@ export function StorageConfigTab() {
         </CardContent>
       </Card>
 
-      {/* Scope Root Folders - SSoT for scope base paths */}
+      {/* Warehouse Folders - Tree View (SSoT for scope root paths) */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 <FolderTree className="h-4 w-4" />
-                Scope Root Folders
+                Warehouse Folders
               </CardTitle>
               <CardDescription>
-                Root folder for each scope. All tab paths are relative to these roots.
+                Click a scope badge to edit root folder, templates, and filename patterns.
               </CardDescription>
             </div>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={saving}
-              className="h-8"
-            >
-              {saving ? <Spinner className="h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              Save
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {Object.entries(config?.warehouse_root_folders || {})
-              // FRC: Filter out sub-scopes and aliases that share root with parent
-              // - email_attachments: sub-scope under email (both use Emails/ root)
-              // - corporate_entity: alias for corporate (identical path - keep 'corporate' for naming consistency)
-              // These are handled in the tree view below, not as separate root paths
-              .filter(([scope]) => !['email_attachments', 'task_attachments', 'task_responses', 'corporate_entity'].includes(scope))
-              .map(([scope, folder]) => {
-              // Root folders are STATIC (e.g., "Jobs", "Contacts") - no dynamic tokens
-              // Dynamic parts belong in TEMPLATES (e.g., "{{JobCode}}/{{TabName}}")
-              return (
-                <div key={scope} className="flex items-start gap-3 pb-3 border-b last:border-0 last:pb-0">
-                  <div className="flex items-center gap-2 min-w-[130px] pt-1">
-                    {scope === 'job' && <Briefcase className="h-4 w-4 text-blue-500" />}
-                    {scope === 'contact' && <Users className="h-4 w-4 text-green-500" />}
-                    {scope === 'corporate_entity' && <Building2 className="h-4 w-4 text-purple-500" />}
-                    {scope === 'task' && <ClipboardList className="h-4 w-4 text-orange-500" />}
-                    {scope === 'email' && <Mail className="h-4 w-4 text-red-500" />}
-                    {scope === 'warehouse' && <FileBox className="h-4 w-4 text-amber-500" />}
-                    {scope === 'user' && <FolderHeart className="h-4 w-4 text-pink-500" />}
-                    <Label className="text-sm font-medium">{getScopeLabel(scope)}</Label>
-                  </div>
-                  <div className="flex-1 space-y-1.5">
-                    <TokenBuilder
-                      value={folder?.replace(/\/+/g, '/').replace(/\/+$/, '')}
-                      onChange={(newValue) => {
-                        // Normalize: collapse multiple slashes and strip trailing slash for consistency
-                        const normalized = newValue?.replace(/\/+/g, '/').replace(/\/+$/, '');
-                        const newRoots = { ...(config?.warehouse_root_folders || {}), [scope]: normalized };
-                        // Update both config AND formData so tree view refreshes
-                        setConfig(prev => prev ? { ...prev, warehouse_root_folders: newRoots } : prev);
-                        setFormData(prev => ({ ...prev, warehouse_root_folders: newRoots }));
-                      }}
-                      scope="storage"
-                      separator="/"
-                      showPreview={true}
-                      placeholder={`Click to add tokens for ${getScopeLabel(scope)} paths...`}
-                    />
-                    {scope === 'task' && (
-                      <div className="flex items-center gap-2 pt-1">
-                        <Checkbox
-                          id="exclude-sm-linked"
-                          checked={config?.exclude_sm_tasks ?? false}
-                          onCheckedChange={(checked) => {
-                            setConfig(prev => prev ? { ...prev, exclude_sm_tasks: !!checked } : prev);
-                            setFormData(prev => ({ ...prev, exclude_sm_tasks: !!checked }));
-                          }}
-                        />
-                        <Label htmlFor="exclude-sm-linked" className="text-xs text-muted-foreground cursor-pointer">
-                          Exclude tasks linked to Schedule Master (use PO storage)
-                        </Label>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Warehouse Folders - Tree View */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FolderTree className="h-4 w-4" />
-              Warehouse Folders
-            </CardTitle>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
