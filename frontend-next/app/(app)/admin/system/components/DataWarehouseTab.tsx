@@ -222,6 +222,16 @@ interface OrgDataStats {
     file_rate: number;
     linked?: number;  // For Xero: WarehouseDocument records created
     missing?: number; // For Xero: total - with_file (SSoT from external_invoices)
+    tenant_breakdown?: Array<{  // Per-org breakdown for Xero
+      tenant_id: string;
+      tenant_name: string;
+      total: number;
+      with_blob: number;
+      with_file: number;
+      linked: number;
+      missing: number;
+      file_rate: number;
+    }>;
   }>;
   blob_stats?: {
     total_blobs: number;
@@ -1426,44 +1436,72 @@ export function DataWarehouseTab() {
                   // SSoT: Use row.missing if provided (for Xero), otherwise calculate
                   const missingFile = row.missing ?? (row.with_blob - (row.with_file || 0));
                   return (
-                    <TableRow key={row.source_type}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {row.source_type === "email_body" && <Mail className="h-4 w-4 text-purple-500" />}
-                          {row.source_type === "email_attachment" && <Paperclip className="h-4 w-4 text-purple-400" />}
-                          {row.source_type === "email" && <Mail className="h-4 w-4 text-purple-500" />}
-                          {row.source_type === "corporate" && <Building2 className="h-4 w-4 text-blue-500" />}
-                          {row.source_type === "contact" && <Users className="h-4 w-4 text-green-500" />}
-                          {row.source_type === "xero" && <FileText className="h-4 w-4 text-[#13B5EA]" />}
-                          {row.source_type === "job" && <Briefcase className="h-4 w-4 text-amber-600" />}
-                          {row.source_type === "task" && <CheckCircle className="h-4 w-4 text-teal-500" />}
-                          {row.source_type === "people" && <Users className="h-4 w-4 text-pink-500" />}
-                          {row.source_type === "warehouse" && <Box className="h-4 w-4 text-gray-500" />}
-                          {row.source_type === "user" && <Users className="h-4 w-4 text-indigo-500" />}
-                          {row.label}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">{row.total.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {/* For Xero: linked = WarehouseDocument records, with_blob = has PDF */}
-                        {row.source_type === "xero" ? (row.linked ?? row.with_blob).toLocaleString() : row.with_blob.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right text-green-600 dark:text-green-400">
-                        {(row.with_file || 0).toLocaleString()}
-                        {row.file_rate !== undefined && (
-                          <span className="text-xs text-muted-foreground ml-1">
-                            ({row.file_rate}%)
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {missingFile > 0 ? (
-                          <span className="text-red-600 dark:text-red-400">{missingFile.toLocaleString()}</span>
-                        ) : (
-                          <span className="text-green-600 dark:text-green-400">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                    <React.Fragment key={row.source_type}>
+                      <TableRow>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {row.source_type === "email_body" && <Mail className="h-4 w-4 text-purple-500" />}
+                            {row.source_type === "email_attachment" && <Paperclip className="h-4 w-4 text-purple-400" />}
+                            {row.source_type === "email" && <Mail className="h-4 w-4 text-purple-500" />}
+                            {row.source_type === "corporate" && <Building2 className="h-4 w-4 text-blue-500" />}
+                            {row.source_type === "contact" && <Users className="h-4 w-4 text-green-500" />}
+                            {row.source_type === "xero" && <FileText className="h-4 w-4 text-[#13B5EA]" />}
+                            {row.source_type === "job" && <Briefcase className="h-4 w-4 text-amber-600" />}
+                            {row.source_type === "task" && <CheckCircle className="h-4 w-4 text-teal-500" />}
+                            {row.source_type === "people" && <Users className="h-4 w-4 text-pink-500" />}
+                            {row.source_type === "warehouse" && <Box className="h-4 w-4 text-gray-500" />}
+                            {row.source_type === "user" && <Users className="h-4 w-4 text-indigo-500" />}
+                            {row.label}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">{row.total.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {/* For Xero: linked = WarehouseDocument records, with_blob = has PDF */}
+                          {row.source_type === "xero" ? (row.linked ?? row.with_blob).toLocaleString() : row.with_blob.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right text-green-600 dark:text-green-400">
+                          {(row.with_file || 0).toLocaleString()}
+                          {row.file_rate !== undefined && (
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({row.file_rate}%)
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {missingFile > 0 ? (
+                            <span className="text-red-600 dark:text-red-400">{missingFile.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-green-600 dark:text-green-400">-</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {/* Per-tenant breakdown for Xero */}
+                      {row.source_type === "xero" && row.tenant_breakdown && row.tenant_breakdown.map((tenant) => (
+                        <TableRow key={tenant.tenant_id} className="bg-muted/30">
+                          <TableCell className="pl-8 text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground/50">└</span>
+                              {tenant.tenant_name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">{tenant.total.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{tenant.linked.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-green-600/80 dark:text-green-400/80">
+                            {tenant.with_file.toLocaleString()}
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({tenant.file_rate}%)
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {tenant.missing > 0 ? (
+                              <span className="text-red-600/80 dark:text-red-400/80">{tenant.missing.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-green-600/80 dark:text-green-400/80">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </React.Fragment>
                   );
                 })}
               </TableBody>

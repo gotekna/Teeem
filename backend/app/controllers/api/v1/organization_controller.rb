@@ -846,6 +846,38 @@ module Api
               .count
             xero_linked = WarehouseDocument.where(source_type: "xero").count
 
+            # Per-tenant breakdown
+            tenant_breakdown = []
+            if defined?(XeroCredential)
+              XeroCredential.where.not(xero_tenant_id: nil).find_each do |cred|
+                tenant_id = cred.xero_tenant_id
+                tenant_name = cred.xero_tenant_name || "Unknown"
+
+                # Count from external_invoices (SSoT)
+                tenant_total = ExternalInvoice.where(tenant_id: tenant_id).where.not(status: "draft").count
+                next if tenant_total == 0
+
+                # Count PDFs synced for this tenant
+                # WarehouseDocument links to ExternalInvoice via documentable
+                tenant_invoice_ids = ExternalInvoice.where(tenant_id: tenant_id).pluck(:id)
+                tenant_warehouse_scope = WarehouseDocument.where(source_type: "xero", documentable_type: "ExternalInvoice", documentable_id: tenant_invoice_ids)
+                tenant_with_blob = tenant_warehouse_scope.where.not(storage_blob_id: nil).count
+                tenant_with_file = tenant_warehouse_scope.joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL").count
+                tenant_linked = tenant_warehouse_scope.count
+
+                tenant_breakdown << {
+                  tenant_id: tenant_id,
+                  tenant_name: tenant_name,
+                  total: tenant_total,
+                  with_blob: tenant_with_blob,
+                  with_file: tenant_with_file,
+                  linked: tenant_linked,
+                  missing: tenant_total - tenant_with_file,
+                  file_rate: tenant_total > 0 ? ((tenant_with_file.to_f / tenant_total) * 100).round(1) : 0
+                }
+              end
+            end
+
             if xero_total > 0
               results << {
                 source_type: "xero",
@@ -857,7 +889,8 @@ module Api
                 without_blob: xero_total - xero_with_blob,
                 missing: xero_total - xero_with_file,  # Missing PDFs
                 storage_rate: ((xero_with_blob.to_f / xero_total) * 100).round(1),
-                file_rate: ((xero_with_file.to_f / xero_total) * 100).round(1)
+                file_rate: ((xero_with_file.to_f / xero_total) * 100).round(1),
+                tenant_breakdown: tenant_breakdown.sort_by { |t| -t[:total] }  # Sort by total descending
               }
             end
           end
