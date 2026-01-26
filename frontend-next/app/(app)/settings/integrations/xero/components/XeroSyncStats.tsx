@@ -55,6 +55,14 @@ interface TenantRateLimits {
   is_limited: boolean;
 }
 
+interface TenantPdfSyncStats {
+  total: number;
+  synced: number;
+  pending: number;
+  percentage: number;
+  last_synced_at: string | null;
+}
+
 interface TenantStats {
   tenant_id: string;
   tenant_name: string;
@@ -64,6 +72,7 @@ interface TenantStats {
   documents: TenantDocStats;
   match_breakdown: MatchBreakdown;
   rate_limits: TenantRateLimits | null;
+  pdf_sync?: TenantPdfSyncStats;
 }
 
 interface PendingReviewItem {
@@ -121,7 +130,33 @@ export function XeroSyncStats() {
     try {
       const response = await api.get<{ success: boolean; data: SyncStatsData }>("/api/v1/xero/sync_stats");
       if (response.success) {
-        setData(response.data);
+        // Enrich tenant data with PDF sync stats
+        const enrichedTenants = await Promise.all(
+          response.data.tenants.map(async (tenant) => {
+            try {
+              const pdfResponse = await api.get<{ success: boolean; data: any }>(
+                `/api/v1/xero/pdf_sync_status?tenant_id=${tenant.tenant_id}`
+              );
+              if (pdfResponse.success && pdfResponse.data) {
+                const stage2 = pdfResponse.data.stage2_pdf_download || pdfResponse.data;
+                return {
+                  ...tenant,
+                  pdf_sync: {
+                    total: stage2.total_to_sync || 0,
+                    synced: stage2.downloaded || 0,
+                    pending: stage2.pending || 0,
+                    percentage: stage2.progress_percentage || 0,
+                    last_synced_at: stage2.last_synced_at || null,
+                  },
+                };
+              }
+            } catch (e) {
+              console.error(`Failed to fetch PDF sync for ${tenant.tenant_name}:`, e);
+            }
+            return tenant;
+          })
+        );
+        setData({ ...response.data, tenants: enrichedTenants });
         setError(null);
       } else {
         setError("Failed to fetch sync stats");
@@ -479,6 +514,39 @@ export function XeroSyncStats() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {/* Stage 1 & Stage 2 Progress */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Stage 1: Xero Data */}
+                    <div className="p-2 bg-muted/30 rounded border">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-muted-foreground">Stage 1</span>
+                        <span className="text-xs font-medium text-green-600">100%</span>
+                      </div>
+                      <div className="text-sm font-medium">Xero Data</div>
+                      <Progress value={100} className="h-1.5 mt-1 [&>div]:bg-green-500" />
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {tenant.documents.total.toLocaleString()} / {tenant.documents.total.toLocaleString()}
+                      </div>
+                    </div>
+                    {/* Stage 2: PDF Sync */}
+                    <div className="p-2 bg-muted/30 rounded border">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-muted-foreground">Stage 2</span>
+                        <span className={`text-xs font-medium ${(tenant.pdf_sync?.percentage || 0) >= 100 ? "text-green-600" : "text-blue-600"}`}>
+                          {tenant.pdf_sync?.percentage?.toFixed(1) || 0}%
+                        </span>
+                      </div>
+                      <div className="text-sm font-medium">PDF Sync</div>
+                      <Progress
+                        value={tenant.pdf_sync?.percentage || 0}
+                        className={`h-1.5 mt-1 ${(tenant.pdf_sync?.percentage || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-blue-500"}`}
+                      />
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {(tenant.pdf_sync?.synced || 0).toLocaleString()} / {(tenant.pdf_sync?.total || tenant.documents.total).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Stats Grid */}
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div className="p-2 bg-muted/50 rounded">
@@ -520,7 +588,7 @@ export function XeroSyncStats() {
 
                   {/* Pending Reviews Warning */}
                   {tenant.contacts.pending_review > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
                       <AlertTriangle className="h-3 w-3" />
                       {tenant.contacts.pending_review} pending review
                     </div>
