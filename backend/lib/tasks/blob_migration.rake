@@ -324,11 +324,11 @@ namespace :blob do
         ChatMessage.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
         BillInbox.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
 
-        # Bulk delete orphan blobs in batches
+        # Bulk delete orphan blobs in batches (bypass tenant scope)
         puts "  Deleting orphan blobs in batches..."
         deleted = 0
         orphan_ids.each_slice(1000) do |batch_ids|
-          deleted += StorageBlob.where(id: batch_ids).delete_all
+          deleted += StorageBlob.unscoped.where(id: batch_ids).delete_all
           print "\r  Deleted: #{deleted}/#{orphan_ids.size}..."
         end
 
