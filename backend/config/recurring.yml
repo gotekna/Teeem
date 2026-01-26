@@ -27,12 +27,12 @@ connection_health_monitor:
 # Zero-impact performance monitoring for API requests and Web Vitals
 # ============================================
 # Flush performance metrics from memory buffer to database
-# Runs every 30 seconds to ensure timely data availability
+# Runs every 5 minutes (was: 30 seconds - caused queue congestion)
 # Buffer auto-flushes at 80% capacity as additional safety
 flush_performance_buffer:
   class: FlushPerformanceBufferJob
   queue: low
-  schedule: every 30 seconds
+  schedule: every 5 minutes
 
 # Cleanup old performance data (90+ days retention)
 # Runs daily at 4am Brisbane time (off-peak)
@@ -328,18 +328,18 @@ imap_email_sync:
   schedule: every 2 minutes
 
 # Wake up snoozed emails that have reached their snooze time
-# Runs every minute for responsive snooze experience
+# Runs every 5 minutes (was: 1 minute - caused queue congestion)
 email_snooze_wakeup:
   class: EmailSnoozeWakeupJob
   queue: default
-  schedule: every 1 minute
+  schedule: every 5 minutes
 
 # Process email reminders that are due
-# Runs every minute for responsive reminder experience
+# Runs every 5 minutes (was: 1 minute - caused queue congestion)
 email_reminders:
   class: EmailReminderJob
   queue: default
-  schedule: every 1 minute
+  schedule: every 5 minutes
 
 # ============================================
 # EMAIL TO JOB / EMAIL TO TASK

@@ -476,6 +476,51 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "orange",
     description: "Task status",
   },
+  // Task folder suffix tokens (literal text for folder naming)
+  {
+    code: "{{Attachments}}",
+    example: "Attachments",
+    color: "orange",
+    description: "Literal 'Attachments' folder name",
+  },
+  {
+    code: "{{Responses}}",
+    example: "Responses",
+    color: "orange",
+    description: "Literal 'Responses' folder name",
+  },
+  // Task Attachments tokens
+  {
+    code: "{{AttachmentName}}",
+    example: "site-photo.jpg",
+    color: "orange",
+    description: "Original attachment filename",
+  },
+  {
+    code: "{{AttachmentType}}",
+    example: "Photo",
+    color: "orange",
+    description: "Attachment type (Photo, Document, etc.)",
+  },
+  // Task Responses tokens
+  {
+    code: "{{ResponseBy}}",
+    example: "John Smith",
+    color: "orange",
+    description: "Who submitted the response",
+  },
+  {
+    code: "{{ResponseDate}}",
+    example: "2026-01-26",
+    color: "green",
+    description: "Response submission date",
+  },
+  {
+    code: "{{ResponseText}}",
+    example: "Approved with notes",
+    color: "blue",
+    description: "Response text/comment",
+  },
   {
     code: "{{Category}}",
     example: "Plans",
@@ -584,6 +629,73 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     example: "14-30",
     color: "green",
     description: "Time email was received (HH-MM)",
+  },
+  // Case tokens
+  {
+    code: "{{CaseId}}",
+    example: "C-001",
+    color: "purple",
+    description: "Case identifier",
+  },
+  {
+    code: "{{CaseName}}",
+    example: "Insurance Claim",
+    color: "purple",
+    description: "Case name/title",
+  },
+  // Asset tokens
+  {
+    code: "{{AssetName}}",
+    example: "Forklift-01",
+    color: "purple",
+    description: "Asset name/identifier",
+  },
+  {
+    code: "{{AssetId}}",
+    example: "A-001",
+    color: "purple",
+    description: "Asset ID",
+  },
+  // Template tokens
+  {
+    code: "{{TemplateType}}",
+    example: "Contract",
+    color: "blue",
+    description: "Template type/category",
+  },
+  {
+    code: "{{TemplateName}}",
+    example: "Standard Agreement",
+    color: "blue",
+    description: "Template name",
+  },
+  // Chat/Context tokens
+  {
+    code: "{{Context}}",
+    example: "Job-123",
+    color: "gray",
+    description: "Chat context reference",
+  },
+  // Bill/Invoice tokens
+  {
+    code: "{{Status}}",
+    example: "Pending",
+    color: "gray",
+    description: "Status (Pending, Approved, etc.)",
+  },
+  // Notebook tokens
+  {
+    code: "{{NotebookName}}",
+    example: "Work Notes",
+    color: "blue",
+    description: "Notebook name",
+  },
+  // Folder token (generic)
+  {
+    code: "{{Folder}}",
+    example: "Documents",
+    color: "blue",
+    description: "Folder/category name",
   },
 ];
 
