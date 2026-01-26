@@ -6,8 +6,8 @@ class DocumentType < ApplicationRecord
   has_many :corporate_company_documents, dependent: :nullify
   has_many :job_documents, dependent: :nullify
 
-  # SSoT: EntityTab associations
-  has_many :entity_tab_document_types, dependent: :destroy
+  # SSoT: EntityTab associations (model renamed to StorageLocationDocumentType Jan 2026)
+  has_many :entity_tab_document_types, class_name: 'StorageLocationDocumentType', foreign_key: :document_type_id, dependent: :destroy
   has_many :entity_tabs, through: :entity_tab_document_types
 
   # Get tab names for display (SSoT: uses EntityTabs)
