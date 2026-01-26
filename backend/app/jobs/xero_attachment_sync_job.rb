@@ -1,9 +1,14 @@
 # frozen_string_literal: true
 
-# Job to sync attachments from Xero invoices/bills to CorporateCompanyDocuments
+# Job to sync attachments from Xero invoices/bills to WarehouseDocument
 # Uses XeroRateLimitTracker to go as fast as possible while respecting limits
 #
-# Rate Limit Handling (SSoT - Jan 2026):
+# SSoT Architecture (Jan 2026):
+# - WarehouseDocument is THE ONE for all Xero document metadata
+# - StorageBlob handles deduplication and flat Blobs/ storage
+# - EntityTab + DocumentType define folder structure (no hardcoding)
+#
+# Rate Limit Handling:
 # - Checks XeroRateLimitTracker for Xero-enforced lockouts before processing
 # - When Xero returns 429, records lockout and schedules retry after lockout expires
 # - Uses cache-based lock to prevent multiple parallel batch jobs
@@ -214,11 +219,13 @@ class XeroAttachmentSyncJob < ApplicationJob
   end
 
   def find_invoices_needing_pdfs(limit, tenant_id = nil, invoice_type = nil)
-    # Find invoices that DON'T already have PDF synced
-    already_synced_ids = CorporateCompanyDocument
-      .where(source: "xero")
-      .where("external_id LIKE ?", "xero:%:pdf")
+    # SSoT: Find invoices that DON'T already have PDF synced via WarehouseDocument
+    # WarehouseDocument with source_type: "xero" and storage_blob_id present = synced
+    already_synced_ids = WarehouseDocument
+      .where(source_type: "xero")
       .where(documentable_type: "ExternalInvoice")
+      .where("metadata->>'is_primary' = ?", "true")
+      .where.not(storage_blob_id: nil)
       .pluck(:documentable_id)
 
     query = ExternalInvoice
@@ -236,10 +243,12 @@ class XeroAttachmentSyncJob < ApplicationJob
   end
 
   def count_remaining_invoices
-    already_synced_ids = CorporateCompanyDocument
-      .where(source: "xero")
-      .where("external_id LIKE ?", "xero:%:pdf")
+    # SSoT: Count invoices without synced WarehouseDocument
+    already_synced_ids = WarehouseDocument
+      .where(source_type: "xero")
       .where(documentable_type: "ExternalInvoice")
+      .where("metadata->>'is_primary' = ?", "true")
+      .where.not(storage_blob_id: nil)
       .pluck(:documentable_id)
 
     ExternalInvoice
