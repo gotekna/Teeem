@@ -1510,12 +1510,11 @@ module Api
           total_pdf_eligible = pdf_eligible_invoices.count
 
           # SSoT: Count PDFs that have been synced to storage
-          # Jan 2026: Count EITHER storage_blob_id (new SSoT) OR storage_file_id (legacy)
-          # 12,886 docs have storage_file_id but no storage_blob_id yet - will migrate
+          # storage_blob_id is THE ONE source of truth (Jan 2026 migration complete)
           # Must use EXACT same filters as total_pdf_eligible
           pdf_query = CorporateCompanyDocument.where(source: "xero")
                                               .where(document_type: ["Xero Bill", "Xero Invoice", "Xero Credit Note"])
-                                              .where("storage_blob_id IS NOT NULL OR storage_file_id IS NOT NULL")
+                                              .where.not(storage_blob_id: nil)
                                               .where(documentable_type: "ExternalInvoice")
                                               .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                               .where.not(external_invoices: { contact_id: nil })
@@ -1586,12 +1585,11 @@ module Api
           # ============================================
           # Breakdown by invoice type (for PDF stage)
           # ============================================
-          # SSoT: Breakdown by type using document_type (matches XeroAttachmentSyncService)
-          # Jan 2026: Count EITHER storage_blob_id (new) OR storage_file_id (legacy) as synced
+          # SSoT: storage_blob_id is THE ONE (Jan 2026 migration complete)
           bills_total = pdf_eligible_invoices.bills.count
           bills_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Bill" })
-                                           .where("corporate_company_documents.storage_blob_id IS NOT NULL OR corporate_company_documents.storage_file_id IS NOT NULL")
+                                           .where.not(corporate_company_documents: { storage_blob_id: nil })
                                            .where(external_invoices: { invoice_type: "bill" })
                                            .where.not(external_invoices: { status: "draft" })
                                            .where.not(external_invoices: { status: %w[voided deleted] })
@@ -1601,7 +1599,7 @@ module Api
           sales_total = pdf_eligible_invoices.sales_invoices.count
           sales_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Invoice" })
-                                           .where("corporate_company_documents.storage_blob_id IS NOT NULL OR corporate_company_documents.storage_file_id IS NOT NULL")
+                                           .where.not(corporate_company_documents: { storage_blob_id: nil })
                                            .where(external_invoices: { invoice_type: "sales_invoice" })
                                            .where.not(external_invoices: { status: "draft" })
                                            .where.not(external_invoices: { status: %w[voided deleted] })
@@ -1611,7 +1609,7 @@ module Api
           quotes_total = pdf_eligible_invoices.quotes.count
           quotes_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                             .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Invoice" })
-                                            .where("corporate_company_documents.storage_blob_id IS NOT NULL OR corporate_company_documents.storage_file_id IS NOT NULL")
+                                            .where.not(corporate_company_documents: { storage_blob_id: nil })
                                             .where(external_invoices: { invoice_type: "quote" })
                                             .where.not(external_invoices: { status: "draft" })
                                             .where.not(external_invoices: { status: %w[voided deleted] })
@@ -1622,7 +1620,7 @@ module Api
           credit_notes_total = pdf_eligible_invoices.where(invoice_type: "credit_note").count
           credit_notes_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                                   .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Credit Note" })
-                                                  .where("corporate_company_documents.storage_blob_id IS NOT NULL OR corporate_company_documents.storage_file_id IS NOT NULL")
+                                                  .where.not(corporate_company_documents: { storage_blob_id: nil })
                                                   .where(external_invoices: { invoice_type: "credit_note" })
                                                   .where.not(external_invoices: { status: "draft" })
                                                   .where.not(external_invoices: { status: %w[voided deleted] })
