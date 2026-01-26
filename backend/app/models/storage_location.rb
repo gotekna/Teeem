@@ -244,10 +244,10 @@ class StorageLocation < ApplicationRecord
       .count
   end
 
-  # SSoT: Derive warehouse_folder from StorageConfiguration.warehouse_folders
-  # This replaces the now-dropped EntityTab.warehouse_folder column
-  # Uses template from SSoT and substitutes {{TeeemXL}} with display_name
-  def derived_warehouse_folder
+  # SSoT: Get the full warehouse path by substituting folder name into template
+  # Template comes from StorageConfiguration.warehouse_folders (e.g., "Warehousing/{{TeeemXL}}")
+  # Folder name comes from: warehouse_folder column (if set) OR display_name (default)
+  def resolved_warehouse_path
     return nil unless warehouse_enabled
 
     # Handle missing tenant context gracefully (e.g., background jobs, serialization)
@@ -263,22 +263,26 @@ class StorageLocation < ApplicationRecord
     template = config.warehouse_folders&.dig(wt)
     return nil unless template.present?
 
-    # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)
+    # Use stored warehouse_folder if set, otherwise default to display_name
+    folder_name = read_attribute(:warehouse_folder).presence || display_name.to_s
+
+    # SSoT: {{TeeemXL}} is the UI placeholder for folder name (Jan 2026)
     # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
-    template.gsub('{{TeeemXL}}', display_name.to_s).gsub('{{TabName}}', display_name.to_s)
+    template.gsub('{{TeeemXL}}', folder_name).gsub('{{TabName}}', folder_name)
   end
 
   # Alias for backwards compatibility
-  alias_method :warehouse_folder, :derived_warehouse_folder
+  alias_method :derived_warehouse_folder, :resolved_warehouse_path
 
   # Get the full storage path for this tab
-  # SSoT: Uses warehouse_base_path + derived folder from StorageConfiguration.warehouse_folders
+  # SSoT: root_path + resolved warehouse path (template with folder substituted)
   def full_warehouse_path
-    folder = derived_warehouse_folder
-    return nil unless warehouse_enabled && folder.present?
+    path = resolved_warehouse_path
+    return nil unless warehouse_enabled && path.present?
 
-    base = warehouse_base_path || ''
-    "#{base}/#{folder}".gsub(%r{//+}, '/')
+    config = StorageConfiguration.instance
+    root = config&.root_path || ''
+    "#{root}/#{path}".gsub(%r{//+}, '/')
   end
 
   # Legacy aliases for backwards compatibility

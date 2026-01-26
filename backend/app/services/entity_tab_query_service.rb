@@ -135,21 +135,23 @@ class EntityTabQueryService
     end
   end
 
-  # SSoT: Derive warehouse_folder from StorageConfiguration.warehouse_folders
-  # This replaces reading from EntityTab.warehouse_folder (now deprecated)
+  # SSoT: Get resolved warehouse path by substituting folder name into template
+  # Template: StorageConfiguration.warehouse_folders (e.g., "Warehousing/{{TeeemXL}}")
+  # Folder name: warehouse_folder column (if set) OR display_name (default)
   def derive_warehouse_folder(tab)
     return nil unless tab.warehouse_enabled
 
-    # Get template from SSoT warehouse_folders
+    # Get template from SSoT
     warehouse_type = tab.warehouse_type || 'corporate'
-    # SSoT: Normalize aliased keys (e.g., 'corporate_entity' → 'corporate')
     warehouse_type = StorageConfiguration::WAREHOUSE_KEY_ALIASES[warehouse_type] || warehouse_type
     template = @storage_config.dig(:warehouse_folders, warehouse_type)
     return nil unless template.present?
 
-    # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)
-    # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
-    template.gsub('{{TeeemXL}}', tab.display_name.to_s).gsub('{{TabName}}', tab.display_name.to_s)
+    # Use stored warehouse_folder if set, otherwise default to display_name
+    folder_name = tab.warehouse_folder.presence || tab.display_name.to_s
+
+    # Substitute folder name into template
+    template.gsub('{{TeeemXL}}', folder_name).gsub('{{TabName}}', folder_name)
   end
 
   # Build JSON for a single tab (recursively includes children)
@@ -160,8 +162,7 @@ class EntityTabQueryService
     # Compute document count from pre-loaded data
     doc_count = compute_document_count(tab)
 
-    # SSoT: Derive warehouse_folder from StorageConfiguration.warehouse_folders
-    # This replaces reading from EntityTab.warehouse_folder (now deprecated/cleared)
+    # Get warehouse_folder: stored value if set, otherwise derived from template
     derived_folder = derive_warehouse_folder(tab)
 
     # Compute warehouse paths without additional queries
