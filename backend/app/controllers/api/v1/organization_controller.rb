@@ -849,9 +849,9 @@ module Api
             # Per-tenant breakdown
             tenant_breakdown = []
             if defined?(XeroCredential)
-              XeroCredential.where.not(xero_tenant_id: nil).find_each do |cred|
-                tenant_id = cred.xero_tenant_id
-                tenant_name = cred.xero_tenant_name || "Unknown"
+              XeroCredential.where.not(tenant_id: nil).find_each do |cred|
+                tenant_id = cred.tenant_id
+                tenant_name = cred.tenant_name || "Unknown"
 
                 # Count from external_invoices (SSoT)
                 tenant_total = ExternalInvoice.where(tenant_id: tenant_id).where.not(status: "draft").count
