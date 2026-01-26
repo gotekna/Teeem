@@ -170,31 +170,30 @@ class S3PathCleanupJob < ApplicationJob
 
     when 'CorporateCompanyDocument'
       company = document.corporate_company
-      # SSoT: path_for(:corporate) folder (Jan 2026)
-      corporate_folder = config&.path_for(:corporate) || "Corporate"
-      if company
-        folder = clean_subfolder(document.folder.presence || "Documents")
-        filename = clean_filename(document.file_name)
-        "#{corporate_folder}/#{company.id}/#{folder}/#{filename}"
-      else
-        "#{corporate_folder}/unassigned/#{clean_filename(document.file_name)}"
-      end
+      # FAIL FAST: No fallbacks - missing data is a bug, not a feature (Jan 2026 FRC fix)
+      raise ArgumentError, "CorporateCompanyDocument #{document.id} has no corporate_company - cannot determine path" unless company
+      raise ArgumentError, "StorageConfiguration required for path generation" unless config
+
+      corporate_folder = config.path_for(:corporate)
+      folder = clean_subfolder(document.folder.presence || "Documents")
+      filename = clean_filename(document.file_name)
+      "#{corporate_folder}/#{company.id}/#{folder}/#{filename}"
 
     when 'PeopleDocument'
       contact = document.contact
-      # SSoT: path_for(:corporate) + path_for(:people) folder (Jan 2026)
-      corporate_folder = config&.path_for(:corporate) || "Corporate"
-      people_folder = config&.path_for(:people) || "People"
-      if contact
-        folder = clean_subfolder(document.folder.presence || "Documents")
-        filename = clean_filename(document.file_name)
-        "#{corporate_folder}/#{people_folder}/#{contact.id}/#{folder}/#{filename}"
-      else
-        "#{corporate_folder}/#{people_folder}/unassigned/#{clean_filename(document.file_name)}"
-      end
+      # FAIL FAST: No fallbacks - missing data is a bug (Jan 2026 FRC fix)
+      raise ArgumentError, "PeopleDocument #{document.id} has no contact - cannot determine path" unless contact
+      raise ArgumentError, "StorageConfiguration required for path generation" unless config
+
+      corporate_folder = config.path_for(:corporate)
+      people_folder = config.path_for(:people)
+      folder = clean_subfolder(document.folder.presence || "Documents")
+      filename = clean_filename(document.file_name)
+      "#{corporate_folder}/#{people_folder}/#{contact.id}/#{folder}/#{filename}"
 
     else
-      "Documents/#{clean_filename(document.file_name)}"
+      # FAIL FAST: Unknown document type is a bug (Jan 2026 FRC fix)
+      raise ArgumentError, "Unknown document type: #{document.class.name} - add explicit path handling"
     end
   end
 
