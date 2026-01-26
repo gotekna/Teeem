@@ -1388,8 +1388,8 @@ export function DataWarehouseTab() {
                 <HardDrive className="h-5 w-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{formatFileSize(stats.documents.total_file_size + stats.job_documents.total_size)}</p>
-                <p className="text-xs text-muted-foreground">Total Storage</p>
+                <p className="text-2xl font-bold">{formatFileSize(stats.blob_stats?.total_bytes || 0)}</p>
+                <p className="text-xs text-muted-foreground">Total Storage (SSoT)</p>
               </div>
             </div>
           </CardContent>
