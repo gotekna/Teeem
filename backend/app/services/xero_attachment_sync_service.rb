@@ -78,8 +78,9 @@ class XeroAttachmentSyncService
     # Check if PDF already exists - skip API call if we have it
     existing_pdf = document_model.find_by(source: "xero", external_id: external_doc_id)
 
-    if existing_pdf.present? && existing_pdf.respond_to?(:storage_reference) && existing_pdf.storage_reference.present?
-      Rails.logger.info("[XeroAttachmentSync] PDF already synced to storage, skipping: #{existing_pdf.file_name}")
+    # SSoT: Check for StorageBlob link (Jan 2026 FRC fix)
+    if existing_pdf.present? && existing_pdf.respond_to?(:storage_blob_id) && existing_pdf.storage_blob_id.present?
+      Rails.logger.info("[XeroAttachmentSync] PDF already synced via StorageBlob, skipping: #{existing_pdf.file_name}")
       results[:pdf] = existing_pdf
       results[:skipped] = true
       return
@@ -108,6 +109,17 @@ class XeroAttachmentSyncService
 
     # Create or update document using SSoT model from routing
     filename = build_pdf_filename
+    pdf_content = pdf_result[:content]
+
+    # SSoT: Create StorageBlob FIRST (Jan 2026 FRC fix)
+    # StorageBlob handles deduplication and proper Blobs/ path structure
+    storage_blob = StorageBlob.find_or_create_for_content!(
+      pdf_content,
+      filename: filename,
+      content_type: "application/pdf"
+    )
+    storage_blob.increment_reference!
+
     document = document_model.find_or_initialize_by(
       source: "xero",
       external_id: external_doc_id
@@ -119,33 +131,30 @@ class XeroAttachmentSyncService
       filename: filename,
       document_type_name: document_type_for_invoice,
       folder: folder_for_invoice_type,
-      file_size: pdf_result[:content_length] || pdf_result[:content].bytesize,
+      file_size: pdf_content.bytesize,
       mime_type: "application/pdf",
       is_primary: true  # Primary invoice PDF
     )
 
+    # SSoT: Link to StorageBlob (Jan 2026 FRC fix)
+    doc_attributes[:storage_blob_id] = storage_blob.id
+    doc_attributes[:storage_path] = storage_blob.storage_path
+
     document.assign_attributes(doc_attributes)
 
-    # Attach the file via Active Storage
+    # Attach the file via Active Storage (legacy - will be removed)
     document.file.attach(
-      io: StringIO.new(pdf_result[:content]),
+      io: StringIO.new(pdf_content),
       filename: filename,
       content_type: "application/pdf"
     )
 
     if document.save
       results[:pdf] = document
-      Rails.logger.info("[XeroAttachmentSync] Saved PDF (#{document_model.name}): #{filename}")
-
-      # Also upload to storage
-      upload_result = upload_to_storage(pdf_result[:content], filename)
-
-      # Update document with storage file ID if upload succeeded
-      if upload_result && upload_result[:id] && document.respond_to?(:sharepoint_file_id=)
-        document.update(sharepoint_file_id: upload_result[:id])
-        Rails.logger.info("[XeroAttachmentSync] Updated document with storage file ID: #{upload_result[:id]}")
-      end
+      Rails.logger.info("[XeroAttachmentSync] Saved PDF via StorageBlob: #{filename} -> #{storage_blob.storage_path}")
     else
+      # Rollback blob reference if document save failed
+      storage_blob.decrement_reference!
       results[:errors] << "Failed to save PDF: #{document.errors.full_messages.join(', ')}"
     end
   rescue ActiveRecord::RecordNotUnique => e
@@ -386,14 +395,15 @@ class XeroAttachmentSyncService
     }
 
     # Model-specific attributes
+    # NOTE: storage_path is set from StorageBlob, not here (Jan 2026 SSoT fix)
     case document_model.name
     when "ContactDocument"
       # ContactDocument attributes
       attributes.merge!(
         contact_id: external_invoice.contact_id,
         document_type_id: document_type_record&.id,
-        content_type: mime_type,
-        storage_path: expected_document_path(filename)
+        content_type: mime_type
+        # storage_path comes from StorageBlob
       )
 
     when "CorporateCompanyDocument"
@@ -405,14 +415,14 @@ class XeroAttachmentSyncService
         document_type_id: document_type_record&.id,
         documentable: external_invoice,
         job_id: external_invoice.job_id,
-        expected_storage_path: expected_document_path(filename),
         mime_type: mime_type,
         ai_verification_status: is_primary ? "verified" : "pending"
+        # storage_path/expected_storage_path come from StorageBlob
       )
 
     else
-      # Fallback for unknown models - use common attributes
-      Rails.logger.warn("[XeroAttachmentSync] Unknown document model: #{document_model.name}, using minimal attributes")
+      # FAIL FAST: Unknown model is a bug (Jan 2026 FRC fix)
+      raise ArgumentError, "Unknown document model: #{document_model.name} - add explicit attribute handling"
     end
 
     attributes
