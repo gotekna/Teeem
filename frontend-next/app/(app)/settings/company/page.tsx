@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -62,13 +62,32 @@ export default function CompanySettingsPage() {
     const sub = parts[1] || undefined;
     // Validate tab exists
     // For connections tab without subTab, default to "provider"
+    // For entity-config tab without subTab, default to "storage_config"
     const validTab = COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
-    const effectiveSubTab = (validTab === "connections" && !sub) ? "provider" : sub;
+    let effectiveSubTab = sub;
+    if (validTab === "connections" && !sub) effectiveSubTab = "provider";
+    if (validTab === "entity-config" && !sub) effectiveSubTab = "storage_config";
     return {
       activeTab: validTab,
       subTab: effectiveSubTab,
     };
   }, [pathname]);
+
+  // Redirect to include default sub-tab in URL for breadcrumb visibility
+  // This keeps URL as SSoT for current tab state
+  useEffect(() => {
+    const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
+    const urlHasSubTab = parts.length >= 2;
+
+    // Redirect tabs with default sub-tabs to full URL
+    if (!urlHasSubTab) {
+      if (activeTab === "connections") {
+        router.replace(`/settings/company/connections/provider`, { scroll: false });
+      } else if (activeTab === "entity-config") {
+        router.replace(`/settings/company/entity-config/storage_config`, { scroll: false });
+      }
+    }
+  }, [pathname, activeTab, router]);
 
   const handleTabChange = useCallback((tabId: string) => {
     router.push(`/settings/company/${tabId}`, { scroll: false });

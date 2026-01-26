@@ -702,6 +702,14 @@ function TreeNode({
               defaultExpanded={false}
             />
 
+            {/* Full Path Preview - directly under Folder Path for immediate feedback */}
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2 -mt-2">
+              <span className="text-xs text-muted-foreground">Full Path: </span>
+              <span className="font-mono text-sm text-green-700 dark:text-green-400">
+                {[rootPath, editValue, folderTemplate].filter(Boolean).join('/').replace(/\/+/g, '/')}
+              </span>
+            </div>
+
             {/* Folder suffix buttons for task scopes - SSoT: prevents typos */}
             {(currentEditingScopeKey === 'task_attachments' || currentEditingScopeKey === 'task_responses') && (
               <div className="flex items-center gap-2 -mt-2">
@@ -783,14 +791,6 @@ function TreeNode({
                 )}
               </div>
             )}
-
-            {/* Full Path Preview */}
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2">
-              <span className="text-xs text-muted-foreground">Full Path: </span>
-              <span className="font-mono text-sm text-green-700 dark:text-green-400">
-                {[rootPath, editValue, folderTemplate].filter(Boolean).join('/').replace(/\/+/g, '/')}
-              </span>
-            </div>
 
             {/* Send Name Template */}
             <TokenBuilder
@@ -1155,12 +1155,12 @@ function TabNode({
                 showPreview={false}
                 separator="/"
                 placeholder="Click tokens or type path..."
-                defaultExpanded={true}
+                defaultExpanded={false}
               />
-              {/* Full path preview */}
-              <div className="text-[10px] text-muted-foreground">
-                <span className="font-medium">Preview: </span>
-                <span className="font-mono text-green-600 dark:text-green-400">{fullPathPreview || '/'}</span>
+              {/* Full path preview - shown directly under tokens (defaultExpanded=false keeps this visible) */}
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-2 py-1">
+                <span className="text-[10px] text-muted-foreground font-medium">Full Path: </span>
+                <span className="font-mono text-xs text-green-700 dark:text-green-400">{fullPathPreview || '/'}</span>
               </div>
             </div>
 

@@ -88,7 +88,7 @@ module Api
 
             # Attachment storage breakdown - SSoT: EmailAttachment linked to SyncedEmail
             email_ids = emails.pluck(:id)
-            attachments = EmailAttachment.where(synced_email_id: email_ids)
+            attachments = EmailAttachment.where(email_warehouse_id: email_ids)
             total_attachments = attachments.count  # SSoT: total attachment count
             wasabi_attachments = attachments.where.not(storage_blob_id: nil).count
             sharepoint_attachments = attachments.where(storage_blob_id: nil)
@@ -110,14 +110,14 @@ module Api
 
             # Per-mailbox attachment counts - include ALL mailboxes
             per_mailbox_attachment_counts = attachments
-              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.synced_email_id")
+              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
               .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
               .count
 
             # Shared attachments per mailbox - include ALL mailboxes
             shared_per_mailbox = if defined?(StorageBlob)
               attachments
-                .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.synced_email_id")
+                .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
                 .joins("INNER JOIN storage_blobs ON storage_blobs.id = email_attachments.storage_blob_id")
                 .where("storage_blobs.reference_count > 1")
                 .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
@@ -140,13 +140,13 @@ module Api
 
             # Per-mailbox attachment storage counts - include ALL mailboxes
             per_mailbox_att_wasabi = attachments
-              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.synced_email_id")
+              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
               .where.not(storage_blob_id: nil)
               .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
               .count
 
             per_mailbox_att_sharepoint = attachments
-              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.synced_email_id")
+              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
               .where(storage_blob_id: nil)
               .where("email_attachments.storage_path IS NOT NULL AND email_attachments.storage_path != ''")
               .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
@@ -849,9 +849,9 @@ module Api
             # Per-tenant breakdown
             tenant_breakdown = []
             if defined?(XeroCredential)
-              XeroCredential.where.not(xero_tenant_id: nil).find_each do |cred|
-                tenant_id = cred.xero_tenant_id
-                tenant_name = cred.xero_tenant_name || "Unknown"
+              XeroCredential.where.not(tenant_id: nil).find_each do |cred|
+                tenant_id = cred.tenant_id
+                tenant_name = cred.tenant_name || "Unknown"
 
                 # Count from external_invoices (SSoT)
                 tenant_total = ExternalInvoice.where(tenant_id: tenant_id).where.not(status: "draft").count
