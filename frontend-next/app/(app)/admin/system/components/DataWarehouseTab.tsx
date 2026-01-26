@@ -408,13 +408,15 @@ export function DataWarehouseTab() {
     router.push("/data-warehouse");
   };
 
-  const loadStats = async () => {
+  const loadStats = async (forceRefresh = false) => {
     try {
       setLoading(true);
       // Use company-specific endpoint if filtering by company
-      const endpoint = companyId
+      const baseEndpoint = companyId
         ? `/api/v1/companies/${companyId}/data_stats`
         : "/api/v1/organization/data_stats";
+      // Add refresh=true to skip server cache when user clicks Refresh button
+      const endpoint = forceRefresh ? `${baseEndpoint}?refresh=true` : baseEndpoint;
       const response = await api.get<{ success: boolean; data: OrgDataStats }>(endpoint);
       if (response?.success) {
         setStats(response.data);
@@ -565,7 +567,8 @@ export function DataWarehouseTab() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadStats(), loadWarehouseStatus()]);
+    // Pass true to force server cache refresh
+    await Promise.all([loadStats(true), loadWarehouseStatus()]);
     setRefreshing(false);
   };
 
