@@ -572,12 +572,12 @@ function TreeNode({
           <button
             type="button"
             onClick={() => onToggle(node.path)}
-            className="p-0.5 hover:bg-muted rounded"
+            className="p-1.5 hover:bg-muted rounded -ml-1"
           >
-            <ExpandChevron expanded={isExpanded} size={14} />
+            <ExpandChevron expanded={isExpanded} size={16} />
           </button>
         ) : (
-          <span className="w-5" />
+          <span className="w-6" />
         )}
 
         {/* Folder icon */}
@@ -1000,6 +1000,8 @@ function TreeNode({
           )}
           {/* For scopes with tabs: show tabs */}
           {/* SSoT: Entity identifier (e.g., {{JobCode}}) comes from warehouse_root_folders, not extracted from template */}
+          {/* Debug render check */}
+          {(node.scopeKey === 'job' || node.scopeKey === 'contact') && console.log(`[DEBUG RENDER] ${node.name}: hasTabs=${hasTabs}, scopeKey=${node.scopeKey}, tabs=${node.tabs?.length}`)}
           {hasTabs && node.scopeKey ? (
             <div className="ml-1">
               {node.tabs!.map((tab) => (
@@ -1219,6 +1221,11 @@ function TabNode({
   const hasDocTypes = tab.document_types && tab.document_types.length > 0;
   const folderPath = tab.storage_folder_path || tab.warehouse_folder;
 
+  // Debug: log what's being rendered for job/contact tabs
+  if (scope === 'job' || scope === 'contact') {
+    console.log(`[DEBUG TabNode] ${scope}/${tab.tab_key}: display_name=${tab.display_name}, warehouse_folder=${tab.warehouse_folder}, hasDocTypes=${hasDocTypes}`);
+  }
+
   return (
     <div>
       <div
@@ -1378,12 +1385,13 @@ export function StorageConfigTab() {
       results.forEach(({ scopeKey, tabs }) => {
         // Include all tabs (no parent_id filter - warehouse tabs may have parent)
         tabsByScope[scopeKey] = tabs;
-        // Debug: log raw API response for email tabs
-        if (scopeKey === 'email') {
-          console.log('[DEBUG API] email tabs from API:', tabs.map(t => ({
+        // Debug: log raw API response for job/contact tabs
+        if (scopeKey === 'job' || scopeKey === 'contact') {
+          console.log(`[DEBUG API] ${scopeKey} tabs from API (${tabs.length} total):`, tabs.slice(0, 3).map(t => ({
             tab_key: t.tab_key,
             has_storage_folder: t.has_storage_folder,
-            raw: JSON.stringify(t)
+            document_types_count: t.document_types?.length || 0,
+            children_count: t.children?.length || 0
           })));
         }
       });
@@ -1457,6 +1465,13 @@ export function StorageConfigTab() {
             node.tabs = filterWarehouseEnabledTabs(allTabs);
           } else {
             node.tabs = filterTabsWithDocTypes(allTabs);
+            // Debug: log filtering results for job/contact
+            if (node.scopeKey === 'job' || node.scopeKey === 'contact') {
+              console.log(`[DEBUG FILTER] ${node.scopeKey}: ${allTabs.length} tabs → ${node.tabs.length} after filterTabsWithDocTypes`);
+              if (node.tabs.length === 0 && allTabs.length > 0) {
+                console.log('[DEBUG FILTER] All tabs filtered out! Sample tab:', allTabs[0]);
+              }
+            }
           }
         }
         if (node.children.length > 0) {
