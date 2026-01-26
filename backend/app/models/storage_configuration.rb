@@ -283,12 +283,14 @@ class StorageConfiguration < ApplicationRecord
     'corporate_companies' => 'corporate_entity',  # Model name alias
   }.freeze
 
-  # SSoT: Initialize warehouse_root_folders with defaults if empty
+  # SSoT: Merge warehouse_root_folders with defaults (adds missing keys)
+  # This ensures new warehouse types get added while preserving customizations
   after_initialize :ensure_warehouse_root_folders
 
   def ensure_warehouse_root_folders
-    return if warehouse_root_folders.present?
-    self.warehouse_root_folders = WAREHOUSE_ROOT_DEFAULTS.dup
+    # Merge: defaults first, then existing values override
+    # New types from WAREHOUSE_ROOT_DEFAULTS get added automatically
+    self.warehouse_root_folders = WAREHOUSE_ROOT_DEFAULTS.merge(warehouse_root_folders || {})
   end
 
   # Legacy alias
