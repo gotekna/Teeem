@@ -1496,27 +1496,24 @@ module Api
           end
 
           # ============================================
-          # STAGE 2: PDF Download (Xero -> Active Storage)
+          # STAGE 2: PDF Sync (Xero -> StorageBlob)
           # ============================================
-          # SSoT: Exclude DRAFT invoices from PDF count - Xero doesn't generate PDFs until finalized
-          # Draft invoices have no invoice number and can never have PDFs
+          # SSoT: Exclude DRAFT invoices - Xero doesn't generate PDFs until finalized
+          # Jan 2026: Merged old Stage 2+3 into ONE stage
+          # storage_blob_id is THE ONE source of truth for "PDF synced"
           pdf_eligible_invoices = invoices_with_contacts.where.not(status: "draft")
           total_pdf_eligible = pdf_eligible_invoices.count
 
-          # Count invoices that have PDFs downloaded (filter by tenant if provided)
-          # SSoT FIX: Must use EXACT same filters as total_pdf_eligible:
-          #   1. contact_id not nil (contacts)
-          #   2. status not 'draft' (non-draft)
-          #   3. status not in ['voided', 'deleted'] (ExternalInvoice.active scope)
-          # Otherwise downloaded count can exceed total when invoices are voided/deleted
-          # SSoT: Count by document_type (matches XeroAttachmentSyncService.document_type_for_invoice)
+          # SSoT: Count by storage_blob_id (the ONLY way to know PDF is actually saved)
+          # Must use EXACT same filters as total_pdf_eligible
           pdf_query = CorporateCompanyDocument.where(source: "xero")
                                               .where(document_type: ["Xero Bill", "Xero Invoice", "Xero Credit Note"])
+                                              .where.not(storage_blob_id: nil)  # SSoT: StorageBlob = synced
                                               .where(documentable_type: "ExternalInvoice")
                                               .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                              .where.not(external_invoices: { contact_id: nil })  # SSoT: Match pdf_eligible_invoices
-                                              .where.not(external_invoices: { status: "draft" })  # SSoT: Match pdf_eligible_invoices
-                                              .where.not(external_invoices: { status: %w[voided deleted] })  # SSoT: Match ExternalInvoice.active scope
+                                              .where.not(external_invoices: { contact_id: nil })
+                                              .where.not(external_invoices: { status: "draft" })
+                                              .where.not(external_invoices: { status: %w[voided deleted] })
 
           if tenant_id.present?
             pdf_query = pdf_query.where(external_invoices: { tenant_id: tenant_id })
@@ -1524,15 +1521,17 @@ module Api
 
           invoices_with_pdfs = pdf_query.distinct.count(:documentable_id)
 
-          pdfs_pending = [total_pdf_eligible - invoices_with_pdfs, 0].max  # Ensure non-negative
-          pdf_progress = total_pdf_eligible.zero? ? 100 : [((invoices_with_pdfs.to_f / total_pdf_eligible) * 100).round(1), 100].min  # Cap at 100%
+          pdfs_pending = [total_pdf_eligible - invoices_with_pdfs, 0].max
+          pdf_progress = total_pdf_eligible.zero? ? 100 : [((invoices_with_pdfs.to_f / total_pdf_eligible) * 100).round(1), 100].min
 
-          # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
+          # SSoT: Use XeroSyncStatus for last sync time
           pdf_sync_status_query = XeroSyncStatus.where(sync_type: "pdfs")
           pdf_sync_status_query = pdf_sync_status_query.where(tenant_id: tenant_id) if tenant_id.present?
           pdf_sync_status = pdf_sync_status_query.order(last_synced_at: :desc).first
 
-          pdf_docs_query = CorporateCompanyDocument.where(source: "xero").where(documentable_type: "ExternalInvoice")
+          pdf_docs_query = CorporateCompanyDocument.where(source: "xero")
+                                                   .where.not(storage_blob_id: nil)
+                                                   .where(documentable_type: "ExternalInvoice")
           if tenant_id.present?
             pdf_docs_query = pdf_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                            .where(external_invoices: { tenant_id: tenant_id })
@@ -1541,6 +1540,7 @@ module Api
 
           # Recent PDF activity (last 24 hours)
           pdfs_last_24h_query = CorporateCompanyDocument.where(source: "xero")
+                                         .where.not(storage_blob_id: nil)
                                          .where(documentable_type: "ExternalInvoice")
                                          .where("corporate_company_documents.created_at > ?", 24.hours.ago)
           if tenant_id.present?
@@ -1549,29 +1549,11 @@ module Api
           end
           pdfs_last_24h = pdfs_last_24h_query.count
 
-          # ============================================
-          # STAGE 3: Cloud Storage (StorageBlob SSoT - Jan 2026)
-          # ============================================
-          # SSoT: Count PDFs with StorageBlob link (deduplicated, verified storage)
-          # storage_blob_id is THE ONE source of truth for "actually saved"
-          # Old storage_file_id/storage_path are legacy - not reliable
-          # SSoT FIX: Must use same filters as total_pdf_eligible (contacts + non-draft)
-          cloud_storage_query = CorporateCompanyDocument.where(source: "xero")
-                                                        .where(document_type: ["Xero Bill", "Xero Invoice", "Xero Credit Note"])
-                                                        .where.not(storage_blob_id: nil)  # SSoT: StorageBlob = saved
-                                                        .where(documentable_type: "ExternalInvoice")
-                                                        .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                                        .where.not(external_invoices: { contact_id: nil })
-                                                        .where.not(external_invoices: { status: "draft" })
-                                                        .where.not(external_invoices: { status: %w[voided deleted] })
-          if tenant_id.present?
-            cloud_storage_query = cloud_storage_query.where(external_invoices: { tenant_id: tenant_id })
-          end
-          pdfs_stored = cloud_storage_query.count
-
-          # PDFs downloaded but not yet saved to StorageBlob
-          storage_pending = [invoices_with_pdfs - pdfs_stored, 0].max
-          storage_progress = invoices_with_pdfs.zero? ? 0 : ((pdfs_stored.to_f / invoices_with_pdfs) * 100).round(1)
+          # Stage 3 removed - was redundant with Stage 2 (Jan 2026 SSoT fix)
+          # Keeping variables for backwards compatibility
+          pdfs_stored = invoices_with_pdfs  # Same as Stage 2 now
+          storage_pending = pdfs_pending
+          storage_progress = pdf_progress
           storage_progress = [storage_progress, 100].min # Cap at 100%
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
@@ -1831,17 +1813,20 @@ module Api
                 blocker: stage2_blocker
               },
 
-              # Stage 3: SharePoint Upload (Active Storage -> OneDrive)
+              # Stage 3: DEPRECATED (Jan 2026) - Merged into Stage 2
+              # Kept for backwards compatibility - values now mirror Stage 2
               stage3_sharepoint: {
+                deprecated: true,
+                message: "Stage 3 merged into Stage 2 - PDF sync now includes storage",
                 total_to_upload: invoices_with_pdfs,
                 uploaded: pdfs_stored,
                 pending: storage_pending,
                 progress_percentage: storage_progress,
-                last_synced_at: last_sharepoint_sync,
-                schedule: "Uploads with PDF sync",
-                blocker: stage3_blocker,
+                last_synced_at: last_pdf_sync,  # Use Stage 2 time
+                schedule: "Merged with PDF sync",
+                blocker: nil,
                 sharepoint_url: sharepoint_contacts_url,
-                violations: stage3_violations  # SSoT: Show data quality issues
+                violations: []
               },
 
               # Overall metrics (for backwards compatibility)
