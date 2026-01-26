@@ -13,10 +13,9 @@
 # - BankStatementTemplate model (bank_statement_templates table)
 # - Admin UI: Admin > System > Company > Doc Templates > Bank Statements
 #
-# SSoT: Uses StorageUploadable for provider-agnostic storage (Wasabi/S3/SharePoint)
+# SSoT: Uses StorageBlob for deduplicated file storage (Jan 2026 fix)
 #
 class CorporateBankStatementsJob < ApplicationJob
-  include StorageUploadable
 
   queue_as :low
 
@@ -182,45 +181,36 @@ class CorporateBankStatementsJob < ApplicationJob
                         .squeeze("_")
     filename = "Bank_Statement_#{account_name_safe}_#{month_year}.pdf"
 
-    # Get storage path for company BANK folder
-    # SSoT: Uses StorageConfiguration for path resolution
-    storage_config = StorageConfiguration.instance
-    base_path = File.join(storage_config.root_path, storage_config.path_for(:corporate))
-    company_folder = company.storage_folder_name || company.name.gsub(/[^a-zA-Z0-9\-\s]/, "").strip
-    folder_path = "#{base_path}/#{company_folder}/BANK"
+    # SSoT: Create StorageBlob FIRST (Jan 2026 fix)
+    # StorageBlob handles deduplication and proper Blobs/ path structure
+    storage_blob = StorageBlob.find_or_create_for_content!(
+      pdf_result[:pdf],
+      filename: filename,
+      content_type: "application/pdf"
+    )
+    storage_blob.increment_reference!
 
-    # SSoT: Use StorageUploadable for provider-agnostic upload
-    result = upload_to_storage_path(folder_path, pdf_result[:pdf], filename, content_type: "application/pdf")
+    # Create CorporateCompanyDocument record so it appears in the BANK tab
+    create_document_record(
+      company: company,
+      bank_account: bank_account,
+      filename: filename,
+      month_date: month_date,
+      storage_blob: storage_blob
+    )
 
-    if result[:success]
-      # Create CorporateCompanyDocument record so it appears in the BANK tab
-      create_document_record(
-        company: company,
-        bank_account: bank_account,
-        filename: filename,
-        folder_path: folder_path,
-        month_date: month_date,
-        pdf_size: pdf_result[:pdf].bytesize,
-        storage_url: result[:url],
-        storage_file_id: result[:id]
-      )
-
-      { success: true, path: "#{folder_path}/#{filename}", url: result[:url] }
-    else
-      Rails.logger.error("[CorporateBankStatementsJob] Storage upload error: #{result[:error]}")
-      { success: false, error: result[:error] }
-    end
+    { success: true, path: storage_blob.storage_path, url: storage_blob.presigned_url }
+  rescue StandardError => e
+    Rails.logger.error("[CorporateBankStatementsJob] Storage upload error: #{e.message}")
+    { success: false, error: e.message }
   end
 
-  def create_document_record(company:, bank_account:, filename:, folder_path:, month_date:, pdf_size:, storage_url:, storage_file_id:)
+  def create_document_record(company:, bank_account:, filename:, month_date:, storage_blob:)
     account_name = bank_account.account_name || "Account"
     month_name = month_date.strftime("%B %Y")
 
     # Calculate financial year (Australian: July-June)
     fy_year = month_date.month >= 7 ? month_date.year + 1 : month_date.year
-
-    # SSoT: storage_type from StorageConfiguration
-    provider = StorageConfiguration.instance&.provider_type || "wasabi"
 
     CorporateCompanyDocument.create!(
       company_id: company.id,
@@ -229,17 +219,15 @@ class CorporateBankStatementsJob < ApplicationJob
       display_name: "Bank Statement - #{account_name} - #{month_name}",
       document_type: "Bank Statement",
       document_date: month_date.end_of_month,
-      file_url: storage_url,
-      file_size: pdf_size,
+      file_size: storage_blob.file_size,
       mime_type: "application/pdf",
       folder: "BANK",
       register_folder: "BANK",
-      storage_type: provider,
       source: "generated",
       focus: "company",
-      storage_file_id: storage_file_id,
-      storage_download_url: storage_url,
-      expected_storage_path: "#{folder_path}/#{filename}",
+      # SSoT: Link to StorageBlob (Jan 2026 fix)
+      storage_blob_id: storage_blob.id,
+      storage_path: storage_blob.storage_path,
       financial_years: [fy_year],
       uploaded_at: Time.current,
       last_modified_at: Time.current,
@@ -249,7 +237,7 @@ class CorporateBankStatementsJob < ApplicationJob
       ai_confidence_score: 100
     )
 
-    Rails.logger.info("[CorporateBankStatementsJob] Created CorporateCompanyDocument for #{filename}")
+    Rails.logger.info("[CorporateBankStatementsJob] Created CorporateCompanyDocument for #{filename} -> StorageBlob #{storage_blob.id}")
   rescue StandardError => e
     # Log but don't fail the job - the PDF is already uploaded to storage
     Rails.logger.error("[CorporateBankStatementsJob] Failed to create document record: #{e.message}")
