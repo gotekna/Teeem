@@ -841,9 +841,11 @@ module Api
             xero_total = ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count
             # How many have PDFs synced (WarehouseDocument with storage_blob)
             xero_with_blob = WarehouseDocument.where(source_type: "xero").where.not(storage_blob_id: nil).count
+            # SSoT: Match Xero Sync page - use content_hash (not verified_at) to confirm file exists
             xero_with_file = WarehouseDocument.where(source_type: "xero")
+              .where.not(storage_blob_id: nil)
               .joins(:storage_blob)
-              .where("storage_blobs.verified_at IS NOT NULL")
+              .where.not(storage_blobs: { content_hash: nil })
               .count
             xero_linked = WarehouseDocument.where(source_type: "xero").count
 
@@ -863,7 +865,7 @@ module Api
                 tenant_invoice_ids = ExternalInvoice.where(tenant_id: tenant_id).pluck(:id)
                 tenant_warehouse_scope = WarehouseDocument.where(source_type: "xero", documentable_type: "ExternalInvoice", documentable_id: tenant_invoice_ids)
                 tenant_with_blob = tenant_warehouse_scope.where.not(storage_blob_id: nil).count
-                tenant_with_file = tenant_warehouse_scope.joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL").count
+                tenant_with_file = tenant_warehouse_scope.where.not(storage_blob_id: nil).joins(:storage_blob).where.not(storage_blobs: { content_hash: nil }).count
                 tenant_linked = tenant_warehouse_scope.count
 
                 tenant_breakdown << {
