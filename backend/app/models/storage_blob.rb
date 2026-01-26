@@ -25,6 +25,11 @@
 #
 class StorageBlob < ApplicationRecord
   include TenantResolvable
+
+  # Multi-tenancy (Jan 2026)
+  acts_as_tenant :tenant
+  belongs_to :organization, optional: true  # Optional for tenant-shared blobs
+
   # Associations
   has_many :email_attachments, dependent: :nullify
   has_many :corporate_company_documents, dependent: :nullify
@@ -43,6 +48,11 @@ class StorageBlob < ApplicationRecord
   scope :with_references, -> { where("reference_count > 0") }
   scope :verified, -> { where.not(verified_at: nil) }
   scope :unverified, -> { where(verified_at: nil) }
+
+  # Migration status scopes (Phase 0 file recovery)
+  scope :needing_migration, -> { where(needs_migration: true) }
+  scope :missing_file, -> { where(file_missing: true) }
+  scope :has_file, -> { where(file_missing: false) }
 
   # Mark blob as verified (file exists in storage)
   def mark_verified!

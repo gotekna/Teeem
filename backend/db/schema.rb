@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_25_110000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_26_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9168,8 +9168,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_25_110000) do
     t.string "original_filename"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "verified_at"
+    t.bigint "tenant_id", null: false
+    t.bigint "organization_id"
+    t.boolean "needs_migration", default: false, null: false
+    t.boolean "file_missing", default: false, null: false
     t.index ["content_hash"], name: "index_storage_blobs_on_content_hash", unique: true
+    t.index ["file_missing"], name: "idx_storage_blobs_file_missing", where: "(file_missing = true)"
+    t.index ["needs_migration"], name: "idx_storage_blobs_needs_migration", where: "(needs_migration = true)"
+    t.index ["organization_id"], name: "index_storage_blobs_on_organization_id"
     t.index ["storage_path"], name: "index_storage_blobs_on_storage_path"
+    t.index ["tenant_id", "organization_id"], name: "idx_storage_blobs_tenant_org"
+    t.index ["tenant_id"], name: "index_storage_blobs_on_tenant_id"
+    t.index ["verified_at"], name: "index_storage_blobs_on_verified_at"
   end
 
   create_table "storage_configurations", force: :cascade do |t|
@@ -11502,6 +11513,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_25_110000) do
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "specification_templates", "job_types"
+  add_foreign_key "storage_blobs", "organizations"
+  add_foreign_key "storage_blobs", "tenants"
   add_foreign_key "storage_configurations", "organizations"
   add_foreign_key "storage_configurations", "tenants"
   add_foreign_key "stripe_configurations", "organizations"
