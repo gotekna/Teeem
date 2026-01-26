@@ -154,7 +154,7 @@ export function HealthTab({ company, onUpdate }: HealthTabProps) {
             <div>
               <h3 className={cn("text-lg font-medium", colors.text)}>Health Score: {companyHealth.health_score}%</h3>
               <p className={cn("text-sm mt-1 opacity-75", colors.text)}>
-                Status: {companyHealth.health_status.replace("_", " ").toUpperCase()}
+                Status: {(companyHealth.health_status || 'unknown').replace("_", " ").toUpperCase()}
               </p>
             </div>
             <div className={cn("text-5xl font-bold", colors.text)}>{companyHealth.health_score}</div>

@@ -130,7 +130,7 @@ export function WritingIndicator({
                   result.quality === "needs_work" && "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400"
                 )}
               >
-                {result.quality.replace("_", " ")}
+                {(result.quality || 'pending').replace("_", " ")}
               </span>
             )}
           </div>

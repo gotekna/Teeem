@@ -253,7 +253,7 @@ export default function EmailResellerDashboard() {
                     <div>
                       <p className="font-medium">{migration.source_email}</p>
                       <p className="text-sm text-muted-foreground">
-                        {migration.contact_name || "Unknown"} • {migration.migration_type.replace("_", " ")}
+                        {migration.contact_name || "Unknown"} • {(migration.migration_type || 'migration').replace("_", " ")}
                       </p>
                     </div>
                     <Badge

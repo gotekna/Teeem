@@ -398,7 +398,7 @@ export default function SubscriptionDetailPage() {
                     <TableRow key={migration.id}>
                       <TableCell className="font-medium">{migration.source_email}</TableCell>
                       <TableCell className="capitalize">
-                        {migration.migration_type.replace("_", " ")}
+                        {(migration.migration_type || 'migration').replace("_", " ")}
                       </TableCell>
                       <TableCell>
                         <Badge

@@ -177,7 +177,7 @@ export default function MigrationsPage() {
                         <CardTitle className="text-base">{migration.source_email}</CardTitle>
                         <p className="text-sm text-muted-foreground mt-1">
                           {migration.contact_name || "Unknown"} •{" "}
-                          {migration.migration_type.replace("_", " ")}
+                          {(migration.migration_type || 'migration').replace("_", " ")}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">

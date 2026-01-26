@@ -241,7 +241,7 @@ export default function HealthReportPage() {
                           <p className="text-sm font-medium text-primary truncate">{company.name}</p>
                           <div className="flex items-center gap-2 mt-1">
                             <Badge className={cn(colors.bg, colors.text, "text-xs")}>
-                              {company.health_status.replace("_", " ")}
+                              {(company.health_status || 'unknown').replace("_", " ")}
                             </Badge>
                             {company.issues.length > 0 && (
                               <span className="text-xs text-red-600 dark:text-red-400">
