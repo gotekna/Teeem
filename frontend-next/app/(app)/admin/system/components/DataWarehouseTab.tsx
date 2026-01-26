@@ -220,6 +220,8 @@ interface OrgDataStats {
     without_blob: number;
     storage_rate: number;
     file_rate: number;
+    linked?: number;  // For Xero: WarehouseDocument records created
+    missing?: number; // For Xero: total - with_file (SSoT from external_invoices)
   }>;
   blob_stats?: {
     total_blobs: number;
@@ -1421,7 +1423,8 @@ export function DataWarehouseTab() {
               </TableHeader>
               <TableBody>
                 {stats.warehouse_breakdown.map((row) => {
-                  const missingFile = row.with_blob - (row.with_file || 0);
+                  // SSoT: Use row.missing if provided (for Xero), otherwise calculate
+                  const missingFile = row.missing ?? (row.with_blob - (row.with_file || 0));
                   return (
                     <TableRow key={row.source_type}>
                       <TableCell className="font-medium">
@@ -1431,6 +1434,7 @@ export function DataWarehouseTab() {
                           {row.source_type === "email" && <Mail className="h-4 w-4 text-purple-500" />}
                           {row.source_type === "corporate" && <Building2 className="h-4 w-4 text-blue-500" />}
                           {row.source_type === "contact" && <Users className="h-4 w-4 text-green-500" />}
+                          {row.source_type === "xero" && <FileText className="h-4 w-4 text-[#13B5EA]" />}
                           {row.source_type === "job" && <Briefcase className="h-4 w-4 text-amber-600" />}
                           {row.source_type === "task" && <CheckCircle className="h-4 w-4 text-teal-500" />}
                           {row.source_type === "people" && <Users className="h-4 w-4 text-pink-500" />}
@@ -1441,7 +1445,8 @@ export function DataWarehouseTab() {
                       </TableCell>
                       <TableCell className="text-right">{row.total.toLocaleString()}</TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        {row.with_blob.toLocaleString()}
+                        {/* For Xero: linked = WarehouseDocument records, with_blob = has PDF */}
+                        {row.source_type === "xero" ? (row.linked ?? row.with_blob).toLocaleString() : row.with_blob.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right text-green-600 dark:text-green-400">
                         {(row.with_file || 0).toLocaleString()}

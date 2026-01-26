@@ -807,11 +807,11 @@ module Api
             }
           end
 
-          # Other source types (exclude "email" since we split it above)
-          by_source = WarehouseDocument.where.not(source_type: "email").group(:source_type).count
-          with_blob = WarehouseDocument.where.not(source_type: "email").where.not(storage_blob_id: nil).group(:source_type).count
+          # Other source types (exclude "email" and "xero" since we handle them specially)
+          by_source = WarehouseDocument.where.not(source_type: %w[email xero]).group(:source_type).count
+          with_blob = WarehouseDocument.where.not(source_type: %w[email xero]).where.not(storage_blob_id: nil).group(:source_type).count
           # Count with verified file per source type (Jan 2026 - uses verified_at)
-          with_file_by_source = WarehouseDocument.where.not(source_type: "email")
+          with_file_by_source = WarehouseDocument.where.not(source_type: %w[email xero])
             .joins(:storage_blob)
             .where("storage_blobs.verified_at IS NOT NULL")
             .group(:source_type)
@@ -831,6 +831,35 @@ module Api
               storage_rate: total > 0 ? ((with_storage.to_f / total) * 100).round(1) : 0,
               file_rate: total > 0 ? ((with_file_count.to_f / total) * 100).round(1) : 0
             }
+          end
+
+          # SSoT: Xero - Total from external_invoices table, synced from WarehouseDocument
+          # This shows the TRUE count of invoices/bills that should have PDFs
+          if defined?(ExternalInvoice)
+            # Total invoices/bills that can have PDFs (exclude drafts - Xero doesn't generate PDFs for drafts)
+            xero_total = ExternalInvoice.where.not(status: "draft").count
+            # How many have PDFs synced (WarehouseDocument with storage_blob)
+            xero_with_blob = WarehouseDocument.where(source_type: "xero").where.not(storage_blob_id: nil).count
+            xero_with_file = WarehouseDocument.where(source_type: "xero")
+              .joins(:storage_blob)
+              .where("storage_blobs.verified_at IS NOT NULL")
+              .count
+            xero_linked = WarehouseDocument.where(source_type: "xero").count
+
+            if xero_total > 0
+              results << {
+                source_type: "xero",
+                label: "Xero",
+                total: xero_total,  # SSoT: From external_invoices table
+                with_blob: xero_with_blob,
+                with_file: xero_with_file,
+                linked: xero_linked,  # WarehouseDocument records created
+                without_blob: xero_total - xero_with_blob,
+                missing: xero_total - xero_with_file,  # Missing PDFs
+                storage_rate: ((xero_with_blob.to_f / xero_total) * 100).round(1),
+                file_rate: ((xero_with_file.to_f / xero_total) * 100).round(1)
+              }
+            end
           end
 
           results.sort_by { |r| -r[:total] }  # Sort by total descending
