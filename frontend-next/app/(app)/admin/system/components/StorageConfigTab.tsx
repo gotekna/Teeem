@@ -2252,15 +2252,15 @@ export function StorageConfigTab() {
             </span>
             <span className="flex items-center gap-1">
               <FileText className="h-3 w-3 text-blue-500 dark:text-blue-400" />
-              Tab (click to edit path)
+              Folder (click to edit path)
             </span>
           </div>
 
-          {/* Loading indicator for tabs */}
+          {/* Loading indicator for folders */}
           {loadingTabs && (
             <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
               <Spinner size={12} />
-              Loading tabs...
+              Loading folders...
             </div>
           )}
         </CardContent>

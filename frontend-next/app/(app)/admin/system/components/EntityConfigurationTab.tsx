@@ -123,13 +123,13 @@ function buildBreadcrumbs(basePath: string, activeScope: string): Array<{ label:
   if (basePath.startsWith("/settings/company")) {
     crumbs.push({ label: "Settings", path: "/settings" });
     crumbs.push({ label: "Company", path: "/settings/company" });
-    crumbs.push({ label: "Entity Config", path: "/settings/company/entity-config" });
+    crumbs.push({ label: "Folder Config", path: "/settings/company/entity-config" });
   } else if (basePath.startsWith("/admin/system")) {
     crumbs.push({ label: "Admin", path: "/admin" });
     crumbs.push({ label: "System", path: "/admin/system" });
-    crumbs.push({ label: "Entity Config", path: "/admin/system/entity-config" });
+    crumbs.push({ label: "Folder Config", path: "/admin/system/entity-config" });
   } else {
-    crumbs.push({ label: "Entity Config", path: basePath });
+    crumbs.push({ label: "Folder Config", path: basePath });
   }
 
   // Add active scope as final breadcrumb
@@ -177,7 +177,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
         {/* Compact header with scope tabs inline */}
         <div className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-muted/30">
           <div className="flex items-center gap-4">
-            <h1 className="text-base font-semibold whitespace-nowrap">Entity Tabs</h1>
+            <h1 className="text-base font-semibold whitespace-nowrap">Storage Locations</h1>
             <TabsList className="h-8 bg-transparent p-0 gap-1">
               {scopes.map((s) => {
                 const Icon = s.icon;

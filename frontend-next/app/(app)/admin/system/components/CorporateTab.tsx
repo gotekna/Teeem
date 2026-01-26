@@ -1227,7 +1227,7 @@ function CompanyTabsSubTab() {
 const CORPORATE_SUB_TABS = [
   { id: "groups", label: "Groups", icon: FolderOpen },
   { id: "companies", label: "Companies", icon: Building2 },
-  { id: "company-tabs", label: "Entity Tabs", icon: LayoutGrid },
+  { id: "company-tabs", label: "Storage Locations", icon: LayoutGrid },
 ];
 
 // ===== MAIN CORPORATE TAB =====
