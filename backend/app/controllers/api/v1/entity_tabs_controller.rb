@@ -188,12 +188,13 @@ module Api
       end
 
       # POST /api/v1/entity_tabs/reset_paths
-      # Reset all tabs to use inherited SSoT paths (sets uses_custom_path = false and clears custom path)
+      # Reset all tabs to use inherited SSoT paths (sets uses_custom_path = false)
+      # SSoT: warehouse_folder column removed (Jan 2026) - paths now derived from StorageConfiguration.warehouse_folders
       def reset_paths
         updated_count = EntityTab
           .where(warehouse_enabled: true)
-          .where("uses_custom_path = true OR warehouse_folder IS NOT NULL AND warehouse_folder != ''")
-          .update_all(uses_custom_path: false, warehouse_folder: nil)
+          .where(uses_custom_path: true)
+          .update_all(uses_custom_path: false)
 
         render json: {
           success: true,
@@ -293,13 +294,12 @@ module Api
           :component_name,
           # New warehouse naming
           :warehouse_enabled,
-          :warehouse_folder,
+          # warehouse_folder REMOVED (Jan 2026) - now derived from StorageConfiguration.warehouse_folders
           :warehouse_type_override,
           # Legacy backwards compat
           :has_storage_folder,
           :has_sharepoint_folder,
-          :storage_folder_path,
-          :sharepoint_folder_path,
+          # storage_folder_path/sharepoint_folder_path REMOVED - now derived from SSoT
           :storage_path_type,
           :sharepoint_path_type,
           :uses_custom_path,  # SSoT: Template inheritance flag
@@ -320,8 +320,7 @@ module Api
         storage_enabled = permitted.delete(:has_storage_folder) || permitted.delete(:has_sharepoint_folder)
         permitted[:warehouse_enabled] ||= storage_enabled unless storage_enabled.nil?
 
-        folder_path = permitted.delete(:storage_folder_path) || permitted.delete(:sharepoint_folder_path)
-        permitted[:warehouse_folder] ||= folder_path if folder_path.present?
+        # warehouse_folder no longer stored - paths derived from StorageConfiguration.warehouse_folders at runtime
 
         path_type = permitted.delete(:storage_path_type) || permitted.delete(:sharepoint_path_type)
         permitted[:warehouse_type_override] ||= path_type if path_type.present?

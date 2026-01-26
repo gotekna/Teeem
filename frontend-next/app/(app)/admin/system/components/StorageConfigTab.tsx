@@ -51,7 +51,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
-import { TokenBuilder } from "@/components/ui/tokens";
+import { TokenBuilder, resolveWithExamples } from "@/components/ui/tokens";
 import Link from "next/link";
 
 // SSoT: Simple scopes have inline editing (no document types)
@@ -417,7 +417,7 @@ function TreeNode({
   // Use editingKey when available, otherwise primary scopeKey
   const activeScopeKey = currentEditingScopeKey || node.scopeKey;
   const [folderTemplate, setFolderTemplate] = React.useState(
-    activeScopeKey ? scopeTemplates[activeScopeKey] || '' : ''
+    activeScopeKey ? scopeTemplates[activeScopeKey] || '{{TeeemXL}}' : '{{TeeemXL}}'
   );
   const [filenameTemplate, setFilenameTemplate] = React.useState(
     activeScopeKey ? fileNameTemplates[activeScopeKey] || '' : ''
@@ -552,7 +552,7 @@ function TreeNode({
       if (scopeActuallyChanged) {
         setEditValue(currentPath[currentEditingScopeKey] || node.path);
         setFolderTemplate(
-          scopeTemplates[currentEditingScopeKey] || ''
+          scopeTemplates[currentEditingScopeKey] || '{{TeeemXL}}'
         );
         setFilenameTemplate(
           fileNameTemplates[currentEditingScopeKey] || ''
@@ -956,7 +956,7 @@ function TreeNode({
                 // Collect all templates from all scopes sharing this path
                 const allTemplates: Array<{ scopeKey: string; template: string; filename: string }> = [];
                 for (const sk of node.scopeKeys) {
-                  const template = scopeTemplates[sk] || '';
+                  const template = scopeTemplates[sk] || '{{TeeemXL}}';
                   const filename = fileNameTemplates[sk] || '';
                   // Skip COMPLEX_SCOPES - they show via tabs section exclusively (job, contact, corporate)
                   // Skip scopes with config links (they show tabs instead)
@@ -982,7 +982,7 @@ function TreeNode({
                 for (const [firstPart, items] of templateTree) {
                   if (!firstPart) continue;
 
-                  // Render the first part (e.g., {{TaskId}})
+                  // Render the first part - resolve placeholders to examples (e.g., {{TeeemXL}} → TeeemXL)
                   rendered.push(
                     <div
                       key={`first-${firstPart}`}
@@ -992,12 +992,12 @@ function TreeNode({
                       <span className="w-5" />
                       <Folder className="h-3.5 w-3.5 text-amber-500/50 flex-shrink-0" />
                       <span className="font-mono text-xs text-muted-foreground italic">
-                        {firstPart}
+                        {resolveWithExamples(firstPart)}
                       </span>
                     </div>
                   );
 
-                  // Render the remaining parts for each scope
+                  // Render the remaining parts for each scope - resolve placeholders to examples
                   for (const { parts, scopeKey, filename } of items) {
                     const remainingParts = parts.slice(1);
                     let currentLevel = level + 2;
@@ -1013,11 +1013,11 @@ function TreeNode({
                           <span className="w-5" />
                           <Folder className="h-3.5 w-3.5 text-amber-500/50 flex-shrink-0" />
                           <span className="font-mono text-xs text-muted-foreground italic">
-                            {part}
+                            {resolveWithExamples(part)}
                           </span>
                           {isLast && filename && (
                             <span className="ml-2 text-[10px] text-muted-foreground/60">
-                              → {filename}
+                              → {resolveWithExamples(filename)}
                             </span>
                           )}
                         </div>
@@ -1146,10 +1146,10 @@ function TabNode({
         onClick={!isEditing ? (e) => { e.stopPropagation(); onStartEdit(tab.id); } : undefined}
         title={!isEditing ? "Click to edit" : undefined}
       >
-        {/* Tab header row - use warehouse_folder for label (display_name is for document naming) */}
+        {/* Tab header row - show tab's display_name (this is the folder name) */}
         <div className="flex items-center gap-1 mb-2">
           <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-          <span className="text-sm font-medium">{tab.warehouse_folder || tab.storage_folder_path || tab.display_name}</span>
+          <span className="text-sm font-medium">{tab.display_name}</span>
           {!isEditing && (
             <span className="text-[10px] text-muted-foreground ml-2 opacity-0 group-hover:opacity-100">(click to edit)</span>
           )}
@@ -1157,16 +1157,16 @@ function TabNode({
 
         {isEditing ? (
           <div className="space-y-3 ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-3">
-            {/* Display name with TokenBuilder for placeholders */}
+            {/* Folder name - this becomes the folder in storage */}
             <div className="space-y-1">
               <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Display Name</span>}
+                label={<span className="text-[11px] font-medium text-muted-foreground">Folder Name</span>}
                 value={editDisplayName}
                 onChange={setEditDisplayName}
                 scope="storage"
                 showPreview={true}
                 separator=" "
-                placeholder="Tab display name..."
+                placeholder="Folder name..."
                 defaultExpanded={false}
               />
             </div>
@@ -1199,13 +1199,13 @@ function TabNode({
             {/* Send name template */}
             <div className="space-y-1">
               <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Send Name (download filename)</span>}
+                label={<span className="text-[11px] font-medium text-muted-foreground">Download Filename</span>}
                 value={editSendName}
                 onChange={setEditSendName}
                 scope="storage"
                 showPreview={true}
                 separator=" "
-                placeholder="e.g. {{TaskName}} - {{Date}}"
+                placeholder="e.g. {{OriginalFileName}}"
                 defaultExpanded={false}
               />
             </div>
@@ -1230,15 +1230,15 @@ function TabNode({
             </div>
           </div>
         ) : (
-          // Show Display Name and Download Name when not editing
+          // Show folder name and download filename when not editing
           <div className="ml-4 text-[11px] text-muted-foreground space-y-0.5">
             <div>
-              <span className="font-medium">Display Name: </span>
+              <span className="font-medium">Folder: </span>
               <span>{tab.display_name}</span>
             </div>
             <div>
-              <span className="font-medium">Send Name: </span>
-              <span className="font-mono">{tab.send_name_template || '(not set)'}</span>
+              <span className="font-medium">Download As: </span>
+              <span className="font-mono">{tab.send_name_template || '{{OriginalFileName}}'}</span>
             </div>
           </div>
         )}
@@ -1258,7 +1258,7 @@ function TabNode({
         style={{ paddingLeft: `${level * 16 + 24}px` }}
       >
         <FileText className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-        <span className="text-sm">{tab.warehouse_folder || tab.storage_folder_path || tab.display_name}</span>
+        <span className="text-sm">{tab.display_name}</span>
         {/* Show document type count if has doc types */}
         {hasDocTypes && (
           <span className="text-[10px] px-1.5 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded">
@@ -1519,10 +1519,11 @@ export function StorageConfigTab() {
     }
   };
 
-  // Save tab folder path via API
+  // Save tab settings via API
+  // SSoT: storage_folder_path removed (Jan 2026) - now derived from StorageConfiguration.warehouse_folders
   const saveTabFolderPath = async (
     tabId: number,
-    folderPath: string,
+    _folderPath: string,  // No longer saved - derived from SSoT
     displayName: string,
     sendNameTemplate: string
   ) => {
@@ -1531,7 +1532,6 @@ export function StorageConfigTab() {
         `/api/v1/entity_tabs/${tabId}`,
         {
           entity_tab: {
-            storage_folder_path: folderPath,
             display_name: displayName,
             send_name_template: sendNameTemplate,
           }
@@ -1544,7 +1544,7 @@ export function StorageConfigTab() {
           Object.keys(newTabs).forEach(scope => {
             newTabs[scope] = newTabs[scope].map(tab =>
               tab.id === tabId
-                ? { ...tab, storage_folder_path: folderPath, display_name: displayName, send_name_template: sendNameTemplate }
+                ? { ...tab, display_name: displayName, send_name_template: sendNameTemplate }
                 : tab
             );
           });

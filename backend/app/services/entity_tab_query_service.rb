@@ -147,8 +147,9 @@ class EntityTabQueryService
     template = @storage_config.dig(:warehouse_folders, warehouse_type)
     return nil unless template.present?
 
-    # Substitute {{TabName}} with the tab's display name
-    template.gsub('{{TabName}}', tab.display_name.to_s)
+    # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)
+    # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
+    template.gsub('{{TeeemXL}}', tab.display_name.to_s).gsub('{{TabName}}', tab.display_name.to_s)
   end
 
   # Build JSON for a single tab (recursively includes children)
