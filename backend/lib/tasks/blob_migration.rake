@@ -303,25 +303,39 @@ namespace :blob do
       puts ""
 
       if mode == "execute"
-        puts "DELETING ORPHAN BLOBS..."
-        stats = { unlinked: 0, deleted: 0 }
+        puts "DELETING ORPHAN BLOBS (bulk mode)..."
 
-        orphans.find_each.with_index do |blob, i|
-          print "\r  Processing #{i + 1}/#{total}..."
+        # Get all orphan IDs upfront
+        orphan_ids = orphans.pluck(:id)
+        puts "  Collected #{orphan_ids.size} orphan IDs"
 
-          # Unlink from WarehouseDocuments
-          unlinked = WarehouseDocument.where(storage_blob_id: blob.id).update_all(storage_blob_id: nil)
-          stats[:unlinked] += unlinked
+        # Bulk unlink from WarehouseDocuments
+        puts "  Unlinking warehouse documents..."
+        unlinked = WarehouseDocument.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil)
+        puts "  Unlinked: #{unlinked} warehouse documents"
 
-          # Delete the orphan blob record
-          blob.destroy
-          stats[:deleted] += 1
+        # Bulk unlink from EmailAttachments
+        puts "  Unlinking email attachments..."
+        EmailAttachment.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
+
+        # Bulk unlink from other associations
+        puts "  Unlinking other associations..."
+        CorporateCompanyDocument.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
+        ChatMessage.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
+        BillInbox.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
+
+        # Bulk delete orphan blobs in batches
+        puts "  Deleting orphan blobs in batches..."
+        deleted = 0
+        orphan_ids.each_slice(1000) do |batch_ids|
+          deleted += StorageBlob.where(id: batch_ids).delete_all
+          print "\r  Deleted: #{deleted}/#{orphan_ids.size}..."
         end
 
         puts ""
         puts ""
-        puts "Unlinked: #{stats[:unlinked]} warehouse documents"
-        puts "Deleted:  #{stats[:deleted]} storage blobs"
+        puts "Unlinked: #{unlinked} warehouse documents"
+        puts "Deleted:  #{deleted} storage blobs"
       else
         puts "To delete orphan blobs, run:"
         puts "  rails blob:cleanup_orphans[execute]"
