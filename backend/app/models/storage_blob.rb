@@ -222,7 +222,8 @@ class StorageBlob < ApplicationRecord
     )
 
     # Update with actual storage path if different
-    blob.storage_path = result[:path] if result[:path].present?
+    # SSoT: Strip leading slash - paths should be relative (e.g., "Blobs/00/hash.eml" not "/Blobs/...")
+    blob.storage_path = result[:path].to_s.sub(%r{^/+}, "") if result[:path].present?
   end
 
   # SSoT: Get storage provider for a tenant (Jan 2026 fix)
