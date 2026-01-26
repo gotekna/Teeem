@@ -1667,7 +1667,7 @@ module Api
               web_url: doc.web_url,
               # Storage provider routing - frontend uses this to determine download method
               storage_provider: doc.storage_provider || "sharepoint",
-              # S3 storage path for display (e.g., "teeem-documents/jobs/49/finance/invoice.pdf")
+              # S3 storage path for display (e.g., "teeem-tekna/jobs/49/finance/invoice.pdf")
               storage_path: doc.storage_path,
               # SSoT download URL - works for both SharePoint and S3
               # Must be absolute URL since frontend opens in new tab via window.open()

@@ -9,13 +9,13 @@
 #
 # Usage:
 #   # Preview what will be copied
-#   rails wasabi:copy_bucket[teeem-documents,teeem-tekna]
+#   rails wasabi:copy_bucket[source-bucket,teeem-tekna]
 #
 #   # Execute the copy
-#   rails wasabi:copy_bucket[teeem-documents,teeem-tekna,execute]
+#   rails wasabi:copy_bucket[source-bucket,teeem-tekna,execute]
 #
 #   # List files in a bucket
-#   rails wasabi:list_bucket[teeem-documents]
+#   rails wasabi:list_bucket[source-bucket]
 #
 namespace :wasabi do
   desc "Copy all files from one Wasabi bucket to another"
@@ -28,8 +28,8 @@ namespace :wasabi do
       puts "Usage: rails wasabi:copy_bucket[source_bucket,dest_bucket,execute]"
       puts ""
       puts "Example:"
-      puts "  rails wasabi:copy_bucket[teeem-documents,teeem-tekna]          # Preview"
-      puts "  rails wasabi:copy_bucket[teeem-documents,teeem-tekna,execute]  # Execute"
+      puts "  rails wasabi:copy_bucket[source-bucket,teeem-tekna]          # Preview"
+      puts "  rails wasabi:copy_bucket[source-bucket,teeem-tekna,execute]  # Execute"
       exit 1
     end
 

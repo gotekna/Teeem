@@ -5,7 +5,7 @@
 # Problem: StorageBlob records exist but files don't exist in bucket
 # - 93.4% of email bodies missing
 # - 99.9% of corporate/contact docs missing
-# - Files likely in old bucket (teeem-documents) not new bucket (teeem-tekna)
+# - Files might be in wrong bucket if migrated incorrectly
 #
 # Execution Order:
 #   1. rails blob:audit_files         - Audit what exists where
@@ -42,7 +42,7 @@ namespace :blob do
 
       config = StorageConfiguration.for_tenant(tenant)
       new_bucket = config.bucket || config.connection_config["bucket"]
-      old_bucket = args[:old_bucket] || "teeem-documents"
+      old_bucket = args[:old_bucket] || raise("old_bucket argument required")
 
       puts "Tenant:     #{tenant.name} (ID: #{tenant.id})"
       puts "New bucket: #{new_bucket}"
@@ -176,7 +176,7 @@ namespace :blob do
 
       config = StorageConfiguration.for_tenant(tenant)
       new_bucket = config.bucket || config.connection_config["bucket"]
-      old_bucket = args[:old_bucket] || "teeem-documents"
+      old_bucket = args[:old_bucket] || raise("old_bucket argument required")
       limit = args[:limit]&.to_i || 10_000
 
       puts "Tenant:     #{tenant.name}"

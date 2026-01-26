@@ -93,6 +93,10 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # Callbacks
+  # Auto-sync root_path when provider_type changes
+  # SharePoint uses "/Shared Documents", S3/Wasabi/local use "/" (bucket root)
+  before_save :sync_root_path_for_provider, if: :provider_type_changed?
+
   # Clear warehouse folder tree cache when templates change
   # This ensures File Warehouse instantly reflects template changes
   after_save :invalidate_warehouse_folder_cache, if: :warehouse_root_folders_changed?
@@ -100,6 +104,17 @@ class StorageConfiguration < ApplicationRecord
   def invalidate_warehouse_folder_cache
     Rails.cache.delete("warehouse_folder_tree_v2")
     Rails.logger.info "[StorageConfiguration] Cleared warehouse folder tree cache after template change"
+  end
+
+  # Auto-sync root_path based on provider_type
+  # SSoT: SharePoint = "/Shared Documents", S3/Wasabi/local = "/" (bucket root)
+  def sync_root_path_for_provider
+    new_root = case provider_type
+               when "sharepoint" then "/Shared Documents"
+               else "/" # S3, Wasabi, s3_compatible, local all use bucket root
+               end
+    self.root_path = new_root
+    Rails.logger.info "[StorageConfiguration] Auto-synced root_path to '#{new_root}' for provider '#{provider_type}'"
   end
 
   # Scopes
