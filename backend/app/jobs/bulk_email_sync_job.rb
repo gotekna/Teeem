@@ -28,6 +28,8 @@
 #   }
 
 class BulkEmailSyncJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :low
 
   # Batch sizes for memory efficiency
@@ -51,24 +53,24 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "[BulkSync] Sync years: #{sync_years}, Resume: #{resume}"
 
     begin
-      # Phase 1: Sync emails from Outlook to EmailWarehouse
+      # Phase 1: Sync emails from Outlook to SyncedEmail
       unless @progress["phase1_complete"]
         sync_emails_to_warehouse(sync_years)
         @progress["phase1_complete"] = true
         save_progress!
       end
 
-      # Phase 2: Upload attachments to SharePoint
+      # Phase 2: Upload attachments to storage
       unless @progress["phase2_complete"]
-        sync_attachments_to_sharepoint
+        sync_attachments_to_storage
         @progress["phase2_complete"] = true
         save_progress!
       end
 
-      # Phase 3: Upload email .eml files to SharePoint
+      # Phase 3: Upload email .eml files to storage
       # DISABLED - EML upload takes too long and times out on Heroku
       # unless @progress["phase3_complete"]
-      #   sync_emails_to_sharepoint
+      #   sync_emails_to_storage
       #   @progress["phase3_complete"] = true
       #   save_progress!
       # end
@@ -129,7 +131,7 @@ class BulkEmailSyncJob < ApplicationJob
     @credential.update_column(:bulk_sync_progress, @progress)
   end
 
-  # Phase 1: Sync emails from Outlook to EmailWarehouse
+  # Phase 1: Sync emails from Outlook to SyncedEmail
   def sync_emails_to_warehouse(sync_years)
     Rails.logger.info "[BulkSync] Phase 1: Syncing emails to warehouse..."
 
@@ -149,24 +151,24 @@ class BulkEmailSyncJob < ApplicationJob
     else
       @progress["emails_synced"] = result[:total_synced]
     end
-    @progress["emails_total"] = EmailWarehouse.where(microsoft_credential_id: @credential.id).count
+    @progress["emails_total"] = SyncedEmail.where(microsoft_credential_id: @credential.id).count
     save_progress!
 
     Rails.logger.info "[BulkSync] Phase 1 complete: #{@progress["emails_synced"]} emails synced"
   end
 
-  # Phase 2: Upload attachments to SharePoint
-  def sync_attachments_to_sharepoint
-    Rails.logger.info "[BulkSync] Phase 2: Uploading attachments to SharePoint..."
+  # Phase 2: Upload attachments to storage (provider-agnostic)
+  def sync_attachments_to_storage
+    Rails.logger.info "[BulkSync] Phase 2: Uploading attachments to storage..."
 
-    # SSoT: Use MicrosoftCredential for SharePoint config
-    sp_config = MicrosoftCredential.teeem_sharepoint_config
-    unless sp_config
-      raise "SharePoint not configured"
+    # SSoT: Use DocumentProviderAware for provider-agnostic storage
+    setup_default_provider!
+    unless document_provider_available?
+      raise "Storage provider not configured"
     end
 
     # Get emails with unprocessed attachments
-    scope = EmailWarehouse
+    scope = SyncedEmail
       .where(microsoft_credential_id: @credential.id)
       .where(has_attachments: true)
       .where.not(mailbox_owner_email: nil)
@@ -176,21 +178,20 @@ class BulkEmailSyncJob < ApplicationJob
 
     # Resume from checkpoint if available
     if @progress["last_processed_attachment_email_id"]
-      scope = scope.where("email_warehouse.id > ?", @progress["last_processed_attachment_email_id"])
+      scope = scope.where("synced_email.id > ?", @progress["last_processed_attachment_email_id"])
     end
 
     total_to_process = scope.count
     Rails.logger.info "[BulkSync] Found #{total_to_process} emails with unprocessed attachments"
 
-    # Force fresh token
+    # Force fresh token for Graph API (to fetch attachments from Outlook)
     @credential.fetch_access_token!
     client = MicrosoftAppGraphClient.new(@credential)
-    teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
     processed = 0
     scope.find_each(batch_size: EMAIL_BATCH_SIZE) do |email|
       begin
-        process_email_attachments(email, client, teeem_client, sp_config)
+        process_email_attachments(email, client)
         @progress["last_processed_attachment_email_id"] = email.id
         processed += 1
 
@@ -208,15 +209,13 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "[BulkSync] Phase 2 complete: #{@progress['attachments_uploaded']} uploaded, #{@progress['attachments_deduplicated']} deduplicated"
   end
 
-  def process_email_attachments(email, client, teeem_client, sp_config)
+  def process_email_attachments(email, client)
     attachments = client.get_email_attachments(email.mailbox_owner_email, email.outlook_id)
 
     attachments.each do |attachment_data|
-      next unless attachment_data["@odata.type"] == "#microsoft.graph.fileAttachment"
-
-      # Skip signature/embedded images
-      if skip_signature_image?(attachment_data)
-        Rails.logger.debug "[BulkSync] Skipping signature image: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
+      # SSoT: Use EmailAttachmentFilterService for filtering signatures/embedded images
+      if EmailAttachmentFilterService.should_skip?(attachment_data)
+        Rails.logger.debug "[BulkSync] Skipping attachment: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
         next
       end
 
@@ -234,23 +233,23 @@ class BulkEmailSyncJob < ApplicationJob
       if existing_attachment
         # Deduplicate - just create link
         EmailAttachment.find_or_create_by(
-          email_warehouse: email,
+          synced_email: email,
           attachment: existing_attachment
         ) do |ea|
           ea.outlook_attachment_id = outlook_attachment_id
           ea.filename = filename
-          ea.sharepoint_path = existing_attachment.sharepoint_path
+          ea.storage_path = existing_attachment.storage_path
           ea.content_hash = content_hash
         end
 
         @progress["attachments_deduplicated"] += 1
       else
-        # Upload new attachment
-        result = upload_attachment(teeem_client, sp_config, filename, content_binary, content_type, file_size, email.received_at, content_hash)
+        # Upload new attachment (provider-agnostic)
+        result = upload_attachment(filename, content_binary, content_type, file_size, email.received_at, content_hash)
 
         attachment = Attachment.create!(
-          sharepoint_file_id: result[:id],
-          sharepoint_path: result[:path],
+          storage_file_id: result[:id],
+          storage_path: result[:path],
           filename: filename,
           content_type: content_type,
           file_size: file_size,
@@ -259,11 +258,11 @@ class BulkEmailSyncJob < ApplicationJob
         )
 
         EmailAttachment.create!(
-          email_warehouse: email,
+          synced_email: email,
           attachment: attachment,
           outlook_attachment_id: outlook_attachment_id,
           filename: filename,
-          sharepoint_path: result[:path],
+          storage_path: result[:path],
           content_hash: content_hash
         )
 
@@ -277,46 +276,43 @@ class BulkEmailSyncJob < ApplicationJob
     email.update!(attachment_count: email.email_attachments.count)
   end
 
-  def upload_attachment(teeem_client, sp_config, filename, content, content_type, file_size, email_date, content_hash)
+  def upload_attachment(filename, content, content_type, file_size, email_date, content_hash)
     year = email_date.year
     month = email_date.strftime("%m")
-    # SSoT: Use centralized SharePoint path sanitization
+    # SSoT: Use centralized path sanitization
     org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
     # SSoT: Get base path from StorageConfiguration
-    base_path = StorageConfiguration.instance&.path_for(:email_attachments) || "Emails/attachments"
+    base_path = scope_folder_path(:email_attachments)
     folder_path = "#{base_path}/#{org_name}/#{year}/#{month}"
 
     hash_prefix = content_hash[0..7]
-    # SSoT: Use centralized SharePoint filename sanitization
+    # SSoT: Use centralized filename sanitization
     safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
     final_filename = "#{hash_prefix}_#{safe_filename}"
 
-    result = if file_size >= 4 * 1024 * 1024
-      session = teeem_client.create_upload_session(sp_config[:site_id], sp_config[:drive_id], folder_path, final_filename)
-      teeem_client.upload_large_file(session["uploadUrl"], content)
-    else
-      teeem_client.upload_file_content(sp_config[:site_id], sp_config[:drive_id], folder_path, final_filename, content)
-    end
+    # SSoT: Use provider-agnostic upload (provider handles large files automatically)
+    result = upload_to_provider(folder_path, content, final_filename, content_type: content_type)
 
-    # Ensure path is always set (large file upload may not include it)
+    # Ensure path is always set
     result[:path] ||= "#{folder_path}/#{final_filename}"
     result
   end
 
-  # Phase 3: Upload email .eml files to SharePoint
-  def sync_emails_to_sharepoint
-    Rails.logger.info "[BulkSync] Phase 3: Uploading emails to SharePoint..."
+  # Phase 3: Upload email .eml files to storage (provider-agnostic)
+  def sync_emails_to_storage
+    Rails.logger.info "[BulkSync] Phase 3: Uploading emails to storage..."
 
-    # SSoT: Use MicrosoftCredential for SharePoint config
-    sp_config = MicrosoftCredential.teeem_sharepoint_config
-    unless sp_config
-      Rails.logger.info "[BulkSync] SharePoint not configured, skipping email upload"
+    # SSoT: Use DocumentProviderAware for provider-agnostic storage
+    # Provider was already set up in Phase 2, but ensure it's ready
+    setup_default_provider! unless document_provider_available?
+    unless document_provider_available?
+      Rails.logger.info "[BulkSync] Storage provider not configured, skipping email upload"
       return
     end
 
-    scope = EmailWarehouse
+    scope = SyncedEmail
       .where(microsoft_credential_id: @credential.id)
-      .where(sharepoint_email_file_id: nil)
+      .where(storage_email_file_id: nil)
       .where.not(mailbox_owner_email: nil)
       .order(:id)
 
@@ -330,13 +326,13 @@ class BulkEmailSyncJob < ApplicationJob
 
     return if total_to_process == 0
 
+    # Graph API client to fetch email content from Outlook
     client = MicrosoftAppGraphClient.new(@credential)
-    teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
     processed = 0
     scope.find_each(batch_size: EMAIL_BATCH_SIZE) do |email|
       begin
-        upload_email_to_sharepoint(email, client, teeem_client, sp_config)
+        upload_email_to_storage(email, client)
         @progress["last_uploaded_email_id"] = email.id
         @progress["emails_uploaded_to_sharepoint"] += 1
         processed += 1
@@ -358,31 +354,33 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "[BulkSync] Phase 3 complete: #{@progress['emails_uploaded_to_sharepoint']} emails uploaded"
   end
 
-  def upload_email_to_sharepoint(email, client, teeem_client, sp_config)
+  def upload_email_to_storage(email, client)
     mime_content = client.get_email_mime_content(email.mailbox_owner_email, email.outlook_id)
 
     year = email.received_at.year
     month = email.received_at.strftime("%m")
-    # SSoT: Use centralized SharePoint path sanitization
+    # SSoT: Use centralized path sanitization
     org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
 
     # SSoT: Get email storage path from EntityTab (system-managed)
-    folder_path = email_storage_path(org_name, year, month)
+    folder_path = email_storage_path(
+      org_name: org_name,
+      year: year,
+      month: month,
+      mailbox: email.mailbox_owner_email,
+      date: email.received_at
+    )
     filename = "#{email.id}.eml"
 
-    result = if mime_content.bytesize >= 4 * 1024 * 1024
-      session = teeem_client.create_upload_session(sp_config[:site_id], sp_config[:drive_id], folder_path, filename)
-      teeem_client.upload_large_file(session["uploadUrl"], mime_content)
-    else
-      teeem_client.upload_file_content(sp_config[:site_id], sp_config[:drive_id], folder_path, filename, mime_content)
-    end
+    # SSoT: Use provider-agnostic upload (provider handles large files automatically)
+    result = upload_to_provider(folder_path, mime_content, filename, content_type: "message/rfc822")
 
-    # Ensure path is always set (large file upload may not include it)
+    # Ensure path is always set
     result[:path] ||= "#{folder_path}/#{filename}"
 
     email.update!(
-      sharepoint_email_file_id: result[:id],
-      sharepoint_email_path: result[:path]
+      storage_email_file_id: result[:id],
+      storage_email_path: result[:path]
     )
   end
 
@@ -422,56 +420,40 @@ class BulkEmailSyncJob < ApplicationJob
   end
 
   # SSoT: Get email storage path from EntityTab (system-managed)
-  # Resolves the template: "emails/eml/{{OrgName}}/{{Year}}/{{Month}}"
+  # Resolves templates like: "{{UserName}}/{{Year}}/{{Date}}" or "{{Mailbox}}/{{Year}}/{{Month}}"
   # Falls back to hardcoded path if EntityTab doesn't exist
-  def email_storage_path(org_name, year, month)
+  #
+  # Available placeholders:
+  #   {{OrgName}}  - Organization name (sanitized)
+  #   {{Year}}     - 4-digit year (e.g., "2025")
+  #   {{Month}}    - 2-digit month (e.g., "01")
+  #   {{Date}}     - Date in d-m-yy format (e.g., "9-12-25")
+  #   {{Mailbox}}  - Email mailbox address (e.g., "robert@tekna.com.au")
+  #   {{UserName}} - User's display name from mailbox (e.g., "Robert Harder")
+  def email_storage_path(org_name:, year:, month:, mailbox: nil, date: nil)
     email_tab = EntityTab.find_by(scope: "email", tab_key: "email-storage")
 
     if email_tab&.storage_folder_path.present?
+      # Derive user name from mailbox email
+      user = mailbox.present? ? User.find_by("LOWER(email) = ?", mailbox.downcase) : nil
+      user_name = user&.display_name || mailbox&.split("@")&.first&.titleize || "Unknown"
+
+      # Format date as d-m-yy (e.g., "9-12-25") to match frontend preview
+      formatted_date = date.present? ? date.strftime("%-d-%-m-%y") : ""
+
       # Resolve placeholders in the template
       email_tab.storage_folder_path
         .gsub("{{OrgName}}", org_name.to_s)
         .gsub("{{Year}}", year.to_s)
         .gsub("{{Month}}", month.to_s.rjust(2, "0"))
+        .gsub("{{Date}}", formatted_date)
+        .gsub("{{Mailbox}}", SharePoint::FilenameSanitizer.sanitize_path_segment(mailbox.to_s))
+        .gsub("{{UserName}}", SharePoint::FilenameSanitizer.sanitize_path_segment(user_name))
     else
       # Fallback if EntityTab doesn't exist - use StorageConfiguration SSoT
-      base_path = StorageConfiguration.instance&.path_for(:email) || "Emails/eml"
+      base_path = StorageConfiguration.instance.path_for(:email)
       "#{base_path}/#{org_name}/#{year}/#{month}"
     end
   end
 
-  # Skip signature/embedded images that aren't real attachments
-  # Rules:
-  # 1. Inline images with signature-like filenames (image001.png, image002.jpg, etc.)
-  # 2. Very small images (< 10KB) that are likely icons/logos
-  # 3. Images with GUID-like filenames (often Outlook Content-IDs)
-  def skip_signature_image?(attachment_data)
-    filename = attachment_data["name"].to_s.downcase
-    is_inline = attachment_data["isInline"] == true
-    file_size = attachment_data["size"].to_i
-    content_type = attachment_data["contentType"].to_s.downcase
-
-    # Only apply these rules to images
-    return false unless content_type.start_with?("image/")
-
-    # Rule 1: Inline images with signature-like patterns
-    signature_patterns = [
-      /^image\d{3}\.(png|jpg|jpeg|gif)$/i,  # image001.png, image002.jpg
-      /^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i, # 32-char hex filenames (Outlook CIDs)
-      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i, # UUID filenames
-      /^cid:/i,                              # Content-ID references
-      /^outlook-signature[_-]/i,             # Outlook signature files
-    ]
-
-    if is_inline && signature_patterns.any? { |pattern| filename.match?(pattern) }
-      return true
-    end
-
-    # Rule 2: Very small INLINE images (< 10KB) are likely icons/social media buttons
-    if is_inline && file_size < 10_000
-      return true
-    end
-
-    false
-  end
 end

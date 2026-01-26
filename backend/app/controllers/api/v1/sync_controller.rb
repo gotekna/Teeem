@@ -14,7 +14,7 @@ module Api
     class SyncController < ApplicationController
       # Skip standard auth - we use our own desktop client authentication
       skip_before_action :authorize_request
-      skip_before_action :authenticate_user!, raise: false
+      skip_before_action :set_tenant
 
       # verify_device_code needs web user auth (to link device to user)
       before_action :require_web_user!, only: [:verify_device_code]
@@ -305,6 +305,118 @@ module Api
       end
 
       # ==========================================
+      # FILE TYPE CATEGORIES (Opt-in sync)
+      # ==========================================
+
+      # GET /api/v1/sync/categories
+      # Get file type categories with enabled status
+      def categories
+        cats = SyncExclusionRule.categories_for_user(current_user)
+
+        render json: {
+          success: true,
+          data: {
+            categories: cats,
+            info: "Enable categories to sync those file types. Nothing syncs by default."
+          }
+        }
+      end
+
+      # PUT /api/v1/sync/categories/:key
+      # Enable or disable a category
+      def update_category
+        category_key = params[:key]
+        enabled = params[:enabled]
+
+        unless SyncExclusionRule::FILE_CATEGORIES.key?(category_key.to_sym)
+          return render json: { success: false, error: "Unknown category" }, status: :bad_request
+        end
+
+        if enabled
+          SyncExclusionRule.enable_category(current_user, category_key)
+        else
+          SyncExclusionRule.disable_category(current_user, category_key)
+        end
+
+        # Return updated categories
+        categories
+      end
+
+      # PUT /api/v1/sync/categories
+      # Bulk update categories
+      def update_categories
+        updates = params[:categories] || {}
+
+        updates.each do |key, enabled|
+          next unless SyncExclusionRule::FILE_CATEGORIES.key?(key.to_sym)
+
+          if enabled
+            SyncExclusionRule.enable_category(current_user, key)
+          else
+            SyncExclusionRule.disable_category(current_user, key)
+          end
+        end
+
+        categories
+      end
+
+      # ==========================================
+      # FOLDER SCOPES (Opt-in sync for folders)
+      # ==========================================
+
+      # GET /api/v1/sync/folder_scopes
+      # Get folder scopes with enabled status
+      def folder_scopes
+        scopes = SyncExclusionRule.folder_scopes_for_user(current_user)
+
+        render json: {
+          success: true,
+          data: {
+            folder_scopes: scopes,
+            info: "Enable folder scopes to sync those folders. Nothing syncs by default."
+          }
+        }
+      end
+
+      # PUT /api/v1/sync/folder_scopes/:key
+      # Enable or disable a folder scope
+      def update_folder_scope
+        scope_key = params[:key]
+        enabled = params[:enabled]
+
+        unless SyncExclusionRule::FOLDER_SCOPES.key?(scope_key.to_sym)
+          return render json: { success: false, error: "Unknown folder scope" }, status: :bad_request
+        end
+
+        if enabled
+          SyncExclusionRule.enable_folder_scope(current_user, scope_key)
+        else
+          SyncExclusionRule.disable_folder_scope(current_user, scope_key)
+        end
+
+        # Return updated folder scopes
+        folder_scopes
+      end
+
+      # PUT /api/v1/sync/folder_scopes
+      # Bulk update folder scopes
+      def update_folder_scopes
+        updates = params[:folder_scopes] || {}
+
+        updates.each do |key, enabled|
+          next unless SyncExclusionRule::FOLDER_SCOPES.key?(key.to_sym)
+
+          if enabled
+            SyncExclusionRule.enable_folder_scope(current_user, key)
+          else
+            SyncExclusionRule.disable_folder_scope(current_user, key)
+          end
+        end
+
+        folder_scopes
+      end
+
+      # ==========================================
       # DELTA SYNC
       # ==========================================
 
@@ -545,13 +657,19 @@ module Api
       end
 
       def frontend_url
-        ENV.fetch("FRONTEND_URL", "https://teeemlive.vercel.app")
+        ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
       end
 
-      # Default organization for single-tenant system
-      # TODO: Implement proper user-organization mapping when multi-tenancy is needed
+      # SSoT (Jan 2026): Derive organization from tenant, not Organization.first
       def default_organization
-        @default_organization ||= Organization.first
+        @default_organization ||= begin
+          if current_tenant
+            current_tenant.organizations.first
+          else
+            Rails.logger.warn "[SyncController] No tenant context - cannot determine organization"
+            nil
+          end
+        end
       end
 
       # SSoT: Uses StorageConfiguration for base paths
@@ -559,7 +677,7 @@ module Api
         config = StorageConfiguration.instance
         case type
         when "Job"
-          base = config&.path_for(:job) || "Jobs"
+          base = config.path_for(:job)
           {
             id: "job:#{entity.id}",
             type: "Job",
@@ -567,10 +685,10 @@ module Api
             name: "#{entity.job_number} - #{entity.title}",
             path: "/#{base}/#{entity.job_number}",
             document_count: entity.job_documents.count,
-            has_sharepoint_folder: entity.sharepoint_folder_id.present?
+            has_sharepoint_folder: entity.storage_folder_id.present?
           }
         when "CorporateCompany"
-          base = config&.path_for(:corporate) || "Corporate"
+          base = config.path_for(:corporate)
           {
             id: "company:#{entity.id}",
             type: "CorporateCompany",
@@ -578,10 +696,10 @@ module Api
             name: entity.name,
             path: "/#{base}/#{entity.name}",
             document_count: entity.corporate_company_documents.count,
-            has_sharepoint_folder: entity.respond_to?(:sharepoint_folder_id) && entity.sharepoint_folder_id.present?
+            has_sharepoint_folder: entity.respond_to?(:storage_folder_id) && entity.storage_folder_id.present?
           }
         when "Contact"
-          base = config&.path_for(:contact) || "Contacts"
+          base = config.path_for(:contact)
           {
             id: "contact:#{entity.id}",
             type: "Contact",
@@ -616,7 +734,7 @@ module Api
                 name: doc.file_name,
                 size: doc.file_size,
                 modified_at: doc.updated_at,
-                item_id: doc.sharepoint_item_id || doc.storage_item_id,
+                item_id: doc.storage_reference,
                 content_hash: doc.content_hash
               }
             }
@@ -637,7 +755,7 @@ module Api
                 name: doc.file_name,
                 size: doc.file_size,
                 modified_at: doc.updated_at,
-                item_id: doc.sharepoint_file_id || doc.storage_item_id,
+                item_id: doc.storage_reference,
                 content_hash: doc.content_hash
               }
             }

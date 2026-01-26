@@ -27,10 +27,11 @@ import {
   breadcrumbTrailAtom,
   generateBreadcrumbId,
   MAX_TRAIL_LENGTH,
+  VIEW_CHANGE_EVENT,
   type BreadcrumbItem,
 } from "@/lib/breadcrumb-atoms";
 import { searchQueryAtom } from "@/lib/table-atoms";
-import { resolveDisplayName, resolveIcon, isSameRoute, isRelatedPath, buildBreadcrumbsFromUrl } from "@/lib/breadcrumb-utils";
+import { resolveDisplayName, resolveIcon, isSameRoute, isSiblingTab, isRelatedPath, buildBreadcrumbsFromUrl } from "@/lib/breadcrumb-utils";
 
 interface BreadcrumbContextType {
   /** Set a custom display name for the current page */
@@ -102,6 +103,27 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
   }, [resetTrail, setSearchQuery]);
 
   /**
+   * Listen for view change events
+   * Rebuilds trail from current URL when view changes via history.replaceState()
+   * This decouples breadcrumb updates from React navigation (prevents flash)
+   */
+  useEffect(() => {
+    const handleViewChange = () => {
+      // Read from actual browser URL (not pathname which doesn't update on replaceState)
+      const currentPath = window.location.pathname;
+      const currentSearch = window.location.search;
+      const params = currentSearch ? new URLSearchParams(currentSearch.slice(1)) : null;
+
+      // Rebuild trail from current URL
+      const newTrail = buildBreadcrumbsFromUrl(currentPath, params);
+      setTrail(newTrail);
+    };
+
+    window.addEventListener(VIEW_CHANGE_EVENT, handleViewChange);
+    return () => window.removeEventListener(VIEW_CHANGE_EVENT, handleViewChange);
+  }, [setTrail]);
+
+  /**
    * Track navigation changes
    * Adds new items to trail or truncates on back navigation
    */
@@ -143,6 +165,20 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
         return truncated;
       }
 
+      // Check if navigating between sibling tabs (same parent, different tab)
+      // e.g., /settings/company/info → /settings/company/connections
+      // Update the last item instead of adding a new one
+      if (prev.length > 0 && isSiblingTab(prev[prev.length - 1].pathname, pathname)) {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          pathname,
+          searchParams: searchParams?.toString(),
+          displayName: resolveDisplayName(pathname, searchParams),
+        };
+        return updated;
+      }
+
       // BACKLOAD: Rebuild trail from URL when stale or empty
       // This handles: browser back button, direct links, external navigation
       const isTrailStale = prev.length > 0 && !isRelatedPath(prev[prev.length - 1].pathname, pathname);
@@ -162,6 +198,14 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
         icon: resolveIcon(pathname),
         timestamp: Date.now(),
       };
+
+      // SAFETY: Prevent duplicate pathnames in trail
+      // This guards against edge cases where the same page could be added twice
+      const hasDuplicate = prev.some((item) => item.pathname === pathname);
+      if (hasDuplicate) {
+        // Instead of adding duplicate, rebuild from URL
+        return buildBreadcrumbsFromUrl(pathname, searchParams);
+      }
 
       // Enforce max length
       const updated = [...prev, newItem];

@@ -1,10 +1,27 @@
 class PeopleDocument < ApplicationRecord
+  include StorableDocument
+  include DocumentStorageConstants
+  include WarehouseDocumentable
+  warehouse_type :people
+
+  # SSoT: Storage scope for this document type
+  # Determines path: /Corporate/People/{ContactName}/{TabName}/filename
+  storage_scope :people
+
   # Associations
   belongs_to :contact
   belongs_to :document_type_record, class_name: "DocumentType", foreign_key: "document_type_id", optional: true
 
-  # Active Storage for file upload
-  has_one_attached :file
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  # Same file = same StorageBlob, deduplication via content_hash
+  belongs_to :storage_blob, optional: true
+
+  # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT by
+  # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
+  # which deduplicates via content_hash and uses StorageConfiguration for provider-agnostic paths.
+
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  # NOTE: has_one :warehouse_document is now provided by WarehouseDocumentable concern
 
   # Duplicate tracking
   has_many :duplicate_reviews_as_existing,
@@ -30,11 +47,7 @@ class PeopleDocument < ApplicationRecord
     work_permit
   ].freeze
 
-  # Storage providers (SSoT: Organization.document_provider)
-  STORAGE_PROVIDERS = %w[sharepoint s3_compatible].freeze
-
-  # Migration statuses for tracking provider-to-provider migration
-  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
+  # SSoT: STORAGE_PROVIDERS, MIGRATION_STATUSES defined in DocumentStorageConstants concern
 
   # Validations
   validates :title, presence: true
@@ -137,20 +150,50 @@ class PeopleDocument < ApplicationRecord
     !migration_in_progress? && storage_reference.present?
   end
 
-  # Returns the provider-agnostic storage reference
-  # Falls back to external_id for backwards compatibility
-  def storage_reference
-    storage_item_id.presence || external_id
-  end
+  # SSoT: storage_reference is defined in StorableDocument concern
 
-  # Sets both provider-agnostic fields
-  def set_storage_reference(item_id, provider: 'sharepoint', path: nil)
-    self.storage_item_id = item_id
-    self.storage_provider = provider
-    self.storage_path = path
+  # ========================================
+  # StorageBlob File Access (SSoT)
+  # ========================================
+
+  # has_file? is provided by StorableDocument concern (SSoT)
+
+  # file_url is provided by StorableDocument concern (SSoT)
+
+  # download_file is provided by StorableDocument concern (SSoT)
+
+  # Attach a file using StorageBlob (deduplication via content_hash)
+  # @param content [String] File content
+  # @param filename [String] Original filename
+  # @param content_type [String] MIME type (optional)
+  def attach_file(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    # Update reference counts
+    storage_blob&.decrement_reference! if storage_blob_id.present?
+    self.storage_blob = blob
+    blob.increment_reference!
+
+    # Update document metadata
+    self.file_name = filename
+    self.file_size = content.bytesize
+    self.mime_type = content_type || blob.content_type
   end
 
   private
+
+  # SSoT: Default tokens for storage path template
+  # Template: /Corporate/People/{ContactName}/{TabName}/filename
+  def default_storage_tokens
+    {
+      ContactName: contact&.display_name || "Unknown",
+      TabName: folder || document_type&.titleize || "Identity"
+    }
+  end
 
   def must_be_identity_document
     return if document_type.blank?

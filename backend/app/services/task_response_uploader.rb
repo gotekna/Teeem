@@ -1,32 +1,65 @@
 # frozen_string_literal: true
 
-# TaskResponseUploader
-# Uploads task files to SharePoint
+# ⚠️ DEPRECATED (Jan 2026) - DO NOT USE
+# ════════════════════════════════════════════════════════════════════════════════
+# This class was an SSoT VIOLATION - it bypassed StorageBlob, causing files to be
+# stored at bucket root without proper blob architecture.
 #
-# For tasks WITH a job:
-#   - "response" → /Jobs/{JobCode}/Responses/{filename}
-#   - "info" → /Jobs/{JobCode}/Task Attachments/{filename}
+# ALL task uploads now go through SmTasksController#upload_standard_file which:
+#   1. Creates StorageBlob (content-hash deduplication)
+#   2. Stores files at Blobs/{hash}.ext (provider-agnostic)
+#   3. Creates CorporateCompanyDocument with storage_blob reference
 #
-# For tasks WITHOUT a job (standalone tasks):
-#   - All files → /Tasks/Task-{id}/{Category}/{filename}
+# This file is kept only for reference. Remove after confirming no other code uses it.
+# ════════════════════════════════════════════════════════════════════════════════
 #
-# SSoT: Paths come from StorageConfiguration.job_path() and StorageConfiguration.task_path()
+# Original purpose:
+# TaskResponseUploader - Uploads task files to document storage (SharePoint, S3, etc.)
+#
+# SSoT: StorageConfiguration defines ALL folder paths via resolve_path():
+#   - :task_responses scope → /Tasks/{TaskId}/Responses/{filename}
+#   - :task_attachments scope → /Tasks/{TaskId}/Attachments/{filename}
+#
+# Job linkage is a DATA relationship (stored in document record), not a storage path decision.
 class TaskResponseUploader
   class UploadError < StandardError; end
 
-  attr_reader :job, :task, :organization, :category
+  attr_reader :job, :task, :tenant, :category
 
-  def initialize(job: nil, task:, category: "response", organization: nil)
+  # SSoT: Uses tenant for storage (Jan 2026 fix)
+  def initialize(job: nil, task:, category: "response", tenant: nil)
     @job = job
     @task = task
     @category = category
-    @organization = organization || job&.organization || task&.organization || Organization.current
+
+    # SSoT: Derive tenant from task/job chain or explicit parameter
+    @tenant = tenant ||
+              task&.respond_to?(:tenant) && task.tenant ||
+              job&.respond_to?(:tenant) && job.tenant ||
+              ActsAsTenant.current_tenant
+
+    unless @tenant
+      Rails.logger.error "[TaskResponseUploader] No tenant found"
+      raise ::TenantNotFoundError, "Tenant required for TaskResponseUploader"
+    end
   end
 
   # Upload a file to the appropriate SharePoint folder
   # @param file [ActionDispatch::Http::UploadedFile] The file to upload
   # @return [Hash] { success: true, sharepoint_url: "...", file_id: "...", filename: "..." }
   def upload(file)
+    config = StorageConfiguration.for_tenant(@tenant)
+
+    # Check if task storage scope is enabled
+    unless config.scope_enabled?(:task)
+      raise UploadError, "Task storage is disabled."
+    end
+
+    # Check if SM-linked tasks should be excluded (configurable via UI)
+    if config.exclude_sm_linked_tasks? && task.sm_schedule_master_id.present?
+      raise UploadError, "Template tasks (linked to Schedule Master) store documents via Purchase Orders."
+    end
+
     provider = document_provider
     folder_path = target_folder_path
 
@@ -45,12 +78,15 @@ class TaskResponseUploader
       sharepoint_url: result[:web_url],
       file_id: result[:id],
       filename: filename,
-      folder_path: folder_path
+      folder_path: folder_path,
+      # SSoT: full_path is what gets stored in storage_path column
+      # Must include filename for S3 download to work
+      full_path: result[:path] || "#{folder_path}/#{filename}"
     }
-  rescue DocumentProviders::Base::NotConnectedError => e
-    Rails.logger.error("[TaskResponseUploader] SharePoint not connected: #{e.message}")
-    raise UploadError, "SharePoint is not connected. Please check system settings."
-  rescue DocumentProviders::Base::NotFoundError => e
+  rescue DocumentProviders::NotConnectedError => e
+    Rails.logger.error("[TaskResponseUploader] Storage not connected: #{e.message}")
+    raise UploadError, "Document storage is not connected. Please check system settings."
+  rescue DocumentProviders::NotFoundError => e
     Rails.logger.error("[TaskResponseUploader] Folder not found: #{e.message}")
     raise UploadError, "Could not find or create the #{folder_name} folder."
   rescue StandardError => e
@@ -63,21 +99,40 @@ class TaskResponseUploader
   # @param file [ActionDispatch::Http::UploadedFile] Original file
   # @return [CorporateCompanyDocument] The created document record
   def create_document_record(upload_result, file)
+    # Get mime type from uploaded file (important for preview to work)
+    mime_type = if file.respond_to?(:content_type)
+                  file.content_type
+                else
+                  Marcel::MimeType.for(name: upload_result[:filename])
+                end
+
+    # SSoT: Resolve display_name from EntityTab template (e.g., {{OriginalFileName}})
+    resolved_display_name = resolve_display_name(upload_result[:filename])
+
     attrs = {
       file_name: upload_result[:filename],
-      display_name: upload_result[:filename],
-      sharepoint_url: upload_result[:sharepoint_url],
-      sharepoint_file_id: upload_result[:file_id],
-      document_type: document_type,
+      display_name: resolved_display_name,  # SSoT: From EntityTab.display_name template
+      mime_type: mime_type,  # Required for PDF/image preview
+      # SSoT: Use storage_item_id (provider-agnostic) instead of sharepoint_file_id
+      storage_item_id: upload_result[:file_id],
+      # Map provider type to valid storage_provider value
+      # wasabi/s3/etc. → s3_compatible, sharepoint stays sharepoint
+      storage_provider: normalized_storage_provider,
+      # SSoT: storage_path must be FULL path including filename (not just folder)
+      # S3 download uses this as the object key
+      storage_path: upload_result[:full_path],
+      # Use "other" document type for task uploads (task_response/task_attachment not in valid types)
+      document_type: "other",
       folder: folder_name,
       source: "task_upload"
     }
 
-    # Link to job if available, otherwise link to task
+    # SSoT: Always link to task (user uploaded from task context)
+    # Also link to job if available for cross-referencing
+    attrs[:sm_task_id] = task.id
     if job.present?
-      attrs[:documentable] = job
-    else
-      attrs[:sm_task_id] = task.id
+      attrs[:job_id] = job.id
+      attrs[:documentable] = job  # Keep polymorphic for legacy compatibility
     end
 
     CorporateCompanyDocument.create!(attrs)
@@ -86,38 +141,97 @@ class TaskResponseUploader
   private
 
   def document_provider
-    DocumentProviders::SharePoint.for_organization(organization)
+    # SSoT: Use tenant for provider (Jan 2026 fix)
+    DocumentProviders.for_tenant(@tenant)
   end
 
-  # Folder name based on category
+  # Scope based on category - determines which StorageConfiguration path to use
+  def storage_scope
+    category == "response" ? :task_responses : :task_attachments
+  end
+
+  # Folder name for document record metadata (extracted from scope template)
   def folder_name
-    category == "response" ? "Responses" : "Task Attachments"
+    category == "response" ? "Responses" : "Attachments"
   end
 
-  # Document type based on category
-  def document_type
-    category == "response" ? "task_response" : "task_attachment"
+  # Normalize storage provider type to valid CorporateCompanyDocument values
+  # SSoT: Only 3 provider types - sharepoint, s3_compatible, local
+  # StorageConfiguration.provider_type already normalizes legacy values
+  def normalized_storage_provider
+    StorageConfiguration.instance.provider_type
   end
 
-  # Target folder path based on whether task has a job
-  # SSoT: Uses StorageConfiguration for path resolution
+  # Target folder path for task files
+  # SSoT: StorageConfiguration.resolve_path() with scope defines ALL paths
+  # No hardcoded folder names - reads from SCOPE_TEMPLATES
   def target_folder_path
     config = StorageConfiguration.for_organization(organization)
-    if job.present?
-      # Task has a job - use job folder structure
-      config.job_path(job.code, folder_name)
-    else
-      # Standalone task - use task folder structure
-      config.task_path(task.id, folder_name)
+    # Pass all task + job substitutions for flexible path templates
+    # Tasks belong to jobs, so include job context for paths like:
+    # "Jobs/{{JobCode}}/Tasks/{{TaskNumber}} - {{TaskName}}"
+    substitutions = {
+      TaskId: task.id,
+      TaskID: task.id,           # Alternative casing
+      TaskNumber: task.task_number,
+      TaskName: task.name,
+      TaskStatus: task.status&.titleize || "Unknown"  # e.g., "Not Started", "Started", "Completed"
+    }
+    # Add job context if task has a job
+    if task.job.present?
+      substitutions[:JobCode] = task.job.job_number
+      substitutions[:JobName] = task.job.name
     end
+    config.resolve_path(storage_scope, substitutions)
   end
 
   def ensure_folder_exists(provider, folder_path)
     return if provider.folder_exists?(folder_path)
 
-    # Create the folder
+    # Create the folder - provider handles existing folders gracefully
     provider.create_folder(folder_path, create_parents: true)
-  rescue DocumentProviders::Base::AlreadyExistsError
-    # Folder already exists, that's fine
+  end
+
+  # SSoT: Resolve display_name from EntityTab template using SendNameResolver
+  # EntityTab.display_name can contain tokens like {{OriginalFileName}}, {{TaskName}}, {{Subject}}, etc.
+  # Falls back to original filename if no template or EntityTab not found
+  def resolve_display_name(original_filename)
+    # Find the EntityTab for this storage scope (task_responses or task_attachments)
+    # The folder_name method returns "Responses" or "Attachments"
+    entity_tab = EntityTab.find_by(
+      warehouse_type: storage_scope.to_s,
+      warehouse_folder: folder_name
+    )
+
+    # Fall back to original filename if no EntityTab or no template
+    return original_filename unless entity_tab&.display_name.present?
+
+    template = entity_tab.display_name
+
+    # If template has no tokens, use it as-is (it's a static name)
+    return template unless template.include?("{")
+
+    # Use SendNameResolver for consistent token handling
+    # Build context with all available data
+    resolver = SendNameResolver.new
+    context = {
+      original_filename: original_filename,
+      task_id: task.id,
+      task_number: task.task_number,
+      task_name: task.name,
+      document_date: Time.current
+    }
+
+    # Add job context if available
+    if task.job.present?
+      context[:job_code] = task.job.job_number
+      context[:job_name] = task.job.name
+    end
+
+    # Use SendNameResolver's expand_template method
+    resolved = resolver.send(:expand_template, template, context)
+
+    # Fall back to original filename if resolution failed
+    resolved.presence || original_filename
   end
 end

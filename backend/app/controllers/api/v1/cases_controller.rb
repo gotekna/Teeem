@@ -144,7 +144,7 @@ module Api
 
       # GET /api/v1/cases/:id/emails
       def emails
-        emails = @case.case_emails.includes(:email_warehouse, :added_by).by_relevance
+        emails = @case.case_emails.includes(:synced_email, :added_by).by_relevance
 
         render json: {
           success: true,
@@ -217,7 +217,7 @@ module Api
 
         render json: {
           success: true,
-          data: emails.map { |e| serialize_email_warehouse(e) },
+          data: emails.map { |e| serialize_synced_email(e) },
           meta: { count: emails.count }
         }
       end
@@ -323,7 +323,7 @@ module Api
 
       # POST /api/v1/cases/:id/add_email
       def add_email
-        email = EmailWarehouse.find(params[:email_id])
+        email = SyncedEmail.find(params[:email_id])
         case_email = @case.add_email(email,
           relevance: params[:relevance] || "supporting",
           notes: params[:notes],
@@ -515,7 +515,7 @@ module Api
 
       # GET /api/v1/cases/:id/qa_pairs
       def qa_pairs
-        qa = @case.case_email_qas.includes(:case_email, :email_warehouse).order(created_at: :desc)
+        qa = @case.case_email_qas.includes(:case_email, :synced_email).order(created_at: :desc)
 
         qa = qa.answered if params[:answered] == "true"
         qa = qa.unanswered if params[:answered] == "false"
@@ -565,6 +565,7 @@ module Api
             company_id: @case.company_id,
             title: review.new_file_name,
             filename: review.new_file_name,
+            mime_type: Marcel::MimeType.for(name: review.new_file_name),  # Required for PDF/image preview
             onedrive_id: params[:new_onedrive_id],
             onedrive_path: review.new_file_path,
             content_hash: review.new_file_hash,
@@ -818,7 +819,7 @@ module Api
                       service.search_emails(
                         query: action.parameters["query"] || action.query,
                         date_range: action.parameters["date_range"]
-                      ).map { |e| serialize_email_warehouse(e) }
+                      ).map { |e| serialize_synced_email(e) }
           when "timeline_build"
                       service.build_timeline(
                         start_date: action.parameters["start_date"]&.to_date,
@@ -891,7 +892,7 @@ module Api
         emails = warehouse_service.search_emails(query: nil) # Gets all by related entities
         emails.each do |email|
           # Skip if already linked to case
-          if @case.case_emails.exists?(email_warehouse_id: email.id)
+          if @case.case_emails.exists?(synced_email_id: email.id)
             results[:emails_skipped] += 1
             next
           end
@@ -903,7 +904,7 @@ module Api
 
         # Step 2: Extract entities (contacts/companies) from imported emails using AI
         Rails.logger.info "[FullAnalysis] Step 2: Extracting entities for case #{@case.id}"
-        @case.case_emails.includes(:email_warehouse).each do |case_email|
+        @case.case_emails.includes(:synced_email).each do |case_email|
           email = case_email.email_warehouse
           next unless email
 
@@ -996,7 +997,7 @@ module Api
       def extract_links_from_case_emails
         links = []
 
-        @case.case_emails.includes(:email_warehouse).each do |case_email|
+        @case.case_emails.includes(:synced_email).each do |case_email|
           email = case_email.email_warehouse
           next unless email
 
@@ -1175,7 +1176,7 @@ module Api
         email = ce.email_warehouse
         {
           id: ce.id,
-          email_warehouse_id: ce.email_warehouse_id,
+          synced_email_id: ce.synced_email_id,
           subject: email.subject,
           from_email: email.from_email,
           to_emails: email.to_emails || [],
@@ -1278,7 +1279,7 @@ module Api
         }
       end
 
-      def serialize_email_warehouse(e)
+      def serialize_synced_email(e)
         {
           id: e.id,
           subject: e.subject,
@@ -1310,7 +1311,7 @@ module Api
           category: qa.category,
           formatted_category: qa.category&.titleize,
           case_email_id: qa.case_email_id,
-          email_subject: qa.email_warehouse&.subject,
+          email_subject: qa.synced_email&.subject,
           email_short_code: qa.case_email&.short_code,
           created_at: qa.created_at
         }
@@ -1326,7 +1327,7 @@ module Api
           existing_document_id: r.existing_document_id,
           existing_title: existing&.title,
           existing_filename: existing&.filename,
-          existing_sharepoint_path: existing&.sharepoint_path,
+          existing_storage_path: existing&.expected_storage_path,
           existing_file_size: existing&.file_size,
           existing_document_date: existing&.document_date,
           new_file_path: r.new_file_path,

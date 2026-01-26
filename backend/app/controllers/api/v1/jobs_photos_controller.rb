@@ -34,21 +34,33 @@ module Api
         end
 
         # Get jobs with the given job types and statuses
-        jobs = Job.includes(:job_status, :job_type)
+        # SSoT: supervisor is stored via job_contacts (role: "supervisor"), NOT supervisor_id FK
+        # Include job_contacts to eager-load the supervisor relationship
+        jobs = Job.includes(:job_status, :job_type, job_contacts: :user)
                   .where(job_status_id: status_filter)
                   .where(job_type_id: job_type_ids)
-                  .where.not(site_supervisor_name: [nil, ""])
-                  .order(:site_supervisor_name, :name)
+                  .joins(:job_contacts)
+                  .where(job_contacts: { role: "supervisor" })
+                  .distinct
+                  .order(:name)
+
+        # SSoT: Only show photos from current storage provider (no fallback)
+        storage_config = StorageConfiguration.instance
+        valid_providers = storage_config.current_provider_storage_values
 
         # Build response grouped by supervisor
         grouped_data = {}
 
         jobs.find_each do |job|
-          supervisor = job.site_supervisor_name || "Unassigned"
+          # SSoT: Get supervisor from job_contacts (role: "supervisor"), not supervisor_id FK
+          supervisor_contact = job.job_contacts.find { |jc| jc.role == "supervisor" }
+          supervisor = supervisor_contact&.user&.name || "Unassigned"
 
           # Get latest photos for this job from JobDocument (data warehouse)
+          # SSoT: Filter by current storage provider only - no fallback to other providers
           photos = JobDocument.where(job_id: job.id)
                               .where(file_type: "image")
+                              .where(storage_provider: valid_providers)
                               .where.not(thumbnail_url: [nil, ""])
                               .order(last_modified_at: :desc)
                               .limit(photos_limit)
@@ -68,8 +80,8 @@ module Api
             pc_date: job.practical_completion_date&.iso8601,
             photos: photos.map do |photo|
               # Build proxy URL for fetching image through backend (bypasses CORS and expired tokens)
-              # SSoT: Same pattern as organization_sharepoint#download
-              proxy_url = "/api/v1/documents/download?file_id=#{photo.sharepoint_item_id}&preview=true"
+              # SSoT: /api/v1/documents/job_document_download - provider-agnostic (S3/SharePoint)
+              proxy_url = "/api/v1/documents/job_document_download?document_id=#{photo.id}&preview=true"
               {
                 id: photo.id,
                 name: photo.file_name,

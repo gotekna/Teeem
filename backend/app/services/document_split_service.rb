@@ -1,6 +1,8 @@
 require "hexapdf"
 
+# SSoT: Uses StorageBlob for deduplicated file storage (Jan 2026 fix)
 class DocumentSplitService
+
   class SplitError < StandardError; end
   class FileNotFoundError < SplitError; end
   class InvalidSplitError < SplitError; end
@@ -34,11 +36,16 @@ class DocumentSplitService
       # Create new PDF with extracted pages
       new_pdf_content = extract_pages(source_pdf, page_range)
 
-      # Upload to SharePoint
-      new_file_id = upload_to_sharepoint(new_pdf_content, split_config[:title])
+      # SSoT: Create StorageBlob for deduplicated storage (Jan 2026 fix)
+      storage_blob = StorageBlob.find_or_create_for_content!(
+        new_pdf_content,
+        filename: split_config[:title],
+        content_type: "application/pdf"
+      )
+      storage_blob.increment_reference!
 
       # Create new document record
-      new_document = create_document_record(split_config, new_file_id, new_pdf_content.bytesize)
+      new_document = create_document_record(split_config, storage_blob)
 
       created_documents << new_document
     end
@@ -70,17 +77,16 @@ class DocumentSplitService
   end
 
   def download_document
-    credential = MicrosoftCredential.sharepoint_credential
-    raise FileNotFoundError, "No active OneDrive credential" unless credential
+    # SSoT: Use DocumentStorageService for provider-agnostic download
+    service = DocumentStorageService.new
+    result = service.download(@document)
 
-    client = MicrosoftGraphClient.new(credential)
-    content = client.download_file(@document.sharepoint_file_id)
+    raise FileNotFoundError, "Storage not connected: #{result[:error]}" unless result[:success]
+    raise FileNotFoundError, "Failed to download file content" if result[:content].blank?
 
-    raise FileNotFoundError, "Failed to download file content" if content.blank?
-
-    content
-  rescue MicrosoftGraphClient::APIError => e
-    raise FileNotFoundError, "OneDrive API error: #{e.message}"
+    result[:content]
+  rescue DocumentProviders::Error => e
+    raise FileNotFoundError, "Storage API error: #{e.message}"
   end
 
   def validate_page_ranges!(splits, total_pages)
@@ -131,40 +137,18 @@ class DocumentSplitService
     output.string
   end
 
-  def upload_to_sharepoint(content, filename)
-    credential = MicrosoftCredential.sharepoint_credential
-    raise FileNotFoundError, "No active OneDrive credential" unless credential
-
-    client = MicrosoftGraphClient.new(credential)
-
-    # Get parent folder ID from original document
-    parent_folder_id = get_parent_folder_id
-
-    # Upload new file
-    result = client.upload_file_content(parent_folder_id, filename, content)
-
-    result[:id]
-  end
-
-  def get_parent_folder_id
-    # Get the folder ID from the original document's path
-    credential = MicrosoftCredential.sharepoint_credential
-    client = MicrosoftGraphClient.new(credential)
-
-    # Get parent folder from original file
-    file_info = client.get_item(@document.sharepoint_file_id)
-    file_info.dig("parentReference", "id")
-  end
-
-  def create_document_record(split_config, sharepoint_file_id, file_size)
+  def create_document_record(split_config, storage_blob)
     CorporateCompanyDocument.create!(
       company_id: @document.company_id,
       file_name: split_config[:title],  # Input still called :title, maps to file_name
       folder: split_config[:folder] || @document.folder,
       document_type: split_config[:document_type],
+      mime_type: "application/pdf",  # Split service only processes PDFs
       source: "split",
-      sharepoint_file_id: sharepoint_file_id,
-      file_size: file_size,
+      # SSoT: Link to StorageBlob (Jan 2026 fix)
+      storage_blob_id: storage_blob.id,
+      storage_path: storage_blob.storage_path,
+      file_size: storage_blob.file_size,
       financial_years: split_config[:financial_years] || @document.financial_years,
       ref_date: split_config[:ref_date],
       ai_verification_status: "verified", # Auto-verified since user defined the split

@@ -27,45 +27,88 @@ Rails.application.routes.draw do
       end
 
       # =============================================================
+      # Uploads API - THE ONE SSoT for presigned URL uploads
+      # All file uploads should use this to bypass Heroku 30s timeout
+      # =============================================================
+      resources :uploads, only: [] do
+        collection do
+          post :presign
+          post :confirm
+        end
+      end
+
+      # =============================================================
       # Document Storage API (SharePoint, S3, Wasabi)
       # IMPORTANT: Must be BEFORE `resources :documents` to avoid
       # /documents/:id matching /documents/status as id="status"
       # =============================================================
-      get "documents/status", to: "organization_sharepoint#status"
-      get "documents/authorize", to: "organization_sharepoint#authorize"
-      get "documents/callback", to: "organization_sharepoint#callback"
-      delete "documents/disconnect", to: "organization_sharepoint#disconnect"
-      get "documents/browse_folders", to: "organization_sharepoint#browse_folders"
-      post "documents/create_root_folder", to: "organization_sharepoint#create_root_folder"
-      get "documents/validate_folder", to: "organization_sharepoint#validate_folder"
-      patch "documents/change_root_folder", to: "organization_sharepoint#change_root_folder"
-      post "documents/create_job_folders", to: "organization_sharepoint#create_job_folders"
-      post "documents/create_all_job_folders", to: "organization_sharepoint#create_all_job_folders"
-      get "documents/job_folders", to: "organization_sharepoint#list_job_items"
-      post "documents/upload", to: "organization_sharepoint#upload"
-      get "documents/download", to: "organization_sharepoint#download"
-      get "documents/download_url", to: "organization_sharepoint#download_url"
-      delete "documents/delete_file", to: "organization_sharepoint#delete_file"
-      get "documents/folder_contents", to: "organization_sharepoint#folder_contents"
-      get "documents/sharepoint_sites", to: "organization_sharepoint#sharepoint_sites"
-      post "documents/use_sharepoint_site", to: "organization_sharepoint#use_sharepoint_site"
-      post "documents/use_personal_drive", to: "organization_sharepoint#use_personal_drive"
-      post "documents/sync_corporate_documents", to: "organization_sharepoint#sync_corporate_documents"
-      get "documents/search", to: "organization_sharepoint#search"
-      get "documents/preview_private_folders", to: "organization_sharepoint#preview_private_folders"
-      patch "documents/mark_as_preferred", to: "organization_sharepoint#mark_as_preferred"
-      get "documents/legacy_files", to: "organization_sharepoint#legacy_files"
-      post "documents/migrate_job_folder", to: "organization_sharepoint#migrate_job_folder"
-      get "documents/job_all_files", to: "organization_sharepoint#job_all_files"
-      get "documents/job_document_download", to: "organization_sharepoint#job_document_download"
-      get "documents/job_document_url", to: "organization_sharepoint#job_document_url"
-      post "documents/move_file", to: "organization_sharepoint#move_file"
-      post "documents/copy_file", to: "organization_sharepoint#copy_file"
-      post "documents/create_folder", to: "organization_sharepoint#create_folder"
-      get "documents/documents_needing_review", to: "organization_sharepoint#documents_needing_review"
+      get "documents/status", to: "document_storage#status"
+      get "documents/authorize", to: "document_storage#authorize"
+      get "documents/callback", to: "document_storage#callback"
+      delete "documents/disconnect", to: "document_storage#disconnect"
+      get "documents/browse_folders", to: "document_storage#browse_folders"
+      post "documents/create_root_folder", to: "document_storage#create_root_folder"
+      get "documents/validate_folder", to: "document_storage#validate_folder"
+      patch "documents/change_root_folder", to: "document_storage#change_root_folder"
+      post "documents/create_job_folders", to: "document_storage#create_job_folders"
+      post "documents/create_all_job_folders", to: "document_storage#create_all_job_folders"
+      get "documents/job_folders", to: "document_storage#list_job_items"
+      post "documents/upload", to: "document_storage#upload"
+      get "documents/download", to: "document_storage#download"
+      get "documents/download_url", to: "document_storage#download_url"
+      get "documents/presigned_url", to: "document_storage#presigned_url"
+      delete "documents/delete_file", to: "document_storage#delete_file"
+      get "documents/folder_contents", to: "document_storage#folder_contents"
+      get "documents/sharepoint_sites", to: "document_storage#sharepoint_sites"
+      post "documents/use_sharepoint_site", to: "document_storage#use_sharepoint_site"
+      post "documents/use_personal_drive", to: "document_storage#use_personal_drive"
+      post "documents/sync_corporate_documents", to: "document_storage#sync_corporate_documents"
+      get "documents/search", to: "document_storage#search"
+      get "documents/preview_private_folders", to: "document_storage#preview_private_folders"
+      patch "documents/mark_as_preferred", to: "document_storage#mark_as_preferred"
+      get "documents/legacy_files", to: "document_storage#legacy_files"
+      post "documents/migrate_job_folder", to: "document_storage#migrate_job_folder"
+      get "documents/job_all_files", to: "document_storage#job_all_files"
+      get "documents/job_document_download", to: "document_storage#job_document_download"
+      get "documents/job_document_url", to: "document_storage#job_document_url"
+      post "documents/move_file", to: "document_storage#move_file"
+      post "documents/copy_file", to: "document_storage#copy_file"
+      post "documents/create_folder", to: "document_storage#create_folder"
+      get "documents/documents_needing_review", to: "document_storage#documents_needing_review"
+      post "documents/sync_job_documents", to: "document_storage#sync_job_documents"
+      post "documents/import_legacy", to: "document_storage#import_legacy"
+      post "documents/analyze_job_documents", to: "document_storage#analyze_job_documents"
+      post "documents/bulk_categorize_job_documents", to: "document_storage#bulk_categorize_job_documents"
+      post "documents/approve_document_rename", to: "document_storage#approve_document_rename"
+      post "documents/bulk_approve_renames", to: "document_storage#bulk_approve_renames"
+      post "documents/create_private_folders", to: "document_storage#create_private_folders"
+      post "documents/copy_files", to: "document_storage#copy_files"
+      post "documents/run_migration", to: "document_storage#run_migration"
+      post "documents/upload_signed_version", to: "document_storage#upload_signed_version"
+
+      # Viewer Context Storage (for document viewer with Q&A sidebar)
+      # Stores viewer context server-side to avoid URL length limits
+      resources :viewer_contexts, only: [:create, :show]
 
       # All Documents - unified view across JobDocument, CorporateCompanyDocument, PeopleDocument
       get "documents/all", to: "documents#all"
+
+      # =============================================================
+      # Background Job Progress API
+      # For tracking long-running background jobs (file reorganization, migrations)
+      # =============================================================
+      resources :background_jobs, only: [:show] do
+        collection do
+          get "progress/:job_type", action: :progress
+          get :active
+          get :recent
+          post :start_email_upload
+          post :start_attachment_deduplication
+        end
+        member do
+          post :cancel
+        end
+      end
 
       # =============================================================
       # Desktop Sync Client API
@@ -88,6 +131,16 @@ Rails.application.routes.draw do
         # File exclusion rules
         get "exclusions", to: "/api/v1/sync#exclusions"
         put "exclusions", to: "/api/v1/sync#update_exclusions"
+
+        # File type categories (opt-in sync)
+        get "categories", to: "/api/v1/sync#categories"
+        put "categories", to: "/api/v1/sync#update_categories"
+        put "categories/:key", to: "/api/v1/sync#update_category"
+
+        # Folder scopes (opt-in sync for Office 365 folders)
+        get "folder_scopes", to: "/api/v1/sync#folder_scopes"
+        put "folder_scopes", to: "/api/v1/sync#update_folder_scopes"
+        put "folder_scopes/:key", to: "/api/v1/sync#update_folder_scope"
 
         # Delta sync and file operations
         get "delta", to: "/api/v1/sync#delta"
@@ -113,8 +166,45 @@ Rails.application.routes.draw do
 
       # TeeemXL Spreadsheets - user-created spreadsheets
       resources :teeem_spreadsheets, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :import_from_attachment  # POST /api/v1/teeem_spreadsheets/import_from_attachment
+        end
         member do
-          get :export  # GET /api/v1/teeem_spreadsheets/:id/export - download as XLSX
+          get :export              # GET /api/v1/teeem_spreadsheets/:id/export - download as XLSX
+          post :save_to_warehouse  # POST /api/v1/teeem_spreadsheets/:id/save_to_warehouse - save to S3
+        end
+      end
+
+      # TeeemWord Documents - user-created word documents
+      resources :teeem_documents, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :import_from_attachment  # POST /api/v1/teeem_documents/import_from_attachment
+        end
+        member do
+          get :export               # GET /api/v1/teeem_documents/:id/export - download as DOCX
+          post :save_to_warehouse   # POST /api/v1/teeem_documents/:id/save_to_warehouse - save to S3
+        end
+      end
+
+      # TeeemPowerPoint Presentations - user-created presentations
+      resources :teeem_presentations, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          get :export               # GET /api/v1/teeem_presentations/:id/export - export data for PPTX
+          post :save_to_warehouse   # POST /api/v1/teeem_presentations/:id/save_to_warehouse - save to S3
+        end
+      end
+
+      # TeeemPDF - user-created PDF documents
+      resources :teeem_pdfs, only: [ :index, :show, :create, :update, :destroy ]
+
+      # UserDocuments - personal user documents (My Docs feature)
+      resources :user_documents, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          get :download               # GET /api/v1/user_documents/:id/download - presigned URL
+          post :save_to_job           # POST /api/v1/user_documents/:id/save_to_job - link to job
+        end
+        collection do
+          post :create_folder         # POST /api/v1/user_documents/create_folder - virtual folder
         end
       end
 
@@ -345,16 +435,63 @@ Rails.application.routes.draw do
         to: "job_status_stages#create"
       post "job_types/:job_type_id/statuses/:job_status_id/stages/reorder",
         to: "job_status_stages#reorder"
+
+      # =============================================================
+      # Config Sync (Tenant pulls from TEEEM master)
+      # =============================================================
+      # GET    /api/v1/config_sync/tables            -> List available config tables
+      # GET    /api/v1/config_sync/diff/:table       -> Compare tenant to TEEEM master
+      # POST   /api/v1/config_sync/pull              -> Pull selected records from master
+      # GET    /api/v1/config_sync/master_records/:table -> View master tenant's records
+      resource :config_sync, only: [], controller: "config_sync" do
+        collection do
+          get :tables
+          get "diff/:table", action: :diff
+          get "master_records/:table", action: :master_records
+          post :pull
+          post :push  # TEEEM staff only - push records to master
+        end
+      end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
 
+      # User files from S3 (must be before resources :documents to avoid :id match)
+      get "documents/user_files", to: "documents#user_files"
+      # SSoT: Unified endpoint for EntityTab folder files (job, corporate, contact)
+      get "documents/folder_files", to: "documents#folder_files"
+      # Legacy alias for corporate folders
+      get "documents/corporate_folder_files", to: "documents#folder_files"
+      # Warehouse files (TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf)
+      get "documents/warehouse_files", to: "documents#warehouse_files"
+      # SSoT: Folder hierarchy matching StorageConfiguration.SCOPE_TEMPLATES
+      # Used by File Warehouse to build tree structure that mirrors storage paths
+      get "documents/scope_hierarchy", to: "documents#scope_hierarchy"
+      # SSoT: OneDrive-like S3 folder browser - lists actual S3/Wasabi folders
+      # Used by Documents page to mirror exact storage structure for desktop sync
+      get "documents/s3_folders", to: "documents#s3_folders"
+      # Phase 3: Universal warehouse documents endpoint (SSoT for all document types)
+      # Queries WarehouseDocument table with filters: source_type, folder, search
+      get "documents/warehouse", to: "documents#warehouse"
+      # Phase 4: Virtual File Warehouse - Database-driven folder tree
+      # Returns folder tree from WarehouseDocument.folder instead of S3
+      # Params: scope (email, task, etc.), path (optional filter)
+      get "documents/virtual_tree", to: "documents#virtual_tree"
+      # Phase 5: Universal Live Folder Tree - computed from DB relationships
+      # Folder structure computed LIVE from source tables (SSoT)
+      # Benefits: Instant template changes, always accurate, single GROUP BY query
+      # Params: scope (email, corporate, job, contact, people, task), path (drill down)
+      get "documents/live_folder_tree", to: "documents#live_folder_tree"
+
       # Documents (simple alias for company documents)
-      resources :documents, only: [ :index, :show, :update, :destroy ] do
+      resources :documents, only: [ :index, :create, :show, :update, :destroy ] do
         member do
-          get :preview  # Universal document preview (Excel/Word/PDF)
+          get :download  # Human-readable download URL (redirects to S3)
+          get :preview   # Universal document preview (Excel/Word/PDF)
+          patch :move    # Move file to different folder (File Warehouse action)
         end
         collection do
           post :analyze
           post :preview_upload  # Preview uploaded file
+          post :rename          # Rename file in S3 storage
         end
       end
 
@@ -418,6 +555,8 @@ Rails.application.routes.draw do
           get :boq
           # Schedule template link detection
           get :linked_schedule_template
+          # Storage folder creation
+          post :create_storage_folders
         end
 
         # Job contacts (nested under jobs)
@@ -676,6 +815,9 @@ Rails.application.routes.draw do
           post :smart_lookup
           post :smart_create
           post :bulk_create
+          post :bulk_lock_budget
+          post :bulk_unlock_budget
+          post :toggle_budget_lock
         end
         member do
           post :approve
@@ -686,6 +828,8 @@ Rails.application.routes.draw do
           get :generate_pdf
           get :schedule_sync_preview
           post :schedule_sync
+          post :lock_budget
+          post :unlock_budget
         end
         # Payments nested under purchase orders
         resources :payments, only: [ :index, :create ]
@@ -895,6 +1039,23 @@ Rails.application.routes.draw do
           patch "/", action: :update
           delete "/", action: :destroy
         end
+
+        # Corporate Controller (SSoT Consolidation)
+        # Contact is THE ONE SSoT for identity; this exposes corporate extension data
+        # GET    /api/v1/contacts/corporate/:contact_id/details      -> details
+        # GET    /api/v1/contacts/corporate/:contact_id/directors    -> directors
+        # GET    /api/v1/contacts/corporate/:contact_id/shareholders -> shareholders
+        # GET    /api/v1/contacts/corporate/:contact_id/compliance   -> compliance
+        # GET    /api/v1/contacts/corporate/:contact_id/hierarchy    -> hierarchy
+        # POST   /api/v1/contacts/corporate/:contact_id/enable       -> enable
+        scope "corporate/:contact_id", controller: "corporate" do
+          get :details
+          get :directors
+          get :shareholders
+          get :compliance
+          get :hierarchy
+          post :enable
+        end
       end
 
       resources :contacts do
@@ -905,6 +1066,7 @@ Rails.application.routes.draw do
           post :fix_email_assignment
           post :match_supplier
           get :read_only_fields
+          get :frequent            # Frequent email contacts for compose modal
           # SSoT: Contact choices from Contact model constants
           get :entity_types        # Contact::ENTITY_TYPES
           get :employment_statuses # Contact::EMPLOYMENT_STATUSES
@@ -913,6 +1075,11 @@ Rails.application.routes.draw do
         member do
           get :internal_messages
           get :activities
+          get :documents  # ContactDocument records (including migrated Xero PDFs)
+          # Archive system (Phase 3 Contact Consolidation)
+          get :deletion_check  # Pre-flight check before delete - returns warnings/blockers
+          post :archive        # Archive instead of delete - preserves data
+          post :restore        # Restore an archived contact
         end
 
         # Contact relationships (nested under contacts)
@@ -1032,7 +1199,7 @@ Rails.application.routes.draw do
       end
 
       # Users management
-      resources :users, only: [ :index, :show, :update, :destroy ] do
+      resources :users, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :bulk_delete
           get :for_select
@@ -1107,7 +1274,7 @@ Rails.application.routes.draw do
         end
       end
 
-      # Microsoft unified auth (Outlook + OneDrive + SharePoint) - User-level OAuth
+      # Microsoft unified auth (Outlook + SharePoint) - User-level OAuth
       resources :microsoft, only: [], controller: "microsoft_auth" do
         collection do
           get :auth_url
@@ -1136,15 +1303,15 @@ Rails.application.routes.draw do
           post :test
           get :users
           post :configure_sync
-          post :sync_to_sharepoint
+          post :sync_to_storage
+          post :sync_to_sharepoint # Legacy alias for sync_to_storage
           delete :disconnect
           # Mailbox access configuration (who can see which mailboxes)
           get :organizations_with_mailboxes
-          # SharePoint/OneDrive endpoints
+          # SharePoint endpoints
           get :sharepoint_sites
           get :site_drives
           get :browse
-          get :user_onedrive
           get :search_files
           post :test_sharepoint
           # SharePoint Configuration for Attachments (TEEEM's Single SharePoint)
@@ -1161,8 +1328,8 @@ Rails.application.routes.draw do
       # REMOVED: Outlook integration routes - per-user Outlook credentials deprecated
       # Email sync now uses org-wide credentials via OrgEmailSyncJob
 
-      # Email Warehouse
-      resources :email_warehouse, only: [ :index, :show ] do
+      # Synced Emails (renamed from email_warehouse Jan 2026)
+      resources :synced_emails, only: [ :index, :show ] do
         collection do
           get :unassigned
           get :search
@@ -1189,6 +1356,40 @@ Rails.application.routes.draw do
           post :quick_create_contact
           get :suggest_contacts
           get "attachments/:attachment_id/download", action: :download_attachment
+          get "attachments/:attachment_id/presigned_url", action: :attachment_presigned_url
+          get :download_eml
+        end
+      end
+
+      # Legacy route alias for backwards compatibility (can be removed after frontend update)
+      resources :email_warehouse, only: [ :index, :show ], controller: "synced_emails" do
+        collection do
+          get :unassigned
+          get :search
+          get :stats
+          get :unread_counts
+          get :sync_status
+          post :sync
+          post :sync_for_job
+          get "for_job/:job_id", action: :for_job
+          get :spam
+          post :bulk_delete_spam
+          get :rules
+        end
+        member do
+          post :assign_to_job
+          post :unassign
+          post :dismiss_suggestion
+          post :mark_as_spam
+          delete :delete_from_outlook
+          post :move_to_folder
+          post :summarize
+          post :link_contact
+          post :unlink_contact
+          post :quick_create_contact
+          get :suggest_contacts
+          get "attachments/:attachment_id/download", action: :download_attachment
+          get :download_eml
         end
       end
 
@@ -1285,6 +1486,9 @@ Rails.application.routes.draw do
       # Writing Assistant (AI-powered spell check, grammar, tone)
       post "writing_assistant/check", to: "writing_assistant#check"
 
+      # User Dictionary (custom words for spell check)
+      resources :user_dictionary, only: [ :index, :create, :destroy ]
+
       # IMAP Email Credentials (unified inbox)
       resources :imap_credentials, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
@@ -1366,12 +1570,37 @@ Rails.application.routes.draw do
         post :test_twilio, on: :collection
       end
 
-      # Corporate Company Settings (document paths, SharePoint, Email SSoT)
+      # Storage Configuration (Provider-agnostic SSoT)
+      # SSoT: Use these endpoints for ALL storage providers (SharePoint, S3, Wasabi, local)
+      resource :storage_configuration, only: [:show, :update] do
+        post :test, on: :collection, action: :test_connection
+      end
+
+      # Backup Configuration (Per-tenant backup settings)
+      # SSoT: Backup schedules, storage providers, and retention policies
+      resource :backup_configuration, only: [:show, :update] do
+        collection do
+          post :run_now       # Trigger immediate backup (type: "database" or "documents")
+          get :history        # Get recent backup logs
+          get :schedule_presets # Get available schedule presets
+        end
+      end
+
+      # S3-Compatible Storage Credentials
+      # Used for backup storage (Wasabi, Backblaze B2, etc.)
+      resources :s3_compatible_credentials, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :test  # Test connection
+        end
+      end
+
+      # Corporate Company Settings (document paths, Email SSoT)
       resource :corporate_company_settings, only: [] do
         get :document_paths, on: :collection
         patch :document_paths, on: :collection, action: :update_document_paths
 
-        # SharePoint SSoT Configuration
+        # DEPRECATED: Use /api/v1/storage_configuration instead
+        # Kept for backward compatibility - redirects to new controller
         get :sharepoint, on: :collection
         patch :sharepoint, on: :collection, action: :update_sharepoint
         post "sharepoint/test", on: :collection, action: :test_sharepoint
@@ -1545,17 +1774,32 @@ Rails.application.routes.draw do
           post :cascade_preview
           post :cascade_execute
           post :move
+          post :recalculate_dates
+          post :email_supplier
+          post :create_case
           # Working drawings AI
           get :working_drawings
           post "working_drawings/process", to: "sm_tasks#process_working_drawings"
           patch "working_drawings/pages/:page_id/override", to: "sm_tasks#override_page_category"
           # Task attachments
           get :attachments
+          get :suggested_emails  # Returns related emails as suggestions (not auto-attached)
           post :attachments, action: :add_attachment
           post "attachments/upload", action: :upload_attachment
+          post "attachments/presign", action: :presign_attachment   # Get presigned URL for direct S3 upload
+          post "attachments/confirm", action: :confirm_attachment   # Confirm upload after direct S3 upload
           delete "attachments/:attachment_id", action: :remove_attachment
+          patch "attachments/:attachment_id", action: :update_attachment
           get "attachments/:attachment_id/download", action: :download_attachment_for_email
           post "attachments/:attachment_id/share_link", action: :create_attachment_share_link
+          get :download_all_response_files  # Zip all response files for "Download All" link in emails
+          # Bulk email linking
+          get :email_link_options
+          get :search_contacts
+          post :bulk_link_emails
+          post :match_keywords
+          delete :clear_matched_emails
+          post :link_email_thread
           # Task followers
           post :follow
           delete :unfollow
@@ -1574,6 +1818,8 @@ Rails.application.routes.draw do
           post "action_items/:item_id/toggle", action: :toggle_action_item
           post "action_items/:item_id/answer", action: :answer_action_item
           post "action_items/:item_id/delegate", action: :delegate_action_item
+          post "action_items/:item_id/undelegate", action: :undelegate_action_item
+          post "action_items/:item_id/move_delegated_task", action: :move_delegated_task
           patch "action_items/:item_id", action: :update_action_item
           delete "action_items/:item_id", action: :destroy_action_item
           post "action_items/reorder", action: :reorder_action_items
@@ -2260,6 +2506,8 @@ Rails.application.routes.draw do
       # Email Subscriptions (admin, requires auth)
       resources :email_subscriptions do
         collection do
+          get :dashboard_stats
+          get :active_migrations
           get :profit_report
           get :discover_mailboxes
           get :pricing
@@ -2272,11 +2520,33 @@ Rails.application.routes.draw do
           post :start_migration
           post :cancel
           post :send_invite
+          # DNS management
+          get :dns_records
+          post :provision_dns
+          post :verify_dns
         end
       end
 
-      # Warehouse Bank Transactions (Xero bank statement data)
-      resources :warehouse_bank_transactions, only: [ :index, :show ] do
+      # Cloudflare Credentials (admin, for DNS management)
+      resources :cloudflare_credentials, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :test
+        end
+        collection do
+          get :zones
+        end
+      end
+
+      # Polaris/EmailArray Credentials (admin, for email reseller)
+      resources :polaris_credentials, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :test
+        end
+      end
+
+      # Xero Bank Transactions (Xero bank statement data)
+      # Renamed from warehouse_bank_transactions (Jan 2026)
+      resources :xero_bank_transactions, only: [ :index, :show ] do
         collection do
           get :bank_accounts
           get :financial_years
@@ -2287,21 +2557,21 @@ Rails.application.routes.draw do
         end
       end
 
-      # Warehouse Contacts (Xero contact data - SSoT for Xero↔TEEEM contact linking)
-      resources :warehouse_contacts, only: [ :index, :show ] do
+      # Legacy route alias for backwards compatibility (can be removed after frontend update)
+      resources :warehouse_bank_transactions, only: [ :index, :show ], controller: "xero_bank_transactions" do
         collection do
-          get :stats
-          get :tenants
+          get :bank_accounts
+          get :financial_years
+          get :monthly_summary
           get :sync_status
           post :trigger_sync
-        end
-        member do
-          post :link
-          delete :unlink
-          post :auto_link
+          get :download_report
         end
       end
-      get "warehouse_contacts/by_xero_id/:xero_id", to: "warehouse_contacts#by_xero_id", as: :warehouse_contact_by_xero_id
+
+      # LIM (Jan 2026): XeroContact table removed - ContactExternalLink is THE ONE SSoT
+      # XeroContact had 0 records, ContactExternalLink has 1,018 records
+      # All Xero contact sync functionality now uses ContactExternalLink
 
       # Bank Statement Reports (stored PDFs for ATO compliance)
       resources :bank_statement_reports, only: [ :index, :show ] do
@@ -2322,48 +2592,6 @@ Rails.application.routes.draw do
 
       # NOTE: Documents API routes are defined at TOP of namespace (see "Document Storage API" section)
       # to avoid route collision with `resources :documents` matching /documents/:id
-
-      # ============================================================
-      # BACKWARDS COMPATIBILITY: Legacy organization_onedrive routes
-      # Remove after all clients updated (frontend, iOS app)
-      # ============================================================
-      get "organization_onedrive/status", to: "organization_sharepoint#status"
-      get "organization_onedrive/authorize", to: "organization_sharepoint#authorize"
-      get "organization_onedrive/callback", to: "organization_sharepoint#callback"
-      delete "organization_onedrive/disconnect", to: "organization_sharepoint#disconnect"
-      get "organization_onedrive/browse_folders", to: "organization_sharepoint#browse_folders"
-      post "organization_onedrive/create_root_folder", to: "organization_sharepoint#create_root_folder"
-      get "organization_onedrive/validate_folder", to: "organization_sharepoint#validate_folder"
-      patch "organization_onedrive/change_root_folder", to: "organization_sharepoint#change_root_folder"
-      post "organization_onedrive/create_job_folders", to: "organization_sharepoint#create_job_folders"
-      post "organization_onedrive/create_all_job_folders", to: "organization_sharepoint#create_all_job_folders"
-      get "organization_onedrive/job_folders", to: "organization_sharepoint#list_job_items"
-      post "organization_onedrive/upload", to: "organization_sharepoint#upload"
-      get "organization_onedrive/download", to: "organization_sharepoint#download"
-      get "organization_onedrive/download_url", to: "organization_sharepoint#download_url"
-      delete "organization_onedrive/delete_file", to: "organization_sharepoint#delete_file"
-      get "organization_onedrive/folder_contents", to: "organization_sharepoint#folder_contents"
-      get "organization_onedrive/sharepoint_sites", to: "organization_sharepoint#sharepoint_sites"
-      post "organization_onedrive/use_sharepoint_site", to: "organization_sharepoint#use_sharepoint_site"
-      post "organization_onedrive/use_personal_drive", to: "organization_sharepoint#use_personal_drive"
-      post "organization_onedrive/sync_corporate_documents", to: "organization_sharepoint#sync_corporate_documents"
-      get "organization_onedrive/search", to: "organization_sharepoint#search"
-      get "organization_onedrive/preview_private_folders", to: "organization_sharepoint#preview_private_folders"
-      post "organization_onedrive/create_private_folders", to: "organization_sharepoint#create_private_folders"
-      post "organization_onedrive/copy_files", to: "organization_sharepoint#copy_files"
-      get "organization_onedrive/legacy_files", to: "organization_sharepoint#legacy_files"
-      post "organization_onedrive/import_legacy", to: "organization_sharepoint#import_legacy"
-      post "organization_onedrive/run_migration", to: "organization_sharepoint#run_migration"
-      get "organization_onedrive/job_all_files", to: "organization_sharepoint#job_all_files"
-      get "organization_onedrive/job_document_download", to: "organization_sharepoint#job_document_download"
-      get "organization_onedrive/job_document_url", to: "organization_sharepoint#job_document_url"
-      post "organization_onedrive/sync_job_documents", to: "organization_sharepoint#sync_job_documents"
-      post "organization_onedrive/upload_signed_version", to: "organization_sharepoint#upload_signed_version"
-      post "organization_onedrive/analyze_job_documents", to: "organization_sharepoint#analyze_job_documents"
-      post "organization_onedrive/bulk_categorize_job_documents", to: "organization_sharepoint#bulk_categorize_job_documents"
-      get "organization_onedrive/documents_needing_review", to: "organization_sharepoint#documents_needing_review"
-      post "organization_onedrive/approve_document_rename", to: "organization_sharepoint#approve_document_rename"
-      post "organization_onedrive/bulk_approve_renames", to: "organization_sharepoint#bulk_approve_renames"
 
       # ULTRA: Direct browser-to-SharePoint uploads (50% faster, skips backend proxy)
       # POST /api/v1/sharepoint/upload_session - Get pre-authenticated upload URL
@@ -2701,7 +2929,7 @@ Rails.application.routes.draw do
           post :reprocess_documents
           patch :folder_settings, action: :update_folder_settings
 
-          # OneDrive folder management
+          # SharePoint folder management
           post :create_folder
           get :folder_info
         end
@@ -2770,27 +2998,16 @@ Rails.application.routes.draw do
         end
       end
 
-      # Corporate SharePoint (document scanning for corporate entities)
-      # URL kept as corporate_onedrive for backwards compatibility
-      resources :corporate_onedrive, only: [], controller: "corporate_sharepoint" do
-        collection do
-          get :status
-          get :preview
-          get :browse
-          post :scan
-          post :scan_company
-          post :import_documents
-        end
-      end
-
       # Document Types
       resources :document_types do
         collection do
           get :tabs
           get :dwelling_types
+          get :suggest  # Smart filename-to-type matching with confidence scores
         end
         member do
           post :duplicate
+          post :detect_signature_fields  # AI detection of signature positions in PDF
         end
       end
 
@@ -2825,12 +3042,7 @@ Rails.application.routes.draw do
       end
 
       # System Settings
-      resources :system_settings, only: [ :index, :update ] do
-        collection do
-          get :sharepoint_path_templates
-          put :update_sharepoint_path_templates
-        end
-      end
+      resources :system_settings, only: [ :index, :update ]
 
       # Bank Accounts
       resources :bank_accounts
@@ -3995,6 +4207,103 @@ Rails.application.routes.draw do
         get "status/:id", to: "warehouse_status#show", as: :status_view
         get "health", to: "warehouse_status#health", as: :health
         post "refresh", to: "warehouse_status#refresh", as: :refresh
+      end
+
+      # =============================================================
+      # Signup API (public - no authentication required)
+      # =============================================================
+      # POST   /api/v1/signup                -> Create new tenant (self-service signup)
+      # GET    /api/v1/signup/check_availability -> Check if company name available
+      # GET    /api/v1/signup/template_packs -> List available starter templates
+      # GET    /api/v1/signup/tiers          -> List available pricing tiers
+      resource :signup, only: [:create], controller: "signup" do
+        collection do
+          get :check_availability
+          get :template_packs
+          get :tiers
+        end
+      end
+
+      # =============================================================
+      # Onboarding API (data import/export for new tenants)
+      # =============================================================
+      # GET    /api/v1/onboarding/status     -> Get onboarding progress
+      # GET    /api/v1/onboarding/templates  -> Download all import templates (ZIP)
+      # GET    /api/v1/onboarding/template/:type -> Download single template
+      # POST   /api/v1/onboarding/validate   -> Validate import files (dry run)
+      # POST   /api/v1/onboarding/import     -> Import data from files
+      # GET    /api/v1/onboarding/export/:type -> Export current data
+      resource :onboarding, only: [], controller: "onboarding" do
+        collection do
+          get :status
+          get :templates
+          get "template/:type", action: :template
+          post :validate
+          post :import
+          get "export/:type", action: :export
+        end
+      end
+
+      # =============================================================
+      # Admin API (TEEEM staff internal tools)
+      # =============================================================
+      namespace :admin do
+        # TEMPORARY: Task #2236 file re-upload (delete after use)
+        # POST /api/v1/admin/task2236_upload -> Upload missing file for Task #2236
+        post "task2236_upload", to: "task2236_upload#create"
+
+        # Tenant Management (multi-tenancy)
+        # GET    /api/v1/admin/tenants          -> List all tenants (TEEEM staff only)
+        # GET    /api/v1/admin/tenants/current  -> Current tenant info (all users)
+        # GET    /api/v1/admin/tenants/:id      -> Single tenant details
+        # POST   /api/v1/admin/tenants/:id/switch -> Switch to tenant (TEEEM staff only)
+        # DELETE /api/v1/admin/tenants/switch   -> Clear tenant override
+        # PATCH  /api/v1/admin/tenants/environment -> Update tenant environment (all users)
+        resources :tenants, only: [:index, :show] do
+          collection do
+            get :current
+            patch :environment, action: :update_environment
+            delete :switch, action: :clear_switch
+          end
+          member do
+            post :switch
+          end
+        end
+
+        # Template Packs (configuration sharing between tenants)
+        # GET    /api/v1/admin/template_packs          -> List available packs
+        # GET    /api/v1/admin/template_packs/:id      -> Pack details with items
+        # POST   /api/v1/admin/template_packs/export   -> Export current tenant config
+        # POST   /api/v1/admin/template_packs/:id/import -> Import pack into current tenant
+        # POST   /api/v1/admin/template_packs/:id/validate -> Validate import (dry run)
+        # DELETE /api/v1/admin/template_packs/:id      -> Delete pack
+        # POST   /api/v1/admin/template_packs/sync     -> Sync between tenants (TEEEM staff)
+        # GET    /api/v1/admin/template_packs/sync_preview -> Preview sync
+        resources :template_packs, only: [:index, :show, :destroy] do
+          collection do
+            post :export
+            post :sync
+            get :sync_preview
+          end
+          member do
+            post :import
+            post :validate
+          end
+        end
+
+        # Config Sync (TEEEM staff - import from any tenant)
+        # GET    /api/v1/admin/config_sync/tables                        -> List available tables
+        # GET    /api/v1/admin/config_sync/tenants/:tenant_id/config/:table -> Browse tenant's config
+        # POST   /api/v1/admin/config_sync/import                        -> Import records into master
+        # GET    /api/v1/admin/config_sync/compare                       -> Compare across tenants
+        resource :config_sync, only: [], controller: "config_sync" do
+          collection do
+            get :tables
+            get "tenants/:tenant_id/config/:table", action: :browse
+            post :import
+            get :compare
+          end
+        end
       end
 
       # External integrations (API endpoints for third-party systems)

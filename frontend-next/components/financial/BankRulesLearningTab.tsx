@@ -45,6 +45,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 // Types
 interface SampleTransaction {
@@ -201,7 +202,7 @@ export default function BankRulesLearningTab() {
     const pct = Math.round(confidence * 100);
     if (pct >= 90) {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           <Target className="h-3 w-3 mr-1" />
           {pct}%
         </Badge>
@@ -209,7 +210,7 @@ export default function BankRulesLearningTab() {
     }
     if (pct >= 80) {
       return (
-        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
           <TrendingUp className="h-3 w-3 mr-1" />
           {pct}%
         </Badge>
@@ -217,7 +218,7 @@ export default function BankRulesLearningTab() {
     }
     if (pct >= 70) {
       return (
-        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+        <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400">
           <Lightbulb className="h-3 w-3 mr-1" />
           {pct}%
         </Badge>
@@ -228,23 +229,6 @@ export default function BankRulesLearningTab() {
         {pct}%
       </Badge>
     );
-  };
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
-  };
-
-  // Format date
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
   };
 
   // Format time ago
@@ -398,8 +382,8 @@ export default function BankRulesLearningTab() {
                             variant="outline"
                             className={`text-xs ${
                               suggestion.transaction_type === "credit"
-                                ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
+                                : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
                             }`}
                           >
                             {suggestion.transaction_type}
@@ -586,8 +570,8 @@ export default function BankRulesLearningTab() {
                       variant="outline"
                       className={
                         selectedSuggestion.transaction_type === "credit"
-                          ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                          ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
+                          : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
                       }
                     >
                       {selectedSuggestion.transaction_type}

@@ -93,8 +93,8 @@ RSpec.describe "Api::V1::Contacts::Enrichment", type: :request do
       expect(json["success"]).to eq(true)
     end
 
-    it "returns preview data for matching emails", skip: "Requires EmailWarehouse factory" do
-      # Would need to create EmailWarehouse records
+    it "returns preview data for matching emails", skip: "Requires SyncedEmail factory" do
+      # Would need to create SyncedEmail records
     end
   end
 

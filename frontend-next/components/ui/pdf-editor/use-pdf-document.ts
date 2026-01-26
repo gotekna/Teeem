@@ -37,9 +37,14 @@ export function usePDFDocument(url: string): UsePDFDocumentReturn {
         setIsLoading(true);
         setError(null);
 
-        // Fetch PDF bytes - include credentials for authenticated API endpoints
+        // Detect presigned S3 URLs (Wasabi, AWS, etc.) - must NOT send credentials
+        // Sending credentials to S3 presigned URLs causes CORS errors because
+        // S3 returns Access-Control-Allow-Origin: * which conflicts with credentials
+        const isPresignedS3 = url.includes("X-Amz-Signature=") || url.includes("wasabisys.com");
+
+        // Fetch PDF bytes - include credentials for our API, omit for S3
         const response = await fetch(url, {
-          credentials: 'include',
+          credentials: isPresignedS3 ? 'omit' : 'include',
           headers: {
             'Accept': 'application/pdf',
           },
@@ -86,12 +91,16 @@ export function usePDFDocument(url: string): UsePDFDocumentReturn {
   }, [url]);
 
   // Generate thumbnail for a single page
+  // Note: This image is also used for the main editor canvas, so we render at higher resolution
   const generatePageThumbnail = async (
     pdfJsDoc: pdfjs.PDFDocumentProxy,
     pageIndex: number
   ): Promise<PDFPage> => {
     const page = await pdfJsDoc.getPage(pageIndex + 1); // pdfjs uses 1-based indexing
-    const viewport = page.getViewport({ scale: 0.3 }); // Small scale for thumbnail
+    // Render at 1.5x scale for crisp display (was 0.3x which caused blurry editor)
+    // Multiply by devicePixelRatio for Retina/high-DPI displays
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const viewport = page.getViewport({ scale: 1.5 * dpr });
 
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d")!;

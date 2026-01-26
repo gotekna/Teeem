@@ -23,9 +23,9 @@ class SmCascadeService
     @task = task
     @construction = task.construction
     @options = options
-    # Non-job tasks use CorporateCompanySetting (global), job tasks use job's company_setting
-    company_setting = construction&.company_setting || CorporateCompanySetting.instance
-    @calendar = WorkingDaysCalculator.new(company_setting)
+    # SSoT: CorporateCompanySetting.instance for all working days calculations
+    # (consistent with GanttDateCalculationService, SmTaskCompletionService)
+    @calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
   end
 
   # Preview cascade without making changes
@@ -64,11 +64,19 @@ class SmCascadeService
       new_start = cascade_params[:new_start_date]
       new_end = calculate_new_end_date(new_start)
 
-      task.update!(
+      # When a task is manually dragged, ALWAYS set hold=true and hold_date
+      # This pins the task at the user's chosen position.
+      # Without this, GanttDateCalculationService would recalculate from
+      # predecessors and snap the task back to the dependency-driven date.
+      updates = {
         start_date: new_start,
         end_date: new_end,
-        updated_by_id: cascade_params[:user_id]
-      )
+        updated_by_id: cascade_params[:user_id],
+        hold: true,
+        hold_date: new_start
+      }
+
+      task.update!(updates)
       results[:updated_tasks] << task
 
       # 2. Process tasks to cascade (move with parent)
@@ -142,6 +150,40 @@ class SmCascadeService
   end
 
   private
+
+  # Check if the new start date violates predecessor dependencies
+  # Returns true if the task would start before any predecessor allows
+  def violates_predecessor_dependencies?(new_start_date)
+    new_start = new_start_date.is_a?(String) ? Date.parse(new_start_date) : new_start_date
+    deps = task.active_predecessor_dependencies
+    return false if deps.empty?
+
+    # Calculate the earliest valid start based on all predecessors
+    earliest_valid_start = deps.map do |dep|
+      predecessor = dep.predecessor_task
+      next nil unless predecessor # Skip if predecessor doesn't exist
+
+      case dep.dependency_type
+      when "FS" # Finish-to-Start: task must start after predecessor finishes
+        calendar.add_working_days(predecessor.end_date, dep.lag_days + 1)
+      when "SS" # Start-to-Start: task must start after predecessor starts
+        calendar.add_working_days(predecessor.start_date, dep.lag_days)
+      when "FF" # Finish-to-Finish
+        target_end = calendar.add_working_days(predecessor.end_date, dep.lag_days)
+        calendar.subtract_working_days(target_end, task.duration_days - 1)
+      when "SF" # Start-to-Finish
+        target_end = calendar.add_working_days(predecessor.start_date, dep.lag_days)
+        calendar.subtract_working_days(target_end, task.duration_days - 1)
+      else
+        predecessor.end_date + 1.day
+      end
+    end.compact.max
+
+    return false unless earliest_valid_start
+
+    # If new start is before earliest valid start, it violates dependencies
+    new_start < earliest_valid_start
+  end
 
   def calculate_date_delta(new_start_date)
     new_start = new_start_date.is_a?(String) ? Date.parse(new_start_date) : new_start_date

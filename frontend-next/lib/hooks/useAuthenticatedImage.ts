@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
 
 /**
  * Custom hook to fetch images from authenticated endpoints and convert to blob URLs
@@ -6,7 +7,7 @@ import { useState, useEffect } from "react";
  * Problem: When frontend and backend are on different domains (e.g., Vercel + Heroku),
  * <img src="backend-url" /> doesn't send authentication cookies, resulting in 401 errors.
  *
- * Solution: Fetch the image via authenticated fetch(), convert to blob, create object URL.
+ * Solution: Use api.getBlob() (SSoT for authenticated blob requests), convert to object URL.
  *
  * @param url - The URL to fetch (can be null)
  * @returns Object with { imageUrl, loading, error }
@@ -32,31 +33,8 @@ export function useAuthenticatedImage(url: string | null) {
       setError(null);
 
       try {
-        // Get JWT token from localStorage (same as api.ts does)
-        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
-        // Build headers with JWT token
-        const headers: HeadersInit = {
-          Accept: "image/png, image/jpeg, image/jpg, image/webp, image/*",
-        };
-
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
-
-        // Fetch with credentials and Authorization header
-        const response = await fetch(url, {
-          method: "GET",
-          credentials: "include",
-          headers,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to load image: ${response.status} ${response.statusText}`);
-        }
-
-        // Convert to blob
-        const blob = await response.blob();
+        // Use api.getBlob (SSoT for authenticated blob requests)
+        const blob = await api.getBlob(url);
 
         // Check if the component is still mounted
         if (cancelled) {

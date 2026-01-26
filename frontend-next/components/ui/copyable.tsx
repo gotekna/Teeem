@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { copyToClipboard } from "@/utils/formatters";
 
 interface CopyButtonProps {
   value: string;
@@ -12,6 +13,7 @@ interface CopyButtonProps {
 
 /**
  * Universal Copy Button - shows copy icon, green check on success
+ * SSoT: Uses copyToClipboard from utils/formatters which has fallback for older browsers
  * Usage: <CopyButton value="text to copy" />
  */
 export function CopyButton({ value, className, size = "sm" }: CopyButtonProps) {
@@ -21,7 +23,8 @@ export function CopyButton({ value, className, size = "sm" }: CopyButtonProps) {
     e.preventDefault();
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(value);
+      // SSoT: Use copyToClipboard from formatters (has fallback for older browsers)
+      await copyToClipboard(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -43,7 +46,7 @@ export function CopyButton({ value, className, size = "sm" }: CopyButtonProps) {
       title="Copy to clipboard"
     >
       {copied ? (
-        <Check className={cn(iconSize, "text-green-500")} />
+        <Check className={cn(iconSize, "text-green-500 dark:text-green-400")} />
       ) : (
         <Copy className={cn(iconSize, "text-muted-foreground")} />
       )}

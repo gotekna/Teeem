@@ -24,6 +24,8 @@ class JobDocumentMigrationService
     end
 
     @client = MicrosoftGraphClient.new(@credential) if @credential
+    # SSoT: Cache drive_id from StorageConfiguration (Jan 2026)
+    @storage_drive_id = StorageConfiguration.instance&.drive_id
     @stats = {
       matched: 0,
       unmatched: 0,
@@ -34,6 +36,11 @@ class JobDocumentMigrationService
       unmatched_folders: [],
       matched_jobs: []
     }
+  end
+
+  # SSoT: Helper to get drive_id from StorageConfiguration
+  def drive_id
+    @storage_drive_id
   end
 
   # Run the migration
@@ -146,7 +153,7 @@ class JobDocumentMigrationService
       current_id, depth, current_path = folders_to_process.shift
 
       begin
-        url = "/drives/#{@credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+        url = "/drives/#{drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
         result = @client.get(url)
 
         result["value"]&.each do |item|
@@ -200,7 +207,7 @@ class JobDocumentMigrationService
     items = []
 
     begin
-      url = "/drives/#{@credential.drive_id}/items/#{folder_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+      url = "/drives/#{drive_id}/items/#{folder_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
       result = @client.get(url)
 
       result["value"]&.each do |item|
@@ -233,7 +240,7 @@ class JobDocumentMigrationService
 
       begin
         # Get items with minimal fields for speed - include query params in URL
-        url = "/drives/#{@credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+        url = "/drives/#{drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
         result = @client.get(url)
 
         result["value"]&.each do |item|
@@ -273,7 +280,7 @@ class JobDocumentMigrationService
     file_ids.each do |file_id|
       begin
         # Get file info
-        file = @client.get("/drives/#{@credential.drive_id}/items/#{file_id}")
+        file = @client.get("/drives/#{drive_id}/items/#{file_id}")
 
         # Detect category based on filename
         category = detect_document_category(file["name"])
@@ -282,7 +289,7 @@ class JobDocumentMigrationService
         target_folder_id = find_or_create_category_folder(job, category)
 
         # Move the file
-        @client.patch("/drives/#{@credential.drive_id}/items/#{file_id}", {
+        @client.patch("/drives/#{drive_id}/items/#{file_id}", {
           parentReference: { id: target_folder_id }
         })
 
@@ -308,7 +315,7 @@ class JobDocumentMigrationService
     current_folder_id = nil
 
     parts.each do |part|
-      parent_path = current_folder_id ? "/drives/#{@credential.drive_id}/items/#{current_folder_id}/children" : "/drives/#{@credential.drive_id}/root/children"
+      parent_path = current_folder_id ? "/drives/#{drive_id}/items/#{current_folder_id}/children" : "/drives/#{drive_id}/root/children"
 
       result = @client.get(parent_path)
       folder = result["value"]&.find { |item| item["name"] == part && item["folder"].present? }
@@ -318,7 +325,7 @@ class JobDocumentMigrationService
       current_folder_id = folder["id"]
     end
 
-    @client.get("/drives/#{@credential.drive_id}/items/#{current_folder_id}")
+    @client.get("/drives/#{drive_id}/items/#{current_folder_id}")
   rescue MicrosoftGraphClient::APIError => e
     Rails.logger.error("Failed to find folder path '#{path}': #{e.message}")
     nil
@@ -326,7 +333,7 @@ class JobDocumentMigrationService
 
   # List subfolders in a folder
   def list_subfolders(folder_id)
-    result = @client.get("/drives/#{@credential.drive_id}/items/#{folder_id}/children")
+    result = @client.get("/drives/#{drive_id}/items/#{folder_id}/children")
     result["value"]&.select { |item| item["folder"].present? } || []
   rescue MicrosoftGraphClient::APIError => e
     Rails.logger.error("Failed to list subfolders: #{e.message}")
@@ -477,7 +484,7 @@ class JobDocumentMigrationService
         begin
           target_folder_id = find_or_create_category_folder(job, category)
 
-          @client.patch("/drives/#{@credential.drive_id}/items/#{file[:id]}", {
+          @client.patch("/drives/#{drive_id}/items/#{file[:id]}", {
             parentReference: { id: target_folder_id }
           })
 
@@ -498,7 +505,7 @@ class JobDocumentMigrationService
     files = []
 
     begin
-      result = @client.get("/drives/#{@credential.drive_id}/items/#{folder_id}/children")
+      result = @client.get("/drives/#{drive_id}/items/#{folder_id}/children")
 
       result["value"]&.each do |item|
         if item["file"]
@@ -533,7 +540,7 @@ class JobDocumentMigrationService
     job_folder_name = SharePoint::FilenameSanitizer.sanitize_path_segment(job.title)
     root_folder = get_or_create_jobs_root_folder
 
-    folder = @client.post("/drives/#{@credential.drive_id}/items/#{root_folder['id']}/children", {
+    folder = @client.post("/drives/#{drive_id}/items/#{root_folder['id']}/children", {
       name: job_folder_name,
       folder: {},
       '@microsoft.graph.conflictBehavior': "rename"
@@ -553,19 +560,19 @@ class JobDocumentMigrationService
   def get_or_create_jobs_root_folder
     root_folder_name = StorageConfiguration.instance.path_for(:jobs)
 
-    result = @client.get("/drives/#{@credential.drive_id}/root/children")
+    result = @client.get("/drives/#{drive_id}/root/children")
     folder = result["value"]&.find { |item| item["name"] == root_folder_name && item["folder"].present? }
 
     return folder if folder
 
-    @client.post("/drives/#{@credential.drive_id}/root/children", {
+    @client.post("/drives/#{drive_id}/root/children", {
       name: root_folder_name,
       folder: {},
       '@microsoft.graph.conflictBehavior': "fail"
     })
   rescue MicrosoftGraphClient::APIError => e
     # If folder exists, try to get it
-    result = @client.get("/drives/#{@credential.drive_id}/root/children")
+    result = @client.get("/drives/#{drive_id}/root/children")
     result["value"]&.find { |item| item["name"] == root_folder_name }
   end
 
@@ -616,13 +623,13 @@ class JobDocumentMigrationService
     return job_folder_id unless category.present?
 
     # Check if category folder exists
-    result = @client.get("/drives/#{@credential.drive_id}/items/#{job_folder_id}/children")
+    result = @client.get("/drives/#{drive_id}/items/#{job_folder_id}/children")
     existing = result["value"]&.find { |item| item["name"].downcase == category.downcase && item["folder"].present? }
 
     return existing["id"] if existing
 
     # Create the folder
-    folder = @client.post("/drives/#{@credential.drive_id}/items/#{job_folder_id}/children", {
+    folder = @client.post("/drives/#{drive_id}/items/#{job_folder_id}/children", {
       name: category,
       folder: {},
       '@microsoft.graph.conflictBehavior': "rename"

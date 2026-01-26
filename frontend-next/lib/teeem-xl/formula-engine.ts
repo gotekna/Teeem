@@ -29,6 +29,7 @@ export interface CellFormat {
   decimals?: number;
   currency?: string;
   dateFormat?: string;
+  textAlign?: 'left' | 'center' | 'right';
 }
 
 export type CellGetter = (ref: string) => CellData | undefined;

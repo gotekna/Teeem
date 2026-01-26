@@ -24,6 +24,7 @@ import {
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
+import { formatCurrency, formatDateWithFallback } from "@/utils/formatters";
 
 interface Supplier {
   id: number;
@@ -71,29 +72,11 @@ interface PricebookDetailDrawerProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const formatCurrency = (value: number | null | undefined) => {
-  if (value === null || value === undefined) return "-";
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-  }).format(value);
-};
-
-const formatDate = (dateString: string | null) => {
-  if (!dateString) return "Never";
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-AU", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-};
-
 const getStatusBadgeClass = (color: string) => {
   const colorClasses: Record<string, string> = {
-    green: "bg-green-100 text-green-700",
-    yellow: "bg-yellow-100 text-yellow-800",
-    red: "bg-red-100 text-red-700",
+    green: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+    yellow: "bg-status-warning text-status-warning-foreground",
+    red: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
     gray: "bg-muted text-muted-foreground",
   };
   return colorClasses[color] || colorClasses.gray;
@@ -159,7 +142,7 @@ export function PricebookDetailDrawer({ itemId, open, onOpenChange }: PricebookD
                       </Badge>
                     )}
                     {item.needs_pricing_review && (
-                      <Badge className="bg-yellow-100 text-yellow-700">Review Needed</Badge>
+                      <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300">Review Needed</Badge>
                     )}
                     {!item.is_active && (
                       <Badge variant="secondary">Inactive</Badge>
@@ -215,7 +198,7 @@ export function PricebookDetailDrawer({ itemId, open, onOpenChange }: PricebookD
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Last Updated</p>
-                        <p>{formatDate(item.price_last_updated_at)}</p>
+                        <p>{formatDateWithFallback(item.price_last_updated_at, "Never")}</p>
                       </div>
                     </div>
                     {item.notes && (
@@ -290,9 +273,9 @@ export function PricebookDetailDrawer({ itemId, open, onOpenChange }: PricebookD
                           <Badge
                             variant="secondary"
                             className={cn(
-                              item.price_volatility === "stable" && "bg-green-100 text-green-800",
-                              item.price_volatility === "moderate" && "bg-yellow-100 text-yellow-800",
-                              item.price_volatility === "volatile" && "bg-red-100 text-red-800"
+                              item.price_volatility === "stable" && "bg-status-success text-status-success-foreground",
+                              item.price_volatility === "moderate" && "bg-status-warning text-status-warning-foreground",
+                              item.price_volatility === "volatile" && "bg-status-error text-status-error-foreground"
                             )}
                           >
                             {item.price_volatility || "Unknown"}
@@ -328,15 +311,15 @@ export function PricebookDetailDrawer({ itemId, open, onOpenChange }: PricebookD
                               <div>
                                 <p className="font-medium">{formatCurrency(history.new_price)}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {formatDate(history.date_effective || history.created_at)}
+                                  {formatDateWithFallback(history.date_effective || history.created_at, "Never")}
                                 </p>
                               </div>
                               <div className="text-right">
                                 <span
                                   className={cn(
                                     "text-sm",
-                                    change > 0 && "text-red-600",
-                                    change < 0 && "text-green-600",
+                                    change > 0 && "text-red-600 dark:text-red-400",
+                                    change < 0 && "text-green-600 dark:text-green-400",
                                     change === 0 && "text-muted-foreground"
                                   )}
                                 >

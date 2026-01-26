@@ -23,7 +23,7 @@ class BatchDocumentVerificationJob < ApplicationJob
 
       begin
         # Skip if no OneDrive file to analyze
-        unless doc.sharepoint_file_id.present?
+        unless doc.storage_reference.present?
           results[:skipped] += 1
           next
         end

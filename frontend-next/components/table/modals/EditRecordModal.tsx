@@ -48,6 +48,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { RecordFormField, type ColumnDefinition } from './RecordFormRenderer';
 import type { TableColumn, TableRow } from '../types';
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Alias for consistency
 type TableRowType = TableRow;
@@ -177,6 +178,9 @@ export function EditRecordModal({
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
 
+  // SSoT: localStorage key for persisting field preferences per foundation
+  const storageKey = `${STORAGE_KEYS.MODAL_FIELDS_PREFIX}${foundationId}`;
+
   // Filter columns to show in form
   const editableColumns = useMemo(() => {
     return columns.filter((col) => {
@@ -198,7 +202,30 @@ export function EditRecordModal({
       });
       setFormData(initialData);
 
-      // Initialize visible fields - show first 8 non-system columns by default
+      // Try to load saved field preferences from localStorage (SSoT: storage-utils)
+      const saved = getStorageItem<{ visible?: string[]; order?: Record<string, number> } | null>(storageKey, null);
+      if (saved) {
+        const { visible, order } = saved;
+        // Validate that saved fields still exist in current columns
+        const validVisible = new Set<string>();
+        const columnKeys = new Set(editableColumns.map(c => c.key));
+        (visible || []).forEach((key: string) => {
+          if (columnKeys.has(key)) validVisible.add(key);
+        });
+        // Only use saved if we have valid visible fields
+        if (validVisible.size > 0) {
+          setVisibleFields(validVisible);
+          // Merge saved order with current columns (new columns get high order)
+          const mergedOrder: Record<string, number> = {};
+          editableColumns.forEach((col, idx) => {
+            mergedOrder[col.key] = order?.[col.key] ?? (idx + 100);
+          });
+          setFieldOrder(mergedOrder);
+          return; // Skip default initialization
+        }
+      }
+
+      // Default: show first 8 non-system columns
       const defaultVisible = new Set<string>();
       let count = 0;
       for (const col of editableColumns) {
@@ -216,7 +243,18 @@ export function EditRecordModal({
       });
       setFieldOrder(initialOrder);
     }
-  }, [record, open, editableColumns]);
+  }, [record, open, editableColumns, storageKey]);
+
+  // Save field preferences to localStorage when they change (SSoT: storage-utils)
+  useEffect(() => {
+    if (open && visibleFields.size > 0) {
+      const data = {
+        visible: Array.from(visibleFields),
+        order: fieldOrder,
+      };
+      setStorageItem(storageKey, data);
+    }
+  }, [visibleFields, fieldOrder, storageKey, open]);
 
   // DnD sensors
   const sensors = useSensors(
@@ -318,15 +356,21 @@ export function EditRecordModal({
   };
 
   // Convert TableColumn to ColumnDefinition for RecordFormField
-  const toColumnDefinition = useCallback((col: TableColumn): ColumnDefinition => ({
+  const toColumnDefinition = useCallback((col: TableColumn): ColumnDefinition => {
+    // SSoT: column_type should always be set - log error if missing (skip system columns)
+    const systemColumns = ['id', 'created_at', 'updated_at'];
+    if (!col.column_type && !systemColumns.includes(col.key)) {
+      console.error(`[SSoT] Column "${col.key}" missing column_type - defaulting to single_line_text`);
+    }
+    return {
     column_name: col.key,
     name: col.label,
-    column_type: col.column_type || 'string',
+    column_type: col.column_type || 'single_line_text',
     lookup_foundation_id: col.lookup_foundation_id,
     choices: col.choices,
     required: (col as { required?: boolean }).required,
     system: col.system,
-  }), []);
+  };}, []);
 
   if (!record) return null;
 

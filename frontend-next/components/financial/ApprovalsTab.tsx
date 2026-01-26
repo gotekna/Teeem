@@ -50,6 +50,7 @@ import {
   Edit,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDateTime } from "@/utils/formatters";
 
 interface ApprovalStep {
   id: number;
@@ -98,24 +99,6 @@ interface ApprovalHistory {
   approved_by: string;
   approved_at: string;
   notes: string | null;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default function ApprovalsTab() {
@@ -205,7 +188,7 @@ export default function ApprovalsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{pendingCount}</div>
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{pendingCount}</div>
             <p className="text-xs text-muted-foreground mt-1">awaiting your review</p>
           </CardContent>
         </Card>
@@ -231,7 +214,7 @@ export default function ApprovalsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{activeWorkflows}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{activeWorkflows}</div>
             <p className="text-xs text-muted-foreground mt-1">of {workflows.length} total</p>
           </CardContent>
         </Card>
@@ -280,7 +263,7 @@ export default function ApprovalsTab() {
             <CardContent>
               {pendingApprovals.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
-                  <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500" />
+                  <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-50 text-green-500 dark:text-green-400" />
                   <p className="text-lg font-medium">All caught up!</p>
                   <p className="text-sm mt-1">No pending approvals</p>
                 </div>
@@ -311,7 +294,7 @@ export default function ApprovalsTab() {
                         <TableCell>
                           <div>{approval.requested_by}</div>
                           <div className="text-xs text-muted-foreground">
-                            {formatDate(approval.requested_at)}
+                            {formatDateTime(approval.requested_at)}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -390,7 +373,7 @@ export default function ApprovalsTab() {
                         <TableCell className="text-right">{formatCurrency(item.amount)}</TableCell>
                         <TableCell>
                           {item.status === "approved" ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                               <CheckCircle className="h-3 w-3 mr-1" />
                               Approved
                             </Badge>
@@ -402,7 +385,7 @@ export default function ApprovalsTab() {
                           )}
                         </TableCell>
                         <TableCell>{item.approved_by}</TableCell>
-                        <TableCell>{formatDate(item.approved_at)}</TableCell>
+                        <TableCell>{formatDateTime(item.approved_at)}</TableCell>
                         <TableCell className="text-muted-foreground max-w-xs truncate">
                           {item.notes || "-"}
                         </TableCell>
@@ -460,7 +443,7 @@ export default function ApprovalsTab() {
                         </TableCell>
                         <TableCell>
                           {workflow.is_active ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                               Active
                             </Badge>
                           ) : (

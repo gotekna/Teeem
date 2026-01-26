@@ -35,6 +35,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Reconciliation {
   id: number;
@@ -75,22 +76,6 @@ interface ReconciliationRule {
   times_used: number;
   last_used_at: string | null;
   active: boolean;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function ReconciliationsTab() {
@@ -149,21 +134,21 @@ export default function ReconciliationsTab() {
   const getStatusBadge = (recon: Reconciliation) => {
     if (recon.reconciled && recon.status === "completed") {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           <Lock className="h-3 w-3 mr-1" />
           Completed
         </Badge>
       );
     } else if (recon.difference === 0) {
       return (
-        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
           <CheckCircle className="h-3 w-3 mr-1" />
           Balanced
         </Badge>
       );
     } else if (recon.status === "in_progress") {
       return (
-        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+        <Badge variant="outline" className="bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400">
           <Clock className="h-3 w-3 mr-1" />
           In Progress
         </Badge>
@@ -208,7 +193,7 @@ export default function ReconciliationsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{inProgressCount}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{inProgressCount}</div>
             <p className="text-xs text-muted-foreground mt-1">need attention</p>
           </CardContent>
         </Card>
@@ -220,7 +205,7 @@ export default function ReconciliationsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{balancedCount}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{balancedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">balanced & ready</p>
           </CardContent>
         </Card>
@@ -232,7 +217,7 @@ export default function ReconciliationsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{completedCount}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{completedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">locked & finalized</p>
           </CardContent>
         </Card>
@@ -309,7 +294,7 @@ export default function ReconciliationsTab() {
                       <TableCell className="text-right">
                         {formatCurrency(recon.gl_closing_balance)}
                       </TableCell>
-                      <TableCell className={`text-right font-medium ${recon.difference === 0 ? "text-green-600" : "text-red-600"}`}>
+                      <TableCell className={`text-right font-medium ${recon.difference === 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                         {formatCurrency(recon.difference)}
                       </TableCell>
                       <TableCell>
@@ -398,7 +383,7 @@ export default function ReconciliationsTab() {
                     <TableCell className="text-right">{rule.times_used}</TableCell>
                     <TableCell className="text-center">
                       {rule.active ? (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</Badge>
+                        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Active</Badge>
                       ) : (
                         <Badge variant="secondary">Inactive</Badge>
                       )}

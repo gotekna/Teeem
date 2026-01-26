@@ -14,6 +14,9 @@ import {
 } from "@heroicons/react/24/outline";
 import RequestPaymentModal from "@/components/portal/RequestPaymentModal";
 import PayNowRequestDetailModal from "@/components/portal/PayNowRequestDetailModal";
+import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface PayNowRequest {
   id: number;
@@ -68,6 +71,7 @@ interface Tab {
 }
 
 export default function PortalPayNow() {
+  const { toast } = useToast();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -111,7 +115,7 @@ export default function PortalPayNow() {
 
   const loadRequests = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.get("/api/v1/portal/pay_now_requests");
@@ -144,7 +148,7 @@ export default function PortalPayNow() {
     }
 
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.delete(
@@ -152,12 +156,12 @@ export default function PortalPayNow() {
       );
 
       if (response?.data.success) {
-        alert("Payment request cancelled successfully");
+        toast({ title: "Success", description: "Payment request cancelled successfully" });
         loadRequests();
       }
     } catch (error) {
       console.error("Failed to cancel request:", error);
-      alert("Failed to cancel request. Please try again.");
+      toast({ title: "Error", description: "Failed to cancel request. Please try again.", variant: "destructive" });
     }
   };
 
@@ -226,7 +230,7 @@ export default function PortalPayNow() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <Spinner className="h-12 w-12" />
       </div>
     );
   }

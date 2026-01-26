@@ -17,10 +17,15 @@
 #     provider_type: "backblaze_b2",
 #     endpoint: "https://s3.us-west-004.backblazeb2.com",
 #     region: "us-west-004",
-#     bucket: "teeem-documents",
+#     bucket: "teeem-tekna",  # For connection testing only
 #     access_key_id: "...",
 #     secret_access_key: "..."
 #   )
+#
+# SSoT (Jan 2026): This model stores AUTH credentials only.
+# The BUCKET to use is determined by StorageConfiguration.connection_config['bucket']
+# The credential.bucket is used ONLY for test_connection! validation.
+# DocumentProviders should NEVER read bucket from credential.
 #
 class S3CompatibleCredential < ApplicationRecord
   # Associations
@@ -129,12 +134,27 @@ class S3CompatibleCredential < ApplicationRecord
     end
   end
 
+  # Alias for provider_display_name (used by backup controller)
+  alias_method :provider_name, :provider_display_name
+
+  # Check if connection is active and verified
+  def connected?
+    status == "connected" && is_active?
+  end
+
+  # DEPRECATED: root_path now lives in StorageConfiguration (SSoT)
+  # This method is kept for backward compatibility but will be removed
+  def root_path
+    Rails.logger.warn "[DEPRECATED] S3CompatibleCredential#root_path is deprecated. Use StorageConfiguration.instance.root_path instead."
+    StorageConfiguration.instance&.root_path || read_attribute(:root_path) || ""
+  end
+
   private
 
   def set_defaults
     self.status ||= "pending"
     self.metadata ||= {}
-    self.root_path ||= ""
+    # NOTE: root_path column removed - now lives in StorageConfiguration (SSoT)
 
     # Auto-detect region from endpoint for Backblaze B2
     if provider_type == "backblaze_b2" && endpoint.present? && region.blank?

@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useCallback, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Import system-related tab components from admin
@@ -12,6 +14,8 @@ import { XeroHealthTab } from "@/app/(app)/admin/system/components/XeroHealthTab
 import { EmailAccountsTab } from "@/app/(app)/admin/system/components/EmailAccountsTab";
 import { UserManualTab } from "@/app/(app)/admin/system/components/UserManualTab";
 import { InspiringQuotesTab } from "@/app/(app)/admin/system/components/InspiringQuotesTab";
+import { BackupSettingsTab } from "@/app/(app)/admin/system/components/BackupSettingsTab";
+import { ConfigSyncTab } from "@/app/(app)/admin/system/components/ConfigSyncTab";
 
 /**
  * System Settings Page - Organization Settings
@@ -19,6 +23,8 @@ import { InspiringQuotesTab } from "@/app/(app)/admin/system/components/Inspirin
  * SSoT: This is THE ONE location for system-level configuration.
  * Part of the Settings/Admin merge - Organization section.
  * Admin role required (enforced by layout).
+ *
+ * URL is SSoT for tab state: /settings/system/[tab]
  */
 
 const SYSTEM_TABS = [
@@ -27,25 +33,37 @@ const SYSTEM_TABS = [
   { id: "scheduled-jobs", label: "Scheduled Jobs" },
   { id: "email-accounts", label: "Email Accounts" },
   { id: "ai-processing", label: "AI Processing" },
+  { id: "backups", label: "Backups" },
+  { id: "config-sync", label: "Config Sync" },
   { id: "health", label: "System Health" },
   { id: "user-manual", label: "User Manual" },
   { id: "inspiring-quotes", label: "Inspiring Quotes" },
 ];
 
+const DEFAULT_TAB = "navigation";
+
 export default function SystemSettingsPage() {
-  const [activeTab, setActiveTab] = React.useState("navigation");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // URL is SSoT for tab state (path-based navigation)
+  // Default to DEFAULT_TAB if no tab specified - no redirect needed
+  // This allows breadcrumb navigation to /settings/system to work
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/settings/system", "").split("/").filter(Boolean);
+    const tab = parts[0] || DEFAULT_TAB;
+    // Validate tab exists
+    return SYSTEM_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+  }, [pathname]);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    router.push(`/settings/system/${tabId}`, { scroll: false });
+  }, [router]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">System Configuration</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Configure navigation, AI agents, scheduled jobs, and system health monitoring
-        </p>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList className="flex-wrap h-auto gap-1">
           {SYSTEM_TABS.map((tab) => (
             <TabsTrigger
               key={tab.id}
@@ -72,6 +90,12 @@ export default function SystemSettingsPage() {
           </TabsContent>
           <TabsContent value="ai-processing">
             <AiProcessingTab />
+          </TabsContent>
+          <TabsContent value="backups">
+            <BackupSettingsTab />
+          </TabsContent>
+          <TabsContent value="config-sync">
+            <ConfigSyncTab />
           </TabsContent>
           <TabsContent value="health">
             <XeroHealthTab />

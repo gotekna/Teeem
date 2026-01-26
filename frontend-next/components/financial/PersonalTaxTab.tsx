@@ -38,6 +38,7 @@ import {
   Building2,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface TaxSummary {
   financial_year: string;
@@ -77,23 +78,6 @@ interface TaxData {
   income_items: Record<string, { label: string; amount: number; transactions?: number }>;
   deduction_items: Record<string, { label: string; amount: number; category: string }>;
   due_dates: DueDate[];
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function PersonalTaxTab() {
@@ -228,7 +212,7 @@ export default function PersonalTaxTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatCurrency(summary.total_deductions || 0)}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(summary.total_deductions || 0)}</div>
             </CardContent>
           </Card>
 
@@ -252,7 +236,7 @@ export default function PersonalTaxTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{formatCurrency(summary.total_tax || 0)}</div>
+              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{formatCurrency(summary.total_tax || 0)}</div>
             </CardContent>
           </Card>
 
@@ -300,7 +284,7 @@ export default function PersonalTaxTab() {
                   </div>
                   <div className="flex justify-between py-2 border-b">
                     <span>Less: Total Deductions</span>
-                    <span className="font-medium text-green-600">-{formatCurrency(summary.total_deductions || 0)}</span>
+                    <span className="font-medium text-green-600 dark:text-green-400">-{formatCurrency(summary.total_deductions || 0)}</span>
                   </div>
                   <div className="flex justify-between py-2 border-b font-medium">
                     <span>Taxable Income</span>
@@ -316,7 +300,7 @@ export default function PersonalTaxTab() {
                   </div>
                   <div className="flex justify-between py-2 text-lg font-bold">
                     <span>Total Tax Payable</span>
-                    <span className="text-orange-600">{formatCurrency(summary.total_tax || 0)}</span>
+                    <span className="text-orange-600 dark:text-orange-400">{formatCurrency(summary.total_tax || 0)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -432,14 +416,14 @@ export default function PersonalTaxTab() {
                         <TableCell>
                           <Badge variant="outline">{item.category}</Badge>
                         </TableCell>
-                        <TableCell className="text-right font-medium text-green-600">
+                        <TableCell className="text-right font-medium text-green-600 dark:text-green-400">
                           {formatCurrency(item.amount)}
                         </TableCell>
                       </TableRow>
                     ))}
                     <TableRow className="font-bold">
                       <TableCell colSpan={2}>Total Deductions</TableCell>
-                      <TableCell className="text-right text-green-600">
+                      <TableCell className="text-right text-green-600 dark:text-green-400">
                         {formatCurrency(deductionItems.reduce((sum, i) => sum + i.amount, 0))}
                       </TableCell>
                     </TableRow>
@@ -468,11 +452,11 @@ export default function PersonalTaxTab() {
               <CardContent>
                 <div className="space-y-4">
                   <div className="p-4 rounded-lg bg-muted">
-                    <div className="font-medium mb-2">Cents per km method</div>
+                    <div className="text-sm font-medium mb-2">Cents per km method</div>
                     <p className="text-sm text-muted-foreground">85 cents per km, max 5,000km = $4,250</p>
                   </div>
                   <div className="p-4 rounded-lg bg-muted">
-                    <div className="font-medium mb-2">Logbook method</div>
+                    <div className="text-sm font-medium mb-2">Logbook method</div>
                     <p className="text-sm text-muted-foreground">Actual expenses x business use %</p>
                   </div>
                   <Button variant="outline" className="w-full">
@@ -493,11 +477,11 @@ export default function PersonalTaxTab() {
               <CardContent>
                 <div className="space-y-4">
                   <div className="p-4 rounded-lg bg-muted">
-                    <div className="font-medium mb-2">Fixed rate method</div>
+                    <div className="text-sm font-medium mb-2">Fixed rate method</div>
                     <p className="text-sm text-muted-foreground">67 cents per hour worked from home</p>
                   </div>
                   <div className="p-4 rounded-lg bg-muted">
-                    <div className="font-medium mb-2">Actual cost method</div>
+                    <div className="text-sm font-medium mb-2">Actual cost method</div>
                     <p className="text-sm text-muted-foreground">Calculate actual running expenses</p>
                   </div>
                   <Button variant="outline" className="w-full">

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -115,6 +116,7 @@ interface HealthDashboard {
 }
 
 // Pre-defined organizations that can be connected
+// SSoT: Must match backend MicrosoftAppController#health_dashboard available_org_names
 const AVAILABLE_ORGANIZATIONS = [
   { name: "Tekna", description: "Tekna Group Microsoft 365" },
   { name: "100xBestLife", description: "100x Best Life Microsoft 365" },
@@ -128,6 +130,7 @@ const AVAILABLE_ORGANIZATIONS = [
 // which bypasses Azure AD Conditional Access issues
 // ============================================
 function SharePointDelegatedConnection() {
+  const { confirm } = useConfirm();
   const [status, setStatus] = React.useState<{
     connected: boolean;
     source?: string;
@@ -168,7 +171,7 @@ function SharePointDelegatedConnection() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("Disconnect SharePoint delegated access?")) return;
+    if (!(await confirm("Disconnect SharePoint delegated access?"))) return;
     setDisconnecting(true);
     try {
       await api.delete("/api/v1/documents/disconnect");
@@ -213,7 +216,7 @@ function SharePointDelegatedConnection() {
             </div>
           </div>
           <Badge className={status?.connected && isDelegated
-            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+            ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300"
             : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"}>
             {status?.connected && isDelegated ? (
               <>
@@ -462,7 +465,13 @@ export default function MicrosoftIntegrationPage() {
                 </CardDescription>
               </div>
             </div>
-            <Badge className={connectedCount > 0 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"}>
+            <Badge className={
+              connectedCount === AVAILABLE_ORGANIZATIONS.length
+                ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300"  // All connected = green
+                : connectedCount > 0
+                  ? "bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-300"  // Partial = yellow (needs attention)
+                  : "bg-muted text-foreground dark:bg-card dark:text-muted-foreground"  // None = grey
+            }>
               {connectedCount}/{AVAILABLE_ORGANIZATIONS.length} Connected
             </Badge>
           </div>
@@ -606,7 +615,7 @@ export default function MicrosoftIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-lg ${isThisOneConnecting ? "bg-blue-100 dark:bg-blue-900" : "bg-muted dark:bg-card"}`}>
                       {isThisOneConnecting ? (
-                        <Spinner size={20} className="text-blue-500" />
+                        <Spinner size={20} className="text-blue-500 dark:text-blue-400" />
                       ) : (
                         <Building2 className="h-5 w-5 text-muted-foreground" />
                       )}
@@ -618,7 +627,7 @@ export default function MicrosoftIntegrationPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {isThisOneConnecting ? (
-                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                      <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300">
                         <Spinner size={12} className="mr-1" />
                         Connecting...
                       </Badge>
@@ -659,6 +668,7 @@ function OrganizationCard({
   onRefresh: () => void;
   healthInfo?: OrgHealthInfo;
 }) {
+  const { confirm } = useConfirm();
   const [open, setOpen] = React.useState(org.status === "connected" || org.status === "pending");
   const [testing, setTesting] = React.useState(false);
   const [testingSharePoint, setTestingSharePoint] = React.useState(false);
@@ -765,7 +775,7 @@ function OrganizationCard({
   };
 
   const handleDisconnect = async () => {
-    if (!confirm(`Are you sure you want to disconnect ${org.name}?`)) return;
+    if (!(await confirm(`Are you sure you want to disconnect ${org.name}?`))) return;
 
     setDisconnecting(true);
     try {
@@ -828,7 +838,7 @@ function OrganizationCard({
                     const hoursUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60);
                     if (hoursUntilExpiry < 1 && hoursUntilExpiry > 0) {
                       return (
-                        <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 text-xs">
+                        <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300 text-xs">
                           Expires in {Math.round(hoursUntilExpiry * 60)}m
                         </Badge>
                       );
@@ -847,7 +857,7 @@ function OrganizationCard({
                     const minutesSinceRefresh = (now.getTime() - lastRefresh.getTime()) / (1000 * 60);
                     if (minutesSinceRefresh < 5) {
                       return (
-                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 text-xs">
+                        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300 text-xs">
                           <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                           Self-healing
                         </Badge>
@@ -857,12 +867,12 @@ function OrganizationCard({
                   })()}
                   {/* Status badge */}
                   {org.status === "connected" ? (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-300">
+                    <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100 dark:bg-green-900 dark:text-green-300">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       Active
                     </Badge>
                   ) : org.status === "pending" ? (
-                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300">
+                    <Badge className="bg-status-warning text-status-warning-foreground hover:bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Pending Consent
                     </Badge>
@@ -963,7 +973,7 @@ function OrganizationCard({
                         )}
                       </div>
                       {healthInfo.self_healing_available && (
-                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 text-xs">
+                        <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900 dark:text-green-300 text-xs">
                           <Activity className="h-3 w-3 mr-1" />
                           Auto-refresh active
                         </Badge>
@@ -1007,7 +1017,7 @@ function OrganizationCard({
 
                 {sharePointResult && (
                   <Alert variant={sharePointResult.success ? "default" : "destructive"} className={sharePointResult.success ? "bg-green-50 border-green-200 dark:bg-green-950/50 dark:border-green-800" : ""}>
-                    {sharePointResult.success ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4" />}
+                    {sharePointResult.success ? <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" /> : <AlertTriangle className="h-4 w-4" />}
                     <AlertTitle>{sharePointResult.success ? "Storage Connected" : "Storage Connection Error"}</AlertTitle>
                     <AlertDescription>
                       {sharePointResult.message}
@@ -1024,7 +1034,7 @@ function OrganizationCard({
 
                 {syncResult && (
                   <Alert variant={syncResult.success ? "default" : "destructive"} className={syncResult.success ? "bg-green-50 border-green-200 dark:bg-green-950/50 dark:border-green-800" : ""}>
-                    {syncResult.success ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4" />}
+                    {syncResult.success ? <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" /> : <AlertTriangle className="h-4 w-4" />}
                     <AlertTitle>{syncResult.success ? "Sync Started" : "Sync Error"}</AlertTitle>
                     <AlertDescription>{syncResult.message}</AlertDescription>
                   </Alert>

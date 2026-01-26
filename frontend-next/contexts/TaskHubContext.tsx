@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuth } from './AuthContext';
 import { TASK_STATUS, type CoreTaskStatus } from '@/lib/constants/task-status';
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 // Types
 // Task attachment types
@@ -14,13 +15,17 @@ export interface TaskAttachmentEmail {
   from_email: string;
   from_name?: string;
   to_emails?: string[];
+  cc_emails?: string[];
   received_at: string;
   has_attachments: boolean;
   document_attachments_count?: number; // Count of real documents (excludes signature images)
   conversation_id?: string;
   thread_count?: number;
   body_preview?: string;
+  body_text?: string; // Full plain text body
+  body_html?: string; // Full HTML body (preserves formatting)
   attachment_content_hashes?: string[]; // Content hashes of email file attachments for linking to documents
+  download_eml_url?: string; // SSoT: API endpoint to download email as .eml file
 }
 
 export interface TaskAttachmentDocument {
@@ -28,9 +33,9 @@ export interface TaskAttachmentDocument {
   file_name: string;
   display_name: string;
   document_type?: string;
-  sharepoint_file_id?: string; // SharePoint file ID for creating share links
-  sharepoint_download_url?: string; // Direct download URL for SharePoint files
-  file_url?: string; // For ActiveStorage files (when not on SharePoint)
+  storage_url?: string; // SSoT: Provider-agnostic download URL from StorableDocument
+  file_url?: string; // For ActiveStorage files (when not in external storage)
+  has_storage?: boolean; // SSoT: Can create share links (storage_blob, storage_path, or storage_reference)
   created_at: string;
   content_hash?: string; // For matching with email attachment hashes
 }
@@ -42,11 +47,13 @@ export interface TaskAttachment {
   attachment_type: string;
   category?: AttachmentCategory;
   notes?: string;
+  display_name?: string; // Custom display name (overrides document/email name)
   added_by?: string;
   created_at: string;
   email?: TaskAttachmentEmail;
   document?: TaskAttachmentDocument;
   sharepoint_url?: string; // For response files uploaded to SharePoint
+  action_item_id?: number; // Links attachment to a specific question as response
 }
 
 export type ActionItemType = 'action' | 'question' | 'header';
@@ -77,6 +84,16 @@ export interface TaskActionItem {
     status: string;
     assigned_user_id?: number;
     assigned_user_name?: string;
+    // Counts for delete confirmation dialog
+    action_items_count?: number;
+    attachments_count?: number;
+    children?: Array<{
+      id: number;
+      name: string;
+      status: string;
+      assigned_user_id?: number;
+      assigned_user_name?: string;
+    }>;
   };
   // Response attachments linked to this question
   attachments?: TaskAttachment[];
@@ -105,6 +122,7 @@ export interface SmTask {
 
   // Job relationship
   construction_id: number;
+  job_id?: number; // API write field (backend permits job_id, not construction_id)
   job_name?: string;
 
   // Assignment
@@ -178,6 +196,24 @@ export interface SmTask {
   source_action_item_id?: number;
   parent_task_id?: number;
   parent_task_name?: string;
+
+  // Board priority for Task Hub BoardView drag-and-drop ordering
+  // Format: { "status": priority } where priority is a number
+  // Empty {} or missing key = use date ordering (default)
+  board_priority?: Record<string, number>;
+
+  // Children (subtasks) for expandable SubtaskList display
+  children?: Array<{
+    id: number;
+    name: string;
+    status: CoreTaskStatus;
+    assigned_user_id?: number;
+    assigned_user_name?: string;
+  }>;
+
+  // Case relationship - task can be linked to a case for investigation
+  case_id?: number;
+  case_number?: string;
 }
 
 export interface TaskFilters {
@@ -237,6 +273,9 @@ export interface TaskHubContextType extends TaskHubState {
   bulkUpdateStatus: (taskIds: number[], status: SmTask['status']) => Promise<void>;
   bulkAssign: (taskIds: number[], userId: number) => Promise<void>;
 
+  // Board priority (for BoardView drag-and-drop ordering)
+  reorderBoardTask: (taskId: number, status: string, priority: number | null) => Promise<void>;
+
   // View & filter actions
   setActiveView: (view: ViewType) => void;
   setFilters: (filters: Partial<TaskFilters>) => void;
@@ -270,7 +309,9 @@ export interface TaskHubContextType extends TaskHubState {
   answerActionItem: (taskId: number, itemId: number, response: string) => Promise<TaskActionItem>;
   updateActionItem: (taskId: number, itemId: number, text: string) => Promise<TaskActionItem>;
   removeActionItem: (taskId: number, itemId: number) => Promise<void>;
-  delegateActionItem: (taskId: number, itemId: number, userId: number) => Promise<TaskActionItem>;
+  delegateActionItem: (taskId: number, itemId: number, userId: number, options?: { instructions?: string; dueDate?: string }) => Promise<TaskActionItem>;
+  undelegateActionItem: (taskId: number, itemId: number, deleteTask?: boolean) => Promise<TaskActionItem>;
+  moveDelegatedTask: (taskId: number, sourceItemId: number, targetItemId: number) => Promise<void>;
   toggleIncludeInResponse: (taskId: number, itemId: number) => Promise<void>;
   reorderActionItems: (taskId: number, items: Array<{ id: number; position: number; parent_item_id: number | null }>) => Promise<void>;
 
@@ -665,35 +706,51 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
   const { user } = useAuth();
   const searchParams = useSearchParams();
 
-  const [tasks, setTasks] = useState<SmTask[]>([]);
-  const [activeView, setActiveViewState] = useState<ViewType>(() => {
-    // Load saved view from localStorage
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('taskHub_activeView') as ViewType;
-      if (saved && ['board', 'list', 'gantt'].includes(saved)) {
-        return saved;
-      }
+  // Get default task view from user's primary role settings (Jan 2026)
+  // SSoT: default_task_view comes from the backend via /api/v1/auth/me
+  const roleDefaultTaskView = useMemo(() => {
+    const userWithSettings = user as { default_task_view?: 'list' | 'board' | 'gantt' } | null;
+    const defaultView = userWithSettings?.default_task_view;
+    // Validate the view type
+    if (defaultView && ['board', 'list', 'gantt'].includes(defaultView)) {
+      return defaultView as ViewType;
     }
-    return 'list';
+    return 'board'; // Fallback default
+  }, [user]);
+
+  const [tasks, setTasks] = useState<SmTask[]>([]);
+  const [viewInitialized, setViewInitialized] = useState(false);
+  const [activeView, setActiveViewState] = useState<ViewType>(() => {
+    // Load saved view from localStorage (will be overridden if no saved preference)
+    const saved = getStorageItem<ViewType | null>(STORAGE_KEYS.TASK_HUB_VIEW, null);
+    if (saved && ['board', 'list', 'gantt'].includes(saved)) {
+      return saved;
+    }
+    // No saved preference - will be set by useEffect based on user role settings
+    return 'list'; // Temporary default
   });
 
-  const [filters, setFiltersState] = useState<TaskFilters>(() => {
-    // Load saved filters from localStorage
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('taskHub_filters');
-      if (saved) {
-        try {
-          const parsedFilters = { ...defaultFilters, ...JSON.parse(saved) };
-          return parsedFilters;
-        } catch {
-          // Ignore invalid JSON
-        }
-      }
+  // Set default view based on user's primary role settings (only if no saved preference)
+  // SSoT: Uses default_task_view from the API (Jan 2026) instead of hardcoded role check
+  useEffect(() => {
+    if (viewInitialized || !user) return;
+
+    const saved = getStorageItem<ViewType | null>(STORAGE_KEYS.TASK_HUB_VIEW, null);
+    if (!saved) {
+      // No saved preference - use role-based default from backend
+      setActiveViewState(roleDefaultTaskView);
     }
+    setViewInitialized(true);
+  }, [user, roleDefaultTaskView, viewInitialized]);
+
+  const [filters, setFiltersState] = useState<TaskFilters>(() => {
+    // Load saved filters from localStorage (except showMyTasksOnly which always defaults to true)
+    const saved = getStorageItem<Partial<TaskFilters>>(STORAGE_KEYS.TASK_HUB_FILTERS, {});
+    const parsedFilters = { ...defaultFilters, ...saved };
     return {
-      ...defaultFilters,
-      showMyTasksOnly: true, // Default to "Mine"
-      jobIds: initialJobId ? [initialJobId] : [],
+      ...parsedFilters,
+      showMyTasksOnly: true, // Always default to "Mine" on page load
+      jobIds: initialJobId ? [initialJobId] : parsedFilters.jobIds || [],
     };
   });
 
@@ -807,15 +864,11 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
   // Save preferences to localStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('taskHub_activeView', activeView);
-    }
+    setStorageItem(STORAGE_KEYS.TASK_HUB_VIEW, activeView);
   }, [activeView]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('taskHub_filters', JSON.stringify(filters));
-    }
+    setStorageItem(STORAGE_KEYS.TASK_HUB_FILTERS, filters);
   }, [filters]);
 
   // Computed: filtered tasks
@@ -938,7 +991,11 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
 
     try {
-      await api.patch(`/api/v1/sm_tasks/${taskId}`, { sm_task: updates });
+      const response = await api.patch<{ success: boolean; sm_task: SmTask }>(`/api/v1/sm_tasks/${taskId}`, { sm_task: updates });
+      // Update with full task data from server (includes computed fields like job_name)
+      if (response?.success && response?.sm_task) {
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...response.sm_task } : t));
+      }
     } catch (err) {
       // Rollback on failure
       console.error('Failed to update task:', err);
@@ -998,6 +1055,54 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       setSelectedTaskIds(new Set());
     } catch (err) {
       console.error('Failed to bulk assign:', err);
+      setTasks(originalTasks);
+      throw err;
+    }
+  }, [tasks]);
+
+  // Board priority for BoardView drag-and-drop ordering
+  const reorderBoardTask = useCallback(async (
+    taskId: number,
+    status: string,
+    priority: number | null
+  ) => {
+    console.log('[TaskHubContext] reorderBoardTask called:', { taskId, status, priority });
+
+    // Find the current task to get existing board_priority
+    const currentTask = tasks.find(t => t.id === taskId);
+    if (!currentTask) {
+      console.log('[TaskHubContext] Task not found:', taskId);
+      return;
+    }
+
+    // Build new board_priority object
+    const currentPriority = currentTask.board_priority || {};
+    const newPriority: Record<string, number> = { ...currentPriority };
+
+    if (priority === null) {
+      // Remove priority for this status (return to date ordering)
+      delete newPriority[status];
+    } else {
+      // Set priority for this status
+      newPriority[status] = priority;
+    }
+
+    console.log('[TaskHubContext] Updating board_priority:', { taskId, newPriority });
+
+    // Optimistic update
+    const originalTasks = [...tasks];
+    setTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, board_priority: newPriority } : t
+    ));
+
+    try {
+      console.log('[TaskHubContext] Making API call...');
+      await api.patch(`/api/v1/sm_tasks/${taskId}`, {
+        sm_task: { board_priority: newPriority }
+      });
+      console.log('[TaskHubContext] API call successful');
+    } catch (err) {
+      console.error('[TaskHubContext] Failed to reorder board task:', err);
       setTasks(originalTasks);
       throw err;
     }
@@ -1132,10 +1237,19 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     ));
   }, []);
 
-  const delegateActionItem = useCallback(async (taskId: number, itemId: number, userId: number): Promise<TaskActionItem> => {
+  const delegateActionItem = useCallback(async (
+    taskId: number,
+    itemId: number,
+    userId: number,
+    options?: { instructions?: string; dueDate?: string }
+  ): Promise<TaskActionItem> => {
     const response = await api.post<{ action_item: TaskActionItem; delegated_task: SmTask; success: boolean }>(
       `/api/v1/sm_tasks/${taskId}/action_items/${itemId}/delegate`,
-      { user_id: userId }
+      {
+        user_id: userId,
+        instructions: options?.instructions,
+        due_date: options?.dueDate,
+      }
     );
     if (response?.success && response?.action_item) {
       setTasks(prev => prev.map(t =>
@@ -1151,6 +1265,50 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       return response.action_item;
     }
     throw new Error('Failed to delegate question');
+  }, []);
+
+  const undelegateActionItem = useCallback(async (taskId: number, itemId: number, deleteTask: boolean = false): Promise<TaskActionItem> => {
+    const response = await api.post<{ action_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${itemId}/undelegate`,
+      { delete_task: deleteTask }
+    );
+    if (response?.success && response?.action_item) {
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item =>
+                item.id === itemId ? response.action_item : item
+              )
+            }
+          : t
+      ));
+      return response.action_item;
+    }
+    throw new Error('Failed to unlink task');
+  }, []);
+
+  const moveDelegatedTask = useCallback(async (taskId: number, sourceItemId: number, targetItemId: number): Promise<void> => {
+    const response = await api.post<{ source_item: TaskActionItem; target_item: TaskActionItem; success: boolean }>(
+      `/api/v1/sm_tasks/${taskId}/action_items/${sourceItemId}/move_delegated_task`,
+      { target_item_id: targetItemId }
+    );
+    if (response?.success && response?.source_item && response?.target_item) {
+      setTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              action_items: (t.action_items || []).map(item => {
+                if (item.id === sourceItemId) return response.source_item;
+                if (item.id === targetItemId) return response.target_item;
+                return item;
+              })
+            }
+          : t
+      ));
+      return;
+    }
+    throw new Error('Failed to move delegated task');
   }, []);
 
   const toggleIncludeInResponse = useCallback(async (taskId: number, itemId: number) => {
@@ -1334,6 +1492,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       const response = await api.post<{
         success: boolean;
         cascade_completed_tasks?: SmTask[];
+        already_completed?: boolean;
       }>(`/api/v1/sm_tasks/${taskId}/complete`, {
         also_complete_task_ids: alsoCompleteTaskIds || [],
         delegation_response: delegationResponse,
@@ -1341,6 +1500,11 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
       if (!response?.success) {
         throw new Error('Failed to complete task');
+      }
+
+      // Idempotent: if already completed, state is already correct
+      if (response.already_completed) {
+        return { cascadeCompletedTasks: [] };
       }
 
       // Update local state with completion
@@ -1419,6 +1583,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     deleteTask,
     bulkUpdateStatus,
     bulkAssign,
+    reorderBoardTask,
     setActiveView,
     setFilters,
     clearFilters,
@@ -1445,6 +1610,8 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     updateActionItem,
     removeActionItem,
     delegateActionItem,
+    undelegateActionItem,
+    moveDelegatedTask,
     toggleIncludeInResponse,
     reorderActionItems,
     // Privacy

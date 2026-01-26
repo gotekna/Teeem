@@ -7,7 +7,7 @@ module Api
       # List proposals with filtering
       def index
         proposals = EmailJobProposal
-          .includes(:email_warehouse, :created_by_user, :approved_by_user, :job)
+          .includes(:synced_email, :created_by_user, :approved_by_user, :job)
 
         # Filter by status (default: pending)
         status = params[:status] || "pending"
@@ -49,7 +49,7 @@ module Api
       # POST /api/v1/email_job_proposals
       # Create new proposal from email
       def create
-        email = EmailWarehouse.find(params[:email_warehouse_id])
+        email = SyncedEmail.find(params[:synced_email_id])
 
         # Check if email has already been actioned (rejected or assigned to job)
         if email.match_type == "rejected"
@@ -68,7 +68,7 @@ module Api
 
         # Check if proposal already exists for this email
         existing_proposal = EmailJobProposal.find_by(
-          email_warehouse: email,
+          synced_email: email,
           status: [ "pending", "approved" ]
         )
 
@@ -82,7 +82,8 @@ module Api
 
         # Sync PDF attachments if not already synced
         # SSoT: Per-user Outlook credentials removed - uses org credentials
-        if email.has_attachments && !email.files.attached?
+        # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
+        if email.has_attachments && email.email_attachments.empty?
           begin
             email.sync_attachments!
           rescue StandardError => e
@@ -130,7 +131,7 @@ module Api
         user_edits = raw_edits.respond_to?(:to_unsafe_h) ? raw_edits.to_unsafe_h : raw_edits
 
         # Create job using service
-        service = EmailToJobService.new(@proposal.email_warehouse, user: current_user)
+        service = EmailToJobService.new(@proposal.synced_email, user: current_user)
         job = service.approve_proposal(@proposal, user_edits: user_edits)
 
         render json: {
@@ -196,7 +197,8 @@ module Api
 
         # Sync PDF attachments if not already synced
         # SSoT: Per-user Outlook credentials removed - uses org credentials
-        if email.has_attachments && !email.files.attached?
+        # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
+        if email.has_attachments && email.email_attachments.empty?
           begin
             email.sync_attachments!
             Rails.logger.info "Synced attachments for email #{email.id} during re-extraction"
@@ -266,15 +268,16 @@ module Api
           error_message: proposal.error_message,
 
           # Email summary (may be nil if email was deleted)
-          email: proposal.email_warehouse ? {
-            id: proposal.email_warehouse.id,
-            subject: proposal.email_warehouse.subject,
-            from_email: proposal.email_warehouse.from_email,
-            from_name: proposal.email_warehouse.from_name,
-            received_at: proposal.email_warehouse.received_at,
-            has_attachments: proposal.email_warehouse.has_attachments,
-            attachment_count: proposal.email_warehouse.attachment_count,
-            pdf_count: proposal.email_warehouse.files.count
+          email: proposal.synced_email ? {
+            id: proposal.synced_email.id,
+            subject: proposal.synced_email.subject,
+            from_email: proposal.synced_email.from_email,
+            from_name: proposal.synced_email.from_name,
+            received_at: proposal.synced_email.received_at,
+            has_attachments: proposal.synced_email.has_attachments,
+            attachment_count: proposal.synced_email.attachment_count,
+            # Note: content_type is on storage_blobs table, not email_attachments (Jan 2026 refactor)
+            pdf_count: proposal.synced_email.email_attachments.joins(:storage_blob).where(storage_blobs: { content_type: "application/pdf" }).count
           } : nil,
 
           # User info (may be nil for system-created proposals)
@@ -299,9 +302,9 @@ module Api
 
         # Include full email body if requested
         if include_full_email
-          data[:email][:body_text] = proposal.email_warehouse.body_text
-          data[:email][:body_html] = proposal.email_warehouse.body_html
-          data[:email][:preview_body] = proposal.email_warehouse.preview_body(length: 500)
+          data[:email][:body_text] = proposal.synced_email.body_text
+          data[:email][:body_html] = proposal.synced_email.body_html
+          data[:email][:preview_body] = proposal.synced_email.preview_body(length: 500)
         end
 
         data

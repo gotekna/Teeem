@@ -20,6 +20,8 @@ import {
   Check,
   CornerDownRight,
   ExternalLink,
+  Lock,
+  LockOpen,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -27,6 +29,8 @@ import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { useAtom, useSetAtom } from "jotai";
+import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
 
 // Foundation table name for Purchase Orders
 const PURCHASE_ORDERS_TABLE_NAME = "purchase-orders";
@@ -95,6 +99,11 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const router = useRouter();
   const { user: currentUser } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Selection state from Jotai atoms (shared with TeeemTableView)
+  const [selectedRowIds] = useAtom(selectedRowsAtom);
+  const clearSelection = useSetAtom(clearSelectionAtom);
+  const [lockingBudgets, setLockingBudgets] = useState(false);
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -314,6 +323,56 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
+  // Handle toggle budget lock for selected POs
+  // Backend intelligently locks unlocked POs or unlocks locked POs
+  const handleToggleBudgetLock = async () => {
+    if (selectedRowIds.size === 0 || lockingBudgets) return;
+
+    try {
+      setLockingBudgets(true);
+      setError(null);
+      const ids = Array.from(selectedRowIds);
+
+      const response = await api.post<{ success: boolean; message?: string; error?: string; count?: number; action?: string }>(
+        "/api/v1/purchase_orders/toggle_budget_lock",
+        { ids }
+      );
+
+      if (response?.success) {
+        console.log(`Budget ${response.action}: ${response.count} POs`);
+        setRefreshKey((k) => k + 1);
+        clearSelection();
+      } else {
+        setError(response?.error || "Failed to toggle budget lock");
+      }
+    } catch (err) {
+      console.error("Failed to toggle budget lock:", err);
+      setError("Failed to toggle budget lock");
+    } finally {
+      setLockingBudgets(false);
+    }
+  };
+
+  // Custom cell renderer - shows lock icon next to PO number
+  const customCellRenderer = useCallback((entry: TableRow, columnKey: string) => {
+    // Attach lock icon to PO number column so it's always visible
+    if (columnKey === "purchase_order_number") {
+      const isLocked = !!entry.budget_locked_at || entry.budget_locked === true;
+      const poNumber = entry.purchase_order_number as string || "";
+
+      return (
+        <span className="flex items-center gap-1.5">
+          {isLocked ? (
+            <Lock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          ) : (
+            <LockOpen className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />
+          )}
+          <span>{poNumber}</span>
+        </span>
+      );
+    }
+    return null; // Use default renderer for other columns
+  }, []);
 
   return (
     <div className="flex flex-col h-full -mx-4">
@@ -332,6 +391,23 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         onRowDoubleClick={handleRowClick}
         onRowUpdate={handleRowUpdate}
         onAddRow={handleOpenCreateModal}
+        customCellRenderer={customCellRenderer}
+        leftActions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToggleBudgetLock}
+            disabled={selectedRowIds.size === 0 || lockingBudgets}
+            className="gap-1"
+          >
+            {lockingBudgets ? (
+              <Spinner size={14} />
+            ) : (
+              <Lock className="h-4 w-4" />
+            )}
+            Lock/Unlock {selectedRowIds.size > 0 && `(${selectedRowIds.size})`}
+          </Button>
+        }
       />
 
       {/* Create PO Modal */}

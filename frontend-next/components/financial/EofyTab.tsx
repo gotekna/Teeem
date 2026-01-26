@@ -40,6 +40,7 @@ import {
   Download,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface ChecklistItem {
   key: string;
@@ -98,23 +99,6 @@ interface DashboardData {
     critical_remaining: number;
   };
   due_dates: Array<{ label: string; date: string; is_past: boolean }>;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function EofyTab() {
@@ -198,7 +182,7 @@ export default function EofyTab() {
   const getStatusBadge = (status: string, isClosed: boolean) => {
     if (isClosed) {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           <Lock className="h-3 w-3 mr-1" />
           Closed
         </Badge>
@@ -210,14 +194,14 @@ export default function EofyTab() {
         return <Badge variant="secondary">Not Started</Badge>;
       case "in_progress":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
             <AlertCircle className="h-3 w-3 mr-1" />
             In Progress
           </Badge>
         );
       case "ready_to_close":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Ready to Close
           </Badge>
@@ -323,7 +307,7 @@ export default function EofyTab() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className={`text-2xl font-bold ${dashboard.key_figures.net_profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    <div className={`text-2xl font-bold ${dashboard.key_figures.net_profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                       {formatCurrency(dashboard.key_figures.net_profit)}
                     </div>
                   </CardContent>
@@ -361,7 +345,7 @@ export default function EofyTab() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-orange-600">
+                    <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                       {formatCurrency(dashboard.key_figures.estimated_tax)}
                     </div>
                   </CardContent>
@@ -382,7 +366,7 @@ export default function EofyTab() {
                       {dashboard.due_dates.map((dd, idx) => (
                         <div key={idx} className={`flex items-center justify-between p-3 rounded-lg ${dd.is_past ? "bg-red-50 dark:bg-red-900/20" : "bg-muted"}`}>
                           <span className="text-sm font-medium">{dd.label}</span>
-                          <span className={`text-sm ${dd.is_past ? "text-red-600" : "text-muted-foreground"}`}>
+                          <span className={`text-sm ${dd.is_past ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>
                             {formatDate(dd.date)}
                           </span>
                         </div>
@@ -490,9 +474,9 @@ export default function EofyTab() {
                         </div>
                       </div>
                       {item.completed ? (
-                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                       ) : item.critical ? (
-                        <AlertCircle className="h-5 w-5 text-red-500" />
+                        <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
                       ) : null}
                     </div>
                   ))}
@@ -520,7 +504,7 @@ export default function EofyTab() {
                       <report.icon className="h-6 w-6 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-medium">{report.label}</h3>
+                      <h3 className="text-sm font-medium">{report.label}</h3>
                       <p className="text-xs text-muted-foreground">{selectedYear}</p>
                     </div>
                     <Button size="sm" variant="ghost">
@@ -580,7 +564,7 @@ export default function EofyTab() {
                   </div>
                   <div className="p-4 rounded-lg bg-muted">
                     <div className="text-sm text-muted-foreground">Estimated Tax (25%)</div>
-                    <div className="text-xl font-bold text-orange-600">{formatCurrency(dashboard.key_figures.estimated_tax)}</div>
+                    <div className="text-xl font-bold text-orange-600 dark:text-orange-400">{formatCurrency(dashboard.key_figures.estimated_tax)}</div>
                   </div>
                   <div className="p-4 rounded-lg bg-muted">
                     <div className="text-sm text-muted-foreground">Effective Rate</div>

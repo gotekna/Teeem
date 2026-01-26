@@ -20,6 +20,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { TASK_STATUS } from "@/lib/constants/task-status";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { PhotoCapture } from "@/components/offline";
 
 // ============================================
 // Types
@@ -82,23 +84,23 @@ interface OfflineData {
 }
 
 // ============================================
-// Offline storage helper
+// Offline storage helper (uses SSoT storage-utils)
 // ============================================
 
 const offlineStorage = {
   save: (key: keyof OfflineData, data: unknown) => {
     try {
-      const existing = JSON.parse(localStorage.getItem("sm_offline_data") || "{}") as OfflineData;
+      const existing = getStorageItem<OfflineData>(STORAGE_KEYS.OFFLINE_DATA, { photos: [], checkins: [], voice_notes: [] });
       if (!existing[key]) existing[key] = [];
       existing[key].push(data);
-      localStorage.setItem("sm_offline_data", JSON.stringify(existing));
+      setStorageItem(STORAGE_KEYS.OFFLINE_DATA, existing);
     } catch (e) {
       console.error("Failed to save offline data:", e);
     }
   },
   get: (key: keyof OfflineData): unknown[] => {
     try {
-      const data = JSON.parse(localStorage.getItem("sm_offline_data") || "{}") as OfflineData;
+      const data = getStorageItem<OfflineData>(STORAGE_KEYS.OFFLINE_DATA, { photos: [], checkins: [], voice_notes: [] });
       return data[key] || [];
     } catch {
       return [];
@@ -106,16 +108,16 @@ const offlineStorage = {
   },
   clear: (key: keyof OfflineData) => {
     try {
-      const existing = JSON.parse(localStorage.getItem("sm_offline_data") || "{}") as OfflineData;
+      const existing = getStorageItem<OfflineData>(STORAGE_KEYS.OFFLINE_DATA, { photos: [], checkins: [], voice_notes: [] });
       delete existing[key];
-      localStorage.setItem("sm_offline_data", JSON.stringify(existing));
+      setStorageItem(STORAGE_KEYS.OFFLINE_DATA, existing);
     } catch (e) {
       console.error("Failed to clear offline data:", e);
     }
   },
   getPendingCount: (): number => {
     try {
-      const data = JSON.parse(localStorage.getItem("sm_offline_data") || "{}") as OfflineData;
+      const data = getStorageItem<OfflineData>(STORAGE_KEYS.OFFLINE_DATA, { photos: [], checkins: [], voice_notes: [] });
       return Object.values(data).reduce((sum, arr) => sum + (arr?.length || 0), 0);
     } catch {
       return 0;
@@ -136,9 +138,9 @@ function TaskCard({ task, onClick }: TaskCardProps) {
   const getStatusVariant = (status: string) => {
     switch (status) {
       case TASK_STATUS.COMPLETED:
-        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
+        return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400";
       case TASK_STATUS.STARTED:
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -399,8 +401,8 @@ export default function SmFieldPage() {
               variant="secondary"
               className={
                 isOnline
-                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
+                  : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
               }
             >
               {isOnline ? <WifiIcon className="mr-1 h-4 w-4" /> : <ExclamationTriangleIcon className="mr-1 h-4 w-4" />}
@@ -414,7 +416,7 @@ export default function SmFieldPage() {
                 size="sm"
                 onClick={syncOfflineData}
                 disabled={!isOnline}
-                className="bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
+                className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400"
               >
                 <ArrowPathIcon className="mr-1 h-4 w-4" />
                 {pendingSync} pending
@@ -477,18 +479,20 @@ export default function SmFieldPage() {
             )}
 
             {activeTab === "photos" && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Photo Capture</CardTitle>
-                </CardHeader>
-                <CardContent className="flex items-center justify-center py-12">
-                  <div className="text-center text-muted-foreground">
-                    <CameraIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                    <p>Photo capture component</p>
-                    <p className="mt-2 text-sm">Coming soon</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <PhotoCapture
+                jobId={Number(constructionId)}
+                taskId={selectedTask.id}
+                taskName={selectedTask.name}
+                onPhotoCaptured={(photo) => {
+                  toast({
+                    title: "Photo captured",
+                    description: photo.syncStatus === "pending"
+                      ? "Photo saved. Will sync when online."
+                      : "Photo saved and syncing...",
+                  });
+                }}
+                showGallery={true}
+              />
             )}
 
             {activeTab === "checkin" && (

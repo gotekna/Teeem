@@ -57,6 +57,7 @@ import {
   FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatPercentChangeWithFallback } from "@/utils/formatters";
 
 interface BudgetScenario {
   id: number;
@@ -318,10 +319,10 @@ export default function BudgetingTab() {
 
   const getScenarioTypeBadge = (type: string) => {
     const colors: Record<string, string> = {
-      base: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-      optimistic: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-      pessimistic: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
-      stretch: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+      base: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300",
+      optimistic: "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300",
+      pessimistic: "bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300",
+      stretch: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900 dark:text-purple-300",
       custom: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground",
     };
     return <Badge className={colors[type] || colors.custom}>{type}</Badge>;
@@ -331,7 +332,7 @@ export default function BudgetingTab() {
     switch (status) {
       case "active":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             Active
           </Badge>
@@ -359,28 +360,28 @@ export default function BudgetingTab() {
     switch (status) {
       case "excellent":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             Excellent
           </Badge>
         );
       case "on_track":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300">
             <Target className="h-3 w-3 mr-1" />
             On Track
           </Badge>
         );
       case "warning":
         return (
-          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-300">
             <AlertTriangle className="h-3 w-3 mr-1" />
             Warning
           </Badge>
         );
       case "over_budget":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300">
             <XCircle className="h-3 w-3 mr-1" />
             Over Budget
           </Badge>
@@ -393,12 +394,6 @@ export default function BudgetingTab() {
   const formatCurrency = (value: number | null | undefined) => {
     if (value === null || value === undefined) return "-";
     return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(value);
-  };
-
-  const formatPercent = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "-";
-    const sign = value >= 0 ? "+" : "";
-    return `${sign}${value.toFixed(1)}%`;
   };
 
   return (
@@ -520,11 +515,11 @@ export default function BudgetingTab() {
                           <span
                             className={
                               scenario.revenue_adjustment_pct >= 0
-                                ? "text-green-600"
-                                : "text-red-600"
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
                             }
                           >
-                            {formatPercent(scenario.revenue_adjustment_pct)}
+                            {formatPercentChangeWithFallback(scenario.revenue_adjustment_pct, "-")}
                           </span>
                         </div>
                       )}
@@ -534,11 +529,11 @@ export default function BudgetingTab() {
                           <span
                             className={
                               scenario.expense_adjustment_pct <= 0
-                                ? "text-green-600"
-                                : "text-red-600"
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
                             }
                           >
-                            {formatPercent(scenario.expense_adjustment_pct)}
+                            {formatPercentChangeWithFallback(scenario.expense_adjustment_pct, "-")}
                           </span>
                         </div>
                       )}
@@ -721,7 +716,7 @@ export default function BudgetingTab() {
                             <TableCell className="text-right">
                               <span
                                 className={`flex items-center justify-end gap-1 ${
-                                  item.variance >= 0 ? "text-green-600" : "text-red-600"
+                                  item.variance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                                 }`}
                               >
                                 {item.variance >= 0 ? (
@@ -735,10 +730,10 @@ export default function BudgetingTab() {
                             <TableCell className="text-right">
                               <span
                                 className={
-                                  item.variance_pct >= 0 ? "text-green-600" : "text-red-600"
+                                  item.variance_pct >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                                 }
                               >
-                                {formatPercent(item.variance_pct)}
+                                {formatPercentChangeWithFallback(item.variance_pct, "-")}
                               </span>
                             </TableCell>
                             <TableCell>{getVarianceStatusBadge(item.status)}</TableCell>
@@ -783,13 +778,13 @@ export default function BudgetingTab() {
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Revenue</span>
-                          <span className="font-medium text-green-600">
+                          <span className="font-medium text-green-600 dark:text-green-400">
                             {formatCurrency(comparisonData.scenario1.summary.total_revenue)}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Expenses</span>
-                          <span className="font-medium text-red-600">
+                          <span className="font-medium text-red-600 dark:text-red-400">
                             {formatCurrency(comparisonData.scenario1.summary.total_expenses)}
                           </span>
                         </div>
@@ -798,8 +793,8 @@ export default function BudgetingTab() {
                           <span
                             className={`font-bold ${
                               comparisonData.scenario1.summary.net_income >= 0
-                                ? "text-green-600"
-                                : "text-red-600"
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
                             }`}
                           >
                             {formatCurrency(comparisonData.scenario1.summary.net_income)}
@@ -822,13 +817,13 @@ export default function BudgetingTab() {
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Revenue</span>
-                          <span className="font-medium text-green-600">
+                          <span className="font-medium text-green-600 dark:text-green-400">
                             {formatCurrency(comparisonData.scenario2.summary.total_revenue)}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Expenses</span>
-                          <span className="font-medium text-red-600">
+                          <span className="font-medium text-red-600 dark:text-red-400">
                             {formatCurrency(comparisonData.scenario2.summary.total_expenses)}
                           </span>
                         </div>
@@ -837,8 +832,8 @@ export default function BudgetingTab() {
                           <span
                             className={`font-bold ${
                               comparisonData.scenario2.summary.net_income >= 0
-                                ? "text-green-600"
-                                : "text-red-600"
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
                             }`}
                           >
                             {formatCurrency(comparisonData.scenario2.summary.net_income)}
@@ -890,7 +885,7 @@ export default function BudgetingTab() {
                           </TableCell>
                           <TableCell className="text-right">
                             <span
-                              className={data.difference >= 0 ? "text-green-600" : "text-red-600"}
+                              className={data.difference >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
                             >
                               {formatCurrency(data.difference)}
                             </span>
@@ -898,10 +893,10 @@ export default function BudgetingTab() {
                           <TableCell className="text-right">
                             <span
                               className={
-                                data.difference_pct >= 0 ? "text-green-600" : "text-red-600"
+                                data.difference_pct >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                               }
                             >
-                              {formatPercent(data.difference_pct)}
+                              {formatPercentChangeWithFallback(data.difference_pct, "-")}
                             </span>
                           </TableCell>
                         </TableRow>
@@ -1126,7 +1121,7 @@ export default function BudgetingTab() {
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
               <Trash2 className="h-5 w-5" />
               Delete Scenario
             </DialogTitle>

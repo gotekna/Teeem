@@ -34,7 +34,12 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
       uploaded_by: current_user
     )
 
-    @attachment.file.attach(uploaded_file)
+    # SSoT: Attach via StorageBlob (Jan 2026 - replaces ActiveStorage)
+    @attachment.attach_file(
+      uploaded_file.read,
+      filename: uploaded_file.original_filename,
+      content_type: uploaded_file.content_type
+    )
 
     if @attachment.save
       render json: { success: true, attachment: attachment_json(@attachment) }, status: :created
@@ -45,25 +50,20 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
 
   # DELETE /api/v1/notebook_page_attachments/:id
   def destroy
-    @attachment.file.purge if @attachment.file.attached?
+    # SSoT: StorageBlob handles reference counting on destroy (Jan 2026)
     @attachment.destroy!
     render json: { success: true }
   end
 
   # GET /api/v1/notebook_page_attachments/:id/download
   def download
-    unless @attachment.file.attached?
+    unless @attachment.has_file?
       render json: { success: false, error: "File not found" }, status: :not_found
       return
     end
 
-    # Generate a signed URL for downloading
-    url = Rails.application.routes.url_helpers.rails_blob_url(
-      @attachment.file,
-      disposition: "attachment",
-      host: request.host_with_port,
-      protocol: request.protocol.delete_suffix("://")
-    )
+    # SSoT: Use StorageBlob presigned URL (Jan 2026)
+    url = @attachment.file_url
 
     render json: { success: true, url: url, file_name: @attachment.file_name }
   end
@@ -107,7 +107,7 @@ class Api::V1::NotebookPageAttachmentsController < ApplicationController
       extension: attachment.extension,
       uploaded_by: attachment.uploaded_by&.slice(:id, :name),
       created_at: attachment.created_at,
-      url: attachment.file.attached? ? url_for(attachment.file) : nil
+      url: attachment.file_url  # SSoT: StorageBlob presigned URL (Jan 2026)
     }
   end
 end

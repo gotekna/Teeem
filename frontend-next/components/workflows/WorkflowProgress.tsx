@@ -110,13 +110,13 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
 
     // Status-based icon
     if (node.status === 'completed') {
-      return <CheckCircle className={cn(iconClass, 'text-green-500')} />;
+      return <CheckCircle className={cn(iconClass, 'text-green-500 dark:text-green-400')} />;
     }
     if (node.status === 'active') {
-      return <Spinner size={16} className="text-blue-500" />;
+      return <Spinner size={16} className="text-blue-500 dark:text-blue-400" />;
     }
     if (node.status === 'waiting') {
-      return <Clock className={cn(iconClass, 'text-orange-500')} />;
+      return <Clock className={cn(iconClass, 'text-orange-500 dark:text-orange-400')} />;
     }
 
     // Type-based icon for pending
@@ -165,9 +165,9 @@ export function WorkflowProgress({ instanceId, compact = false }: WorkflowProgre
             <div
               className={cn(
                 'flex items-center gap-1 px-2 py-1 rounded-full text-xs whitespace-nowrap',
-                node.status === 'completed' && 'bg-green-100 text-green-700',
-                node.status === 'active' && 'bg-blue-100 text-blue-700',
-                node.status === 'waiting' && 'bg-orange-100 text-orange-700',
+                node.status === 'completed' && 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+                node.status === 'active' && 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+                node.status === 'waiting' && 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
                 node.status === 'pending' && 'bg-muted text-muted-foreground'
               )}
             >

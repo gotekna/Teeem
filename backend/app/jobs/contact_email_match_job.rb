@@ -39,7 +39,7 @@ class ContactEmailMatchJob < ApplicationJob
     Rails.logger.info "[ContactMatch] Built lookup map with #{@email_to_contact.size} contacts"
 
     # Get emails to process
-    scope = EmailWarehouse.where(microsoft_credential_id: @credential.id)
+    scope = SyncedEmail.where(microsoft_credential_id: @credential.id)
 
     if rematch
       # Re-match all emails

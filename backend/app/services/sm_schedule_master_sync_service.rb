@@ -415,7 +415,7 @@ class SmScheduleMasterSyncService
       next unless m_db && t_db
 
       # Check if this is a lookup column that should be integer
-      is_lookup_column = m.column_type == 'lookup' || col_name.in?(%w[trade stage assigned_role])
+      is_lookup_column = m.column_type.in?(Column::LOOKUP_COLUMN_TYPES)
 
       # Check for database type mismatch and auto-migrate if needed
       if m_db.type != t_db.type
@@ -1185,7 +1185,9 @@ class SmScheduleMasterSyncService
 
       # Audit
       created_by: user,
-      updated_by: user
+      updated_by: user,
+      # SSoT: Multi-tenancy - set tenant_id from job (background job has no tenant context)
+      tenant_id: job&.tenant_id
     )
 
     task.save!

@@ -84,16 +84,16 @@ function getStatusColor(status: string) {
       return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
     case "open":
     case "active":
-      return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100";
+      return "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-100";
     case "in_progress":
     case "reviewing":
-      return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100";
+      return "bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-100";
     case "on_hold":
     case "pending":
-      return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100";
+      return "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900 dark:text-orange-100";
     case "closed":
     case "resolved":
-      return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100";
+      return "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-100";
     case "archived":
       return "bg-muted text-foreground dark:bg-slate-800 dark:text-muted-foreground";
     default:
@@ -120,7 +120,7 @@ export function CaseOverviewTab({ caseData, onCreateSubCase, onViewAllMatters }:
                       {caseData.child_cases_summary.total}
                     </p>
                   </div>
-                  <FolderTree className="h-8 w-8 text-blue-500 opacity-50" />
+                  <FolderTree className="h-8 w-8 text-blue-500 dark:text-blue-400 opacity-50" />
                 </div>
               </CardContent>
             </Card>
@@ -146,7 +146,7 @@ export function CaseOverviewTab({ caseData, onCreateSubCase, onViewAllMatters }:
                       {caseData.child_cases_summary.closed}
                     </p>
                   </div>
-                  <CheckCircle className="h-8 w-8 text-green-500 opacity-50" />
+                  <CheckCircle className="h-8 w-8 text-green-500 dark:text-green-400 opacity-50" />
                 </div>
               </CardContent>
             </Card>
@@ -172,7 +172,7 @@ export function CaseOverviewTab({ caseData, onCreateSubCase, onViewAllMatters }:
                   </div>
                   <AlertTriangle className={cn(
                     "h-8 w-8 opacity-50",
-                    caseData.child_cases_summary.overdue > 0 ? "text-red-500" : "text-muted-foreground"
+                    caseData.child_cases_summary.overdue > 0 ? "text-red-500 dark:text-red-400" : "text-muted-foreground"
                   )} />
                 </div>
               </CardContent>
@@ -210,7 +210,7 @@ export function CaseOverviewTab({ caseData, onCreateSubCase, onViewAllMatters }:
                               {child.case_number}
                             </span>
                             {child.overdue && (
-                              <Badge className="bg-red-100 text-red-800 text-xs">
+                              <Badge className="bg-status-error text-status-error-foreground text-xs">
                                 <AlertTriangle className="h-3 w-3 mr-1" />
                                 Overdue
                               </Badge>
@@ -416,10 +416,10 @@ export function CaseOverviewTab({ caseData, onCreateSubCase, onViewAllMatters }:
                     className={cn(
                       "text-3xl font-bold",
                       caseData.risk_score >= 70
-                        ? "text-red-600"
+                        ? "text-red-600 dark:text-red-400"
                         : caseData.risk_score >= 40
                         ? "text-amber-600"
-                        : "text-green-600"
+                        : "text-green-600 dark:text-green-400"
                     )}
                   >
                     {caseData.risk_score}

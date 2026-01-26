@@ -1,8 +1,11 @@
 # frozen_string_literal: true
 
 class ContactType < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   # Validations
-  validates :name, presence: true, uniqueness: true
+  validates :name, presence: true, uniqueness: { scope: :tenant_id }
   validates :display_name, presence: true
   validates :position, presence: true, numericality: { only_integer: true, greater_than: 0 }
 

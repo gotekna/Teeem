@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { PanelRight, PanelBottom, PanelTopClose } from "lucide-react";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 export type ReadingPanePosition = "right" | "bottom" | "off";
 
@@ -43,8 +44,6 @@ const POSITION_CONFIG: Record<
     description: "No preview, opens in full view",
   },
 };
-
-const STORAGE_KEY = "teeem_email_reading_pane";
 
 /**
  * Toggle component for email reading pane position
@@ -96,24 +95,25 @@ export function ReadingPaneToggle({
 
 /**
  * Hook to manage reading pane position with localStorage persistence
+ * SSoT: Uses storage-utils for localStorage operations
  */
 export function useReadingPanePosition() {
   const [position, setPosition] = useState<ReadingPanePosition>("right");
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount (SSoT: storage-utils)
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored && ["right", "bottom", "off"].includes(stored)) {
+    const stored = getStorageItem<string>(STORAGE_KEYS.EMAIL_READING_PANE, "right");
+    if (["right", "bottom", "off"].includes(stored)) {
       setPosition(stored as ReadingPanePosition);
     }
     setIsHydrated(true);
   }, []);
 
-  // Save to localStorage when position changes
+  // Save to localStorage when position changes (SSoT: storage-utils)
   useEffect(() => {
     if (isHydrated) {
-      localStorage.setItem(STORAGE_KEY, position);
+      setStorageItem(STORAGE_KEYS.EMAIL_READING_PANE, position);
     }
   }, [position, isHydrated]);
 

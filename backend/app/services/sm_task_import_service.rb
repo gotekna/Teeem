@@ -170,6 +170,7 @@ class SmTaskImportService
     end
 
     # Create the task
+    # SSoT: Multi-tenancy - set tenant_id from job (background job has no tenant context)
     task = SmTask.new(
       job_id: job.id,
       name: attrs[:name],
@@ -185,7 +186,8 @@ class SmTaskImportService
       confirm: parse_boolean(attrs[:confirm]),
       supplier_confirm: parse_boolean(attrs[:supplier_confirm]),
       created_by_id: user&.id,
-      updated_by_id: user&.id
+      updated_by_id: user&.id,
+      tenant_id: job&.tenant_id
     )
 
     # Calculate end_date if not provided

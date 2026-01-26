@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
+import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Contact {
   id: number;
@@ -135,15 +137,15 @@ const getRoleConfig = (roleKey: string) => {
 
 const getRoleBadgeClasses = (color: string) => {
   const colorMap: Record<string, string> = {
-    indigo: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400",
-    blue: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-    cyan: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400",
+    indigo: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400",
+    blue: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400",
+    cyan: "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-400",
     slate: "bg-muted text-foreground dark:bg-slate-900/30 dark:text-muted-foreground",
-    orange: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
-    amber: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-    green: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-    purple: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-    pink: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400",
+    orange: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400",
+    amber: "bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400",
+    green: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400",
+    purple: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400",
+    pink: "bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 dark:bg-pink-900/30 dark:text-pink-400",
     teal: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400",
     gray: "bg-muted text-foreground dark:bg-background/30 dark:text-muted-foreground",
   };
@@ -151,6 +153,7 @@ const getRoleBadgeClasses = (color: string) => {
 };
 
 export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
+  const { toast } = useToast();
   const router = useRouter();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [contacts, setContacts] = useState<JobContact[]>([]);
@@ -305,7 +308,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
     const clientContacts = contacts.filter((c) => c.role === "client");
 
     if (contact?.role === "client" && clientContacts.length === 1) {
-      alert("Cannot remove the last client. At least one client is required.");
+      toast({ title: "Cannot Remove", description: "Cannot remove the last client. At least one client is required.", variant: "destructive" });
       return;
     }
 
@@ -372,7 +375,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <Spinner className="h-8 w-8" />
       </div>
     );
   }
@@ -628,8 +631,8 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                           }}
                           className={`${
                             isPrimary
-                              ? "text-yellow-500 cursor-default"
-                              : "text-muted-foreground hover:text-yellow-500"
+                              ? "text-yellow-500 dark:text-yellow-400 cursor-default"
+                              : "text-muted-foreground hover:text-yellow-500 dark:text-yellow-400"
                           }`}
                         >
                           <Star className={`h-4 w-4 ${isPrimary ? "fill-current" : ""}`} />

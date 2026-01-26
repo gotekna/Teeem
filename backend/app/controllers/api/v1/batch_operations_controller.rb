@@ -23,6 +23,8 @@
 module Api
   module V1
     class BatchOperationsController < ApplicationController
+      include DocumentProviderAware
+
       before_action :set_job, only: [:create, :show, :active], if: -> { params[:job_id].present? }
       before_action :set_operation, only: [:show]
 
@@ -138,27 +140,28 @@ module Api
         )
         operation.save!
 
-        # Get SharePoint credential
-        credential = MicrosoftCredential.sharepoint_credential
-        unless credential
-          operation.mark_failed!("SharePoint not connected")
-          return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity
+        # SSoT: Setup provider using StorageConfiguration
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
+          operation.mark_failed!("Storage not connected: #{e.message}")
+          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
         end
 
         begin
-          operation.update!(current_step: "Uploading to SharePoint...")
+          operation.update!(current_step: "Uploading to storage...")
 
-          client = MicrosoftGraphClient.new(credential)
-
-          # Find or create staging folder
-          staging_folder_id = get_or_create_staging_folder(client, credential)
+          # Find or create staging folder at root
+          staging_folder_path = "/#{BatchOperation.staging_folder_name}"
+          get_or_create_folder_path(staging_folder_path)
 
           # Upload to staging folder
           staging_filename = "staging_#{operation.id}_#{uploaded_file.original_filename}"
-          staging_result = client.upload_file_content(
-            staging_folder_id,
+          staging_result = upload_to_provider(
+            staging_folder_path,
+            uploaded_file.read,
             staging_filename,
-            uploaded_file.read
+            content_type: uploaded_file.content_type
           )
 
           operation.staging_file_id = staging_result[:id]
@@ -169,9 +172,14 @@ module Api
 
           render json: {
             success: true,
-            data: operation.as_json_status
+            data: operation.as_json_status,
+            provider: current_provider_type.to_s
           }, status: :accepted
 
+        rescue DocumentProviders::Error => e
+          Rails.logger.error("[BatchOperation] Storage error: #{e.message}")
+          operation.mark_failed!(e.message)
+          render json: { success: false, error: "Storage error: #{e.message}" }, status: :bad_gateway
         rescue => e
           Rails.logger.error("[BatchOperation] Upload failed: #{e.message}")
           operation.mark_failed!(e.message)
@@ -253,28 +261,6 @@ module Api
         }
       end
 
-      # ============================================================================
-      # Helpers
-      # ============================================================================
-
-      def get_or_create_staging_folder(client, credential)
-        staging_folder_name = "_plan_staging"
-
-        begin
-          drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
-          response = client.get("#{drive_path}/root/children")
-          folders = response["value"] || []
-          staging_folder = folders.find { |f| f["name"] == staging_folder_name && f["folder"] }
-
-          return staging_folder["id"] if staging_folder
-        rescue => e
-          Rails.logger.warn("[BatchOperation] Error finding staging folder: #{e.message}")
-        end
-
-        # Create staging folder
-        result = client.create_folder(staging_folder_name)
-        result["id"]
-      end
     end
   end
 end

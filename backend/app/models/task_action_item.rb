@@ -20,6 +20,9 @@ class TaskActionItem < ApplicationRecord
   validates :text, presence: true
   validates :item_type, inclusion: { in: ITEM_TYPES }
 
+  # Note: When a question/action with a delegated task is deleted, the UI asks
+  # whether to keep or delete the subtask. No auto-cascade here - user decides.
+
   default_scope { order(:position) }
 
   # Scopes
@@ -84,7 +87,12 @@ class TaskActionItem < ApplicationRecord
   # Delegate the question or action to another user by creating a sub-task
   # The sub-task will be assigned to the user, and when completed,
   # the answer and attachments will be copied back to this item
-  def delegate_to!(user, created_by:)
+  #
+  # @param user [User] - the user to assign the delegated task to
+  # @param created_by [User] - the user who is delegating
+  # @param instructions [String, nil] - optional custom instructions to include in the task description
+  # @param due_date [Date, String, nil] - optional due date for the task (defaults to parent task's end_date)
+  def delegate_to!(user, created_by:, instructions: nil, due_date: nil)
     return { success: false, error: 'Only questions and actions can be delegated' } if header?
     return { success: false, error: 'Already delegated' } if delegated?
 
@@ -93,14 +101,24 @@ class TaskActionItem < ApplicationRecord
 
     # Build rich description with context
     description_parts = []
+
+    # Add custom instructions first if provided
+    if instructions.present?
+      description_parts << "## Instructions"
+      description_parts << instructions
+      description_parts << ""
+    end
+
     if is_question
+      description_parts << "## Question"
+      description_parts << text
+      description_parts << ""
       description_parts << "Please answer this question and attach any required documents."
-      description_parts << ""
-      description_parts << "**Question:** #{text}"
     else
-      description_parts << "Please complete this action item."
+      description_parts << "## Action"
+      description_parts << text
       description_parts << ""
-      description_parts << "**Action:** #{text}"
+      description_parts << "Please complete this action item."
     end
     description_parts << ""
     description_parts << "---"
@@ -118,6 +136,15 @@ class TaskActionItem < ApplicationRecord
       description_parts << "**Original Task ID:** ##{parent_task.id} (view for more context)"
     end
 
+    # Determine end_date: use provided due_date, fallback to parent task's end_date, then today
+    task_end_date = if due_date.present?
+                      due_date.is_a?(String) ? Date.parse(due_date) : due_date
+                    elsif parent_task.end_date.present?
+                      parent_task.end_date
+                    else
+                      Date.current
+                    end
+
     # Create a sub-task for the delegated item
     task_prefix = is_question ? "Question" : "Action"
     sub_task = SmTask.create!(
@@ -131,7 +158,7 @@ class TaskActionItem < ApplicationRecord
       task_number: 0, # Will be auto-set
       sequence_order: 9999,
       start_date: Date.current,
-      end_date: Date.current,
+      end_date: task_end_date,
       duration_days: 0,
       status: 'not_started',
       source_type: 'manual',
@@ -180,9 +207,13 @@ class TaskActionItem < ApplicationRecord
     )
 
     # Copy attachments from sub-task to parent task
-    if delegated_task.files.attached?
-      delegated_task.files.each do |file|
-        sm_task.files.attach(file.blob)
+    # Note: has_many_attached :files was removed (Jan 2026) - use sm_task_attachments instead
+    if delegated_task.sm_task_attachments.any?
+      delegated_task.sm_task_attachments.each do |attachment|
+        # Create a new attachment linking to the same attachable (email/document)
+        sm_task.sm_task_attachments.create!(
+          attachable: attachment.attachable
+        )
       end
     end
 

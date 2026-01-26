@@ -3,10 +3,49 @@
 # Rake task to audit lookup and multiple_lookups columns for:
 # 1. Type mismatches (declared column_type vs actual database type)
 # 2. Missing lookup configuration (lookup_foundation_id, lookup_display_column)
+# 3. SSoT violations (lookup_foundation_id set but column_type wrong)
 #
-# Usage: rake columns:audit_lookup_types
+# Usage:
+#   rake columns:audit_lookup_types    # Full audit
+#   rake columns:audit_lookup_ssot     # SSoT violation check only (quick)
 #
 namespace :columns do
+  desc "Audit for lookup SSoT violations: lookup_foundation_id set but column_type is wrong"
+  task audit_lookup_ssot: :environment do
+    puts "\n=========================================="
+    puts "Lookup Column SSoT Audit"
+    puts "=========================================="
+    puts "Checking for columns with lookup_foundation_id but wrong column_type..."
+    puts ""
+
+    # Find columns with lookup_foundation_id but wrong column_type
+    mismatched = Column.includes(:foundation)
+                       .where.not(lookup_foundation_id: nil)
+                       .where.not(column_type: %w[lookup multiple_lookups relation])
+
+    if mismatched.any?
+      puts "Found #{mismatched.count} column(s) with SSoT violation:"
+      puts ""
+
+      mismatched.each do |col|
+        expected_type = col.is_multiple ? "multiple_lookups" : "lookup"
+        puts "  #{col.foundation&.name || 'Unknown'}.#{col.column_name}"
+        puts "    column_type: #{col.column_type.inspect} (should be #{expected_type.inspect})"
+        puts "    lookup_foundation_id: #{col.lookup_foundation_id}"
+        puts ""
+      end
+
+      puts "=========================================="
+      puts "To fix: Run `rails db:migrate` (migration auto-fixes these)"
+      puts "Or manually: Column.find(ID).save! (callback auto-corrects)"
+      puts "==========================================\n"
+    else
+      puts "All columns with lookup_foundation_id have correct column_type!"
+      puts "No SSoT violations found."
+      puts "==========================================\n"
+    end
+  end
+
   desc "Audit lookup/multiple_lookups columns for type mismatches and missing configuration"
   task audit_lookup_types: :environment do
     puts "\n=========================================="

@@ -37,6 +37,7 @@ import {
   Grid3X3,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatDate, formatDateTime } from "@/utils/formatters";
 
 interface CustomReport {
   id: number;
@@ -71,25 +72,6 @@ interface Dashboard {
   widget_count: number;
   created_by: { id: number; name: string } | null;
   created_at: string;
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(dateString: string | null): string {
-  if (!dateString) return "Never";
-  return new Date(dateString).toLocaleString("en-AU", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default function ReportsBuilderTab() {
@@ -223,7 +205,7 @@ export default function ReportsBuilderTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{favorites.length}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{favorites.length}</div>
             <p className="text-xs text-muted-foreground mt-1">saved</p>
           </CardContent>
         </Card>
@@ -235,7 +217,7 @@ export default function ReportsBuilderTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{dashboards.length}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{dashboards.length}</div>
             <p className="text-xs text-muted-foreground mt-1">configured</p>
           </CardContent>
         </Card>
@@ -247,7 +229,7 @@ export default function ReportsBuilderTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{templates.length}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{templates.length}</div>
             <p className="text-xs text-muted-foreground mt-1">available</p>
           </CardContent>
         </Card>
@@ -363,7 +345,7 @@ export default function ReportsBuilderTab() {
                               onClick={() => handleToggleFavorite(report)}
                             >
                               {isFavorite(report) ? (
-                                <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                                <Star className="h-4 w-4 text-yellow-500 dark:text-yellow-400 fill-yellow-500" />
                               ) : (
                                 <StarOff className="h-4 w-4" />
                               )}
@@ -399,7 +381,7 @@ export default function ReportsBuilderTab() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Star className="h-5 w-5 text-yellow-500" />
+                <Star className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
                 Favorite Reports
               </CardTitle>
             </CardHeader>
@@ -417,10 +399,10 @@ export default function ReportsBuilderTab() {
                       <CardContent className="pt-6">
                         <div className="flex items-start justify-between">
                           <div>
-                            <h3 className="font-medium">{report.name}</h3>
+                            <h3 className="text-sm font-medium">{report.name}</h3>
                             <p className="text-sm text-muted-foreground mt-1">{report.base_entity}</p>
                           </div>
-                          <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+                          <Star className="h-5 w-5 text-yellow-500 dark:text-yellow-400 fill-yellow-500" />
                         </div>
                         <div className="flex gap-2 mt-4">
                           <Button size="sm" onClick={() => handleRun(report)}>
@@ -464,7 +446,7 @@ export default function ReportsBuilderTab() {
                       <CardContent className="pt-6">
                         <div className="flex items-start justify-between">
                           <div>
-                            <h3 className="font-medium flex items-center gap-2">
+                            <h3 className="text-sm font-medium flex items-center gap-2">
                               {dashboard.name}
                               {dashboard.is_default && (
                                 <Badge variant="outline" className="text-xs">Default</Badge>
@@ -510,7 +492,7 @@ export default function ReportsBuilderTab() {
                     <Card key={template.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
                       <CardContent className="pt-6">
                         <div>
-                          <h3 className="font-medium">{template.name}</h3>
+                          <h3 className="text-sm font-medium">{template.name}</h3>
                           <p className="text-sm text-muted-foreground mt-1">{template.description}</p>
                         </div>
                         <div className="flex items-center gap-2 mt-3">

@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatCurrency, formatPercentageWithFallback } from "@/utils/formatters";
 
 interface SaasCustomer {
   id: number;
@@ -84,21 +85,6 @@ export default function SaasCustomersPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const formatCurrency = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "$0";
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
-  const formatPercent = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "0%";
-    return `${value.toFixed(2)}%`;
-  };
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -277,7 +263,7 @@ export default function SaasCustomersPage() {
                         {formatCurrency(customer.monthly_fee)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatPercent(customer.effective_rate)}
+                        {formatPercentageWithFallback(customer.effective_rate, "0%", 2)}
                       </TableCell>
                       <TableCell>
                         {customer.support_contact?.name || (

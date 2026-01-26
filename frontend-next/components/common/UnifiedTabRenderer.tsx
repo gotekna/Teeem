@@ -52,7 +52,7 @@ export function isUnifiedTabsEnabled(): boolean {
 // ============================================
 
 interface UnifiedTabRendererProps {
-  /** Tab scope (corporate_entity, job, people) */
+  /** Tab scope (corporate_entity, job, contact) */
   scope: EntityTabScope;
 
   /** Entity ID for data fetching */
@@ -104,8 +104,8 @@ function TabSkeleton() {
 function TabError({ error, tabName }: { error: string; tabName?: string }) {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center">
-      <AlertCircle className="h-8 w-8 text-red-500 mb-2" />
-      <p className="font-medium text-red-600">Failed to load {tabName || "tab"}</p>
+      <AlertCircle className="h-8 w-8 text-red-500 dark:text-red-400 mb-2" />
+      <p className="font-medium text-red-600 dark:text-red-400">Failed to load {tabName || "tab"}</p>
       <p className="text-sm text-muted-foreground mt-1">{error}</p>
     </div>
   );

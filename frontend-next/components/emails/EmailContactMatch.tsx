@@ -75,7 +75,7 @@ export function EmailContactMatch({
           email_addresses: string[];
           already_linked: number[];
         };
-      }>(`/api/v1/email_warehouse/${emailId}/suggest_contacts`);
+      }>(`/api/v1/synced_emails/${emailId}/suggest_contacts`);
 
       if (response.success && response.data) {
         setSuggestions(response.data.suggestions);
@@ -98,11 +98,11 @@ export function EmailContactMatch({
     try {
       const response = await api.get<{
         success: boolean;
-        data: ContactInfo[];
-      }>(`/api/v1/contacts/search?q=${encodeURIComponent(query)}&limit=10`);
+        contacts: ContactInfo[];
+      }>(`/api/v1/contacts?search=${encodeURIComponent(query)}&per_page=10`);
 
-      if (response.success && response.data) {
-        setSearchResults(response.data);
+      if (response.success && response.contacts) {
+        setSearchResults(response.contacts);
       }
     } catch (error) {
       console.error("Failed to search contacts:", error);
@@ -124,7 +124,7 @@ export function EmailContactMatch({
 
   const linkContact = async (contactId: number, setPrimary = false) => {
     try {
-      await api.post(`/api/v1/email_warehouse/${emailId}/link_contact`, {
+      await api.post(`/api/v1/synced_emails/${emailId}/link_contact`, {
         contact_id: contactId,
         set_primary: setPrimary,
       });
@@ -138,7 +138,7 @@ export function EmailContactMatch({
 
   const unlinkContact = async (contactId: number) => {
     try {
-      await api.post(`/api/v1/email_warehouse/${emailId}/unlink_contact`, {
+      await api.post(`/api/v1/synced_emails/${emailId}/unlink_contact`, {
         contact_id: contactId,
       });
 
@@ -164,7 +164,7 @@ export function EmailContactMatch({
                 variant="secondary"
                 className="gap-1.5 cursor-pointer hover:bg-secondary/80 transition-colors"
               >
-                <Star className="h-3 w-3 text-yellow-500" />
+                <Star className="h-3 w-3 text-yellow-500 dark:text-yellow-400" />
                 <User className="h-3 w-3" />
                 <span>{primaryContact.display_name}</span>
                 <ChevronRight className="h-3 w-3 opacity-50" />

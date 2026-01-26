@@ -183,7 +183,7 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
               )
             )}
             {isGroupedBy && (
-              <Layers className="h-3 w-3 shrink-0 text-purple-500" />
+              <Layers className="h-3 w-3 shrink-0 text-purple-500 dark:text-purple-400" />
             )}
             <ChevronDown className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-50 transition-opacity" />
           </div>

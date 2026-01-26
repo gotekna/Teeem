@@ -483,9 +483,9 @@ export function EmailToContactsModal({
                   <p className="text-sm text-muted-foreground">
                     Found {candidates.length} unique email address{candidates.length !== 1 ? "es" : ""}
                     {" · "}
-                    <span className="text-green-600">{candidates.filter((c) => c.isExistingContact).length} existing</span>
+                    <span className="text-green-600 dark:text-green-400">{candidates.filter((c) => c.isExistingContact).length} existing</span>
                     {" · "}
-                    <span className="text-orange-600">{candidates.filter((c) => !c.isExistingContact).length} new</span>
+                    <span className="text-orange-600 dark:text-orange-400">{candidates.filter((c) => !c.isExistingContact).length} new</span>
                   </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={toggleAll}>
@@ -511,7 +511,7 @@ export function EmailToContactsModal({
                       {/* Checkbox */}
                       <div className="pt-0.5">
                         {candidate.isExistingContact ? (
-                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                          <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                         ) : (
                           <Checkbox
                             checked={selected.has(candidate.email)}
@@ -541,19 +541,19 @@ export function EmailToContactsModal({
                           <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
                             {candidate.phones.mobile && (
                               <p className="flex items-center gap-1">
-                                <span className="text-blue-600">📱</span>
+                                <span className="text-blue-600 dark:text-blue-400">📱</span>
                                 Mobile: {candidate.phones.mobile}
                               </p>
                             )}
                             {candidate.phones.office && (
                               <p className="flex items-center gap-1">
-                                <span className="text-green-600">☎️</span>
+                                <span className="text-green-600 dark:text-green-400">☎️</span>
                                 Office: {candidate.phones.office}
                               </p>
                             )}
                             {candidate.phones.direct && (
                               <p className="flex items-center gap-1">
-                                <span className="text-purple-600">📞</span>
+                                <span className="text-purple-600 dark:text-purple-400">📞</span>
                                 Direct: {candidate.phones.direct}
                               </p>
                             )}
@@ -576,14 +576,14 @@ export function EmailToContactsModal({
                         {!candidate.isExistingContact && candidate.suggestedCompany && (
                           <div className="mt-2 space-y-2">
                             <div className="flex items-center gap-2">
-                              <Building2 className="h-4 w-4 text-blue-600" />
+                              <Building2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                               {candidate.suggestedCompany.source === 'signature' && (
-                                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200">
                                   From Signature
                                 </Badge>
                               )}
                               {candidate.suggestedCompany.websiteDetails && Object.keys(candidate.suggestedCompany.websiteDetails).length > 1 && (
-                                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200">
                                   Details from Website
                                 </Badge>
                               )}
@@ -764,7 +764,7 @@ export function EmailToContactsModal({
                   <div className="space-y-3">
                     <div>
                       <Label htmlFor="relationship-type" className="text-sm font-medium">
-                        Relationship Type <span className="text-red-500">*</span>
+                        Relationship Type <span className="text-red-500 dark:text-red-400">*</span>
                       </Label>
                       <Select value={defaultRelationshipType} onValueChange={setDefaultRelationshipType}>
                         <SelectTrigger id="relationship-type" className="mt-1.5">
@@ -796,7 +796,7 @@ export function EmailToContactsModal({
 
                     <div>
                       <Label htmlFor="reason" className="text-sm font-medium">
-                        Reason <span className="text-red-500">*</span>
+                        Reason <span className="text-red-500 dark:text-red-400">*</span>
                       </Label>
                       <textarea
                         id="reason"
@@ -835,7 +835,7 @@ export function EmailToContactsModal({
           <div className="flex-1 py-4">
             <div className="space-y-4">
               <div className="text-center pb-4">
-                <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
+                <CheckCircle2 className="h-16 w-16 text-green-600 dark:text-green-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold">Contacts Created Successfully</h3>
               </div>
 
@@ -845,23 +845,23 @@ export function EmailToContactsModal({
                   <div className="text-sm text-muted-foreground">Contacts Created</div>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
-                  <div className="text-3xl font-bold text-purple-600">{results.addedEmails}</div>
+                  <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">{results.addedEmails}</div>
                   <div className="text-sm text-muted-foreground">Emails Added</div>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
-                  <div className="text-3xl font-bold text-blue-600">{results.createdCompanies}</div>
+                  <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{results.createdCompanies}</div>
                   <div className="text-sm text-muted-foreground">Companies Created</div>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
-                  <div className="text-3xl font-bold text-green-600">{results.linkedToCompanies}</div>
+                  <div className="text-3xl font-bold text-green-600 dark:text-green-400">{results.linkedToCompanies}</div>
                   <div className="text-sm text-muted-foreground">Linked to Companies</div>
                 </div>
               </div>
 
               {results.errors.length > 0 && (
                 <div className="mt-4">
-                  <h4 className="font-medium mb-2 flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-orange-600" />
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                     Errors ({results.errors.length})
                   </h4>
                   <ScrollArea className="h-32 border rounded-lg p-3">

@@ -361,7 +361,7 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
             {/* Header with buttons */}
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-semibold">Heroku Backend Table View</h3>
+                <h3 className="text-sm font-semibold">Heroku Backend Table View</h3>
                 <p className="text-sm text-muted-foreground">
                   All database tables from the Heroku backend, including user-created tables, imported data, and system tables.
                 </p>
@@ -460,7 +460,7 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                     <div className="flex items-center gap-4">
                       <CardTitle className="text-sm">System Tables Sync Results</CardTitle>
                       <div className="flex items-center gap-3 text-sm">
-                        <span className="flex items-center gap-1 text-green-600">
+                        <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                           <CheckCircle className="h-4 w-4" />
                           {syncResults.summary?.synced || 0} Synced
                         </span>
@@ -468,7 +468,7 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                           <AlertTriangle className="h-4 w-4" />
                           {syncResults.summary?.warnings || 0} Warnings
                         </span>
-                        <span className="flex items-center gap-1 text-red-600">
+                        <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
                           <XCircle className="h-4 w-4" />
                           {syncResults.summary?.errors || 0} Errors
                         </span>
@@ -484,9 +484,9 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                     {syncResults.results?.map((result, idx) => (
                       <div key={idx}>
                         <span className="font-medium">{result.icon} {result.name}:</span>{" "}
-                        {result.status === "synced" && <span className="text-green-600">✓ Synced</span>}
+                        {result.status === "synced" && <span className="text-green-600 dark:text-green-400">✓ Synced</span>}
                         {result.status === "warning" && <span className="text-amber-600">⚠ {result.warnings?.join(", ")}</span>}
-                        {result.status === "error" && <span className="text-red-600">✗ {result.issues?.join(", ")}</span>}
+                        {result.status === "error" && <span className="text-red-600 dark:text-red-400">✗ {result.issues?.join(", ")}</span>}
                       </div>
                     ))}
                   </div>
@@ -572,8 +572,8 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                       {loadError ? (
                         <TableRow>
                           <TableCell colSpan={9} className="text-center py-12">
-                            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500" />
-                            <p className="text-red-600 font-medium">{loadError}</p>
+                            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500 dark:text-red-400" />
+                            <p className="text-red-600 dark:text-red-400 font-medium">{loadError}</p>
                             <p className="text-sm text-muted-foreground mt-2">
                               Make sure you are logged in and the backend is running.
                             </p>
@@ -622,7 +622,7 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                               </TableCell>
                               <TableCell>
                                 {table.feature ? (
-                                  <Badge variant="outline" className="bg-cyan-50 text-cyan-700 border-cyan-200">
+                                  <Badge variant="outline" className="bg-cyan-50 dark:bg-cyan-950/30 text-cyan-700 dark:text-cyan-300 border-cyan-200">
                                     {table.feature}
                                   </Badge>
                                 ) : (
@@ -633,9 +633,9 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                                 <Badge
                                   variant="secondary"
                                   className={cn(
-                                    table.type === "system" && "bg-purple-100 text-purple-800",
-                                    table.type === "user" && "bg-blue-100 text-blue-800",
-                                    table.type === "import" && "bg-green-100 text-green-800"
+                                    table.type === "system" && "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300",
+                                    table.type === "user" && "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300",
+                                    table.type === "import" && "bg-status-success text-status-success-foreground"
                                   )}
                                 >
                                   {table.type.charAt(0).toUpperCase() + table.type.slice(1)}
@@ -643,7 +643,7 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                               </TableCell>
                               <TableCell>
                                 {table.usage_status ? (
-                                  <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                                  <Badge variant="outline" className="bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border-indigo-200">
                                     {table.usage_status}
                                   </Badge>
                                 ) : (
@@ -753,7 +753,7 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                             <GitBranch className="h-4 w-4 text-muted-foreground" />
                             {branch.name}
                             {branch.current && (
-                              <Badge variant="secondary" className="bg-green-100 text-green-800">
+                              <Badge variant="secondary" className="bg-status-success text-status-success-foreground">
                                 Current
                               </Badge>
                             )}
@@ -768,9 +768,9 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                         <TableCell>
                           {branch.behind !== undefined && branch.ahead !== undefined && (
                             <span className="text-sm">
-                              {branch.behind > 0 && <span className="text-red-600">↓{branch.behind}</span>}
+                              {branch.behind > 0 && <span className="text-red-600 dark:text-red-400">↓{branch.behind}</span>}
                               {branch.behind > 0 && branch.ahead > 0 && " / "}
-                              {branch.ahead > 0 && <span className="text-green-600">↑{branch.ahead}</span>}
+                              {branch.ahead > 0 && <span className="text-green-600 dark:text-green-400">↑{branch.ahead}</span>}
                               {branch.behind === 0 && branch.ahead === 0 && <span className="text-muted-foreground">Up to date</span>}
                             </span>
                           )}
@@ -821,9 +821,9 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                           <Badge
                             variant="secondary"
                             className={cn(
-                              agent.status === "active" && "bg-green-100 text-green-800",
+                              agent.status === "active" && "bg-status-success text-status-success-foreground",
                               agent.status === "inactive" && "bg-muted text-foreground",
-                              agent.status === "error" && "bg-red-100 text-red-800"
+                              agent.status === "error" && "bg-status-error text-status-error-foreground"
                             )}
                           >
                             {agent.status}
@@ -972,7 +972,7 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
                         <code className="text-xs bg-muted px-2 py-1 rounded">{column.type}</code>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={column.nullable ? "secondary" : "outline"} className={column.nullable ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                        <Badge variant={column.nullable ? "secondary" : "outline"} className={column.nullable ? "bg-status-success text-status-success-foreground" : "bg-status-error text-status-error-foreground"}>
                           {column.nullable ? "Yes" : "No"}
                         </Badge>
                       </TableCell>

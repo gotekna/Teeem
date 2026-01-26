@@ -87,6 +87,22 @@ const SheetContent = React.forwardRef<
             e.preventDefault();
             contentRef.current?.focus();
           }}
+          onPointerDownOutside={(e) => {
+            // Allow clicks on writing-checker tooltips (rendered outside sheet portal)
+            const target = e.target as HTMLElement;
+            if (target.closest('[data-writing-checker-tooltip]')) {
+              e.preventDefault();
+              return;
+            }
+          }}
+          onInteractOutside={(e) => {
+            // Also handle onInteractOutside for writing-checker tooltips
+            const target = e.target as HTMLElement;
+            if (target.closest('[data-writing-checker-tooltip]')) {
+              e.preventDefault();
+              return;
+            }
+          }}
           ref={ref}
           className={cn("md:p-4", sheetVariants({ side }))}
           aria-describedby={props["aria-describedby"] || undefined}

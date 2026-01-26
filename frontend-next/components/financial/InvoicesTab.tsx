@@ -34,6 +34,7 @@ import {
   Ban,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Invoice {
   id: number;
@@ -79,22 +80,6 @@ interface InvoiceSummary {
       overdue: number;
     };
   };
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function InvoicesTab() {
@@ -175,7 +160,7 @@ export default function InvoicesTab() {
       case "submitted":
       case "sent":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <Send className="h-3 w-3 mr-1" />
             Sent
           </Badge>
@@ -183,14 +168,14 @@ export default function InvoicesTab() {
       case "authorised":
       case "approved":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Approved
           </Badge>
         );
       case "paid":
         return (
-          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <Badge className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400">
             <DollarSign className="h-3 w-3 mr-1" />
             Paid
           </Badge>
@@ -211,14 +196,14 @@ export default function InvoicesTab() {
     switch (type) {
       case "sales":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <FileText className="h-3 w-3 mr-1" />
             Sales
           </Badge>
         );
       case "bill":
         return (
-          <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+          <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400">
             <Receipt className="h-3 w-3 mr-1" />
             Bill
           </Badge>
@@ -253,7 +238,7 @@ export default function InvoicesTab() {
               {formatCurrency(summary?.totals?.sales_invoices?.total || 0)} total
             </p>
             {(summary?.totals?.sales_invoices?.overdue || 0) > 0 && (
-              <p className="text-xs text-red-600 mt-1">
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {formatCurrency(summary?.totals?.sales_invoices?.overdue || 0)} overdue
               </p>
             )}
@@ -273,7 +258,7 @@ export default function InvoicesTab() {
               {formatCurrency(summary?.totals?.bills?.total || 0)} total
             </p>
             {(summary?.totals?.bills?.overdue || 0) > 0 && (
-              <p className="text-xs text-red-600 mt-1">
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                 {formatCurrency(summary?.totals?.bills?.overdue || 0)} overdue
               </p>
             )}
@@ -287,7 +272,7 @@ export default function InvoicesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(summary?.totals?.sales_invoices?.due || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">amount due from customers</p>
@@ -301,7 +286,7 @@ export default function InvoicesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
               {formatCurrency(summary?.totals?.bills?.due || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">amount owed to suppliers</p>
@@ -385,7 +370,7 @@ export default function InvoicesTab() {
                     </TableCell>
                     <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
                     <TableCell>
-                      <span className={invoice.overdue ? "text-red-600 font-medium" : ""}>
+                      <span className={invoice.overdue ? "text-red-600 dark:text-red-400 font-medium" : ""}>
                         {formatDate(invoice.due_date)}
                       </span>
                     </TableCell>
@@ -394,11 +379,11 @@ export default function InvoicesTab() {
                     </TableCell>
                     <TableCell className="text-right">
                       {invoice.amount_due > 0 ? (
-                        <span className={invoice.overdue ? "text-red-600 font-medium" : ""}>
+                        <span className={invoice.overdue ? "text-red-600 dark:text-red-400 font-medium" : ""}>
                           {formatCurrency(invoice.amount_due)}
                         </span>
                       ) : (
-                        <span className="text-green-600">Paid</span>
+                        <span className="text-green-600 dark:text-green-400">Paid</span>
                       )}
                     </TableCell>
                     <TableCell className="text-center">

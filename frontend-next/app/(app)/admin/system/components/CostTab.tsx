@@ -24,6 +24,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCurrencyWhole, formatPercentageWithFallback } from "@/utils/formatters";
 
 // Pricing calculation - TIERED BRACKETS (like tax brackets)
 // First $1M: 2.2%
@@ -77,19 +78,6 @@ const calculateAnnualCost = (turnover: number): {
   const effectiveRate = (totalCost / turnover) * 100;
 
   return { cost: totalCost, effectiveRate, tiers };
-};
-
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
-
-const formatPercentage = (value: number): string => {
-  return `${value.toFixed(2)}%`;
 };
 
 export function CostTab() {
@@ -177,7 +165,7 @@ export function CostTab() {
                     : "bg-muted hover:bg-muted/80"
                 )}
               >
-                {formatCurrency(value)}
+                {formatCurrencyWhole(value)}
               </button>
             ))}
           </div>
@@ -187,16 +175,16 @@ export function CostTab() {
             <div className="bg-primary/10 dark:bg-primary/20 rounded-lg p-4 text-center">
               <div className="text-sm text-muted-foreground mb-1">Effective Rate</div>
               <div className="text-3xl font-bold text-primary">
-                {formatPercentage(effectiveRate)}
+                {formatPercentageWithFallback(effectiveRate, "0%", 2)}
               </div>
             </div>
             <div className="bg-muted rounded-lg p-4 text-center">
               <div className="text-sm text-muted-foreground mb-1">Annual Cost</div>
-              <div className="text-3xl font-bold">{formatCurrency(annualCost)}</div>
+              <div className="text-3xl font-bold">{formatCurrencyWhole(annualCost)}</div>
             </div>
             <div className="bg-muted rounded-lg p-4 text-center">
               <div className="text-sm text-muted-foreground mb-1">Monthly</div>
-              <div className="text-3xl font-bold">{formatCurrency(monthlyCost)}</div>
+              <div className="text-3xl font-bold">{formatCurrencyWhole(monthlyCost)}</div>
             </div>
           </div>
         </CardContent>
@@ -229,11 +217,11 @@ export function CostTab() {
                     >
                       <span className="text-muted-foreground">
                         {index === 0
-                          ? `First ${formatCurrency(tier.to)}`
-                          : `${formatCurrency(tier.from)} - ${formatCurrency(tier.to)}`}
-                        <span className="ml-2 text-xs">@ {formatPercentage(tier.rate)}</span>
+                          ? `First ${formatCurrencyWhole(tier.to)}`
+                          : `${formatCurrencyWhole(tier.from)} - ${formatCurrencyWhole(tier.to)}`}
+                        <span className="ml-2 text-xs">@ {formatPercentageWithFallback(tier.rate, "0%", 2)}</span>
                       </span>
-                      <span className="font-medium">{formatCurrency(tier.amount)}</span>
+                      <span className="font-medium">{formatCurrencyWhole(tier.amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -245,11 +233,11 @@ export function CostTab() {
           <div className="mt-4 pt-4 border-t space-y-2">
             <div className="flex justify-between font-semibold text-lg">
               <span>Total Annual Cost</span>
-              <span className="text-primary">{formatCurrency(annualCost)}</span>
+              <span className="text-primary">{formatCurrencyWhole(annualCost)}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>Effective rate</span>
-              <span>{formatPercentage(effectiveRate)}</span>
+              <span>{formatPercentageWithFallback(effectiveRate, "0%", 2)}</span>
             </div>
           </div>
 
@@ -283,7 +271,7 @@ export function CostTab() {
               <CardTitle className="text-lg">Charity</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="text-2xl font-bold">{formatCurrency(charityAmount)}/yr</div>
+              <div className="text-2xl font-bold">{formatCurrencyWhole(charityAmount)}/yr</div>
               <Badge className="bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700 text-xs">
                 <Sparkles className="h-3 w-3 mr-1" />
                 First 12mo: Joii
@@ -295,7 +283,7 @@ export function CostTab() {
           <Card className="border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <Users className="h-8 w-8 text-blue-500" />
+                <Users className="h-8 w-8 text-blue-500 dark:text-blue-400" />
                 <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
                   20%
                 </Badge>
@@ -303,7 +291,7 @@ export function CostTab() {
               <CardTitle className="text-lg">Your Support</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="text-2xl font-bold">{formatCurrency(supportLineAmount)}/yr</div>
+              <div className="text-2xl font-bold">{formatCurrencyWhole(supportLineAmount)}/yr</div>
               <p className="text-sm text-muted-foreground">
                 They support you
               </p>
@@ -314,7 +302,7 @@ export function CostTab() {
           <Card className="border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-white dark:from-purple-950/20 dark:to-background">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <Users className="h-8 w-8 text-purple-500" />
+                <Users className="h-8 w-8 text-purple-500 dark:text-purple-400" />
                 <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
                   10%
                 </Badge>
@@ -322,7 +310,7 @@ export function CostTab() {
               <CardTitle className="text-lg">Their Support</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="text-2xl font-bold">{formatCurrency(uplineSupportAmount)}/yr</div>
+              <div className="text-2xl font-bold">{formatCurrencyWhole(uplineSupportAmount)}/yr</div>
               <p className="text-sm text-muted-foreground">
                 Your support has a support too
               </p>
@@ -339,7 +327,7 @@ export function CostTab() {
               <CardTitle className="text-lg">TEEEM</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="text-2xl font-bold">{formatCurrency(teeemAmount)}/yr</div>
+              <div className="text-2xl font-bold">{formatCurrencyWhole(teeemAmount)}/yr</div>
               <p className="text-sm text-muted-foreground">
                 Platform & development
               </p>
@@ -414,36 +402,36 @@ export function CostTab() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div className="space-y-3">
-                <h4 className="font-semibold">Level 1: Your Support (20%)</h4>
+                <h4 className="text-sm font-semibold">Level 1: Your Support (20%)</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2">
-                    <span className="text-blue-500 font-bold">•</span>
+                    <span className="text-blue-500 dark:text-blue-400 font-bold">•</span>
                     <span>Eligibility: $10k in total fees (yours + network)</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-blue-500 font-bold">•</span>
+                    <span className="text-blue-500 dark:text-blue-400 font-bold">•</span>
                     <span>Must actively support your referrals for life</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-blue-500 font-bold">•</span>
+                    <span className="text-blue-500 dark:text-blue-400 font-bold">•</span>
                     <span>Potential bonuses count towards $10k threshold</span>
                   </li>
                 </ul>
               </div>
 
               <div className="space-y-3">
-                <h4 className="font-semibold">Level 2: Their Support (10%)</h4>
+                <h4 className="text-sm font-semibold">Level 2: Their Support (10%)</h4>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2">
-                    <span className="text-purple-500 font-bold">•</span>
+                    <span className="text-purple-500 dark:text-purple-400 font-bold">•</span>
                     <span>Eligibility: $50k in total fees (yours + network)</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-purple-500 font-bold">•</span>
+                    <span className="text-purple-500 dark:text-purple-400 font-bold">•</span>
                     <span>Same rules apply — support your network</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-purple-500 font-bold">•</span>
+                    <span className="text-purple-500 dark:text-purple-400 font-bold">•</span>
                     <span>Potential bonuses count towards $50k threshold</span>
                   </li>
                 </ul>
@@ -455,7 +443,7 @@ export function CostTab() {
             </div>
 
             <div className="bg-muted rounded-lg p-4">
-              <h4 className="font-semibold mb-3">Example</h4>
+              <h4 className="text-sm font-semibold mb-3">Example</h4>
               <div className="space-y-2 text-sm">
                 <p>Support 5 businesses @ $500k turnover each:</p>
                 <div className="flex justify-between">

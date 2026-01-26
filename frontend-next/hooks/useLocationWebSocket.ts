@@ -1,26 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
-import { createConsumer, Subscription } from "@rails/actioncable";
-import { getApiBaseUrl } from "@/lib/api";
-
-// Singleton ActionCable consumer to prevent multiple connections
-let globalConsumer: ReturnType<typeof createConsumer> | null = null;
-let globalConsumerUrl: string | null = null;
-
-function getOrCreateConsumer(wsUrl: string): ReturnType<typeof createConsumer> {
-  if (globalConsumer && globalConsumerUrl === wsUrl) {
-    return globalConsumer;
-  }
-
-  if (globalConsumer) {
-    globalConsumer.disconnect();
-  }
-
-  globalConsumer = createConsumer(wsUrl);
-  globalConsumerUrl = wsUrl;
-  return globalConsumer;
-}
+import type { Subscription } from "@rails/actioncable";
+import { getOrCreateConsumer, getWebSocketUrl } from "@/lib/websocket/consumer-singleton";
 
 // WebSocket event types (matches backend LocationChannel)
 export type LocationWebSocketEventType =
@@ -226,6 +208,7 @@ export function useLocationWebSocket(
   const FAILURE_RESET_MS = 60000;
   const MAX_GEOFENCE_EVENTS = 50;
 
+  // SSoT: Use getWebSocketUrl from consumer-singleton
   const wsUrl = useMemo(() => {
     return process.env.NEXT_PUBLIC_WS_URL || getWebSocketUrl();
   }, []);
@@ -383,23 +366,6 @@ export function useLocationWebSocket(
     disconnect,
     reconnect,
   };
-}
-
-function getWebSocketUrl(): string {
-  const apiUrl = getApiBaseUrl();
-  const url = new URL(apiUrl);
-
-  url.protocol = url.protocol.replace("http", "ws");
-  url.pathname = "/cable";
-
-  if (typeof window !== "undefined") {
-    const token = localStorage.getItem("token");
-    if (token) {
-      url.searchParams.set("token", token);
-    }
-  }
-
-  return url.toString();
 }
 
 export default useLocationWebSocket;

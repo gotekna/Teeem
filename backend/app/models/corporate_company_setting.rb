@@ -2,18 +2,40 @@ class CorporateCompanySetting < ApplicationRecord
   # Encrypt sensitive credentials (SSoT pattern from MicrosoftCredential)
   encrypts :twilio_auth_token
 
+  # ========================================
+  # API Environment Configuration (SSoT)
+  # ========================================
+  # Allows company-wide backend environment selection.
+  # Production backend is the "router" - stores all companies' env preferences.
+  # Returns appropriate api_url on login.
+  VALID_API_ENVIRONMENTS = %w[production beta staging].freeze
+
+  API_ENVIRONMENT_URLS = {
+    "production" => "https://teeem-production-121159e1ff9d.herokuapp.com",
+    "beta" => "https://teeem-beta-6e3e9cb59225.herokuapp.com",
+    "staging" => "https://teeem-staging-d60a657ed68a.herokuapp.com"
+  }.freeze
+
+  FRONTEND_ENVIRONMENT_URLS = {
+    "production" => "https://teeem.vercel.app",
+    "beta" => "https://teeem-beta.vercel.app",
+    "staging" => "https://teeem-staging.vercel.app"
+  }.freeze
+
   # Validations
   validates :company_name, presence: true
+  validates :api_environment, inclusion: { in: VALID_API_ENVIRONMENTS }, allow_nil: true
 
-  # Singleton pattern - only one company settings record should exist
+  # Singleton pattern - only one company settings record should exist per tenant
+  # SSoT: No hardcoded org names - tenant must configure their own details (Jan 2026)
   def self.instance
     first_or_create!(
-      company_name: "Tekna Homes",
-      abn: "TBD",
-      gst_number: "TBD",
-      email: "info@teknahomes.com.au",
-      phone: "TBD",
-      address: "TBD",
+      company_name: "My Company",  # Tenant must update this
+      abn: "",
+      gst_number: "",
+      email: "",  # Tenant must configure their email
+      phone: "",
+      address: "",
       timezone: "Australia/Brisbane",
       working_days: {
         monday: true,
@@ -41,6 +63,17 @@ class CorporateCompanySetting < ApplicationRecord
     end
   end
 
+  # Execute block in company timezone (SSoT for timezone operations)
+  # Usage: CorporateCompanySetting.in_company_timezone { Date.today }
+  def self.in_company_timezone(&block)
+    Time.use_zone(instance.timezone || "Australia/Brisbane", &block)
+  end
+
+  # Get the company timezone string (SSoT)
+  def self.timezone
+    instance.timezone || "Australia/Brisbane"
+  end
+
   # Check if a date is a working day (respects working_days config)
   def self.working_day?(date)
     settings = instance
@@ -59,256 +92,35 @@ class CorporateCompanySetting < ApplicationRecord
     working_day?(date) && !public_holiday?(date)
   end
 
-  # Get base path for document storage by scope
-  # SSoT: Uses sharepoint_* columns (not legacy *_documents_base_path columns)
-  # The sharepoint_* columns are THE SSoT - configured at /admin/system/entity-config/sharepoint_config
-  def self.base_path_for_scope(scope)
-    setting = instance
-    storage_config = StorageConfiguration.instance
-    case scope.to_s
-    when "company", "both"
-      setting.sharepoint_company_path.presence || storage_config&.path_for(:corporate) || "Corporate"
-    when "people"
-      setting.sharepoint_people_path.presence || storage_config&.path_for(:people) || "Corporate/People"
-    when "job"
-      setting.sharepoint_jobs_path.presence || storage_config&.path_for(:job) || "Jobs"
-    else
-      raise ArgumentError, "Unknown scope: #{scope}"
-    end
-  end
+  # ========================================
+  # Document Base Path Convenience Methods
+  # SSoT: StorageConfiguration is THE ONE source for storage paths
+  # ========================================
 
-  # Convenience methods for accessing document base paths
   def self.company_documents_base_path
-    base_path_for_scope("company")
+    StorageConfiguration.instance&.path_for(:corporate) || "Corporate"
   end
 
   def self.people_documents_base_path
-    base_path_for_scope("people")
+    StorageConfiguration.instance&.path_for(:people) || "People"
   end
 
   def self.job_documents_base_path
-    base_path_for_scope("job")
+    StorageConfiguration.instance&.path_for(:job) || "Jobs"
   end
 
   # ========================================
-  # SharePoint Configuration (DEPRECATED)
+  # Template Resolution Utilities
   # ========================================
-  #
-  # DEPRECATION NOTICE: These methods are deprecated.
-  # Use StorageConfiguration instead:
-  #
-  #   config = StorageConfiguration.for_organization(Organization.first)
-  #   config.site_id
-  #   config.drive_id
-  #   config.resolve_path(:job, JobCode: "J-001")
-  #
-  # These methods will be removed in a future release.
-  # ========================================
-
-  # DEPRECATED: Use StorageConfiguration.for_organization(org).site_id instead
-  def self.sharepoint_configured?
-    Rails.deprecator.warn(
-      "CorporateCompanySetting.sharepoint_configured? is deprecated. " \
-      "Use StorageConfiguration.for_organization(org).connected? instead."
-    )
-    setting = instance
-    setting.sharepoint_site_id.present? && setting.sharepoint_drive_id.present?
-  end
-
-  # DEPRECATED: Use StorageConfiguration.for_organization(org).site_url instead
-  def self.sharepoint_site_url
-    Rails.deprecator.warn(
-      "CorporateCompanySetting.sharepoint_site_url is deprecated. " \
-      "Use StorageConfiguration.for_organization(org).site_url instead."
-    )
-    instance.sharepoint_site_url.presence
-  end
-
-  # DEPRECATED: Use StorageConfiguration.for_organization(org).path_for(scope) instead
-  def self.sharepoint_full_path(scope)
-    Rails.deprecator.warn(
-      "CorporateCompanySetting.sharepoint_full_path is deprecated. " \
-      "Use StorageConfiguration.for_organization(org).path_for(scope) instead."
-    )
-    setting = instance
-    root = setting.sharepoint_root_path.presence || ""
-    sub_path = case scope.to_sym
-               when :jobs, :job
-                 setting.sharepoint_jobs_path.presence || "Jobs"
-               when :tasks, :task
-                 setting.sharepoint_tasks_path.presence || "Tasks"
-               when :people
-                 setting.sharepoint_people_path.presence || "Corporate/People"
-               when :company
-                 setting.sharepoint_company_path.presence || "Corporate"
-               when :contacts
-                 setting.sharepoint_contacts_path.presence || "Contacts"
-               else
-                 raise ArgumentError, "Unknown SharePoint scope: #{scope}"
-               end
-
-    # Combine root and sub-path, ensuring no double slashes
-    "#{root.chomp('/')}/#{sub_path.sub(/^\//, '')}"
-  end
-
-  # DEPRECATED: Use StorageConfiguration.for_organization(org).to_config_hash instead
-  def self.sharepoint_config
-    Rails.deprecator.warn(
-      "CorporateCompanySetting.sharepoint_config is deprecated. " \
-      "Use StorageConfiguration.for_organization(org).to_config_hash instead."
-    )
-    setting = instance
-    {
-      configured: setting.sharepoint_site_id.present? && setting.sharepoint_drive_id.present?,
-      site_url: setting.sharepoint_site_url,
-      site_id: setting.sharepoint_site_id,
-      drive_id: setting.sharepoint_drive_id,
-      drive_name: setting.sharepoint_drive_name,
-      root_path: setting.sharepoint_root_path.presence || "",
-      paths: {
-        jobs: setting.sharepoint_jobs_path.presence || "Jobs",
-        tasks: setting.sharepoint_tasks_path.presence || "Tasks",
-        people: setting.sharepoint_people_path.presence || "Corporate/People",
-        company: setting.sharepoint_company_path.presence || "Corporate",
-        contacts: setting.sharepoint_contacts_path.presence || "Contacts"
-      },
-      templates: {
-        job: setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}",
-        task: setting.sharepoint_task_template.presence || "Task-{{TaskId}}/{{Category}}",
-        company: setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
-        people: setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}",
-        contacts: setting.sharepoint_contacts_template.presence || "{{ContactName}}/{{Category}}"
-      }
-    }
-  end
-
-  # ========================================
-  # SharePoint Path Resolution (DEPRECATED)
-  # ========================================
-  #
-  # DEPRECATION NOTICE: These methods are deprecated.
-  # Use StorageConfiguration instead:
-  #
-  #   config = StorageConfiguration.for_organization(Organization.first)
-  #   config.job_path(job_code, category)
-  #   config.contacts_path(contact_name, category)
-  #   config.resolve_path(:job, JobCode: "J-001", Category: "Plans")
-  #
-  # These methods will be removed in a future release.
-  # ========================================
-
-  # DEPRECATED: Use EntityTab.find_by(scope: scope).storage_folder_path instead
-  # SSoT: EntityTab owns folder paths, StorageConfiguration owns connection only
-  def self.sharepoint_template(scope)
-    Rails.deprecator.warn(
-      "CorporateCompanySetting.sharepoint_template is deprecated. " \
-      "SSoT: EntityTab owns folder paths. Use EntityTab.find_by(scope: scope).storage_folder_path."
-    )
-    setting = instance
-    case scope.to_sym
-    when :jobs, :job
-      setting.sharepoint_job_template.presence || "{{JobCode}}/{{Category}}"
-    when :tasks, :task
-      setting.sharepoint_task_template.presence || "Task-{{TaskId}}/{{Category}}"
-    when :people
-      setting.sharepoint_people_template.presence || "{{ContactName}}/{{Category}}"
-    when :company
-      setting.sharepoint_company_template.presence || "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}"
-    when :contacts
-      setting.sharepoint_contacts_template.presence || "{{ContactName}}/{{Category}}"
-    else
-      raise ArgumentError, "Unknown SharePoint scope: #{scope}"
-    end
-  end
-
-  # DEPRECATED: Use StorageConfiguration.for_organization(org).job_path(job_code, category) instead
-  def self.job_path(job_code, category = nil)
-    Rails.deprecator.warn(
-      "CorporateCompanySetting.job_path is deprecated. " \
-      "Use StorageConfiguration.for_organization(org).job_path(job_code, category) instead."
-    )
-    base = sharepoint_full_path(:jobs)
-    template = sharepoint_template(:job)
-    resolved = resolve_template(template, {
-      "JobCode" => job_code,
-      "Category" => category || ""
-    })
-    clean_path("#{base}/#{resolved}")
-  end
-
-  # DEPRECATED: Use StorageConfiguration.for_organization(org).task_path(task_id, category) instead
-  def self.task_path(task_id, category = nil)
-    Rails.deprecator.warn(
-      "CorporateCompanySetting.task_path is deprecated. " \
-      "Use StorageConfiguration.for_organization(org).task_path(task_id, category) instead."
-    )
-    base = sharepoint_full_path(:tasks)
-    template = sharepoint_template(:task)
-    resolved = resolve_template(template, {
-      "TaskId" => task_id.to_s,
-      "Category" => category || ""
-    })
-    clean_path("#{base}/#{resolved}")
-  end
-
-  # DEPRECATED: Use StorageConfiguration.for_organization(org).corporate_path(...) instead
-  def self.company_path(company_group: nil, company_code: nil, tab_name: nil)
-    Rails.deprecator.warn(
-      "CorporateCompanySetting.company_path is deprecated. " \
-      "Use StorageConfiguration.for_organization(org).corporate_path(...) instead."
-    )
-    base = sharepoint_full_path(:company)
-    template = sharepoint_template(:company)
-    resolved = resolve_template(template, {
-      "CompanyGroup" => company_group || "",
-      "CompanyCode" => company_code || "",
-      "TabName" => tab_name || ""
-    })
-    clean_path("#{base}/#{resolved}")
-  end
-
-  # DEPRECATED: Use StorageConfiguration.for_organization(org).people_path(name, category) instead
-  def self.people_path(contact_name, category = nil)
-    Rails.deprecator.warn(
-      "CorporateCompanySetting.people_path is deprecated. " \
-      "Use StorageConfiguration.for_organization(org).people_path(name, category) instead."
-    )
-    base = sharepoint_full_path(:people)
-    template = sharepoint_template(:people)
-    resolved = resolve_template(template, {
-      "ContactName" => contact_name,
-      "Category" => category || ""
-    })
-    clean_path("#{base}/#{resolved}")
-  end
-
-  # DEPRECATED: Use StorageConfiguration.for_organization(org).contacts_path(name, category) instead
-  def self.contacts_path(contact_name, category = nil)
-    Rails.deprecator.warn(
-      "CorporateCompanySetting.contacts_path is deprecated. " \
-      "Use StorageConfiguration.for_organization(org).contacts_path(name, category) instead."
-    )
-    base = sharepoint_full_path(:contacts)
-    template = sharepoint_template(:contacts)
-    resolved = resolve_template(template, {
-      "ContactName" => contact_name,
-      "Category" => category || ""
-    })
-    clean_path("#{base}/#{resolved}")
-  end
 
   # Resolve template placeholders with provided values
+  # Used by EntityTab and DocumentMigrationJob
   def self.resolve_template(template, values)
     result = template.dup
     values.each do |key, value|
       result.gsub!("{{#{key}}}", value.to_s)
     end
     result
-  end
-
-  # Clean path - remove double slashes and trailing slashes
-  def self.clean_path(path)
-    path.gsub(/\/+/, "/").chomp("/")
   end
 
   # ========================================
@@ -353,11 +165,13 @@ class CorporateCompanySetting < ApplicationRecord
   # Email Configuration (SSoT)
   # ========================================
 
-  # Default internal email domains (used if not configured)
-  DEFAULT_INTERNAL_DOMAINS = %w[tekna.com.au teeem.au teeem.com].freeze
+  # SSoT: No hardcoded domains - tenant must configure their own (Jan 2026)
+  # Empty array means all emails treated as external until configured
+  DEFAULT_INTERNAL_DOMAINS = [].freeze
 
   # Get internal email domains as array
   # SSoT: Used for detecting internal vs external emails
+  # Tenant must configure via Settings > Company > Email Config
   def self.internal_email_domains
     domains = instance.internal_email_domains.presence
     return DEFAULT_INTERNAL_DOMAINS if domains.blank?
@@ -368,32 +182,35 @@ class CorporateCompanySetting < ApplicationRecord
   # Check if an email address is internal
   def self.internal_email?(email)
     return false if email.blank?
+    return false if internal_email_domains.empty?  # No domains configured = all external
 
     domain = email.to_s.split("@").last&.downcase
     internal_email_domains.any? { |d| domain == d.downcase }
   end
 
   # Get internal domains formatted for SQL LIKE patterns
-  # Returns: ["@tekna.com.au", "@teeem.au", "@teeem.com"]
+  # Returns configured domains with @ prefix, e.g., ["@example.com", "@company.com"]
   def self.internal_domain_patterns
     internal_email_domains.map { |d| "@#{d}" }
   end
 
   # Monitored mailbox addresses (SSoT)
+  # SSoT: No hardcoded emails - returns nil if not configured (Jan 2026)
+  # Tenant must configure via Settings > Company > Email Config
   def self.monitored_mailbox_pay
-    instance.monitored_mailbox_pay.presence || "Pay@tekna.com.au"
+    instance.monitored_mailbox_pay.presence
   end
 
   def self.monitored_mailbox_newtask
-    instance.monitored_mailbox_newtask.presence || "newtask@tekna.com.au"
+    instance.monitored_mailbox_newtask.presence
   end
 
   def self.monitored_mailbox_newjob
-    instance.monitored_mailbox_newjob.presence || "newjob@tekna.com.au"
+    instance.monitored_mailbox_newjob.presence
   end
 
   def self.monitored_mailbox_newcase
-    instance.monitored_mailbox_newcase.presence || "newcase@tekna.com.au"
+    instance.monitored_mailbox_newcase.presence
   end
 
   # Get email config hash for API responses
@@ -413,14 +230,15 @@ class CorporateCompanySetting < ApplicationRecord
   # Brand Colors (SSoT for UI Theming)
   # ========================================
 
-  # Default brand colors (Tekna's colors as fallback)
+  # Default brand colors (generic professional colors)
+  # Tenant should configure their own brand colors via Settings > Company > Brand Colors
   # These are HSL values to match CSS variable format
   DEFAULT_BRAND_COLORS = {
-    primary: "161 63% 13%",           # #0c352d - Tekna dark teal
-    primary_foreground: "0 0% 100%",  # #ffffff - White
-    secondary: "0 0% 97%",            # #f8f8f8 - Light gray
-    muted: "0 0% 38%",                # #616161 - Gray
-    accent: "40 11% 77%"              # #cbc9c0 - Beige/tan
+    primary: "220 70% 50%",           # Professional blue
+    primary_foreground: "0 0% 100%",  # White
+    secondary: "0 0% 97%",            # Light gray
+    muted: "0 0% 38%",                # Gray
+    accent: "200 80% 50%"             # Accent blue
   }.freeze
 
   # Get brand colors for API responses and CSS injection
@@ -464,6 +282,56 @@ class CorporateCompanySetting < ApplicationRecord
     "#{(h * 360).round} #{(s * 100).round}% #{(l * 100).round}%"
   end
 
+  # Convert HSL string back to hex color
+  # Input: "161 63% 13%" (HSL format from CSS variables)
+  # Output: "#0c352d"
+  def self.hsl_to_hex(hsl_string)
+    return nil if hsl_string.blank?
+
+    # Parse "161 63% 13%" format
+    match = hsl_string.match(/(\d+)\s+(\d+)%\s+(\d+)%/)
+    return nil unless match
+
+    h = match[1].to_f / 360.0
+    s = match[2].to_f / 100.0
+    l = match[3].to_f / 100.0
+
+    if s == 0
+      r = g = b = l
+    else
+      q = l < 0.5 ? l * (1 + s) : l + s - l * s
+      p = 2 * l - q
+      r = hue_to_rgb(p, q, h + 1.0/3.0)
+      g = hue_to_rgb(p, q, h)
+      b = hue_to_rgb(p, q, h - 1.0/3.0)
+    end
+
+    "#%02x%02x%02x" % [(r * 255).round, (g * 255).round, (b * 255).round]
+  end
+
+  # Helper for HSL to RGB conversion
+  def self.hue_to_rgb(p, q, t)
+    t += 1 if t < 0
+    t -= 1 if t > 1
+    return p + (q - p) * 6 * t if t < 1.0/6.0
+    return q if t < 1.0/2.0
+    return p + (q - p) * (2.0/3.0 - t) * 6 if t < 2.0/3.0
+    p
+  end
+
+  # Get brand colors in HEX format (for email signatures, PDFs, etc.)
+  # Returns hex values like "#0c352d"
+  def self.brand_colors_hex
+    setting = instance
+    {
+      primary: hsl_to_hex(setting.brand_color_primary) || "#1a3c34",
+      primaryForeground: hsl_to_hex(setting.brand_color_primary_foreground) || "#ffffff",
+      secondary: hsl_to_hex(setting.brand_color_secondary) || "#64748b",
+      muted: hsl_to_hex(setting.brand_color_muted) || "#f1f5f9",
+      accent: hsl_to_hex(setting.brand_color_accent) || "#0ea5e9"
+    }
+  end
+
   # Update brand colors from hex values (for API convenience)
   def self.update_brand_colors_from_hex(colors)
     updates = {}
@@ -474,6 +342,61 @@ class CorporateCompanySetting < ApplicationRecord
     updates[:brand_color_accent] = hex_to_hsl(colors[:accent]) if colors[:accent].present?
 
     instance.update!(updates) if updates.any?
+  end
+
+  # ========================================
+  # Link Expiry Configuration (SSoT)
+  # ========================================
+
+  # Default expiry for presigned download URLs (in days)
+  DEFAULT_LINK_EXPIRY_DAYS = 7
+
+  # Get link expiry duration in days
+  # Used for presigned URLs sent to external parties (zip downloads, document shares)
+  def self.link_expiry_days
+    instance.link_expiry_days.presence || DEFAULT_LINK_EXPIRY_DAYS
+  end
+
+  # Get link expiry duration in seconds (for presigned URL generation)
+  def self.link_expiry_seconds
+    link_expiry_days.days.to_i
+  end
+
+  # ========================================
+  # API Environment Methods (SSoT)
+  # ========================================
+
+  # Get the current API environment setting (defaults to 'production')
+  def self.api_environment
+    instance.api_environment.presence || "production"
+  end
+
+  # Get the API URL for the current environment
+  # Used in login response to direct frontend to correct backend
+  def self.api_url
+    API_ENVIRONMENT_URLS[api_environment] || API_ENVIRONMENT_URLS["production"]
+  end
+
+  # Get full API environment config for login response
+  # In development mode, don't return redirect URLs but still return the company's environment
+  def self.api_environment_config
+    env = api_environment
+
+    # In development: return the company's api_environment setting but skip redirect URLs
+    # This way the badge shows the correct environment, but we stay on localhost
+    if Rails.env.development?
+      {
+        environment: env,
+        api_url: nil,
+        frontend_url: nil
+      }
+    else
+      {
+        environment: env,
+        api_url: API_ENVIRONMENT_URLS[env] || API_ENVIRONMENT_URLS["production"],
+        frontend_url: FRONTEND_ENVIRONMENT_URLS[env] || FRONTEND_ENVIRONMENT_URLS["production"]
+      }
+    end
   end
 
   private

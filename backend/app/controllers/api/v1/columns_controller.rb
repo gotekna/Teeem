@@ -163,7 +163,7 @@ module Api
       def lookup_options
         column = @foundation.columns.find(params[:id])
 
-        unless column.column_type.in?([ "lookup", "multiple_lookups" ])
+        unless column.column_type.in?(Column::LOOKUP_COLUMN_TYPES)
           return render json: { error: "Not a lookup column" }, status: :bad_request
         end
 
@@ -265,7 +265,7 @@ module Api
       def lookup_search
         column = @foundation.columns.find(params[:id])
 
-        unless column.column_type.in?([ "lookup", "multiple_lookups" ])
+        unless column.column_type.in?(Column::LOOKUP_COLUMN_TYPES)
           return render json: { error: "Not a lookup column" }, status: :bad_request
         end
 
@@ -360,7 +360,7 @@ module Api
       def choices
         column = find_column_by_id_or_name(params[:id])
 
-        unless column.column_type.in?([ "single_select", "multi_select", "choice", "dropdown", "select" ])
+        unless column.column_type.in?(Column::CHOICE_COLUMN_TYPES)
           return render json: { error: "Not a choice column" }, status: :bad_request
         end
 
@@ -423,7 +423,7 @@ module Api
           return render json: { error: "value is required" }, status: :bad_request
         end
 
-        unless column.column_type.in?([ "single_select", "multi_select", "choice", "dropdown", "select" ])
+        unless column.column_type.in?(Column::CHOICE_COLUMN_TYPES)
           return render json: { error: "Not a choice column" }, status: :bad_request
         end
 
@@ -458,7 +458,7 @@ module Api
           return render json: { error: "order array is required" }, status: :bad_request
         end
 
-        unless column.column_type.in?([ "single_select", "multi_select", "choice", "dropdown", "select" ])
+        unless column.column_type.in?(Column::CHOICE_COLUMN_TYPES)
           return render json: { error: "Not a choice column" }, status: :bad_request
         end
 
@@ -798,7 +798,7 @@ module Api
         end
 
         # Check if this column is used as a lookup display column within the same foundation
-        same_foundation_lookups = @foundation.columns.where(column_type: [ "lookup", "multiple_lookups" ])
+        same_foundation_lookups = @foundation.columns.where(column_type: Column::LOOKUP_COLUMN_TYPES)
           .where(lookup_display_column: column.column_name)
         same_foundation_lookups.each do |lookup_col|
           warnings << {

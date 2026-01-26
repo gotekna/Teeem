@@ -147,7 +147,7 @@ export function DuplicateContactGroup({ group }: Props) {
                     Transfer all relationships (jobs, purchase orders, cases)
                   </li>
                   <li>
-                    <strong className="text-red-600">Permanently delete</strong> the other{' '}
+                    <strong className="text-red-600 dark:text-red-400">Permanently delete</strong> the other{' '}
                     {group.contacts.length - 1} contact{group.contacts.length - 1 !== 1 ? 's' : ''}
                   </li>
                 </ul>

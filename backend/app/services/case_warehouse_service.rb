@@ -86,7 +86,7 @@ class CaseWarehouseService
 
   # Search emails in warehouse
   def search_emails(query: nil, date_range: nil, from_email: nil, job_id: nil)
-    scope = EmailWarehouse.all
+    scope = SyncedEmail.all
 
     # Full-text search
     scope = scope.search_text(query) if query.present?
@@ -106,8 +106,8 @@ class CaseWarehouseService
       scope = scope.for_job(job_id)
     elsif case_record.related_job_ids.any? && case_record.related_emails.any?
       # Both job IDs and related emails - use OR to find either
-      job_scope = EmailWarehouse.where(job_id: case_record.related_job_ids)
-      email_scope = EmailWarehouse.involving_email(case_record.related_emails)
+      job_scope = SyncedEmail.where(job_id: case_record.related_job_ids)
+      email_scope = SyncedEmail.involving_email(case_record.related_emails)
 
       # Apply existing conditions to both sides of the OR
       if date_range.present?
@@ -135,7 +135,7 @@ class CaseWarehouseService
     conversation_ids = emails.pluck(:conversation_id).compact.uniq
 
     conversation_ids.map do |conv_id|
-      thread_emails = EmailWarehouse.by_conversation(conv_id)
+      thread_emails = SyncedEmail.by_conversation(conv_id)
       {
         conversation_id: conv_id,
         subject: thread_emails.first&.subject,
@@ -254,7 +254,7 @@ class CaseWarehouseService
                                         .includes(:corporate_company),
       relationships: contact.contact_relationships.includes(:related_contact),
       documents: CorporateCompanyDocument.where(contact_id: contact_id),
-      emails: EmailWarehouse.involving_email(contact.email),
+      emails: SyncedEmail.involving_email(contact.email),
       company_group_memberships: contact.corporate_group_memberships.includes(:corporate_group)
     }
   end
@@ -397,7 +397,7 @@ class CaseWarehouseService
       type: "email",
       title: email.subject || "(No Subject)",
       description: "From: #{email.from_email}",
-      source_type: "EmailWarehouse",
+      source_type: "SyncedEmail",
       source_id: email.id,
       icon: "mail",
       color: "purple",

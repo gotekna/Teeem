@@ -3,6 +3,7 @@
 import { PipelineJob } from "@/types/leads";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin, DollarSign, Building2 } from "lucide-react";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 interface JobPipelineCardProps {
   job: PipelineJob;
@@ -11,14 +12,6 @@ interface JobPipelineCardProps {
 }
 
 export function JobPipelineCard({ job, onClick, isDragging }: JobPipelineCardProps) {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   // Extract suburb from location (usually "Street, Suburb, State Postcode")
   const getSuburb = (location?: string) => {
@@ -54,7 +47,7 @@ export function JobPipelineCard({ job, onClick, isDragging }: JobPipelineCardPro
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
             <DollarSign className="h-3 w-3" />
-            {formatCurrency(Number(job.contract_value) || 0)}
+            {formatCurrencyWhole(Number(job.contract_value) || 0)}
           </div>
           {job.job_type && (
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">

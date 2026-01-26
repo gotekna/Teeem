@@ -331,11 +331,10 @@ namespace :xero do
 
     # Find invoices that DON'T already have PDFs synced
     # This avoids unnecessary API calls for already-synced invoices
-    already_synced_ids = CompanyDocument
+    already_synced_ids = CorporateCompanyDocument
       .where(source: "xero")
-      .where("external_id LIKE ?", "xero:%:pdf")
       .where(documentable_type: "ExternalInvoice")
-      .pluck(:documentable_id)
+      .distinct.pluck(:documentable_id)
 
     invoices_needing_pdfs = ExternalInvoice
       .where.not(contact_id: nil)
@@ -436,6 +435,82 @@ namespace :xero do
     puts "Total synced (including previous runs): #{already_synced + pdf_count}"
   end
 
+  desc "Fix document types - migrate legacy types to SSoT Xero types"
+  task fix_document_types: :environment do
+    puts "=" * 70
+    puts "FIX XERO DOCUMENT TYPES (SSoT)"
+    puts "=" * 70
+    puts ""
+    puts "SSoT Pattern:"
+    puts "  Main PDF:    external_id ends with ':pdf' → 'Xero Bill' / 'Xero Invoice'"
+    puts "  Attachment:  external_id ends with UUID   → 'Xero Bill Attachment' / etc."
+    puts ""
+
+    # Current state
+    puts "Current document types:"
+    CorporateCompanyDocument.where(source: "xero")
+      .group(:document_type).count.sort_by { |_, v| -v }.first(10).each do |type, count|
+      puts "  #{type}: #{count}"
+    end
+    puts ""
+
+    # SSoT: Legacy type → New type mapping
+    # "Purchases" was used for bills, "Sales Document" for invoices
+    legacy_to_ssot = {
+      "Purchases" => { main: "Xero Bill", attachment: "Xero Bill Attachment" },
+      "Sales Document" => { main: "Xero Invoice", attachment: "Xero Invoice Attachment" }
+    }
+
+    fixed = 0
+    errors = []
+
+    legacy_to_ssot.each do |legacy_type, ssot_types|
+      docs = CorporateCompanyDocument.where(source: "xero", document_type: legacy_type)
+      count = docs.count
+      next if count == 0
+
+      puts "Migrating #{count} '#{legacy_type}' docs..."
+
+      docs.find_each do |doc|
+        begin
+          # Determine if main PDF or attachment by external_id pattern
+          is_main_pdf = doc.external_id&.end_with?(":pdf")
+          new_type = is_main_pdf ? ssot_types[:main] : ssot_types[:attachment]
+
+          doc.update_column(:document_type, new_type)
+          fixed += 1
+
+          print "." if fixed % 500 == 0
+        rescue StandardError => e
+          errors << "ID #{doc.id}: #{e.message}"
+        end
+      end
+      puts ""
+    end
+
+    puts ""
+    puts "=" * 70
+    puts "COMPLETE!"
+    puts "=" * 70
+    puts "  Fixed: #{fixed}"
+    puts "  Errors: #{errors.count}"
+    puts ""
+
+    if errors.any?
+      puts "Errors:"
+      errors.first(10).each { |e| puts "  - #{e}" }
+    end
+
+    # Show counts after fix
+    puts ""
+    puts "After fix:"
+    ["Xero Bill", "Xero Invoice", "Xero Credit Note"].each do |doc_type|
+      main_count = CorporateCompanyDocument.where(source: "xero", document_type: doc_type).count
+      attachment_count = CorporateCompanyDocument.where(source: "xero", document_type: "#{doc_type} Attachment").count
+      puts "  #{doc_type}: #{main_count} main, #{attachment_count} attachments"
+    end
+  end
+
   desc "Backfill upload: Upload downloaded PDFs that are missing from SharePoint"
   task backfill_sharepoint_uploads: :environment do
     dry_run = ENV["DRY_RUN"] == "true"
@@ -479,7 +554,7 @@ namespace :xero do
     puts "Starting backfill job..."
     puts ""
 
-    stats = XeroSharepointUploadBackfillJob.perform_now(limit: limit, dry_run: dry_run)
+    stats = XeroStorageUploadBackfillJob.perform_now(limit: limit, dry_run: dry_run)
 
     puts ""
     puts "=" * 70

@@ -13,8 +13,8 @@ class ClassifyEmailWithAiJob < ApplicationJob
     ENV["ANTHROPIC_API_KEY"].present?
   end
 
-  def perform(email_warehouse_id)
-    email = EmailWarehouse.find_by(id: email_warehouse_id)
+  def perform(synced_email_id)
+    email = SyncedEmail.find_by(id: synced_email_id)
     return unless email
 
     # Skip if already confidently classified
@@ -24,7 +24,7 @@ class ClassifyEmailWithAiJob < ApplicationJob
     # Check rate limit
     if rate_limit_exceeded?
       # Re-queue for later
-      self.class.set(wait: 1.hour).perform_later(email_warehouse_id)
+      self.class.set(wait: 1.hour).perform_later(synced_email_id)
       return
     end
 
@@ -45,7 +45,7 @@ class ClassifyEmailWithAiJob < ApplicationJob
 
     Rails.logger.info "[EmailClassification] AI classified email #{email.id} as #{result[:email_type]} (confidence: #{result[:confidence]})"
   rescue StandardError => e
-    Rails.logger.error "[EmailClassification] AI classification failed for email #{email_warehouse_id}: #{e.message}"
+    Rails.logger.error "[EmailClassification] AI classification failed for email #{synced_email_id}: #{e.message}"
     # Don't re-raise - we don't want to retry indefinitely
   end
 

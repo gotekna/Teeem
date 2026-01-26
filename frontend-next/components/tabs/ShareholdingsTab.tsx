@@ -111,7 +111,7 @@ export function ShareholdingsTab({ company, companyId }: ShareholdingsTabProps) 
                   <TableCell className="px-4 py-3 text-sm">{sh.acquisition_date ? format(new Date(sh.acquisition_date), "dd/MM/yyyy") : "-"}</TableCell>
                   <TableCell className="px-4 py-3 text-sm">-</TableCell>
                   <TableCell className="px-4 py-3">
-                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Current</Badge>
+                    <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">Current</Badge>
                   </TableCell>
                 </TableRow>
               ))}

@@ -18,7 +18,8 @@ import { TaskAssignmentInline } from './TaskAssignmentInline';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
-import { api } from '@/lib/api';
+import { api, getApiBaseUrl } from '@/lib/api';
+import { getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 import {
   AlertTriangle,
   Calendar as CalendarIcon,
@@ -44,6 +45,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { Briefcase } from 'lucide-react';
@@ -63,9 +65,11 @@ interface TaskExpandedRowProps {
 // Status checkbox colors matching Gantt
 const statusColors = {
   started: 'data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500',
-  hold: 'data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500',
+  waiting_for_response: 'data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500',
+  waiting_for_info: 'data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500',
+  hold: 'data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500',
   confirm: 'data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500',
-  supplier_confirm: 'data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500',
+  supplier_confirm: 'data-[state=checked]:bg-violet-500 data-[state=checked]:border-violet-500',
   completed: 'data-[state=checked]:bg-muted0 data-[state=checked]:border-border',
 };
 
@@ -125,28 +129,78 @@ function DelegatedTaskView({
     }
   };
 
+  // Upload using presigned URL flow: Browser → S3 directly (bypasses Heroku 30s timeout)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
 
     setUploading(true);
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
+    const baseUrl = getApiBaseUrl();
+
     try {
       for (const file of Array.from(files)) {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('category', 'response');
+        try {
+          // Step 1: Get presigned URL from backend
+          const presignResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/presign`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              filename: file.name,
+              content_type: file.type || 'application/octet-stream',
+              category: 'response',
+            }),
+          });
 
-        const result = await api.postFormData<{ success: boolean; attachment: TaskAttachment }>(
-          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
-          formData
-        );
+          const presignData = await presignResponse.json();
+          if (!presignData.success || !presignData.upload_url) {
+            toast.error(presignData.error || `Failed to prepare upload for ${file.name}`);
+            continue;
+          }
 
-        if (result?.success && result.attachment) {
-          setLocalAttachments(prev => [...prev, result.attachment]);
+          // Step 2: Upload directly to S3 using fetch
+          const s3Response = await fetch(presignData.upload_url, {
+            method: 'PUT',
+            headers: { 'Content-Type': presignData.content_type },
+            body: file,
+          });
+
+          if (!s3Response.ok) {
+            console.error('[TaskExpandedRow] S3 upload failed:', s3Response.status, s3Response.statusText);
+            toast.error(`Upload failed for ${file.name}: ${s3Response.status}`);
+            continue;
+          }
+
+          // Step 3: Confirm upload with backend
+          const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              key: presignData.key,
+              filename: file.name,
+              content_type: file.type || 'application/octet-stream',
+              category: 'response',
+            }),
+          });
+
+          const confirmData = await confirmResponse.json();
+          if (confirmData.success && confirmData.attachment) {
+            setLocalAttachments(prev => [...prev, confirmData.attachment]);
+            toast.success(`Uploaded ${file.name}`);
+          } else {
+            toast.error(confirmData.error || `Failed to save ${file.name}`);
+          }
+        } catch (err) {
+          console.error(`Failed to upload ${file.name}:`, err);
+          toast.error(`Failed to upload ${file.name}`);
         }
       }
-    } catch (err) {
-      console.error('Failed to upload file:', err);
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -412,6 +466,9 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   const [cascadeDialogOpen, setCascadeDialogOpen] = useState(false);
   const [cascadeDialogLoading, setCascadeDialogLoading] = useState(false);
 
+  // Create case state
+  const [creatingCase, setCreatingCase] = useState(false);
+
   // Load followers on mount for all tasks
   useEffect(() => {
     getFollowers(task.id).then(setFollowers).catch(console.error);
@@ -459,6 +516,34 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
       console.error('Failed to toggle follow:', error);
     } finally {
       setFollowersLoading(false);
+    }
+  };
+
+  // Create or open case linked to this task
+  const handleCreateCase = async () => {
+    // If task already has a case, just open it
+    if (task.case_id) {
+      window.open(`/cases/${task.case_id}`, '_blank');
+      return;
+    }
+
+    setCreatingCase(true);
+    try {
+      const response = await api.post<{ success: boolean; case?: { id: number; case_number: string; title: string }; error?: string }>(
+        `/api/v1/sm_tasks/${task.id}/create_case`
+      );
+      if (response?.success && response.case) {
+        toast.success(`Case ${response.case.case_number} created`);
+        window.open(`/cases/${response.case.id}`, '_blank');
+        refresh(); // Refresh task list to show case_id
+      } else {
+        toast.error(response?.error || 'Failed to create case');
+      }
+    } catch (error) {
+      console.error('Failed to create case:', error);
+      toast.error('Failed to create case');
+    } finally {
+      setCreatingCase(false);
     }
   };
 
@@ -738,24 +823,72 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   };
 
   // Handler for adding an attachment
+  // Uses presigned URL flow for file uploads: Browser → S3 directly (bypasses Heroku 30s timeout)
   const handleAddAttachment = async (attachment: PendingAttachment) => {
     setAttachmentLoading(true);
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
+    const baseUrl = getApiBaseUrl();
+
     try {
       if (attachment.type === 'upload' && attachment.file) {
-        // Upload file using multipart form data
-        const formData = new FormData();
-        formData.append('file', attachment.file);
+        const file = attachment.file;
 
-        const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment; error?: string }>(
-          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
-          formData
-        );
+        // Step 1: Get presigned URL from backend
+        const presignResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/presign`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            category: 'info',
+          }),
+        });
 
-        if (response?.success && response.attachment) {
-          setLocalAttachments((prev) => [...prev, response.attachment]);
+        const presignData = await presignResponse.json();
+        if (!presignData.success || !presignData.upload_url) {
+          toast.error(presignData.error || 'Failed to prepare upload. Please try again.');
+          return;
+        }
+
+        // Step 2: Upload directly to S3 using fetch
+        const s3Response = await fetch(presignData.upload_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': presignData.content_type },
+          body: file,
+        });
+
+        if (!s3Response.ok) {
+          console.error('[TaskExpandedRow] S3 upload failed:', s3Response.status, s3Response.statusText);
+          toast.error(`Upload failed: ${s3Response.status}`);
+          return;
+        }
+
+        // Step 3: Confirm upload with backend
+        const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            key: presignData.key,
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            category: 'info',
+          }),
+        });
+
+        const confirmData = await confirmResponse.json();
+        if (confirmData.success && confirmData.attachment) {
+          setLocalAttachments((prev) => [...prev, confirmData.attachment]);
           setShowAttachmentPicker(false);
+          toast.success(`Uploaded ${file.name}`);
         } else {
-          console.error('Upload failed:', response?.error);
+          console.error('Upload failed:', confirmData?.error);
+          toast.error(confirmData.error || 'Failed to save attachment. Please try again.');
         }
       } else if (attachment.id) {
         // Link existing email/document
@@ -770,10 +903,12 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
         if (response?.success && response.attachment) {
           setLocalAttachments((prev) => [...prev, response.attachment]);
           setShowAttachmentPicker(false);
+          toast.success('Attachment linked');
         }
       }
     } catch (error) {
       console.error('Failed to add attachment:', error);
+      toast.error('Failed to add attachment. Please try again.');
     } finally {
       setAttachmentLoading(false);
     }
@@ -784,6 +919,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
   };
 
   // Direct file drop handler for attachments section
+  // Uses presigned URL flow: Browser → S3 directly (bypasses Heroku 30s timeout)
   const handleFileDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -792,25 +928,72 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
     const files = e.dataTransfer.files;
     if (!files || files.length === 0) return;
 
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
+    const baseUrl = getApiBaseUrl();
+
     // Upload each file
     for (const file of Array.from(files)) {
       setAttachmentLoading(true);
       try {
-        const formData = new FormData();
-        formData.append('file', file);
+        // Step 1: Get presigned URL from backend
+        const presignResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/presign`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            category: 'response',
+          }),
+        });
 
-        const response = await api.postFormData<{ success: boolean; attachment: TaskAttachment; error?: string }>(
-          `/api/v1/sm_tasks/${task.id}/attachments/upload`,
-          formData
-        );
+        const presignData = await presignResponse.json();
+        if (!presignData.success || !presignData.upload_url) {
+          toast.error(presignData.error || `Failed to prepare upload for ${file.name}`);
+          continue;
+        }
 
-        if (response?.success && response.attachment) {
-          setLocalAttachments((prev) => [...prev, response.attachment]);
+        // Step 2: Upload directly to S3 using fetch
+        const s3Response = await fetch(presignData.upload_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': presignData.content_type },
+          body: file,
+        });
+
+        if (!s3Response.ok) {
+          console.error('[TaskExpandedRow] S3 upload failed:', s3Response.status, s3Response.statusText);
+          toast.error(`Upload failed for ${file.name}: ${s3Response.status}`);
+          continue;
+        }
+
+        // Step 3: Confirm upload with backend
+        const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            key: presignData.key,
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            category: 'response',
+          }),
+        });
+
+        const confirmData = await confirmResponse.json();
+        if (confirmData.success && confirmData.attachment) {
+          setLocalAttachments((prev) => [...prev, confirmData.attachment]);
+          toast.success(`Uploaded ${file.name}`);
         } else {
-          console.error('Upload failed:', response?.error);
+          console.error('Upload failed:', confirmData?.error);
+          toast.error(confirmData.error || `Failed to save ${file.name}`);
         }
       } catch (error) {
         console.error('Failed to upload file:', error);
+        toast.error(`Failed to upload ${file.name}`);
       }
     }
     setAttachmentLoading(false);
@@ -997,7 +1180,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             </PopoverTrigger>
             <PopoverContent className="w-64" align="start">
               <div className="space-y-3">
-                <div className="font-medium text-sm">Share with</div>
+                <div className="text-sm font-medium text-muted-foreground">Share with</div>
 
                 {followersLoading ? (
                   <div className="flex justify-center py-4">
@@ -1068,13 +1251,49 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             <div className="flex items-center gap-1">
               <Checkbox
                 id={`started-${task.id}`}
-                checked={task.status === TASK_STATUS.STARTED || task.status === TASK_STATUS.COMPLETED}
+                checked={task.status === TASK_STATUS.STARTED || task.status === TASK_STATUS.WAITING_FOR_RESPONSE || task.status === TASK_STATUS.WAITING_FOR_INFO || task.status === TASK_STATUS.COMPLETED}
                 onCheckedChange={handleStartedChange}
                 disabled={!!loading || task.status === TASK_STATUS.COMPLETED}
                 className={cn("h-4 w-4", statusColors.started)}
               />
               <Label htmlFor={`started-${task.id}`} className="text-xs cursor-pointer">Started</Label>
               {loading === 'started' && <Spinner size={10} />}
+            </div>
+
+            {/* Waiting for Response - always shown */}
+            <div className="flex items-center gap-1">
+              <Checkbox
+                id={`waiting-response-${task.id}`}
+                checked={task.status === TASK_STATUS.WAITING_FOR_RESPONSE}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    updateTask(task.id, { status: TASK_STATUS.WAITING_FOR_RESPONSE });
+                  } else {
+                    updateTask(task.id, { status: TASK_STATUS.STARTED });
+                  }
+                }}
+                disabled={!!loading || task.status === TASK_STATUS.COMPLETED || task.status === TASK_STATUS.NOT_STARTED}
+                className={cn("h-4 w-4", statusColors.waiting_for_response)}
+              />
+              <Label htmlFor={`waiting-response-${task.id}`} className="text-xs cursor-pointer">Waiting</Label>
+            </div>
+
+            {/* Waiting for More Info - always shown */}
+            <div className="flex items-center gap-1">
+              <Checkbox
+                id={`waiting-info-${task.id}`}
+                checked={task.status === TASK_STATUS.WAITING_FOR_INFO}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    updateTask(task.id, { status: TASK_STATUS.WAITING_FOR_INFO });
+                  } else {
+                    updateTask(task.id, { status: TASK_STATUS.STARTED });
+                  }
+                }}
+                disabled={!!loading || task.status === TASK_STATUS.COMPLETED || task.status === TASK_STATUS.NOT_STARTED}
+                className={cn("h-4 w-4", statusColors.waiting_for_info)}
+              />
+              <Label htmlFor={`waiting-info-${task.id}`} className="text-xs cursor-pointer">Need Info</Label>
             </div>
 
             {/* Hold - only if linked to job */}
@@ -1329,7 +1548,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
               {item.item_type === 'question' && (
                 <div className="pl-1 border-l-2 border-blue-400">
                   <div className="flex items-start gap-2">
-                    <HelpCircle className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                    <HelpCircle className="h-4 w-4 text-blue-500 dark:text-blue-400 mt-0.5 shrink-0" />
                     {editingItemId === item.id ? (
                       <Input
                         value={editingItemText}
@@ -1400,7 +1619,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                     {item.response ? (
                       <div className="text-sm bg-green-50 dark:bg-green-950 p-2 rounded border border-green-200 dark:border-green-800">
                         <div className="flex items-start gap-2">
-                          <Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                          <Check className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
                           <div className="flex-1">
                             <p className="text-foreground">{item.response}</p>
                             {item.responded_by_name && (
@@ -1416,7 +1635,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                       // Delegated - show status
                       <div className="text-sm bg-purple-50 dark:bg-purple-950 p-2 rounded border border-purple-200 dark:border-purple-800">
                         <div className="flex items-center gap-2">
-                          <Send className="h-4 w-4 text-purple-600 shrink-0" />
+                          <Send className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
                           <div className="flex-1">
                             <p className="text-xs text-purple-700 dark:text-purple-300">
                               Sent to <span className="font-medium">{item.delegated_task.assigned_user_name || 'Unknown'}</span>
@@ -1522,7 +1741,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                             setAnsweringItemId(item.id);
                             setAnswerText('');
                           }}
-                          className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 hover:underline"
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 hover:underline"
                         >
                           + Add answer
                         </button>
@@ -1536,7 +1755,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                               setDelegationUsers(userList);
                             }
                           }}
-                          className="text-xs text-purple-600 hover:text-purple-800 dark:text-purple-400 hover:underline flex items-center gap-1"
+                          className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:text-purple-400 hover:underline flex items-center gap-1"
                         >
                           <Send className="h-3 w-3" />
                           Send to...
@@ -1577,7 +1796,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
               {newActionItemType === 'action' ? (
                 <Checkbox disabled className="h-4 w-4 opacity-50" />
               ) : (
-                <HelpCircle className="h-4 w-4 text-blue-500 opacity-50" />
+                <HelpCircle className="h-4 w-4 text-blue-500 dark:text-blue-400 opacity-50" />
               )}
               <SmartTextField
                 placeholder={newActionItemType === 'action' ? "Add action item..." : "Add question..."}
@@ -1630,7 +1849,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-background rounded-lg shadow-lg p-4 w-full max-w-md mx-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-medium">Paste Questions from Email</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">Paste Questions from Email</h3>
                 <button
                   onClick={() => {
                     setShowBulkPaste(false);
@@ -1730,7 +1949,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                 className={cn(
                   "h-7 text-xs gap-1 min-w-[100px] justify-start font-normal",
                   !requiredByDate && "text-muted-foreground",
-                  task.is_overdue && task.status !== TASK_STATUS.COMPLETED && "border-red-300 text-red-600"
+                  task.is_overdue && task.status !== TASK_STATUS.COMPLETED && "border-red-300 text-red-600 dark:text-red-400"
                 )}
                 disabled={!!loading}
               >
@@ -1867,6 +2086,18 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
             Documents
           </Button>
         )}
+
+        {/* Create Case / Open Case */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs gap-1"
+          onClick={handleCreateCase}
+          disabled={creatingCase}
+        >
+          {creatingCase ? <Spinner size={12} /> : <Briefcase className="h-3 w-3" />}
+          {task.case_id ? 'Open Case' : 'Create Case'}
+        </Button>
 
       </div>
 
@@ -2005,9 +2236,13 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                       };
                     })}
                     viewOnly={true}
-                    onRowDoubleClick={(row) => {
-                      // Open email detail dialog
+                    onRowClick={(row) => {
+                      // Open email in drawer
                       setSelectedEmailId(Number(row.id));
+                    }}
+                    onRowDoubleClick={(row) => {
+                      // Open email in new tab
+                      window.open(`/emails?open=${row.id}`, '_blank');
                     }}
                   />
                 </div>
@@ -2045,7 +2280,7 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                         key={attachment.id}
                         className="flex items-center gap-3 p-2 bg-background/50 rounded border hover:bg-muted/50 transition-colors"
                       >
-                        <FileText className="h-4 w-4 text-orange-500 shrink-0" />
+                        <FileText className="h-4 w-4 text-orange-500 dark:text-orange-400 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
                             {attachment.document!.display_name || attachment.document!.file_name}
@@ -2054,12 +2289,12 @@ export function TaskExpandedRow({ task, onClose }: TaskExpandedRowProps) {
                             {attachment.document!.document_type || 'Document'} • {format(new Date(attachment.document!.created_at), 'dd MMM yyyy')}
                           </p>
                         </div>
-                        {(attachment.document!.sharepoint_download_url || attachment.document!.file_url) && (
+                        {(attachment.document!.storage_url || attachment.document!.file_url) && (
                           <Button
                             variant="ghost"
                             size="sm"
                             className="h-7 text-xs shrink-0"
-                            onClick={() => window.open(attachment.document!.sharepoint_download_url || attachment.document!.file_url, '_blank')}
+                            onClick={() => window.open(attachment.document!.storage_url || attachment.document!.file_url, '_blank')}
                           >
                             <ExternalLink className="h-3 w-3 mr-1" />
                             Open

@@ -122,7 +122,7 @@ export const ActionsButtons = memo(function ActionsButtons<T extends { id: strin
                 e.stopPropagation();
                 onDelete(entry);
               }}
-              className="text-red-600 focus:text-red-600"
+              className="text-red-600 dark:text-red-400 focus:text-red-600 dark:text-red-400"
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete

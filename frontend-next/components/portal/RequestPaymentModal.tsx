@@ -9,6 +9,10 @@ import {
   PhotoIcon,
 } from "@heroicons/react/24/outline";
 import axios from "axios";
+import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
+import { formatCurrency } from "@/utils/formatters";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface PurchaseOrder {
   id: number;
@@ -35,6 +39,7 @@ export default function RequestPaymentModal({
   onClose,
   onSuccess,
 }: RequestPaymentModalProps) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [loadingPOs, setLoadingPOs] = useState(true);
   const [eligiblePOs, setEligiblePOs] = useState<PurchaseOrder[]>([]);
@@ -67,7 +72,8 @@ export default function RequestPaymentModal({
 
   const loadEligiblePOs = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      // SSoT: storage-utils.ts for localStorage access
+      const token = getStorageItem<string>(STORAGE_KEYS.PORTAL_TOKEN, '');
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.get(
@@ -161,7 +167,8 @@ export default function RequestPaymentModal({
     setErrors({});
 
     try {
-      const token = localStorage.getItem("portal_token");
+      // SSoT: storage-utils.ts for localStorage access
+      const token = getStorageItem<string>(STORAGE_KEYS.PORTAL_TOKEN, '');
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       // Create FormData for file upload
@@ -194,7 +201,7 @@ export default function RequestPaymentModal({
       );
 
       if (response?.data.success) {
-        alert(response.data.message || "Payment request submitted successfully");
+        toast({ title: "Success", description: response.data.message || "Payment request submitted successfully" });
         onSuccess();
       } else {
         setErrors({ general: response.data.error || "Failed to submit request" });
@@ -213,13 +220,6 @@ export default function RequestPaymentModal({
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (amount: number): string => {
-    return `$${Number(amount).toLocaleString("en-AU", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
   };
 
   return (
@@ -277,7 +277,7 @@ export default function RequestPaymentModal({
 
                 {loadingPOs ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <Spinner className="h-8 w-8" />
                   </div>
                 ) : eligiblePOs.length === 0 ? (
                   <div className="mt-6 text-center py-12">
@@ -322,7 +322,7 @@ export default function RequestPaymentModal({
                                   className={({ active }) =>
                                     `relative cursor-default select-none py-2 pl-10 pr-4 ${
                                       active
-                                        ? "bg-indigo-100 text-indigo-900"
+                                        ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-300"
                                         : "text-foreground"
                                     }`
                                   }
@@ -395,13 +395,13 @@ export default function RequestPaymentModal({
                         </div>
                         <div>
                           <p className="text-muted-foreground">Discount (5%)</p>
-                          <p className="text-lg font-semibold text-red-600">
+                          <p className="text-lg font-semibold text-red-600 dark:text-red-400">
                             -{formatCurrency(parseFloat(calculateDiscountAmount()))}
                           </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">You'll Receive</p>
-                          <p className="text-lg font-semibold text-green-600">
+                          <p className="text-lg font-semibold text-green-600 dark:text-green-400">
                             {formatCurrency(parseFloat(calculateDiscountedAmount()))}
                           </p>
                         </div>
@@ -412,7 +412,7 @@ export default function RequestPaymentModal({
                     <div>
                       <label className="block text-sm font-medium text-foreground">
                         Proof of Completion Photos{" "}
-                        <span className="text-red-500">*</span>
+                        <span className="text-red-500 dark:text-red-400">*</span>
                       </label>
                       <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-border border-dashed rounded-md hover:border-indigo-500">
                         <div className="space-y-1 text-center">
@@ -435,14 +435,14 @@ export default function RequestPaymentModal({
                             PNG, JPG, GIF up to 10MB each (max 10 photos)
                           </p>
                           {proofPhotos.length > 0 && (
-                            <p className="text-sm text-green-600">
+                            <p className="text-sm text-green-600 dark:text-green-400">
                               {proofPhotos.length} photo(s) selected
                             </p>
                           )}
                         </div>
                       </div>
                       {errors.proof_photos && (
-                        <p className="mt-1 text-sm text-red-600">
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                           {errors.proof_photos}
                         </p>
                       )}
@@ -460,12 +460,12 @@ export default function RequestPaymentModal({
                         className="mt-1 block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                       />
                       {invoiceFile && (
-                        <p className="mt-1 text-sm text-green-600">
+                        <p className="mt-1 text-sm text-green-600 dark:text-green-400">
                           {invoiceFile.name}
                         </p>
                       )}
                       {errors.invoice_file && (
-                        <p className="mt-1 text-sm text-red-600">
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                           {errors.invoice_file}
                         </p>
                       )}

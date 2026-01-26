@@ -32,7 +32,7 @@ export const EditingActionsButtons = memo(function EditingActionsButtons({
           onSave();
         }}
       >
-        <Check className="h-4 w-4 text-green-600" />
+        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
       </Button>
       <Button
         variant="ghost"
@@ -42,7 +42,7 @@ export const EditingActionsButtons = memo(function EditingActionsButtons({
           onCancel();
         }}
       >
-        <X className="h-4 w-4 text-red-600" />
+        <X className="h-4 w-4 text-red-600 dark:text-red-400" />
       </Button>
     </div>
   );

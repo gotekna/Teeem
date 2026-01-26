@@ -1,4 +1,4 @@
- 
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -16,6 +16,7 @@ import {
   XMarkIcon,
   CalendarDaysIcon,
 } from "@heroicons/react/24/outline";
+import { getStorageItem, removeStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface PortalUser {
   contact_name?: string;
@@ -31,8 +32,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     // Load portal user from localStorage
-    const userStr = localStorage.getItem("portal_user");
-    const user = userStr ? JSON.parse(userStr) : null;
+    const user = getStorageItem<PortalUser | null>(STORAGE_KEYS.PORTAL_USER, null);
     setPortalUser(user);
     setIsLoading(false);
 
@@ -53,8 +53,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   ];
 
   const handleLogout = () => {
-    localStorage.removeItem("portal_token");
-    localStorage.removeItem("portal_user");
+    removeStorageItem(STORAGE_KEYS.PORTAL_TOKEN);
+    removeStorageItem(STORAGE_KEYS.PORTAL_USER);
     router.push("/portal/login");
   };
 

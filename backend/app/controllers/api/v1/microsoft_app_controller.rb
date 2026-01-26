@@ -163,12 +163,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
       )
       credential = existing
     else
-      # Get default organization for new credentials
-      default_org = Organization.first
+      # SSoT (Jan 2026): Derive organization from tenant
+      org = current_tenant&.organizations&.first
       credential = MicrosoftCredential.create!(
         name: org_name,
         credential_type: "app",
-        organization: default_org,
+        organization: org,
         client_id: client_id,
         client_secret: client_secret,
         tenant_id: tenant_id,
@@ -228,12 +228,12 @@ class Api::V1::MicrosoftAppController < ApplicationController
       )
       credential = existing
     else
-      # Get default organization for new credentials
-      default_org = Organization.first
+      # SSoT (Jan 2026): Derive organization from tenant
+      org = current_tenant&.organizations&.first
       credential = MicrosoftCredential.create!(
         name: org_name,
         credential_type: "app",
-        organization: default_org,
+        organization: org,
         client_id: client_id,
         client_secret: client_secret,
         tenant_id: tenant_id,
@@ -633,50 +633,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
-  # GET /api/v1/microsoft_app/user_onedrive
-  # Access any user's OneDrive
-  def user_onedrive
-    unless current_user_admin?
-      return render json: { error: "Only admins can access user OneDrive" }, status: :forbidden
-    end
-
-    user_email = params[:user_email]
-    unless user_email.present?
-      return render json: { error: "user_email is required" }, status: :bad_request
-    end
-
-    credential = find_credential_with_org_context
-    unless credential&.status == "connected"
-      return render json: { error: "Organization Microsoft access not connected" }, status: :not_found
-    end
-
-    begin
-      client = MicrosoftAppGraphClient.new
-
-      # Get drive info
-      drive = client.get_user_drive(user_email)
-
-      # List root items
-      items = client.list_user_drive_items(
-        user_email,
-        folder_path: params[:folder_path],
-        top: params[:top]&.to_i || 100
-      )
-
-      render json: {
-        user_email: user_email,
-        drive: drive,
-        folder_path: params[:folder_path],
-        items: items,
-        total: items.count
-      }
-    rescue MicrosoftAppGraphClient::ApiError => e
-      render json: { error: e.message }, status: :unprocessable_entity
-    end
-  end
-
   # GET /api/v1/microsoft_app/search_files
-  # Search across all SharePoint and OneDrive in the tenant
+  # Search across all SharePoint sites in the tenant
   def search_files
     unless current_user_admin?
       return render json: { error: "Only admins can search files" }, status: :forbidden
@@ -743,37 +701,32 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
-  # POST /api/v1/microsoft_app/sync_to_sharepoint
-  # Sync emails to EmailWarehouse and attachments to SharePoint for a specific organization
-  def sync_to_sharepoint
+  # POST /api/v1/microsoft_app/sync_to_storage
+  # Sync emails to SyncedEmail and upload to configured storage provider (SSoT: StorageConfiguration)
+  def sync_to_storage
     unless current_user_admin?
-      return render json: { error: "Only admins can trigger SharePoint sync" }, status: :forbidden
+      return render json: { error: "Only admins can trigger storage sync" }, status: :forbidden
     end
 
-    organization_id = params[:organization_id]
-    unless organization_id.present?
-      return render json: { error: "organization_id is required" }, status: :bad_request
-    end
-
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.find_by(id: organization_id)
-    unless credential&.status == "connected"
-      return render json: { error: "Organization not connected" }, status: :not_found
-    end
-
-    # Queue the sync job
-    SyncEmailsToSharePointJob.perform_later(credential.id)
+    # Queue the storage upload job (respects StorageConfiguration provider)
+    UploadEmailsToStorageJob.perform_later(batch_size: 500)
 
     render json: {
       success: true,
-      message: "Sync job queued for #{credential.name}. Emails will be synced to warehouse and attachments uploaded to SharePoint."
+      message: "Email storage upload job queued. Emails will be uploaded to configured storage provider."
     }
   rescue StandardError => e
-    Rails.logger.error "[MicrosoftApp] Sync to SharePoint failed: #{e.message}"
+    Rails.logger.error "[MicrosoftApp] Sync to storage failed: #{e.message}"
     render json: {
       success: false,
       error: e.message
     }, status: :unprocessable_entity
+  end
+
+  # POST /api/v1/microsoft_app/sync_to_sharepoint
+  # Legacy endpoint - redirects to sync_to_storage for backwards compatibility
+  def sync_to_sharepoint
+    sync_to_storage
   end
 
   # ==========================================
@@ -932,8 +885,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Organization not connected" }, status: :not_found
     end
 
-    unless MicrosoftCredential.sharepoint_configured?
-      return render json: { error: "SharePoint not configured. Please configure TEEEM's SharePoint first." }, status: :unprocessable_entity
+    unless StorageConfiguration.instance&.connected?
+      return render json: { error: "Storage not configured. Please configure storage provider first." }, status: :unprocessable_entity
     end
 
     # Queue the backfill job
@@ -941,7 +894,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
     render json: {
       success: true,
-      message: "Backfill job queued for #{credential.name}. Existing attachments will be uploaded to SharePoint."
+      message: "Backfill job queued for #{credential.name}. Existing attachments will be uploaded to storage."
     }
   rescue StandardError => e
     Rails.logger.error "[MicrosoftApp] Attachment backfill failed: #{e.message}"
@@ -999,8 +952,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
-  # DUAL-WRITE: Create/update unified MicrosoftCredential for app credentials
-  # This is part of SSoT migration - eventually replaces OrganizationMicrosoftAppCredential
+  # Create/update unified MicrosoftCredential for app credentials
+  # SSoT: MicrosoftCredential is THE ONE (legacy tables dropped Jan 2026)
   def dual_write_app_credential(old_credential)
     Rails.logger.info "[MicrosoftApp] DUAL-WRITE: Creating/updating MicrosoftCredential for #{old_credential.name}..."
 

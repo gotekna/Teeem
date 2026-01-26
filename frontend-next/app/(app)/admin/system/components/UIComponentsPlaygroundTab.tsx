@@ -14,6 +14,7 @@
  */
 
 import * as React from "react";
+import { copyToClipboard } from "@/utils/formatters";
 import {
   Sun,
   Moon,
@@ -94,6 +95,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AttachmentBadge } from "@/components/ui/attachment-badge";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { FormField } from "@/components/ui/form-field";
+import { FormModal } from "@/components/ui/form-modal";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusIndicator, StatusBadge, ActiveIndicator } from "@/components/ui/status-indicator";
+import { TruncatedText, ClampedText } from "@/components/ui/truncated-text";
 
 // Pattern Components
 import { DragHandle, PositionBadge, ItemBadge, SortableList, SortableItem } from "@/components/ui/dnd";
@@ -102,6 +110,7 @@ import {
   KanbanCard,
   type KanbanColumnDef,
   type CardMoveEvent,
+  type CardReorderEvent,
 } from "@/components/ui/kanban";
 import { TokenBadge, TokenPalette, TokenBuilder } from "@/components/ui/tokens";
 
@@ -109,7 +118,6 @@ import { TokenBadge, TokenPalette, TokenBuilder } from "@/components/ui/tokens";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { PDFEditor } from "@/components/ui/pdf-editor";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
-import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
 
 // Note: These require specific data/context to function:
 // - TeeemTableView: needs foundationId and entries
@@ -181,6 +189,79 @@ function BadgeDemo() {
   );
 }
 
+function AttachmentBadgeDemo() {
+  const [loading, setLoading] = React.useState(false);
+
+  const handleDownload = () => {
+    setLoading(true);
+    setTimeout(() => setLoading(false), 1500);
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Indicator mode */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Indicator mode (paperclip)</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <AttachmentBadge />
+          <AttachmentBadge count={3} />
+          <AttachmentBadge count={5} variant="success" />
+        </div>
+      </div>
+
+      {/* File type icons */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">File type detection</p>
+        <div className="flex flex-wrap gap-2">
+          <AttachmentBadge fileName="report.pdf" />
+          <AttachmentBadge fileName="photo.jpg" />
+          <AttachmentBadge fileName="data.xlsx" />
+          <AttachmentBadge fileName="contract.docx" />
+          <AttachmentBadge fileName="model.rvt" />
+          <AttachmentBadge fileName="drawing.dwg" />
+        </div>
+      </div>
+
+      {/* With display name and size */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">With display name &amp; size</p>
+        <div className="flex flex-wrap gap-2">
+          <AttachmentBadge fileName="report.pdf" displayName="Q4 Report" fileSize={1024000} />
+          <AttachmentBadge fileName="photo.jpg" displayName="Site Photo" fileSize={2500000} />
+        </div>
+      </div>
+
+      {/* Interactive with actions */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Interactive (click to download)</p>
+        <div className="flex flex-wrap gap-2">
+          <AttachmentBadge
+            fileName="report.pdf"
+            displayName="Downloadable"
+            onDownload={handleDownload}
+            loading={loading}
+          />
+          <AttachmentBadge
+            fileName="image.png"
+            displayName="With remove"
+            onRemove={() => alert("Remove clicked")}
+          />
+        </div>
+      </div>
+
+      {/* Size variants */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Sizes</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <AttachmentBadge fileName="file.pdf" size="xs" />
+          <AttachmentBadge fileName="file.pdf" size="sm" />
+          <AttachmentBadge fileName="file.pdf" size="md" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InputDemo() {
   return (
     <div className="space-y-2 max-w-sm">
@@ -241,6 +322,354 @@ function DialogDemo() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ConfirmationDialogDemo() {
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [variant, setVariant] = React.useState<"default" | "destructive">("default");
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setLoading(false);
+    setOpen(false);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setVariant("default");
+            setOpen(true);
+          }}
+        >
+          Open Confirmation
+        </Button>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => {
+            setVariant("destructive");
+            setOpen(true);
+          }}
+        >
+          Open Delete Confirmation
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Click confirm to see loading state (1.5s delay)
+      </p>
+      <ConfirmationDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={variant === "destructive" ? "Delete Item?" : "Confirm Action"}
+        description={
+          variant === "destructive"
+            ? "This action cannot be undone. The item will be permanently deleted."
+            : "Are you sure you want to proceed with this action?"
+        }
+        variant={variant}
+        confirmLabel={variant === "destructive" ? "Delete" : "Confirm"}
+        onConfirm={handleConfirm}
+        loading={loading}
+      />
+    </div>
+  );
+}
+
+function FormFieldDemo() {
+  const [value, setValue] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+
+  const handleBlur = () => {
+    if (!value) {
+      setError("This field is required");
+    } else if (value.length < 3) {
+      setError("Must be at least 3 characters");
+    } else {
+      setError(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4 max-w-sm">
+      {/* Basic usage */}
+      <FormField label="Email" required>
+        <Input placeholder="Enter your email" />
+      </FormField>
+
+      {/* With hint */}
+      <FormField label="Username" hint="Letters and numbers only" required>
+        <Input placeholder="Choose a username" />
+      </FormField>
+
+      {/* With error (interactive) */}
+      <FormField
+        label="Full Name"
+        error={error}
+        hint="Enter at least 3 characters"
+        required
+      >
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={handleBlur}
+          placeholder="Try leaving empty or entering 1-2 chars"
+        />
+      </FormField>
+
+      {/* Horizontal layout */}
+      <FormField label="Enable notifications" orientation="horizontal">
+        <Switch />
+      </FormField>
+    </div>
+  );
+}
+
+function FormModalDemo() {
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setLoading(false);
+    setOpen(false);
+    setName("");
+    setEmail("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        Open Form Modal
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        Click Save to see loading state (1.5s delay)
+      </p>
+      <FormModal
+        open={open}
+        onOpenChange={setOpen}
+        title="Add New Contact"
+        description="Enter the contact details below."
+        submitLabel="Save Contact"
+        onSubmit={handleSubmit}
+        isLoading={loading}
+      >
+        <div className="space-y-4">
+          <FormField label="Name" required>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter name"
+              disabled={loading}
+            />
+          </FormField>
+          <FormField label="Email" required>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter email"
+              disabled={loading}
+            />
+          </FormField>
+        </div>
+      </FormModal>
+    </div>
+  );
+}
+
+function EmptyStateDemo() {
+  return (
+    <div className="space-y-4">
+      {/* Basic */}
+      <div className="border rounded p-2">
+        <EmptyState title="No documents found" size="sm" />
+      </div>
+
+      {/* With description and action */}
+      <div className="border rounded p-2">
+        <EmptyState
+          title="No search results"
+          description="Try adjusting your search terms or filters"
+          action={{ label: "Clear filters", onClick: () => alert("Clear clicked") }}
+          size="sm"
+        />
+      </div>
+
+      {/* Custom icon */}
+      <div className="border rounded p-2">
+        <EmptyState
+          icon={<Database className="h-8 w-8" />}
+          title="No data available"
+          description="Upload a file to get started"
+          size="sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+function StatusIndicatorDemo() {
+  return (
+    <div className="space-y-4">
+      {/* Dot variants */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Dot variant</p>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="active" />
+            <span className="text-xs">Active</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="success" />
+            <span className="text-xs">Success</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="warning" />
+            <span className="text-xs">Warning</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="error" />
+            <span className="text-xs">Error</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="inactive" />
+            <span className="text-xs">Inactive</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <StatusIndicator status="info" />
+            <span className="text-xs">Info</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Badge variants */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Badge variant</p>
+        <div className="flex flex-wrap gap-2">
+          <StatusIndicator status="active" variant="badge" label="Active" />
+          <StatusIndicator status="success" variant="badge" label="Completed" />
+          <StatusIndicator status="warning" variant="badge" label="Pending" />
+          <StatusIndicator status="error" variant="badge" label="Failed" />
+          <StatusIndicator status="inactive" variant="badge" label="Archived" />
+          <StatusIndicator status="info" variant="badge" label="Processing" />
+        </div>
+      </div>
+
+      {/* Dot-text variants */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Dot + text variant</p>
+        <div className="flex flex-wrap gap-4">
+          <StatusIndicator status="active" variant="dot-text" label="Online" pulse />
+          <StatusIndicator status="warning" variant="dot-text" label="Syncing" />
+          <StatusIndicator status="error" variant="dot-text" label="Disconnected" />
+        </div>
+      </div>
+
+      {/* Sizes */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Sizes</p>
+        <div className="flex items-center gap-4">
+          <StatusIndicator status="success" variant="badge" label="XS" size="xs" />
+          <StatusIndicator status="success" variant="badge" label="SM" size="sm" />
+          <StatusIndicator status="success" variant="badge" label="MD" size="md" />
+        </div>
+      </div>
+
+      {/* String normalization */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Auto-normalized status strings</p>
+        <div className="flex flex-wrap gap-2">
+          <StatusIndicator status="completed" variant="badge" />
+          <StatusIndicator status="pending" variant="badge" />
+          <StatusIndicator status="failed" variant="badge" />
+          <StatusIndicator status="processing" variant="badge" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TruncatedTextDemo() {
+  const longText = "This is a very long text that will be truncated when it exceeds the maximum width. Hover to see the full content in a tooltip.";
+  const multiLineText = "This is a multi-line text example that demonstrates line clamping. When the text exceeds the specified number of lines, it will be truncated with an ellipsis. Hover to see the full content.";
+
+  return (
+    <div className="space-y-4">
+      {/* Max width truncation */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Max width truncation</p>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs w-16">200px:</span>
+            <TruncatedText maxWidth={200}>{longText}</TruncatedText>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs w-16">150px:</span>
+            <TruncatedText maxWidth={150}>{longText}</TruncatedText>
+          </div>
+        </div>
+      </div>
+
+      {/* Line clamping */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Line clamping</p>
+        <div className="space-y-2 max-w-sm">
+          <div className="border rounded p-2">
+            <p className="text-xs text-muted-foreground mb-1">2 lines:</p>
+            <ClampedText lines={2}>{multiLineText}</ClampedText>
+          </div>
+          <div className="border rounded p-2">
+            <p className="text-xs text-muted-foreground mb-1">1 line:</p>
+            <TruncatedText lines={1} as="p">{multiLineText}</TruncatedText>
+          </div>
+        </div>
+      </div>
+
+      {/* Table cell example */}
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground font-medium">Table cell example</p>
+        <div className="border rounded overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-24">ID</TableHead>
+                <TableHead className="w-40">Name (truncated)</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell className="font-mono text-xs">001</TableCell>
+                <TableCell>
+                  <TruncatedText maxWidth={140}>
+                    Very Long Company Name That Should Be Truncated
+                  </TruncatedText>
+                </TableCell>
+                <TableCell><Badge variant="outline">Active</Badge></TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-mono text-xs">002</TableCell>
+                <TableCell>
+                  <TruncatedText maxWidth={140}>Short Name</TruncatedText>
+                </TableCell>
+                <TableCell><Badge variant="outline">Active</Badge></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -394,7 +823,7 @@ function PopoverDemo() {
       </PopoverTrigger>
       <PopoverContent className="w-80">
         <div className="space-y-2">
-          <h4 className="font-medium">Popover Title</h4>
+          <h4 className="text-sm font-medium">Popover Title</h4>
           <p className="text-sm text-muted-foreground">
             Use for small overlays with contextual content.
           </p>
@@ -744,23 +1173,69 @@ function KanbanBoardDemo() {
     );
   };
 
-  const renderCard = (item: KanbanDemoItem, isDragging: boolean) => (
-    <KanbanCard key={item.id} id={item.id} isDragging={isDragging}>
-      <div className="px-2 py-1.5 text-xs flex items-center gap-1.5">
-        <span className="flex-1 truncate">{item.name}</span>
-        {item.priority === "high" && (
-          <Badge variant="destructive" className="text-[9px] px-1 py-0 h-3.5">
-            High
-          </Badge>
-        )}
-      </div>
-    </KanbanCard>
-  );
+  const handleCardReorder = (event: CardReorderEvent<KanbanDemoItem>) => {
+    const { item, columnId, fromIndex, toIndex } = event;
+    setItems((prev) => {
+      const columnItems = prev.filter((i) => i.status === columnId);
+      const otherItems = prev.filter((i) => i.status !== columnId);
+
+      // Remove item from old position and insert at new position
+      const reordered = [...columnItems];
+      reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, item);
+
+      return [...otherItems, ...reordered];
+    });
+  };
+
+  const handlePositionChange = (item: KanbanDemoItem, newPosition: number) => {
+    const columnItems = items.filter((i) => i.status === item.status);
+    const currentIndex = columnItems.findIndex((i) => i.id === item.id);
+    const newIndex = newPosition - 1; // Convert 1-indexed to 0-indexed
+
+    if (currentIndex !== -1 && newIndex !== currentIndex) {
+      handleCardReorder({
+        item,
+        columnId: item.status,
+        fromIndex: currentIndex,
+        toIndex: newIndex,
+      });
+    }
+  };
+
+  const renderCard = (item: KanbanDemoItem, isDragging: boolean) => {
+    // Calculate position within column (1-indexed)
+    const columnItems = items.filter((i) => i.status === item.status);
+    const position = columnItems.findIndex((i) => i.id === item.id) + 1;
+    const maxPosition = columnItems.length;
+
+    return (
+      <KanbanCard
+        key={item.id}
+        id={item.id}
+        isDragging={isDragging}
+        // Position badge via SSoT
+        position={position}
+        maxPosition={maxPosition}
+        positionEditable={true}
+        onPositionChange={(newPos) => handlePositionChange(item, newPos)}
+      >
+        <div className="px-2 py-1.5 text-xs flex items-center gap-1.5">
+          <span className="flex-1 truncate">{item.name}</span>
+          {item.priority === "high" && (
+            <Badge variant="destructive" className="text-[9px] px-1 py-0 h-3.5">
+              High
+            </Badge>
+          )}
+        </div>
+      </KanbanCard>
+    );
+  };
 
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Drag cards between columns. WIP limit of 3 on &quot;In Progress&quot;.
+        Drag cards between columns or reorder within. Click position badge to edit. WIP limit of 3 on &quot;In Progress&quot;.
       </p>
       <div className="h-48 overflow-hidden">
         <KanbanBoard
@@ -769,6 +1244,8 @@ function KanbanBoardDemo() {
           getItemColumn={getItemColumn}
           renderCard={renderCard}
           onCardMove={handleCardMove}
+          onCardReorder={handleCardReorder}
+          cardReorderable={true}
           columnGap="sm"
           minColumnWidth={120}
           className="h-full"
@@ -838,37 +1315,6 @@ function SharePointFolderBrowserDemo() {
           <code className="text-xs block mt-2 bg-muted p-1 rounded">
             {'<SharePointFolderBrowser onSelect={...} />'}
           </code>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SharePointPathConfiguratorDemo() {
-  return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        Configure folder path templates with placeholders for SharePoint.
-      </p>
-      <div className="border rounded p-4 bg-muted/30">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Badge variant="outline">Scope: Job</Badge>
-            <span className="text-xs text-muted-foreground">Path template:</span>
-          </div>
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-sm">/Documents/</span>
-            <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
-              {"{{JobCode}}"}
-            </Badge>
-            <span className="text-sm">/</span>
-            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-              {"{{Category}}"}
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Preview: /Documents/JOB-001/Plans
-          </p>
         </div>
       </div>
     </div>
@@ -1005,10 +1451,17 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   button: ButtonDemo,
   card: CardDemo,
   badge: BadgeDemo,
+  "attachment-badge": AttachmentBadgeDemo,
   input: InputDemo,
   label: LabelDemo,
   select: SelectDemo,
   dialog: DialogDemo,
+  "confirmation-dialog": ConfirmationDialogDemo,
+  "form-field": FormFieldDemo,
+  "form-modal": FormModalDemo,
+  "empty-state": EmptyStateDemo,
+  "status-indicator": StatusIndicatorDemo,
+  "truncated-text": TruncatedTextDemo,
   tabs: TabsDemo,
   table: TableDemo,
   spinner: SpinnerDemo,
@@ -1037,7 +1490,6 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   "pdf-viewer": PDFViewerDemo,
   "pdf-editor": PDFEditorDemo,
   "sharepoint-folder-browser": SharePointFolderBrowserDemo,
-  "sharepoint-path-configurator": SharePointPathConfiguratorDemo,
   "teeem-table-view": TeeemTableViewDemo,
   "bills-invoice-viewer": BillsInvoiceViewerDemo,
   "document-preview-modal": DocumentPreviewModalDemo,
@@ -1051,7 +1503,7 @@ function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = React.useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
+    await copyToClipboard(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -1064,7 +1516,7 @@ function CopyButton({ text }: { text: string }) {
       className="h-7 px-2"
     >
       {copied ? (
-        <Check className="h-3.5 w-3.5 text-green-600" />
+        <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
       ) : (
         <Copy className="h-3.5 w-3.5" />
       )}

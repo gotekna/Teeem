@@ -45,9 +45,9 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/whs/incidents": "Incidents",
   "/whs/inspections": "Inspections",
 
-  // File Warehouse (formerly Documents)
-  "/documents": "File Warehouse",
-  "/documents/templates": "Templates",
+  // File Warehouse
+  "/warehouse": "File Warehouse",
+  "/warehouse/templates": "Templates",
 
   // Admin (legacy paths - display as Settings for consistency)
   "/admin": "Settings",
@@ -56,11 +56,21 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/admin/users": "Users",
   "/admin/resources": "Resources",
 
-  // Settings
+  // Settings - Main sections
   "/settings": "Settings",
   "/settings/profile": "Profile",
   "/settings/notifications": "Notifications",
   "/settings/security": "Security",
+  "/settings/preferences": "Preferences",
+  "/settings/users": "Users",
+  "/settings/roles": "Access Control",
+  "/settings/corporate": "Corporate",
+  "/settings/company": "Company",
+  "/settings/integrations": "Integrations",
+  "/settings/documents": "Documents",
+  "/settings/operations": "Operations",
+  "/settings/system": "System",
+  "/settings/developer": "Developer",
 
   // Other
   "/xero": "Xero",
@@ -84,7 +94,7 @@ const ROUTE_ICONS: Record<string, string> = {
   "/financial": "DollarSign",
   "/corporate": "Building",
   "/whs": "Shield",
-  "/documents": "Warehouse",
+  "/warehouse": "Warehouse",
   "/admin": "Settings",
   "/settings": "Settings",
   "/xero": "Link",
@@ -110,6 +120,7 @@ const ENTITY_LABELS: Record<string, string> = {
  * Known tab display names for better formatting
  */
 const TAB_DISPLAY_NAMES: Record<string, string> = {
+  // General tabs
   "overview": "Overview",
   "competitor": "Competitor Comparison",
   "details": "Details",
@@ -143,6 +154,69 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "site-presence": "Site Presence",
   "colours": "Colours",
   "specifications": "Specifications",
+
+  // Settings > Company tabs
+  "info": "Info",
+  "brand-colors": "Brand Colors",
+  "brand-guidelines": "Brand Guidelines",
+  "doc-templates": "Doc Templates",
+  "security": "Security",
+  "corporate": "Corporate",
+  "holidays": "Holidays",
+  "workflows": "Workflows",
+  "connections": "Connections",
+  "job-setup": "Job Setup",
+  "workflow-config": "Workflow Config",
+  "entity-config": "Folder Config",
+  "offline": "Offline",
+
+  // Settings > Company > Folder Config sub-tabs
+  "storage_config": "Storage Config",
+  "document_types": "Document Types",
+  "corporate_entity": "Corporate",
+  "job": "Jobs",
+  "contact": "Contacts",
+  "email_config": "Email Config",
+  "config_sync": "Sync",
+
+  // Settings > Developer tabs
+  "api-keys": "API Keys",
+  "webhooks": "Webhooks",
+  "logs": "Logs",
+  "components": "Components Lab",
+  "tools": "Developer Tools",
+  "unreal-engine": "Unreal Engine",
+
+  // Settings > Developer > Components Lab subtabs (GoldStandardTab)
+  "table": "Gold Standard Table",
+  "document-types": "Gold Document Types",
+  "invoice": "Gold Bills/Invoice Viewer",
+  "column-info": "Column Info",
+  "sync-check": "Sync Check",
+  "ui-components": "UI Components",
+  "column-types-ssot": "Column Types (SSoT)",
+  "view-table-demo": "ViewTable Demo",
+  "setup-table-demo": "SetupTable Demo",
+
+  // Settings > Company > Connections sub-tabs
+  "provider": "Storage Provider",
+  "migration": "Migration",
+  "costs": "Cost Comparison",
+
+  // Settings > Company > Security sub-tabs
+  "users": "Users",
+  "roles": "User Roles",
+  // "groups" already defined above
+
+  // Settings > Company > Corporate sub-tabs
+  "groups": "Groups",
+  "companies": "Companies",
+  "company-tabs": "Storage Locations",
+
+  // Settings > Operations tabs
+  "job-types": "Job Types",
+  "categories": "Categories",
+  "statuses": "Statuses",
 };
 
 /**
@@ -235,6 +309,22 @@ export function resolveDisplayName(
     return tabName;
   }
 
+  // 4b. Check for Settings path-based tab pattern (e.g., /settings/company/connections)
+  // Pattern: /settings/{section}/{tab}
+  if (segments.length === 3 && segments[0] === "settings") {
+    const tabKey = lastSegment;
+    const tabName = TAB_DISPLAY_NAMES[tabKey] || humanizeSegment(tabKey);
+    return tabName;
+  }
+
+  // 4c. Check for Settings nested sub-tab pattern (e.g., /settings/company/connections/migration)
+  // Pattern: /settings/{section}/{tab}/{subtab}
+  if (segments.length === 4 && segments[0] === "settings") {
+    const subtabKey = lastSegment;
+    const subtabName = TAB_DISPLAY_NAMES[subtabKey] || humanizeSegment(subtabKey);
+    return subtabName;
+  }
+
   // 5. Humanize last segment as fallback
   const baseName = humanizeSegment(lastSegment);
   if (effectiveTab) {
@@ -283,18 +373,82 @@ export function isSameRoute(path1: string, path2: string): boolean {
 }
 
 /**
+ * Settings sections that have path-based tabs
+ * These are recognized for sibling tab detection
+ */
+const SETTINGS_TABBED_SECTIONS = [
+  "company",
+  "integrations",
+  "documents",
+  "operations",
+  "system",
+  "developer",
+];
+
+/**
+ * Settings tabs that have nested sub-tabs
+ * e.g., /settings/company/connections has sub-tabs: provider, migration, costs
+ */
+const SETTINGS_NESTED_TABS: Record<string, string[]> = {
+  "connections": ["provider", "migration", "costs"],
+  "security": ["users", "roles", "groups"],
+  "corporate": ["groups", "companies", "company-tabs"],
+  "entity-config": ["storage_config", "document_types", "corporate_entity", "job", "contact", "email_config", "config_sync"],
+};
+
+/**
  * Check if two pathnames are sibling tabs (same parent entity, different tab)
  * e.g., /jobs/123/overview and /jobs/123/plans are siblings
+ * e.g., /settings/users and /settings/profile are siblings
+ * e.g., /settings/company/info and /settings/company/connections are siblings
+ * e.g., /settings/company/connections/provider and /settings/company/connections/migration are siblings
  * Used to replace tab in breadcrumb instead of adding new item
  */
 export function isSiblingTab(path1: string, path2: string): boolean {
   const segments1 = path1.split('/').filter(Boolean);
   const segments2 = path2.split('/').filter(Boolean);
 
-  // Both need at least 3 segments: entity/id/tab (e.g., jobs/123/plans)
+  // Check for top-level Settings tabs: /settings/{tab}
+  // e.g., /settings/users and /settings/profile are siblings
+  if (segments1.length === 2 && segments2.length === 2 &&
+      segments1[0] === "settings" && segments2[0] === "settings") {
+    return true;
+  }
+
+  // Both need at least 3 segments for deeper checks
   if (segments1.length < 3 || segments2.length < 3) return false;
 
-  // Check if it's an entity/id/tab pattern (second-to-last is numeric)
+  // Check for Settings nested sub-tab pattern: /settings/{section}/{tab}/{subtab}
+  // e.g., /settings/company/connections/provider and /settings/company/connections/migration
+  if (segments1.length === 4 && segments2.length === 4 &&
+      segments1[0] === "settings" && segments2[0] === "settings") {
+    const tab1 = segments1[2];
+    const tab2 = segments2[2];
+    const nestedTabs = SETTINGS_NESTED_TABS[tab1] || SETTINGS_NESTED_TABS[tab2];
+
+    if (nestedTabs && tab1 === tab2) {
+      // Compare parent paths (settings/section/tab)
+      const parent1 = segments1.slice(0, 3).join('/');
+      const parent2 = segments2.slice(0, 3).join('/');
+      return parent1 === parent2;
+    }
+  }
+
+  // Check for Settings section/tab pattern: /settings/{section}/{tab}
+  // Both must be exactly 3 segments to be siblings at this level
+  if (segments1.length === 3 && segments2.length === 3) {
+    const isSettingsTabs1 = segments1[0] === "settings" && SETTINGS_TABBED_SECTIONS.includes(segments1[1]);
+    const isSettingsTabs2 = segments2[0] === "settings" && SETTINGS_TABBED_SECTIONS.includes(segments2[1]);
+
+    if (isSettingsTabs1 && isSettingsTabs2) {
+      // Compare parent paths (settings/section)
+      const parent1 = segments1.slice(0, 2).join('/');
+      const parent2 = segments2.slice(0, 2).join('/');
+      return parent1 === parent2;
+    }
+  }
+
+  // Check for entity/id/tab pattern (second-to-last is numeric)
   const hasNumericId1 = /^\d+$/.test(segments1[segments1.length - 2]);
   const hasNumericId2 = /^\d+$/.test(segments2[segments2.length - 2]);
   if (!hasNumericId1 || !hasNumericId2) return false;
@@ -345,12 +499,31 @@ export function isDefaultView(pathname: string): boolean {
 }
 
 /**
- * Check if two paths are related (share common first-level ancestor)
+ * Entity detail pages that can be navigated to from job detail pages
+ * When navigating from /jobs/{id}/* to any of these, preserve breadcrumb context
+ */
+const ENTITY_DETAIL_SECTIONS = [
+  'purchase_orders',  // /purchase_orders/{id}
+  'estimates',        // /estimates/{id}
+  'contacts',         // /contacts/{id}
+  'leads',            // /leads/{id}
+  'companies',        // /companies/{id}
+];
+
+/**
+ * Check if two paths are related
  * Used to detect stale breadcrumb state when navigating across sections
  *
+ * A path is considered "related" if:
+ * 1. They share the same first-level ancestor (e.g., both under /jobs)
+ * 2. Navigating FROM a job detail page TO an entity detail page
+ *    (e.g., /jobs/123/finance/expenses → /purchase_orders/456)
+ *
  * @example
- * isRelatedPath('/jobs/123/schedule', '/jobs/456/plans') // true - both under /jobs
- * isRelatedPath('/jobs/123', '/purchase_orders/456')     // false - different sections
+ * isRelatedPath('/jobs/123/schedule', '/jobs/456/plans')       // true - both under /jobs
+ * isRelatedPath('/jobs/123', '/purchase_orders/456')           // true - job to PO
+ * isRelatedPath('/jobs/123/finance/expenses', '/purchase_orders/456') // true - job tab to PO
+ * isRelatedPath('/contacts/123', '/purchase_orders/456')       // false - different entities
  */
 export function isRelatedPath(path1: string, path2: string): boolean {
   const segments1 = path1.split('/').filter(Boolean);
@@ -359,8 +532,56 @@ export function isRelatedPath(path1: string, path2: string): boolean {
   // Both need at least one segment
   if (segments1.length === 0 || segments2.length === 0) return false;
 
-  // First segment must match (e.g., both under /jobs)
-  return segments1[0] === segments2[0];
+  // Special handling for Settings navigation:
+  // When navigating from a deeper Settings path (3+ segments) to a top-level
+  // Settings tab (2 segments), treat as unrelated to force trail rebuild.
+  // e.g., /settings/documents/types → /settings/users should rebuild trail
+  if (segments1[0] === "settings" && segments2[0] === "settings") {
+    const isDeepSettings = segments1.length >= 3;
+    const isTopLevelSettingsTab = segments2.length === 2;
+    if (isDeepSettings && isTopLevelSettingsTab) {
+      return false; // Force trail rebuild
+    }
+
+    // Also handle navigating from a deeper sub-tab to a different main tab
+    // e.g., /settings/developer/components/table → /settings/developer/tools
+    // These have the same parent (/settings/developer) but different depths
+    if (segments1.length >= 4 && segments2.length === 3) {
+      const parent1 = segments1.slice(0, 2).join('/'); // settings/developer
+      const parent2 = segments2.slice(0, 2).join('/'); // settings/developer
+      if (parent1 === parent2 && segments1[2] !== segments2[2]) {
+        return false; // Force trail rebuild when switching between tabs at different depths
+      }
+    }
+
+    // Detect navigation between different settings sections
+    // e.g., /settings/profile → /settings/integrations/xero
+    // Without this check, both paths share "settings" as first segment,
+    // so they'd incorrectly be marked as "related" and trail wouldn't rebuild
+    if (segments1.length >= 2 && segments2.length >= 2) {
+      const section1 = segments1[1];
+      const section2 = segments2[1];
+
+      // Different settings sections = unrelated, force trail rebuild
+      if (section1 !== section2) {
+        return false;
+      }
+    }
+  }
+
+  // Check if first segment matches (e.g., both under /jobs)
+  if (segments1[0] === segments2[0]) return true;
+
+  // Check if navigating FROM a job detail page TO an entity detail page
+  // This preserves breadcrumb context when opening POs, estimates, contacts from job pages
+  const isFromJobDetail = segments1[0] === 'jobs' && segments1.length >= 2 && /^\d+$/.test(segments1[1]);
+  const isToEntityDetail = ENTITY_DETAIL_SECTIONS.includes(segments2[0]) && segments2.length >= 2;
+
+  if (isFromJobDetail && isToEntityDetail) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -404,6 +625,34 @@ export function buildBreadcrumbsFromUrl(
     const isNumericId = /^\d+$/.test(segment);
     const isLast = i === segments.length - 1;
     const nextSegment = i < segments.length - 1 ? segments[i + 1] : null;
+
+    // Handle "view" segment - skip "view" but show the view name
+    // e.g., /settings/users/view/settings → breadcrumbs show Settings > Users > Settings (view)
+    if (segment === 'view') {
+      // Skip the "view" segment itself, but process the view slug next
+      continue;
+    }
+
+    // Check if previous segment was "view" - this is the view slug
+    const prevSegment = i > 0 ? segments[i - 1] : null;
+    if (prevSegment === 'view') {
+      // Format view slug as readable name (e.g., "po-tasks-only" → "PO Tasks Only")
+      const viewName = segment
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+      const item = {
+        id: `view-${segment}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        pathname: currentPath + '/view/' + segment, // Full path including view
+        searchParams: isLast ? searchParams?.toString() : undefined,
+        displayName: viewName,
+        icon: undefined, // Views don't need icons
+        timestamp: Date.now(),
+      };
+      trail.push(item);
+      continue;
+    }
 
     // Build path up to this point
     currentPath += '/' + segment;

@@ -145,7 +145,7 @@ module Api
           default_sync_direction: config.effective_sync_direction,
           import_enabled: config.import_enabled?,
           export_enabled: config.export_enabled?,
-          available_sync_directions: SyncConfiguration::SYNC_DIRECTIONS,
+          available_sync_directions: SyncConfiguration::TENANT_SYNC_DIRECTIONS,
           field_mappings: config.field_mappings.presence || SyncConfiguration::DEFAULT_FIELD_MAPPINGS,
           cleanup_options: config.cleanup_options.presence || SyncConfiguration::DEFAULT_CLEANUP_OPTIONS,
           validation_rules: {

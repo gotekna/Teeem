@@ -3,17 +3,8 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   RefreshCw,
   DollarSign,
@@ -23,144 +14,167 @@ import {
   Receipt,
   Percent,
   AlertTriangle,
-  CheckCircle,
-  ExternalLink,
-  Search,
+  ArrowRight,
+  Wallet,
+  PiggyBank,
+  CircleDollarSign,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrencyWhole, formatPercentageWithFallback } from "@/utils/formatters";
 
-interface Invoice {
-  id: string;
-  invoice_number: string;
-  reference?: string;
-  contact_name?: string;
-  invoice_date: string;
-  due_date?: string;
-  status: string;
-  subtotal: number;
-  total_tax: number;
-  total: number;
-  amount_paid?: number;
-  amount_due?: number;
-  xero_url?: string;
+// Types for Claims API response
+interface ClaimsSummary {
+  contract_value: number;
+  total_expected: number;
+  total_invoiced: number;
+  total_paid: number;
+  remaining: number;
+  paid_percentage: number;
+  total_retainage_held: number;
+  total_retainage_released: number;
+  net_receivable: number;
+  // Variation fields
+  approved_variations: number;
+  unapproved_variations: number;
+  revised_contract_value: number;
+  variation_count: number;
 }
 
-interface Bill {
-  id: string;
-  invoice_number: string;
-  reference?: string;
-  contact_name?: string;
-  invoice_date: string;
-  due_date?: string;
-  status: string;
-  subtotal: number;
-  total_tax: number;
-  total: number;
-  amount_paid?: number;
-  amount_due?: number;
-  xero_url?: string;
+interface ClaimsResponse {
+  success: boolean;
+  data: {
+    stages: unknown[];
+    summary: ClaimsSummary;
+    available_invoices: unknown[];
+  };
 }
 
-interface CreditNote {
-  id: string;
-  invoice_number: string;
-  reference?: string;
-  contact_name?: string;
-  invoice_date: string;
-  status: string;
-  subtotal: number;
-  total_tax: number;
-  total: number;
+// Types for Expenses (Purchase Orders)
+interface PurchaseOrderRecord {
+  id: number | string;
+  po_number?: string;
+  supplier?: string | { id: number; display?: string; name?: string };
+  budget?: number | null;
+  total?: number | null;
+  xero_amount_paid?: number | null;
+  xero_still_to_be_paid?: number | null;
+  diff_po_with_allowance_versus_budget?: number | null;
+  payment_status?: string | null;
+  stage_from_task?: string | number | null;
+  trade_from_task?: string | number | null;
+  status?: string | null;
+  [key: string]: unknown;
 }
 
-interface ClaimPattern {
-  task_name: string;
-  pattern: string;
-  percentage: number | null;
-}
-
-interface FinancialData {
-  invoices: Invoice[];
-  credit_notes: CreditNote[];
-  quotes: unknown[];
-  bills: Bill[];
-  supplier_credit_notes: CreditNote[];
-  claim_invoice_patterns?: ClaimPattern[];
+interface ExpensesTotals {
+  totalBudget: number;
+  totalSpent: number;
+  totalPaid: number;
+  totalRemaining: number;
+  totalVariance: number;
+  poCount: number;
 }
 
 interface JobProfitTabProps {
   jobId: number;
 }
 
-const formatCurrency = (value: number | null | undefined): string => {
-  if (value === null || value === undefined) return "$0.00";
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-};
+function toNumber(value: unknown): number {
+  if (value === null || value === undefined) return 0;
+  const num = Number(value);
+  return isNaN(num) ? 0 : num;
+}
 
-const formatPercentage = (value: number | null | undefined): string => {
-  if (value === null || value === undefined) return "0.0%";
-  return `${value.toFixed(1)}%`;
-};
-
-const formatDate = (dateString: string | undefined): string => {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
-
-const getStatusBadge = (status: string) => {
-  const statusLower = status?.toLowerCase();
-  if (statusLower === "paid" || statusLower === "authorised") {
-    return <Badge className="bg-green-100 text-green-700">{status}</Badge>;
-  }
-  if (statusLower === "draft") {
-    return <Badge variant="secondary">{status}</Badge>;
-  }
-  if (statusLower === "overdue") {
-    return <Badge className="bg-red-100 text-red-700">{status}</Badge>;
-  }
-  if (statusLower === "voided" || statusLower === "deleted") {
-    return <Badge variant="outline" className="text-muted-foreground">{status}</Badge>;
-  }
-  return <Badge variant="outline">{status}</Badge>;
-};
+function calculateExpensesTotals(records: PurchaseOrderRecord[]): ExpensesTotals {
+  return {
+    totalBudget: records.reduce((sum, po) => sum + toNumber(po.budget), 0),
+    totalSpent: records.reduce((sum, po) => sum + toNumber(po.total), 0),
+    totalPaid: records.reduce((sum, po) => sum + toNumber(po.xero_amount_paid), 0),
+    totalRemaining: records.reduce((sum, po) => sum + toNumber(po.xero_still_to_be_paid), 0),
+    totalVariance: records.reduce((sum, po) => sum + toNumber(po.diff_po_with_allowance_versus_budget), 0),
+    poCount: records.length,
+  };
+}
 
 export function JobProfitTab({ jobId }: JobProfitTabProps) {
-  const [data, setData] = React.useState<FinancialData | null>(null);
+  const [claimsSummary, setClaimsSummary] = React.useState<ClaimsSummary | null>(null);
+  const [expensesTotals, setExpensesTotals] = React.useState<ExpensesTotals | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [lastSyncedAt, setLastSyncedAt] = React.useState<string | null>(null);
 
   const loadData = React.useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await api.get<{
-        success: boolean;
-        data: FinancialData;
-        meta?: { last_synced_at?: string };
-        error?: string;
-      }>(`/api/v1/external_invoices/by_job/${jobId}`);
+      // Fetch claims summary and purchase orders in parallel
+      const [claimsResponse, foundationResponse] = await Promise.all([
+        // Claims API for revenue data
+        api.get<ClaimsResponse>(`/api/v1/jobs/${jobId}/claim_stages`),
+        // Foundation API to get purchase orders foundation
+        api.get<{ success: boolean; foundation: { id: number; slug: string } }>("/api/v1/foundations/purchase-orders"),
+      ]);
 
-      if (response?.success) {
-        setData(response.data);
-        setLastSyncedAt(response.meta?.last_synced_at || null);
+      // Process claims data
+      if (claimsResponse?.success && claimsResponse.data?.summary) {
+        setClaimsSummary(claimsResponse.data.summary);
       } else {
-        setError(response.error || "Failed to load financial data");
+        setClaimsSummary({
+          contract_value: 0,
+          total_expected: 0,
+          total_invoiced: 0,
+          total_paid: 0,
+          remaining: 0,
+          paid_percentage: 0,
+          total_retainage_held: 0,
+          total_retainage_released: 0,
+          net_receivable: 0,
+          approved_variations: 0,
+          unapproved_variations: 0,
+          revised_contract_value: 0,
+          variation_count: 0,
+        });
+      }
+
+      // Fetch purchase orders for this job
+      if (foundationResponse?.success && foundationResponse.foundation?.id) {
+        const foundationId = foundationResponse.foundation.id;
+        const poResponse = await api.get<{
+          success: boolean;
+          records: PurchaseOrderRecord[];
+        }>(`/api/v1/foundations/${foundationId}/records`, {
+          params: {
+            filters: JSON.stringify([{ column: "job_id", operator: "=", value: String(jobId) }]),
+            per_page: 1000,
+          },
+        });
+
+        if (poResponse?.success && poResponse.records) {
+          setExpensesTotals(calculateExpensesTotals(poResponse.records));
+        } else {
+          setExpensesTotals({
+            totalBudget: 0,
+            totalSpent: 0,
+            totalPaid: 0,
+            totalRemaining: 0,
+            totalVariance: 0,
+            poCount: 0,
+          });
+        }
+      } else {
+        setExpensesTotals({
+          totalBudget: 0,
+          totalSpent: 0,
+          totalPaid: 0,
+          totalRemaining: 0,
+          totalVariance: 0,
+          poCount: 0,
+        });
       }
     } catch (err) {
-      console.error("Failed to load financial data:", err);
-      setError("Failed to load financial data");
+      console.error("Failed to load profit data:", err);
+      setError("Failed to load profit data");
     } finally {
       setLoading(false);
     }
@@ -192,59 +206,23 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
     );
   }
 
-  // Calculate totals
-  const invoices = data?.invoices || [];
-  const bills = data?.bills || [];
-  const creditNotes = data?.credit_notes || [];
-  const supplierCreditNotes = data?.supplier_credit_notes || [];
+  // Calculate profit metrics
+  const revenue = claimsSummary?.total_invoiced || 0;
+  const costs = expensesTotals?.totalSpent || 0;
+  const grossProfit = revenue - costs;
+  const profitMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
 
-  // Filter out voided/deleted
-  const activeInvoices = invoices.filter(
-    (inv) => inv.status !== "DELETED" && inv.status !== "VOIDED"
-  );
-  const activeBills = bills.filter(
-    (bill) => bill.status !== "DELETED" && bill.status !== "VOIDED"
-  );
-  const activeCreditNotes = creditNotes.filter(
-    (cn) => cn.status !== "DELETED" && cn.status !== "VOIDED"
-  );
-  const activeSupplierCredits = supplierCreditNotes.filter(
-    (cn) => cn.status !== "DELETED" && cn.status !== "VOIDED"
-  );
+  // Cash flow metrics
+  const cashIn = claimsSummary?.total_paid || 0;
+  const cashOut = expensesTotals?.totalPaid || 0;
+  const netCashFlow = cashIn - cashOut;
 
-  // Revenue calculations
-  const totalInvoicedGross = activeInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
-  const totalCreditNotesGross = activeCreditNotes.reduce((sum, cn) => sum + (cn.total || 0), 0);
-  const netRevenueGross = totalInvoicedGross - totalCreditNotesGross;
-
-  const totalInvoicedNet = activeInvoices.reduce((sum, inv) => sum + (inv.subtotal || inv.total / 1.1 || 0), 0);
-  const totalCreditNotesNet = activeCreditNotes.reduce((sum, cn) => sum + (cn.subtotal || cn.total / 1.1 || 0), 0);
-  const netRevenueNet = totalInvoicedNet - totalCreditNotesNet;
-
-  const revenueGst = activeInvoices.reduce((sum, inv) => sum + (inv.total_tax || 0), 0) -
-    activeCreditNotes.reduce((sum, cn) => sum + (cn.total_tax || 0), 0);
-
-  // Cost calculations
-  const totalBillsGross = activeBills.reduce((sum, bill) => sum + (bill.total || 0), 0);
-  const totalSupplierCreditsGross = activeSupplierCredits.reduce((sum, cn) => sum + (cn.total || 0), 0);
-  const netCostsGross = totalBillsGross - totalSupplierCreditsGross;
-
-  const totalBillsNet = activeBills.reduce((sum, bill) => sum + (bill.subtotal || bill.total / 1.1 || 0), 0);
-  const totalSupplierCreditsNet = activeSupplierCredits.reduce((sum, cn) => sum + (cn.subtotal || cn.total / 1.1 || 0), 0);
-  const netCostsNet = totalBillsNet - totalSupplierCreditsNet;
-
-  const costsGst = activeBills.reduce((sum, bill) => sum + (bill.total_tax || 0), 0) -
-    activeSupplierCredits.reduce((sum, cn) => sum + (cn.total_tax || 0), 0);
-
-  // Profit
-  const grossProfit = netRevenueNet - netCostsNet;
-  const profitMargin = netRevenueNet > 0 ? (grossProfit / netRevenueNet) * 100 : 0;
-  const netGstPosition = revenueGst - costsGst;
-
-  // Payment stats
-  const paidInvoices = activeInvoices.filter((inv) => inv.status === "PAID");
-  const totalPaid = paidInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
-  const totalOutstanding = netRevenueGross - totalPaid;
+  // Contract vs actual
+  const contractValue = claimsSummary?.contract_value || 0;
+  const revisedContractValue = claimsSummary?.revised_contract_value || contractValue;
+  const budgetedCosts = expensesTotals?.totalBudget || 0;
+  const expectedProfit = revisedContractValue - budgetedCosts;
+  const profitVariance = grossProfit - expectedProfit;
 
   return (
     <div className="space-y-6">
@@ -253,13 +231,11 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-primary" />
-            Profit & Loss
+            Job Profit & Loss
           </h2>
-          {lastSyncedAt && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Last synced: {new Date(lastSyncedAt).toLocaleString()}
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground mt-1">
+            Revenue from Claims • Costs from Purchase Orders
+          </p>
         </div>
         <Button variant="outline" size="sm" onClick={loadData}>
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -281,399 +257,305 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
             ) : (
               <TrendingDown className="h-8 w-8 text-white/80" />
             )}
-            <span className="text-white/80 font-medium text-lg">Gross Profit (ex GST)</span>
+            <span className="text-white/80 font-medium text-lg">Gross Profit</span>
           </div>
           <div className="text-4xl font-bold text-white mb-2">
-            {formatCurrency(grossProfit)}
+            {formatCurrencyWhole(grossProfit)}
           </div>
           <div className="flex items-center gap-4 text-white/80">
             <span className="flex items-center gap-1">
               <Percent className="h-4 w-4" />
-              {formatPercentage(profitMargin)} margin
+              {formatPercentageWithFallback(profitMargin, "0%")} margin
             </span>
+            {profitVariance !== 0 && (
+              <span className={cn(
+                "flex items-center gap-1 text-sm",
+                profitVariance > 0 ? "text-green-200" : "text-red-200"
+              )}>
+                {profitVariance > 0 ? "+" : ""}{formatCurrencyWhole(profitVariance)} vs budget
+              </span>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Sub-tabs for Invoices, Bills, Profit */}
-      <Tabs defaultValue="profit" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="profit" className="gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Summary
-          </TabsTrigger>
-          <TabsTrigger value="invoices" className="gap-2">
-            <FileText className="h-4 w-4" />
-            Invoices ({activeInvoices.length})
-          </TabsTrigger>
-          <TabsTrigger value="bills" className="gap-2">
-            <Receipt className="h-4 w-4" />
-            Bills ({activeBills.length})
-          </TabsTrigger>
-        </TabsList>
+      {/* Revenue vs Costs Flow */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+        {/* Revenue Card */}
+        <Card className="border-blue-200 dark:border-blue-800">
+          <CardHeader className="bg-blue-50 dark:bg-blue-900/20 pb-3">
+            <CardTitle className="text-blue-700 dark:text-blue-300 flex items-center gap-2 text-base">
+              <FileText className="h-5 w-5" />
+              Revenue (Claims)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Invoiced</span>
+              <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                {formatCurrencyWhole(revenue)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Contract Value</span>
+              <span className="font-medium">{formatCurrencyWhole(contractValue)}</span>
+            </div>
+            {(claimsSummary?.approved_variations || 0) > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">+ Approved Variations</span>
+                <span className="font-medium text-green-600 dark:text-green-400">
+                  {formatCurrencyWhole(claimsSummary?.approved_variations)}
+                </span>
+              </div>
+            )}
+            {(claimsSummary?.unapproved_variations || 0) > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Pending Variations</span>
+                <span className="font-medium text-amber-600 dark:text-amber-400">
+                  {formatCurrencyWhole(claimsSummary?.unapproved_variations)}
+                </span>
+              </div>
+            )}
+            {(claimsSummary?.approved_variations || 0) > 0 && (
+              <div className="flex justify-between text-sm border-t pt-2">
+                <span className="text-muted-foreground font-medium">Revised Contract</span>
+                <span className="font-bold">{formatCurrencyWhole(claimsSummary?.revised_contract_value || contractValue)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Remaining to Invoice</span>
+              <span className="font-medium text-amber-600 dark:text-amber-400">
+                {formatCurrencyWhole(claimsSummary?.remaining || 0)}
+              </span>
+            </div>
+            <div className="pt-2 border-t">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-muted-foreground">Invoiced Progress</span>
+                <span className="font-medium">
+                  {(claimsSummary?.revised_contract_value || contractValue) > 0
+                    ? Math.round((revenue / (claimsSummary?.revised_contract_value || contractValue)) * 100)
+                    : 0}%
+                </span>
+              </div>
+              <Progress
+                value={(claimsSummary?.revised_contract_value || contractValue) > 0
+                  ? (revenue / (claimsSummary?.revised_contract_value || contractValue)) * 100
+                  : 0}
+                className="h-2"
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Profit Summary Tab */}
-        <TabsContent value="profit" className="space-y-6">
-          {/* Revenue vs Costs Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Revenue Card */}
-            <Card>
-              <CardHeader className="bg-blue-50 dark:bg-blue-900/20 pb-3">
-                <CardTitle className="text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Revenue
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Invoices ({activeInvoices.length})</span>
-                  <span className="font-medium">{formatCurrency(totalInvoicedGross)}</span>
-                </div>
-                {totalCreditNotesGross > 0 && (
-                  <div className="flex justify-between text-red-600">
-                    <span>Credit Notes ({activeCreditNotes.length})</span>
-                    <span>-{formatCurrency(totalCreditNotesGross)}</span>
-                  </div>
-                )}
-                <div className="border-t pt-3 flex justify-between font-semibold">
-                  <span>Net Revenue (inc GST)</span>
-                  <span className="text-blue-600">{formatCurrency(netRevenueGross)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Ex GST</span>
-                  <span>{formatCurrency(netRevenueNet)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>GST</span>
-                  <span>{formatCurrency(revenueGst)}</span>
-                </div>
-                <div className="mt-4 p-3 bg-muted rounded-lg">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-green-600">Paid</span>
-                    <span>{formatCurrency(totalPaid)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-orange-600">Outstanding</span>
-                    <span>{formatCurrency(totalOutstanding)}</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full mt-2 overflow-hidden">
-                    <div
-                      className="h-full bg-green-500 rounded-full"
-                      style={{ width: `${netRevenueGross > 0 ? (totalPaid / netRevenueGross) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Arrow */}
+        <div className="hidden md:flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <ArrowRight className="h-8 w-8" />
+            <span className="text-xs">minus</span>
+          </div>
+        </div>
 
-            {/* Costs Card */}
-            <Card>
-              <CardHeader className="bg-orange-50 dark:bg-orange-900/20 pb-3">
-                <CardTitle className="text-orange-700 dark:text-orange-300 flex items-center gap-2">
-                  <Receipt className="h-5 w-5" />
-                  Costs
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Bills ({activeBills.length})</span>
-                  <span className="font-medium">{formatCurrency(totalBillsGross)}</span>
-                </div>
-                {totalSupplierCreditsGross > 0 && (
-                  <div className="flex justify-between text-green-600">
-                    <span>Supplier Credits ({activeSupplierCredits.length})</span>
-                    <span>-{formatCurrency(totalSupplierCreditsGross)}</span>
-                  </div>
-                )}
-                <div className="border-t pt-3 flex justify-between font-semibold">
-                  <span>Net Costs (inc GST)</span>
-                  <span className="text-orange-600">{formatCurrency(netCostsGross)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Ex GST</span>
-                  <span>{formatCurrency(netCostsNet)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>GST</span>
-                  <span>{formatCurrency(costsGst)}</span>
-                </div>
-                <div className="mt-4 p-3 bg-muted rounded-lg">
-                  <div className="flex justify-between text-sm">
-                    <span>Cost as % of Revenue</span>
-                    <span className={cn(
-                      "font-medium",
-                      netRevenueNet > 0 && (netCostsNet / netRevenueNet) > 0.8
-                        ? "text-red-600"
-                        : "text-green-600"
-                    )}>
-                      {netRevenueNet > 0 ? Math.round((netCostsNet / netRevenueNet) * 100) : 0}%
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Costs Card */}
+        <Card className="border-orange-200 dark:border-orange-800">
+          <CardHeader className="bg-orange-50 dark:bg-orange-900/20 pb-3">
+            <CardTitle className="text-orange-700 dark:text-orange-300 flex items-center gap-2 text-base">
+              <Receipt className="h-5 w-5" />
+              Costs (Expenses)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Committed</span>
+              <span className="text-xl font-bold text-orange-600 dark:text-orange-400">
+                {formatCurrencyWhole(costs)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Budget</span>
+              <span className="font-medium">{formatCurrencyWhole(budgetedCosts)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Variance</span>
+              <span className={cn(
+                "font-medium",
+                (expensesTotals?.totalVariance || 0) <= 0
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-red-600 dark:text-red-400"
+              )}>
+                {(expensesTotals?.totalVariance || 0) > 0 ? "+" : ""}
+                {formatCurrencyWhole(expensesTotals?.totalVariance || 0)}
+              </span>
+            </div>
+            <div className="pt-2 border-t">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-muted-foreground">Cost vs Revenue</span>
+                <span className={cn(
+                  "font-medium",
+                  revenue > 0 && (costs / revenue) > 0.9
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-green-600 dark:text-green-400"
+                )}>
+                  {revenue > 0 ? Math.round((costs / revenue) * 100) : 0}%
+                </span>
+              </div>
+              <Progress
+                value={revenue > 0 ? Math.min((costs / revenue) * 100, 100) : 0}
+                className="h-2"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Cash Flow Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-muted-foreground" />
+            Cash Flow
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-6">
+            {/* Cash In */}
+            <div className="text-center">
+              <div className="text-sm text-muted-foreground mb-1">Cash In</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {formatCurrencyWhole(cashIn)}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {(Number(claimsSummary?.paid_percentage) || 0).toFixed(0)}% collected
+              </div>
+            </div>
+            {/* Cash Out */}
+            <div className="text-center">
+              <div className="text-sm text-muted-foreground mb-1">Cash Out</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                {formatCurrencyWhole(cashOut)}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {costs > 0 ? Math.round((cashOut / costs) * 100) : 0}% paid
+              </div>
+            </div>
+            {/* Net Position */}
+            <div className="text-center">
+              <div className="text-sm text-muted-foreground mb-1">Net Position</div>
+              <div className={cn(
+                "text-2xl font-bold",
+                netCashFlow >= 0
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-red-600 dark:text-red-400"
+              )}>
+                {formatCurrencyWhole(netCashFlow)}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {netCashFlow >= 0 ? "Cash positive" : "Cash negative"}
+              </div>
+            </div>
           </div>
 
-          {/* Stats Row */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Invoices</div>
-                <div className="text-2xl font-bold">{activeInvoices.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Bills</div>
-                <div className="text-2xl font-bold">{activeBills.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Paid Invoices</div>
-                <div className="text-2xl font-bold text-green-600">{paidInvoices.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <div className="text-xs text-muted-foreground mb-1">Margin</div>
-                <div className={cn(
-                  "text-2xl font-bold",
-                  profitMargin >= 0 ? "text-green-600" : "text-red-600"
-                )}>
-                  {formatPercentage(profitMargin)}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className={cn(
-              netGstPosition >= 0 ? "bg-purple-50 dark:bg-purple-900/20" : "bg-green-50 dark:bg-green-900/20"
+          {/* Cash Flow Bar */}
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex-1 text-right text-sm">
+                <span className="text-green-600 dark:text-green-400">Received</span>
+              </div>
+              <div className="w-px h-4 bg-border" />
+              <div className="flex-1 text-left text-sm">
+                <span className="text-red-600 dark:text-red-400">Paid Out</span>
+              </div>
+            </div>
+            <div className="h-4 flex rounded-full overflow-hidden bg-muted">
+              <div
+                className="bg-green-500 h-full"
+                style={{ width: `${cashIn + cashOut > 0 ? (cashIn / (cashIn + cashOut)) * 100 : 50}%` }}
+              />
+              <div
+                className="bg-red-500 h-full"
+                style={{ width: `${cashIn + cashOut > 0 ? (cashOut / (cashIn + cashOut)) * 100 : 50}%` }}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Contract Value</span>
+            </div>
+            <div className="text-xl font-bold">{formatCurrencyWhole(contractValue)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <PiggyBank className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Expected Profit</span>
+            </div>
+            <div className={cn(
+              "text-xl font-bold",
+              expectedProfit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
             )}>
-              <CardContent className="pt-4 pb-4">
-                <div className="text-xs text-muted-foreground mb-1">
-                  {netGstPosition >= 0 ? "GST Payable" : "GST Refund"}
+              {formatCurrencyWhole(expectedProfit)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Receipt className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Purchase Orders</span>
+            </div>
+            <div className="text-xl font-bold">{expensesTotals?.poCount || 0}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Percent className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Profit Margin</span>
+            </div>
+            <div className={cn(
+              "text-xl font-bold",
+              profitMargin >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+            )}>
+              {formatPercentageWithFallback(profitMargin, "0%")}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Outstanding Amounts */}
+      {((claimsSummary?.remaining || 0) > 0 || (expensesTotals?.totalRemaining || 0) > 0) && (
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              Outstanding Amounts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <div className="text-xs text-muted-foreground">To Invoice (Claims)</div>
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                  {formatCurrencyWhole(claimsSummary?.remaining || 0)}
                 </div>
-                <div className={cn(
-                  "text-xl font-bold",
-                  netGstPosition >= 0 ? "text-purple-600" : "text-green-600"
-                )}>
-                  {formatCurrency(Math.abs(netGstPosition))}
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">To Pay (Suppliers)</div>
+                <div className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                  {formatCurrencyWhole(expensesTotals?.totalRemaining || 0)}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Invoices Tab */}
-        <TabsContent value="invoices">
-          {/* Claim Invoice Patterns Info */}
-          {data?.claim_invoice_patterns && data.claim_invoice_patterns.length > 0 && (
-            <Card className="mb-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-              <CardContent className="py-3 px-4">
-                <div className="flex items-start gap-3">
-                  <Search className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">
-                      Invoice Match Patterns
-                    </p>
-                    <p className="text-xs text-blue-600/80 dark:text-blue-400/80 mb-2">
-                      Xero invoices with these patterns in the reference will auto-match to claim stages:
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {data.claim_invoice_patterns.map((cp, idx) => (
-                        <Badge
-                          key={idx}
-                          variant="secondary"
-                          className="bg-white dark:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700"
-                        >
-                          <span className="font-semibold">{cp.pattern}</span>
-                          {cp.percentage && (
-                            <span className="ml-1 text-blue-500 dark:text-blue-400">
-                              ({cp.percentage}%)
-                            </span>
-                          )}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice #</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Subtotal</TableHead>
-                    <TableHead className="text-right">GST</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {activeInvoices.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                        No invoices found for this job
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    activeInvoices.map((invoice) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                        <TableCell className="text-muted-foreground">{invoice.reference || "-"}</TableCell>
-                        <TableCell>{invoice.contact_name || "-"}</TableCell>
-                        <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
-                        <TableCell>{formatDate(invoice.due_date)}</TableCell>
-                        <TableCell>{getStatusBadge(invoice.status)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(invoice.subtotal)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(invoice.total_tax)}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(invoice.total)}</TableCell>
-                        <TableCell>
-                          {invoice.xero_url && (
-                            <Button variant="ghost" size="icon" asChild>
-                              <a href={invoice.xero_url} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {/* Credit Notes */}
-          {activeCreditNotes.length > 0 && (
-            <Card className="mt-4">
-              <CardHeader>
-                <CardTitle className="text-sm text-muted-foreground">Credit Notes</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Credit Note #</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {activeCreditNotes.map((cn) => (
-                      <TableRow key={cn.id}>
-                        <TableCell className="font-medium">{cn.invoice_number}</TableCell>
-                        <TableCell>{cn.contact_name || "-"}</TableCell>
-                        <TableCell>{formatDate(cn.invoice_date)}</TableCell>
-                        <TableCell>{getStatusBadge(cn.status)}</TableCell>
-                        <TableCell className="text-right text-red-600">-{formatCurrency(cn.total)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        {/* Bills Tab */}
-        <TabsContent value="bills">
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Bill #</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Subtotal</TableHead>
-                    <TableHead className="text-right">GST</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {activeBills.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                        No bills found for this job
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    activeBills.map((bill) => (
-                      <TableRow key={bill.id}>
-                        <TableCell className="font-medium">{bill.invoice_number}</TableCell>
-                        <TableCell>{bill.contact_name || "-"}</TableCell>
-                        <TableCell>{formatDate(bill.invoice_date)}</TableCell>
-                        <TableCell>{formatDate(bill.due_date)}</TableCell>
-                        <TableCell>{getStatusBadge(bill.status)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(bill.subtotal)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(bill.total_tax)}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(bill.total)}</TableCell>
-                        <TableCell>
-                          {bill.xero_url && (
-                            <Button variant="ghost" size="icon" asChild>
-                              <a href={bill.xero_url} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {/* Supplier Credit Notes */}
-          {activeSupplierCredits.length > 0 && (
-            <Card className="mt-4">
-              <CardHeader>
-                <CardTitle className="text-sm text-muted-foreground">Supplier Credit Notes</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Credit Note #</TableHead>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {activeSupplierCredits.map((cn) => (
-                      <TableRow key={cn.id}>
-                        <TableCell className="font-medium">{cn.invoice_number}</TableCell>
-                        <TableCell>{cn.contact_name || "-"}</TableCell>
-                        <TableCell>{formatDate(cn.invoice_date)}</TableCell>
-                        <TableCell>{getStatusBadge(cn.status)}</TableCell>
-                        <TableCell className="text-right text-green-600">-{formatCurrency(cn.total)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

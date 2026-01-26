@@ -20,6 +20,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { ScrollablePage } from "@/components/ui/page-wrappers";
 
 interface WHSStats {
   active_swms: number;
@@ -53,7 +54,7 @@ function getSeverityBadge(severity: string) {
     case "high":
       return <Badge variant="destructive">High</Badge>;
     case "medium":
-      return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Medium</Badge>;
+      return <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 hover:bg-orange-100">Medium</Badge>;
     case "low":
       return <Badge variant="secondary">Low</Badge>;
     default:
@@ -65,15 +66,15 @@ function getStatusBadge(status: string) {
   switch (status?.toLowerCase()) {
     case "active":
     case "approved":
-      return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">Active</Badge>;
     case "pending":
       return <Badge variant="secondary">Pending</Badge>;
     case "expired":
       return <Badge variant="destructive">Expired</Badge>;
     case "investigating":
-      return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Investigating</Badge>;
+      return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-100">Investigating</Badge>;
     case "resolved":
-      return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Resolved</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">Resolved</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -126,7 +127,7 @@ export default function WHSPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <ScrollablePage>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -159,10 +160,10 @@ export default function WHSPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-blue-100 rounded-lg">
-                  <ClipboardCheck className="h-6 w-6 text-blue-600" />
+                  <ClipboardCheck className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <h3 className="font-medium">SWMS Management</h3>
+                  <h3 className="text-sm font-medium">SWMS Management</h3>
                   <p className="text-sm text-muted-foreground">
                     Safe Work Method Statements
                   </p>
@@ -181,10 +182,10 @@ export default function WHSPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-green-100 rounded-lg">
-                  <Users className="h-6 w-6 text-green-600" />
+                  <Users className="h-6 w-6 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
-                  <h3 className="font-medium">Site Inductions</h3>
+                  <h3 className="text-sm font-medium">Site Inductions</h3>
                   <p className="text-sm text-muted-foreground">
                     Worker induction records
                   </p>
@@ -203,10 +204,10 @@ export default function WHSPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-orange-100 rounded-lg">
-                  <ClipboardCheck className="h-6 w-6 text-orange-600" />
+                  <ClipboardCheck className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                 </div>
                 <div>
-                  <h3 className="font-medium">Site Inspections</h3>
+                  <h3 className="text-sm font-medium">Site Inspections</h3>
                   <p className="text-sm text-muted-foreground">
                     Safety audits & checklists
                   </p>
@@ -228,10 +229,10 @@ export default function WHSPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-red-100 rounded-lg">
-                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
                 </div>
                 <div>
-                  <h3 className="font-medium">Incident Reports</h3>
+                  <h3 className="text-sm font-medium">Incident Reports</h3>
                   <p className="text-sm text-muted-foreground">
                     Track & investigate incidents
                   </p>
@@ -250,10 +251,10 @@ export default function WHSPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-purple-100 rounded-lg">
-                  <HardHat className="h-6 w-6 text-purple-600" />
+                  <HardHat className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
-                  <h3 className="font-medium">License Tracking</h3>
+                  <h3 className="text-sm font-medium">License Tracking</h3>
                   <p className="text-sm text-muted-foreground">
                     Worker certifications & licenses
                   </p>
@@ -272,10 +273,10 @@ export default function WHSPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-yellow-100 rounded-lg">
-                  <Clock className="h-6 w-6 text-yellow-600" />
+                  <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
                 </div>
                 <div>
-                  <h3 className="font-medium">Action Items</h3>
+                  <h3 className="text-sm font-medium">Action Items</h3>
                   <p className="text-sm text-muted-foreground">
                     Outstanding safety actions
                   </p>
@@ -308,7 +309,7 @@ export default function WHSPage() {
                     className="flex items-center justify-between p-3 border rounded-lg"
                   >
                     <div className="flex items-center gap-3">
-                      <AlertTriangle className="h-4 w-4 text-orange-500" />
+                      <AlertTriangle className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                       <div>
                         <p className="font-medium">{incident.title}</p>
                         <p className="text-sm text-muted-foreground">{incident.job_title}</p>
@@ -323,7 +324,7 @@ export default function WHSPage() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-2" />
+                <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 dark:text-green-400 mb-2" />
                 <p className="text-muted-foreground">No incidents reported</p>
               </div>
             )}
@@ -350,7 +351,7 @@ export default function WHSPage() {
                     className="flex items-center justify-between p-3 border rounded-lg"
                   >
                     <div className="flex items-center gap-3">
-                      <FileText className="h-4 w-4 text-blue-500" />
+                      <FileText className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                       <div>
                         <p className="font-medium">{item.name}</p>
                         <p className="text-sm text-muted-foreground">{item.job_title}</p>
@@ -382,6 +383,6 @@ export default function WHSPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </ScrollablePage>
   );
 }

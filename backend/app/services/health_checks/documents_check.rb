@@ -203,10 +203,11 @@ module HealthChecks
 
     # Find companies missing specific document types
     def find_companies_missing_document(folder:, pattern:, financial_year: nil, calendar_year: nil, months_ago: nil, period: nil)
-      companies = CorporateCompany.where(active: [ true, nil ])
+      # SSoT: Use scope - CorporateCompany has status column, not active boolean
+      companies = CorporateCompany.active
 
       query = CorporateCompanyDocument.where(folder: folder)
-                            .where("LOWER(document_type) LIKE ? OR LOWER(title) LIKE ?", pattern, pattern)
+                            .where("LOWER(document_type) LIKE ? OR LOWER(file_name) LIKE ?", pattern, pattern)
 
       if financial_year
         query = query.where("? = ANY(financial_years)", financial_year)

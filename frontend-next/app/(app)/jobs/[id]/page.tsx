@@ -62,32 +62,112 @@ import {
 import { SortableList, SortableItem, DragHandle, reorderByPosition } from "@/components/ui/dnd";
 import { useUserTabPreferences } from "@/lib/hooks/useUserTabPreferences";
 import { api } from "@/lib/api";
+import { formatCurrency, getInitials } from "@/utils/formatters";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { safePercent } from "@/lib/utils";
 import dynamic from "next/dynamic";
-import { JobActivityTab } from "@/components/jobs/JobActivityTab";
-import { JobContractTab } from "@/components/jobs/JobContractTab";
-import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
-import { RainLogTab } from "@/components/jobs/RainLogTab";
-import { JobDocumentsTab } from "@/components/jobs/JobDocumentsTab";
-import { JobPlansTab } from "@/components/jobs/JobPlansTab";
-import { JobPurchaseOrdersTab } from "@/components/jobs/JobPurchaseOrdersTab";
-import { JobEstimatorTab } from "@/components/jobs/JobEstimatorTab";
-import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
-import { JobBOQTab } from "@/components/jobs/JobBOQTab";
-import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
-import { JobProfitTab } from "@/components/jobs/JobProfitTab";
-import { JobClaimStagesTab } from "@/components/jobs/JobClaimStagesTab";
-import { JobExpensesTab } from "@/components/jobs/JobExpensesTab";
-import { JobScheduleTab } from "@/components/jobs/JobScheduleTab";
-import { JobSitePresenceTab } from "@/components/jobs/JobSitePresenceTab";
-import { RevitTab } from "@/components/jobs/RevitTab";
-import { ColourSelectionBuilder } from "@/components/colours/ColourSelectionBuilder";
-import { SpecificationBuilder } from "@/components/specifications/SpecificationBuilder";
-import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
 import type { EntityTab } from "@/lib/types/entity-tabs";
+
+// =============================================================================
+// LAZY LOADED TAB COMPONENTS - Performance optimization
+// =============================================================================
+// Tab components are loaded on-demand when the tab is first activated.
+// This significantly reduces initial bundle size and improves page load time.
+// Each component is code-split into its own chunk.
+// =============================================================================
+const JobActivityTab = dynamic(() => import("@/components/jobs/JobActivityTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobContractTab = dynamic(() => import("@/components/jobs/JobContractTab").then(m => m.JobContractTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobPeopleTab = dynamic(() => import("@/components/jobs/JobPeopleTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const RainLogTab = dynamic(() => import("@/components/jobs/RainLogTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobDocumentsTab = dynamic(() => import("@/components/jobs/JobDocumentsTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobPlansTab = dynamic(() => import("@/components/jobs/JobPlansTab").then(m => m.JobPlansTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobPurchaseOrdersTab = dynamic(() => import("@/components/jobs/JobPurchaseOrdersTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobEstimatorTab = dynamic(() => import("@/components/jobs/JobEstimatorTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobBudgetTab = dynamic(() => import("@/components/jobs/JobBudgetTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobBOQTab = dynamic(() => import("@/components/jobs/JobBOQTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobCommunicationsTab = dynamic(() => import("@/components/jobs/JobCommunicationsTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobProfitTab = dynamic(() => import("@/components/jobs/JobProfitTab").then(m => m.JobProfitTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobClaimStagesTab = dynamic(() => import("@/components/jobs/JobClaimStagesTab").then(m => m.JobClaimStagesTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobExpensesTab = dynamic(() => import("@/components/jobs/JobExpensesTab").then(m => m.JobExpensesTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobScheduleTab = dynamic(() => import("@/components/jobs/JobScheduleTab").then(m => m.JobScheduleTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const JobSitePresenceTab = dynamic(() => import("@/components/jobs/JobSitePresenceTab").then(m => m.JobSitePresenceTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const RevitTab = dynamic(() => import("@/components/jobs/RevitTab").then(m => m.RevitTab), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const ColourSelectionBuilder = dynamic(() => import("@/components/colours/ColourSelectionBuilder").then(m => m.ColourSelectionBuilder), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const SpecificationBuilder = dynamic(() => import("@/components/specifications/SpecificationBuilder").then(m => m.SpecificationBuilder), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+
+// Loading skeleton shown while tab component loads
+function TabLoadingSkeleton() {
+  return (
+    <div className="space-y-4 p-4">
+      <Skeleton className="h-8 w-48" />
+      <div className="grid grid-cols-2 gap-4">
+        <Skeleton className="h-32" />
+        <Skeleton className="h-32" />
+      </div>
+      <Skeleton className="h-48" />
+    </div>
+  );
+}
 
 // =============================================================================
 // REQUEST DEDUPLICATION - Prevents duplicate API calls that cause screen flashing
@@ -221,6 +301,8 @@ interface Job {
   // Construction details
   level?: string;
   dwelling_type?: string;
+  // Storage folder status
+  storage_folder_status?: "not_requested" | "pending" | "processing" | "completed" | "failed";
 }
 
 interface JobType {
@@ -241,25 +323,6 @@ interface JobStage {
 }
 
 // Static tabs removed - now using dynamic tabs from useJobTabs hook
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function getInitials(name: string | undefined | null): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 function getStageBadgeVariant(stage: string): "default" | "secondary" | "outline" {
   switch (stage?.toLowerCase()) {
@@ -886,6 +949,12 @@ export default function JobDetailPage() {
   // Uses path-based structure: /jobs/{id}/{parent}/{child}
   // Exception: "schedule" tab stays inline (doesn't navigate to /schedule page)
   const handleTabChange = React.useCallback((newTab: string) => {
+    // IGNORE: Parent tab values prefixed with __p__ come from Radix onValueChange
+    // These are handled via onClick instead to avoid double-firing navigation
+    if (newTab.startsWith("__p__")) {
+      return;
+    }
+
     // SSoT: Handle composite keys (parent__child) from HierarchicalTabsList
     // This is the ONLY reliable way to identify which parent a child belongs to
     // when multiple parents have children with the same tab_key (e.g., "site")
@@ -1283,7 +1352,7 @@ export default function JobDetailPage() {
                 <span className="font-semibold">{formatCurrency(job.live_profit || 0)}</span>
                 <span className="text-muted-foreground text-xs">({safePercent(job.profit_percentage)})</span>
               </div>
-              <Button size="sm" className="h-auto py-0.5 px-2 text-sm" onClick={() => router.push(`/jobs/${jobId}/schedule/gantt-v2`)}>
+              <Button size="sm" className="h-auto py-0.5 px-2 text-sm" onClick={() => router.push(`/jobs/${jobId}/schedule/gantt`)}>
                 Open Schedule
               </Button>
               {/* Tab Preferences Menu */}
@@ -1749,6 +1818,7 @@ export default function JobDetailPage() {
                   jobTitle={job.name}
                   initialCategory={tabValue}
                   categories={categories}
+                  storageFolderStatus={job.storage_folder_status}
                 />
               </TabsContent>
             );
@@ -1796,7 +1866,7 @@ export default function JobDetailPage() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
-                    <ClipboardCheck className="h-4 w-4 text-blue-500" />
+                    <ClipboardCheck className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                     <span className="text-sm text-muted-foreground">Active SWMS</span>
                   </div>
                   <p className="text-2xl font-bold mt-1">2</p>
@@ -1805,7 +1875,7 @@ export default function JobDetailPage() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-green-500" />
+                    <Users className="h-4 w-4 text-green-500 dark:text-green-400" />
                     <span className="text-sm text-muted-foreground">Inducted Workers</span>
                   </div>
                   <p className="text-2xl font-bold mt-1">8</p>
@@ -1814,7 +1884,7 @@ export default function JobDetailPage() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                     <span className="text-sm text-muted-foreground">Inspections</span>
                   </div>
                   <p className="text-2xl font-bold mt-1">3</p>
@@ -1823,7 +1893,7 @@ export default function JobDetailPage() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-orange-500" />
+                    <AlertTriangle className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                     <span className="text-sm text-muted-foreground">Open Incidents</span>
                   </div>
                   <p className="text-2xl font-bold mt-1">0</p>
@@ -1844,20 +1914,20 @@ export default function JobDetailPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
-                      <ClipboardCheck className="h-5 w-5 text-blue-500" />
+                      <ClipboardCheck className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                       <div>
                         <p className="font-medium">Excavation Works SWMS</p>
                         <p className="text-sm text-muted-foreground">Version 2 • 8 workers</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-green-100 text-green-700">Active</Badge>
+                      <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">Active</Badge>
                       <span className="text-sm text-muted-foreground">60 days remaining</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
-                      <ClipboardCheck className="h-5 w-5 text-blue-500" />
+                      <ClipboardCheck className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                       <div>
                         <p className="font-medium">Concrete Pouring SWMS</p>
                         <p className="text-sm text-muted-foreground">Version 1 • Draft</p>
@@ -1894,7 +1964,7 @@ export default function JobDetailPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                         <span className="text-sm text-muted-foreground">Inducted</span>
                       </div>
                     </div>
@@ -1910,7 +1980,7 @@ export default function JobDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-orange-500" />
+                      <Clock className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                       <Button size="sm">Start</Button>
                     </div>
                   </div>

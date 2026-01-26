@@ -44,11 +44,11 @@ const iconMap: Record<string, React.ReactNode> = {
 function getStatusIcon(status: string) {
   switch (status) {
     case "healthy":
-      return <CheckCircle className="h-4 w-4 text-green-600" />;
+      return <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />;
     case "warning":
-      return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
+      return <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />;
     case "critical":
-      return <XCircle className="h-4 w-4 text-red-600" />;
+      return <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />;
     default:
       return <AlertTriangle className="h-4 w-4 text-muted-foreground" />;
   }
@@ -57,11 +57,11 @@ function getStatusIcon(status: string) {
 function getStatusBadgeColor(status: string): string {
   switch (status) {
     case "healthy":
-      return "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300";
+      return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/50 dark:text-green-300";
     case "warning":
-      return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300";
+      return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/50 dark:text-yellow-300";
     case "critical":
-      return "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300";
+      return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/50 dark:text-red-300";
     default:
       return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
   }
@@ -95,17 +95,17 @@ export function InfrastructurePanel({ metrics, loading }: InfrastructurePanelPro
           </div>
           <div className="flex items-center gap-1">
             {criticalCount > 0 && (
-              <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300">
+              <Badge variant="secondary" className="text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/50 dark:text-red-300">
                 {criticalCount} critical
               </Badge>
             )}
             {warningCount > 0 && (
-              <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300">
+              <Badge variant="secondary" className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/50 dark:text-yellow-300">
                 {warningCount} warning
               </Badge>
             )}
             {criticalCount === 0 && warningCount === 0 && (
-              <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+              <Badge variant="secondary" className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/50 dark:text-green-300">
                 All healthy
               </Badge>
             )}

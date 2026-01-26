@@ -50,27 +50,10 @@ import {
   Send,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function formatDate(value: string): string {
-  if (!value) return "-";
-  return new Date(value).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 interface ClaimStage {
   id: number;
@@ -682,16 +665,16 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               {stage.auto_matched ? (
-                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
                               ) : (
-                                <Link2 className="h-4 w-4 text-blue-500" />
+                                <Link2 className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                               )}
                               {stage.invoice.external_id ? (
                                 <a
                                   href={`https://go.xero.com/AccountsReceivable/View.aspx?invoiceID=${stage.invoice.external_id}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="font-medium text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                  className="font-medium text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline flex items-center gap-1"
                                 >
                                   {stage.invoice.invoice_number}
                                   <ExternalLink className="h-3 w-3" />
@@ -702,7 +685,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                                 </span>
                               )}
                               {stage.invoice.pending_push && (
-                                <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
+                                <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800">
                                   DRAFT
                                 </Badge>
                               )}
@@ -813,7 +796,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                         <span className={cn(
                           "text-sm",
                           stage.payment_status !== "paid" && new Date(stage.invoice.due_date) < new Date()
-                            ? "text-red-500 font-medium"
+                            ? "text-red-500 dark:text-red-400 font-medium"
                             : ""
                         )}>
                           {formatDate(stage.invoice.due_date)}
@@ -845,12 +828,12 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                           <div className="flex flex-col items-end gap-1">
                             {/* Retainage Status Badge */}
                             {stage.retainage_status === "held" ? (
-                              <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                              <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400">
                                 <Lock className="h-3 w-3 mr-1" />
                                 Held
                               </Badge>
                             ) : stage.retainage_status === "released" ? (
-                              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                              <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
                                 <Unlock className="h-3 w-3 mr-1" />
                                 Released
                               </Badge>
@@ -939,7 +922,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                                 "text-xs",
                                 (stage.variance_amount || 0) > 0
                                   ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20"
-                                  : "text-red-600 bg-red-50 dark:bg-red-900/20"
+                                  : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20"
                               )}
                             >
                               {(stage.variance_amount || 0) > 0 ? "+" : ""}
@@ -1019,7 +1002,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Paid:</span>
-                        <span className="font-mono text-green-600">
+                        <span className="font-mono text-green-600 dark:text-green-400">
                           {formatCurrency(inv.amount_paid)}
                         </span>
                       </div>
@@ -1074,7 +1057,7 @@ function PaymentStatusBadge({
 
   if (isOverdue) {
     return (
-      <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+      <Badge className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
         <AlertCircle className="h-3 w-3 mr-1" />
         Overdue
       </Badge>
@@ -1084,14 +1067,14 @@ function PaymentStatusBadge({
   switch (status) {
     case "paid":
       return (
-        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
           <CheckCircle2 className="h-3 w-3 mr-1" />
           Paid
         </Badge>
       );
     case "partial":
       return (
-        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-400">
           <DollarSign className="h-3 w-3 mr-1" />
           Partial
         </Badge>

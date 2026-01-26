@@ -164,17 +164,17 @@ export default function ASICEdgeTab() {
   const getCategoryColor = (category: string) => {
     switch (category) {
       case "Registration":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300";
       case "Changes":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300";
+        return "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900 dark:text-purple-300";
       case "Extracts":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
+        return "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300";
       case "Annual":
-        return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300";
+        return "bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-300";
       case "Notifications":
         return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
       case "Deregistration":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
+        return "bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300";
       default:
         return "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
     }
@@ -184,21 +184,21 @@ export default function ASICEdgeTab() {
     switch (status) {
       case "accepted":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             Accepted
           </Badge>
         );
       case "rejected":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300">
             <XCircle className="h-3 w-3 mr-1" />
             Rejected
           </Badge>
         );
       default:
         return (
-          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-300">
             <Clock className="h-3 w-3 mr-1" />
             Pending
           </Badge>
@@ -311,8 +311,8 @@ export default function ASICEdgeTab() {
                           <Badge
                             className={
                               companyResult.data.status === "Registered"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+                                ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300"
+                                : "bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300"
                             }
                           >
                             {companyResult.data.status}
@@ -422,7 +422,7 @@ export default function ASICEdgeTab() {
                   </TableCell>
                   <TableCell>
                     {form.available ? (
-                      <Badge variant="outline" className="text-green-600 border-green-600">
+                      <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-600">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Available
                       </Badge>
@@ -522,8 +522,8 @@ export default function ASICEdgeTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <Clock className="h-5 w-5 text-blue-600" />
-                <h4 className="font-medium">Faster Processing</h4>
+                <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <h4 className="text-sm font-medium">Faster Processing</h4>
               </div>
               <p className="text-sm text-muted-foreground">
                 Forms are processed immediately without manual data entry delays
@@ -531,8 +531,8 @@ export default function ASICEdgeTab() {
             </div>
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                <h4 className="font-medium">Validation</h4>
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <h4 className="text-sm font-medium">Validation</h4>
               </div>
               <p className="text-sm text-muted-foreground">
                 Real-time validation catches errors before submission
@@ -540,8 +540,8 @@ export default function ASICEdgeTab() {
             </div>
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <Users className="h-5 w-5 text-purple-600" />
-                <h4 className="font-medium">Bulk Lodgement</h4>
+                <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                <h4 className="text-sm font-medium">Bulk Lodgement</h4>
               </div>
               <p className="text-sm text-muted-foreground">
                 Submit multiple forms for different companies efficiently
@@ -583,7 +583,7 @@ export default function ASICEdgeTab() {
 
           <div className="space-y-4 py-4">
             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
                 About GetEDGE
               </h4>
               <p className="text-sm text-blue-600 dark:text-blue-400">
@@ -665,7 +665,7 @@ export default function ASICEdgeTab() {
             )}
 
             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
                 Form {selectedForm?.code} - {selectedForm?.description}
               </h4>
               <p className="text-sm text-blue-600 dark:text-blue-400">

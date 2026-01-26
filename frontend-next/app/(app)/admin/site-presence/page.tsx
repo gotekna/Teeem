@@ -334,7 +334,7 @@ export default function SitePresenceDashboardPage() {
                         </div>
                         <div className="flex gap-1">
                           {session.gps_verified ? (
-                            <Badge variant="outline" className="text-green-600 border-green-600">
+                            <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-600">
                               <MapPin className="h-3 w-3 mr-1" />
                               GPS
                             </Badge>
@@ -345,7 +345,7 @@ export default function SitePresenceDashboardPage() {
                             </Badge>
                           )}
                           {session.face_verified ? (
-                            <Badge variant="outline" className="text-green-600 border-green-600">
+                            <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-600">
                               <Camera className="h-3 w-3 mr-1" />
                               Face
                             </Badge>
@@ -441,7 +441,7 @@ export default function SitePresenceDashboardPage() {
             <CardContent>
               {anomalies.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500 opacity-50" />
+                  <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500 dark:text-green-400 opacity-50" />
                   <p>No anomalies detected</p>
                   <p className="text-sm">All sessions are verified</p>
                 </div>
@@ -550,7 +550,7 @@ export default function SitePresenceDashboardPage() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Approval Rate</span>
-                <span className="font-mono font-bold text-lg text-green-600">98%</span>
+                <span className="font-mono font-bold text-lg text-green-600 dark:text-green-400">98%</span>
               </div>
             </div>
           </CardContent>
@@ -567,28 +567,28 @@ export default function SitePresenceDashboardPage() {
                   <div className="h-2 w-2 rounded-full bg-green-500" />
                   <span className="text-sm">GPS Verification</span>
                 </div>
-                <Badge variant="outline" className="text-green-600">Active</Badge>
+                <Badge variant="outline" className="text-green-600 dark:text-green-400">Active</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-green-500" />
                   <span className="text-sm">Face Verification</span>
                 </div>
-                <Badge variant="outline" className="text-green-600">Active</Badge>
+                <Badge variant="outline" className="text-green-600 dark:text-green-400">Active</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-green-500" />
                   <span className="text-sm">AI Timesheet Engine</span>
                 </div>
-                <Badge variant="outline" className="text-green-600">Active</Badge>
+                <Badge variant="outline" className="text-green-600 dark:text-green-400">Active</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-green-500" />
                   <span className="text-sm">Anomaly Detection</span>
                 </div>
-                <Badge variant="outline" className="text-green-600">Active</Badge>
+                <Badge variant="outline" className="text-green-600 dark:text-green-400">Active</Badge>
               </div>
             </div>
           </CardContent>

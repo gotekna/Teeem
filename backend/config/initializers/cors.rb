@@ -10,11 +10,12 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
     # Allow explicit Vercel deployments (no wildcards - security risk)
     # See: OWASP CORS misconfiguration - wildcards can match attacker-controlled subdomains
     origins(
-      "https://teeemlive.vercel.app",      # Production frontend
-      "https://teeeemlive.vercel.app",     # Production frontend (alternate alias)
+      "https://teeem.vercel.app",          # Production frontend (universal URL)
+      "https://teeem-staging.vercel.app",  # Staging frontend (dev testing)
+      "https://teeem-beta.vercel.app",     # Beta frontend (UAT testing)
       "https://teeemrob.vercel.app",       # Rob's dev frontend
       "https://teeemsam.vercel.app",       # Sam's dev frontend
-      "https://teeem.vercel.app",          # Legacy production frontend
+      "https://teeemjake.vercel.app",      # Jake's dev frontend
       "https://oldfrontend-one.vercel.app", # Legacy frontend deployment
       # Vercel preview deployments - explicit pattern for teeem-next project only
       # Format: teeem-next-<hash>-<team>.vercel.app (Vercel's project name format)
@@ -27,6 +28,7 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
     resource "*",
       headers: :any,
       methods: [ :get, :post, :put, :patch, :delete, :options, :head ],
-      credentials: true
+      credentials: true,
+      expose: [ "Set-Cookie" ]
   end
 end

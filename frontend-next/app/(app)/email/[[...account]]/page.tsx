@@ -1,0 +1,2774 @@
+"use client";
+
+import * as React from "react";
+import { useState, useEffect, useCallback, useTransition, useMemo, memo, useRef } from "react";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useSearchParams, useRouter, useParams } from "next/navigation";
+import { setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import {
+  // Folder state
+  selectedFolderAtom,
+  selectedAccountAtom,
+  expandedAccountsAtom,
+  showAllMailboxesAtom,
+  // Accounts & folders
+  accountsAtom,
+  accountFoldersAtom,
+  folderOrderAtom,
+  loadingFoldersAtom,
+  // Email list state
+  emailsAtom,
+  viewModeAtom,
+  splitInboxDataAtom,
+  selectedCategoryAtom,
+  visibleEmailsAtom,
+  // Loading & sync
+  loadingAtom,
+  syncingAtom,
+  paginationAtom,
+  // Selection
+  selectedEmailIdsAtom,
+  selectedEmailAtom,
+  lastClickedEmailIdAtom,
+  popoutEmailAtom,
+  // UI state
+  activeEmailModalAtom,
+  type EmailModalType,
+  // Compose state
+  replyToDataAtom,
+  resumeDraftAtom,
+  // Action state
+  creatingTaskAtom,
+  creatingContactAtom,
+} from "@/lib/email-atoms";
+import { useLayoutMode } from "@/contexts/LayoutModeContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Mail,
+  Search,
+  RefreshCw,
+  Plus,
+  Paperclip,
+  ChevronLeft,
+  ChevronRight,
+  Inbox,
+  Send,
+  FileText,
+  Trash2,
+  Archive,
+  Star,
+  ChevronDown,
+  ChevronUp,
+  Settings2,
+  Keyboard,
+  Wifi,
+  WifiOff,
+  Reply,
+  ReplyAll,
+  Forward,
+  ArrowUpDown,
+  FolderPlus,
+  MoreVertical,
+  CheckCheck,
+  ListTodo,
+  UserPlus,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import { api } from "@/lib/api";
+import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
+import { formatDistanceToNow, format, isToday, differenceInDays } from "date-fns";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
+import { DraftsList } from "@/components/emails/DraftsList";
+import {
+  SplitInboxTabs,
+  ViewModeToggle,
+  useSplitInbox,
+  type SplitInboxCategory,
+} from "@/components/emails/SplitInboxTabs";
+import { StaleIndicator } from "@/components/emails/StaleIndicator";
+import { KeyboardShortcutsHelp } from "@/components/emails/KeyboardShortcutsHelp";
+import { BulkActionBar } from "@/components/emails/BulkActionBar";
+import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
+import { QuickEmailActions } from "@/components/emails/QuickEmailActions";
+import { EmailContextMenu } from "@/components/emails/EmailContextMenu";
+import { EmailSummary } from "@/components/emails/EmailSummary";
+import { AttachmentList } from "@/components/emails/AttachmentList";
+import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
+import { useEmailSelection } from "@/hooks/useEmailSelection";
+import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
+import { useEmailThreads, type ThreadEmail, THREAD_SORT_OPTIONS } from "@/hooks/useEmailThreads";
+import {
+  EmailDragDropProvider,
+  DraggableEmail,
+  DroppableFolder,
+  useEmailDragDropContext,
+} from "@/hooks/useEmailDragDrop";
+import { useEmailFilters } from "@/hooks/useEmailFilters";
+import { EmailSearchFilters } from "@/components/emails/EmailSearchFilters";
+import { useEmailState } from "@/components/emails/EmailActions";
+import { useEmailWebSocket } from "@/hooks/useEmailWebSocket";
+import { ClassificationBadge, type EmailClassificationType } from "@/components/emails/ClassificationBadge";
+import { ReadingPaneToggle, useReadingPanePosition, type ReadingPanePosition } from "@/components/emails/ReadingPaneToggle";
+import { CreateFolderDialog } from "@/components/emails/FolderManagementDialog";
+import { FolderTree, type FolderTreeItem } from "@/components/ui/folder-tree";
+import type { EmailListItem as WebSocketEmail } from "@/lib/email-types";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { emailCache, isIndexedDBAvailable } from "@/lib/email-cache";
+import { useToast } from "@/components/ui/use-toast";
+import { api as apiClient } from "@/lib/api";
+import { getInitials as getInitialsSSoT } from "@/utils/formatters";
+
+// Helper to decode HTML entities and clean up email snippets
+function decodeHtmlEntities(text: string | null | undefined): string {
+  if (!text) return "";
+
+  let decoded = text;
+
+  // Use a textarea to decode HTML entities safely
+  if (typeof document !== "undefined") {
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = text;
+    decoded = textarea.value;
+  } else {
+    // Fallback for SSR - decode common entities
+    decoded = text
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, "/");
+  }
+
+  // Strip CSS that leaked into snippets
+  // Some emails have CSS in their text/plain or snippet from poor HTML parsing
+
+  // Detect if this looks like CSS (has property:value patterns inside braces)
+  // e.g., "} h1 {color:#1b1b1b; font-family:..."
+  if (/\{[^}]*[a-z-]+\s*:[^}]*[;}]?/i.test(decoded) || /^[}\s]/.test(decoded)) {
+    // Has CSS patterns - strip aggressively
+
+    // Remove everything that looks like CSS
+    // Pattern: optional }, then selector, then { properties }
+    let prevDecoded = "";
+    while (prevDecoded !== decoded && decoded.length > 0) {
+      prevDecoded = decoded;
+
+      // Strip leading } or whitespace
+      decoded = decoded.replace(/^[}\s]+/, "");
+
+      // Strip complete CSS rules: selector { properties }
+      decoded = decoded.replace(/^[^{]*\{[^}]*\}\s*/g, "");
+    }
+
+    // If what remains still has { without }, it's truncated CSS - clear it
+    if (decoded.includes("{")) {
+      decoded = "";
+    }
+  }
+
+  // Detect CSS selectors at the start of text (without braces)
+  // e.g., ".row-11 ...." or "#main-content ..." - CSS class/ID selectors
+  // Pattern: starts with . or # followed by identifier characters
+  if (/^\.[\w-]+/.test(decoded) || /^#[\w-]+/.test(decoded)) {
+    // Check if this looks like a CSS selector sequence (multiple selectors, or selector + dots)
+    // vs legitimate text that happens to start with a period (like "...more text")
+    if (
+      /^[.#][\w-]+\s+[.#]/.test(decoded) || // Multiple CSS selectors
+      /^[.#][\w-]+\s*\.{2,}/.test(decoded) || // Selector followed by ellipsis (truncated CSS)
+      /^\.row-\d+/.test(decoded) || // Common CSS pattern like .row-1, .row-11
+      /^[.#][\w-]+\s*,/.test(decoded) // Selector followed by comma (selector list)
+    ) {
+      decoded = "";
+    }
+  }
+
+  // Clean up multiple spaces
+  decoded = decoded.replace(/\s+/g, " ").trim();
+
+  return decoded;
+}
+
+/**
+ * Resolves cid: URLs in email HTML to actual image URLs.
+ * Emails with embedded images use cid: (Content-ID) URLs that browsers can't resolve.
+ * If we have synced attachments with inline_url, replace cid: with actual URLs.
+ * Otherwise, replace with transparent pixel to prevent console errors.
+ */
+function resolveInlineImages(html: string, attachments?: EmailAttachment[]): string {
+  if (!html) return html;
+
+  // Build a map of content_id -> inline_url for quick lookup
+  const cidToUrl = new Map<string, string>();
+  if (attachments) {
+    for (const att of attachments) {
+      if (att.content_id && att.inline_url) {
+        // Store both the full content_id and just the filename part
+        cidToUrl.set(att.content_id, att.inline_url);
+        // Also store by filename (before @) for flexible matching
+        const filename = att.content_id.split('@')[0];
+        if (filename) {
+          cidToUrl.set(filename, att.inline_url);
+        }
+      }
+    }
+  }
+
+  // Replace cid: references with actual URLs or transparent pixel
+  return html.replace(/src\s*=\s*["']cid:([^"']+)["']/gi, (match, cidRef) => {
+    // Try to find matching URL by full content_id or filename
+    const url = cidToUrl.get(cidRef) || cidToUrl.get(cidRef.split('@')[0]);
+    if (url) {
+      return `src="${url}"`;
+    }
+    // Fallback: transparent 1x1 pixel to prevent console errors
+    return 'src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"';
+  });
+}
+
+// Helper to get initials from name or email (uses SSoT for name part)
+function getInitials(name: string | null | undefined, email: string | null | undefined): string {
+  // Try name first using SSoT formatter
+  const nameInitials = getInitialsSSoT(name);
+  if (nameInitials) {
+    // Handle single word case: take first 2 chars
+    if (nameInitials.length === 1 && name && name.trim().split(/\s+/).length === 1) {
+      return name.trim().substring(0, 2).toUpperCase();
+    }
+    return nameInitials;
+  }
+  // Fallback to email local part
+  if (email) {
+    const localPart = email.split("@")[0];
+    return localPart.substring(0, 2).toUpperCase();
+  }
+  return "??";
+}
+
+// Generate consistent color from string (for avatar background)
+// Gmail-style color palette
+const AVATAR_COLORS = [
+  "bg-red-500", "bg-pink-500", "bg-purple-500", "bg-indigo-500",
+  "bg-blue-500", "bg-cyan-500", "bg-teal-500", "bg-green-500",
+  "bg-lime-500", "bg-yellow-500", "bg-amber-500", "bg-orange-500",
+];
+
+function getAvatarColor(identifier: string): string {
+  let hash = 0;
+  for (let i = 0; i < identifier.length; i++) {
+    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+// Smart date formatter for email list:
+// - Today: Show time only (e.g., "2:35 PM")
+// - Last 7 days: Show day + time (e.g., "Thu 2:35 PM")
+// - Older: Show date only (e.g., "09/01/2026")
+function formatEmailDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const daysDiff = differenceInDays(now, date);
+
+  if (isToday(date)) {
+    // Today: just time
+    return format(date, "h:mm a");
+  } else if (daysDiff < 7) {
+    // Last 7 days: day + time
+    return format(date, "EEE h:mm a");
+  } else {
+    // Older: just date
+    return format(date, "dd/MM/yyyy");
+  }
+}
+
+interface Email {
+  id: number;
+  subject: string;
+  from_address: string;
+  from_email: string;
+  from_name: string | null;
+  to_addresses: string[];
+  to_emails: string[];
+  cc_emails?: string[];
+  received_at: string;
+  snippet: string;
+  body_preview: string | null;
+  body_html: string | null;
+  body_text: string | null;
+  has_attachments: boolean;
+  is_read: boolean;
+  source_type: string;
+  imap_credential_id: number | null;
+  job_id: number | null;
+  job_number: string | null;
+  attachments?: Array<{
+    id: number;
+    name: string;
+    content_type: string;
+    size: number;
+    content_id?: string;
+    inline_url?: string;
+  }>;
+  // Threading fields
+  internet_message_id?: string;
+  conversation_id?: string;
+  thread_count?: number;
+  is_latest_in_thread?: boolean;
+  thread?: Email[];
+  // AI Summary fields
+  ai_summary?: string | null;
+  // Contact matching fields
+  primary_contact_id?: number | null;
+  primary_contact?: {
+    id: number;
+    display_name: string;
+    email?: string;
+    phone?: string;
+    company_name?: string;
+  } | null;
+  contacts?: Array<{
+    id: number;
+    display_name: string;
+    email?: string;
+    phone?: string;
+    company_name?: string;
+  }>;
+  // Classification fields
+  classification_type?: EmailClassificationType;
+  classification_confidence?: number;
+  // Direction and importance
+  direction?: "sent" | "received" | "cc" | "bcc";
+  importance?: "high" | "normal" | "low";
+}
+
+// Type alias for use in resolveInlineImages
+type EmailAttachment = NonNullable<Email['attachments']>[number];
+
+interface EmailAccount {
+  id: number | string;
+  type: "outlook" | "imap" | "ms365";
+  name: string;
+  email_address: string | null;
+  provider: string;
+  is_active: boolean;
+  is_default?: boolean;
+  org_credential_id?: number;
+  needs_mailbox_config?: boolean;
+  is_favorite?: boolean;
+}
+
+interface Pagination {
+  page: number;
+  per_page: number;
+  total: number;
+  total_pages: number;
+}
+
+interface EmailFolder {
+  id: string;
+  name: string;  // Full path for filtering (e.g., "Inbox/Investments")
+  display_name?: string;  // Display name from API (snake_case)
+  displayName?: string;  // Display name for FolderTree (camelCase)
+  type: string;
+  unread_count?: number;
+  total_items?: number;
+  depth?: number;
+  parent_id?: string;
+}
+
+// Memoized email list item for performance
+const EmailListItem = memo(function EmailListItem({
+  email,
+  isSelected,
+  isChecked,
+  hasSelections,
+  onClick,
+  onCheckboxChange,
+  onQuickAction,
+  onSnooze,
+  onReply,
+  onReplyAll,
+  onForward,
+  // Thread props
+  threadCount = 0,
+  isExpanded = false,
+  onToggleThread,
+  threadEmails = [],
+  isLoadingThread = false,
+  // Drag-drop props
+  accountId,
+  accountType = "outlook",
+  sourceFolder,
+  enableDrag = false,
+}: {
+  email: Email;
+  isSelected: boolean;
+  isChecked: boolean;
+  hasSelections: boolean;
+  onClick: (email: Email, event: React.MouseEvent) => void;
+  onCheckboxChange: (email: Email) => void;
+  onQuickAction?: () => void;
+  onSnooze?: (email: Email) => void;
+  onReply?: (email: Email) => void;
+  onReplyAll?: (email: Email) => void;
+  onForward?: (email: Email) => void;
+  // Thread props
+  threadCount?: number;
+  isExpanded?: boolean;
+  onToggleThread?: (email: Email) => void;
+  threadEmails?: ThreadEmail[];
+  isLoadingThread?: boolean;
+  // Drag-drop props
+  accountId?: string;
+  accountType?: "imap" | "outlook" | "ms365";
+  sourceFolder?: string;
+  enableDrag?: boolean;
+}) {
+  const hasThread = threadCount > 1;
+
+  const content = (
+    <EmailContextMenu
+      emailId={email.id}
+      isRead={email.is_read}
+      fromEmail={email.from_email || email.from_address}
+      fromName={email.from_name || undefined}
+      subject={email.subject}
+      onReply={() => onReply?.(email)}
+      onReplyAll={() => onReplyAll?.(email)}
+      onForward={() => onForward?.(email)}
+      onSnooze={() => onSnooze?.(email)}
+      onAction={onQuickAction}
+    >
+    <div data-email-id={email.id}>
+      {/* Main email row */}
+      <div
+        className={cn(
+          "group px-0.5 py-1.5 cursor-pointer border-l-2 border-b border-border",
+          isSelected
+            ? "bg-primary/10 border-l-primary"
+            : isChecked
+            ? "bg-primary/5 border-l-primary/50"
+            : "hover:bg-muted/50 border-l-transparent",
+          !email.is_read && !isSelected && !isChecked && "bg-blue-50/50 dark:bg-blue-950/20"
+        )}
+        onClick={(e) => onClick(email, e)}
+      >
+        <div className="flex items-start gap-0.5">
+          {/* Thread expand/collapse chevron OR checkbox */}
+          <div className="shrink-0 pt-0.5 w-4 flex items-center justify-center">
+            {hasThread && !hasSelections ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleThread?.(email);
+                }}
+                className="p-0 hover:bg-muted rounded"
+              >
+                {isLoadingThread ? (
+                  <div className="h-3.5 w-3.5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                ) : isExpanded ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </button>
+            ) : (
+              <div
+                className={cn(
+                  hasSelections ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+                  "transition-opacity"
+                )}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Checkbox
+                  checked={isChecked}
+                  onCheckedChange={() => onCheckboxChange(email)}
+                  className="h-4 w-4"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Sender Avatar */}
+          <div className="shrink-0 pt-0.5">
+            <div
+              className={cn(
+                "h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-medium",
+                getAvatarColor(email.from_email || email.from_address || "unknown")
+              )}
+            >
+              {getInitials(email.from_name, email.from_email || email.from_address)}
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0 flex items-start gap-1">
+            {/* Unread indicator dot */}
+            {!email.is_read && (
+              <div className="shrink-0 pt-1.5">
+                <div className="h-2 w-2 rounded-full bg-blue-500" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className={cn(
+                  "text-sm truncate flex-1 min-w-0",
+                  !email.is_read ? "font-semibold text-foreground" : "font-normal text-muted-foreground"
+                )}>
+                  {email.from_name || email.from_email || email.from_address}
+                </span>
+                {email.has_attachments && (
+                  <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                )}
+                {/* Classification badge */}
+                <ClassificationBadge
+                  classificationType={email.classification_type}
+                  confidence={email.classification_confidence}
+                  compact
+                />
+                {/* Thread count badge */}
+                <ThreadCountBadge count={threadCount} isExpanded={isExpanded} />
+                {/* Timestamp - inline with sender */}
+                <span className={cn(
+                  "text-xs whitespace-nowrap shrink-0 group-hover:hidden",
+                  !email.is_read ? "font-medium text-muted-foreground" : "text-muted-foreground"
+                )}>
+                  {formatEmailDate(email.received_at)}
+                </span>
+              </div>
+              <p className={cn(
+                "text-sm truncate",
+                !email.is_read ? "font-bold text-foreground" : "font-normal text-muted-foreground"
+              )}>
+                {email.subject || "(No subject)"}
+              </p>
+              {(() => {
+                const snippetText = decodeHtmlEntities(email.snippet || email.body_preview);
+                return snippetText ? (
+                  <p className={cn(
+                    "text-xs truncate mt-0.5",
+                    !email.is_read ? "font-semibold text-muted-foreground" : "font-normal text-muted-foreground/70"
+                  )}>
+                    {snippetText}
+                  </p>
+                ) : null;
+              })()}
+            </div>
+            {/* Quick actions on hover */}
+            <QuickEmailActions
+              emailId={email.id}
+              isRead={email.is_read}
+              onAction={onQuickAction}
+              onSnooze={() => onSnooze?.(email)}
+              onReply={() => onReply?.(email)}
+              onForward={() => onForward?.(email)}
+              className="shrink-0"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded thread emails */}
+      {isExpanded && threadEmails.length > 0 && (
+        <div className="border-l-2 border-l-muted ml-3">
+          {threadEmails
+            .filter((te) => te.id !== email.id) // Don't show the main email again
+            .map((threadEmail) => (
+              <div
+                key={threadEmail.id}
+                data-email-id={threadEmail.id}
+                className={cn(
+                  "px-3 py-2 cursor-pointer hover:bg-muted/30 border-b border-border/50",
+                  !threadEmail.is_read && "bg-blue-50/30 dark:bg-blue-950/10"
+                )}
+                onClick={(e) => onClick(threadEmail as Email, e)}
+              >
+                <div className="flex items-start gap-2 pl-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className={cn(
+                        "text-xs truncate",
+                        !threadEmail.is_read ? "font-bold text-foreground" : "font-medium text-muted-foreground"
+                      )}>
+                        {threadEmail.from_name || threadEmail.from_email || threadEmail.from_address}
+                      </span>
+                      {threadEmail.has_attachments && (
+                        <Paperclip className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                      )}
+                    </div>
+                    {(() => {
+                      const snippetText = decodeHtmlEntities(threadEmail.snippet || threadEmail.body_preview);
+                      return snippetText ? (
+                        <p className={cn(
+                          "text-xs truncate",
+                          !threadEmail.is_read ? "font-semibold text-muted-foreground" : "text-muted-foreground/70"
+                        )}>
+                          {snippetText}
+                        </p>
+                      ) : null;
+                    })()}
+                  </div>
+                  <div className={cn(
+                    "text-xs whitespace-nowrap shrink-0",
+                    !threadEmail.is_read ? "font-medium text-muted-foreground" : "text-muted-foreground"
+                  )}>
+                    {formatEmailDate(threadEmail.received_at)}
+                  </div>
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+    </EmailContextMenu>
+  );
+
+  // Wrap with DraggableEmail if drag is enabled and we have account info
+  if (enableDrag && accountId) {
+    return (
+      <DraggableEmail
+        email={email}
+        accountId={accountId}
+        accountType={accountType}
+        sourceFolder={sourceFolder}
+      >
+        {content}
+      </DraggableEmail>
+    );
+  }
+
+  return content;
+});
+
+export default function EmailPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const params = useParams();
+  // Get account from path: /email/robert@teeem.au → params.account = ["robert@teeem.au"]
+  // With standalone: /email/robert@teeem.au/standalone → params.account = ["robert@teeem.au", "standalone"]
+  const pathSegments = params.account as string[] | undefined;
+  // Decode URL param - Next.js may URL-encode special chars like @ → %40
+  // Support both "account" and "mailbox" query params (mailbox used by Warehouse links)
+  const rawAccountParam = pathSegments?.[0] || searchParams.get("account") || searchParams.get("mailbox");
+  const accountParam = rawAccountParam ? decodeURIComponent(rawAccountParam) : undefined;
+  const emailIdParam = searchParams.get("id");
+  // Standalone mode: check path segment first, then legacy query param
+  const isStandalone = pathSegments?.includes("standalone") || searchParams.get("standalone") === "true";
+
+  // Fullscreen mode for standalone email tab (hides sidebar)
+  const { setMode } = useLayoutMode();
+  useEffect(() => {
+    if (isStandalone) {
+      setMode("fullscreen");
+      return () => setMode("padded");
+    }
+  }, [isStandalone, setMode]);
+
+  // ==========================================================================
+  // SSoT STATE - All email state now uses Jotai atoms (lib/email-atoms.ts)
+  // ==========================================================================
+
+  // Email list state (SSoT: emailsAtom)
+  const [emailsAtomValue, setEmailsAtomValue] = useAtom(emailsAtom);
+  // Cast to local Email type for backwards compatibility
+  const emails = emailsAtomValue as unknown as Email[];
+  const setEmails = setEmailsAtomValue as unknown as React.Dispatch<React.SetStateAction<Email[]>>;
+
+  // Accounts state (SSoT: accountsAtom)
+  const [accountsAtomValue, setAccountsAtomValue] = useAtom(accountsAtom);
+  const accounts = accountsAtomValue as unknown as EmailAccount[];
+  const setAccounts = setAccountsAtomValue as unknown as React.Dispatch<React.SetStateAction<EmailAccount[]>>;
+
+  // Performance: Request deduplication and staleness tracking
+  const fetchAbortControllerRef = useRef<AbortController | null>(null);
+  const lastFetchTimeRef = useRef<number>(0);
+  const FETCH_DEBOUNCE_MS = 1500; // Prevent fetch spam on rapid folder switches
+
+  // Virtual scrolling for email list performance
+  const emailListScrollRef = useRef<HTMLDivElement>(null);
+
+  // Performance: Infinite scroll for auto-loading more emails
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Ref to track if we should skip the next auto-fetch (prevents flashing on account/folder change)
+  const skipNextAutoFetchRef = useRef(false);
+
+  // Folder/account state (SSoT: atoms)
+  const [showAllMailboxes, setShowAllMailboxes] = useAtom(showAllMailboxesAtom);
+  const [accountFoldersAtomValue, setAccountFoldersAtomValue] = useAtom(accountFoldersAtom);
+  const accountFolders = accountFoldersAtomValue as unknown as Record<string, EmailFolder[]>;
+  const setAccountFolders = setAccountFoldersAtomValue as unknown as React.Dispatch<React.SetStateAction<Record<string, EmailFolder[]>>>;
+  const [folderOrder, setFolderOrder] = useAtom(folderOrderAtom);
+  const [loadingFolders, setLoadingFolders] = useAtom(loadingFoldersAtom);
+  const [loading, setLoading] = useAtom(loadingAtom);
+  const [syncing, setSyncing] = useAtom(syncingAtom);
+  const [creatingTask, setCreatingTask] = useAtom(creatingTaskAtom);
+  const [creatingContact, setCreatingContact] = useAtom(creatingContactAtom);
+
+  // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts via paginationAtom
+  const [pagination, setPagination] = useAtom(paginationAtom);
+
+  // Search filters
+  const emailFilters = useEmailFilters();
+
+  // ==========================================================================
+  // FOLDER SELECTION - SSoT: selectedFolderAtom (combined name + id)
+  // This eliminates the selectedFolder/selectedFolderId dual state bug
+  // ==========================================================================
+  const [selectedFolderState, setSelectedFolderState] = useAtom(selectedFolderAtom);
+  // Backwards compatible getters
+  const selectedFolder = selectedFolderState.name;
+  const selectedFolderId = selectedFolderState.id;
+  // Wrapper to update both name and id atomically
+  const setSelectedFolder = useCallback((name: string) => {
+    setSelectedFolderState(prev => ({ ...prev, name }));
+  }, [setSelectedFolderState]);
+  const setSelectedFolderId = useCallback((id: string) => {
+    setSelectedFolderState(prev => ({ ...prev, id }));
+  }, [setSelectedFolderState]);
+
+  // Account selection (SSoT: selectedAccountAtom)
+  const [selectedAccount, setSelectedAccount] = useAtom(selectedAccountAtom);
+  const [expandedAccounts, setExpandedAccounts] = useAtom(expandedAccountsAtom);
+
+  // Historical mailbox filter (for Warehouse links to mailboxes without connected accounts)
+  // When set, filters by mailbox_owner_email instead of account credential
+  const [historicalMailbox, setHistoricalMailbox] = useState<string | null>(null);
+  // Only load historical mailbox emails when user clicks "Load Emails" button
+  const [historicalMailboxActivated, setHistoricalMailboxActivated] = useState(false);
+
+  // Selected/popout email (SSoT: atoms)
+  const [selectedEmailAtomValue, setSelectedEmailAtomValue] = useAtom(selectedEmailAtom);
+  const selectedEmail = selectedEmailAtomValue as Email | null;
+  const setSelectedEmail = setSelectedEmailAtomValue as unknown as React.Dispatch<React.SetStateAction<Email | null>>;
+  const [popoutEmailAtomValue, setPopoutEmailAtomValue] = useAtom(popoutEmailAtom);
+  const popoutEmail = popoutEmailAtomValue as Email | null;
+  const setPopoutEmail = setPopoutEmailAtomValue as unknown as React.Dispatch<React.SetStateAction<Email | null>>;
+
+  // ==========================================================================
+  // MODAL STATE - SSoT: activeEmailModalAtom (one modal at a time)
+  // ==========================================================================
+  const [activeModal, setActiveModal] = useAtom(activeEmailModalAtom);
+  // Backwards compatible boolean flags derived from activeModal
+  const composeOpen = activeModal === "compose";
+  const setComposeOpen = useCallback((open: boolean) => {
+    setActiveModal(open ? "compose" : null);
+  }, [setActiveModal]);
+  const createFolderOpen = activeModal === "createFolder";
+  const setCreateFolderOpen = useCallback((open: boolean) => {
+    setActiveModal(open ? "createFolder" : null);
+  }, [setActiveModal]);
+  const showDrafts = activeModal === "drafts";
+  const setShowDrafts = useCallback((open: boolean) => {
+    setActiveModal(open ? "drafts" : null);
+  }, [setActiveModal]);
+  const showShortcutsHelp = activeModal === "shortcuts";
+  const setShowShortcutsHelp = useCallback((open: boolean) => {
+    setActiveModal(open ? "shortcuts" : null);
+  }, [setActiveModal]);
+
+  // Compose state (SSoT: atoms)
+  const [resumeDraft, setResumeDraft] = useAtom(resumeDraftAtom);
+  const [replyToAtomValue, setReplyToAtomValue] = useAtom(replyToDataAtom);
+  // Backwards compatible type (has extra fields)
+  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; replyToMessageId?: string } | null;
+  const setReplyTo = setReplyToAtomValue as unknown as React.Dispatch<React.SetStateAction<typeof replyTo>>;
+
+  const [isPending, startTransition] = useTransition();
+
+  // ==========================================================================
+  // VIEW MODE - SSoT: viewModeAtom
+  // ==========================================================================
+  const [viewMode, setViewMode] = useAtom(viewModeAtom);
+  // Only fetch split inbox data when in split view mode (performance optimization)
+  const splitInbox = useSplitInbox({ accountId: selectedAccount, enabled: viewMode === "split" });
+
+  // Toast & email state hooks
+  const { toast } = useToast();
+  const emailState = useEmailState(selectedEmail?.id);
+
+  // Multi-select state
+  const selection = useEmailSelection();
+  const [lastClickedEmailId, setLastClickedEmailId] = useAtom(lastClickedEmailIdAtom);
+
+  // Thread expansion state
+  const threads = useEmailThreads();
+
+  // Reading pane position
+  const { position: readingPanePosition, setPosition: setReadingPanePosition } = useReadingPanePosition();
+
+  // WebSocket for real-time email updates
+  const handleNewEmail = useCallback(async (email: WebSocketEmail) => {
+    // Update cache if available
+    if (isIndexedDBAvailable()) {
+      try {
+        // Determine category based on email properties (simplified - backend will have proper categorization)
+        const category = "other" as const; // Default to other, refresh will re-categorize
+        await emailCache.putEmail({
+          ...email,
+          _cachedAt: Date.now(),
+          _category: category,
+        });
+      } catch (err) {
+        console.error("[Email] Failed to cache new email:", err);
+      }
+    }
+
+    // Add new email to the top of the list
+    if (viewMode === "split") {
+      // Refresh split inbox to re-categorize the email
+      splitInbox.refresh();
+    } else {
+      // Add to folder view
+      setEmails((prev: Email[]) => [email as unknown as Email, ...prev]);
+      setPagination((prev: Pagination) => ({ ...prev, total: prev.total + 1 }));
+    }
+
+    // Show notification
+    toast({
+      title: "New email",
+      description: `From: ${email.from_name || email.from_email}`,
+    });
+  }, [viewMode, splitInbox, toast]);
+
+  const handleNewEmails = useCallback(async (emails: WebSocketEmail[], count: number) => {
+    // Update cache if available
+    if (isIndexedDBAvailable()) {
+      try {
+        const cachedEmails = emails.map(email => ({
+          ...email,
+          _cachedAt: Date.now(),
+          _category: "other" as const, // Default to other, refresh will re-categorize
+        }));
+        await emailCache.putEmails(cachedEmails);
+      } catch (err) {
+        console.error("[Email] Failed to cache new emails:", err);
+      }
+    }
+
+    if (viewMode === "split") {
+      splitInbox.refresh();
+    } else {
+      setEmails((prev: Email[]) => [...emails as unknown as Email[], ...prev]);
+      setPagination((prev: Pagination) => ({ ...prev, total: prev.total + count }));
+    }
+
+    toast({
+      title: `${count} new email${count > 1 ? 's' : ''}`,
+      description: "Your inbox has been updated",
+    });
+  }, [viewMode, splitInbox, toast]);
+
+  const handleStateChange = useCallback(async (emailId: number, changes: Record<string, unknown>) => {
+    // Update cache if available
+    if (isIndexedDBAvailable()) {
+      try {
+        await emailCache.updateEmail(emailId, changes);
+      } catch (err) {
+        console.error("[Email] Failed to update cached email:", err);
+      }
+    }
+
+    // Update email in list
+    setEmails(prev => prev.map(e =>
+      e.id === emailId
+        ? { ...e, ...changes, is_read: changes.is_read !== undefined ? changes.is_read as boolean : e.is_read }
+        : e
+    ));
+
+    // Update in split inbox
+    if (viewMode === "split") {
+      // Force refresh to update categorization if needed
+      if ('is_archived' in changes || 'is_starred' in changes) {
+        splitInbox.refresh();
+      }
+    }
+
+    // Update selected email if it's the one that changed
+    if (selectedEmail?.id === emailId) {
+      setSelectedEmail(prev => prev ? { ...prev, ...changes } : null);
+    }
+  }, [viewMode, splitInbox, selectedEmail]);
+
+  const handleEmailDeleted = useCallback(async (emailId: number) => {
+    // Update cache if available
+    if (isIndexedDBAvailable()) {
+      try {
+        await emailCache.deleteEmail(emailId);
+      } catch (err) {
+        console.error("[Email] Failed to delete cached email:", err);
+      }
+    }
+
+    setEmails((prev: Email[]) => prev.filter(e => e.id !== emailId));
+    setPagination((prev: Pagination) => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+
+    if (viewMode === "split") {
+      splitInbox.refresh();
+    }
+
+    // Clear selection if deleted email was selected
+    if (selectedEmail?.id === emailId) {
+      setSelectedEmail(null);
+    }
+  }, [viewMode, splitInbox, selectedEmail]);
+
+  const handleSyncStarted = useCallback((syncType: "incremental" | "full") => {
+    setSyncing(true);
+  }, []);
+
+  const handleSyncCompleted = useCallback((stats: { new_count: number; updated_count: number; duration_seconds: number }) => {
+    setSyncing(false);
+    if (stats.new_count > 0) {
+      toast({
+        title: "Sync complete",
+        description: `${stats.new_count} new email${stats.new_count > 1 ? 's' : ''} synced`,
+      });
+    }
+  }, [toast]);
+
+  const { isConnected, isSyncing: wsIsSyncing, newEmailCount } = useEmailWebSocket({
+    onNewEmail: handleNewEmail,
+    onNewEmails: handleNewEmails,
+    onStateChange: handleStateChange,
+    onEmailDeleted: handleEmailDeleted,
+    onSyncStarted: handleSyncStarted,
+    onSyncCompleted: handleSyncCompleted,
+    enabled: true,
+  });
+
+  // Get current email list based on view mode
+  const currentEmails = useMemo(() => {
+    return viewMode === "split" ? (splitInbox.currentEmails as Email[]) : emails;
+  }, [viewMode, splitInbox.currentEmails, emails]);
+
+  // Virtual scrolling for email list - only renders visible rows
+  // Estimated row height: ~72px (3 lines of content with padding)
+  const EMAIL_ROW_HEIGHT = 72;
+  const emailVirtualizer = useVirtualizer({
+    count: currentEmails.length,
+    getScrollElement: () => emailListScrollRef.current,
+    estimateSize: () => EMAIL_ROW_HEIGHT,
+    overscan: 5, // Render 5 extra rows above/below viewport for smooth scrolling
+  });
+
+  // Performance: Infinite scroll helper - check if more pages available
+  const hasMorePages = pagination.page < pagination.total_pages;
+
+  // Handle thread toggle
+  const handleToggleThread = useCallback(async (email: Email) => {
+    if (!email.conversation_id) return;
+
+    const isCurrentlyExpanded = threads.isExpanded(email.conversation_id);
+    threads.toggleThread(email.conversation_id);
+
+    // Fetch thread if expanding and not cached
+    if (!isCurrentlyExpanded && !threads.getThread(email.conversation_id)) {
+      await threads.fetchThread(email.id);
+    }
+  }, [threads]);
+
+  // Bulk actions - refresh list and clear selection on success
+  const handleBulkSuccess = useCallback(() => {
+    selection.clear();
+    // Refresh based on current view mode
+    if (viewMode === "split") {
+      splitInbox.refresh();
+    }
+    // Folder view refresh will happen through the normal fetchEmails flow
+  }, [selection, viewMode, splitInbox]);
+
+  const bulkActions = useEmailBulkActions({
+    selectedIds: selection.selectedIds,
+    onSuccess: handleBulkSuccess,
+  });
+
+  // Keyboard shortcut handlers
+  const handleKeyboardArchive = useCallback(async () => {
+    if (!selectedEmail) return;
+    await emailState.toggleArchive();
+    toast({ title: "Email archived" });
+  }, [selectedEmail, emailState, toast]);
+
+  const handleKeyboardStar = useCallback(async () => {
+    if (!selectedEmail) return;
+    await emailState.toggleStar();
+    toast({ title: emailState.state?.is_starred ? "Star removed" : "Email starred" });
+  }, [selectedEmail, emailState, toast]);
+
+  const handleKeyboardPin = useCallback(async () => {
+    if (!selectedEmail) return;
+    await emailState.togglePin();
+    toast({ title: emailState.state?.is_pinned ? "Pin removed" : "Email pinned" });
+  }, [selectedEmail, emailState, toast]);
+
+  const handleKeyboardVip = useCallback(async () => {
+    if (!selectedEmail) return;
+    try {
+      await api.post("/api/v1/vip_senders/toggle", {
+        email_address: selectedEmail.from_email || selectedEmail.from_address,
+      });
+      toast({ title: "VIP status toggled" });
+    } catch {
+      toast({ title: "Failed to toggle VIP", variant: "destructive" });
+    }
+  }, [selectedEmail, toast]);
+
+  const handleKeyboardReply = useCallback(() => {
+    if (selectedEmail) {
+      handleReply(selectedEmail);
+    }
+  }, [selectedEmail]);
+
+  const handleKeyboardForward = useCallback(() => {
+    if (selectedEmail) {
+      handleForward(selectedEmail);
+    }
+  }, [selectedEmail]);
+
+  const handleKeyboardCompose = useCallback(() => {
+    setReplyTo(null);
+    setComposeOpen(true);
+  }, []);
+
+  // Initialize keyboard shortcuts
+  useEmailKeyboardShortcuts({
+    emails: currentEmails,
+    selectedEmail,
+    onSelectEmail: (email) => {
+      if (email) {
+        handleEmailClick(email);
+      } else {
+        setSelectedEmail(null);
+      }
+    },
+    onArchive: handleKeyboardArchive,
+    onStar: handleKeyboardStar,
+    onPin: handleKeyboardPin,
+    onVip: handleKeyboardVip,
+    onReply: handleKeyboardReply,
+    onForward: handleKeyboardForward,
+    onCompose: handleKeyboardCompose,
+    onShowHelp: () => setShowShortcutsHelp(true),
+    // Bulk selection shortcuts
+    onToggleSelection: (email) => selection.toggle(email.id),
+    onSelectAll: () => selection.selectAll(currentEmails),
+    onClearSelection: selection.clear,
+    hasSelection: selection.hasSelection,
+    enabled: !composeOpen && !showShortcutsHelp,
+  });
+
+  // Extract stable function reference to prevent infinite loops
+  const toURLParams = emailFilters.toURLParams;
+
+  const fetchEmails = useCallback(async (page = 1, force = false, folderOverride?: string, append = false) => {
+    // Performance: Debounce rapid re-fetches (unless forced or appending for infinite scroll)
+    const now = Date.now();
+    if (!force && !append && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
+      console.log("[Email] Skipping fetch - too soon since last fetch");
+      return;
+    }
+
+    // Performance: Cancel any pending request (but not for append operations)
+    if (!append && fetchAbortControllerRef.current) {
+      fetchAbortControllerRef.current.abort();
+    }
+    fetchAbortControllerRef.current = new AbortController();
+
+    // Use different loading states for initial load vs infinite scroll
+    if (append) {
+      setIsLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+    lastFetchTimeRef.current = now;
+
+    try {
+      // Start with filters from hook
+      const params = toURLParams();
+      params.set("page", String(page));
+      params.set("per_page", "50");
+
+      // Filter by historical mailbox (Warehouse links to mailboxes without connected accounts)
+      // For historical mailbox, skip my_emails filter to show all emails from that mailbox
+      if (historicalMailbox) {
+        params.append("mailbox_owner_email", historicalMailbox);
+        // Don't set my_emails - show all emails from this historical mailbox
+      } else {
+        // For normal viewing (All Inbox or specific account), filter to user's emails
+        params.set("my_emails", "true");
+
+        // Filter by specific account (skip filtering if "all" for combined view)
+        if (selectedAccount && selectedAccount !== "all") {
+          if (selectedAccount === "outlook") {
+            params.append("source_type", "outlook");
+          } else if (selectedAccount.startsWith("ms365_")) {
+            // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
+            const parts = selectedAccount.split("_");
+            params.append("microsoft_credential_id", parts[1]);
+          } else {
+            params.append("imap_credential_id", selectedAccount);
+          }
+        }
+      }
+
+      // Filter by folder name (warehouse stores human-readable names like "Inbox", not MS365 IDs)
+      // Use folderOverride if provided (for immediate folder changes before state updates)
+      const folderToUse = folderOverride ?? selectedFolder;
+      if (folderToUse) {
+        params.append("folder_name", folderToUse);
+      }
+
+      const url = `/api/v1/synced_emails?${params.toString()}`;
+      const response = await api.get<{ emails: Email[]; pagination: Pagination }>(url);
+
+      // Check if request was aborted
+      if (fetchAbortControllerRef.current?.signal.aborted) {
+        return;
+      }
+
+      // Performance: Append emails for infinite scroll, replace for initial/refresh
+      if (append) {
+        setEmails((prev: Email[]) => [...prev, ...(response.emails || [])]);
+      } else {
+        setEmails(response.emails || []);
+      }
+      setPagination(response.pagination);
+    } catch (error) {
+      // Ignore abort errors
+      if (error instanceof Error && error.name === "AbortError") {
+        return;
+      }
+      console.error("Failed to fetch emails:", error);
+    } finally {
+      if (append) {
+        setIsLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
+    }
+  }, [toURLParams, selectedAccount, selectedFolder, historicalMailbox]);
+
+  // Performance: Infinite scroll - auto-load more emails when scrolling near bottom
+  // Use refs to store latest state to avoid effect re-running on every state change
+  const infiniteScrollStateRef = useRef({ hasMorePages, page: pagination.page, isLoadingMore, loading });
+  infiniteScrollStateRef.current = { hasMorePages, page: pagination.page, isLoadingMore, loading };
+
+  useEffect(() => {
+    // Only enable infinite scroll in folder view (split view uses different pagination)
+    if (viewMode !== "folders") return;
+    if (!loadMoreRef.current) return;
+
+    // Create observer once, check conditions inside callback using refs
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const state = infiniteScrollStateRef.current;
+        if (
+          entries[0].isIntersecting &&
+          state.hasMorePages &&
+          !state.isLoadingMore &&
+          !state.loading &&
+          !skipNextAutoFetchRef.current
+        ) {
+          console.log("[Email] Infinite scroll triggered - loading page", state.page + 1);
+          fetchEmails(state.page + 1, true, undefined, true); // append = true
+        }
+      },
+      { threshold: 0.1, rootMargin: "100px" } // rootMargin gives buffer before triggering
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => observer.disconnect();
+  }, [viewMode, fetchEmails]); // Only recreate observer when viewMode or fetchEmails function changes
+
+  const fetchFolders = async (accountId: string, account?: EmailAccount, forceSelectInbox = false) => {
+    // Check length > 0, not just truthy - empty array [] from previous errors should re-fetch
+    if (accountFolders[accountId]?.length > 0 || loadingFolders.has(accountId)) {
+      return; // Already loaded or loading
+    }
+
+    // Find account if not provided
+    const acct = account || accounts.find(a => String(a.id) === accountId);
+
+    // Skip if account needs mailbox configuration
+    if (acct?.needs_mailbox_config) {
+      return;
+    }
+
+    setLoadingFolders((prev: Set<string>) => new Set(prev).add(accountId));
+
+    // Build URL with mailbox_email for ms365 accounts
+    let foldersUrl = `/api/v1/imap_credentials/folders?account_id=${accountId}`;
+    if (acct?.type === "ms365" && acct?.email_address) {
+      foldersUrl += `&mailbox_email=${encodeURIComponent(acct.email_address)}`;
+    }
+
+    // Fetch folders and folder_order in PARALLEL for speed
+    const [foldersResult, orderResult] = await Promise.allSettled([
+      api.get<{ success: boolean; data: EmailFolder[] }>(foldersUrl),
+      api.get<{ success: boolean; data: { folder_ids: string[] } }>(
+        `/api/v1/imap_credentials/folder_order?account_id=${accountId}`
+      ),
+    ]);
+
+    // Process folders result
+    if (foldersResult.status === "fulfilled" && foldersResult.value.success && foldersResult.value.data) {
+      const folders = foldersResult.value.data.map(f => ({
+        ...f,
+        displayName: f.display_name || f.name,
+      }));
+      setAccountFolders(prev => ({
+        ...prev,
+        [accountId]: folders
+      }));
+
+      // Auto-select inbox folder when:
+      // - forceSelectInbox is true (user just clicked this mailbox), OR
+      // - The folder ID doesn't match any folder in this account
+      const inboxFolder = foldersResult.value.data.find(f => f.type === "inbox");
+      const currentFolderExists = foldersResult.value.data.some(f => f.id === selectedFolderId);
+
+      if (inboxFolder && (forceSelectInbox || !currentFolderExists)) {
+        setSelectedFolder(inboxFolder.name);
+        setSelectedFolderId(inboxFolder.id);
+      }
+    } else {
+      // Set empty array to prevent retry loops
+      setAccountFolders(prev => ({
+        ...prev,
+        [accountId]: []
+      }));
+    }
+
+    // Process folder order result
+    if (orderResult.status === "fulfilled" && orderResult.value.success && orderResult.value.data?.folder_ids?.length > 0) {
+      setFolderOrder(prev => ({
+        ...prev,
+        [accountId]: orderResult.value.data.folder_ids
+      }));
+    }
+
+    setLoadingFolders((prev: Set<string>) => {
+      const next = new Set(prev);
+      next.delete(accountId);
+      return next;
+    });
+  };
+
+  // Save folder order to backend (called when user drags to reorder)
+  const saveFolderOrder = useCallback(async (accountId: string, folderIds: string[]) => {
+    // Update local state immediately for optimistic UI
+    setFolderOrder(prev => ({
+      ...prev,
+      [accountId]: folderIds
+    }));
+
+    // Save to backend
+    try {
+      await api.post("/api/v1/imap_credentials/save_folder_order", {
+        account_id: accountId,
+        folder_ids: folderIds
+      });
+    } catch (error) {
+      console.error("Failed to save folder order:", error);
+      // Revert on error? For now just log - user can try again
+    }
+  }, []);
+
+  // Track if initial account load is complete (to handle cache vs URL param)
+  const [accountsLoaded, setAccountsLoaded] = useState(false);
+
+  const fetchAccounts = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: EmailAccount[] }>(
+        "/api/v1/imap_credentials/all_accounts"
+      );
+      const activeAccounts = (response.data || []).filter(a => a.is_active);
+      setAccounts(activeAccounts);
+
+      // Determine which account to show based on URL param
+      let targetAccountId = "all";
+
+      if (activeAccounts.length > 0) {
+        if (accountParam) {
+          // Find account matching URL param (by email address or ID for backwards compatibility)
+          const accountToSelect = activeAccounts.find(a =>
+            a.email_address === accountParam || String(a.id) === accountParam
+          );
+          if (accountToSelect) {
+            targetAccountId = String(accountToSelect.id);
+            // Reset folder to Inbox when loading specific account from URL
+            setSelectedFolder("Inbox");
+            setSelectedFolderId("");
+            setExpandedAccounts(new Set([targetAccountId]));
+            // Fetch folders for selected account (pass account for ms365 type)
+            fetchFolders(targetAccountId, accountToSelect, true);
+            // Clear historical mailbox if we matched a connected account
+            setHistoricalMailbox(null);
+          } else {
+            // No matching connected account - use historical mailbox filter
+            // This is for Warehouse links to mailboxes without connected accounts
+            setHistoricalMailbox(accountParam);
+            setHistoricalMailboxActivated(false); // Reset - require click to load
+            // Stay on "all" but filter by mailbox_owner_email in fetchEmails
+          }
+        } else {
+          // No accountParam - clear historical mailbox
+          setHistoricalMailbox(null);
+        }
+      }
+
+      // Always set the account and mark as loaded
+      // This triggers fetchEmails via the useEffect below
+      setSelectedAccount(targetAccountId);
+      setAccountsLoaded(true);
+    } catch (error) {
+      console.error("Failed to fetch accounts:", error);
+      setAccountsLoaded(true); // Mark loaded even on error to prevent infinite loops
+    }
+  };
+
+  useEffect(() => {
+    fetchAccounts();
+  }, []);
+
+  // Toggle mailbox favorite status
+  const toggleMailboxFavorite = useCallback(async (accountId: string) => {
+    // Find the account to get its current state for optimistic update
+    const account = accounts.find(a => String(a.id) === accountId);
+    const currentFavorite = account?.is_favorite ?? false;
+
+    // Optimistic update - immediately toggle the UI
+    setAccounts(prev => prev.map(a =>
+      String(a.id) === accountId
+        ? { ...a, is_favorite: !currentFavorite }
+        : a
+    ));
+
+    try {
+      const response = await api.post<{ success: boolean; data: { account_id: string; is_favorite: boolean } }>(
+        "/api/v1/imap_credentials/toggle_mailbox_favorite",
+        { account_id: accountId }
+      );
+      const isFavorite = response?.data?.is_favorite;
+      if (isFavorite !== undefined) {
+        // Confirm with server state (in case of any discrepancy)
+        setAccounts(prev => prev.map(a =>
+          String(a.id) === accountId
+            ? { ...a, is_favorite: isFavorite }
+            : a
+        ));
+        toast({
+          title: isFavorite ? "Added to favorites" : "Removed from favorites",
+          description: account?.email_address || account?.name,
+        });
+      }
+    } catch (error) {
+      // Revert optimistic update on error
+      setAccounts(prev => prev.map(a =>
+        String(a.id) === accountId
+          ? { ...a, is_favorite: currentFavorite }
+          : a
+      ));
+      console.error("Failed to toggle mailbox favorite:", error);
+      toast({
+        title: "Failed to update favorite",
+        variant: "destructive",
+      });
+    }
+  }, [accounts, toast]);
+
+  // Handle URL account param changes (e.g., clicking different mailbox in nav or Warehouse links)
+  useEffect(() => {
+    if (accountParam && accounts.length > 0) {
+      const matchingAccount = accounts.find(a => a.email_address === accountParam || String(a.id) === accountParam);
+      if (matchingAccount && String(matchingAccount.id) !== selectedAccount) {
+        // Skip auto-fetch during account transition to prevent flashing
+        skipNextAutoFetchRef.current = true;
+        setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+
+        const accountId = String(matchingAccount.id);
+        setSelectedAccount(accountId);
+        setHistoricalMailbox(null); // Clear historical mailbox when matching account found
+        // Immediately set folder to Inbox when switching accounts via URL
+        setSelectedFolder("Inbox");
+        setSelectedFolderId("");
+        setExpandedAccounts(new Set([accountId]));
+        fetchFolders(accountId, matchingAccount, true);
+      } else if (!matchingAccount && historicalMailbox !== accountParam) {
+        // No matching connected account - switch to historical mailbox mode
+        // This is for Warehouse links to mailboxes without connected accounts
+        setHistoricalMailbox(accountParam);
+        setHistoricalMailboxActivated(false); // Reset - require click to load
+        setSelectedAccount("all");
+        // Clear folder selection (historical mailboxes show all emails)
+        setSelectedFolder("");
+        setSelectedFolderId("");
+      }
+    } else if (!accountParam && accounts.length > 0 && (selectedAccount !== "all" || historicalMailbox)) {
+      // No account param but we have a specific account selected - switch to All Inbox
+      skipNextAutoFetchRef.current = true;
+      setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+      setSelectedAccount("all");
+      setHistoricalMailbox(null);
+    }
+  }, [accountParam, accounts, historicalMailbox]);
+
+  useEffect(() => {
+    // Fetch emails when account changes, historicalMailbox is activated, OR when accounts finish loading
+    // For historical mailboxes, only fetch when user clicks "Load Emails" (historicalMailboxActivated = true)
+    if (accountsLoaded) {
+      if (historicalMailbox && !historicalMailboxActivated) {
+        // Historical mailbox set but not activated - don't auto-fetch, wait for user click
+        return;
+      }
+      fetchEmails();
+    }
+  }, [selectedAccount, fetchEmails, accountsLoaded, historicalMailbox, historicalMailboxActivated]);
+
+  // Cache email state for instant loading on next visit
+  useEffect(() => {
+    if (selectedAccount && selectedFolderId) {
+      // SSoT: Using storage-utils for localStorage operations
+      setStorageItem(STORAGE_KEYS.EMAIL_STATE, {
+        accountId: selectedAccount,
+        folderName: selectedFolder,
+        folderId: selectedFolderId,
+        viewMode,
+      });
+    }
+  }, [selectedAccount, selectedFolder, selectedFolderId, viewMode]);
+
+  // Load specific email when id param is provided (e.g., from task attachment link)
+  useEffect(() => {
+    if (emailIdParam) {
+      const loadEmailById = async () => {
+        try {
+          setLoading(true);
+          const response = await api.get<Email>(`/api/v1/synced_emails/${emailIdParam}`);
+          if (response) {
+            setSelectedEmail(response);
+            // Clear loading - we have the email to show
+            setLoading(false);
+          }
+        } catch (error) {
+          console.error("Failed to load email by ID:", error);
+          setLoading(false);
+        }
+      };
+      loadEmailById();
+    }
+  }, [emailIdParam]);
+
+  // Sync ALL mailboxes (IMAP + Office 365)
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const syncPromises: Promise<unknown>[] = [];
+
+      // Sync all IMAP accounts
+      syncPromises.push(api.post("/api/v1/imap_credentials/sync_all").catch(() => {}));
+
+      // Sync Office 365/Outlook accounts
+      if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
+        syncPromises.push(api.post("/api/v1/synced_emails/sync").catch(() => {}));
+      }
+
+      await Promise.all(syncPromises);
+      setTimeout(() => {
+        fetchEmails();
+        setSyncing(false);
+      }, 3000);
+    } catch (error) {
+      console.error("Failed to sync:", error);
+      setSyncing(false);
+    }
+  };
+
+  // Sync ALL accounts (same as handleSync - kept for backwards compatibility)
+  const handleSplitSync = async () => {
+    setSyncing(true);
+    try {
+      const syncPromises: Promise<unknown>[] = [];
+
+      // Sync all IMAP accounts
+      syncPromises.push(api.post("/api/v1/imap_credentials/sync_all").catch(() => {}));
+
+      // Sync Office 365/Outlook accounts
+      if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
+        syncPromises.push(api.post("/api/v1/synced_emails/sync").catch(() => {}));
+      }
+
+      await Promise.all(syncPromises);
+
+      // Wait for sync to complete, then refresh
+      setTimeout(() => {
+        splitInbox.refresh();
+        setSyncing(false);
+      }, 3000);
+    } catch (error) {
+      console.error("Failed to sync:", error);
+      setSyncing(false);
+    }
+  };
+
+  // Mark all emails in current folder as read
+  const handleMarkFolderRead = async () => {
+    if (!selectedAccount || selectedAccount === "all") {
+      toast({ title: "Select a mailbox first", variant: "destructive" });
+      return;
+    }
+
+    const account = accounts.find(a => String(a.id) === selectedAccount);
+    if (!account?.email_address) {
+      toast({ title: "Mailbox email not found", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const response = await api.post<{ success: boolean; data: { affected_count: number }; message: string }>(
+        "/api/v1/email_user_states/mark_folder_read",
+        {
+          mailbox_email: account.email_address,
+          folder_name: selectedFolder,
+        }
+      );
+
+      if (response?.success) {
+        toast({ title: response.message || "Folder marked as read" });
+        // Refresh emails to show updated read status
+        fetchEmails();
+      }
+    } catch (error) {
+      console.error("Failed to mark folder as read:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to mark folder as read";
+      toast({ title: errorMessage, variant: "destructive" });
+    }
+  };
+
+  const handleEmailClick = useCallback(async (email: Email, openPopout = false) => {
+    if (!email || !email.id) {
+      console.error("Invalid email object:", email);
+      return;
+    }
+
+    // Set selected email immediately so UI updates
+    if (openPopout) {
+      setPopoutEmail(email);
+    } else {
+      setSelectedEmail(email);
+    }
+
+    // Mark as read if unread
+    if (!email.is_read) {
+      try {
+        await apiClient.post(`/api/v1/email_user_states/for_email/${email.id}/toggle_read`);
+
+        // Update email in folder list
+        setEmails(prev => prev.map(e =>
+          e.id === email.id ? { ...e, is_read: true } : e
+        ));
+
+        // Update IndexedDB cache for split inbox offline mode
+        if (isIndexedDBAvailable()) {
+          try {
+            await emailCache.updateEmail(email.id, { is_read: true });
+          } catch (cacheErr) {
+            console.error("[Email] Failed to update cache:", cacheErr);
+          }
+        }
+
+        // Update split inbox state if in split mode
+        if (viewMode === "split" && splitInbox.updateEmail) {
+          splitInbox.updateEmail(email.id, { is_read: true });
+        }
+
+        // Update the email object itself
+        email.is_read = true;
+        if (openPopout) {
+          setPopoutEmail({ ...email, is_read: true });
+        } else {
+          setSelectedEmail({ ...email, is_read: true });
+        }
+      } catch (error) {
+        console.error("Failed to mark email as read:", error);
+      }
+    }
+
+    // Fetch full email content if not loaded
+    if (!email.body_html && !email.body_text) {
+      try {
+        const response = await api.get<Email | { email: Email }>(`/api/v1/synced_emails/${email.id}`);
+        // Handle both wrapped and unwrapped response formats
+        const fullEmail = (response as { email?: Email }).email || response as Email;
+        if (fullEmail && fullEmail.id) {
+          // Keep is_read as true since we just marked it
+          fullEmail.is_read = true;
+          if (openPopout) {
+            setPopoutEmail(fullEmail);
+          } else {
+            setSelectedEmail(fullEmail);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch full email:", error);
+        // Keep showing the preview data even if full fetch fails
+      }
+    }
+  }, [viewMode, splitInbox]);
+
+  // Handle email row click with shift+click support for range selection
+  const handleEmailRowClick = useCallback((email: Email, event: React.MouseEvent) => {
+    // Shift+click for range selection
+    if (event.shiftKey && lastClickedEmailId !== null) {
+      selection.selectRange(lastClickedEmailId, email.id, currentEmails);
+      setLastClickedEmailId(email.id);
+      return;
+    }
+
+    // Double-click to open in pop-out
+    if (event.detail === 2) {
+      setLastClickedEmailId(email.id);
+      handleEmailClick(email, true);
+      return;
+    }
+
+    // Normal click - open email in reading pane
+    setLastClickedEmailId(email.id);
+    handleEmailClick(email, false);
+  }, [lastClickedEmailId, selection, currentEmails, handleEmailClick]);
+
+  // Handle checkbox change for multi-select
+  const handleCheckboxChange = useCallback((email: Email) => {
+    selection.toggle(email.id);
+    setLastClickedEmailId(email.id);
+  }, [selection]);
+
+  const handleReply = useCallback((email: Email) => {
+    // Build quoted original message as HTML to preserve formatting
+    const originalBody = email.body_html || email.body_text || "";
+    // Start with empty paragraph for typing, then quoted content below
+    const quotedBody = `<p></p>
+<div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px; color: #555;">
+<p style="margin: 0 0 8px 0;"><strong>--- Original Message ---</strong><br>
+<strong>From:</strong> ${email.from_email || email.from_address}<br>
+<strong>Date:</strong> ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}<br>
+<strong>Subject:</strong> ${email.subject || ""}</p>
+${originalBody}
+</div>`;
+
+    setReplyTo({
+      to: email.from_email || email.from_address,
+      subject: email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
+      body: quotedBody,
+      fromAccountId: selectedAccount, // Reply from the same account that received the email
+      replyToMessageId: email.internet_message_id, // For email threading
+    });
+    setComposeOpen(true);
+  }, [selectedAccount, setComposeOpen]);
+
+  const handleReplyAll = useCallback((email: Email) => {
+    // Get the current user's email from the selected account
+    const currentAccount = accounts.find(a => String(a.id) === selectedAccount);
+    const currentUserEmail = currentAccount?.email_address?.toLowerCase();
+
+    // Reply to sender
+    const to = email.from_email || email.from_address;
+
+    // CC includes original To recipients (minus current user) + original CC
+    const originalTo = (email.to_emails || email.to_addresses || [])
+      .filter(e => e.toLowerCase() !== currentUserEmail);
+    const originalCc = (email.cc_emails || [])
+      .filter((e: string) => e.toLowerCase() !== currentUserEmail);
+    const ccRecipients = [...new Set([...originalTo, ...originalCc])]; // Dedupe
+
+    // Build quoted original message as HTML to preserve formatting
+    const originalBody = email.body_html || email.body_text || "";
+    // Start with empty paragraph for typing, then quoted content below
+    const quotedBody = `<p></p>
+<div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px; color: #555;">
+<p style="margin: 0 0 8px 0;"><strong>--- Original Message ---</strong><br>
+<strong>From:</strong> ${email.from_email || email.from_address}<br>
+<strong>Date:</strong> ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}<br>
+<strong>Subject:</strong> ${email.subject || ""}</p>
+${originalBody}
+</div>`;
+
+    setReplyTo({
+      to,
+      cc: ccRecipients.join(", "),
+      subject: email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
+      body: quotedBody,
+      fromAccountId: selectedAccount,
+      replyToMessageId: email.internet_message_id, // For email threading
+    });
+    setComposeOpen(true);
+  }, [accounts, selectedAccount, setComposeOpen]);
+
+  const handleCompose = () => {
+    setReplyTo(null);
+    setComposeOpen(true);
+  };
+
+  const handleForward = useCallback((email: Email) => {
+    // Build forwarded message header
+    const forwardHeader = `---------- Forwarded message ----------
+From: ${email.from_email || email.from_address}
+Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}
+Subject: ${email.subject}
+To: ${email.to_emails?.join(", ") || ""}
+
+`;
+    // Use body_text for plain text forwarding (html will be stripped)
+    const originalBody = email.body_text || email.body_html || "";
+
+    setReplyTo({
+      to: "", // Forward to new recipient
+      subject: email.subject?.startsWith("Fwd:") ? email.subject : `Fwd: ${email.subject}`,
+      body: forwardHeader + originalBody,
+      fromAccountId: selectedAccount,
+    });
+    setComposeOpen(true);
+  }, [selectedAccount, setComposeOpen]);
+
+  // Create a task from email (same as forwarding to newtask@teeem.com.au)
+  const handleCreateTaskFromEmail = async (email: Email) => {
+    if (creatingTask) return;
+
+    setCreatingTask(true);
+    try {
+      const response = await api.post<{ success: boolean; sm_task: { id: number; name: string }; error?: string }>(
+        `/api/v1/sm_tasks/from_email/${email.id}`
+      );
+
+      if (!response) {
+        throw new Error("No response from server");
+      }
+
+      if (response.success && response.sm_task) {
+        toast({
+          title: "Task Created",
+          description: `Task "${response.sm_task.name}" created successfully`,
+        });
+        // Open Task Hub in a new tab (standalone tasks go to /tasks, not /sm-tasks)
+        window.open(`/tasks`, "_blank");
+      } else {
+        throw new Error(response.error || "Failed to create task");
+      }
+    } catch (error) {
+      console.error("Failed to create task:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create task from email",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingTask(false);
+    }
+  };
+
+  // Quick create contact from email sender
+  const handleQuickCreateContact = async (email: Email) => {
+    if (creatingContact) return;
+
+    setCreatingContact(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        contact: { id: number; display_name: string; email: string };
+        company?: { id: number; name: string };
+        message: string;
+        already_existed?: boolean;
+      }>(`/api/v1/synced_emails/${email.id}/quick_create_contact`);
+
+      if (response?.success) {
+        toast({
+          title: response.already_existed ? "Contact Linked" : "Contact Created",
+          description: response.message,
+        });
+        // Refresh the email to show updated contact
+        handleEmailClick(email);
+      }
+    } catch (error) {
+      console.error("Failed to create contact:", error);
+      const errorMessage = error instanceof Error
+        ? error.message
+        : typeof error === 'string'
+          ? error
+          : "Failed to create contact";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingContact(false);
+    }
+  };
+
+  // Handle snooze email (show toast for now, can integrate SnoozePicker later)
+  const handleSnoozeEmail = useCallback((email: Email) => {
+    toast({
+      title: "Snooze",
+      description: `Snooze feature coming soon for "${email.subject}"`,
+    });
+  }, [toast]);
+
+  // Stable callback for refreshing email list after quick actions (archive, delete, etc.)
+  const handleQuickAction = useCallback(() => {
+    fetchEmails(1, true);
+  }, [fetchEmails]);
+
+  const toggleAccountExpanded = (accountId: string, account?: EmailAccount) => {
+    const newExpanded = new Set(expandedAccounts);
+    if (newExpanded.has(accountId)) {
+      newExpanded.delete(accountId);
+    } else {
+      newExpanded.add(accountId);
+      // Fetch folders when expanding (pass account for ms365 type)
+      const acct = account || accounts.find(a => String(a.id) === accountId);
+      fetchFolders(accountId, acct);
+    }
+    setExpandedAccounts(newExpanded);
+  };
+
+  const selectAccountFolder = useCallback((accountId: string, folder: EmailFolder) => {
+    // Skip auto-fetch during folder transition to prevent flashing
+    skipNextAutoFetchRef.current = true;
+    setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+
+    // Update folder selection immediately for instant UI feedback
+    setSelectedFolderId(folder.id);
+    setSelectedFolder(folder.name);
+
+    // Use transition for account change (triggers email fetch) to avoid blocking UI
+    if (selectedAccount !== accountId) {
+      startTransition(() => {
+        setSelectedAccount(accountId);
+      });
+    } else {
+      // Same account but different folder - need to refetch emails
+      // Pass folder.name directly to avoid race condition with state update
+      fetchEmails(1, true, folder.name);
+    }
+  }, [selectedAccount, fetchEmails]);
+
+  const getSelectedAccountName = () => {
+    if (selectedAccount === "all") return "All Accounts";
+    const account = accounts.find(a => String(a.id) === selectedAccount);
+    if (!account) return "Select mailbox";
+    if (account.type === "ms365") {
+      return account.email_address ? `${account.name} - ${account.email_address}` : account.name;
+    }
+    return account.email_address || account.name;
+  };
+
+  // Handler for when email is moved via drag-drop
+  const handleDragDropMove = useCallback(() => {
+    if (viewMode === "split") {
+      splitInbox.refresh();
+    } else {
+      fetchEmails();
+    }
+  }, [viewMode, splitInbox, fetchEmails]);
+
+  return (
+    <EmailDragDropProvider onMoveComplete={handleDragDropMove}>
+    <ResizablePanelGroup
+      orientation="horizontal"
+      className={cn("h-full", isStandalone ? "pl-4 pt-2" : "-mx-4 -mt-4")}
+    >
+      {/* Left Sidebar - Mailboxes & Folders */}
+      <ResizablePanel
+        id="email-sidebar"
+        defaultSize="220px"
+        minSize="150px"
+        maxSize="400px"
+        className="bg-muted/30 flex flex-col"
+      >
+        <div className="p-2 border-b flex items-center gap-1">
+          <Button className="flex-1" size="sm" onClick={handleCompose}>
+            <Plus className="h-4 w-4 mr-1" />
+            New
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={viewMode === "split" ? handleSplitSync : handleSync}
+            disabled={syncing || wsIsSyncing || splitInbox.loading || (viewMode === "folders" && !selectedAccount)}
+            title="Sync"
+          >
+            <RefreshCw className={cn("h-4 w-4", (syncing || wsIsSyncing || splitInbox.loading) && "animate-spin")} />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => setShowShortcutsHelp(true)}>
+                <Keyboard className="h-4 w-4 mr-2" />
+                Keyboard shortcuts
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <ArrowUpDown className="h-4 w-4 mr-2" />
+                  Sort by
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {THREAD_SORT_OPTIONS.map((option) => (
+                    <DropdownMenuItem
+                      key={option.value}
+                      onClick={() => threads.setSortOption(option.value)}
+                      className={threads.sortOption === option.value ? "bg-muted" : ""}
+                    >
+                      {option.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Reading pane
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    onClick={() => setReadingPanePosition("right")}
+                    className={readingPanePosition === "right" ? "bg-muted" : ""}
+                  >
+                    Right
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setReadingPanePosition("bottom")}
+                    className={readingPanePosition === "bottom" ? "bg-muted" : ""}
+                  >
+                    Bottom
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setReadingPanePosition("off")}
+                    className={readingPanePosition === "off" ? "bg-muted" : ""}
+                  >
+                    Off
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleMarkFolderRead}
+                disabled={!selectedAccount || selectedAccount === "all"}
+              >
+                <CheckCheck className="h-4 w-4 mr-2" />
+                Mark folder as read
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/email/rules")}>
+                <Settings2 className="h-4 w-4 mr-2" />
+                Email Rules
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/email/settings")}>
+                <Settings2 className="h-4 w-4 mr-2" />
+                Settings
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Local Drafts - only shows when there are unsent drafts in browser storage */}
+        <DraftsList
+          compact
+          onResume={(draft) => {
+            setResumeDraft(draft);
+            setReplyTo(null);
+            setComposeOpen(true);
+          }}
+        />
+
+        <div className="flex-1 overflow-y-auto py-2">
+          {/* Historical Mailbox Indicator - for Warehouse links to non-connected mailboxes */}
+          {historicalMailbox && (
+            <div className="mb-2">
+              <div className="px-1 py-1.5 text-sm bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-sm border border-amber-500/20">
+                <div className="flex items-center gap-2 font-medium">
+                  <Archive className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-left truncate" title={historicalMailbox}>
+                    {historicalMailbox}
+                  </span>
+                </div>
+                <div className="text-xs text-amber-600 dark:text-amber-500 mt-1 pl-6">
+                  Historical mailbox (not connected)
+                </div>
+              </div>
+              {!historicalMailboxActivated && (
+                <button
+                  onClick={() => {
+                    setHistoricalMailboxActivated(true);
+                  }}
+                  className="w-full mt-1 px-2 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-400 bg-amber-500/20 hover:bg-amber-500/30 rounded-sm border border-amber-500/30"
+                >
+                  Load Emails
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setHistoricalMailbox(null);
+                  setHistoricalMailboxActivated(false);
+                  router.push("/email", { scroll: false });
+                }}
+                className="w-full mt-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-sm"
+              >
+                ← Back to All Inbox
+              </button>
+            </div>
+          )}
+
+          {/* All Inbox - Combined view from all accounts */}
+          <button
+            onClick={() => {
+              // Skip auto-fetch during account transition to prevent flashing
+              skipNextAutoFetchRef.current = true;
+              setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+
+              setSelectedAccount("all");
+              setHistoricalMailbox(null);
+              setSelectedFolder("Inbox");
+              setSelectedFolderId("ALL_INBOX");
+              // Update URL to be bookmarkable (remove account param for "all")
+              router.push("/email", { scroll: false });
+            }}
+            className={cn(
+              "w-full flex items-center gap-2 px-1 py-1.5 text-sm hover:bg-muted/50 rounded-sm font-medium",
+              selectedAccount === "all" && !historicalMailbox && "bg-primary/10 text-primary"
+            )}
+          >
+            <Inbox className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">All Inbox</span>
+          </button>
+
+          <div className="border-b my-2" />
+
+          {/* Mailbox list - show favorites or all based on toggle */}
+          <div className="px-1 mb-2">
+            <div className="flex items-center justify-between px-0.5 py-1">
+              <span className="text-xs text-muted-foreground font-medium">
+                {showAllMailboxes ? "All Mailboxes" : "Favorites"}
+              </span>
+              <button
+                onClick={() => setShowAllMailboxes(!showAllMailboxes)}
+                className="text-xs text-primary hover:underline"
+              >
+                {showAllMailboxes ? "Show Favorites" : "Show All"}
+              </button>
+            </div>
+            {(showAllMailboxes ? accounts : accounts.filter(a => a.is_favorite)).length === 0 ? (
+              <div className="px-2 py-2 text-xs text-muted-foreground">
+                {showAllMailboxes ? "No mailboxes" : "No favorites. Click 'Show All' to bookmark mailboxes."}
+              </div>
+            ) : (
+              (showAllMailboxes ? accounts : accounts.filter(a => a.is_favorite)).map((account) => (
+                <div
+                  key={account.id}
+                  className={cn(
+                    "group w-full flex items-center gap-1 px-1 py-1 text-sm hover:bg-muted/50 rounded-sm",
+                    selectedAccount === String(account.id) && "bg-primary/10 text-primary font-medium"
+                  )}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleMailboxFavorite(String(account.id));
+                    }}
+                    className="shrink-0 p-0.5 hover:bg-muted rounded"
+                    title={account.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                  >
+                    <Star
+                      className={cn(
+                        "h-3 w-3",
+                        account.is_favorite
+                          ? "fill-yellow-400 text-yellow-400"
+                          : "text-muted-foreground/50 group-hover:text-muted-foreground"
+                      )}
+                    />
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Skip auto-fetch during account transition to prevent flashing
+                      skipNextAutoFetchRef.current = true;
+                      setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+
+                      const accountId = String(account.id);
+                      setSelectedAccount(accountId);
+                      // Immediately set folder to Inbox when switching accounts
+                      // (don't wait for fetchFolders to complete - fixes race condition)
+                      setSelectedFolder("Inbox");
+                      setSelectedFolderId("");  // Clear old folder ID
+                      setExpandedAccounts(new Set([accountId]));
+                      fetchFolders(accountId, account, true);  // forceSelectInbox to update folder ID
+                      // Update URL to be bookmarkable (clean path with email address)
+                      const urlParam = account.email_address || String(account.id);
+                      router.push(`/email/${urlParam}`, { scroll: false });
+                    }}
+                    onDoubleClick={() => {
+                      // Open mailbox in a new dedicated fullscreen tab
+                      const urlParam = account.email_address || String(account.id);
+                      window.open(`/email/${urlParam}/standalone`, '_blank');
+                    }}
+                    className="flex-1 min-w-0 flex items-center gap-2 text-left"
+                  >
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate text-sm">
+                      {account.email_address || account.name}
+                    </span>
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {selectedAccount && selectedAccount !== "all" ? (
+            (() => {
+              const account = accounts.find(a => String(a.id) === selectedAccount);
+              if (!account) return null;
+              return (
+                <div className="mb-1">
+                  {/* Account Header */}
+                  <div className="px-1 py-1.5 text-sm font-medium flex items-center gap-2">
+                    <Mail className="h-4 w-4 shrink-0" />
+                    <span className="truncate">
+                      {account.email_address || account.name}
+                    </span>
+                  </div>
+
+                  {/* Folders */}
+                  <div className="mt-1">
+                    {account.needs_mailbox_config ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        <p>Mailbox not configured</p>
+                        <p className="mt-1">Configure in Admin → System → Microsoft</p>
+                      </div>
+                    ) : loadingFolders.has(selectedAccount) ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        Loading folders...
+                      </div>
+                    ) : (accountFolders[selectedAccount] || []).length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        No folders found
+                      </div>
+                    ) : (
+                      <FolderTree
+                        items={accountFolders[selectedAccount] || []}
+                        selectedId={selectedFolderId || undefined}
+                        onSelect={(item: FolderTreeItem) => {
+                          // Convert FolderTreeItem back to EmailFolder format
+                          const folder: EmailFolder = {
+                            id: item.id,
+                            name: item.name,
+                            type: item.type,
+                            unread_count: item.unreadCount,
+                            total_items: item.totalItems,
+                            depth: item.depth,
+                            parent_id: item.parentId,
+                          };
+                          selectAccountFolder(selectedAccount, folder);
+                        }}
+                        persistKey={`email-folders-${selectedAccount}`}
+                        enableReorder={true}
+                        customOrder={folderOrder[selectedAccount]}
+                        onReorder={(ids) => saveFolderOrder(selectedAccount, ids)}
+                        renderWrapper={(item, children) => (
+                          <DroppableFolder folderId={item.id} folderName={item.name}>
+                            {children}
+                          </DroppableFolder>
+                        )}
+                      />
+                    )}
+                    {/* Create Folder button - only for IMAP accounts */}
+                    {account.type === "imap" && (
+                      <button
+                        onClick={() => setCreateFolderOpen(true)}
+                        className="w-full flex items-center gap-2 px-1 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-sm mt-1"
+                      >
+                        <FolderPlus className="h-3.5 w-3.5" />
+                        <span>Create Folder</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()
+          ) : null}
+        </div>
+      </ResizablePanel>
+
+      <ResizableHandle withHandle />
+
+      {/* Main Content Area - List + Reading Pane */}
+      <ResizablePanel id="email-content" minSize="400px" className="flex min-w-0">
+        <ResizablePanelGroup
+          orientation={readingPanePosition === "bottom" ? "vertical" : "horizontal"}
+          className="flex-1"
+        >
+        {/* Email List */}
+        <ResizablePanel
+          id="email-list"
+          defaultSize="350px"
+          minSize="250px"
+          maxSize={readingPanePosition === "off" ? undefined : "600px"}
+          className="flex flex-col border-r min-w-0 overflow-hidden"
+        >
+        {/* Header - View toggle and search */}
+        <div className="flex items-center gap-2 px-2 py-1.5 border-b shrink-0 bg-background">
+          <ViewModeToggle mode={viewMode} onModeChange={setViewMode} />
+
+          {/* Search - Only in folder mode */}
+          {viewMode === "folders" && (
+            <div className="flex-1 min-w-0">
+              <EmailSearchFilters
+                filters={emailFilters.filters}
+                setFilter={emailFilters.setFilter}
+                setSearch={emailFilters.setSearch}
+                clearFilters={emailFilters.clearFilters}
+                hasActiveFilters={emailFilters.hasActiveFilters}
+                activeFilterCount={emailFilters.activeFilterCount}
+                activeFilterLabels={emailFilters.getActiveFilterLabels()}
+                onSearch={() => fetchEmails(1, true)}
+              />
+            </div>
+          )}
+
+          {/* New email indicator */}
+          {newEmailCount > 0 && (
+            <Badge variant="default" className="text-xs px-1.5 py-0 h-5 bg-blue-500 shrink-0">
+              +{newEmailCount}
+            </Badge>
+          )}
+        </div>
+
+        {/* Split Inbox Tabs */}
+        {viewMode === "split" && (
+          <div className="px-3 py-2 border-b shrink-0">
+            <SplitInboxTabs
+              selectedCategory={splitInbox.selectedCategory}
+              onCategoryChange={splitInbox.setSelectedCategory}
+              counts={splitInbox.counts}
+              unreadCounts={splitInbox.unreadCounts}
+              loading={splitInbox.loading}
+            />
+            <StaleIndicator
+              isStale={splitInbox.isStale ?? false}
+              lastFetched={splitInbox.lastFetched ?? null}
+              isOffline={splitInbox.isOffline ?? false}
+              isRefreshing={splitInbox.isFetching ?? syncing}
+              onRefresh={handleSplitSync}
+              className="mt-2"
+            />
+          </div>
+        )}
+
+        {/* Bulk Action Bar - shows when emails are selected */}
+        <BulkActionBar
+          selectedCount={selection.count}
+          totalCount={currentEmails.length}
+          allSelected={selection.count === currentEmails.length && currentEmails.length > 0}
+          onToggleSelectAll={() => {
+            if (selection.count === currentEmails.length) {
+              selection.clear();
+            } else {
+              selection.selectAll(currentEmails);
+            }
+          }}
+          onClear={selection.clear}
+          onArchive={bulkActions.bulkArchive}
+          onStar={bulkActions.bulkStar}
+          onPin={bulkActions.bulkPin}
+          onMarkRead={bulkActions.bulkMarkRead}
+          onMarkUnread={bulkActions.bulkMarkUnread}
+          isLoading={bulkActions.isLoading}
+        />
+
+        {/* Email List - Virtual Scrolling for performance */}
+        <div
+          ref={emailListScrollRef}
+          className="flex-1 overflow-auto"
+        >
+          {/* Loading State */}
+          {(viewMode === "split" ? (splitInbox.loading && !splitInbox.data) : loading) ? (
+            <div className="flex items-center justify-center py-12">
+              <Spinner />
+            </div>
+          ) : /* Error State (split inbox only) */
+          viewMode === "split" && splitInbox.error ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <WifiOff className="h-8 w-8 mb-2 opacity-50 text-amber-500" />
+              <p className="text-sm">{splitInbox.error}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={splitInbox.refresh}
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                Try Again
+              </Button>
+            </div>
+          ) : /* Empty State */
+          currentEmails.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Inbox className="h-8 w-8 mb-2 opacity-50" />
+              <p className="text-sm">
+                {historicalMailbox && !historicalMailboxActivated
+                  ? "Click 'Load Emails' to view emails from this mailbox"
+                  : viewMode === "split"
+                    ? `No emails in ${splitInbox.selectedCategory}`
+                    : "No emails"}
+              </p>
+            </div>
+          ) : (
+            /* Virtualized Email List */
+            <div
+              style={{
+                height: `${emailVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              {emailVirtualizer.getVirtualItems().map((virtualRow) => {
+                const email = currentEmails[virtualRow.index];
+                if (!email) return null;
+
+                return (
+                  <div
+                    key={email.id}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <EmailListItem
+                      email={email}
+                      isSelected={selectedEmail?.id === email.id}
+                      isChecked={selection.isSelected(email.id)}
+                      hasSelections={selection.hasSelection}
+                      onClick={handleEmailRowClick}
+                      onCheckboxChange={handleCheckboxChange}
+                      onQuickAction={handleQuickAction}
+                      onSnooze={handleSnoozeEmail}
+                      onReply={handleReply}
+                      onReplyAll={handleReplyAll}
+                      onForward={handleForward}
+                      threadCount={email.thread_count || 0}
+                      isExpanded={threads.isExpanded(email.conversation_id || '')}
+                      onToggleThread={handleToggleThread}
+                      threadEmails={threads.getThread(email.conversation_id || '') || []}
+                      isLoadingThread={threads.isLoading(email.conversation_id || '')}
+                      // Drag-drop props (folder view only)
+                      enableDrag={viewMode === "folders"}
+                      accountId={selectedAccount}
+                      accountType={accounts.find(a => String(a.id) === selectedAccount)?.type as "imap" | "outlook" | "ms365" || "outlook"}
+                      sourceFolder={selectedFolder}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Infinite Scroll Trigger - Only in folder mode */}
+        {viewMode === "folders" && (
+          <>
+            {/* Invisible trigger element for intersection observer */}
+            <div
+              ref={loadMoreRef}
+              className="h-10 shrink-0"
+              aria-hidden="true"
+            />
+            {/* Loading indicator for infinite scroll */}
+            {isLoadingMore && (
+              <div className="flex items-center justify-center py-4 shrink-0">
+                <Spinner className="h-5 w-5" />
+                <span className="ml-2 text-sm text-muted-foreground">Loading more...</span>
+              </div>
+            )}
+            {/* End of list indicator */}
+            {!hasMorePages && currentEmails.length > 0 && (
+              <div className="flex items-center justify-center py-3 text-xs text-muted-foreground shrink-0">
+                {currentEmails.length} of {pagination.total} emails
+              </div>
+            )}
+          </>
+        )}
+      </ResizablePanel>
+
+      {/* Reading Pane - Hidden when position is "off" */}
+      {readingPanePosition !== "off" && (
+        <>
+        <ResizableHandle withHandle />
+        <ResizablePanel
+          id="reading-pane"
+          minSize="300px"
+          className="flex flex-col min-w-0 overflow-hidden bg-background"
+        >
+        {selectedEmail ? (
+          <>
+            {/* Outlook-style Toolbar Header */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleReply(selectedEmail)}
+              >
+                <Reply className="h-4 w-4 mr-2" />
+                Reply
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleReplyAll(selectedEmail)}
+              >
+                <ReplyAll className="h-4 w-4 mr-2" />
+                Reply All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleForward(selectedEmail)}
+              >
+                <Forward className="h-4 w-4 mr-2" />
+                Forward
+              </Button>
+
+              {/* Right-aligned actions: Contact + Task Creation */}
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleQuickCreateContact(selectedEmail)}
+                  disabled={creatingContact}
+                  title="Create contact from sender"
+                >
+                  {creatingContact ? (
+                    <Spinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <UserPlus className="h-4 w-4 mr-2" />
+                  )}
+                  + Contact
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleCreateTaskFromEmail(selectedEmail)}
+                  disabled={creatingTask}
+                >
+                  {creatingTask ? (
+                    <Spinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <ListTodo className="h-4 w-4 mr-2" />
+                  )}
+                  + Task
+                </Button>
+              </div>
+            </div>
+
+            {/* Subject Line */}
+            <div className="px-4 py-3 border-b shrink-0">
+              <h1 className="text-base font-semibold">
+                {selectedEmail.subject || "(No subject)"}
+              </h1>
+              <p className="text-xs text-muted-foreground mt-1">
+                {format(new Date(selectedEmail.received_at), "PPpp")}
+              </p>
+            </div>
+
+            {/* From / To - Outlook inline style */}
+            <div className="px-4 py-2 border-b space-y-1 shrink-0 text-sm">
+              <div className="flex items-start">
+                <span className="text-muted-foreground w-10 flex-shrink-0">From</span>
+                <span>
+                  {selectedEmail.from_name || selectedEmail.from_email || selectedEmail.from_address}
+                  {selectedEmail.from_name && selectedEmail.from_email && (
+                    <span className="text-muted-foreground ml-1">
+                      &lt;{selectedEmail.from_email}&gt;
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-start">
+                <span className="text-muted-foreground w-10 flex-shrink-0">To</span>
+                <span>{(selectedEmail.to_addresses || selectedEmail.to_emails)?.join(", ")}</span>
+              </div>
+              {selectedEmail.cc_emails && selectedEmail.cc_emails.length > 0 && (
+                <div className="flex items-start">
+                  <span className="text-muted-foreground w-10 flex-shrink-0">Cc</span>
+                  <span>{selectedEmail.cc_emails.join(", ")}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Attachments */}
+            {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
+              <div className="px-4 py-2 border-b bg-muted/30 shrink-0">
+                <AttachmentList
+                  attachments={selectedEmail.attachments}
+                  emailId={selectedEmail.id}
+                />
+              </div>
+            )}
+
+            {/* AI Summary */}
+            <EmailSummary
+              emailId={selectedEmail.id}
+              existingSummary={selectedEmail.ai_summary}
+            />
+
+            {/* Email Body */}
+            <div className="flex-1 overflow-auto px-4 py-4">
+              {selectedEmail.body_html ? (
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: resolveInlineImages(selectedEmail.body_html, selectedEmail.attachments) }}
+                />
+              ) : (
+                <pre className="whitespace-pre-wrap text-sm font-sans">
+                  {decodeHtmlEntities(selectedEmail.body_text || selectedEmail.snippet)}
+                </pre>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
+            {/* Animated envelope icon */}
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-primary/10 rounded-full blur-2xl scale-150" />
+              <div className="relative bg-gradient-to-br from-primary/20 to-primary/5 rounded-full p-6">
+                <Mail className="h-12 w-12 text-primary/60" />
+              </div>
+            </div>
+
+            <h3 className="text-xl font-medium text-foreground mb-2">Select an email to read</h3>
+            <p className="text-sm text-muted-foreground mb-8 text-center max-w-xs">
+              Choose an email from the list to view its contents, or use keyboard shortcuts to navigate
+            </p>
+
+            {/* Keyboard shortcuts hint */}
+            <div className="flex flex-col gap-3 text-xs">
+              <div className="flex items-center gap-4">
+                <div className="flex gap-1">
+                  <kbd className="px-2 py-1 bg-muted rounded border text-muted-foreground font-mono">j</kbd>
+                  <kbd className="px-2 py-1 bg-muted rounded border text-muted-foreground font-mono">k</kbd>
+                </div>
+                <span className="text-muted-foreground">Navigate emails</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <kbd className="px-2 py-1 bg-muted rounded border text-muted-foreground font-mono">c</kbd>
+                <span className="text-muted-foreground">Compose new email</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <kbd className="px-2 py-1 bg-muted rounded border text-muted-foreground font-mono">r</kbd>
+                <span className="text-muted-foreground">Reply to email</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <kbd className="px-2 py-1 bg-muted rounded border text-muted-foreground font-mono">?</kbd>
+                <span className="text-muted-foreground">All shortcuts</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </ResizablePanel>
+      </>
+      )}
+
+      </ResizablePanelGroup>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+
+      {/* Compose Modal */}
+      <ComposeEmailModal
+        open={composeOpen}
+        onOpenChange={(open) => {
+          setComposeOpen(open);
+          if (!open) {
+            setReplyTo(null);
+            setResumeDraft(null);
+          }
+        }}
+        defaultTo={replyTo?.to || ""}
+        defaultCc={replyTo?.cc || ""}
+        defaultSubject={replyTo?.subject || ""}
+        defaultBody={replyTo?.body || ""}
+        defaultFromAccountId={replyTo?.fromAccountId}
+        replyToMessageId={replyTo?.replyToMessageId}
+        draft={resumeDraft || undefined}
+        onSent={() => {
+          fetchEmails();
+          setReplyTo(null);
+          setResumeDraft(null);
+        }}
+      />
+
+      {/* Create Folder Dialog - for IMAP accounts */}
+      <CreateFolderDialog
+        open={createFolderOpen}
+        onOpenChange={setCreateFolderOpen}
+        accountId={selectedAccount}
+        onFolderCreated={() => {
+          // Refresh folders for the current account
+          const account = accounts.find(a => String(a.id) === selectedAccount);
+          if (account) {
+            setAccountFolders(prev => ({ ...prev, [selectedAccount]: [] }));
+            fetchFolders(selectedAccount, account);
+          }
+        }}
+      />
+
+      {/* Keyboard Shortcuts Help Modal */}
+      <KeyboardShortcutsHelp
+        open={showShortcutsHelp}
+        onOpenChange={setShowShortcutsHelp}
+      />
+
+      {/* Email Pop-out Dialog */}
+      <Dialog open={!!popoutEmail} onOpenChange={(open) => !open && setPopoutEmail(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" aria-describedby="email-popout-description">
+          {popoutEmail && (
+            <>
+              <DialogHeader className="shrink-0">
+                <DialogTitle className="text-base font-semibold pr-8">
+                  {popoutEmail.subject || "(No subject)"}
+                </DialogTitle>
+                <DialogDescription id="email-popout-description" className="sr-only">
+                  Email from {popoutEmail.from_name || popoutEmail.from_email || popoutEmail.from_address}
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* From / To */}
+              <div className="space-y-1 py-2 border-b shrink-0 text-sm">
+                <div className="flex items-start">
+                  <span className="text-muted-foreground w-10 flex-shrink-0">From</span>
+                  <span>
+                    {popoutEmail.from_name || popoutEmail.from_email || popoutEmail.from_address}
+                    {popoutEmail.from_name && popoutEmail.from_email && (
+                      <span className="text-muted-foreground ml-1">
+                        &lt;{popoutEmail.from_email}&gt;
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-start">
+                  <span className="text-muted-foreground w-10 flex-shrink-0">To</span>
+                  <span>{(popoutEmail.to_addresses || popoutEmail.to_emails)?.join(", ")}</span>
+                </div>
+                {popoutEmail.cc_emails && popoutEmail.cc_emails.length > 0 && (
+                  <div className="flex items-start">
+                    <span className="text-muted-foreground w-10 flex-shrink-0">Cc</span>
+                    <span>{popoutEmail.cc_emails.join(", ")}</span>
+                  </div>
+                )}
+                <div className="flex items-start">
+                  <span className="text-muted-foreground w-10 flex-shrink-0">Date</span>
+                  <span className="text-muted-foreground">{format(new Date(popoutEmail.received_at), "PPpp")}</span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 py-2 border-b shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleReply(popoutEmail);
+                    setPopoutEmail(null);
+                  }}
+                >
+                  <Reply className="h-4 w-4 mr-2" />
+                  Reply
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleReplyAll(popoutEmail);
+                    setPopoutEmail(null);
+                  }}
+                >
+                  <ReplyAll className="h-4 w-4 mr-2" />
+                  Reply All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    handleForward(popoutEmail);
+                    setPopoutEmail(null);
+                  }}
+                >
+                  <Forward className="h-4 w-4 mr-2" />
+                  Forward
+                </Button>
+              </div>
+
+              {/* Attachments */}
+              {popoutEmail.attachments && popoutEmail.attachments.length > 0 && (
+                <div className="py-2 border-b bg-muted/30 shrink-0">
+                  <AttachmentList
+                    attachments={popoutEmail.attachments}
+                    emailId={popoutEmail.id}
+                  />
+                </div>
+              )}
+
+              {/* Email Body */}
+              <div className="flex-1 overflow-auto py-4">
+                {popoutEmail.body_html ? (
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: resolveInlineImages(popoutEmail.body_html, popoutEmail.attachments) }}
+                  />
+                ) : (
+                  <pre className="whitespace-pre-wrap text-sm font-sans">
+                    {decodeHtmlEntities(popoutEmail.body_text || popoutEmail.snippet)}
+                  </pre>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </EmailDragDropProvider>
+  );
+}

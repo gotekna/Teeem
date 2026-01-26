@@ -30,6 +30,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 // Types
 interface NotificationSettings {
@@ -67,10 +68,10 @@ interface MeetingType {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  sales: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  construction: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
-  board: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  safety: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  sales: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400",
+  construction: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400",
+  board: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400",
+  safety: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400",
   team: "bg-muted text-foreground dark:bg-muted dark:text-muted-foreground",
 };
 
@@ -78,6 +79,7 @@ export default function MeetingTypesPage() {
   useSetLayoutMode("full-height");
 
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [meetingTypes, setMeetingTypes] = useState<MeetingType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -152,7 +154,7 @@ export default function MeetingTypesPage() {
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete "${meetingType.name}"?`)) return;
+    if (!(await confirm(`Are you sure you want to delete "${meetingType.name}"?`))) return;
 
     try {
       const response = await api.delete<{ success: boolean; error?: string }>(
@@ -323,7 +325,7 @@ export default function MeetingTypesPage() {
                           }}
                           className={
                             type.is_active
-                              ? "text-green-600 hover:bg-green-50"
+                              ? "text-green-600 dark:text-green-400 hover:bg-green-50"
                               : "text-muted-foreground"
                           }
                           title={type.is_active ? "Active" : "Inactive"}
@@ -343,7 +345,7 @@ export default function MeetingTypesPage() {
                               e.stopPropagation();
                               handleDeleteType(type);
                             }}
-                            className="text-red-600 hover:bg-red-50"
+                            className="text-red-600 dark:text-red-400 hover:bg-red-50"
                             title="Delete"
                           >
                             <TrashIcon className="h-5 w-5" />

@@ -5,7 +5,8 @@ module Api
     class EmailSubscriptionsController < ApplicationController
       before_action :set_subscription, only: [:show, :update, :add_mailbox, :remove_mailbox,
                                                :start_migration, :cancel, :send_invite,
-                                               :add_alias, :remove_alias]
+                                               :add_alias, :remove_alias,
+                                               :dns_records, :provision_dns, :verify_dns]
 
       # GET /api/v1/email_subscriptions
       # List all email subscriptions (admin)
@@ -59,6 +60,12 @@ module Api
         end
 
         if subscription.save
+          # Queue DNS provisioning if Cloudflare is configured
+          if CloudflareCredential.configured?
+            EmailDnsProvisionJob.perform_later(subscription.id)
+            subscription.update!(dns_status: 'provisioning')
+          end
+
           render json: {
             success: true,
             data: subscription_detail_json(subscription)
@@ -260,6 +267,40 @@ module Api
         }
       end
 
+      # GET /api/v1/email_subscriptions/dashboard_stats
+      # Get dashboard statistics
+      def dashboard_stats
+        active_subs = EmailSubscription.active
+        all_mailboxes = EmailMailbox.joins(:email_subscription).where(email_subscriptions: { status: 'active' })
+
+        render json: {
+          success: true,
+          data: {
+            active_subscriptions: active_subs.count,
+            total_mailboxes: all_mailboxes.count,
+            monthly_revenue: active_subs.sum(:retail_price).to_f,
+            margin_percentage: calculate_margin_percentage(active_subs),
+            pending_migrations: EmailMigration.pending.count,
+            active_migrations: EmailMigration.in_progress.count,
+            completed_migrations_today: EmailMigration.completed.where("completed_at >= ?", Date.current.beginning_of_day).count
+          }
+        }
+      end
+
+      # GET /api/v1/email_subscriptions/active_migrations
+      # Get currently active migrations
+      def active_migrations
+        migrations = EmailMigration.active
+                      .includes(email_mailbox: { email_subscription: :contact })
+                      .order(started_at: :desc)
+                      .limit(10)
+
+        render json: {
+          success: true,
+          data: migrations.map { |m| active_migration_json(m) }
+        }
+      end
+
       # GET /api/v1/email_subscriptions/profit_report
       # Get profit/margin report
       def profit_report
@@ -267,13 +308,14 @@ module Api
         period_end = params[:end_date]&.to_date || Date.current.end_of_month
 
         invoices = EmailSubscriptionInvoice
-                    .includes(email_subscription: :contact)
+                    .includes(email_subscription: [:contact, :email_mailboxes])
                     .where(billing_period_start: period_start..period_end)
                     .paid
 
         total_retail = invoices.sum(:retail_amount)
         total_wholesale = invoices.sum(:wholesale_amount)
         total_margin = total_retail - total_wholesale
+        total_mailboxes = invoices.map { |i| i.email_subscription.email_mailboxes.active.count }.sum
 
         render json: {
           success: true,
@@ -286,18 +328,24 @@ module Api
               total_retail: total_retail.to_f,
               total_wholesale: total_wholesale.to_f,
               total_margin: total_margin.to_f,
-              margin_percent: total_retail.positive? ? (total_margin / total_retail * 100).round(1) : 0,
+              margin_percentage: total_retail.positive? ? (total_margin / total_retail * 100).round(1) : 0,
               invoice_count: invoices.count,
-              subscription_count: invoices.distinct.count(:email_subscription_id)
+              subscription_count: invoices.distinct.count(:email_subscription_id),
+              mailbox_count: total_mailboxes
             },
             by_subscription: invoices.group_by(&:email_subscription).map do |sub, invs|
+              sub_retail = invs.sum(&:retail_amount).to_f
+              sub_wholesale = invs.sum(&:wholesale_amount).to_f
+              sub_margin = sub_retail - sub_wholesale
               {
                 subscription_id: sub.id,
                 domain: sub.domain,
-                contact: sub.contact.display_name,
-                retail: invs.sum(&:retail_amount).to_f,
-                wholesale: invs.sum(&:wholesale_amount).to_f,
-                margin: invs.sum(&:margin_amount).to_f
+                contact_name: sub.contact.display_name,
+                mailbox_count: sub.email_mailboxes.active.count,
+                retail: sub_retail,
+                wholesale: sub_wholesale,
+                margin: sub_margin,
+                margin_percentage: sub_retail.positive? ? (sub_margin / sub_retail * 100).round(1) : 0
               }
             end
           }
@@ -343,6 +391,110 @@ module Api
         end
       end
 
+      # GET /api/v1/email_subscriptions/:id/dns_records
+      # Get DNS records and their status for a subscription
+      def dns_records
+        records = @subscription.email_dns_records.order(:name)
+
+        render json: {
+          success: true,
+          data: {
+            dns_status: @subscription.dns_status,
+            domain: @subscription.domain,
+            records: records.map { |r| dns_record_json(r) },
+            cloudflare_configured: CloudflareCredential.configured?
+          }
+        }
+      end
+
+      # POST /api/v1/email_subscriptions/:id/provision_dns
+      # Re-provision DNS records for a subscription
+      def provision_dns
+        unless CloudflareCredential.configured?
+          render json: {
+            success: false,
+            error: "Cloudflare not configured. Please set up Cloudflare credentials first."
+          }, status: :unprocessable_entity
+          return
+        end
+
+        # Queue DNS provisioning job
+        EmailDnsProvisionJob.perform_later(@subscription.id)
+        @subscription.update!(dns_status: 'provisioning')
+
+        render json: {
+          success: true,
+          data: {
+            message: "DNS provisioning queued",
+            dns_status: @subscription.dns_status
+          }
+        }
+      end
+
+      # POST /api/v1/email_subscriptions/:id/verify_dns
+      # Verify DNS records are correct
+      def verify_dns
+        unless CloudflareCredential.configured?
+          render json: {
+            success: false,
+            error: "Cloudflare not configured"
+          }, status: :unprocessable_entity
+          return
+        end
+
+        # Run verification synchronously for immediate feedback
+        cloudflare = CloudflareService.new
+        result = cloudflare.verify_email_dns(@subscription.domain)
+
+        # Update record statuses
+        @subscription.email_dns_records.each do |record|
+          verified = result[:verified].find { |r| r[:name] == record.name && r[:type] == record.record_type }
+          missing = result[:missing].find { |r| r[:name] == record.name && r[:type] == record.record_type }
+          incorrect = result[:incorrect].find { |r| r[:name] == record.name && r[:type] == record.record_type }
+
+          if verified
+            record.mark_verified!
+          elsif missing
+            record.mark_missing!
+          elsif incorrect
+            record.update!(
+              status: :error,
+              error_message: "Expected: #{incorrect[:expected_content]}, Actual: #{incorrect[:actual_content]}"
+            )
+          end
+        end
+
+        # Update subscription dns_status
+        dns_status = case result[:status]
+                     when :verified then 'verified'
+                     when :missing then 'missing'
+                     else 'error'
+                     end
+        @subscription.update!(dns_status: dns_status)
+
+        render json: {
+          success: true,
+          data: {
+            status: result[:status],
+            verified: result[:verified].count,
+            missing: result[:missing].count,
+            incorrect: result[:incorrect].count,
+            dns_status: @subscription.dns_status
+          }
+        }
+      rescue CloudflareService::ZoneNotFoundError => e
+        @subscription.update!(dns_status: 'zone_not_found')
+        render json: {
+          success: false,
+          error: "Domain zone not found in Cloudflare: #{@subscription.domain}"
+        }, status: :unprocessable_entity
+      rescue CloudflareService::ApiError => e
+        render json: {
+          success: false,
+          error: e.message
+        }, status: :unprocessable_entity
+      end
+
       private
 
       def set_subscription
@@ -362,10 +514,11 @@ module Api
           contact_name: sub.contact.display_name,
           domain: sub.domain,
           status: sub.status,
+          dns_status: sub.dns_status,
           plan_type: sub.plan_type,
           mailbox_count: sub.mailbox_count,
-          monthly_retail: sub.monthly_retail_amount.to_f,
-          monthly_wholesale: sub.monthly_wholesale_amount.to_f,
+          monthly_retail: sub.retail_price.to_f,
+          monthly_wholesale: sub.wholesale_cost.to_f,
           margin: sub.margin_amount.to_f,
           current_period_end: sub.current_period_end,
           created_at: sub.created_at
@@ -380,10 +533,28 @@ module Api
           polaris_account_id: sub.polaris_account_id,
           mailboxes: sub.email_mailboxes.map { |m| mailbox_json(m) },
           aliases: sub.email_aliases.active.map { |a| alias_json(a) },
+          dns_records: sub.email_dns_records.map { |r| dns_record_json(r) },
           migrations: sub.email_migrations.recent.limit(10).map { |m| migration_json(m) },
           invites: sub.email_migration_invites.recent.limit(5).map { |i| invite_json(i) },
           invoices: sub.email_subscription_invoices.recent.limit(10).map { |i| invoice_json(i) }
         )
+      end
+
+      def dns_record_json(record)
+        {
+          id: record.id,
+          record_type: record.record_type,
+          name: record.name,
+          full_name: record.full_name,
+          content: record.content,
+          priority: record.priority,
+          status: record.status,
+          purpose: record.purpose,
+          cloudflare_record_id: record.cloudflare_record_id,
+          error_message: record.error_message,
+          last_verified_at: record.last_verified_at,
+          provisioned_at: record.provisioned_at
+        }
       end
 
       def mailbox_json(mb)
@@ -451,6 +622,32 @@ module Api
           is_active: email_alias.is_active,
           created_at: email_alias.created_at
         }
+      end
+
+      def active_migration_json(mig)
+        sub = mig.email_mailbox&.email_subscription
+        {
+          id: mig.id,
+          source_email: mig.source_email,
+          contact_name: sub&.contact&.display_name,
+          migration_type: mig.migration_type,
+          status: mig.status,
+          progress: mig.progress_percentage,
+          processed_items: mig.processed_items,
+          total_items: mig.total_items,
+          started_at: mig.started_at
+        }
+      end
+
+      def calculate_margin_percentage(subscriptions)
+        return 0 if subscriptions.empty?
+
+        total_retail = subscriptions.sum(:retail_price)
+        total_wholesale = subscriptions.sum(:wholesale_cost)
+
+        return 0 if total_retail.zero?
+
+        ((total_retail - total_wholesale) / total_retail * 100).round(1)
       end
     end
   end

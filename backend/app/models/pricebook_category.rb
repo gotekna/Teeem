@@ -1,9 +1,12 @@
 class PricebookCategory < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   # Associations
   has_many :pricebook_items, foreign_key: :category_id, dependent: :nullify
 
   # Validations
-  validates :name, presence: true, uniqueness: { case_sensitive: false }
+  validates :name, presence: true, uniqueness: { scope: :tenant_id, case_sensitive: false }
 
   # Scopes
   scope :active, -> { where(is_active: true) }

@@ -1,6 +1,7 @@
 module Api
   module V1
     class ExternalInvoicesController < ApplicationController
+      include DocumentProviderAware
       # GET /api/v1/external_invoices
       # List invoices with optional filtering
       def index
@@ -54,7 +55,7 @@ module Api
 
         # Check if PDF is available in SharePoint (SSoT)
         pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.sharepoint_file_id.present?
+        has_pdf = pdf_doc&.storage_reference.present?
 
         render json: {
           success: true,
@@ -74,7 +75,7 @@ module Api
 
         # Check if PDF is available in SharePoint (SSoT)
         pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.sharepoint_file_id.present?
+        has_pdf = pdf_doc&.storage_reference.present?
 
         render json: {
           success: true,
@@ -452,16 +453,16 @@ module Api
       end
 
       # GET /api/v1/external_invoices/:id/pdf
-      # Returns PDF from SharePoint via sharepoint_file_id (SSoT)
-      # No fallback - fail fast if SharePoint doesn't work
+      # Returns PDF from storage (SharePoint/S3) via storage_reference
       def pdf
         invoice = ExternalInvoice.find(params[:id])
 
-        # Check warehouse for existing PDF linked to this invoice
+        # SSoT: Find PDF by document_type (matches XeroAttachmentSyncService)
         existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
 
-        if existing_pdf&.sharepoint_file_id.present?
-          content = fetch_from_sharepoint(existing_pdf.sharepoint_file_id)
+        if existing_pdf&.storage_reference.present?
+          # Use fetch_from_storage which handles paths correctly for any provider
+          content = fetch_from_storage(existing_pdf)
           if content
             send_data content,
                       filename: existing_pdf.file_name || "invoice.pdf",
@@ -469,8 +470,8 @@ module Api
                       disposition: "inline"
             return
           end
-          # SharePoint fetch failed - return error, don't fallback
-          render json: { success: false, error: "SharePoint fetch failed for document #{existing_pdf.id}" }, status: :service_unavailable
+          # Storage fetch failed - return error
+          render json: { success: false, error: "Storage fetch failed for document #{existing_pdf.id}" }, status: :service_unavailable
           return
         end
 
@@ -478,8 +479,8 @@ module Api
         service = XeroAttachmentSyncService.new(invoice)
         result = service.sync!
 
-        if result[:pdf]&.sharepoint_file_id.present?
-          content = fetch_from_sharepoint(result[:pdf].sharepoint_file_id)
+        if result[:pdf]&.storage_reference.present?
+          content = fetch_from_storage(result[:pdf])
           if content
             send_data content,
                       filename: result[:pdf].file_name || "invoice.pdf",
@@ -487,12 +488,12 @@ module Api
                       disposition: "inline"
             return
           end
-          render json: { success: false, error: "SharePoint fetch failed after Xero sync" }, status: :service_unavailable
+          render json: { success: false, error: "Storage fetch failed after Xero sync" }, status: :service_unavailable
           return
         end
 
-        # Xero sync failed or no sharepoint_file_id
-        error_msg = result[:errors].first || "PDF not available - no sharepoint_file_id"
+        # Xero sync failed or no storage_reference
+        error_msg = result[:errors].first || "PDF not available"
         render json: { success: false, error: error_msg }, status: :not_found
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Invoice not found" }, status: :not_found
@@ -501,23 +502,55 @@ module Api
         render json: { success: false, error: "Failed to fetch PDF: #{e.message}" }, status: :internal_server_error
       end
 
-      # Fetch file content from SharePoint using OrganizationSharePointCredential
-      # This bypasses Active Storage's SharePointService which has config issues
+      # Fetch file content from storage (provider-agnostic)
+      # SSoT: Uses DocumentStorageService for provider-agnostic downloads
+      def fetch_from_storage(document)
+        service = DocumentStorageService.new
+        result = service.download(document)
+        result[:success] ? result[:content] : nil
+      rescue DocumentProviders::Error => e
+        Rails.logger.error("Storage download failed: #{e.message}")
+        nil
+      rescue StandardError => e
+        Rails.logger.error("Storage fetch error: #{e.message}")
+        nil
+      end
+
+      # Legacy method for backwards compatibility (uses file_id for SharePoint)
+      # TODO: Migrate to fetch_from_storage once all documents have storage_path
       def fetch_from_sharepoint(file_id)
+        # Use DocumentProviderAware to detect current provider
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError
+          return nil
+        end
+
+        # For SharePoint, download by file ID
+        if current_provider_type == :sharepoint
+          download_file_by_id(file_id)
+        else
+          # For S3/Wasabi, we need the full path - file_id won't work
+          # This is a legacy fallback; new code should use fetch_from_storage
+          Rails.logger.warn("fetch_from_sharepoint called with non-SharePoint provider")
+          nil
+        end
+      rescue DocumentProviders::Error => e
+        Rails.logger.error("Storage auth failed: #{e.message}")
+        nil
+      rescue StandardError => e
+        Rails.logger.error("Storage fetch error: #{e.message}")
+        nil
+      end
+
+      # Download file by provider-specific ID (SharePoint only)
+      def download_file_by_id(file_id)
+        return nil unless current_provider_type == :sharepoint
         credential = MicrosoftCredential.sharepoint_credential
         return nil unless credential&.valid_credential?
 
         graph_client = MicrosoftGraphClient.new(credential)
         graph_client.download_file(file_id)
-      rescue MicrosoftGraphClient::AuthenticationError => e
-        Rails.logger.error("SharePoint auth failed: #{e.message}")
-        nil
-      rescue MicrosoftGraphClient::APIError => e
-        Rails.logger.error("SharePoint API error: #{e.message}")
-        nil
-      rescue StandardError => e
-        Rails.logger.error("SharePoint fetch error: #{e.message}")
-        nil
       end
 
       # GET /api/v1/external_invoices/:id/attachments
@@ -535,8 +568,10 @@ module Api
             folder: doc.folder,
             file_size: doc.file_size,
             mime_type: doc.mime_type,
-            has_file: doc.sharepoint_file_id.present?,
-            sharepoint_file_id: doc.sharepoint_file_id,
+            has_file: doc.storage_reference.present?,
+            # SSoT: Use storage_reference, keep key for backwards compat
+            sharepoint_file_id: doc.storage_reference,
+            storage_reference: doc.storage_reference,
             created_at: doc.created_at.iso8601
           }
         end
@@ -556,15 +591,14 @@ module Api
 
       private
 
-      # Maps invoice_type to the document_type used in CorporateCompanyDocument
-      # Must match XeroAttachmentSyncService.document_type_for_invoice
+      # SSoT: Maps invoice_type to document_type - MUST match XeroAttachmentSyncService.document_type_for_invoice
       def document_type_for(invoice_type)
         case invoice_type
-        when "sales_invoice" then "Sales Document"
-        when "bill" then "Purchases"
-        when "quote" then "Estimation"
-        when "credit_note" then "other"
-        else "other"
+        when "sales_invoice" then "Xero Invoice"
+        when "bill" then "Xero Bill"
+        when "credit_note" then "Xero Credit Note"
+        when "quote" then "Xero Invoice"
+        else "Xero Invoice"
         end
       end
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { PlusIcon } from "@heroicons/react/24/outline";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { TablePage } from "@/components/ui/page-wrappers";
 import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -43,6 +45,7 @@ const REGIONS = ["ALL", "QLD", "NSW", "VIC", "SA", "WA", "TAS", "NT", "ACT"];
 
 export default function PublicHolidaysPage() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -132,7 +135,7 @@ export default function PublicHolidaysPage() {
   };
 
   const handleDelete = async (holiday: PublicHoliday) => {
-    if (!confirm(`Delete "${holiday.name}"?`)) return;
+    if (!(await confirm(`Delete "${holiday.name}"?`))) return;
 
     try {
       await api.delete(`/api/v1/public_holidays/${holiday.id}`);
@@ -198,14 +201,14 @@ export default function PublicHolidaysPage() {
   );
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         entries={holidays}
         foundationId="public_holidays"
         tableName="Public Holidays"
         onRefresh={loadHolidays}
         leftActions={filterControls}
-        enableExport={true}
+        enableExport
         onDelete={(row) => handleDelete(row as PublicHoliday)}
       />
 
@@ -284,6 +287,6 @@ export default function PublicHolidaysPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </TablePage>
   );
 }

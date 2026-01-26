@@ -38,6 +38,8 @@ import { ExcelViewer, ExcelViewerLoading, ExcelViewerError, type ExcelData } fro
 import { WordViewer, WordViewerLoading, WordViewerError, type WordData } from "@/components/ui/word-viewer";
 import { Spinner } from "@/components/ui/spinner";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { useToast } from "@/components/ui/use-toast";
+import { formatFileSize } from "@/utils/formatters";
 
 // SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
@@ -227,6 +229,8 @@ interface CompanyDocument {
   company?: Company;
   asset_id?: number;
   asset?: Asset;
+  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
+  storage_item_id?: string;
   sharepoint_file_id?: string;
   user_validated_at?: string;
   user_validated_by_id?: number;
@@ -264,6 +268,7 @@ export default function DocumentPreviewModal({
   onDocumentUpdate,
   companies = [],
 }: DocumentPreviewModalProps) {
+  const { toast } = useToast();
   const [document, setDocument] = React.useState<CompanyDocument>(initialDocument);
   const [validating, setValidating] = React.useState(false);
   const [validated, setValidated] = React.useState(initialDocument?.user_validated_at != null);
@@ -398,11 +403,14 @@ export default function DocumentPreviewModal({
     checkExistingAmendedDocs();
   }, [isAmended, editedCompanyId, editedDocumentType, editedFinancialYears]);
 
-  // Fetch embeddable preview URL for OneDrive files
+  // Fetch embeddable preview URL for cloud storage files
+  // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
+  const storageRef = document?.storage_item_id || document?.sharepoint_file_id;
+
   React.useEffect(() => {
     const fetchPreviewUrl = async () => {
-      // Only fetch preview for OneDrive files
-      if (!document?.sharepoint_file_id || !open) {
+      // Only fetch preview for cloud storage files
+      if (!storageRef || !open) {
         setPreviewUrl(null);
         return;
       }
@@ -426,7 +434,7 @@ export default function DocumentPreviewModal({
           setPreviewUrl(null);
         }
       } catch (error: unknown) {
-        // Don't log OneDrive credential errors - expected in local dev
+        // Don't log cloud storage credential errors - expected in local dev
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (!errorMessage.includes("OneDrive credentials not available")) {
           console.error("Failed to fetch preview URL:", error);
@@ -439,7 +447,7 @@ export default function DocumentPreviewModal({
     };
 
     fetchPreviewUrl();
-  }, [document?.id, document?.sharepoint_file_id, open]);
+  }, [document?.id, storageRef, open]);
 
   // Fetch document data for Excel/Word files using Universal Document Reader
   React.useEffect(() => {
@@ -1063,7 +1071,7 @@ export default function DocumentPreviewModal({
       }
     } catch (error) {
       console.error("Failed to validate document:", error);
-      alert("Failed to validate document");
+      toast({ title: "Error", description: "Failed to validate document", variant: "destructive" });
     } finally {
       setValidating(false);
     }
@@ -1083,7 +1091,7 @@ export default function DocumentPreviewModal({
     } catch (error: unknown) {
       console.error("Failed to start AI verification:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to start AI verification";
-      alert(errorMessage);
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
       setAiVerifying(false);
     }
   };
@@ -1157,7 +1165,7 @@ export default function DocumentPreviewModal({
     } catch (error: unknown) {
       console.error("Failed to save document:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to save document";
-      alert(errorMessage);
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -1194,7 +1202,7 @@ export default function DocumentPreviewModal({
     } catch (error: unknown) {
       console.error("Failed to apply suggestion:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to apply suggestion";
-      alert(errorMessage);
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     } finally {
       setApplyingSuggestion(false);
     }
@@ -1213,16 +1221,8 @@ export default function DocumentPreviewModal({
     });
   };
 
-  // Format file size
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return "-";
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${sizes[i]}`;
-  };
-
-  // Check if document has OneDrive file for AI verification
-  const canAiVerify = document?.sharepoint_file_id && !validated;
+  // Check if document has cloud storage file for AI verification
+  const canAiVerify = storageRef && !validated;
 
   // AI verification status
   const aiStatus = document?.ai_verification_status;
@@ -1247,7 +1247,7 @@ export default function DocumentPreviewModal({
             <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             <DialogTitle className="truncate text-sm font-medium mb-0 flex-1">
               {document.display_name || document.file_name}
-              {isEditingPdf && <span className="ml-2 text-xs text-orange-500">(Editing)</span>}
+              {isEditingPdf && <span className="ml-2 text-xs text-orange-500 dark:text-orange-400">(Editing)</span>}
             </DialogTitle>
             {/* Edit PDF button - only for PDFs */}
             {fileType === "pdf" && (previewUrl || document.file_url) && (
@@ -1330,8 +1330,8 @@ export default function DocumentPreviewModal({
               {/* Left Panel - User Editable */}
               <div className="w-1/2 overflow-y-auto border-r p-3">
               <div className="flex items-center gap-2 mb-2">
-                <Pencil className="h-3 w-3 text-blue-500" />
-                <span className="text-[10px] font-semibold text-blue-600 uppercase tracking-wide">Edit</span>
+                <Pencil className="h-3 w-3 text-blue-500 dark:text-blue-400" />
+                <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Edit</span>
               </div>
 
               <div className="space-y-2">
@@ -1682,16 +1682,16 @@ export default function DocumentPreviewModal({
                 document.ai_suggested_name ? "bg-purple-50/50 dark:bg-purple-900/10" : "bg-muted/30"
               )}>
                 <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className={cn("h-3 w-3", document.ai_suggested_name ? "text-purple-500" : "text-muted-foreground/50")} />
+                  <Sparkles className={cn("h-3 w-3", document.ai_suggested_name ? "text-purple-500 dark:text-purple-400" : "text-muted-foreground/50")} />
                   <span className={cn(
                     "text-[10px] font-semibold uppercase tracking-wide",
-                    document.ai_suggested_name ? "text-purple-600" : "text-muted-foreground/50"
+                    document.ai_suggested_name ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground/50"
                   )}>AI Suggestion</span>
                   {document.ai_confidence_score && (
                     <Badge variant="outline" className={cn(
                       "text-[10px] ml-auto px-1",
-                      document.ai_confidence_score >= 80 ? "border-green-500 text-green-600" :
-                      document.ai_confidence_score >= 60 ? "border-yellow-500 text-yellow-600" : "border-red-500 text-red-600"
+                      document.ai_confidence_score >= 80 ? "border-green-500 text-green-600 dark:text-green-400" :
+                      document.ai_confidence_score >= 60 ? "border-yellow-500 text-yellow-600 dark:text-yellow-400" : "border-red-500 text-red-600 dark:text-red-400"
                     )}>
                       {document.ai_confidence_score}%
                     </Badge>
@@ -1700,7 +1700,7 @@ export default function DocumentPreviewModal({
 
                 {isProcessing ? (
                   <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <Spinner size={24} className="mb-2 text-purple-500" />
+                    <Spinner size={24} className="mb-2 text-purple-500 dark:text-purple-400" />
                     <p className="text-xs">AI analyzing...</p>
                   </div>
                 ) : (
@@ -1996,7 +1996,7 @@ export default function DocumentPreviewModal({
                           disabled={aiVerifying}
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
+                          className="h-7 text-xs text-purple-600 dark:text-purple-400 border-purple-300 hover:bg-purple-100"
                         >
                           {aiVerifying ? (
                             <><Spinner size={12} className="mr-1" />Analyzing</>
@@ -2012,7 +2012,7 @@ export default function DocumentPreviewModal({
                           disabled={aiVerifying}
                           variant="outline"
                           size="sm"
-                          className="w-full h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
+                          className="w-full h-7 text-xs text-purple-600 dark:text-purple-400 border-purple-300 hover:bg-purple-100"
                         >
                           {aiVerifying ? (
                             <><Spinner size={12} className="mr-1" />Analyzing...</>
@@ -2046,7 +2046,7 @@ export default function DocumentPreviewModal({
                           <Button
                             variant="outline"
                             size="sm"
-                            className="w-full mt-2 h-6 text-[10px] text-orange-600 border-orange-300 hover:bg-orange-100"
+                            className="w-full mt-2 h-6 text-[10px] text-orange-600 dark:text-orange-400 border-orange-300 hover:bg-orange-100"
                             onClick={() => setIsEditingPdf(true)}
                           >
                             <Pencil className="h-3 w-3 mr-1" />
@@ -2130,11 +2130,11 @@ export default function DocumentPreviewModal({
                         setIsEditingPdf(false);
                       } else {
                         console.error("Failed to save PDF:", response?.error);
-                        alert(`Failed to save: ${response?.error || 'Unknown error'}`);
+                        toast({ title: "Error", description: `Failed to save: ${response?.error || 'Unknown error'}`, variant: "destructive" });
                       }
                     } catch (error) {
                       console.error("Error saving PDF:", error);
-                      alert("Failed to save PDF. Please try again.");
+                      toast({ title: "Error", description: "Failed to save PDF. Please try again.", variant: "destructive" });
                     }
                   }}
                   onClose={() => setIsEditingPdf(false)}
@@ -2207,7 +2207,7 @@ export default function DocumentPreviewModal({
                     {previewError || "Preview not available"}
                   </p>
                   <p className="text-sm mb-4 text-center">
-                    {document.sharepoint_file_id
+                    {storageRef
                       ? "Could not load cloud storage preview."
                       : "This file type cannot be previewed inline."}
                   </p>

@@ -26,7 +26,7 @@ class GeneratePlanThumbnailJob < ApplicationJob
     end
 
     # Skip if no SharePoint file
-    unless revision.sharepoint_file_id.present?
+    unless revision.storage_reference.present?
       Rails.logger.info "[GeneratePlanThumbnail] Revision ##{revision_id} has no SharePoint file, skipping"
       return
     end

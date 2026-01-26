@@ -44,6 +44,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,6 +76,7 @@ import {
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/use-toast";
 
 // Types
 interface PriceHistorySupplier {
@@ -156,6 +164,7 @@ const QLD_COUNCILS = [
 export default function PriceBookItemDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const code = params.code as string;
 
   const [item, setItem] = useState<PriceBookItem | null>(null);
@@ -424,7 +433,7 @@ export default function PriceBookItemDetailPage() {
       setHistoryToDelete(null);
     } catch (err) {
       console.error("Failed to delete price history:", err);
-      alert("Failed to delete price history. Please try again.");
+      toast({ title: "Error", description: "Failed to delete price history. Please try again.", variant: "destructive" });
     }
   };
 
@@ -449,7 +458,7 @@ export default function PriceBookItemDetailPage() {
       await loadItem();
     } catch (err) {
       console.error("Failed to update price history:", err);
-      alert("Failed to update price history. Please try again.");
+      toast({ title: "Error", description: "Failed to update price history. Please try again.", variant: "destructive" });
     }
   };
 
@@ -508,7 +517,7 @@ export default function PriceBookItemDetailPage() {
       }, 100);
     } catch (err) {
       console.error("Failed to add price:", err);
-      alert("Failed to add price. Please try again.");
+      toast({ title: "Error", description: "Failed to add price. Please try again.", variant: "destructive" });
     }
   };
 
@@ -518,7 +527,7 @@ export default function PriceBookItemDetailPage() {
 
     if (!supplierId) {
       console.error('[handleSetDefaultSupplier] No supplier ID provided');
-      alert('Cannot set default supplier: Supplier ID is missing');
+      toast({ title: "Error", description: "Cannot set default supplier: Supplier ID is missing", variant: "destructive" });
       return;
     }
 
@@ -566,7 +575,7 @@ export default function PriceBookItemDetailPage() {
       console.error("[handleSetDefaultSupplier] Error details:", err);
       console.error("[handleSetDefaultSupplier] Error response:", err?.response?.data);
       const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err.message || 'Unknown error';
-      alert(`Failed to set default supplier: ${errorMessage}`);
+      toast({ title: "Error", description: `Failed to set default supplier: ${errorMessage}`, variant: "destructive" });
     }
   };
 
@@ -667,9 +676,9 @@ export default function PriceBookItemDetailPage() {
 
   const getStatusBadge = (color: string) => {
     const colorClasses: Record<string, string> = {
-      green: "bg-green-100 text-green-700",
-      yellow: "bg-yellow-100 text-yellow-800",
-      red: "bg-red-100 text-red-700",
+      green: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+      yellow: "bg-status-warning text-status-warning-foreground",
+      red: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
       gray: "bg-muted text-muted-foreground",
     };
     return colorClasses[color] || colorClasses.gray;
@@ -794,27 +803,31 @@ export default function PriceBookItemDetailPage() {
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">Unit of Measure</dt>
                     <dd className="mt-1">
-                      <select
+                      <Select
                         value={
                           // Find case-insensitive match in standard units
                           unitsOfMeasure.find(u => u.code.toLowerCase() === item.unit_of_measure?.toLowerCase())?.code
                           || item.unit_of_measure
-                          || ""
+                          || "__none__"
                         }
-                        onChange={(e) => handleUnitChange(e.target.value)}
+                        onValueChange={(v) => handleUnitChange(v === "__none__" ? "" : v)}
                         disabled={savingUnit}
-                        className="h-9 px-3 py-1 text-base border rounded-md bg-background disabled:opacity-50"
                       >
-                        {/* Show current value only if no case-insensitive match exists */}
-                        {item.unit_of_measure && !unitsOfMeasure.find(u => u.code.toLowerCase() === item.unit_of_measure?.toLowerCase()) && (
-                          <option value={item.unit_of_measure}>{item.unit_of_measure}</option>
-                        )}
-                        {unitsOfMeasure.map((unit) => (
-                          <option key={unit.id} value={unit.code}>
-                            {unit.code}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="h-9 w-[140px]">
+                          <SelectValue placeholder="Select unit..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* Show current value only if no case-insensitive match exists */}
+                          {item.unit_of_measure && !unitsOfMeasure.find(u => u.code.toLowerCase() === item.unit_of_measure?.toLowerCase()) && (
+                            <SelectItem value={item.unit_of_measure}>{item.unit_of_measure}</SelectItem>
+                          )}
+                          {unitsOfMeasure.map((unit) => (
+                            <SelectItem key={unit.id} value={unit.code}>
+                              {unit.code}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </dd>
                   </div>
                   <div>
@@ -840,9 +853,9 @@ export default function PriceBookItemDetailPage() {
                       <Badge
                         variant="secondary"
                         className={cn(
-                          item.price_volatility === "stable" && "bg-green-100 text-green-800",
-                          item.price_volatility === "moderate" && "bg-yellow-100 text-yellow-800",
-                          item.price_volatility === "volatile" && "bg-red-100 text-red-800"
+                          item.price_volatility === "stable" && "bg-status-success text-status-success-foreground",
+                          item.price_volatility === "moderate" && "bg-status-warning text-status-warning-foreground",
+                          item.price_volatility === "volatile" && "bg-status-error text-status-error-foreground"
                         )}
                       >
                         {item.price_volatility || "Unknown"}
@@ -874,19 +887,23 @@ export default function PriceBookItemDetailPage() {
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">GST Code</dt>
                     <dd className="mt-1">
-                      <select
-                        value={item.gst_code || ""}
-                        onChange={(e) => handleGstCodeChange(e.target.value)}
+                      <Select
+                        value={item.gst_code || "__none__"}
+                        onValueChange={(v) => handleGstCodeChange(v === "__none__" ? "" : v)}
                         disabled={savingGstCode}
-                        className="h-9 px-3 py-1 text-sm border rounded-md bg-background disabled:opacity-50"
                       >
-                        <option value="">Select GST Code...</option>
-                        {GST_CODE_OPTIONS.map((code) => (
-                          <option key={code} value={code}>
-                            {code}
-                          </option>
-                        ))}
-                      </select>
+                        <SelectTrigger className="h-9 w-[160px]">
+                          <SelectValue placeholder="Select GST Code..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Select GST Code...</SelectItem>
+                          {GST_CODE_OPTIONS.map((code) => (
+                            <SelectItem key={code} value={code}>
+                              {code}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </dd>
                   </div>
                   {item.notes && (
@@ -977,7 +994,7 @@ export default function PriceBookItemDetailPage() {
                               >
                                 {formatDate(history.date_effective || history.created_at)}
                                 {isActive && (
-                                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
+                                  <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">
                                     Active
                                   </Badge>
                                 )}
@@ -1008,16 +1025,20 @@ export default function PriceBookItemDetailPage() {
                           {/* LGA Cell */}
                           <TableCell className="py-2 text-sm text-muted-foreground">
                             {isEditing ? (
-                              <select
-                                value={pendingEdit?.lga || history.lga || ''}
-                                onChange={(e) => handleFieldChange(history.id, 'lga', e.target.value)}
-                                className="border rounded px-2 h-9 w-full text-sm"
+                              <Select
+                                value={pendingEdit?.lga || history.lga || "__none__"}
+                                onValueChange={(v) => handleFieldChange(history.id, 'lga', v === "__none__" ? "" : v)}
                               >
-                                <option value="">Select LGA...</option>
-                                {QLD_COUNCILS.map(council => (
-                                  <option key={council} value={council}>{council}</option>
-                                ))}
-                              </select>
+                                <SelectTrigger className="h-9 w-full text-sm">
+                                  <SelectValue placeholder="Select LGA..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">Select LGA...</SelectItem>
+                                  {QLD_COUNCILS.map(council => (
+                                    <SelectItem key={council} value={council}>{council}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             ) : (
                               <span
                                 className="cursor-pointer hover:bg-muted px-2 py-1 rounded block"
@@ -1134,17 +1155,16 @@ export default function PriceBookItemDetailPage() {
                     })}
 
                     {/* Blank row for adding new price */}
-                    <TableRow style={{ backgroundColor: '#f1f5f9' }}>
-                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                    <TableRow className="bg-slate-100 dark:bg-slate-800">
+                      <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         <Input
                           type="date"
                           value={newPriceEntry.date_effective}
                           onChange={(e) => updateNewPriceEntry('date_effective', e.target.value)}
-                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground"
-                          style={{ backgroundColor: '#f1f5f9' }}
+                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground bg-slate-100 dark:bg-slate-800"
                         />
                       </TableCell>
-                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                      <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         <Input
                           type="number"
                           step="0.01"
@@ -1152,24 +1172,26 @@ export default function PriceBookItemDetailPage() {
                           value={newPriceEntry.price}
                           onChange={(e) => updateNewPriceEntry('price', e.target.value)}
                           onBlur={handleAddNewPrice}
-                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground"
-                          style={{ backgroundColor: '#f1f5f9' }}
+                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground bg-slate-100 dark:bg-slate-800"
                         />
                       </TableCell>
-                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
-                        <select
-                          value={newPriceEntry.lga}
-                          onChange={(e) => updateNewPriceEntry('lga', e.target.value)}
-                          className="border rounded px-2 h-9 w-full text-sm"
-                          style={{ backgroundColor: '#f1f5f9' }}
+                      <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
+                        <Select
+                          value={newPriceEntry.lga || "__none__"}
+                          onValueChange={(v) => updateNewPriceEntry('lga', v === "__none__" ? "" : v)}
                         >
-                          <option value="">Select LGA...</option>
-                          {QLD_COUNCILS.map(council => (
-                            <option key={council} value={council}>{council}</option>
-                          ))}
-                        </select>
+                          <SelectTrigger className="h-9 w-full text-sm border-0 rounded-none bg-slate-100">
+                            <SelectValue placeholder="Select LGA..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Select LGA...</SelectItem>
+                            {QLD_COUNCILS.map(council => (
+                              <SelectItem key={council} value={council}>{council}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </TableCell>
-                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                      <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         <Popover
                           open={newPriceSupplierPopoverOpen}
                           onOpenChange={setNewPriceSupplierPopoverOpen}
@@ -1178,8 +1200,7 @@ export default function PriceBookItemDetailPage() {
                             <Button
                               variant="outline"
                               role="combobox"
-                              className="w-full justify-between h-9 text-sm font-normal border-0 rounded-none"
-                              style={{ backgroundColor: '#f1f5f9' }}
+                              className="w-full justify-between h-9 text-sm font-normal border-0 rounded-none bg-slate-100 dark:bg-slate-800"
                             >
                               {(() => {
                                 if (!newPriceEntry.supplier_id) {
@@ -1231,7 +1252,7 @@ export default function PriceBookItemDetailPage() {
                           </PopoverContent>
                         </Popover>
                       </TableCell>
-                      <TableCell className="py-1 border-b text-center" style={{ backgroundColor: '#f1f5f9' }}>
+                      <TableCell className="py-1 border-b text-center bg-slate-100 dark:bg-slate-800">
                         {newPriceEntry.supplier_id && (
                           <Checkbox
                             checked={newPriceEntry.supplier_id === item.default_supplier_id}
@@ -1243,7 +1264,7 @@ export default function PriceBookItemDetailPage() {
                           />
                         )}
                       </TableCell>
-                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                      <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         {!isBlankNewPrice() && (
                           <Button
                             variant="ghost"
@@ -1251,7 +1272,7 @@ export default function PriceBookItemDetailPage() {
                             className="h-8 w-8"
                             onClick={handleAddNewPrice}
                           >
-                            <Plus className="h-4 w-4 text-green-600" />
+                            <Plus className="h-4 w-4 text-green-600 dark:text-green-400" />
                           </Button>
                         )}
                       </TableCell>

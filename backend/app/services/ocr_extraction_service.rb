@@ -14,7 +14,7 @@ class OcrExtractionService
   end
 
   def extract!
-    return {} unless @bill.sharepoint_file_id.present?
+    return {} unless @bill.storage_reference.present?
 
     Rails.logger.info "[OCR] Starting OCR extraction for BillInbox ##{@bill.id}"
 

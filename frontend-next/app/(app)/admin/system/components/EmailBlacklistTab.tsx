@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +81,7 @@ const PATTERN_TYPE_DESCRIPTIONS = {
 
 export function EmailBlacklistTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [items, setItems] = React.useState<BlacklistItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showAddDialog, setShowAddDialog] = React.useState(false);
@@ -203,7 +205,7 @@ export function EmailBlacklistTab() {
   };
 
   const handleDelete = async (item: BlacklistItem) => {
-    if (!confirm(`Are you sure you want to delete the pattern "${item.pattern}"?`)) {
+    if (!(await confirm(`Are you sure you want to delete the pattern "${item.pattern}"?`))) {
       return;
     }
 
@@ -352,7 +354,7 @@ export function EmailBlacklistTab() {
             <CardTitle className="text-sm font-medium">Active Patterns</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {items.filter((i) => i.active).length}
             </div>
           </CardContent>
@@ -372,7 +374,7 @@ export function EmailBlacklistTab() {
             <CardTitle className="text-sm font-medium">Historical Matches</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
               {items.reduce((sum, i) => sum + i.match_count, 0)}
             </div>
           </CardContent>
@@ -382,7 +384,7 @@ export function EmailBlacklistTab() {
             <CardTitle className="text-sm font-medium">Warehouse Matches</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {items.reduce((sum, i) => sum + i.warehouse_match_count, 0)}
             </div>
           </CardContent>
@@ -433,7 +435,7 @@ export function EmailBlacklistTab() {
                       <Badge variant="secondary">{item.match_count}</Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                      <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200">
                         {item.warehouse_match_count}
                       </Badge>
                     </TableCell>
@@ -456,7 +458,7 @@ export function EmailBlacklistTab() {
                         size="sm"
                         onClick={() => handleDelete(item)}
                       >
-                        <Trash2 className="h-4 w-4 text-red-600" />
+                        <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -642,7 +644,7 @@ export function EmailBlacklistTab() {
                   <div className="flex items-center gap-3 mb-4">
                     {testResult.would_filter ? (
                       <>
-                        <XCircle className="h-6 w-6 text-red-600" />
+                        <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
                         <div>
                           <p className="font-semibold text-red-900">Email Would Be Filtered</p>
                           <p className="text-sm text-red-700">This email would NOT be synced</p>
@@ -650,7 +652,7 @@ export function EmailBlacklistTab() {
                       </>
                     ) : (
                       <>
-                        <CheckCircle className="h-6 w-6 text-green-600" />
+                        <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
                         <div>
                           <p className="font-semibold text-green-900">Email Would Be Synced</p>
                           <p className="text-sm text-green-700">This email passes all filters</p>
@@ -660,7 +662,7 @@ export function EmailBlacklistTab() {
                   </div>
 
                   {testResult.matched_pattern && (
-                    <div className="mt-4 p-3 bg-white rounded-md border">
+                    <div className="mt-4 p-3 bg-card dark:bg-card rounded-md border">
                       <p className="text-sm font-medium mb-2">Matched Pattern:</p>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>

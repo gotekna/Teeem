@@ -115,7 +115,7 @@ When I say something seems impossible, that's your cue to ultrathink harder. The
 | **Column Types** | `TEEEM_DOCS/GOLD_STANDARD_TABLE.md` | Different definitions in code |
 | **Microsoft Creds** | `MicrosoftCredential` model | Legacy models (`OrganizationMicrosoftAppCredential`, etc.) |
 | **Xero Sync** | Webhooks (live) | Scheduled sync jobs |
-| **SharePoint Paths** | `CorporateCompanySetting.sharepoint_full_path(:scope)` | Hardcoded paths |
+| **Storage Config** | `StorageConfiguration.instance` | Hardcoded paths or provider-specific code |
 | **Timezones** | `CompanySetting.in_company_timezone {}` | Raw `Date.today` or `Time.now` |
 
 ### Frontend SSoT Constant Files
@@ -214,7 +214,7 @@ return (
 ### Heroku Apps
 | Environment | App | Branch | URLs |
 |-------------|-----|--------|------|
-| **Production** | `teeemlive` | Live | Backend: `teeemlive-ce8e2660a615.herokuapp.com`, Frontend: `teeemlive.vercel.app` |
+| **Production** | `teeemlive` | Live | Backend: `teeemlive-ce8e2660a615.herokuapp.com`, Frontend: `teeem.vercel.app` |
 | **Rob Dev** | `teeem-rob-dev` | Live | - |
 | **Sam Dev** | `teeem-sam-dev` | - | - |
 
@@ -258,11 +258,17 @@ MicrosoftCredential.active.first                  # ❌ DANGEROUS - no org conte
 - **SSoT:** Webhooks at `/api/v1/xero/webhooks`
 - **NEVER** add scheduled Xero sync jobs (webhooks handle it)
 
-### SharePoint
+### Document Storage (StorageConfiguration SSoT)
 ```ruby
-CorporateCompanySetting.sharepoint_full_path(:jobs)  # ✅ SSoT
-"/Shared Documents/TEEEM Jobs"                        # ❌ Hardcoded
+# Check current provider first
+StorageConfiguration.instance.provider_type  # → s3_compatible | sharepoint | local
+
+# Use SSoT for all paths
+StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001")  # ✅ SSoT
+"/Jobs/J-001"  # ❌ Hardcoded (path format varies by provider)
 ```
+**CRITICAL:** Frontend NEVER handles paths - uses scopes, backend resolves.
+**ALWAYS:** Check `provider_type` before assuming storage behavior.
 
 ---
 

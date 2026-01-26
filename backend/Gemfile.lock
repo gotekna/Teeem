@@ -45,12 +45,6 @@ GEM
       erubi (~> 1.11)
       rails-dom-testing (~> 2.2)
       rails-html-sanitizer (~> 1.6)
-    active_storage_validations (2.0.4)
-      activejob (>= 6.1.4)
-      activemodel (>= 6.1.4)
-      activestorage (>= 6.1.4)
-      activesupport (>= 6.1.4)
-      marcel (>= 1.0.3)
     activejob (8.0.4)
       activesupport (= 8.0.4)
       globalid (>= 0.3.6)
@@ -79,6 +73,8 @@ GEM
       securerandom (>= 0.3)
       tzinfo (~> 2.0, >= 2.0.5)
       uri (>= 0.13.1)
+    acts_as_tenant (1.0.1)
+      rails (>= 6.0)
     addressable (2.8.8)
       public_suffix (>= 2.0.2, < 8.0)
     afm (1.0.0)
@@ -219,7 +215,7 @@ GEM
     http-cookie (1.1.0)
       domain_name (~> 0.5)
     http-form_data (2.3.0)
-    httparty (0.23.2)
+    httparty (0.24.2)
       csv
       mini_mime (>= 1.0.0)
       multi_xml (>= 0.5.2)
@@ -556,7 +552,7 @@ PLATFORMS
   x86_64-linux-musl
 
 DEPENDENCIES
-  active_storage_validations (~> 2.0)
+  acts_as_tenant (~> 1.0)
   anthropic (~> 0.3.0)
   aws-sdk-s3 (~> 1.170)
   bcrypt (~> 3.1.7)
@@ -593,6 +589,7 @@ DEPENDENCIES
   rtesseract (~> 3.1)
   rubocop-rails-omakase
   ruby-lsp
+  rubyzip (~> 2.3)
   sablon (~> 0.4)
   selenium-webdriver (~> 4.10)
   sentry-rails (~> 5.22)

@@ -45,6 +45,13 @@ class Api::V1::EmailDraftsController < ApplicationController
         error: draft.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
+  rescue StandardError => e
+    Rails.logger.error("[EmailDraftsController] create failed: #{e.class} - #{e.message}")
+    Rails.logger.error(e.backtrace.first(5).join("\n"))
+    render json: {
+      success: false,
+      error: "Failed to create draft: #{e.message}"
+    }, status: :unprocessable_entity
   end
 
   # PATCH/PUT /api/v1/email_drafts/:id
@@ -60,6 +67,13 @@ class Api::V1::EmailDraftsController < ApplicationController
         error: @draft.errors.full_messages.join(", ")
       }, status: :unprocessable_entity
     end
+  rescue StandardError => e
+    Rails.logger.error("[EmailDraftsController] update failed: #{e.class} - #{e.message}")
+    Rails.logger.error(e.backtrace.first(5).join("\n"))
+    render json: {
+      success: false,
+      error: "Failed to update draft: #{e.message}"
+    }, status: :unprocessable_entity
   end
 
   # DELETE /api/v1/email_drafts/:id
@@ -105,6 +119,14 @@ class Api::V1::EmailDraftsController < ApplicationController
     # Handle credential_id (frontend uses credential_id, model uses imap_credential_id)
     if params[:credential_id].present?
       permitted[:imap_credential_id] = params[:credential_id]
+    end
+
+    # Sanitize empty/zero/invalid credential_id to nil
+    # Rails converts "" to 0 for integer columns, which violates FK constraint
+    # Also handle: nil, "", "0", 0, and any non-numeric strings
+    credential_id = permitted[:imap_credential_id]
+    if credential_id.blank? || credential_id.to_i <= 0
+      permitted[:imap_credential_id] = nil
     end
 
     # Convert address strings to JSON arrays for storage

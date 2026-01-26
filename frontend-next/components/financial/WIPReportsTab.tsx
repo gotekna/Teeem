@@ -48,6 +48,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate, formatPercentageWithFallback } from "@/utils/formatters";
 
 interface WIPSummary {
   report_date: string;
@@ -252,7 +253,7 @@ export default function WIPReportsTab() {
         );
       case "final":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">
             <Lock className="h-3 w-3 mr-1" />
             Final
           </Badge>
@@ -273,20 +274,20 @@ export default function WIPReportsTab() {
     switch (status) {
       case "active":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300">
             Active
           </Badge>
         );
       case "completed":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             Complete
           </Badge>
         );
       case "loss_expected":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300">
             <AlertTriangle className="h-3 w-3 mr-1" />
             Loss Expected
           </Badge>
@@ -301,25 +302,6 @@ export default function WIPReportsTab() {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
-  };
-
-  const formatCurrency = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "-";
-    return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(value);
-  };
-
-  const formatPercent = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "-";
-    return `${value.toFixed(1)}%`;
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
   };
 
   // Show report details view
@@ -398,11 +380,11 @@ export default function WIPReportsTab() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Revenue Recognized</p>
-                  <p className="text-2xl font-bold text-green-600">
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {formatCurrency(selectedReport.total_revenue_recognized)}
                   </p>
                 </div>
-                <TrendingUp className="h-8 w-8 text-green-500" />
+                <TrendingUp className="h-8 w-8 text-green-500 dark:text-green-400" />
               </div>
             </CardContent>
           </Card>
@@ -411,7 +393,7 @@ export default function WIPReportsTab() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Completion</p>
-                  <p className="text-2xl font-bold">{formatPercent(overallCompletion)}</p>
+                  <p className="text-2xl font-bold">{formatPercentageWithFallback(overallCompletion, "-")}</p>
                 </div>
                 <Percent className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -456,7 +438,7 @@ export default function WIPReportsTab() {
               </div>
               <p
                 className={`text-3xl font-bold ${
-                  netWIPPosition >= 0 ? "text-blue-600" : "text-amber-600"
+                  netWIPPosition >= 0 ? "text-blue-600 dark:text-blue-400" : "text-amber-600"
                 }`}
               >
                 {formatCurrency(netWIPPosition)}
@@ -526,14 +508,14 @@ export default function WIPReportsTab() {
                           <div className="flex items-center justify-end gap-2">
                             <Progress value={job.completion_percentage} className="w-16 h-2" />
                             <span className="w-12 text-right">
-                              {formatPercent(job.completion_percentage)}
+                              {formatPercentageWithFallback(job.completion_percentage, "-")}
                             </span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(job.revenue_recognized)}
                           {job.revenue_this_period > 0 && (
-                            <p className="text-xs text-green-600">
+                            <p className="text-xs text-green-600 dark:text-green-400">
                               +{formatCurrency(job.revenue_this_period)} this period
                             </p>
                           )}
@@ -548,11 +530,11 @@ export default function WIPReportsTab() {
                         </TableCell>
                         <TableCell className="text-right">
                           {job.costs_in_excess_of_billings > 0 ? (
-                            <span className="text-green-600">
+                            <span className="text-green-600 dark:text-green-400">
                               {formatCurrency(job.costs_in_excess_of_billings)}
                             </span>
                           ) : job.billings_in_excess_of_costs > 0 ? (
-                            <span className="text-red-600">
+                            <span className="text-red-600 dark:text-red-400">
                               ({formatCurrency(job.billings_in_excess_of_costs)})
                             </span>
                           ) : (
@@ -562,10 +544,10 @@ export default function WIPReportsTab() {
                         <TableCell className="text-right">
                           <span
                             className={
-                              job.gross_profit_pct >= 0 ? "text-green-600" : "text-red-600"
+                              job.gross_profit_pct >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                             }
                           >
-                            {formatPercent(job.gross_profit_pct)}
+                            {formatPercentageWithFallback(job.gross_profit_pct, "-")}
                           </span>
                         </TableCell>
                       </TableRow>
@@ -660,7 +642,7 @@ export default function WIPReportsTab() {
                   <p className="text-sm text-muted-foreground">Net WIP Position</p>
                   <p
                     className={`text-2xl font-bold ${
-                      summary.net_wip_position >= 0 ? "text-green-600" : "text-red-600"
+                      summary.net_wip_position >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                     }`}
                   >
                     {formatCurrency(summary.net_wip_position)}
@@ -676,7 +658,7 @@ export default function WIPReportsTab() {
                 <div>
                   <p className="text-sm text-muted-foreground">Overall Completion</p>
                   <p className="text-2xl font-bold">
-                    {formatPercent(summary.overall_completion_pct)}
+                    {formatPercentageWithFallback(summary.overall_completion_pct, "-")}
                   </p>
                 </div>
                 <Percent className="h-8 w-8 text-muted-foreground" />
@@ -690,19 +672,19 @@ export default function WIPReportsTab() {
                 <p className="text-sm text-muted-foreground">Alerts</p>
                 <div className="flex gap-2">
                   {summary.loss_job_count > 0 && (
-                    <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+                    <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       {summary.loss_job_count} Loss
                     </Badge>
                   )}
                   {summary.over_budget_count > 0 && (
-                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+                    <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-300">
                       <TrendingDown className="h-3 w-3 mr-1" />
                       {summary.over_budget_count} Over Budget
                     </Badge>
                   )}
                   {summary.loss_job_count === 0 && summary.over_budget_count === 0 && (
-                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                    <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">
                       <CheckCircle className="h-3 w-3 mr-1" />
                       All Healthy
                     </Badge>
@@ -766,7 +748,7 @@ export default function WIPReportsTab() {
                     <TableCell className="text-right">
                       {formatCurrency(report.total_contract_value)}
                     </TableCell>
-                    <TableCell className="text-right text-green-600">
+                    <TableCell className="text-right text-green-600 dark:text-green-400">
                       {formatCurrency(report.total_revenue_recognized)}
                     </TableCell>
                     <TableCell className="text-right">
@@ -822,8 +804,8 @@ export default function WIPReportsTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <ArrowUpRight className="h-5 w-5 text-green-600" />
-                <h4 className="font-medium">Costs in Excess of Billings</h4>
+                <ArrowUpRight className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <h4 className="text-sm font-medium">Costs in Excess of Billings</h4>
               </div>
               <p className="text-sm text-muted-foreground">
                 An asset representing work performed but not yet billed to the client
@@ -831,8 +813,8 @@ export default function WIPReportsTab() {
             </div>
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <ArrowDownRight className="h-5 w-5 text-red-600" />
-                <h4 className="font-medium">Billings in Excess of Costs</h4>
+                <ArrowDownRight className="h-5 w-5 text-red-600 dark:text-red-400" />
+                <h4 className="text-sm font-medium">Billings in Excess of Costs</h4>
               </div>
               <p className="text-sm text-muted-foreground">
                 A liability representing amounts billed before the work is performed
@@ -840,8 +822,8 @@ export default function WIPReportsTab() {
             </div>
             <div className="p-4 border rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <Percent className="h-5 w-5 text-blue-600" />
-                <h4 className="font-medium">Percentage of Completion</h4>
+                <Percent className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <h4 className="text-sm font-medium">Percentage of Completion</h4>
               </div>
               <p className="text-sm text-muted-foreground">
                 Calculated as Costs to Date ÷ Total Estimated Costs (cost-to-cost method)

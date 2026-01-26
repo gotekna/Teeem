@@ -144,7 +144,7 @@ export function EmailConfigTab() {
               id="internal_domains"
               value={formData.internal_email_domains}
               onChange={(e) => handleChange("internal_email_domains", e.target.value)}
-              placeholder="tekna.com.au, teeem.au, teeem.com"
+              placeholder="teeem.com.au, company.com.au"
             />
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Info className="h-3 w-3" />
@@ -170,7 +170,7 @@ export function EmailConfigTab() {
             {/* Pay Mailbox */}
             <div className="space-y-2">
               <Label htmlFor="mailbox_pay" className="flex items-center gap-1">
-                <AlertCircle className="h-3 w-3 text-orange-500" />
+                <AlertCircle className="h-3 w-3 text-orange-500 dark:text-orange-400" />
                 Bills/Invoices Inbox
               </Label>
               <Input
@@ -187,7 +187,7 @@ export function EmailConfigTab() {
             {/* New Task Mailbox */}
             <div className="space-y-2">
               <Label htmlFor="mailbox_newtask" className="flex items-center gap-1">
-                <FileText className="h-3 w-3 text-blue-500" />
+                <FileText className="h-3 w-3 text-blue-500 dark:text-blue-400" />
                 New Task Inbox
               </Label>
               <Input
@@ -204,7 +204,7 @@ export function EmailConfigTab() {
             {/* New Job Mailbox */}
             <div className="space-y-2">
               <Label htmlFor="mailbox_newjob" className="flex items-center gap-1">
-                <Briefcase className="h-3 w-3 text-green-500" />
+                <Briefcase className="h-3 w-3 text-green-500 dark:text-green-400" />
                 New Job Inbox
               </Label>
               <Input
@@ -221,7 +221,7 @@ export function EmailConfigTab() {
             {/* New Case Mailbox */}
             <div className="space-y-2">
               <Label htmlFor="mailbox_newcase" className="flex items-center gap-1">
-                <AlertCircle className="h-3 w-3 text-purple-500" />
+                <AlertCircle className="h-3 w-3 text-purple-500 dark:text-purple-400" />
                 New Case Inbox
               </Label>
               <Input

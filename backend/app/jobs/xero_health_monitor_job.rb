@@ -119,10 +119,38 @@ class XeroHealthMonitorJob < ApplicationJob
     end
 
     Rails.logger.info "[XeroHealthMonitor] Cleaned up #{cleaned} orphaned jobs" if cleaned > 0
+
+    # Also clear stale batch locks that block new PDF sync jobs
+    clear_stale_batch_locks
+
     cleaned
   rescue StandardError => e
     Rails.logger.error "[XeroHealthMonitor] Error cleaning orphaned jobs: #{e.message}"
     0
+  end
+
+  # Clear batch lock if no XeroAttachmentSyncJob is actually running
+  # This prevents stuck cache locks from blocking new sync jobs indefinitely
+  def clear_stale_batch_locks
+    batch_lock_key = "xero:attachment_sync:batch_lock"
+
+    # Check if lock exists
+    lock_data = Rails.cache.read(batch_lock_key)
+    return unless lock_data
+
+    # Check if any XeroAttachmentSyncJob is actually running (claimed)
+    actual_running = SolidQueue::Job
+      .where(finished_at: nil)
+      .where(class_name: "XeroAttachmentSyncJob")
+      .joins("INNER JOIN solid_queue_claimed_executions ON solid_queue_claimed_executions.job_id = solid_queue_jobs.id")
+      .exists?
+
+    unless actual_running
+      Rails.cache.delete(batch_lock_key)
+      Rails.logger.info "[XeroHealthMonitor] Cleared stale batch lock for XeroAttachmentSyncJob (no job actually running)"
+    end
+  rescue StandardError => e
+    Rails.logger.error "[XeroHealthMonitor] Error clearing batch locks: #{e.message}"
   end
 
   # SELF-HEAL: Check for stalled syncs and trigger them automatically
@@ -151,6 +179,19 @@ class XeroHealthMonitorJob < ApplicationJob
         reason = "stuck in_progress for #{((Time.current - status.updated_at) / 60).round} minutes"
         # Reset status to allow new job to start
         status.update!(status: "failed", last_error: "Auto-reset: job appeared stuck")
+      end
+
+      # Case 3: No next_sync_at but last_synced_at is very stale (sync job never rescheduled)
+      # SSoT: Use EXPECTED_INTERVALS to determine staleness thresholds
+      expected_interval = EXPECTED_INTERVALS[status.sync_type] || 1.hour
+      stale_threshold = expected_interval * 2  # Double the expected interval = definitely stale
+
+      if !should_heal && status.next_sync_at.nil? && status.status != "in_progress"
+        if status.last_synced_at.nil? || status.last_synced_at < (Time.current - stale_threshold)
+          should_heal = true
+          age_hours = status.last_synced_at ? ((Time.current - status.last_synced_at) / 1.hour).round(1) : nil
+          reason = "no scheduled sync, last activity #{age_hours ? "#{age_hours}h ago" : 'never'}"
+        end
       end
 
       next unless should_heal

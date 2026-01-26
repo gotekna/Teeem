@@ -104,10 +104,10 @@ interface XeroStats {
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-foreground dark:bg-muted/50 dark:text-muted-foreground",
-  submitted: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
-  approved: "bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500",
-  paid: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
-  voided: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
+  submitted: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-400/10 dark:text-blue-400",
+  approved: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  paid: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-400/10 dark:text-green-400",
+  voided: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-400/10 dark:text-red-400",
 };
 
 function formatRelativeTime(dateString: string | null): string {
@@ -130,7 +130,7 @@ function getCacheAgeColor(seconds: number | null): string {
   if (!seconds) return "text-muted-foreground";
   const hours = seconds / 3600;
   if (hours < 1) return "text-green-600 dark:text-green-400";
-  if (hours < 24) return "text-yellow-600 dark:text-yellow-500";
+  if (hours < 24) return "text-yellow-600 dark:text-yellow-400";
   return "text-red-600 dark:text-red-400";
 }
 
@@ -302,7 +302,7 @@ export default function XeroPage() {
 
       {/* Connection Status */}
       <Alert>
-        <CheckCircle className="h-4 w-4 text-green-600" />
+        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
         <AlertDescription className="flex items-center justify-between">
           <span>
             Connected to Xero. Last synced:{" "}
@@ -317,8 +317,8 @@ export default function XeroPage() {
       {cacheMetadata && (
         <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/10">
           <div className="flex items-center gap-2">
-            <Database className="h-4 w-4 text-blue-600" />
-            <Zap className="h-4 w-4 text-yellow-500" />
+            <Database className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <Zap className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
           </div>
           <AlertDescription className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -421,11 +421,11 @@ export default function XeroPage() {
                           {invoice.invoice_number}
                         </Badge>
                         {invoice.type === "ACCPAY" ? (
-                          <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400 text-xs">
+                          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-400/10 dark:text-purple-400 text-xs">
                             Bill
                           </Badge>
                         ) : (
-                          <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400 text-xs">
+                          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-400/10 dark:text-blue-400 text-xs">
                             Invoice
                           </Badge>
                         )}
@@ -437,7 +437,7 @@ export default function XeroPage() {
                       <span
                         className={
                           new Date(invoice.due_date) < new Date() && invoice.status !== "paid"
-                            ? "text-red-600 font-medium"
+                            ? "text-red-600 dark:text-red-400 font-medium"
                             : ""
                         }
                       >
@@ -453,7 +453,7 @@ export default function XeroPage() {
                       {invoice.job_title ? (
                         <Link
                           href={`/jobs/${invoice.job_id}`}
-                          className="text-blue-600 hover:underline"
+                          className="text-blue-600 dark:text-blue-400 hover:underline"
                         >
                           {invoice.job_title}
                         </Link>
@@ -501,7 +501,7 @@ export default function XeroPage() {
                     </TableCell>
                     <TableCell>{payment.contact_name}</TableCell>
                     <TableCell>{payment.account_name}</TableCell>
-                    <TableCell className="text-right font-mono font-medium text-green-600">
+                    <TableCell className="text-right font-mono font-medium text-green-600 dark:text-green-400">
                       ${payment.amount.toLocaleString()}
                     </TableCell>
                   </TableRow>
@@ -535,7 +535,7 @@ export default function XeroPage() {
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-medium">{report.title}</h3>
+                        <h3 className="text-sm font-medium">{report.title}</h3>
                         <p className="text-sm text-muted-foreground">{report.description}</p>
                       </div>
                       <Button variant="ghost" size="sm">

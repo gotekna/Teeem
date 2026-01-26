@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { hasStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 interface BrandColors {
   primary: string;
@@ -32,7 +33,7 @@ interface BrandResponse {
   };
 }
 
-// Default colors (Tekna brand) - fallback if API fails
+// Default colors (Teeem brand) - fallback if API fails
 const DEFAULT_COLORS: BrandColors = {
   primary: '161 63% 13%',
   primaryForeground: '0 0% 100%',
@@ -49,6 +50,16 @@ export function CompanyColorsProvider({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     async function loadBrandColors() {
+      // Check for auth token before making request
+      // This prevents 401 errors on login page
+      // SSoT: storage-utils.ts for localStorage access
+      if (!hasStorageItem(STORAGE_KEYS.TOKEN)) {
+        // Not authenticated - use default colors, don't hit API
+        applyColors(DEFAULT_COLORS);
+        setIsLoaded(true);
+        return;
+      }
+
       try {
         // Use cached if available
         if (cachedColors) {
@@ -57,7 +68,9 @@ export function CompanyColorsProvider({ children }: { children: React.ReactNode 
           return;
         }
 
-        const response = await api.get<BrandResponse>('/api/v1/corporate_company_settings/brand');
+        const response = await api.get<BrandResponse>('/api/v1/corporate_company_settings/brand', {
+          skipAuthRedirect: true  // Brand colors are optional - gracefully fall back if not authenticated
+        });
 
         if (response.success && response.data?.colors) {
           cachedColors = response.data.colors;
@@ -65,8 +78,8 @@ export function CompanyColorsProvider({ children }: { children: React.ReactNode 
         } else {
           applyColors(DEFAULT_COLORS);
         }
-      } catch (error) {
-        console.error('[CompanyColors] Failed to load brand colors:', error);
+      } catch {
+        // Expected to fail when not authenticated - use default colors
         applyColors(DEFAULT_COLORS);
       } finally {
         setIsLoaded(true);
@@ -98,8 +111,10 @@ function applyColors(colors: BrandColors) {
   root.style.setProperty('--secondary', colors.secondary);
   root.style.setProperty('--secondary-foreground', '0 0% 9%'); // Dark text on light bg
 
-  // Muted color (labels, disabled text)
-  root.style.setProperty('--muted', colors.muted);
+  // Muted foreground color (labels, disabled text, secondary text)
+  // NOTE: We only set --muted-foreground here, NOT --muted
+  // --muted is for UI backgrounds (beige/gray) defined in globals.css
+  // --muted-foreground is for text color which can be branded
   root.style.setProperty('--muted-foreground', colors.muted);
 
   // Accent color (highlights, AI elements)
@@ -121,13 +136,15 @@ export async function refreshBrandColors(): Promise<void> {
   clearBrandColorsCache();
 
   try {
-    const response = await api.get<BrandResponse>('/api/v1/corporate_company_settings/brand');
+    const response = await api.get<BrandResponse>('/api/v1/corporate_company_settings/brand', {
+      skipAuthRedirect: true  // Brand colors are optional - gracefully fail if not authenticated
+    });
 
     if (response.success && response.data?.colors) {
       cachedColors = response.data.colors;
       applyColors(response.data.colors);
     }
-  } catch (error) {
-    console.error('[CompanyColors] Failed to refresh brand colors:', error);
+  } catch {
+    // Silently fail - brand colors refresh is non-critical
   }
 }

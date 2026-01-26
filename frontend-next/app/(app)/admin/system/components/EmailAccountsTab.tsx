@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect, useCallback } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -478,7 +479,7 @@ function TeamEmailDomainsConfig() {
                 @{domain}
                 <button
                   onClick={() => removeDomain(domain)}
-                  className="ml-2 hover:text-red-500 transition-colors"
+                  className="ml-2 hover:text-red-500 dark:text-red-400 transition-colors"
                   disabled={saving}
                 >
                   <XCircle className="h-3.5 w-3.5" />
@@ -498,6 +499,7 @@ function TeamEmailDomainsConfig() {
 
 export function EmailAccountsTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [credentials, setCredentials] = useState<ImapCredential[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -607,7 +609,7 @@ export function EmailAccountsTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to remove this email account?")) return;
+    if (!(await confirm("Are you sure you want to remove this email account?"))) return;
 
     try {
       await api.delete(`/api/v1/imap_credentials/${id}`);
@@ -947,7 +949,7 @@ export function EmailAccountsTab() {
         <Card>
           <CardContent className="py-12 text-center">
             <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h4 className="font-medium mb-2">No email accounts connected</h4>
+            <h4 className="text-sm font-medium mb-2">No email accounts connected</h4>
             <p className="text-sm text-muted-foreground mb-4">
               Add an email account to start syncing and sending emails from TEEEM.
             </p>
@@ -990,9 +992,9 @@ export function EmailAccountsTab() {
                     {/* Sync Status */}
                     <div className="flex items-center gap-1.5">
                       {cred.last_sync_status === "success" ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                       ) : cred.last_sync_status === "error" ? (
-                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                        <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
                       ) : (
                         <Clock className="h-4 w-4" />
                       )}
@@ -1054,7 +1056,7 @@ export function EmailAccountsTab() {
                       size="sm"
                       onClick={() => handleDelete(cred.id)}
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
+                      <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                     </Button>
                   </div>
                 </div>

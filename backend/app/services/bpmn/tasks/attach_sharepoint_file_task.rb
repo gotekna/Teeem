@@ -2,9 +2,9 @@
 
 module Bpmn
   module Tasks
-    # AttachSharepointFileTask - Attach an existing file from SharePoint to the workflow
+    # AttachStorageFileTask - Attach an existing file from storage to the workflow
     #
-    # This task retrieves a file from the job's SharePoint folder and stores it
+    # This task retrieves a file from the job's storage folder and stores it
     # as a variable for use in signing packages or other downstream tasks.
     #
     # Config options:
@@ -16,6 +16,8 @@ module Bpmn
     # Subject: Job (required) - The job to get files from
     #
     class AttachSharepointFileTask < BaseTask
+      include DocumentProviderAware
+
       def execute
         job = resolve_job
         raise "Job is required" unless job
@@ -26,19 +28,17 @@ module Bpmn
 
         raise "Either file_path or file_name must be specified" if file_path.blank? && file_name.blank?
 
-        log_info("Attaching SharePoint file for job #{job.id}")
+        log_info("Attaching storage file for job #{job.id}")
 
-        credential = MicrosoftCredential.sharepoint_credential
-        raise "No active OneDrive credential" unless credential
-
-        client = MicrosoftGraphClient.new(credential)
+        # Setup provider-agnostic storage
+        setup_default_provider!
 
         # Find the job folder
-        job_folder = client.find_job_folder(job)
-        raise "Job folder not found in SharePoint" unless job_folder
+        job_folder_path = job.storage_folder_path
+        raise "Job folder not found in storage" unless job_folder_path
 
         # Find the file
-        file_content, file_info = find_and_download_file(client, job_folder["id"], file_path, file_name, folder_name)
+        file_content, file_info = find_and_download_file(job_folder_path, file_path, file_name, folder_name)
 
         raise "File not found: #{file_path || file_name}" unless file_content
 
@@ -72,72 +72,66 @@ module Bpmn
         @subject.job if @subject.respond_to?(:job)
       end
 
-      def find_and_download_file(client, job_folder_id, file_path, file_name, folder_name)
+      def find_and_download_file(job_folder_path, file_path, file_name, folder_name)
         if file_path.present?
           # Navigate path and download
-          return download_by_path(client, job_folder_id, file_path)
+          return download_by_path(job_folder_path, file_path)
         end
 
         # Find in specific folder or job folder
-        folder_id = job_folder_id
+        current_path = job_folder_path
 
         if folder_name.present?
-          # Navigate to the specified folder
-          response = client.list_folder_items(job_folder_id)
-          items = response["value"] || []
-          folder = items.find { |item| item["name"] == folder_name && item["folder"].present? }
-          raise "Folder '#{folder_name}' not found" unless folder
-          folder_id = folder["id"]
+          current_path = "#{job_folder_path}/#{folder_name}"
+          raise "Folder '#{folder_name}' not found" unless folder_exists_in_provider?(current_path)
         end
 
-        # Find the file by name
-        response = client.list_folder_items(folder_id)
-        items = response["value"] || []
-        file = items.find { |item| item["name"] == file_name && item["file"].present? }
+        # Find the file by name in the folder
+        items = list_folder_in_provider(current_path)
+        file = items.find { |item| item[:name] == file_name && !item[:is_folder] }
 
         return nil unless file
 
-        content = client.download_file(file["id"])
+        # Download the file content
+        result = DocumentStorageService.new.download_file(file[:path] || file[:id])
+        return nil unless result[:success]
+
         file_info = {
-          name: file["name"],
-          id: file["id"],
-          web_url: file["webUrl"],
-          mime_type: file.dig("file", "mimeType")
+          name: file[:name],
+          id: file[:id],
+          web_url: file[:web_url] || file[:url],
+          mime_type: "application/pdf"
         }
 
-        [content, file_info]
+        [result[:content], file_info]
       end
 
-      def download_by_path(client, folder_id, path)
-        parts = path.split("/")
-        file_name = parts.pop
-        current_folder_id = folder_id
+      def download_by_path(job_folder_path, path)
+        full_path = "#{job_folder_path}/#{path}"
 
-        # Navigate through folders
-        parts.each do |folder_name|
-          response = client.list_folder_items(current_folder_id)
-          items = response["value"] || []
-          folder = items.find { |item| item["name"] == folder_name && item["folder"].present? }
-          return nil unless folder
-          current_folder_id = folder["id"]
-        end
+        # List the parent folder to find the file
+        parent_path = File.dirname(full_path)
+        file_name = File.basename(full_path)
 
-        # Find and download the file
-        response = client.list_folder_items(current_folder_id)
-        items = response["value"] || []
-        file = items.find { |item| item["name"] == file_name && item["file"].present? }
+        return nil unless folder_exists_in_provider?(parent_path)
+
+        items = list_folder_in_provider(parent_path)
+        file = items.find { |item| item[:name] == file_name && !item[:is_folder] }
 
         return nil unless file
 
-        content = client.download_file(file["id"])
+        # Download the file content
+        result = DocumentStorageService.new.download_file(file[:path] || file[:id])
+        return nil unless result[:success]
+
         file_info = {
-          name: file["name"],
-          id: file["id"],
-          web_url: file["webUrl"],
-          mime_type: file.dig("file", "mimeType")
+          name: file[:name],
+          id: file[:id],
+          web_url: file[:web_url] || file[:url],
+          mime_type: "application/pdf"
         }
 
-        [content, file_info]
+        [result[:content], file_info]
       end
     end
   end

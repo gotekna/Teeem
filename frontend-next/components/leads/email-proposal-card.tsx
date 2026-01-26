@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Mail, MapPin, DollarSign, CheckCircle, XCircle, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 import { ProposalApprovalDialog } from "./proposal-approval-dialog";
 import { EmailProposal } from "@/app/(app)/leads/page";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 interface EmailProposalCardProps {
   proposal: EmailProposal;
@@ -18,6 +20,7 @@ interface EmailProposalCardProps {
 }
 
 export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp }: EmailProposalCardProps) {
+  const { toast } = useToast();
   const [processing, setProcessing] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [priceInput, setPriceInput] = useState<string>("");
@@ -25,15 +28,6 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
   const email = proposal.email || { from_email: "", subject: "", has_attachments: false };
   const data = proposal.extracted_data || {};
   const customer = data.customer || {};
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   const handleApprove = () => {
     setShowApprovalDialog(true);
@@ -56,7 +50,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
       }
     } catch (error) {
       console.error("Failed to approve proposal:", error);
-      alert("Failed to approve proposal");
+      toast({ title: "Error", description: "Failed to approve proposal", variant: "destructive" });
     } finally {
       setProcessing(false);
     }
@@ -74,7 +68,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
       onRejected?.();
     } catch (error) {
       console.error("Failed to reject proposal:", error);
-      alert("Failed to reject proposal");
+      toast({ title: "Error", description: "Failed to reject proposal", variant: "destructive" });
     } finally {
       setProcessing(false);
     }
@@ -83,10 +77,10 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
   const confidenceScore = data.confidence_score || 0;
   const confidencePercent = Math.round(confidenceScore * 100);
   const confidenceColor = confidencePercent >= 80
-    ? "text-green-600"
+    ? "text-green-600 dark:text-green-400"
     : confidencePercent >= 60
-    ? "text-yellow-600"
-    : "text-orange-600";
+    ? "text-yellow-600 dark:text-yellow-400"
+    : "text-orange-600 dark:text-orange-400";
 
   return (
     <>
@@ -95,7 +89,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
           {/* Header with Mail icon badge */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 text-[10px] px-1.5">
+              <Badge variant="outline" className="bg-status-warning text-status-warning-foreground border-yellow-300 text-[10px] px-1.5">
                 <Mail className="h-3 w-3 mr-1" />
                 Email
               </Badge>
@@ -128,7 +122,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
           {data.contract_value && (
             <div className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
               <DollarSign className="h-3 w-3" />
-              {formatCurrency(data.contract_value)}
+              {formatCurrencyWhole(data.contract_value)}
             </div>
           )}
 

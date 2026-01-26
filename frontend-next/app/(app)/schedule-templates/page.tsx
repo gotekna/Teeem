@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -53,6 +54,7 @@ interface SmScheduleMasterTemplate {
 export default function ScheduleTemplatesPage() {
   useSetLayoutMode("full-height");
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [templates, setTemplates] = useState<SmScheduleMasterTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -156,7 +158,7 @@ export default function ScheduleTemplatesPage() {
 
   // Delete template handler
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this template?")) return;
+    if (!(await confirm("Are you sure you want to delete this template?"))) return;
 
     setDeleting(id);
     try {
@@ -258,7 +260,7 @@ export default function ScheduleTemplatesPage() {
                       <CardTitle className="text-lg flex items-center gap-2">
                         {template.name}
                         {template.is_default && (
-                          <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                          <Star className="h-4 w-4 text-yellow-500 dark:text-yellow-400 fill-yellow-500" />
                         )}
                       </CardTitle>
                       {template.description && (

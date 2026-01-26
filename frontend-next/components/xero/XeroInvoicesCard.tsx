@@ -112,7 +112,7 @@ export function XeroInvoicesCard({
       <Card className="mx-4">
         <CardContent className="p-6">
           <div className="text-center text-muted-foreground">
-            <p className="font-medium mb-2 text-red-600">Error</p>
+            <p className="font-medium mb-2 text-red-600 dark:text-red-400">Error</p>
             <p className="text-sm">{error}</p>
           </div>
         </CardContent>
@@ -125,7 +125,7 @@ export function XeroInvoicesCard({
       <Card className="mx-4">
         <CardContent className="p-6">
           <div className="text-center text-muted-foreground">
-            <p className="font-medium mb-2">No Sales Invoices</p>
+            <p className="text-sm font-medium mb-2">No Sales Invoices</p>
             <p className="text-sm">No sales invoices found for this Xero account.</p>
           </div>
         </CardContent>

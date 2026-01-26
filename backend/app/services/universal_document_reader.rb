@@ -160,10 +160,8 @@ class UniversalDocumentReader
       File.basename(file_or_path)
     when ActionDispatch::Http::UploadedFile
       file_or_path.original_filename
-    when ActiveStorage::Blob
-      file_or_path.filename.to_s
-    when ActiveStorage::Attached::One
-      file_or_path.filename.to_s
+    when StorageBlob
+      file_or_path.file_name || "unknown"
     else
       "unknown"
     end
@@ -186,9 +184,7 @@ class UniversalDocumentReader
       File.open(file, "rb")
     when ActionDispatch::Http::UploadedFile
       file.tempfile
-    when ActiveStorage::Blob
-      StringIO.new(file.download)
-    when ActiveStorage::Attached::One
+    when StorageBlob
       StringIO.new(file.download)
     when StringIO, Tempfile, File
       file
@@ -224,17 +220,80 @@ class UniversalDocumentReader
     Docx::Document.open(file_path)
   end
 
+  # Convert Word document to HTML with formatting preservation
+  # Returns complete HTML document with styles for PDF conversion
   def convert_word_to_html(doc)
-    # Convert Word paragraphs to HTML with basic formatting
     html_parts = doc.paragraphs.map do |para|
-      text = para.text
-      next if text.blank?
-
-      # Wrap in paragraph tag
-      "<p>#{ERB::Util.html_escape(text)}</p>"
+      next if para.text.blank?
+      "<p>#{paragraph_to_html(para)}</p>"
     end
 
-    html_parts.compact.join("\n")
+    wrap_with_document_styles(html_parts.compact.join("\n"))
+  end
+
+  # Convert a paragraph's runs to HTML, preserving inline formatting
+  def paragraph_to_html(para)
+    # The docx gem exposes the XML node - parse runs with formatting
+    para.node.xpath(".//w:r", "w" => "http://schemas.openxmlformats.org/wordprocessingml/2006/main").map do |run_node|
+      text = run_node.xpath(".//w:t", "w" => "http://schemas.openxmlformats.org/wordprocessingml/2006/main").map(&:text).join
+      next if text.blank?
+
+      apply_run_formatting(text, run_node)
+    end.compact.join
+  end
+
+  # Apply bold/italic/underline formatting based on run properties
+  def apply_run_formatting(text, run_node)
+    escaped = ERB::Util.html_escape(text)
+
+    # Extract formatting from w:rPr (run properties)
+    props = run_node.at_xpath(".//w:rPr", "w" => "http://schemas.openxmlformats.org/wordprocessingml/2006/main")
+    return escaped unless props
+
+    # Bold (w:b or w:b with val="1" or val="true")
+    if props.at_xpath(".//w:b", "w" => "http://schemas.openxmlformats.org/wordprocessingml/2006/main")
+      escaped = "<strong>#{escaped}</strong>"
+    end
+
+    # Italic
+    if props.at_xpath(".//w:i", "w" => "http://schemas.openxmlformats.org/wordprocessingml/2006/main")
+      escaped = "<em>#{escaped}</em>"
+    end
+
+    # Underline
+    if props.at_xpath(".//w:u", "w" => "http://schemas.openxmlformats.org/wordprocessingml/2006/main")
+      escaped = "<u>#{escaped}</u>"
+    end
+
+    escaped
+  end
+
+  # Wrap HTML content in a complete document with styles
+  def wrap_with_document_styles(html_content)
+    <<~HTML
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: 'Times New Roman', Georgia, serif;
+            font-size: 12pt;
+            line-height: 1.5;
+            margin: 2cm;
+            color: #000;
+          }
+          p { margin: 0 0 12pt 0; }
+          strong { font-weight: bold; }
+          em { font-style: italic; }
+          u { text-decoration: underline; }
+        </style>
+      </head>
+      <body>
+        #{html_content}
+      </body>
+      </html>
+    HTML
   end
 
   def readable?

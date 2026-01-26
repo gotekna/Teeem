@@ -1,18 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { TaskHubProvider, useTaskHub, SmTask } from '@/contexts/TaskHubContext';
 import { TaskFullscreenView } from '@/components/task-hub/TaskFullscreenView';
 import { Spinner } from '@/components/ui/spinner';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { BackButton, getParentRoute } from '@/components/ui/back-button';
 import { api } from '@/lib/api';
 import { useSetLayoutMode } from '@/contexts/LayoutModeContext';
 
 function TaskDetailContent() {
   const params = useParams();
-  const router = useRouter();
   const taskId = Number(params.id);
 
   // Fullscreen mode - hides sidebar and breadcrumbs
@@ -45,9 +43,9 @@ function TaskDetailContent() {
 
       // Task not in context, fetch directly
       try {
-        const response = await api.get<{ success: boolean; task: SmTask }>(`/api/v1/sm_tasks/${taskId}`);
-        if (response?.success && response.task) {
-          setTask(response.task);
+        const response = await api.get<{ success: boolean; sm_task: SmTask }>(`/api/v1/sm_tasks/${taskId}`);
+        if (response?.success && response.sm_task) {
+          setTask(response.sm_task);
         } else {
           setError('Task not found');
         }
@@ -86,10 +84,7 @@ function TaskDetailContent() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <p className="text-muted-foreground">{error || 'Task not found'}</p>
-        <Button variant="outline" onClick={() => router.push('/tasks')}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Tasks
-        </Button>
+        <BackButton fallbackHref="/tasks" />
       </div>
     );
   }
@@ -97,7 +92,15 @@ function TaskDetailContent() {
   return (
     <TaskFullscreenView
       task={task}
-      onClose={() => router.push('/tasks')}
+      onClose={() => {
+        // SSoT: Use BackButton's getParentRoute helper for consistent navigation
+        const hasHistory = typeof window !== "undefined" && window.history.length > 2;
+        if (hasHistory) {
+          window.history.back();
+        } else {
+          window.location.href = getParentRoute(window.location.pathname);
+        }
+      }}
     />
   );
 }

@@ -76,6 +76,13 @@
 #   {YYYYMMDD}        - ISO date (e.g., "2025-10-09")
 #   {DateISO}         - ISO date alias
 #
+# Email Tokens (Phase 3 - Warehouse Documents):
+#   {Subject}         - Email subject line (sanitized for filenames)
+#   {SubjectShort}    - Email subject, first 50 chars
+#   {FromName}        - Sender name
+#   {FromEmail}       - Sender email
+#   {ReceivedDate}    - Date email was received (e.g., "17-01-2026")
+#
 module DocumentTemplatable
   extend ActiveSupport::Concern
 
@@ -276,6 +283,23 @@ module DocumentTemplatable
     if doc_date.present?
       result.gsub!('{YYYYMMDD}', doc_date.strftime('%Y-%m-%d'))
       result.gsub!('{DateISO}', doc_date.strftime('%Y-%m-%d'))
+    end
+
+    # =============
+    # Email Tokens (Phase 3 - Warehouse Documents)
+    # =============
+    if context[:subject].present?
+      # Sanitize subject for use in filenames (remove : / \ * ? " < > |)
+      sanitized_subject = context[:subject].to_s.gsub(/[:\/*?"<>|\\]/, ' ').gsub(/\s+/, ' ').strip
+      result.gsub!('{Subject}', sanitized_subject)
+      # Short version - first 50 chars
+      result.gsub!('{SubjectShort}', sanitized_subject[0..49].to_s.strip)
+    end
+    result.gsub!('{FromName}', context[:from_name].to_s) if context[:from_name].present?
+    result.gsub!('{FromEmail}', context[:from_email].to_s) if context[:from_email].present?
+    if context[:received_date].present?
+      recv_date = context[:received_date].to_date rescue nil
+      result.gsub!('{ReceivedDate}', recv_date&.strftime('%d-%m-%Y').to_s) if recv_date
     end
 
     # ================================

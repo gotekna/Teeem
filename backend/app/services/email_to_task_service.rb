@@ -14,17 +14,9 @@
 class EmailToTaskService
   class TaskCreationError < StandardError; end
 
-  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_newtask
-  NEW_TASK_EMAIL_ADDRESS = "newtask@tekna.com.au"
-
-  # SSoT: Get the monitored mailbox from configuration
-  def self.newtask_email_address
-    CorporateCompanySetting.monitored_mailbox_newtask
-  end
-
-  def initialize(email_warehouse, user: nil)
-    @email = email_warehouse
-    @user = user || email_warehouse.synced_by_user || User.first
+  def initialize(synced_email, user: nil)
+    @email = synced_email
+    @user = user || synced_email.synced_by_user || User.first
   end
 
   # Main entry point - creates task directly from email
@@ -52,16 +44,15 @@ class EmailToTaskService
       # This enables automatic matching of future related emails
       extract_auto_match_keywords(task)
 
-      # 7. Download and attach email file attachments (PDFs, images, etc.)
-      download_and_attach_email_files(task)
+      # 7. DON'T auto-attach related emails (Jan 2026 change)
+      # Related emails are now shown as suggestions in the UI, user can choose to add them.
+      # The find_related_emails method is still used by the suggested_emails API endpoint.
+      # REMOVED: find_and_attach_related_emails(task)
 
-      # 8. Find and attach related emails
-      find_and_attach_related_emails(task)
-
-      # 9. Add email participants as task contacts
+      # 8. Add email participants as task contacts
       add_email_participants_as_contacts(task)
 
-      # 10. Log activity
+      # 9. Log activity
       log_task_created(task)
 
       task
@@ -86,7 +77,9 @@ class EmailToTaskService
       sequence_order: 1,
       created_by: @user,
       assigned_user: @user,  # Auto-assign to the user creating the task
-      is_private: false
+      is_private: false,
+      # SSoT: Multi-tenancy - set tenant_id from user (background job has no tenant context)
+      tenant_id: @user&.tenant_id
     )
   end
 
@@ -222,42 +215,6 @@ class EmailToTaskService
     end
   end
 
-  def download_and_attach_email_files(task)
-    return unless @email.has_attachments
-    return unless @email.microsoft_credential_id.present?
-    return unless @email.mailbox_owner_email.present?
-    return unless @email.outlook_id.present?
-
-    credential = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
-    return unless credential&.status == "connected"
-
-    begin
-      client = MicrosoftAppGraphClient.new(credential)
-      attachments = client.get_email_attachments(@email.mailbox_owner_email, @email.outlook_id)
-
-      attachments.each do |attachment|
-        next unless attachment["@odata.type"] == "#microsoft.graph.fileAttachment"
-        next unless attachment["contentBytes"].present?
-
-        filename = attachment["name"] || "attachment"
-        content_type = attachment["contentType"] || "application/octet-stream"
-        content = Base64.decode64(attachment["contentBytes"])
-
-        # Attach file directly to task via ActiveStorage
-        task.files.attach(
-          io: StringIO.new(content),
-          filename: filename,
-          content_type: content_type
-        )
-
-        Rails.logger.info "[EmailToTaskService] Attached file: #{filename}"
-      end
-    rescue StandardError => e
-      Rails.logger.error "[EmailToTaskService] Failed to download email attachments: #{e.message}"
-      # Don't fail task creation if attachment download fails
-    end
-  end
-
   def find_and_attach_related_emails(task)
     related = find_related_emails
     attached_count = 0
@@ -282,7 +239,7 @@ class EmailToTaskService
 
     # 1. Same conversation thread (email chain history)
     if @email.conversation_id.present?
-      emails += EmailWarehouse
+      emails += SyncedEmail
         .where(conversation_id: @email.conversation_id)
         .where.not(id: @email.id)
         .order(received_at: :desc)
@@ -295,7 +252,7 @@ class EmailToTaskService
     # so subject matching is the only way to link back to original emails.
     base_subject = normalize_subject(@email.subject)
     if base_subject.present? && emails.size < 10
-      subject_emails = EmailWarehouse
+      subject_emails = SyncedEmail
         .where("subject ILIKE ?", "%#{base_subject}%")
         .where("received_at > ?", 90.days.ago)
         .where.not(id: [@email.id] + emails.map(&:id))
@@ -306,11 +263,12 @@ class EmailToTaskService
       emails += subject_emails
     end
 
-    # 3. Emails with same external party (not internal @tekna.com.au or @teeem.au)
+    # 3. Emails with same external party (not internal domains)
+    # SSoT: Internal domains checked via CorporateCompanySetting.internal_domain_patterns
     # FRC: Extended to 90 days to match subject matching window
     external_email = find_external_party
     if external_email.present? && emails.size < 10
-      party_emails = EmailWarehouse
+      party_emails = SyncedEmail
         .involving_email(external_email)
         .where("received_at > ?", 90.days.ago)
         .where.not(id: [@email.id] + emails.map(&:id))
@@ -359,7 +317,7 @@ class EmailToTaskService
     # Check cc recipients
     @email.cc_emails&.each do |email_addr|
       next if email_addr.blank?
-      next if internal_domains.any? { |d| email_addr.downcase.include?(d) }
+      next if internal_domain_patterns.any? { |d| email_addr.downcase.include?(d) }
       return email_addr
     end
 
@@ -371,7 +329,8 @@ class EmailToTaskService
     @email.to_emails&.each do |email_addr|
       next if email_addr.blank?
       next if email_addr.downcase == @email.from_email&.downcase
-      next if email_addr.downcase == NEW_TASK_EMAIL_ADDRESS.downcase
+      # SSoT: Use CorporateCompanySetting for monitored mailbox
+      next if email_addr.downcase == CorporateCompanySetting.monitored_mailbox_newtask.downcase
 
       add_participant(task, email_addr, "participant")
     end
@@ -403,9 +362,11 @@ class EmailToTaskService
     return contact if contact
 
     # Create new contact with email via contact_emails association
+    # SSoT: Multi-tenancy - set tenant_id from user (background job has no tenant context)
     contact = Contact.create!(
       display_name: name || extract_name_from_email(email),
-      entity_type: "person"
+      entity_type: "person",
+      tenant_id: @user&.tenant_id
     )
     contact.contact_emails.create!(email: email, is_primary: true)
     contact

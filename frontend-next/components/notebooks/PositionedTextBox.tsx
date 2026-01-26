@@ -1,5 +1,8 @@
 "use client";
 
+// SSoT: TipTap warning suppression - must be first import
+import "@/lib/tiptap-utils";
+
 import * as React from "react";
 import { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -19,6 +22,7 @@ import Image from "@tiptap/extension-image";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { createFontSizeExtension, registerFocusedEditor } from "@/components/ui/rich-text-editor";
+import { WritingChecker } from "@/components/ui/tiptap-writing-checker";
 import { type PositionedBoxData } from "./hooks/useNotebookPage";
 
 // Re-export for convenience
@@ -36,6 +40,8 @@ interface PositionedTextBoxProps {
   isResizing?: boolean;
   containerRef?: React.RefObject<HTMLDivElement | null>;
   className?: string;
+  /** Enable AI-powered spell check (default: true for main content, false for others) */
+  enableSpellCheck?: boolean;
 }
 
 export function PositionedTextBox({
@@ -50,7 +56,10 @@ export function PositionedTextBox({
   isResizing = false,
   containerRef: externalContainerRef,
   className,
+  enableSpellCheck,
 }: PositionedTextBoxProps) {
+  // Default: spell check enabled for main content boxes (longer text), disabled for small boxes
+  const shouldEnableSpellCheck = enableSpellCheck ?? box.isMainContent;
   const boxRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -67,14 +76,14 @@ export function PositionedTextBox({
       levels: [1, 2, 3],
     }),
     // Explicitly add Blockquote for Quote style
-    Blockquote,
+    Blockquote.configure({}),
     Placeholder.configure({
       placeholder: box.isMainContent ? "Start writing..." : "Type here...",
     }),
-    Underline,
-    TextStyle,
+    Underline.configure({}),
+    TextStyle.configure({}),
     createFontSizeExtension(),
-    Color,
+    Color.configure({}),
     Highlight.configure({
       multicolor: true,
     }),
@@ -84,7 +93,7 @@ export function PositionedTextBox({
     Link.configure({
       openOnClick: false,
       HTMLAttributes: {
-        class: "text-blue-600 underline hover:text-blue-800",
+        class: "text-blue-600 dark:text-blue-400 underline hover:text-blue-800",
       },
     }),
     Image.configure({
@@ -106,7 +115,15 @@ export function PositionedTextBox({
       },
       nested: true,
     }),
-  ], [box.isMainContent]);
+    // AI-powered spell check (only for main content by default)
+    ...(shouldEnableSpellCheck ? [
+      WritingChecker.configure({
+        enabled: true,
+        debounceMs: 500,
+        context: "notes",
+      }),
+    ] : []),
+  ], [box.isMainContent, shouldEnableSpellCheck]);
 
   const editor = useEditor({
     extensions,
@@ -115,6 +132,7 @@ export function PositionedTextBox({
     editorProps: {
       attributes: {
         class: "outline-none min-h-[20px] text-sm [direction:ltr]",
+        spellcheck: "true",
       },
     },
     onUpdate: ({ editor }) => {

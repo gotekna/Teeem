@@ -1,9 +1,13 @@
 class EmailCaseProposal < ApplicationRecord
   # Associations
-  belongs_to :email_warehouse, class_name: "EmailWarehouse"
+  # SSoT: Legacy column is email_warehouse_id, but association uses synced_email
+  belongs_to :synced_email, class_name: "SyncedEmail", foreign_key: :email_warehouse_id
   belongs_to :case_record, class_name: "CaseRecord", optional: true
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :approved_by, class_name: "User", optional: true
+
+  # Alias for backwards compatibility (use synced_email_id in code, maps to email_warehouse_id)
+  alias_attribute :synced_email_id, :email_warehouse_id
 
   # Validations
   validates :status, presence: true, inclusion: { in: %w[pending approved rejected error] }
@@ -121,7 +125,7 @@ class EmailCaseProposal < ApplicationRecord
     )
 
     # Mark email as actioned (rejected) so it won't create another proposal
-    email_warehouse.update!(
+    synced_email.update!(
       match_type: "case_rejected",
       matched_at: Time.current
     )
@@ -138,7 +142,7 @@ class EmailCaseProposal < ApplicationRecord
   def as_json(options = {})
     super(options.merge(
       include: {
-        email_warehouse: {
+        synced_email: {
           methods: [ :display_from, :preview_body ]
         },
         created_by: {},

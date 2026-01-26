@@ -10,6 +10,9 @@ import { XeroStatementView } from "@/components/corporate/XeroStatementView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import type { TableRow } from "@/components/table/types";
 
 // SSoT: Columns are now fetched from Foundation API (ID: 199)
@@ -51,6 +54,8 @@ interface Summary {
 export default function FinancialTransactionsPage() {
   const pathname = usePathname();
   const router = useRouter();
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   // Path-based tab: /financial/transactions/xero, /financial/transactions/internal
   const activeTab = useMemo(() => {
@@ -191,18 +196,20 @@ export default function FinancialTransactionsPage() {
       }
     } catch (err: any) {
       console.error("Error updating transaction:", err);
-      alert(`Failed to update transaction: ${err.message}`);
+      toast({ title: "Error", description: `Failed to update transaction: ${err.message}`, variant: "destructive" });
     }
   };
 
   const handleDelete = async (row: TableRow) => {
     const entry = row as Transaction;
-    if (
-      !confirm(
-        `Are you sure you want to delete this ${entry.transaction_type} transaction?`
-      )
-    )
-      return;
+    const confirmed = await confirm({
+      title: "Delete Transaction",
+      description: `Are you sure you want to delete this ${entry.transaction_type} transaction?`,
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
     try {
       const response = await api.delete<{ success: boolean }>(
@@ -212,10 +219,11 @@ export default function FinancialTransactionsPage() {
       if (response && response.success) {
         setTransactions((prev) => prev.filter((t) => t.id !== entry.id));
         await fetchSummary();
+        toast({ title: "Success", description: "Transaction deleted successfully" });
       }
     } catch (err: any) {
       console.error("Error deleting transaction:", err);
-      alert(`Failed to delete transaction: ${err.message}`);
+      toast({ title: "Error", description: `Failed to delete transaction: ${err.message}`, variant: "destructive" });
     }
   };
 
@@ -234,13 +242,13 @@ export default function FinancialTransactionsPage() {
   };
 
   const handleImport = () => {
-    alert("Import - This would open a file picker to import transactions from CSV");
+    toast({ title: "Coming Soon", description: "Import functionality will open a file picker to import transactions from CSV" });
   };
 
   const handleExport = async () => {
     try {
-      const response = await fetch("/financial_exports/transactions");
-      const blob = await response.blob();
+      // SSoT: Use api.getBlob() for authenticated blob downloads
+      const blob = await api.getBlob("/financial_exports/transactions");
 
       // Create download link
       const url = window.URL.createObjectURL(blob);
@@ -255,7 +263,7 @@ export default function FinancialTransactionsPage() {
       link.remove();
     } catch (err) {
       console.error("Error exporting transactions:", err);
-      alert("Failed to export transactions");
+      toast({ title: "Error", description: "Failed to export transactions", variant: "destructive" });
     }
   };
 
@@ -263,7 +271,7 @@ export default function FinancialTransactionsPage() {
     return (
       <div className="p-6 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <Spinner size={48} className="mx-auto" />
           <p className="mt-4 text-muted-foreground">Loading transactions...</p>
         </div>
       </div>
@@ -294,7 +302,7 @@ export default function FinancialTransactionsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">Total Income</p>
-                  <p className="mt-2 text-3xl font-bold text-green-600">
+                  <p className="mt-2 text-3xl font-bold text-green-600 dark:text-green-400">
                     $
                     {summary.total_income?.toLocaleString("en-AU", {
                       minimumFractionDigits: 2,
@@ -303,7 +311,7 @@ export default function FinancialTransactionsPage() {
                   </p>
                 </div>
                 <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-full">
-                  <BanknotesIcon className="h-8 w-8 text-green-600" />
+                  <BanknotesIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
                 </div>
               </div>
             </div>
@@ -313,7 +321,7 @@ export default function FinancialTransactionsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground dark:text-muted-foreground">Total Expenses</p>
-                  <p className="mt-2 text-3xl font-bold text-red-600">
+                  <p className="mt-2 text-3xl font-bold text-red-600 dark:text-red-400">
                     $
                     {summary.total_expenses?.toLocaleString("en-AU", {
                       minimumFractionDigits: 2,
@@ -322,7 +330,7 @@ export default function FinancialTransactionsPage() {
                   </p>
                 </div>
                 <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
-                  <CreditCardIcon className="h-8 w-8 text-red-600" />
+                  <CreditCardIcon className="h-8 w-8 text-red-600 dark:text-red-400" />
                 </div>
               </div>
             </div>
@@ -335,8 +343,8 @@ export default function FinancialTransactionsPage() {
                   <p
                     className={`mt-2 text-3xl font-bold ${
                       (summary.net_profit || 0) >= 0
-                        ? "text-green-600"
-                        : "text-red-600"
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400"
                     }`}
                   >
                     $
@@ -354,8 +362,8 @@ export default function FinancialTransactionsPage() {
                   <BanknotesIcon
                     className={`h-8 w-8 ${
                       (summary.net_profit || 0) >= 0
-                        ? "text-green-600"
-                        : "text-red-600"
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400"
                     }`}
                   />
                 </div>

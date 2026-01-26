@@ -3,11 +3,8 @@
 # Monitors a shared mailbox for incoming supplier invoices
 # Creates BillInbox records for each PDF attachment and queues AI extraction
 #
+# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_pay
 class BillInboxSyncService
-  # SSoT: Use CorporateCompanySetting.monitored_mailbox_pay instead of hardcoded constant
-  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_pay
-  MONITORED_MAILBOX = "Pay@tekna.com.au"
-
   SUPPORTED_CONTENT_TYPES = [
     "application/pdf",
     "image/png",
@@ -175,7 +172,7 @@ class BillInboxSyncService
   end
 
   def store_email_in_warehouse(email)
-    EmailWarehouse.find_or_create_by(internet_message_id: email["internetMessageId"]) do |e|
+    SyncedEmail.find_or_create_by(internet_message_id: email["internetMessageId"]) do |e|
       e.outlook_id = email["id"]
       e.subject = email["subject"]
       e.from_email = email.dig("from", "emailAddress", "address")
@@ -184,6 +181,8 @@ class BillInboxSyncService
       e.has_attachments = true
       # Store the monitored mailbox info in folder_name as a workaround
       e.folder_name = "bill_inbox:#{@mailbox}"
+      # SSoT: Multi-tenancy - set tenant_id from credential's organization
+      e.tenant_id = @client.credential&.organization&.tenant_id
     end
   end
 
@@ -196,7 +195,7 @@ class BillInboxSyncService
     bill = BillInbox.create!(
       source: "email",
       email_message_id: email["internetMessageId"],
-      email_warehouse_id: warehouse_email.id,
+      synced_email_id: warehouse_email.id,
       status: "pending",
       original_filename: attachment["name"],
       content_type: attachment["contentType"],

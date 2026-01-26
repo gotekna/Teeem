@@ -113,12 +113,8 @@ class XeroBankTransactionSyncJob < ApplicationJob
     # Extract line item descriptions
     line_items = txn["LineItems"] || []
 
-    # Resolve xero_contact_id to warehouse_contact_id (SSoT for contact linking)
-    xero_contact_id = txn.dig("Contact", "ContactID")
-    warehouse_contact = nil
-    if xero_contact_id.present?
-      warehouse_contact = WarehouseContact.find_by(xero_id: xero_contact_id, tenant_id: tenant_id)
-    end
+    # LIM (Jan 2026): XeroContact removed - ContactExternalLink is THE ONE SSoT
+    xero_api_contact_id = txn.dig("Contact", "ContactID")
 
     # Build attributes
     attrs = {
@@ -132,8 +128,7 @@ class XeroBankTransactionSyncJob < ApplicationJob
       reference: txn["Reference"],
       status: txn["Status"],
       is_reconciled: txn["IsReconciled"] || false,
-      xero_contact_id: xero_contact_id,
-      warehouse_contact_id: warehouse_contact&.id,
+      xero_contact_id: xero_api_contact_id,
       contact_name: txn.dig("Contact", "Name"),
       sub_total: txn["SubTotal"],
       total_tax: txn["TotalTax"],
@@ -146,13 +141,13 @@ class XeroBankTransactionSyncJob < ApplicationJob
     }
 
     # Find or create
-    record = WarehouseBankTransaction.find_by(xero_id: xero_id)
+    record = XeroBankTransaction.find_by(xero_id: xero_id)
 
     if record
       record.update!(attrs)
       { updated: true }
     else
-      WarehouseBankTransaction.create!(attrs.merge(xero_id: xero_id))
+      XeroBankTransaction.create!(attrs.merge(xero_id: xero_id))
       { created: true }
     end
 

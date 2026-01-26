@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CreditCard,
   ExternalLink,
@@ -11,16 +13,33 @@ import {
   CheckCircle,
   AlertTriangle,
   Percent,
+  Building2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { api } from "@/lib/api";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableColumn, TableRow } from "@/components/table/types";
 import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
 import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsSection";
 import { PendingXeroReviewPanel } from "@/components/contacts/PendingXeroReviewPanel";
 import { XeroInvoicesListByTenant } from "@/components/contacts/XeroInvoicesListByTenant";
 import type { Contact } from "../types";
 import { formatABN } from "../types";
+import type { XeroLink } from "./ContactHeader";
+
+// =============================================================================
+// SSoT: Financial Tab Structure
+// =============================================================================
+// Level 1: Xero Connection tabs (dynamic - one per xeroLink)
+// Level 2: Under each connection - Bank Details, Xero, Invoices, Bills, Jobs, POs
+//
+// If no Xero connections: Show "No Xero connections" message with link options
+// If 1+ connections: Show tab for each connection name
+// =============================================================================
 
 interface ContactFinancialTabProps {
   contact: Contact;
@@ -28,6 +47,7 @@ interface ContactFinancialTabProps {
   handleFinancialSubTabChange: (value: string) => void;
   setContact: (contact: Contact) => void;
   handleViewInvoiceDetail: (invoiceId: string) => void;
+  xeroLinks: XeroLink[];
 }
 
 export function ContactFinancialTab({
@@ -36,9 +56,135 @@ export function ContactFinancialTab({
   handleFinancialSubTabChange,
   setContact,
   handleViewInvoiceDetail,
+  xeroLinks,
 }: ContactFinancialTabProps) {
+  // Deduplicate xeroLinks by tenant_id (a contact may have multiple Xero contacts in same tenant)
+  // Show one tab per unique tenant, not one tab per external link
+  const uniqueXeroLinks = useMemo(() => {
+    const seenTenantIds = new Set<string>();
+    return xeroLinks.filter((link) => {
+      if (seenTenantIds.has(link.xero_tenant_id)) {
+        return false;
+      }
+      seenTenantIds.add(link.xero_tenant_id);
+      return true;
+    });
+  }, [xeroLinks]);
+
+  const hasXeroLinks = uniqueXeroLinks.length > 0;
+
+  // Parse the activeFinancialSubTab to get connection and sub-tab
+  // Format: "connection-{index}" or "connection-{index}-{subtab}"
+  const { activeConnectionIndex, activeSubTab } = useMemo(() => {
+    const parts = activeFinancialSubTab.split("-");
+    if (parts[0] === "connection" && parts.length >= 2) {
+      const index = parseInt(parts[1], 10);
+      const subtab = parts.slice(2).join("-") || "bank";
+      return { activeConnectionIndex: isNaN(index) ? 0 : index, activeSubTab: subtab };
+    }
+    // Default to first connection, bank tab
+    return { activeConnectionIndex: 0, activeSubTab: "bank" };
+  }, [activeFinancialSubTab]);
+
+  // Handle connection tab change
+  const handleConnectionChange = (connectionIndex: number) => {
+    handleFinancialSubTabChange(`connection-${connectionIndex}-bank`);
+  };
+
+  // Handle sub-tab change within a connection
+  const handleSubTabChange = (subtab: string) => {
+    handleFinancialSubTabChange(`connection-${activeConnectionIndex}-${subtab}`);
+  };
+
+  // No Xero connections - show setup prompt
+  if (!hasXeroLinks) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Financial
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 space-y-4">
+            <p className="text-muted-foreground">
+              No Xero connections found for this contact.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Link this contact to a Xero organization to view financial data.
+            </p>
+            <XeroSyncSection
+              contact={contact}
+              onContactUpdate={(updatedContact) => setContact(updatedContact as Contact)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Tabs value={activeFinancialSubTab} onValueChange={handleFinancialSubTabChange}>
+    <div className="space-y-4">
+      {/* Level 1: Xero Connection Tabs */}
+      <Tabs
+        value={`connection-${activeConnectionIndex}`}
+        onValueChange={(v) => {
+          const index = parseInt(v.replace("connection-", ""), 10);
+          handleConnectionChange(index);
+        }}
+      >
+        <TabsList className="mb-4">
+          {uniqueXeroLinks.map((link, index) => (
+            <TabsTrigger key={link.xero_tenant_id} value={`connection-${index}`}>
+              <Building2 className="h-3.5 w-3.5 mr-1" />
+              {link.xero_tenant_name}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        {/* Content for each Xero connection */}
+        {uniqueXeroLinks.map((link, index) => (
+          <TabsContent key={link.xero_tenant_id} value={`connection-${index}`}>
+            {/* Level 2: Sub-tabs within this connection */}
+            <XeroConnectionSubTabs
+              contact={contact}
+              xeroLink={link}
+              activeSubTab={activeSubTab}
+              onSubTabChange={handleSubTabChange}
+              setContact={setContact}
+              handleViewInvoiceDetail={handleViewInvoiceDetail}
+            />
+          </TabsContent>
+        ))}
+      </Tabs>
+    </div>
+  );
+}
+
+// =============================================================================
+// Level 2: Sub-tabs within a Xero Connection
+// =============================================================================
+
+interface XeroConnectionSubTabsProps {
+  contact: Contact;
+  xeroLink: XeroLink;
+  activeSubTab: string;
+  onSubTabChange: (subtab: string) => void;
+  setContact: (contact: Contact) => void;
+  handleViewInvoiceDetail: (invoiceId: string) => void;
+}
+
+function XeroConnectionSubTabs({
+  contact,
+  xeroLink,
+  activeSubTab,
+  onSubTabChange,
+  setContact,
+  handleViewInvoiceDetail,
+}: XeroConnectionSubTabsProps) {
+  return (
+    <Tabs value={activeSubTab} onValueChange={onSubTabChange}>
       <TabsList className="mb-4">
         <TabsTrigger value="bank">
           <CreditCard className="h-3.5 w-3.5 mr-1" />
@@ -48,12 +194,14 @@ export function ContactFinancialTab({
           <ExternalLink className="h-3.5 w-3.5 mr-1" />
           Xero
         </TabsTrigger>
-        {contact["is_supplier?"] && (
-          <TabsTrigger value="bills">
-            <FileText className="h-3.5 w-3.5 mr-1" />
-            Bills
-          </TabsTrigger>
-        )}
+        <TabsTrigger value="invoices">
+          <FileText className="h-3.5 w-3.5 mr-1" />
+          Invoices
+        </TabsTrigger>
+        <TabsTrigger value="bills">
+          <FileText className="h-3.5 w-3.5 mr-1" />
+          Bills
+        </TabsTrigger>
         <TabsTrigger value="jobs">
           <Briefcase className="h-3.5 w-3.5 mr-1" />
           Jobs
@@ -75,20 +223,29 @@ export function ContactFinancialTab({
       <TabsContent value="xero" className="mt-4">
         <XeroSubTab
           contact={contact}
+          xeroLink={xeroLink}
           setContact={setContact}
           handleViewInvoiceDetail={handleViewInvoiceDetail}
         />
       </TabsContent>
 
-      {/* Bills Sub-Tab */}
-      {contact["is_supplier?"] && (
-        <TabsContent value="bills" className="mt-4">
-          <BillsSubTab
-            contactId={contact.id}
-            handleViewInvoiceDetail={handleViewInvoiceDetail}
-          />
-        </TabsContent>
-      )}
+      {/* Invoices Sub-Tab - filtered to this Xero connection */}
+      <TabsContent value="invoices" className="mt-4">
+        <InvoicesSubTab
+          contactId={contact.id}
+          handleViewInvoiceDetail={handleViewInvoiceDetail}
+          xeroLink={xeroLink}
+        />
+      </TabsContent>
+
+      {/* Bills Sub-Tab - filtered to this Xero connection */}
+      <TabsContent value="bills" className="mt-4">
+        <BillsSubTab
+          contactId={contact.id}
+          handleViewInvoiceDetail={handleViewInvoiceDetail}
+          xeroLink={xeroLink}
+        />
+      </TabsContent>
 
       {/* Jobs Sub-Tab */}
       <TabsContent value="jobs" className="mt-4">
@@ -211,12 +368,12 @@ function BankDetailsSubTab({ contact }: { contact: Contact }) {
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-muted-foreground">ABN Verification</p>
                   {contact.abn_valid ? (
-                    <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                    <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300">
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Verified
                     </Badge>
                   ) : contact.abn_valid === false ? (
-                    <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                    <Badge className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/30 dark:text-red-300">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Invalid
                     </Badge>
@@ -352,17 +509,19 @@ function BankDetailsSubTab({ contact }: { contact: Contact }) {
 }
 
 // ================================
-// Xero Sub-Tab
+// Xero Sub-Tab (per connection)
 // ================================
 
 interface XeroSubTabProps {
   contact: Contact;
+  xeroLink: XeroLink;
   setContact: (contact: Contact) => void;
   handleViewInvoiceDetail: (invoiceId: string) => void;
 }
 
 function XeroSubTab({
   contact,
+  xeroLink,
   setContact,
   handleViewInvoiceDetail,
 }: XeroSubTabProps) {
@@ -375,7 +534,7 @@ function XeroSubTab({
       />
       <XeroTransactionsSection
         contactId={contact.id}
-        xeroLink={null}
+        xeroLink={xeroLink}
         onViewInvoiceDetail={handleViewInvoiceDetail}
       />
     </div>
@@ -383,25 +542,65 @@ function XeroSubTab({
 }
 
 // ================================
-// Bills Sub-Tab
+// Invoices Sub-Tab (per connection)
+// ================================
+
+interface InvoicesSubTabProps {
+  contactId: number;
+  handleViewInvoiceDetail: (invoiceId: string) => void;
+  xeroLink: XeroLink;
+}
+
+function InvoicesSubTab({ contactId, handleViewInvoiceDetail, xeroLink }: InvoicesSubTabProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Invoices
+          <Badge variant="outline" className="text-xs">
+            {xeroLink.xero_tenant_name}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <XeroInvoicesListByTenant
+          contactId={contactId}
+          type="ACCREC"
+          onViewInvoiceDetail={handleViewInvoiceDetail}
+          linkedTenants={[xeroLink]}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+// ================================
+// Bills Sub-Tab (per connection)
 // ================================
 
 interface BillsSubTabProps {
   contactId: number;
   handleViewInvoiceDetail: (invoiceId: string) => void;
+  xeroLink: XeroLink;
 }
 
-function BillsSubTab({ contactId, handleViewInvoiceDetail }: BillsSubTabProps) {
+function BillsSubTab({ contactId, handleViewInvoiceDetail, xeroLink }: BillsSubTabProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bills</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          Bills
+          <Badge variant="outline" className="text-xs">
+            {xeroLink.xero_tenant_name}
+          </Badge>
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <XeroInvoicesListByTenant
           contactId={contactId}
           type="ACCPAY"
           onViewInvoiceDetail={handleViewInvoiceDetail}
+          linkedTenants={[xeroLink]}
         />
       </CardContent>
     </Card>
@@ -427,7 +626,7 @@ function JobsSubTab({ contact }: { contact: Contact }) {
               <div key={job.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                 <Link
                   href={`/jobs/${job.id}`}
-                  className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                  className="font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                 >
                   {job.title || `Job #${job.id}`}
                   <ExternalLink className="h-3 w-3" />
@@ -454,39 +653,136 @@ function JobsSubTab({ contact }: { contact: Contact }) {
 // Purchase Orders Sub-Tab
 // ================================
 
+interface PurchaseOrder {
+  id: number;
+  purchase_order_number: string;
+  status: string;
+  total: number | null;
+  sub_total: number | null;
+  required_date: string | null;
+  ordered_date: string | null;
+  description: string | null;
+  job?: {
+    id: number;
+    title: string;
+    job_code: string;
+  } | null;
+  supplier?: {
+    id: number;
+    display_name: string;
+  } | null;
+}
+
+interface PurchaseOrdersResponse {
+  purchase_orders: PurchaseOrder[];
+  pagination: {
+    current_page: number;
+    total_pages: number;
+    total_count: number;
+    per_page: number;
+  };
+}
+
 function PurchaseOrdersSubTab({ contact }: { contact: Contact }) {
-  const purchaseOrders = (contact as any).purchase_orders;
+  const router = useRouter();
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    loadPurchaseOrders();
+  }, [contact.id]);
+
+  const loadPurchaseOrders = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get<PurchaseOrdersResponse>(
+        `/api/v1/purchase_orders?supplier_id=${contact.id}&per_page=100`
+      );
+
+      if (response?.purchase_orders) {
+        setPurchaseOrders(response.purchase_orders);
+        setTotal(response.pagination?.total_count || response.purchase_orders.length);
+      }
+    } catch (err) {
+      console.error("Failed to load purchase orders:", err);
+      setError(err instanceof Error ? err.message : "Failed to load purchase orders");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Define columns for TeeemTableView
+  const columns: TableColumn[] = useMemo(() => [
+    { key: "purchase_order_number", label: "PO #", width: 120, sortable: true },
+    { key: "job_title", label: "Job", width: 250, sortable: true },
+    { key: "description", label: "Description", width: 200, sortable: true },
+    { key: "status", label: "Status", width: 100, sortable: true, column_type: "badge" },
+    { key: "required_date", label: "Required", width: 110, sortable: true, column_type: "date" },
+    { key: "ordered_date", label: "Ordered", width: 110, sortable: true, column_type: "date" },
+    { key: "total", label: "Total", width: 120, sortable: true, column_type: "currency", showSum: true, sumType: "currency" },
+  ], []);
+
+  // Transform to rows
+  const rows: TableRow[] = useMemo(() => {
+    return purchaseOrders.map((po) => ({
+      id: po.id,
+      purchase_order_number: po.purchase_order_number,
+      job_id: po.job?.id,
+      job_title: po.job ? `${po.job.job_code} - ${po.job.title}` : null,
+      description: po.description,
+      status: po.status?.toUpperCase(),
+      required_date: po.required_date,
+      ordered_date: po.ordered_date,
+      total: po.total,
+    }));
+  }, [purchaseOrders]);
+
+  const handleRowClick = (row: TableRow) => {
+    if (row.id) {
+      router.push(`/purchase-orders/${row.id}`);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Spinner size={32} className="text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Purchase Orders</CardTitle>
+        <CardTitle className="flex items-center justify-between">
+          <span>Purchase Orders</span>
+          {total > 0 && (
+            <Badge variant="secondary">{total}</Badge>
+          )}
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        {purchaseOrders && purchaseOrders.length > 0 ? (
-          <div className="space-y-3">
-            {purchaseOrders.map((po: any) => (
-              <div key={po.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="font-semibold">PO #{po.po_number || po.id}</div>
-                    {po.job_title && (
-                      <div className="text-sm text-muted-foreground mt-1">
-                        Job: {po.job_title}
-                      </div>
-                    )}
-                    {po.total && (
-                      <div className="text-sm font-medium mt-2">
-                        Total: ${po.total.toLocaleString()}
-                      </div>
-                    )}
-                  </div>
-                  {po.status && (
-                    <Badge variant="secondary">{po.status}</Badge>
-                  )}
-                </div>
-              </div>
-            ))}
+        {purchaseOrders.length > 0 ? (
+          <div className="-mx-6">
+            <TeeemTableView
+              entries={rows}
+              columns={columns}
+              tableName="Purchase Orders"
+              onRowClick={handleRowClick}
+              viewOnly={true}
+              enableExport={true}
+            />
           </div>
         ) : (
           <p className="text-muted-foreground text-center py-8">

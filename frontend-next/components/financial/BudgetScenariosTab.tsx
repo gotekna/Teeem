@@ -32,6 +32,7 @@ import {
   Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatPercentChange } from "@/utils/formatters";
 
 interface BudgetScenario {
   id: number;
@@ -51,20 +52,6 @@ interface BudgetScenario {
     total_expenses: number;
     net_income: number;
   };
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatPercent(pct: number): string {
-  const sign = pct >= 0 ? "+" : "";
-  return `${sign}${pct.toFixed(1)}%`;
 }
 
 export default function BudgetScenariosTab() {
@@ -136,7 +123,7 @@ export default function BudgetScenariosTab() {
   const getStatusBadge = (scenario: BudgetScenario) => {
     if (scenario.is_default) {
       return (
-        <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+        <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
           <Star className="h-3 w-3 mr-1" />
           Default
         </Badge>
@@ -146,7 +133,7 @@ export default function BudgetScenariosTab() {
     switch (scenario.status) {
       case "active":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Active
           </Badge>
@@ -171,21 +158,21 @@ export default function BudgetScenariosTab() {
         return <Badge variant="outline">Base</Badge>;
       case "optimistic":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <TrendingUp className="h-3 w-3 mr-1" />
             Optimistic
           </Badge>
         );
       case "pessimistic":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400">
             <TrendingDown className="h-3 w-3 mr-1" />
             Pessimistic
           </Badge>
         );
       case "stretch":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             Stretch
           </Badge>
         );
@@ -250,11 +237,11 @@ export default function BudgetScenariosTab() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {formatCurrency(defaultScenario.summary.total_revenue)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {formatPercent(defaultScenario.revenue_adjustment_pct)} adjustment
+                  {formatPercentChange(defaultScenario.revenue_adjustment_pct)} adjustment
                 </p>
               </CardContent>
             </Card>
@@ -266,7 +253,7 @@ export default function BudgetScenariosTab() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${defaultScenario.summary.net_income >= 0 ? "text-green-600" : "text-red-600"}`}>
+                <div className={`text-2xl font-bold ${defaultScenario.summary.net_income >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                   {formatCurrency(defaultScenario.summary.net_income)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">projected profit</p>
@@ -353,13 +340,13 @@ export default function BudgetScenariosTab() {
                     <TableCell>{getTypeBadge(scenario.scenario_type)}</TableCell>
                     <TableCell>{scenario.fiscal_year}</TableCell>
                     <TableCell className="text-center">
-                      <span className={scenario.revenue_adjustment_pct >= 0 ? "text-green-600" : "text-red-600"}>
-                        {formatPercent(scenario.revenue_adjustment_pct)}
+                      <span className={scenario.revenue_adjustment_pct >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                        {formatPercentChange(scenario.revenue_adjustment_pct)}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <span className={scenario.expense_adjustment_pct <= 0 ? "text-green-600" : "text-red-600"}>
-                        {formatPercent(scenario.expense_adjustment_pct)}
+                      <span className={scenario.expense_adjustment_pct <= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                        {formatPercentChange(scenario.expense_adjustment_pct)}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">{getStatusBadge(scenario)}</TableCell>

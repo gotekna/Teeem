@@ -28,6 +28,8 @@ import {
   Send,
   CheckCircle,
 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 interface GenerateContractModalProps {
   open: boolean;
@@ -64,6 +66,7 @@ export function GenerateContractModal({
   lead,
   onContractGenerated,
 }: GenerateContractModalProps) {
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>("builder");
   const [loading, setLoading] = useState(false);
   const [generatedPdfUrl, setGeneratedPdfUrl] = useState<string | null>(null);
@@ -165,21 +168,12 @@ export function GenerateContractModal({
     } catch (error) {
       console.error("Failed to send for signature:", error);
       // For demo: simulate success
-      alert("Contract sent for signature! (Demo mode)");
+      toast({ title: "Success", description: "Contract sent for signature! (Demo mode)" });
       onContractGenerated();
       onOpenChange(false);
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   return (
@@ -554,13 +548,13 @@ export function GenerateContractModal({
                           Contract Price:
                         </span>{" "}
                         <span className="font-medium font-mono">
-                          {formatCurrency(contractData.contract_price)}
+                          {formatCurrencyWhole(contractData.contract_price)}
                         </span>
                       </p>
                       <p>
                         <span className="text-muted-foreground">Deposit:</span>{" "}
                         <span className="font-medium font-mono">
-                          {formatCurrency(contractData.deposit_amount)}
+                          {formatCurrencyWhole(contractData.deposit_amount)}
                         </span>
                       </p>
                       <p className="text-muted-foreground">
@@ -591,7 +585,7 @@ export function GenerateContractModal({
             <div className="space-y-4">
               <div className="text-center py-6">
                 <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FileText className="h-8 w-8 text-green-600" />
+                  <FileText className="h-8 w-8 text-green-600 dark:text-green-400" />
                 </div>
                 <h3 className="text-lg font-medium">Contract Generated</h3>
                 <p className="text-sm text-muted-foreground mt-1">

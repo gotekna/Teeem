@@ -1,7 +1,8 @@
 require "anthropic"
 
 class JobEstimatorService
-  CLAUDE_MODEL = "claude-3-haiku-20240307"
+  include AnthropicClient
+  # SSoT: Use AnthropicClient constants for model names
   MAX_TOKENS = 2000
 
   class AIExtractionError < StandardError; end
@@ -25,7 +26,7 @@ class JobEstimatorService
       success: true,
       analysis: analysis,
       processing_time_ms: processing_time,
-      ai_model_used: CLAUDE_MODEL
+      ai_model_used: CLAUDE_HAIKU
     }
   rescue JSON::ParserError => e
     Rails.logger.error "Claude returned invalid JSON: #{e.message}"
@@ -149,7 +150,7 @@ class JobEstimatorService
 
     response = client.messages(
       parameters: {
-        model: CLAUDE_MODEL,
+        model: CLAUDE_HAIKU,
         max_tokens: MAX_TOKENS,
         messages: [
           {

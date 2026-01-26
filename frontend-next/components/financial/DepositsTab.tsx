@@ -33,6 +33,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Deposit {
   id: number;
@@ -61,22 +62,6 @@ interface DepositSummary {
   unapplied_amount: number;
   refunded_amount: number;
   by_type: Array<{ type: string; count: number; amount: number }>;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function DepositsTab() {
@@ -132,21 +117,21 @@ export default function DepositsTab() {
     switch (deposit.status) {
       case "unapplied":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
             <Clock className="h-3 w-3 mr-1" />
             Unapplied
           </Badge>
         );
       case "partially_applied":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <ArrowRight className="h-3 w-3 mr-1" />
             Partial
           </Badge>
         );
       case "fully_applied":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Applied
           </Badge>
@@ -224,7 +209,7 @@ export default function DepositsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {formatCurrency(summary?.unapplied_amount || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">available to apply</p>
@@ -238,7 +223,7 @@ export default function DepositsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(summary?.applied_amount || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">to invoices</p>
@@ -269,7 +254,7 @@ export default function DepositsTab() {
             <div className="space-y-1">
               {summary?.by_type?.slice(0, 3).map((t) => (
                 <div key={t.type} className="flex justify-between text-xs">
-                  <span className="text-muted-foreground capitalize">{t.type.replace("_", " ")}</span>
+                  <span className="text-muted-foreground capitalize">{(t.type || 'other').replace("_", " ")}</span>
                   <span className="font-medium">{t.count}</span>
                 </div>
               ))}
@@ -377,7 +362,7 @@ export default function DepositsTab() {
                     <TableCell className="text-right text-muted-foreground">
                       {formatCurrency(deposit.applied_amount)}
                     </TableCell>
-                    <TableCell className={`text-right font-medium ${deposit.balance > 0 ? "text-yellow-600" : ""}`}>
+                    <TableCell className={`text-right font-medium ${deposit.balance > 0 ? "text-yellow-600 dark:text-yellow-400" : ""}`}>
                       {formatCurrency(deposit.balance)}
                     </TableCell>
                     <TableCell className="text-center">

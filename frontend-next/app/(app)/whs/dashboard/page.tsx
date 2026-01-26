@@ -147,7 +147,7 @@ export default function WhsDashboardPage() {
     <div className="container py-6">
       <div className="mb-8">
         <h1 className="flex items-center gap-3 text-3xl font-bold">
-          <ShieldCheckIcon className="h-8 w-8 text-blue-600" />
+          <ShieldCheckIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
           WHS Dashboard
         </h1>
         <p className="mt-2 text-muted-foreground">
@@ -162,7 +162,7 @@ export default function WhsDashboardPage() {
           subtitle="Approved"
           subtitleValue={stats.swms.approved}
           icon={DocumentTextIcon}
-          color="text-blue-600"
+          color="text-blue-600 dark:text-blue-400"
           link="/whs/swms"
         />
 
@@ -172,7 +172,7 @@ export default function WhsDashboardPage() {
           subtitle="Completed"
           subtitleValue={stats.inspections.completed}
           icon={ClipboardDocumentCheckIcon}
-          color="text-green-600"
+          color="text-green-600 dark:text-green-400"
           link="/whs/inspections"
         />
 
@@ -182,7 +182,7 @@ export default function WhsDashboardPage() {
           subtitle="LTI / Near Miss"
           subtitleValue={`${stats.incidents.lti} / ${stats.incidents.nearMiss}`}
           icon={ExclamationTriangleIcon}
-          color="text-orange-600"
+          color="text-orange-600 dark:text-orange-400"
           link="/whs/incidents"
         />
 
@@ -192,7 +192,7 @@ export default function WhsDashboardPage() {
           subtitle="Valid Certificates"
           subtitleValue={stats.inductions.valid}
           icon={AcademicCapIcon}
-          color="text-purple-600"
+          color="text-purple-600 dark:text-purple-400"
           link="/whs/inductions"
         />
 
@@ -249,28 +249,28 @@ export default function WhsDashboardPage() {
                 href="/whs/swms"
                 className="rounded-lg bg-muted p-4 text-center transition-colors hover:bg-muted/80"
               >
-                <DocumentTextIcon className="mx-auto mb-2 h-8 w-8 text-blue-600" />
+                <DocumentTextIcon className="mx-auto mb-2 h-8 w-8 text-blue-600 dark:text-blue-400" />
                 <p className="text-sm font-medium">SWMS</p>
               </Link>
               <Link
                 href="/whs/inspections"
                 className="rounded-lg bg-muted p-4 text-center transition-colors hover:bg-muted/80"
               >
-                <ClipboardDocumentCheckIcon className="mx-auto mb-2 h-8 w-8 text-green-600" />
+                <ClipboardDocumentCheckIcon className="mx-auto mb-2 h-8 w-8 text-green-600 dark:text-green-400" />
                 <p className="text-sm font-medium">Inspections</p>
               </Link>
               <Link
                 href="/whs/incidents"
                 className="rounded-lg bg-muted p-4 text-center transition-colors hover:bg-muted/80"
               >
-                <ExclamationTriangleIcon className="mx-auto mb-2 h-8 w-8 text-orange-600" />
+                <ExclamationTriangleIcon className="mx-auto mb-2 h-8 w-8 text-orange-600 dark:text-orange-400" />
                 <p className="text-sm font-medium">Incidents</p>
               </Link>
               <Link
                 href="/whs/inductions"
                 className="rounded-lg bg-muted p-4 text-center transition-colors hover:bg-muted/80"
               >
-                <AcademicCapIcon className="mx-auto mb-2 h-8 w-8 text-purple-600" />
+                <AcademicCapIcon className="mx-auto mb-2 h-8 w-8 text-purple-600 dark:text-purple-400" />
                 <p className="text-sm font-medium">Inductions</p>
               </Link>
             </div>

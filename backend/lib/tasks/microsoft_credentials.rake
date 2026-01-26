@@ -97,7 +97,7 @@ namespace :microsoft_credentials do
       puts "   Owner: #{owner}"
       puts "   Status: #{cred.status}"
       puts "   Token expires: #{cred.token_expires_at&.strftime('%Y-%m-%d %H:%M')}"
-      puts "   SharePoint: #{cred.sharepoint_configured? ? 'configured' : 'not configured'}"
+      puts "   SharePoint: #{StorageConfiguration.instance&.connected? ? 'configured' : 'not configured'}"
       puts ""
     end
 

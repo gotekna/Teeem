@@ -4,8 +4,11 @@
  * Breadcrumb Trail Bar
  *
  * Shows navigation path as clickable breadcrumbs.
- * Position: Below HeaderBar (top-12), respects sidebar width
+ * Position: Below HeaderBar, respects sidebar width
  * Always visible when trail has items.
+ *
+ * Props:
+ * - topOffset: Distance from top (default: 48px for HeaderBar)
  *
  * Features:
  * - Horizontal scroll for overflow
@@ -78,7 +81,12 @@ function getIconComponent(iconName?: string): React.ElementType | null {
  */
 export const BREADCRUMB_BAR_HEIGHT = 36;
 
-export function BreadcrumbTrail() {
+interface BreadcrumbTrailProps {
+  /** Distance from top of viewport (default: 48px for HeaderBar) */
+  topOffset?: number;
+}
+
+export function BreadcrumbTrail({ topOffset = 48 }: BreadcrumbTrailProps) {
   const trail = useAtomValue(breadcrumbTrailAtom);
   const isTableFullscreen = useAtomValue(tableFullscreenAtom);
   const router = useRouter();
@@ -104,11 +112,11 @@ export function BreadcrumbTrail() {
   return (
     <div
       className={cn(
-        // Position: Below HeaderBar (h-12 = 48px), respects sidebar
+        // Position: Below HeaderBar, respects sidebar
         // z-[110] to appear above fullscreen tabs like Plans (z-[100])
-        "fixed top-12 right-0 z-[110] hidden md:block"
+        "fixed right-0 z-[110] hidden md:block"
       )}
-      style={{ left: leftOffset }}
+      style={{ left: leftOffset, top: topOffset }}
     >
       <div className="bg-background/95 backdrop-blur-sm border-b shadow-sm">
         <div className="px-4 py-1.5 flex items-center">
@@ -127,7 +135,11 @@ export function BreadcrumbTrail() {
 
                   {/* Breadcrumb button */}
                   <button
-                    onClick={() => !isLast && handleItemClick(item)}
+                    onClick={() => {
+                      if (!isLast) {
+                        handleItemClick(item);
+                      }
+                    }}
                     disabled={isLast}
                     className={cn(
                       "flex items-center gap-1.5 px-2 py-1 rounded text-sm transition-colors",

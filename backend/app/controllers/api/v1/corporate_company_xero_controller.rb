@@ -158,11 +158,18 @@ module Api
 
       # GET /api/v1/companies/:company_id/xero/authorize
       # Returns the OAuth authorization URL for connecting to Xero
+      # Uses Origin header to determine redirect_uri for multi-environment support
       def authorize
         Rails.logger.info("[Xero Authorize] Company #{@company.id} (#{@company.name}) requesting authorization URL")
 
+        # Build redirect_uri from Origin header if whitelisted
+        origin = request.headers["Origin"]
+        redirect_uri = XeroApiClient.redirect_uri_for_origin(origin)
+
+        Rails.logger.info("[Xero Authorize] Origin: #{origin}, redirect_uri: #{redirect_uri || 'using default'}")
+
         # Note: company_id is passed via state parameter in OAuth flow, not session
-        client = XeroApiClient.new
+        client = XeroApiClient.new(redirect_uri: redirect_uri)
         auth_url = client.authorization_url_for_company(@company.id)
 
         Rails.logger.info("[Xero Authorize] Generated auth URL for company #{@company.id}: #{auth_url[0..100]}...")

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,7 @@ export default function BpmnProcessesPage() {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   // URL is SSoT for tab state (path-based navigation)
   const activeTab = useMemo(() => {
@@ -222,7 +224,7 @@ export default function BpmnProcessesPage() {
   }, [activeTab, fetchInstances]);
 
   const handleCancelInstance = async (instanceId: number) => {
-    if (!confirm("Are you sure you want to cancel this workflow instance?")) return;
+    if (!(await confirm("Are you sure you want to cancel this workflow instance?"))) return;
     try {
       const response = await api.post<{ success: boolean }>(`/api/v1/bpmn_process_instances/${instanceId}/cancel`, {
         reason: "Cancelled by user",
@@ -299,15 +301,15 @@ export default function BpmnProcessesPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "active":
-        return <Play className="h-4 w-4 text-blue-500" />;
+        return <Play className="h-4 w-4 text-blue-500 dark:text-blue-400" />;
       case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />;
       case "failed":
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-red-500 dark:text-red-400" />;
       case "cancelled":
         return <StopCircle className="h-4 w-4 text-muted-foreground" />;
       case "suspended":
-        return <Pause className="h-4 w-4 text-yellow-500" />;
+        return <Pause className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />;
       default:
         return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
@@ -315,11 +317,11 @@ export default function BpmnProcessesPage() {
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, string> = {
-      active: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-      completed: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-      failed: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+      active: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300",
+      completed: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900 dark:text-green-300",
+      failed: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900 dark:text-red-300",
       cancelled: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground",
-      suspended: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
+      suspended: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900 dark:text-yellow-300",
     };
     return (
       <Badge className={variants[status] || variants.cancelled}>
@@ -359,7 +361,7 @@ export default function BpmnProcessesPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this workflow?")) return;
+    if (!(await confirm("Are you sure you want to delete this workflow?"))) return;
 
     try {
       const response = await api.delete<ApiResponse>(`/api/v1/bpmn_processes/${id}`);
@@ -572,7 +574,7 @@ export default function BpmnProcessesPage() {
                       )}
                       <DropdownMenuItem
                         onClick={() => handleDelete(process.id)}
-                        className="text-red-600"
+                        className="text-red-600 dark:text-red-400"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
@@ -711,7 +713,7 @@ export default function BpmnProcessesPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           {instance.pending_tasks > 0 && (
-                            <Badge variant="outline" className="text-orange-600 border-orange-300 dark:border-orange-700">
+                            <Badge variant="outline" className="text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-700">
                               {instance.pending_tasks} pending
                             </Badge>
                           )}
@@ -735,7 +737,7 @@ export default function BpmnProcessesPage() {
                               {instance.status === "active" && (
                                 <DropdownMenuItem
                                   onClick={() => handleCancelInstance(instance.id)}
-                                  className="text-red-600"
+                                  className="text-red-600 dark:text-red-400"
                                 >
                                   <StopCircle className="mr-2 h-4 w-4" />
                                   Cancel

@@ -476,7 +476,7 @@ export function AiProcessingTab() {
                     {log.user_corrected ? (
                       <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
                     ) : (
-                      <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                      <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400 shrink-0" />
                     )}
 
                     {/* File/Input */}

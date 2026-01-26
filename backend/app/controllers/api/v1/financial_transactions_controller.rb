@@ -1,8 +1,11 @@
 module Api
   module V1
     class FinancialTransactionsController < ApplicationController
+      include PresignedUploadHandler
+
       before_action :set_transaction, only: [ :show, :update, :destroy, :post ]
       before_action :set_company, only: [ :index, :create ]
+      before_action :resolve_receipt_from_storage_key, only: [ :create, :update ]
 
       # GET /api/v1/financial_transactions
       def index
@@ -192,6 +195,17 @@ module Api
         )
       end
 
+      # SSoT: Convert storage_key to receipt file for presigned URL uploads
+      def resolve_receipt_from_storage_key
+        return if params.dig(:transaction, :receipt).present?
+        return unless params.dig(:transaction, :receipt_storage_key).present?
+
+        receipt_file = download_from_storage(params[:transaction][:receipt_storage_key])
+        if receipt_file
+          params[:transaction][:receipt] = receipt_file
+        end
+      end
+
       def apply_filters(scope)
         # Filter by transaction type
         scope = scope.where(transaction_type: params[:transaction_type]) if params[:transaction_type].present?
@@ -252,10 +266,12 @@ module Api
           can_delete: transaction.can_delete?
         }
 
-        if include_receipt && transaction.sharepoint_file_id.present?
+        if include_receipt && transaction.storage_reference.present?
           data[:receipt] = {
             has_receipt: true,
-            sharepoint_file_id: transaction.sharepoint_file_id,
+            # SSoT: Use storage_reference, keep key for backwards compat
+            sharepoint_file_id: transaction.storage_reference,
+            storage_reference: transaction.storage_reference,
             filename: transaction.receipt.attached? ? transaction.receipt.filename.to_s : nil
           }
         end

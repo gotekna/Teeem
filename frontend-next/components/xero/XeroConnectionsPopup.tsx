@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { X, CheckCircle, XCircle, RefreshCw, Building2, Calendar, ArrowRight, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 interface CompanyLink {
   id: number;
@@ -50,6 +51,7 @@ interface XeroConnectionsPopupProps {
 }
 
 export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupProps) {
+  const { toast } = useToast();
   const [organizations, setOrganizations] = useState<XeroOrganization[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +116,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
       }
     } catch (error) {
       console.error("Failed to get Xero auth URL:", error);
-      alert("Failed to connect to Xero. Please try again.");
+      toast({ title: "Error", description: "Failed to connect to Xero. Please try again.", variant: "destructive" });
     }
   };
 
@@ -129,11 +131,11 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
       if (response && response.success) {
         // Reload connections to show the new link
         await loadConnections();
-        alert("Successfully linked company to Xero organization!");
+        toast({ title: "Success", description: "Successfully linked company to Xero organization" });
       }
     } catch (error) {
       console.error("Failed to link company:", error);
-      alert("Failed to link company. Please try again.");
+      toast({ title: "Error", description: "Failed to link company. Please try again.", variant: "destructive" });
     } finally {
       setLinkingTenantId(null);
     }
@@ -197,7 +199,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
         <div className="overflow-y-auto overflow-x-hidden p-4 flex-1">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+              <RefreshCw className="h-8 w-8 animate-spin text-blue-500 dark:text-blue-400" />
             </div>
           ) : organizations.length === 0 ? (
             <div className="py-12 text-center">
@@ -220,17 +222,17 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                       <div className="relative">
                         {(org.display_status === 'connected' || (!org.display_status && org.connected)) ? (
                           <>
-                            <CheckCircle className="h-6 w-6 text-green-500" />
+                            <CheckCircle className="h-6 w-6 text-green-500 dark:text-green-400" />
                             <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-border" />
                           </>
                         ) : (org.display_status === 'warning' || org.degraded || org.status === 'degraded') ? (
                           <>
-                            <AlertTriangle className="h-6 w-6 text-orange-500" />
+                            <AlertTriangle className="h-6 w-6 text-orange-500 dark:text-orange-400" />
                             <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-orange-500 border-2 border-white dark:border-border" />
                           </>
                         ) : (
                           <>
-                            <XCircle className="h-6 w-6 text-red-500" />
+                            <XCircle className="h-6 w-6 text-red-500 dark:text-red-400" />
                             <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-border" />
                           </>
                         )}
@@ -294,11 +296,11 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                             {/* Company Status - SSoT: Uses display_status from backend */}
                             <div>
                               {(connection.display_status === 'connected' || (!connection.display_status && connection.connected)) ? (
-                                <CheckCircle className="h-4 w-4 text-green-500" />
+                                <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                               ) : connection.display_status === 'warning' ? (
-                                <AlertTriangle className="h-4 w-4 text-orange-500" />
+                                <AlertTriangle className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                               ) : (
-                                <XCircle className="h-4 w-4 text-red-500" />
+                                <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
                               )}
                             </div>
 

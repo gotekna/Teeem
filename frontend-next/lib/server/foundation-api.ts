@@ -7,12 +7,16 @@
  */
 
 import { cookies } from 'next/headers';
-import { getApiBaseUrl } from '@/lib/api';
 import { isHiddenSystemColumn, isVisibleSystemColumn } from '@/lib/constants/system-columns';
 import { selectDefaultView } from '@/lib/view-loading-utils';
 import type { SavedView } from '@/components/table/types';
 
-const API_BASE_URL = getApiBaseUrl();
+// SSR always uses env variable directly - no localStorage on server
+const getServerApiUrl = () => {
+  const url = process.env.NEXT_PUBLIC_API_URL || 'https://teeem-production-121159e1ff9d.herokuapp.com';
+  console.log('[SSR] API URL:', url);
+  return url;
+};
 
 interface ApiColumn {
   id: number;
@@ -108,7 +112,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
 
   try {
     // Fetch foundation metadata
-    const foundationRes = await fetch(`${API_BASE_URL}/api/v1/foundations/${slug}`, {
+    const foundationRes = await fetch(`${getServerApiUrl()}/api/v1/foundations/${slug}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -127,7 +131,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     // Use cursor-based pagination: initial load is 100 records for instant page load
     // More records will be loaded in background by ContactsPageClient
     const recordsRes = await fetch(
-      `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?limit=100`,
+      `${getServerApiUrl()}/api/v1/foundations/${foundation.id}/records?limit=100`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -278,14 +282,14 @@ export async function fetchFoundationForSSR(
   try {
     // Build parallel fetch promises - always fetch views to enable default view SSR
     const fetchPromises: Promise<Response>[] = [
-      fetch(`${API_BASE_URL}/api/v1/foundations/${slug}`, {
+      fetch(`${getServerApiUrl()}/api/v1/foundations/${slug}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         cache: 'no-store',
       }),
-      fetch(`${API_BASE_URL}/api/v1/foundations/${slug}/records?limit=${limit}`, {
+      fetch(`${getServerApiUrl()}/api/v1/foundations/${slug}/records?limit=${limit}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -293,7 +297,7 @@ export async function fetchFoundationForSSR(
         cache: 'no-store',
       }),
       // Always fetch views to enable default view SSR (eliminates CLS from view loading)
-      fetch(`${API_BASE_URL}/api/v1/foundation_views?foundation_id=${slug}`, {
+      fetch(`${getServerApiUrl()}/api/v1/foundation_views?foundation_id=${slug}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -374,7 +378,7 @@ export async function fetchFoundationForSSR(
       try {
         const groupByParam = groupByColumns.join(',');
         const groupsRes = await fetch(
-          `${API_BASE_URL}/api/v1/foundations/${foundation.id}/groups?group_by=${encodeURIComponent(groupByParam)}`,
+          `${getServerApiUrl()}/api/v1/foundations/${foundation.id}/groups?group_by=${encodeURIComponent(groupByParam)}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -493,7 +497,7 @@ export async function fetchViewBySlug(
     // This is more reliable than a direct slug lookup since views can have
     // the same slug across different foundations
     const viewsRes = await fetch(
-      `${API_BASE_URL}/api/v1/foundation_views?foundation_id=${foundationSlug}`,
+      `${getServerApiUrl()}/api/v1/foundation_views?foundation_id=${foundationSlug}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,

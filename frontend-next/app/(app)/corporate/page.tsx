@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
+import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -363,7 +365,7 @@ function ShareholdersTable() {
               <TableCell className="py-2 px-3">
                 <button
                   onClick={() => router.push(`/corporate/companies/${sh.company_id}`)}
-                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
                 >
                   {sh.company_name}
                 </button>
@@ -459,7 +461,7 @@ function BeneficiariesTable() {
               <TableCell className="py-2 px-3">
                 <button
                   onClick={() => router.push(`/corporate/companies/${b.trust_id}`)}
-                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
                 >
                   {b.trust_name}
                 </button>
@@ -482,14 +484,17 @@ function BeneficiariesTable() {
 
 export default function CorporateDashboardPage() {
   useSetLayoutMode("full-height");
+  const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
+  const { confirm } = useConfirm();
 
   // Parse tab from path: /corporate/structure → "structure", /corporate → "groups"
   const activeTab = React.useMemo(() => {
     const parts = pathname.replace("/corporate", "").split("/").filter(Boolean);
-    // Skip "companies" and other sub-routes (they have their own pages)
-    const VALID_TABS = ["groups", "memberships", "people", "structure"];
+    // Valid tab values that map to TabsContent values
+    // Note: /corporate/companies/123 (detail pages) have their own route files
+    const VALID_TABS = ["groups", "companies", "memberships", "people", "shareholders", "beneficiaries", "structure"];
     if (parts[0] && VALID_TABS.includes(parts[0])) {
       return parts[0];
     }
@@ -592,14 +597,14 @@ export default function CorporateDashboardPage() {
       const response = await api.post<SyncResponse>('/api/v1/xero/sync_all_companies', undefined, { timeout: API_TIMEOUT_HEAVY_SYNC });
       if (response?.success && response?.data) {
         const data = response.data;
-        alert(`Xero Sync Complete!\n\nTotal: ${data.total_companies} companies\nSuccessful: ${data.successful}\nFailed: ${data.failed}`);
+        toast({ title: "Xero Sync Complete", description: `Total: ${data.total_companies} companies, Successful: ${data.successful}, Failed: ${data.failed}` });
       } else {
-        alert(`Xero Sync Failed: ${response?.error || 'Unknown error'}`);
+        toast({ title: "Error", description: `Xero Sync Failed: ${response?.error || 'Unknown error'}`, variant: "destructive" });
       }
     } catch (error: unknown) {
       console.error('Xero sync error:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Xero Sync Error: ${message}`);
+      toast({ title: "Error", description: `Xero Sync Error: ${message}`, variant: "destructive" });
     } finally {
       setSyncingXero(false);
     }
@@ -890,7 +895,7 @@ export default function CorporateDashboardPage() {
   };
 
   const handleDelete = async (entry: TeeemTableRow) => {
-    if (!confirm(`Delete company "${entry.name}"? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete company "${entry.name}"? This cannot be undone.`))) return;
 
     try {
       await api.delete(`/api/v1/companies/${entry.id}`);
@@ -955,7 +960,7 @@ export default function CorporateDashboardPage() {
 
   const handleCreateGroup = async () => {
     if (!newGroupForm.name.trim()) {
-      alert("Group name is required");
+      toast({ title: "Validation Error", description: "Group name is required", variant: "destructive" });
       return;
     }
 
@@ -970,10 +975,11 @@ export default function CorporateDashboardPage() {
         setGroupsMap(prev => ({ ...prev, [response.data!.id]: response.data!.name }));
         setShowCreateGroupDialog(false);
         resetGroupForm();
+        toast({ title: "Success", description: "Group created successfully" });
       }
     } catch (err) {
       console.error("Failed to create group:", err);
-      alert("Failed to create group. Please try again.");
+      toast({ title: "Error", description: "Failed to create group. Please try again.", variant: "destructive" });
     } finally {
       setSavingGroup(false);
     }
@@ -981,7 +987,7 @@ export default function CorporateDashboardPage() {
 
   const handleUpdateGroup = async () => {
     if (!editingGroup || !newGroupForm.name.trim()) {
-      alert("Group name is required");
+      toast({ title: "Validation Error", description: "Group name is required", variant: "destructive" });
       return;
     }
 
@@ -997,10 +1003,11 @@ export default function CorporateDashboardPage() {
         setGroupsMap(prev => ({ ...prev, [response.data.id]: response.data.name }));
         setShowCreateGroupDialog(false);
         resetGroupForm();
+        toast({ title: "Success", description: "Group updated successfully" });
       }
     } catch (err) {
       console.error("Failed to update group:", err);
-      alert("Failed to update group. Please try again.");
+      toast({ title: "Error", description: "Failed to update group. Please try again.", variant: "destructive" });
     } finally {
       setSavingGroup(false);
     }
@@ -1008,11 +1015,18 @@ export default function CorporateDashboardPage() {
 
   const handleDeleteGroup = async (group: CompanyGroup) => {
     if (group.companies_count && group.companies_count > 0) {
-      alert(`Cannot delete group with ${group.companies_count} companies. Reassign companies first.`);
+      toast({ title: "Cannot Delete", description: `Cannot delete group with ${group.companies_count} companies. Reassign companies first.`, variant: "destructive" });
       return;
     }
 
-    if (!confirm(`Delete group "${group.name}"? This cannot be undone.`)) return;
+    const confirmed = await confirm({
+      title: "Delete Group",
+      description: `Delete group "${group.name}"? This cannot be undone.`,
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
     try {
       await api.delete(`/api/v1/company_groups/${group.id}`);
@@ -1023,9 +1037,10 @@ export default function CorporateDashboardPage() {
       if (selectedGroupId === group.id) {
         setSelectedGroupId(null);
       }
+      toast({ title: "Success", description: "Group deleted successfully" });
     } catch (err) {
       console.error("Failed to delete group:", err);
-      alert("Failed to delete group. Please try again.");
+      toast({ title: "Error", description: "Failed to delete group. Please try again.", variant: "destructive" });
     }
   };
 
@@ -1052,7 +1067,7 @@ export default function CorporateDashboardPage() {
       case "person":
         return "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300";
       case "company":
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+        return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300";
       case "trust":
         return "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
       default:
@@ -1063,9 +1078,9 @@ export default function CorporateDashboardPage() {
   const getMembershipTypeBadgeColor = (type: string) => {
     switch (type) {
       case "director":
-        return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300";
+        return "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300";
       case "shareholder":
-        return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+        return "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-300";
       case "company_entity":
       case "trust_entity":
         return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300";
@@ -1192,7 +1207,7 @@ export default function CorporateDashboardPage() {
                   e.stopPropagation();
                   router.push(`/corporate/companies/${contact.linked_company_id}`);
                 }}
-                className="flex items-center gap-1 text-green-600 hover:text-green-800 hover:underline"
+                className="flex items-center gap-1 text-green-600 dark:text-green-400 hover:text-green-800 hover:underline"
                 title="View linked Company"
               >
                 <CheckCircle2 className="h-4 w-4" />
@@ -1229,7 +1244,7 @@ export default function CorporateDashboardPage() {
                   e.stopPropagation();
                   router.push(`/contacts/${contact.contact_id}`);
                 }}
-                className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center gap-1"
                 title="View Contact"
               >
                 <ExternalLink className="h-4 w-4" />
@@ -1270,7 +1285,7 @@ export default function CorporateDashboardPage() {
               {m.company_name && (
                 <button
                   onClick={() => router.push(`/corporate/companies/${m.company_id}`)}
-                  className="text-blue-600 hover:text-blue-800 text-sm"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 text-sm"
                 >
                   {m.company_name}
                 </button>
@@ -1414,7 +1429,7 @@ export default function CorporateDashboardPage() {
                               }}
                             >
                               <FolderOpen className="h-5 w-5 text-indigo-600" />
-                              <h3 className="font-medium">{group.name}</h3>
+                              <h3 className="text-sm font-medium">{group.name}</h3>
                               {group.active === false && (
                                 <Badge variant="secondary" className="text-xs">Inactive</Badge>
                               )}
@@ -1461,7 +1476,7 @@ export default function CorporateDashboardPage() {
                                           {company._level > 0 && (
                                             <span className="text-muted-foreground text-xs">└</span>
                                           )}
-                                          <Building2 className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
+                                          <Building2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                                           <span className="text-sm truncate">{company.name}</span>
                                           <button
                                             onClick={(e) => {
@@ -1471,22 +1486,22 @@ export default function CorporateDashboardPage() {
                                             className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
                                             title="Open Financial Dashboard"
                                           >
-                                            <DollarSign className="h-3.5 w-3.5 text-green-600" />
+                                            <DollarSign className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
                                           </button>
                                         </div>
                                         <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                                           {company.hierarchy_level === 0 && (
-                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-50 text-purple-700 border-purple-200">
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200">
                                               Parent
                                             </Badge>
                                           )}
                                           {(company.entity_type === "Trust" || company.entity_type === "Superfund") && (
-                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-50 text-emerald-700 border-emerald-200">
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200">
                                               Trust
                                             </Badge>
                                           )}
                                           {company.is_trustee && (
-                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700 border-amber-200">
+                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200">
                                               Trustee
                                             </Badge>
                                           )}
@@ -1495,7 +1510,7 @@ export default function CorporateDashboardPage() {
                                     ))}
                                     {hasMore && (
                                       <button
-                                        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 py-1 px-2 -mx-2"
+                                        className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 py-1 px-2 -mx-2"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setExpandedGroups(prev => {
@@ -1552,7 +1567,7 @@ export default function CorporateDashboardPage() {
         {/* Companies Tab */}
         <TabsContent value="companies" className="mt-4">
           <TeeemTableView
-            foundationId="companies"
+            foundationId="corporate_companies"
             tableName="All Companies"
             entries={companies}
             onRowDoubleClick={(company) => router.push(`/corporate/companies/${company.id}`)}
@@ -1646,7 +1661,7 @@ export default function CorporateDashboardPage() {
                                   </button>
                                   <button
                                     onClick={() => router.push(`/contacts/${person.id}`)}
-                                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center gap-1"
                                   >
                                     <ExternalLink className="h-4 w-4" />
                                     View
@@ -1676,7 +1691,7 @@ export default function CorporateDashboardPage() {
                     setFullScreenPerson(null);
                     router.push(`/contacts/${fullScreenPerson?.id}`);
                   }}
-                  className="bg-white/90 hover:bg-white shadow-sm"
+                  className="bg-white/90 hover:bg-white dark:bg-slate-900/90 dark:hover:bg-slate-900 shadow-sm"
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   View Contact
@@ -1685,7 +1700,7 @@ export default function CorporateDashboardPage() {
                   variant="outline"
                   size="icon"
                   onClick={() => setFullScreenPerson(null)}
-                  className="bg-white/90 hover:bg-white shadow-sm"
+                  className="bg-white/90 hover:bg-white dark:bg-slate-900/90 dark:hover:bg-slate-900 shadow-sm"
                 >
                   <X className="h-5 w-5" />
                 </Button>
@@ -1778,7 +1793,7 @@ export default function CorporateDashboardPage() {
                       <div key={entityType}>
                         <h3 className={`font-medium mb-2 flex items-center gap-2 ${
                           isPerson(entityType) ? "text-teal-600" :
-                          isCompany(entityType) ? "text-blue-600" :
+                          isCompany(entityType) ? "text-blue-600 dark:text-blue-400" :
                           isTrust(entityType) ? "text-rose-500" : "text-muted-foreground"
                         }`}>
                           {entityTypeLabels[entityType]} ({contacts.length})

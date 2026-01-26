@@ -291,12 +291,12 @@ export function PermissionsTab() {
                               </p>
                             </div>
                             {isFromRole && (
-                              <Badge variant="outline" className="text-green-600 border-green-600">
+                              <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-600">
                                 Role
                               </Badge>
                             )}
                             {isUserOverride && !isFromRole && (
-                              <Badge variant="outline" className="text-blue-600 border-blue-600">
+                              <Badge variant="outline" className="text-blue-600 dark:text-blue-400 border-blue-600">
                                 Override
                               </Badge>
                             )}

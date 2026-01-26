@@ -20,6 +20,8 @@ import {
 } from "@/types/leads";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
+import { useToast } from "@/components/ui/use-toast";
+import { formatCurrencyWhole } from "@/utils/formatters";
 import {
   Edit,
   FileText,
@@ -38,6 +40,7 @@ import {
 export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const pathname = usePathname();
   const leadId = params.id as string;
 
@@ -107,7 +110,7 @@ export default function LeadDetailPage() {
       }
     } catch (error) {
       console.error("Failed to convert lead:", error);
-      alert("Failed to convert lead to job. Please try again.");
+      toast({ title: "Error", description: "Failed to convert lead to job. Please try again.", variant: "destructive" });
     }
   };
 
@@ -118,15 +121,6 @@ export default function LeadDetailPage() {
   const handleContractGenerated = () => {
     // Reload lead to get updated status/contract info
     loadLead();
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   const formatDate = (dateString?: string) => {
@@ -249,7 +243,7 @@ export default function LeadDetailPage() {
               <span className="text-xs">Estimated Value</span>
             </div>
             <div className="text-2xl font-bold font-mono mt-1">
-              {formatCurrency(lead.estimated_value)}
+              {formatCurrencyWhole(lead.estimated_value)}
             </div>
           </CardContent>
         </Card>

@@ -1,4 +1,7 @@
 class PriceHistory < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   # Associations
   # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
   belongs_to :pricebook_item, class_name: "PricebookItem"

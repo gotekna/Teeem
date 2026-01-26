@@ -108,9 +108,10 @@ class Form43CertificateGenerator
       licensee_licence_number: supervisor.qbcc_licence_number,
       licensee_licence_class: supervisor.qbcc_licence_class,
       licensee_signature_data_url: supervisor.signature_data_url,
-      licensee_business_name: CompanySetting.trading_name || "Tekna Group",
-      licensee_address: CompanySetting.business_address,
-      licensee_phone: supervisor.mobile_phone || CompanySetting.business_phone,
+      # SSoT: Use CorporateCompanySetting for company details
+      licensee_business_name: CorporateCompanySetting.instance.company_name,
+      licensee_address: CorporateCompanySetting.instance.address,
+      licensee_phone: supervisor.mobile_phone || CorporateCompanySetting.instance.phone,
       licensee_email: supervisor.email,
 
       # Certification details
@@ -159,8 +160,8 @@ class Form43CertificateGenerator
     if document_type.file_name.present?
       document_type.generate_proposed_name(job: job, file_extension: "pdf")
     else
-      # Fallback filename
-      job_code = "J#{job.id.to_s.rjust(3, '0')}"
+      # Fallback filename - SSoT: use database column
+      job_code = job.job_code
       date = Date.current.strftime("%d-%m-%Y")
       "#{job_code} #{document_type.abbreviation || 'CERT'} Form43 #{date}.pdf"
     end

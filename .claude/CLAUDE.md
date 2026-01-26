@@ -112,11 +112,35 @@ For race condition fixes or non-obvious code, use this pattern:
 | `ultra` | Lazy thinking | Present 3 approaches, question assumptions, simplify |
 | `gold` | Wrong component/bad UI | Check THE ONE table, TeeemTableView, Tailwind, dark mode |
 | `frc` | Bandaid bug fix | Stop, investigate root cause, fix the gap not the symptom |
+| `lim` | Adding unnecessary code | Less Is More - search first, reuse, delete > add |
 
 **Before ANY code change:**
-1. **SSoT Check** - Is this defined elsewhere? Search first.
-2. **Ultra Think** (non-trivial) - 3 approaches? Assumptions? Remove instead of add?
-3. **Gold Standard** (UI) - THE ONE component? Tailwind config? Dark mode?
+1. **LIM Check** - Can existing code do this? Search `lib/` first.
+2. **SSoT Check** - Is this defined elsewhere? Search first.
+3. **Ultra Think** (non-trivial) - 3 approaches? Assumptions? Remove instead of add?
+4. **Gold Standard** (UI) - THE ONE component? Tailwind config? Dark mode?
+
+### `lim` - Less Is More (Auto-Trigger)
+
+**BEFORE writing ANY new code, Claude MUST:**
+
+1. **Search First** - Grep/Glob for similar functionality in codebase
+2. **Check SSoT Locations:**
+   - Constants? → `lib/constants/`
+   - Validation? → `lib/formatters/validation-formatters.ts`
+   - Components? → `lib/component-registry.ts`
+   - State? → `lib/table-atoms.ts`
+   - URL utils? → `lib/url-utils.ts`
+3. **If similar exists:** USE IT or EXTEND IT
+4. **If creating new:** Justify why existing code can't work
+
+**The Mantra:**
+- Delete > Add
+- Reuse > Create
+- Extend > Duplicate
+- Search > Assume
+
+**The goal:** Every new file/function should feel inevitable, not optional.
 
 ## 🔴 CRITICAL: SSoT Violations
 
@@ -130,6 +154,37 @@ When discovering duplicates:
 5. ✅ **Consolidate** - Implement THE ONE, delete duplicates, add guards
 
 **Examples:** Cache vs live data, same config in multiple files, duplicate constants, same logic in two services.
+
+## 🔴 CRITICAL: Before Adding ANY Database Column
+
+**The root_path problem:** Same column existed in 3 tables. Nobody knew which was THE ONE.
+
+### Pre-Column Checklist
+
+1. **Search first:** `grep -n "column_name" backend/db/schema.rb`
+2. **If found** → SSoT VIOLATION - use existing column
+3. **If similar exists** → Use existing table or extend it
+
+### Column Type Decision Tree
+
+| Data Type | SSoT Location | ❌ NOT Here |
+|-----------|---------------|-------------|
+| Storage paths/config | `StorageConfiguration` | Credential tables, settings |
+| Auth tokens/secrets | Appropriate credential table | Config tables |
+| Company settings | `CompanySetting` | `CorporateCompanySetting` (legacy) |
+| User preferences | `User` model | Settings tables |
+
+### Run Before Creating Migration
+
+```bash
+# Check for existing similar columns
+grep -n "COLUMN_NAME\|similar_name" backend/db/schema.rb
+
+# Run full backend audit
+/duplicate-detector  # Will run backend SSoT audit
+```
+
+**Mantra:** "One concept, one column, one table."
 
 ## 🔴 SSoT - Foundation API
 
@@ -153,12 +208,52 @@ When discovering duplicates:
 |----------|---------------|
 | `ASSIGNABLE_ROLES` | `User::ASSIGNABLE_ROLES` |
 | `COLUMN_TYPES` | `column_type_definitions` table (34 types, API: `/api/v1/column_type_definitions`) |
+| `LOOKUP_COLUMN_TYPES` | Backend: `Column::LOOKUP_COLUMN_TYPES`, Frontend: `lib/constants/column-types.ts` |
+| `CHOICE_COLUMN_TYPES` | Backend: `Column::CHOICE_COLUMN_TYPES`, Frontend: `lib/constants/column-types.ts` |
 | System columns | `lib/constants/system-columns.ts` |
 | Document types | `lib/constants/document-types.ts` |
+| Column types | `lib/constants/column-types.ts` (frontend helpers: `isLookupColumn()`, `isChoiceColumn()`) |
 | UI components | `lib/component-registry.ts` |
 | Storage paths | `StorageConfiguration` model (paths, templates, provider config) |
+| Foundation slugs | `lib/constants/foundation-slugs.ts` |
 
 **Rule:** Search `lib/constants/` before creating ANY constant.
+
+### Foundation Slugs (⚠️ HYPHEN VS UNDERSCORE)
+
+**Foundation slugs use MIXED conventions. NEVER guess - use the constant.**
+
+```typescript
+// ✅ CORRECT - Use the SSoT constant
+import { FOUNDATION_SLUGS } from '@/lib/constants/foundation-slugs';
+<TeeemTableView foundationId={FOUNDATION_SLUGS.PURCHASE_ORDERS} />
+
+// ❌ WRONG - Guessing the slug format
+<TeeemTableView foundationId="purchase_orders" />  // Should be "purchase-orders"
+<TeeemTableView foundationId="sm_tasks" />         // Should be "sm-tasks"
+```
+
+**Hyphenated slugs (memorize these or use constants):**
+- `purchase-orders` (NOT `purchase_orders`)
+- `sm-tasks`, `sm-resources`, `sm-schedule-master`
+- `pricebook-items`, `price-histories`
+- `bill-inbox`, `user-management`, `xero-sync-contacts`
+- `email-proposals`, `inspiring-quotes`
+
+### Column Type Checks
+
+```ruby
+# Backend - use constants
+column.column_type.in?(Column::LOOKUP_COLUMN_TYPES)  # ✅
+column.column_type == 'lookup'                        # ❌ Missing multiple_lookups
+```
+
+```typescript
+// Frontend - use helpers from lib/constants/column-types.ts
+import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';
+isLookupColumn(column.column_type)  // ✅
+column.column_type === 'lookup'      // ❌ Missing multiple_lookups
+```
 
 ## 🔴 SSoT - State (Jotai Atoms)
 
@@ -251,6 +346,54 @@ You're a craftsman, an artist, an engineer who thinks like a designer. Every lin
 
 **Deprecated:** `combobox.tsx`, `loader.tsx`, `drawer.tsx`, `data-table.tsx`, `router.back()`
 
+## 🔴 SSoT - Settings Navigation Structure
+
+**All settings are under `/settings/` with URL-based tab state.**
+
+### Personal Settings (all users)
+| Tab | URL | Description |
+|-----|-----|-------------|
+| Profile | `/settings/profile` | User profile |
+| Notifications | `/settings/notifications` | Notification preferences |
+| Security | `/settings/security` | Password, 2FA |
+| Preferences | `/settings/preferences` | UI preferences |
+
+### Organization Settings (admin only)
+| Tab | URL | Sub-tabs |
+|-----|-----|----------|
+| Users | `/settings/users` | User management |
+| Access Control | `/settings/roles` | Permissions, User Roles, Groups |
+| Corporate | `/settings/corporate` | Groups, Companies, Company Tabs |
+| Company | `/settings/company` | Info, Brand Colors, Documents, Holidays, Workflows, Connections, Job Setup, Entity Config |
+| Operations | `/settings/operations` | Schedule Master, SM Tasks, Contact Types, Meeting Types, Supervisor Checklist, Cost |
+| System | `/settings/system` | System configuration |
+| Developer | `/settings/developer` | Components Lab, Developer Tools, Brand Guidelines, Unreal Engine |
+
+### Company Sub-tabs Detail
+| Sub-tab | URL | Contains |
+|---------|-----|----------|
+| Info | `/settings/company/info` | Company details |
+| Brand Colors | `/settings/company/brand-colors` | Color palette |
+| Documents | `/settings/company/documents` | Document Types, Templates, PDF Fields |
+| Holidays | `/settings/company/holidays` | Public holidays |
+| Workflows | `/settings/company/workflows` | Workflow configuration |
+| Connections | `/settings/company/connections` | Storage Provider, Integrations (Xero), Migration, Cost Comparison |
+| Job Setup | `/settings/company/job-setup` | Lists (Types/Statuses/Stages/Suburbs), Workflow |
+| Entity Config | `/settings/company/entity-config` | Corporate, Jobs, Contacts, Document Types, Storage Config, Email Config |
+
+### Navigation Patterns
+- **URL is SSoT** for tab state - use `router.push()` not local state
+- **Sub-tabs** use path segments: `/settings/company/job-setup/workflow`
+- **Components accept `basePath` prop** for reusability across different URL contexts
+- **Catch-all routes** `[...tab]/page.tsx` re-export parent page for sub-tab URLs
+
+### SSoT Consolidations (Jan 2026)
+- ❌ `/settings/documents` → Moved to `/settings/company/documents`
+- ❌ `/settings/integrations` → Moved to `/settings/company/connections/integrations`
+- ❌ Entity Config in Developer → Moved to `/settings/company/entity-config`
+- ❌ Workflow Config separate tab → Moved to `/settings/company/job-setup/workflow`
+- ❌ Doc Templates duplicate → Consolidated into Documents > Templates
+
 ## 🔴 Table Page Pattern
 
 ```tsx
@@ -269,16 +412,28 @@ return (
 - ❌ NEVER pass `columns` prop - auto-fetched from Foundation API
 - ❌ NEVER pass `entries` prop for Foundation-backed tables - use `autoFetchRecords={true}`
 - ❌ NO custom `<h1>` headers - TeeemTableView renders header
+- ❌ NO custom Add buttons in `leftActions` - use `onAddRow` prop instead
 - ✅ ALWAYS use `autoFetchRecords={true}` - enables SSR hydration, infinite scroll, caching
-- ✅ Action buttons in `leftActions`
+- ✅ Non-Add action buttons in `leftActions` (e.g., BackButton, Export)
 - ✅ Edge-to-edge: `-mx-4`, full height: `h-full flex flex-col`
 - ✅ For embedded/filtered tables: `autoFetchRecords={true} initialFilters={[...]}`
+
+**Add Button SSoT (Jan 2026):** TeeemTableView's built-in Add button is THE ONE.
+```tsx
+// ❌ SSoT VIOLATION - Creates duplicate Add buttons
+leftActions={<Button><Plus /> Add User</Button>}
+
+// ✅ CORRECT - Override built-in Add action
+onAddRow={() => setShowModal(true)}
+```
 
 **"Gold Standard Table" = TeeemTableView** - Changes go to `TeeemTableView.tsx`, not `GoldStandardTab.tsx`
 
 **`entries` prop is DEPRECATED** for Foundation-backed tables. Only use `entries` for:
 - Non-Foundation data (e.g., Xero API responses)
 - Demo/test data in components lab
+- Rails models without Foundation (e.g., `CorporateCompany` - corporate/page.tsx Companies tab)
+- Custom API endpoints with special filtering (e.g., Public Holidays with year/region params)
 
 ## 🔴 Design System
 
@@ -289,25 +444,102 @@ return (
 
 **Non-Negotiables:** Dark mode (`dark:` classes), responsive design, accessibility, config colors (not hex).
 
+## 🔴 React Performance (SSoT)
+
+**SSoT:** `.claude/skills/react-best-practices/` (40+ rules from Vercel Engineering)
+
+**Use `/react-best-practices` skill when:**
+- Optimizing React/Next.js performance
+- Reviewing code for performance issues
+- Debugging slow rendering or loading
+- Reducing bundle size
+
+### ⚠️ FRC Finding (Jan 2026): Most Rules Already Handled
+
+**Before "fixing" performance issues, verify they're real:**
+
+| Rule | TEEEM Status | Notes |
+|------|--------------|-------|
+| Barrel imports (lucide-react) | ✅ AUTO-OPTIMIZED | Next.js 16 handles via `optimizePackageImports` |
+| Sequential awaits | ✅ OFTEN CORRECT | Many have data dependencies (need ID from first call) |
+| Promise.all() | ✅ ALREADY USING | See `useFoundationBySlug.ts` |
+| Dynamic imports | ✅ 13 files | Maps, charts, PDF editors |
+
+### When to Actually Apply Rules
+
+| Rule | Apply When |
+|------|-----------|
+| Barrel imports | Only for packages NOT in Next.js optimized list |
+| Promise.all() | Only when calls are truly independent |
+| Dynamic imports | Heavy components not yet lazy-loaded |
+
+**Full guide:** `.claude/skills/react-best-practices/SKILL.md` (includes TEEEM context)
+
 ## 🔴 Git & Deployment
 
-**Rob works directly on `Live` branch.**
+**Rob works directly on `staging` branch.**
 
-| Environment | Heroku App | URL |
-|-------------|-----------|-----|
-| Production | `teeemlive` | teeemlive-ce8e2660a615.herokuapp.com |
-| Rob Dev | `teeem-rob-dev` | - |
-| Sam Dev | `teeem-sam-dev` | - |
+### Branch Pipeline
+```
+staging → beta → production
+```
+- **staging**: Active development, deploys to `teeem-staging` (Tekna testing)
+- **beta**: UAT, deploys to `teeem-beta` (early adopters)
+- **production**: Live customers, deploys to `teeem-production`
 
-**Deploy:** Use `/l` command (SSoT)
+| Environment | Heroku App | Branch | URL |
+|-------------|-----------|--------|-----|
+| Staging | `teeem-staging` | staging | teeem-staging-d60a657ed68a.herokuapp.com |
+| Beta | `teeem-beta` | beta | teeem-beta-6e3e9cb59225.herokuapp.com |
+| Production | `teeem-production` | production | teeem-production-121159e1ff9d.herokuapp.com |
+| Rob Dev | `teeem-rob-dev` | - | - |
+| Sam Dev | `teeem-sam-dev` | - | - |
+
+**Deploy:** Use `/l` command (SSoT) - deploys staging to production
 
 **Local:** Frontend port 3000, Backend port 3001
+
+### 🔴 CRITICAL: Hotfix Deployments (Remote Environments Share Same Database)
+
+**Staging, Beta, and Production share the SAME production DATABASE but run SEPARATE CODE.**
+**Local development uses a SEPARATE local database.**
+
+| Environment | Database | Code |
+|-------------|----------|------|
+| Local | Local PostgreSQL | Local |
+| Staging | Production DB (shared) | Separate |
+| Beta | Production DB (shared) | Separate |
+| Production | Production DB (shared) | Separate |
+
+| What | Shared (remote)? | Deploy needed? |
+|------|------------------|----------------|
+| Database records, settings | ✅ Shared across staging/beta/prod | No - changes appear on all remote envs |
+| Code (CORS, features, fixes) | ❌ Separate per environment | Yes - each environment needs deploy |
+| Local database | ❌ Separate | No - local only |
+
+**When deploying hotfixes (CORS, security, critical bugs), ALWAYS deploy to ALL THREE:**
+
+```bash
+# Deploy to all environments (in order):
+# 1. Staging (teeem-staging)
+# 2. Beta (teeem-beta)
+# 3. Production (teeem-production)
+```
+
+**Ask user:** "This is a hotfix. Should I deploy to staging, beta, AND production?"
+
+| Change Type | Deploy To |
+|-------------|-----------|
+| Bug fix / critical | All three |
+| CORS / config / security | All three immediately |
+| New feature (testing) | Staging only first |
+| Database migration | One (shared DB) |
 
 ### 🔴 CRITICAL: Heroku Backend Deploy Method
 
 **This is a monorepo. NEVER push directly to Heroku.**
 
-- ❌ WRONG: `git push heroku Live:main` (pushes full monorepo, Puma can't find config)
+- ❌ WRONG: `git push heroku staging:main` (pushes full monorepo, Puma can't find config)
 - ✅ RIGHT: Use `/l` or `/lp` commands (extracts `backend/` only)
 
 **Why:** Heroku expects Rails app at root. The monorepo has `backend/` subdirectory, so direct push breaks with `config/puma.rb not found`.
@@ -318,7 +550,7 @@ cd /Users/robertharder/GitHub/teeem
 DEPLOY_DIR=$(mktemp -d)
 cp -r backend/* "$DEPLOY_DIR/"
 cd "$DEPLOY_DIR" && git init && git add . && git commit -m "Fix deploy"
-git remote add heroku https://git.heroku.com/teeemlive.git
+git remote add heroku https://git.heroku.com/teeem-production.git
 git push heroku HEAD:main --force
 cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 ```
@@ -327,8 +559,8 @@ cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 
 | Environment | URL | Notes |
 |-------------|-----|-------|
-| Production | `https://teeemlive.vercel.app` | SSoT production URL (3 e's in teeem) |
-| Backend API | `https://teeemlive-ce8e2660a615.herokuapp.com` | Heroku |
+| Production | `https://teeem.vercel.app` | SSoT production URL (3 e's in teeem) |
+| Backend API | `https://teeem-production-121159e1ff9d.herokuapp.com` | Heroku |
 
 **Chrome DevTools MCP Access:**
 - Vercel team member `robert-8688` has been granted access
@@ -339,26 +571,26 @@ cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
 - Email: `robert@tekna.com.au`
 - Password: `Wisdom50-50`
 
-## 🔴 Microsoft 365 (Auth vs Config Separation)
+## 🔴 Storage Provider Authentication
 
-**MicrosoftCredential = Auth ONLY.** Storage config lives in StorageConfiguration.
+**Credential models = Auth ONLY.** Storage config lives in StorageConfiguration.
+
+| Provider | Credential Model | Config SSoT |
+|----------|------------------|-------------|
+| S3/Wasabi | `S3CompatibleCredential` | `StorageConfiguration.instance` |
+| SharePoint | `MicrosoftCredential` | `StorageConfiguration.instance` |
+| Local | None (filesystem) | `StorageConfiguration.instance` |
 
 ```ruby
-# Auth (tokens)
-MicrosoftCredential.sharepoint_credential  # Gets auth token
-MicrosoftAppGraphClient.for_org(organization)
+# Auth (tokens/keys) - separate per provider
+S3CompatibleCredential.active             # S3/Wasabi auth
+MicrosoftCredential.sharepoint_credential # SharePoint auth
 
-# Config (paths, site_id, drive_id)
-StorageConfiguration.instance  # SSoT for all storage config
+# Config (paths, provider settings) - ALWAYS from SSoT
+StorageConfiguration.instance  # THE ONE source for all storage config
 ```
 
-| Need | SSoT | NOT This |
-|------|------|----------|
-| Auth token | `MicrosoftCredential.sharepoint_credential` | - |
-| Site ID / Drive ID | `StorageConfiguration.instance.site_id` | `credential.sharepoint_site_id` ❌ REMOVED |
-| Storage paths | `StorageConfiguration.instance.path_for(:scope)` | `CorporateCompanySetting.sharepoint_*` ❌ DEPRECATED |
-
-**UI Term:** "SharePoint" (never "OneDrive" to users)
+**Check current provider:** `StorageConfiguration.instance.provider_type`
 
 ## 🔴 Xero (SSoT: Webhooks)
 
@@ -379,7 +611,7 @@ StorageConfiguration.instance.path_for(:jobs)      # → "Jobs"
 StorageConfiguration.instance.path_for(:contacts)  # → "Contacts"
 StorageConfiguration.instance.path_for(:people)    # → "People"
 StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Plans")
-# → "/Shared Documents/Jobs/J-001/Plans"
+# → Full path varies by provider (handled internally)
 ```
 
 ### Architecture (Provider-Agnostic)
@@ -389,29 +621,42 @@ StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Pl
 │                    StorageConfiguration                      │
 │                      (THE ONE SSoT)                          │
 ├─────────────────────────────────────────────────────────────┤
-│  provider_type:    sharepoint | s3 | wasabi | local         │
+│  provider_type:    s3_compatible | sharepoint | local       │
 │  status:           connected | disconnected | error          │
-│  connection_config: { site_id, drive_id } (JSONB)           │
-│  root_path:        "/Shared Documents"                       │
+│  connection_config: { provider-specific } (JSONB)           │
+│  root_path:        Provider-specific root                    │
 │  paths:            { jobs: "Jobs", contacts: "Contacts" }   │
 │  templates:        { job: "{{JobCode}}/{{Category}}" }      │
 └─────────────────────────────────────────────────────────────┘
-         ↓ provides auth
+         ↓ auth depends on provider_type
 ┌─────────────────────────────────────────────────────────────┐
-│  MicrosoftCredential (auth ONLY - tokens, refresh, scopes)  │
+│  S3CompatibleCredential (S3/Wasabi auth)                     │
+│  MicrosoftCredential (SharePoint auth)                       │
+│  (none for local)                                            │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**DocumentProviderAware concern:** Use `include DocumentProviderAware` in services to get
+provider-agnostic file operations (upload, download, list, delete).
+
+**CRITICAL (Jan 2026):** Frontend NEVER knows about paths.
+- Frontend sends: `{ scope: "emails", tokens: { mailbox: "inbox@tekna.com.au" } }`
+- Backend resolves paths internally using StorageConfiguration
+- Frontend receives: files, folders, breadcrumbs (abstract, not paths)
 
 ### SSoT Lookups
 
 | Need | SSoT | ❌ NEVER |
 |------|------|----------|
+| Current provider | `StorageConfiguration.instance.provider_type` | Guessing/assuming |
 | Base path for scope | `StorageConfiguration.instance.path_for(:contacts)` | `"Contacts"` hardcoded |
 | Full resolved path | `StorageConfiguration.instance.resolve_path(:job, ...)` | Manual string building |
-| Site ID | `StorageConfiguration.instance.site_id` | `credential.sharepoint_site_id` |
-| Drive ID | `StorageConfiguration.instance.drive_id` | `credential.sharepoint_drive_id` |
-| Root path | `StorageConfiguration.instance.root_path` | `"/Shared Documents"` hardcoded |
+| Connection config | `StorageConfiguration.instance.connection_config` | Direct credential access |
+| Root path | `StorageConfiguration.instance.root_path` | Hardcoded paths |
 | Provider type | `StorageConfiguration.instance.provider_type` | Checking multiple sources |
+| Frontend path handling | Backend resolves, frontend uses scopes | Hardcoding paths in frontend |
+
+**ALWAYS check provider_type before assuming storage behavior.**
 
 ### Available Scopes
 
@@ -427,12 +672,10 @@ StorageConfiguration.instance.resolve_path(:job, JobCode: "J-001", Category: "Pl
 ### Deprecated (DO NOT USE)
 
 ```ruby
-# ❌ REMOVED from MicrosoftCredential (Jan 2026):
-credential.sharepoint_site_id    # Use StorageConfiguration.instance.site_id
-credential.sharepoint_drive_id   # Use StorageConfiguration.instance.drive_id
-credential.sharepoint_drive_name # Use StorageConfiguration.instance.drive_name
-credential.drive_id              # Use StorageConfiguration.instance.drive_id
-credential.drive_name            # Use StorageConfiguration.instance.drive_name
+# ❌ REMOVED - Direct credential config access:
+credential.sharepoint_site_id    # Use StorageConfiguration.instance
+credential.sharepoint_drive_id   # Use StorageConfiguration.instance
+# All storage config is now in StorageConfiguration, not credentials
 
 # ❌ DEPRECATED in CorporateCompanySetting:
 CorporateCompanySetting.sharepoint_full_path(:jobs)  # Use StorageConfiguration
@@ -441,10 +684,113 @@ CorporateCompanySetting.contact_documents_path       # Use StorageConfiguration.
 
 ### Admin UI
 
-**Configure at:** `/admin/system/entity-config/sharepoint_config`
+**Configure at:** `/settings/company/connections` (Storage Provider tab)
 - Edit paths (Jobs, Contacts, People, etc.)
 - Edit path templates with drag-and-drop tokens
-- View SharePoint connection status
+- View storage provider connection status
+
+## 🔴 File Warehouse (Phase 3: Universal Documents)
+
+**WarehouseDocument is THE SSoT for all document metadata in the File Warehouse.**
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    WarehouseDocument                         │
+│                 (Universal SSoT Table)                       │
+├─────────────────────────────────────────────────────────────┤
+│  documentable_type: "JobDocument" / "EmailWarehouse" / etc. │
+│  documentable_id:   FK to source record                     │
+│  storage_blob_id:   FK to StorageBlob (deduplicated)        │
+│  display_name:      What user SEES in UI                    │
+│  send_name:         Template for download filename          │
+│  folder:            Virtual path (instant moves)            │
+│  source_type:       "corporate" / "email" / "job" / etc.    │
+└─────────────────────────────────────────────────────────────┘
+         ↓ links to
+┌─────────────────────────────────────────────────────────────┐
+│  StorageBlob (content-hash deduplication)                   │
+│  - Same file stored ONCE, referenced by many documents      │
+│  - content_hash: SHA256 for deduplication                   │
+│  - storage_path: "Blobs/ab/abc123.pdf"                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Two Names Per Document
+
+| Name | Purpose | Example |
+|------|---------|---------|
+| **display_name** | What user SEES in UI | "RE: Invoice Question" |
+| **send_name** | Download filename (from template) | "RE Invoice Question - 2026-01-17.eml" |
+
+### Send Name Templates
+
+```ruby
+# SendNameResolver expands templates with document context
+# Default templates by source_type:
+"email"     → "{Subject} - {ReceivedDate}.eml"
+"corporate" → "{CompanyCode} {DocTypeName} {Date}"
+"job"       → "{JobCode} {DocTypeName} {Date}"
+
+# Available tokens:
+# Email: {Subject}, {FromName}, {FromEmail}, {ReceivedDate}
+# Job: {JobCode}, {JobName}, {JobTitle}
+# Company: {CompanyCode}, {CompanyName}, {CompanyGroup}
+# Doc Type: {DocTypeName}, {DocTypeCode}, {Category}
+# Dates: {Date}, {DDMMYYYY}, {YYYYMMDD}
+```
+
+### SSoT Lookups
+
+| Need | SSoT | ❌ NOT This |
+|------|------|-------------|
+| Download filename | `warehouse_document.download_filename` | Manual template expansion |
+| Storage path | `warehouse_document.storage_path` | Direct blob access |
+| Presigned URL | `warehouse_document.download_url` | Manual S3 presigning |
+| Move to folder | `warehouse_document.move_to_folder(path)` | S3 copy operations |
+
+### API Endpoints
+
+```ruby
+# Counts (includes warehouse totals)
+GET /api/v1/documents/all
+# Returns: { warehouse_total: 139088, warehouse_by_source: {...} }
+
+# Universal query endpoint
+GET /api/v1/documents/warehouse
+# Params: source_type, folder, search, documentable_type, limit, offset
+# Returns: documents[], folders[], pagination
+```
+
+### Maintenance Tasks
+
+```bash
+# Full health check with recommendations
+rails blob:health
+
+# Fix reference count mismatches
+rails blob:audit:integrity[fix]
+
+# Delete orphaned blobs (30-day safety threshold)
+rails blob:cleanup:orphaned[execute,30]
+
+# Audit WarehouseDocument links
+rails blob:audit:warehouse
+
+# Run Phase 3 test suite
+rails phase3:test:all
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `app/models/warehouse_document.rb` | Universal document table |
+| `app/models/storage_blob.rb` | Deduplicated blob storage |
+| `app/services/send_name_resolver.rb` | Template expansion + sanitization |
+| `lib/tasks/phase3_garbage_collection.rake` | Cleanup & audit tasks |
+| `lib/tasks/phase3_tests.rake` | Test suite |
 
 ## 🔴 API Response Format
 

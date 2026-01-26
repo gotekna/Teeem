@@ -45,6 +45,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface WorkflowStep {
   id: number;
@@ -79,6 +80,7 @@ const STEP_TYPES = [
 
 export function WorkflowsTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [workflows, setWorkflows] = React.useState<WorkflowDefinition[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showDialog, setShowDialog] = React.useState(false);
@@ -191,7 +193,7 @@ export function WorkflowsTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this workflow?")) return;
+    if (!(await confirm("Are you sure you want to delete this workflow?"))) return;
 
     setDeleting(id);
     try {
@@ -245,7 +247,9 @@ export function WorkflowsTab() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Workflow Definitions</h2>
+        <p className="text-sm text-muted-foreground">
+          Define and manage workflow templates
+        </p>
         <Button onClick={handleOpenAddDialog}>
           <Plus className="h-4 w-4 mr-2" />
           New Workflow

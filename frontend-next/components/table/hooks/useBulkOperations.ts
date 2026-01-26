@@ -27,6 +27,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { clearCachedRecords } from '@/lib/records-cache';
+import { isLookupColumn } from '@/lib/constants/column-types';
 import type { TableColumn, TableRow } from '../types';
 
 // ============================================================================
@@ -80,6 +81,8 @@ export interface UseBulkOperationsProps {
   columns: TableColumn[];
   /** Callback when update succeeds */
   onSuccess?: () => void;
+  /** Callback when error occurs */
+  onError?: (message: string) => void;
   /** Callback when merge completes */
   onMergeComplete?: (deletedIds: (number | string)[]) => void;
   /** Fallback row update handler (when no foundationId) */
@@ -117,8 +120,8 @@ function convertValueForColumn(
     return value.split(',').filter(Boolean).map(id => parseInt(id, 10));
   }
 
-  // Single lookup: convert to integer
-  if (colType === 'lookup' || column.lookup_foundation_id) {
+  // Single lookup: convert to integer (use helper for the general check, but exclude multiple_lookups)
+  if ((isLookupColumn(colType) && colType !== 'multiple_lookups') || column.lookup_foundation_id) {
     return parseInt(value, 10);
   }
 
@@ -151,6 +154,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
     visibleEntriesRef,
     columns,
     onSuccess,
+    onError,
     onMergeComplete,
     onRowUpdate,
     onOptimisticUpdate,
@@ -195,9 +199,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
     if (column && onColumnChange) {
       const selectedCol = columns.find(c => c.key === column);
       if (selectedCol) {
-        const isLookup = selectedCol.column_type === 'lookup' ||
-                        selectedCol.column_type === 'multiple_lookups' ||
-                        !!selectedCol.lookup_foundation_id;
+        const isLookup = isLookupColumn(selectedCol.column_type) || !!selectedCol.lookup_foundation_id;
         if (isLookup) {
           onColumnChange(selectedCol);
         }
@@ -284,7 +286,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
             errorMessage += '\n\n⚠️ Some records have data quality issues that must be fixed first.';
             errorMessage += '\n\nOpening Health Report to show which records need fixing...';
 
-            alert(errorMessage);
+            onError?.(errorMessage);
 
             // Open health report in new tab
             const healthUrl = `/system-health?foundation=${foundationId}`;
@@ -292,7 +294,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
             return false;
           }
 
-          alert(errorMessage);
+          onError?.(errorMessage);
           return false;
         }
 
@@ -331,7 +333,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
 
     } catch (error) {
       console.error('[useBulkOperations] ERROR:', error);
-      alert(`Bulk update failed: ${error instanceof Error ? error.message : String(error)}`);
+      onError?.(`Bulk update failed: ${error instanceof Error ? error.message : String(error)}`);
       return false;
     } finally {
       setIsSaving(false);
@@ -346,6 +348,7 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
     onRowUpdate,
     onOptimisticUpdate,
     onSuccess,
+    onError,
     onRefresh,
     closeUpdateModal,
   ]);

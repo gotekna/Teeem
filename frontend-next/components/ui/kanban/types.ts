@@ -167,6 +167,8 @@ export interface KanbanBoardProps<T extends KanbanItem = KanbanItem> {
   renderColumnHeader?: (column: KanbanColumnDef<T>, itemCount: number) => React.ReactNode;
   /** Optional empty column content */
   renderEmptyColumn?: (column: KanbanColumnDef<T>) => React.ReactNode;
+  /** Optional custom column content renderer (overrides default card list) */
+  renderColumnContent?: (column: KanbanColumnDef<T>, items: T[], renderCard: (item: T, isDragging: boolean) => React.ReactNode) => React.ReactNode;
 
   // Events
   /** Called when a card moves between columns */
@@ -207,6 +209,8 @@ export interface KanbanColumnProps<T extends KanbanItem = KanbanItem> {
   renderHeader?: (column: KanbanColumnDef<T>, itemCount: number) => React.ReactNode;
   /** Empty state renderer */
   renderEmpty?: (column: KanbanColumnDef<T>) => React.ReactNode;
+  /** Custom column content renderer (overrides default card list) */
+  renderContent?: (items: T[], renderCard: (item: T, isDragging: boolean) => React.ReactNode) => React.ReactNode;
   /** Collapse toggle handler */
   onCollapse?: (collapsed: boolean) => void;
   /** Whether cards can be reordered */
@@ -229,6 +233,20 @@ export interface KanbanCardProps {
   disabled?: boolean;
   /** Additional classes */
   className?: string;
+  /** Click handler (fires if drag didn't activate) */
+  onClick?: (e: React.MouseEvent) => void;
+  /** Double-click handler (fires if drag didn't activate) */
+  onDoubleClick?: (e: React.MouseEvent) => void;
+
+  // Position badge props (SSoT - optional position editing support)
+  /** Current position (1-indexed) - shows position badge when provided */
+  position?: number;
+  /** Maximum position (for validation in position input) */
+  maxPosition?: number;
+  /** Whether position badge is editable */
+  positionEditable?: boolean;
+  /** Callback when position is changed via badge click */
+  onPositionChange?: (newPosition: number) => void;
 }
 
 /**

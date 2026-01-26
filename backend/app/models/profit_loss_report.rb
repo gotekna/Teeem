@@ -120,13 +120,13 @@ class ProfitLossReport < ApplicationRecord
         # Store raw data
         update!(report_data: result[:report])
 
-        # Generate PDF and upload to SharePoint
-        pdf_service = ProfitLossReportService.new(self)
+        # Generate PDF and upload to storage
+        pdf_service = FinancialReportService.new(self)
         pdf_result = pdf_service.generate
 
         if pdf_result[:success]
           mark_completed!(
-            url: pdf_result[:sharepoint_url],
+            url: pdf_result[:storage_url],
             file_name: pdf_result[:filename],
             file_size: pdf_result[:pdf]&.bytesize
           )
@@ -216,7 +216,7 @@ class ProfitLossReport < ApplicationRecord
   end
 
   # Calculate fiscal year for a given date (Australian FY: July-June)
-  # Returns short format (FY24) to match WarehouseBankTransaction.financial_year
+  # Returns short format (FY24) to match XeroBankTransaction.financial_year
   # June 30, 2024 -> "FY24"
   # July 1, 2024 -> "FY25"
   def self.fiscal_year_for_date(date)

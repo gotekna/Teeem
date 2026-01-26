@@ -32,16 +32,16 @@ class SyncSubscription < ApplicationRecord
     config = StorageConfiguration.instance
     case syncable_type
     when "Job"
+      # SSoT: Use StorageConfiguration.job_path for consistent folder naming
       job = syncable
-      base = config&.path_for(:job) || "Jobs"
-      "/#{base}/#{job.job_number} - #{job.title}".gsub(/[<>:"\/\\|?*]/, "_")
+      config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
     when "CorporateCompany"
       company = syncable
-      base = config&.path_for(:corporate) || "Corporate"
+      base = config.path_for(:corporate)
       "/#{base}/#{company.name}".gsub(/[<>:"\/\\|?*]/, "_")
     when "Contact"
       contact = syncable
-      base = config&.path_for(:contact) || "Contacts"
+      base = config.path_for(:contact)
       "/#{base}/#{contact.full_name}".gsub(/[<>:"\/\\|?*]/, "_")
     end
   end
@@ -50,11 +50,11 @@ class SyncSubscription < ApplicationRecord
   def storage_folder_id
     case syncable_type
     when "Job"
-      syncable.sharepoint_folder_id
+      syncable.storage_folder_id
     when "CorporateCompany"
-      syncable.sharepoint_folder_id
+      syncable.storage_folder_id
     when "Contact"
-      # Contacts may not have dedicated SharePoint folders
+      # Contacts may not have dedicated storage folders
       nil
     end
   end

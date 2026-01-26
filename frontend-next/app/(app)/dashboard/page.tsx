@@ -26,8 +26,10 @@ import {
   Zap,
   Smile,
   Target,
+  Network,
 } from "lucide-react";
 import FeaturesTrackingTable from "./components/FeaturesTrackingTable";
+import ArchitectureMap from "./components/ArchitectureMap";
 
 interface DashboardStats {
   activeJobs: number;
@@ -122,6 +124,10 @@ export default function DashboardPage() {
           <TabsTrigger value="competitor" className="gap-2">
             <BarChart3 className="h-4 w-4" />
             Competitor Comparison
+          </TabsTrigger>
+          <TabsTrigger value="architecture" className="gap-2">
+            <Network className="h-4 w-4" />
+            Architecture
           </TabsTrigger>
         </TabsList>
 
@@ -363,6 +369,11 @@ export default function DashboardPage() {
         {/* Competitor Comparison Tab */}
         <TabsContent value="competitor">
           <FeaturesTrackingTable />
+        </TabsContent>
+
+        {/* Architecture Tab */}
+        <TabsContent value="architecture">
+          <ArchitectureMap />
         </TabsContent>
       </Tabs>
     </div>

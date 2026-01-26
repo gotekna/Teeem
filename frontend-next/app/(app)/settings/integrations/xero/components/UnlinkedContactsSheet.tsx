@@ -8,6 +8,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 interface PotentialMatch {
   id: number;
@@ -202,7 +204,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
   const getMatchBadge = (matchType: string, score: number) => {
     if (matchType === "exact" || score === 100) {
       return (
-        <Badge className="bg-green-100 text-green-800 text-xs">
+        <Badge className="bg-status-success text-status-success-foreground text-xs">
           <Check className="h-3 w-3 mr-1" />
           Exact
         </Badge>
@@ -210,24 +212,19 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
     }
     if (matchType === "company_exact" || score >= 90) {
       return (
-        <Badge className="bg-blue-100 text-blue-800 text-xs">Company Match</Badge>
+        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">Company Match</Badge>
       );
     }
     if (score >= 50) {
       return (
-        <Badge className="bg-amber-100 text-amber-800 text-xs">Partial</Badge>
+        <Badge className="bg-status-warning text-status-warning-foreground text-xs">Partial</Badge>
       );
     }
     return <Badge variant="secondary" className="text-xs">Possible</Badge>;
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+    return formatCurrencyWhole(amount);
   };
 
   return (
@@ -329,8 +326,8 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                             <Badge
                               className={`text-xs ${
                                 contact.best_match.score === 100
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-blue-100 text-blue-800"
+                                  ? "bg-status-success text-status-success-foreground"
+                                  : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                               }`}
                             >
                               {contact.potential_matches.length} match
@@ -369,7 +366,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                     className="h-6 w-6 p-0 shrink-0"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      navigator.clipboard.writeText(contact.xero_details!.email!);
+                                      copyToClipboard(contact.xero_details!.email!);
                                       toast.success("Email copied");
                                     }}
                                   >
@@ -394,7 +391,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                         className="h-6 w-6 p-0 shrink-0"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          navigator.clipboard.writeText(phone.number);
+                                          copyToClipboard(phone.number);
                                           toast.success("Phone copied");
                                         }}
                                       >
@@ -421,7 +418,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                         className="h-6 w-6 p-0 shrink-0"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          navigator.clipboard.writeText(addr.formatted);
+                                          copyToClipboard(addr.formatted);
                                           toast.success("Address copied");
                                         }}
                                       >
@@ -443,7 +440,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                     className="h-6 w-6 p-0 shrink-0"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      navigator.clipboard.writeText(contact.xero_details!.website!);
+                                      copyToClipboard(contact.xero_details!.website!);
                                       toast.success("Website copied");
                                     }}
                                   >

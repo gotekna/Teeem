@@ -4,6 +4,7 @@ import * as React from "react";
 import * as fabric from "fabric";
 import type { AnnotationTool } from "./types";
 import { cn } from "@/lib/utils";
+import { debounce } from "@/utils/debounce";
 
 interface AnnotationCanvasProps {
   pageImage: string;
@@ -17,15 +18,6 @@ interface AnnotationCanvasProps {
   onAnnotationsChange: (annotations: any[]) => void;
   onHistoryChange: (canUndo: boolean, canRedo: boolean) => void;
   className?: string;
-}
-
-// Debounce helper
-function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): T {
-  let timeoutId: ReturnType<typeof setTimeout>;
-  return ((...args: any[]) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => fn(...args), ms);
-  }) as T;
 }
 
 export function AnnotationCanvas({
@@ -104,7 +96,7 @@ export function AnnotationCanvas({
       // Performance optimizations
       renderOnAddRemove: false, // Manual render control
       skipTargetFind: false,
-      enableRetinaScaling: false, // Disable retina for performance
+      enableRetinaScaling: true, // Enable for crisp rendering on Retina/high-DPI displays
     });
 
     fabricRef.current = canvas;

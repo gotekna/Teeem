@@ -99,6 +99,56 @@ Every table MUST pass ALL checks (Component + States + 7 Speed + A11y + Dark Mod
 - ❌ No custom `<h1>` headers - TeeemTableView renders tableName
 - ❌ No duplicate headers - if you see `<h1>` AND `<TeeemTableView>`, fix it
 
+### 1b. Add Button SSoT [CRITICAL - Added Jan 2026]
+
+**TeeemTableView's built-in Add button is THE ONE.** Override behavior with `onAddRow`, NOT custom buttons.
+
+```tsx
+// ❌ SSoT VIOLATION - Two Add buttons!
+<TeeemTableView
+  foundationIdNumeric={405}
+  leftActions={
+    <Button onClick={() => setShowModal(true)}>
+      <Plus /> Add User
+    </Button>
+  }
+/>
+// Result: Built-in "Add Record" + custom "Add User" = TWO BUTTONS!
+
+// ✅ CORRECT - Override built-in Add action
+<TeeemTableView
+  foundationIdNumeric={405}
+  onAddRow={() => setShowModal(true)}  // Custom action, ONE button
+/>
+
+// ✅ CORRECT - Custom label (optional, keep UI consistent)
+<TeeemTableView
+  foundationIdNumeric={405}
+  onAddRow={() => setShowModal(true)}
+  addRowLabel="Add User"  // Only if label MUST be different
+/>
+```
+
+**Pattern Summary:**
+| Need | Use | NOT |
+|------|-----|-----|
+| Standard Add (generic modal) | Built-in (auto-enabled) | Custom leftActions button |
+| Custom Add action | `onAddRow={() => ...}` | Custom button + hideAddRecord |
+| Custom Add label | `addRowLabel="..."` | Custom leftActions button |
+| Extra actions (not Add) | `leftActions={<Button>Export</Button>}` | - |
+
+**Why this matters:**
+- Consistent UI across all tables
+- One source of truth for Add functionality
+- `onAddRow` integrates with TeeemTableView's state management
+- Avoids duplicate buttons causing user confusion
+
+**Audit Check:**
+```bash
+# Find pages with leftActions containing Add/Plus
+grep -rn "leftActions" frontend-next/app --include="*.tsx" -A 5 | grep -i "add\|plus"
+```
+
 ### 2. State Coverage [CRITICAL]
 All three states MUST be handled:
 
@@ -214,7 +264,7 @@ useEffect(() => {
 
 // ✅ FAST - Load when cell edit starts
 const handleCellEdit = (row, column) => {
-  if (column.type === 'lookup' && !companiesLoaded) {
+  if (column.column_type === 'lookup' && !companiesLoaded) {
     fetchCompanies()
   }
 }

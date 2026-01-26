@@ -230,7 +230,7 @@ namespace :directorships do
     puts "  Total: #{total_count}"
     puts
     puts "=" * 80
-    puts "Done! View at: https://teeemlive.vercel.app/contacts/2165"
+    puts "Done! View at: https://teeem.vercel.app/contacts/2165"
     puts "=" * 80
   end
 end

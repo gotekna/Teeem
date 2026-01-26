@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { toast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { api } from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
 import { UNDO_DELAY_SECONDS } from "@/lib/email-constants";
 import type { QueuedEmail, SendEmailParams } from "@/lib/email-types";
 
@@ -64,31 +65,28 @@ export function useUndoSend() {
     });
 
     try {
-      // Build and send the email
-      const formPayload = new FormData();
-      formPayload.append("credential_id", email.credential_id);
-      formPayload.append("to", email.to);
-      formPayload.append("subject", email.subject);
-      formPayload.append("body", email.body);
-
-      if (email.from_address) {
-        formPayload.append("from_address", email.from_address);
-      }
-      if (email.cc) {
-        formPayload.append("cc", email.cc);
-      }
-      if (email.bcc) {
-        formPayload.append("bcc", email.bcc);
-      }
-      if (email.reply_to_message_id) {
-        formPayload.append("reply_to_message_id", email.reply_to_message_id);
+      // SSoT: Upload attachments via presigned URL first
+      const attachmentStorageKeys: string[] = [];
+      for (const file of email.attachments) {
+        const uploadResult = await uploadFile(file, 'documents');
+        if (uploadResult.success && uploadResult.key) {
+          attachmentStorageKeys.push(uploadResult.key);
+        }
       }
 
-      email.attachments.forEach((file) => {
-        formPayload.append("attachments[]", file);
+      // Send email with storage keys instead of files
+      await api.post("/api/v1/imap_credentials/send_email", {
+        credential_id: email.credential_id,
+        to: email.to,
+        subject: email.subject,
+        body: email.body,
+        from_address: email.from_address,
+        cc: email.cc,
+        bcc: email.bcc,
+        reply_to_message_id: email.reply_to_message_id,
+        attachment_storage_keys: attachmentStorageKeys.length > 0 ? attachmentStorageKeys : undefined,
+        sm_task_id: email.sm_task_id,  // Link sent email to SM task
       });
-
-      await api.postFormData("/api/v1/imap_credentials/send_email", formPayload);
 
       toast({
         title: "Email sent",

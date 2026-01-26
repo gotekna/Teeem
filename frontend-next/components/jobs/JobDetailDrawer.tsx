@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyJobTitle } from "@/lib/url-utils";
+import { formatCurrency, getInitials } from "@/utils/formatters";
 import { JobActivityTab } from "@/components/jobs/JobActivityTab";
 import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
 import { RainLogTab } from "@/components/jobs/RainLogTab";
@@ -96,25 +97,6 @@ const tabs = [
   { name: "Docs", slug: "documents", icon: FileText },
   { name: "Coms", slug: "coms", icon: MessageSquare },
 ];
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function getInitials(name: string | undefined | null): string {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
 
 export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerProps) {
   const router = useRouter();
@@ -192,7 +174,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                   <p className="text-xs text-muted-foreground">Profit</p>
                 </div>
                 <div className="text-center p-2 bg-muted/50 rounded">
-                  <p className="text-lg font-bold font-mono">{job.profit_percentage?.toFixed(1) || 0}%</p>
+                  <p className="text-lg font-bold font-mono">{(Number(job.profit_percentage) || 0).toFixed(1)}%</p>
                   <p className="text-xs text-muted-foreground">Margin</p>
                 </div>
                 <div className="text-center p-2 bg-muted/50 rounded">
@@ -252,7 +234,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                           <div className="flex items-start gap-3">
                             <Avatar className="h-8 w-8">
                               <AvatarFallback className="text-xs">
-                                {getInitials(job.site_supervisor_name)}
+                                {getInitials(job.site_supervisor_name) || "?"}
                               </AvatarFallback>
                             </Avatar>
                             <div className="text-sm">
@@ -286,7 +268,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                                 <div key={contact.id} className="flex items-start gap-3">
                                   <Avatar className="h-8 w-8">
                                     <AvatarFallback className="text-xs">
-                                      {getInitials(contact.name)}
+                                      {getInitials(contact.name) || "?"}
                                     </AvatarFallback>
                                   </Avatar>
                                   <div className="text-sm">
@@ -345,7 +327,7 @@ export function JobDetailDrawer({ jobId, open, onOpenChange }: JobDetailDrawerPr
                         <p className="text-sm text-muted-foreground mb-3">
                           View the full Schedule Master for task management
                         </p>
-                        <Button onClick={() => router.push(`/jobs/${job.id}/schedule/gantt-v2`)}>
+                        <Button onClick={() => router.push(`/jobs/${job.id}/schedule/gantt`)}>
                           Open Schedule
                         </Button>
                       </CardContent>

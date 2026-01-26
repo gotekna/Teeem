@@ -1,19 +1,21 @@
-# BackfillAttachmentUploadsJob - Upload existing EmailAttachment records to SharePoint
+# BackfillAttachmentUploadsJob - Upload existing EmailAttachment records to storage
 #
 # This job migrates legacy EmailAttachment records (created before the schema refactor)
-# to the new architecture where attachments are stored in SharePoint with deduplication.
+# to the new architecture where attachments are stored with deduplication.
 #
 # Usage:
 #   BackfillAttachmentUploadsJob.perform_later(credential_id)
 #
 # This job:
 # 1. Finds EmailAttachment records with attachment_id = nil (not yet migrated)
-# 2. Fetches attachment content from Microsoft Graph API
+# 2. Fetches attachment content from Microsoft Graph API (reads FROM user's M365)
 # 3. Checks for existing attachment by content_hash (deduplication)
-# 4. If new, uploads to TEEEM's SharePoint
+# 4. If new, uploads to storage (SSoT: Wasabi/S3/SharePoint via StorageConfiguration)
 # 5. Creates Attachment record and links via EmailAttachment
 #
 class BackfillAttachmentUploadsJob < ApplicationJob
+  include StorageUploadable
+
   queue_as :low
 
   def perform(credential_id)
@@ -25,8 +27,8 @@ class BackfillAttachmentUploadsJob < ApplicationJob
       return
     end
 
-    unless MicrosoftCredential.sharepoint_configured?
-      Rails.logger.error "[BackfillAttachments] SharePoint not configured. Please configure TEEEM's SharePoint first."
+    unless storage_connected?
+      Rails.logger.error "[BackfillAttachments] Storage not configured. Please configure storage provider first."
       return
     end
 
@@ -34,7 +36,7 @@ class BackfillAttachmentUploadsJob < ApplicationJob
 
     # Get existing email_attachments records that haven't been migrated yet
     # Note: The old schema had these columns which were removed in the refactor migration:
-    # - filename, content_type, file_size, content_hash, sharepoint_file_id, sharepoint_path
+    # - filename, content_type, file_size, content_hash, storage_file_id, storage_path
     # However, since attachment_id is now added, records with attachment_id = nil are pending migration
     #
     # IMPORTANT: This assumes the old columns still exist OR we're fetching from Graph API
@@ -51,9 +53,6 @@ class BackfillAttachmentUploadsJob < ApplicationJob
     uploaded = 0
     skipped = 0
     errors = 0
-
-    sp_config = MicrosoftCredential.teeem_sharepoint_config
-    teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
     legacy_attachments.find_each do |legacy|
       begin
@@ -79,16 +78,9 @@ class BackfillAttachmentUploadsJob < ApplicationJob
           next
         end
 
-        # Only process file attachments
-        unless attachment_data["@odata.type"] == "#microsoft.graph.fileAttachment"
-          Rails.logger.info "[BackfillAttachments] Skipping non-file attachment: #{attachment_data['name']}"
-          skipped += 1
-          next
-        end
-
-        # Skip signature images (inline images with signature-like names, or tiny images)
-        if skip_signature_image?(attachment_data)
-          Rails.logger.info "[BackfillAttachments] Skipping signature image: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
+        # SSoT: Use EmailAttachmentFilterService to skip signatures/embedded/non-file attachments
+        if EmailAttachmentFilterService.should_skip?(attachment_data)
+          Rails.logger.info "[BackfillAttachments] Skipping attachment: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
           skipped += 1
           next
         end
@@ -106,15 +98,13 @@ class BackfillAttachmentUploadsJob < ApplicationJob
         existing_attachment = Attachment.find_by(content_hash: content_hash)
 
         if existing_attachment
-          # File already exists in SharePoint - just link it
+          # File already exists in storage - just link it
           legacy.update!(attachment: existing_attachment)
           Rails.logger.info "[BackfillAttachments] Linked existing: #{filename} (#{content_hash[0..7]})"
           skipped += 1
         else
-          # New file - upload to TEEEM's SharePoint
-          result = upload_to_sharepoint(
-            teeem_client,
-            sp_config,
+          # New file - upload to storage (SSoT: Wasabi/S3/SharePoint)
+          result = upload_to_storage(
             filename,
             content_binary,
             content_type,
@@ -124,8 +114,8 @@ class BackfillAttachmentUploadsJob < ApplicationJob
 
           # Create attachment record
           attachment = Attachment.create!(
-            sharepoint_file_id: result[:id],
-            sharepoint_path: result[:path],
+            storage_file_id: result[:id],
+            storage_path: result[:path],
             filename: filename,
             content_type: content_type,
             file_size: file_size,
@@ -162,83 +152,32 @@ class BackfillAttachmentUploadsJob < ApplicationJob
 
   private
 
-  def upload_to_sharepoint(client, sp_config, filename, content, content_type, file_size, email_date)
-    # Build folder path: /emails/attachments/{org_name}/{year}/{month}
+  def upload_to_storage(filename, content, content_type, file_size, email_date)
+    # Build folder path: /emails/attachments/{year}/{month}
     folder_path = build_folder_path(email_date)
 
     # Build filename: {content_hash}_{original_filename}
     content_hash = Attachment.compute_hash(content)
     hash_prefix = content_hash[0..7]
-    safe_filename = sanitize_filename(filename)
+    safe_filename = sanitize_storage_path(filename)
     final_filename = "#{hash_prefix}_#{safe_filename}"
 
-    # Upload based on size (to TEEEM's SharePoint)
-    if client.large_file?(file_size)
-      Rails.logger.info "[BackfillAttachments] Large file detected (#{file_size} bytes), using upload session"
+    # SSoT: Use StorageUploadable for provider-agnostic upload
+    result = upload_to_storage_path(folder_path, content, final_filename, content_type: content_type)
 
-      session = client.create_upload_session(
-        sp_config[:site_id],
-        sp_config[:drive_id],
-        folder_path,
-        final_filename
-      )
-
-      client.upload_large_file(session["uploadUrl"], content)
+    if result[:success]
+      { id: result[:id], path: result[:path] }
     else
-      client.upload_file_content(
-        sp_config[:site_id],
-        sp_config[:drive_id],
-        folder_path,
-        final_filename,
-        content
-      )
+      raise "Storage upload failed: #{result[:error]}"
     end
   end
 
   def build_folder_path(email_date)
     year = email_date.year
     month = email_date.strftime("%m")
-    "#{@credential.attachment_root_path}/#{year}/#{month}"
-  end
-
-  # SSoT: Use centralized SharePoint filename sanitization
-  # See lib/sharepoint/filename_sanitizer.rb for rules
-  def sanitize_filename(filename)
-    SharePoint::FilenameSanitizer.sanitize(filename)
-  end
-
-  # Skip signature/embedded images that aren't real attachments
-  # Rules:
-  # 1. Inline images with signature-like filenames (image001.png, image002.jpg, etc.)
-  # 2. Very small images (< 10KB) that are likely icons/logos
-  # 3. Images with GUID-like filenames (often Outlook Content-IDs)
-  def skip_signature_image?(attachment_data)
-    filename = attachment_data["name"].to_s.downcase
-    is_inline = attachment_data["isInline"] == true
-    file_size = attachment_data["size"].to_i
-    content_type = attachment_data["contentType"].to_s.downcase
-
-    # Only apply these rules to images
-    return false unless content_type.start_with?("image/")
-
-    # Rule 1: Inline images with signature-like patterns
-    signature_patterns = [
-      /^image\d{3}\.(png|jpg|jpeg|gif)$/i,  # image001.png, image002.jpg
-      /^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i, # 32-char hex filenames (Outlook CIDs)
-      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i, # UUID filenames
-      /^cid:/i,                              # Content-ID references
-      /^outlook-signature[_-]/i,             # Outlook signature files
-    ]
-
-    if is_inline && signature_patterns.any? { |pattern| filename.match?(pattern) }
-      return true
-    end
-
-    # Rule 2: Very small INLINE images (< 10KB) are likely icons/social media buttons
-    if is_inline && file_size < 10_000
-      return true
-    end
-
-    false
+    # SSoT: Use StorageConfiguration for base path
+    storage_config = StorageConfiguration.instance
+    base_path = storage_config.path_for(:emails)
+    "#{base_path}/#{year}/#{month}"
   end
 end

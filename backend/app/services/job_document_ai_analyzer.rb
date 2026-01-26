@@ -108,8 +108,8 @@ class JobDocumentAiAnalyzer
     # Build document types section
     document_types = build_document_types_section
 
-    # Job context
-    job_code = "J#{@job.id.to_s.rjust(3, '0')}"
+    # Job context - SSoT: use database column
+    job_code = @job.job_code
     job_title = @job.title.to_s.split(",").first.to_s.strip
 
     <<~PROMPT
@@ -132,7 +132,7 @@ class JobDocumentAiAnalyzer
       4. Generate a standardized filename using the naming format for that document type
 
       ## Naming Placeholders
-      - {JobCode}: Use "J#{@job.id.to_s.rjust(3, '0')}"
+      - {JobCode}: Use "#{@job.job_code}"
       - {JobTitle}: Use first part of job address (e.g., "83 West Ridge")
       - {Date}: Use DD-MM-YYYY format (Australian date format). Extract from filename if present, otherwise use today.
       - {Description}: Brief description extracted from filename
@@ -162,11 +162,12 @@ class JobDocumentAiAnalyzer
   end
 
   def build_document_types_section
-    doc_types = DocumentType.where(scope: %w[job both]).active.order(:folder, :name)
+    # folder is computed from primary EntityTab - group in Ruby after query
+    doc_types = DocumentType.where(scope: %w[job both]).active.includes(entity_tab_document_types: :entity_tab).order(:name)
 
     if doc_types.any?
       lines = []
-      grouped = doc_types.group_by(&:folder)
+      grouped = doc_types.group_by(&:folder).sort_by { |folder, _| folder || "" }.to_h
 
       grouped.each do |folder, types|
         lines << "### #{folder || 'GENERAL'}"
@@ -192,8 +193,8 @@ class JobDocumentAiAnalyzer
     # Australian date format
     au_date = analysis[:extracted_date].presence || Date.current.strftime("%d-%m-%Y")
 
-    # Job placeholders
-    job_code = "J#{@job.id.to_s.rjust(3, '0')}"
+    # Job placeholders - SSoT: use database column
+    job_code = @job.job_code
     job_title = @job.title.to_s.split(",").first.to_s.strip.gsub(/[^\w\s-]/, "").strip[0..30]
 
     format.gsub!("{JobCode}", job_code)

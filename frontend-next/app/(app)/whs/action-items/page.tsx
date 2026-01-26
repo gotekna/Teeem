@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { PlusIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 
 import { Button } from "@/components/ui/button";
@@ -46,20 +47,21 @@ interface TransformedActionItem {
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
-  high: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-  low: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  high: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400",
+  medium: "bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400",
+  low: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400",
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  open: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  in_progress: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-  completed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  overdue: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  open: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400",
+  in_progress: "bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400",
+  completed: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400",
+  overdue: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400",
 };
 
 export default function WhsActionItemsPage() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [data, setData] = useState<TransformedActionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +104,7 @@ export default function WhsActionItemsPage() {
   };
 
   const handleDelete = async (item: TransformedActionItem) => {
-    if (!confirm(`Delete action item "${item.title}"?`)) return;
+    if (!(await confirm(`Delete action item "${item.title}"?`))) return;
 
     try {
       const response = await api.delete<{ data: { success: boolean; error?: string } }>(
@@ -169,7 +171,7 @@ export default function WhsActionItemsPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <CheckCircleIcon className="h-7 w-7 text-green-500" />
+            <CheckCircleIcon className="h-7 w-7 text-green-500 dark:text-green-400" />
             WHS Action Items
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -219,7 +221,7 @@ export default function WhsActionItemsPage() {
                   </TableCell>
                   <TableCell>
                     <Badge className={STATUS_COLORS[item.status] || ""}>
-                      {item.status.replace("_", " ")}
+                      {(item.status || 'pending').replace("_", " ")}
                     </Badge>
                   </TableCell>
                   <TableCell>{item.assigned_to_name}</TableCell>
@@ -229,7 +231,7 @@ export default function WhsActionItemsPage() {
                       <span
                         className={
                           item.days_until_due < 0
-                            ? "font-medium text-red-600"
+                            ? "font-medium text-red-600 dark:text-red-400"
                             : item.days_until_due <= 3
                             ? "font-medium text-amber-600"
                             : ""
@@ -248,7 +250,7 @@ export default function WhsActionItemsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDelete(item)}
-                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                      className="text-red-600 dark:text-red-400 hover:bg-red-50 hover:text-red-700"
                     >
                       Delete
                     </Button>

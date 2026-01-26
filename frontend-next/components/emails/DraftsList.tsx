@@ -82,13 +82,9 @@ export function DraftsList({
     return textContent.slice(0, 100) + (textContent.length > 100 ? "..." : "");
   };
 
+  // Don't render anything when empty - the server Drafts folder handles drafts
   if (drafts.length === 0) {
-    return (
-      <div className={cn("py-8 text-center", className)}>
-        <FileText className="h-12 w-12 mx-auto text-muted-foreground/50" />
-        <p className="mt-4 text-sm text-muted-foreground">No saved drafts</p>
-      </div>
-    );
+    return null;
   }
 
   return (

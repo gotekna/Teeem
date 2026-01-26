@@ -1,5 +1,7 @@
 class SyncConfiguration < ApplicationRecord
-  ACCOUNTING_SYSTEMS = %w[xero quickbooks myob].freeze
+  include ExternalSyncConstants
+
+  # SSoT: ACCOUNTING_SYSTEMS, TENANT_SYNC_DIRECTIONS defined in ExternalSyncConstants concern
 
   # Default field mappings - direction can be: import, export, bidirectional, none
   # Based on Xero API Contact object: https://developer.xero.com/documentation/api/accounting/contacts
@@ -95,17 +97,12 @@ class SyncConfiguration < ApplicationRecord
     "skip_sync_default_suppliers" => false
   }.freeze
 
-  # Valid sync directions for the overall sync configuration
-  # - import_only: Only pull data from Xero to TEEEM (Xero is source of truth)
-  # - export_only: Only push data from TEEEM to Xero (TEEEM is source of truth)
-  # - bidirectional: Sync both ways (most recent change wins)
-  # - disabled: No syncing
-  SYNC_DIRECTIONS = %w[import_only export_only bidirectional disabled].freeze
+  # SSoT: Valid sync directions are in TENANT_SYNC_DIRECTIONS (from concern)
   DEFAULT_SYNC_DIRECTION = "import_only".freeze
 
   validates :xero_tenant_id, presence: true, uniqueness: true
   validates :accounting_system, inclusion: { in: ACCOUNTING_SYSTEMS }
-  validates :default_sync_direction, inclusion: { in: SYNC_DIRECTIONS }, allow_nil: true
+  validates :default_sync_direction, inclusion: { in: TENANT_SYNC_DIRECTIONS }, allow_nil: true
 
   scope :for_tenant, ->(tenant_id) { find_by(xero_tenant_id: tenant_id) }
   scope :enabled, -> { where(sync_enabled: true) }
@@ -209,7 +206,7 @@ class SyncConfiguration < ApplicationRecord
 
   # Set the default sync direction for this tenant
   def set_sync_direction!(direction)
-    raise ArgumentError, "Invalid sync direction: #{direction}" unless SYNC_DIRECTIONS.include?(direction)
+    raise ArgumentError, "Invalid sync direction: #{direction}" unless TENANT_SYNC_DIRECTIONS.include?(direction)
     update!(default_sync_direction: direction)
   end
 

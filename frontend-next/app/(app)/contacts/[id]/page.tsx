@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { useSetAtom } from "jotai";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import Link from "next/link";
 import { resetAllFiltersAtom, foundationViewsAtom, activeViewIdAtom } from "@/lib/view-state-atoms";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,16 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { BackButton } from "@/components/ui/back-button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Mail,
   Phone,
@@ -49,6 +60,8 @@ import {
   Scale,
   Landmark,
   Clock,
+  Archive,
+  UserX,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { clearCachedRecords } from "@/lib/records-cache";
@@ -65,7 +78,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
-import { ContactHeader } from "./components/ContactHeader";
+import { ContactHeader, XeroLink } from "./components/ContactHeader";
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
 import { getIcon } from "@/lib/icon-map";
 import {
@@ -76,6 +89,13 @@ import {
   ContactCasesTab,
   ContactEmailsTab,
   ContactActivityTab,
+  ContactPriceBookTab,
+  ContactPurchaseOrdersTab,
+  ContactTabsRenderer,
+  ContactDocumentsTab,
+  ContactTabDocuments,
+  ContactCommunicationsTab,
+  ContactPortalTab,
 } from "./components";
 import type {
   Contact,
@@ -203,6 +223,7 @@ export default function ContactDetailPage() {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const id = params.id as string;
   // Note: returnTo is now handled internally by BackButton component
 
@@ -219,7 +240,7 @@ export default function ContactDetailPage() {
   const { metadata: entityTypeMetadata } = useEntityTypes();
 
   // SSoT: Tab configuration from EntityTabs API (Phase 5 - unified tabs)
-  const { tabs: contactTabs } = useEntityTabs({ scope: "contact" });
+  const { tabs: contactTabs, primaryXeroName } = useEntityTabs({ scope: "contact" });
 
   // Create a map for quick tab config lookup
   const tabConfigMap = useMemo(() => {
@@ -240,6 +261,29 @@ export default function ContactDetailPage() {
   const [loadingMemberships, setLoadingMemberships] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [enrichingFromWeb, setEnrichingFromWeb] = useState(false);
+  // SSoT: Xero links for Financial tab (from ContactHeader)
+  const [xeroLinks, setXeroLinks] = useState<XeroLink[]>([]);
+
+  // SSoT: Deletion check dialog state (Phase 3 Contact Consolidation)
+  // Pre-flight check before delete to warn about linked users, corporate roles, etc.
+  interface DeletionCheckResult {
+    can_delete: boolean;
+    warnings: Array<{ type: string; message: string; action?: string }>;
+    blockers: Array<{ type: string; message: string; action: string }>;
+    has_user?: boolean;
+    user_email?: string;
+    document_count?: number;
+    corporate_roles_count?: number;
+  }
+  const [deletionCheck, setDeletionCheck] = useState<DeletionCheckResult | null>(null);
+  const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
+  const [deletionLoading, setDeletionLoading] = useState(false);
+
+  // SSoT: Filter to only primary Xero account for root Invoices/Bills tabs
+  const primaryXeroLink = useMemo(() => {
+    if (!primaryXeroName || xeroLinks.length === 0) return null;
+    return xeroLinks.find(link => link.xero_tenant_name === primaryXeroName) || null;
+  }, [xeroLinks, primaryXeroName]);
 
   // Track if component is mounted to prevent state updates after deletion/navigation
   const mountedRef = useRef(true);
@@ -447,25 +491,10 @@ export default function ContactDetailPage() {
 
   // Fetch all companies for multi-select dropdown - load when contact is a person type
   useEffect(() => {
-    console.log('[Company Multi-Select] useEffect triggered:', {
-      hasContact: !!contact,
-      contactId: contact?.id,
-      entityType: contact?.entity_type,
-      availableCompaniesLength: availableCompanies.length,
-      canHaveEmployer: contact ? canHaveEmployer(contact.entity_type) : 'N/A',
-    });
-
     // Only fetch for person entity types that can have employers, and if not already loaded
-    if (!contact || availableCompanies.length > 0) {
-      console.log('[Company Multi-Select] Early return - contact:', !!contact, 'companies already loaded:', availableCompanies.length > 0);
-      return;
-    }
-    if (!canHaveEmployer(contact.entity_type)) {
-      console.log('[Company Multi-Select] Early return - entity type cannot have employer:', contact.entity_type);
-      return;
-    }
+    if (!contact || availableCompanies.length > 0) return;
+    if (!canHaveEmployer(contact.entity_type)) return;
 
-    console.log('[Company Multi-Select] Fetching companies...');
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
       try {
@@ -473,18 +502,14 @@ export default function ContactDetailPage() {
           params: { entity_type: "company" },
         });
         const companies = response.contacts || [];
-        console.log('[Company Multi-Select] Loaded companies:', companies.length);
         const companyOptions: Option[] = companies.map((c: CompanyListContact) => ({
           value: c.id.toString(),
           label: c.display_name || c.first_name || "Unknown Company",
         }));
-        console.log('[Company Multi-Select] Company options:', companyOptions);
         setAvailableCompanies(companyOptions);
-        console.log('[Company Multi-Select] Companies loaded successfully, count:', companyOptions.length);
       } catch (err) {
         console.error("[Company Multi-Select] Failed to fetch companies:", err);
       } finally {
-        console.log('[Company Multi-Select] Setting loadingCompanies to false');
         setLoadingCompanies(false);
       }
     };
@@ -556,23 +581,17 @@ export default function ContactDetailPage() {
 
   // Populate selected employees from contact.employees (for company contacts)
   useEffect(() => {
-    console.log('[Employee useEffect] Triggered. contact.employees:', contact?.employees);
     if (contact?.employees) {
       const selected: Option[] = contact.employees.map((emp) => ({
         value: emp.id.toString(),
         label: emp.display_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || "Unknown Person",
       }));
-      console.log('[Employee useEffect] Setting selectedEmployees to:', selected);
       setSelectedEmployees(selected);
 
       // Fetch roles for each employee by getting their relationships to this company
       const fetchEmployeeRoles = async () => {
-        if (!contact?.id) {
-          console.log('[Employee useEffect] Skipping fetchEmployeeRoles - no contact.id');
-          return;
-        }
+        if (!contact?.id) return;
 
-        console.log('[Employee useEffect] Fetching roles for contact.id:', contact.id);
         try {
           const response = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
           const incoming = response.relationships?.incoming || [];
@@ -593,15 +612,13 @@ export default function ContactDetailPage() {
             rolesMap[employeeId].push(rel.relationship_type);
           });
 
-          console.log('[Employee useEffect] Employee roles fetched:', rolesMap);
           setEmployeeRoles(rolesMap);
         } catch (err) {
-          console.error('[Employee useEffect] Failed to fetch employee roles for contact.id:', contact.id, 'Error:', err);
+          console.error('[Employee useEffect] Failed to fetch employee roles:', err);
         }
       };
       fetchEmployeeRoles();
     } else {
-      console.log('[Employee useEffect] No employees found on contact');
       setEmployeeRoles({});
     }
   }, [contact?.employees, contact?.id]);
@@ -743,12 +760,42 @@ export default function ContactDetailPage() {
     }
   };
 
+  // SSoT: Pre-flight check before delete (Phase 3 Contact Consolidation)
+  // Calls deletion_check endpoint to get warnings/blockers before showing delete dialog
   const handleDelete = async () => {
     if (!contact) return;
 
-    if (!confirm(`Delete contact "${contact.display_name}"?`)) {
-      return;
+    setDeletionLoading(true);
+    try {
+      // Call deletion_check endpoint first
+      const checkResponse = await api.get<{
+        success: boolean;
+        data: DeletionCheckResult;
+      }>(`/api/v1/contacts/${contact.id}/deletion_check`);
+
+      if (checkResponse?.success && checkResponse.data) {
+        setDeletionCheck(checkResponse.data);
+        setDeletionDialogOpen(true);
+      } else {
+        // Fallback to simple confirm if endpoint fails
+        if (await confirm(`Delete contact "${contact.display_name}"?`)) {
+          await executeDelete();
+        }
+      }
+    } catch (error: any) {
+      console.error("Failed to check deletion:", error);
+      // Fallback to simple confirm
+      if (await confirm(`Delete contact "${contact.display_name}"?`)) {
+        await executeDelete();
+      }
+    } finally {
+      setDeletionLoading(false);
     }
+  };
+
+  // Execute the actual delete
+  const executeDelete = async () => {
+    if (!contact) return;
 
     try {
       const response = await api.delete<{
@@ -760,15 +807,42 @@ export default function ContactDetailPage() {
 
       // Check if contact was archived instead of deleted
       if (response?.archived) {
-        alert(`✓ ${response.message}\n\nThe contact was archived (not permanently deleted) to preserve important records.`);
+        toast({ title: "Contact Archived", description: "The contact was archived (not permanently deleted) to preserve important records." });
+      } else {
+        toast({ title: "Contact Deleted", description: `${contact.display_name} has been permanently deleted.` });
       }
 
+      setDeletionDialogOpen(false);
       router.push('/contacts');
     } catch (error: any) {
       console.error("Failed to delete contact:", error);
-      // Show specific error message from backend if available
       const errorMessage = error?.message || error?.error || "Failed to delete contact. Please try again.";
-      alert(errorMessage);
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    }
+  };
+
+  // Archive instead of delete (for contacts with users or important relationships)
+  const handleArchive = async () => {
+    if (!contact) return;
+
+    try {
+      const response = await api.post<{
+        success: boolean;
+        message?: string;
+      }>(`/api/v1/contacts/${contact.id}/archive`);
+
+      if (response?.success) {
+        toast({
+          title: "Contact Archived",
+          description: `${contact.display_name} has been archived. They will no longer appear in lists but their data is preserved.`
+        });
+        setDeletionDialogOpen(false);
+        router.push('/contacts');
+      }
+    } catch (error: any) {
+      console.error("Failed to archive contact:", error);
+      const errorMessage = error?.message || error?.error || "Failed to archive contact. Please try again.";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   };
 
@@ -819,15 +893,15 @@ export default function ContactDetailPage() {
           if (website_details.address) message += `\n• Address: ${website_details.address}`;
         }
 
-        alert(message);
+        toast({ title: "Contact Enriched", description: message });
         await loadContact(); // Reload contact to show updated details
       } else {
-        alert(`Failed: ${response?.error || 'Unknown error'}`);
+        toast({ title: "Error", description: `Failed: ${response?.error || 'Unknown error'}`, variant: "destructive" });
       }
     } catch (error: unknown) {
       console.error("Error enriching contact:", error);
       const err = error as { response?: { data?: { error?: string } } };
-      alert(err.response?.data?.error || "Failed to enrich contact from web");
+      toast({ title: "Error", description: err.response?.data?.error || "Failed to enrich contact from web", variant: "destructive" });
     } finally {
       setEnrichingFromWeb(false);
     }
@@ -944,13 +1018,13 @@ export default function ContactDetailPage() {
     }
   };
 
-  // Load emails from EmailWarehouse for this contact
+  // Load emails from SyncedEmail for this contact
   const loadEmails = async (page = 1) => {
     if (!contact?.email) return;
     try {
       setLoadingEmails(true);
       const response = await api.get<{ emails: EmailMessage[]; pagination: EmailsPagination }>(
-        "/api/v1/email_warehouse",
+        "/api/v1/synced_emails",
         {
           // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts
           params: {
@@ -1225,7 +1299,7 @@ export default function ContactDetailPage() {
       await loadContact();
     } catch (err) {
       console.error("Failed to reorder companies:", err);
-      alert("Failed to save company order");
+      toast({ title: "Error", description: "Failed to save company order", variant: "destructive" });
       loadContact(); // Reload on error
     }
   };
@@ -1302,7 +1376,7 @@ export default function ContactDetailPage() {
   const handleRemoveEmployee = async (employeeId: number) => {
     if (!contact) return;
 
-    if (!confirm("Remove this person from the company?")) return;
+    if (!(await confirm("Remove this person from the company?"))) return;
 
     try {
       console.log('[Remove Employee] Fetching relationships for employee:', employeeId);
@@ -1322,7 +1396,7 @@ export default function ContactDetailPage() {
       }
     } catch (err) {
       console.error("[Remove Employee] Failed to remove employee:", employeeId, "Error:", err);
-      alert("Failed to remove employee");
+      toast({ title: "Error", description: "Failed to remove employee", variant: "destructive" });
     }
   };
 
@@ -1375,7 +1449,7 @@ export default function ContactDetailPage() {
       setEmployeeRoles(newEmployeeRoles);
     } catch (err) {
       console.error("[Employee Roles] Failed to update roles for employee:", employeeId, "Error:", err);
-      alert("Failed to update employee roles");
+      toast({ title: "Error", description: "Failed to update employee roles", variant: "destructive" });
     }
   };
 
@@ -1439,7 +1513,7 @@ export default function ContactDetailPage() {
       setShowAddRelatedEntity(false);
     } catch (err) {
       console.error("Failed to add related entity:", err);
-      alert("Failed to add relationship");
+      toast({ title: "Error", description: "Failed to add relationship", variant: "destructive" });
     } finally {
       setAddingRelatedEntity(false);
     }
@@ -1448,7 +1522,7 @@ export default function ContactDetailPage() {
   // Handle removing a related entity
   const handleRemoveRelatedEntity = async (relationshipId: number, sourceContactId: number) => {
     if (!contact) return;
-    if (!confirm("Remove this relationship?")) return;
+    if (!(await confirm("Remove this relationship?"))) return;
 
     try {
       await api.delete(`/api/v1/contacts/${sourceContactId}/relationships/${relationshipId}`);
@@ -1456,7 +1530,7 @@ export default function ContactDetailPage() {
       setRelatedEntities(prev => prev.filter(r => r.id !== relationshipId));
     } catch (err) {
       console.error("Failed to remove related entity:", err);
-      alert("Failed to remove relationship");
+      toast({ title: "Error", description: "Failed to remove relationship", variant: "destructive" });
     }
   };
 
@@ -1475,7 +1549,7 @@ export default function ContactDetailPage() {
       });
     } catch (err) {
       console.error("Failed to reorder employees:", err);
-      alert("Failed to save employee order");
+      toast({ title: "Error", description: "Failed to save employee order", variant: "destructive" });
       // Reload to get correct order from server
       loadContact();
     }
@@ -1812,6 +1886,21 @@ export default function ContactDetailPage() {
     router.push(newUrl);
   };
 
+  // SSoT: Handler for dropdown sub-tab navigation (from ContactTabsRenderer)
+  const handleSubTabChange = (parentKey: string, childKey: string) => {
+    // Navigate to parent tab with sub-tab in URL
+    // e.g., /contacts/123/financial/invoices
+    const defaultSubTabs: Record<string, string> = {
+      financial: "bank",
+      corporate: "identity",
+    };
+    const isDefault = defaultSubTabs[parentKey] === childKey;
+    const newUrl = isDefault
+      ? `/contacts/${id}/${parentKey}`
+      : `/contacts/${id}/${parentKey}/${childKey}`;
+    router.push(newUrl);
+  };
+
   // Get appropriate sub-tab based on active main tab (now from path segments)
   const activeFinancialSubTab = activeTab === "financial" ? (pathSegments.subtab || "bank") : "bank";
 
@@ -1866,8 +1955,8 @@ export default function ContactDetailPage() {
   if (error || !contact) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <AlertTriangle className="h-12 w-12 text-red-500" />
-        <p className="text-red-600">{error || "Contact not found"}</p>
+        <AlertTriangle className="h-12 w-12 text-red-500 dark:text-red-400" />
+        <p className="text-red-600 dark:text-red-400">{error || "Contact not found"}</p>
         <BackButton fallbackHref="/contacts" label="Go Back" variant="outline" />
       </div>
     );
@@ -1881,76 +1970,26 @@ export default function ContactDetailPage() {
         onDelete={handleDelete}
         onEnrichFromWeb={handleEnrichFromWeb}
         enrichingFromWeb={enrichingFromWeb}
+        onXeroLinksChange={setXeroLinks}
       />
 
-      {/* Tabs */}
+      {/* Tabs - SSoT: Rendered dynamically from EntityTabs database */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview">{tabConfigMap.overview?.display_name || "Overview"}</TabsTrigger>
-          {contact.linked_company && contact.can_view_corporate && (
-            <TabsTrigger value="corporate">
-              {(() => { const Icon = getIcon(tabConfigMap.corporate?.icon_name || "building-2"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.corporate?.display_name || "Corporate"}
-              {(directorships.length > 0 || shareholdings.length > 0 || (trustRoles && trustRoles.total_count > 0) || memberships.length > 0) && (
-                <Badge variant="secondary" className="ml-1.5">
-                  {directorships.length + shareholdings.length + (trustRoles?.total_count || 0) + memberships.length}
-                </Badge>
-              )}
-              {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="documents">{tabConfigMap.documents?.display_name || "Documents"}</TabsTrigger>
-          <TabsTrigger value="financial">
-            {tabConfigMap.financial?.display_name || "Financial"}
-            {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
-          </TabsTrigger>
-          <TabsTrigger value="coms">{tabConfigMap.coms?.display_name || "Communications"}</TabsTrigger>
-          {contact.can_view_cases && (
-            <TabsTrigger value="cases">
-              {(() => { const Icon = getIcon(tabConfigMap.cases?.icon_name || "briefcase"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.cases?.display_name || "Cases"}
-              {caseRelationships.length > 0 && (
-                <Badge variant="secondary" className="ml-1.5">
-                  {caseRelationships.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          )}
-          {contact.email && (
-            <TabsTrigger value="emails">
-              {(() => { const Icon = getIcon(tabConfigMap.emails?.icon_name || "mail"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.emails?.display_name || "Emails"}
-              {emailsPagination && emailsPagination.total > 0 && (
-                <Badge variant="secondary" className="ml-1.5">
-                  {emailsPagination.total}
-                </Badge>
-              )}
-            </TabsTrigger>
-          )}
-          {contact["is_customer?"] && (
-            <TabsTrigger value="invoices">
-              {(() => { const Icon = getIcon(tabConfigMap.invoices?.icon_name || "file-text"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.invoices?.display_name || "Invoices"}
-            </TabsTrigger>
-          )}
-          {contact["is_supplier?"] && (
-            <TabsTrigger value="pricebook">{tabConfigMap.pricebook?.display_name || "Price Book"}</TabsTrigger>
-          )}
-          <TabsTrigger value="portal">{tabConfigMap.portal?.display_name || "Portal Access"}</TabsTrigger>
-          <TabsTrigger value="activity">
-            {(() => { const Icon = getIcon(tabConfigMap.activity?.icon_name || "History"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-            {tabConfigMap.activity?.display_name || "Activity"}
-          </TabsTrigger>
-          {directorships.length > 0 && (
-            <TabsTrigger value="directorships">
-              {(() => { const Icon = getIcon(tabConfigMap.directorships?.icon_name || "users"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
-              {tabConfigMap.directorships?.display_name || "Directorships"}
-              <Badge variant="secondary" className="ml-1.5">
-                {directorships.filter(d => d.is_current).length}
-              </Badge>
-            </TabsTrigger>
-          )}
-        </TabsList>
+        <ContactTabsRenderer
+          tabs={contactTabs}
+          activeTab={activeTab}
+          activeSubTab={pathSegments.subtab}
+          onTabChange={handleTabChange}
+          onSubTabChange={handleSubTabChange}
+          contact={contact}
+          xeroLinks={xeroLinks}
+          directorshipsCount={directorships.length}
+          shareholdingsCount={shareholdings.length}
+          trustRolesCount={trustRoles?.total_count || 0}
+          membershipsCount={memberships.length}
+          caseRelationshipsCount={caseRelationships.length}
+          emailsCount={emailsPagination?.total}
+        />
 
         {/* Overview Tab - Redesigned Property Panel */}
         <TabsContent value="overview" className="mt-6">
@@ -2005,19 +2044,7 @@ export default function ContactDetailPage() {
 
         {/* Documents Tab */}
         <TabsContent value="documents" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FolderOpen className="h-5 w-5" />
-                Documents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-center py-8">
-                Documents linked to this contact will be shown here.
-              </p>
-            </CardContent>
-          </Card>
+          <ContactDocumentsTab contact={contact} />
         </TabsContent>
 
         {/* Financial Tab with nested sub-tabs (Bank Details, Xero, Bills, Jobs, Purchase Orders) */}
@@ -2028,18 +2055,13 @@ export default function ContactDetailPage() {
             handleFinancialSubTabChange={handleFinancialSubTabChange}
             setContact={setContact}
             handleViewInvoiceDetail={handleViewInvoiceDetail}
+            xeroLinks={xeroLinks}
           />
         </TabsContent>
 
         {/* Communications Tab */}
         <TabsContent value="coms" className="mt-6">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center py-8">
-                Communication history will be shown here.
-              </p>
-            </CardContent>
-          </Card>
+          <ContactCommunicationsTab contact={contact} />
         </TabsContent>
 
         {/* Cases Tab */}
@@ -2068,40 +2090,90 @@ export default function ContactDetailPage() {
         <TabsContent value="pricebook" className="mt-6">
           <Card>
             <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center py-8">
-                Supplier price book and pricing history will be shown here.
-              </p>
+              <ContactPriceBookTab
+                contactId={contact.id}
+                contactName={contact.display_name}
+              />
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Invoices Tab */}
-        {contact["is_customer?"] && (
-          <TabsContent value="invoices" className="mt-6">
+        {/* Invoices Tab - SSoT: visibility_rule = "Has Primary Xero links" - PRIMARY Xero only */}
+        <TabsContent value="invoices" className="mt-6">
+          <div className="space-y-6">
+            {/* Invoice Records from Xero */}
             <Card>
               <CardHeader>
-                <CardTitle>Invoices</CardTitle>
+                <CardTitle>Invoices {primaryXeroName && <span className="text-sm font-normal text-muted-foreground">({primaryXeroName})</span>}</CardTitle>
               </CardHeader>
               <CardContent>
                 <XeroInvoicesListByTenant
                   contactId={contact.id}
                   type="ACCREC"
                   onViewInvoiceDetail={handleViewInvoiceDetail}
+                  linkedTenants={primaryXeroLink ? [primaryXeroLink] : []}
                 />
               </CardContent>
             </Card>
-          </TabsContent>
-        )}
+
+            {/* Invoice Documents (PDFs) - filtered by document types linked to Invoices tab */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Invoice Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ContactTabDocuments
+                  contactId={contact.id}
+                  tabKey="invoices"
+                  title="Invoice Documents"
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Bills Tab - SSoT: visibility_rule = "Has Primary Xero links" - PRIMARY Xero only */}
+        <TabsContent value="bills" className="mt-6">
+          <div className="space-y-6">
+            {/* Bill Records from Xero */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Bills {primaryXeroName && <span className="text-sm font-normal text-muted-foreground">({primaryXeroName})</span>}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <XeroInvoicesListByTenant
+                  contactId={contact.id}
+                  type="ACCPAY"
+                  onViewInvoiceDetail={handleViewInvoiceDetail}
+                  linkedTenants={primaryXeroLink ? [primaryXeroLink] : []}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Bill Documents (PDFs) - filtered by document types linked to Bills tab */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Bill Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ContactTabDocuments
+                  contactId={contact.id}
+                  tabKey="bills"
+                  title="Bill Documents"
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Purchase Orders Tab - SSoT: visibility_rule = "is_supplier" - ROOT level for suppliers */}
+        <TabsContent value="purchase-orders" className="mt-6">
+          <ContactPurchaseOrdersTab contact={contact} />
+        </TabsContent>
 
         {/* Portal Access Tab */}
         <TabsContent value="portal" className="mt-6">
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-muted-foreground text-center py-8">
-                Portal user access settings will be shown here.
-              </p>
-            </CardContent>
-          </Card>
+          <ContactPortalTab contact={contact} />
         </TabsContent>
 
         {/* Activity Tab - Shows change history and audit log */}
@@ -2126,6 +2198,84 @@ export default function ContactDetailPage() {
         onOpenChange={setEditModalOpen}
         onSaved={loadContact}
       />
+
+      {/* Deletion Check Dialog - SSoT: Phase 3 Contact Consolidation */}
+      {/* Shows warnings/blockers before delete, offers archive option for contacts with users */}
+      <AlertDialog open={deletionDialogOpen} onOpenChange={setDeletionDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {deletionCheck?.blockers?.length ? (
+                <>
+                  <UserX className="h-5 w-5 text-destructive" />
+                  Cannot Delete Contact
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  Confirm Deletion
+                </>
+              )}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                {/* Blockers - prevent deletion */}
+                {deletionCheck?.blockers?.map((blocker, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                    <p className="font-medium text-destructive text-sm">{blocker.message}</p>
+                    {blocker.action && (
+                      <p className="text-xs text-muted-foreground mt-1">{blocker.action}</p>
+                    )}
+                  </div>
+                ))}
+
+                {/* Warnings - allow deletion but with caution */}
+                {deletionCheck?.warnings?.map((warning, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <p className="font-medium text-amber-600 dark:text-amber-400 text-sm">{warning.message}</p>
+                  </div>
+                ))}
+
+                {/* Summary text */}
+                {deletionCheck?.blockers?.length ? (
+                  <p className="text-sm text-muted-foreground">
+                    You can <strong>archive</strong> this contact instead. Archived contacts are hidden from lists but preserve all data and relationships.
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Are you sure you want to permanently delete <strong>{contact?.display_name}</strong>? This action cannot be undone.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {deletionCheck?.blockers?.length ? (
+              // Has blockers - only offer archive
+              <Button onClick={handleArchive} variant="outline" className="gap-2">
+                <Archive className="h-4 w-4" />
+                Archive Instead
+              </Button>
+            ) : (
+              // No blockers - offer both archive and delete
+              <>
+                <Button onClick={handleArchive} variant="outline" className="gap-2">
+                  <Archive className="h-4 w-4" />
+                  Archive
+                </Button>
+                <AlertDialogAction
+                  onClick={executeDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Permanently
+                </AlertDialogAction>
+              </>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

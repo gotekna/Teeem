@@ -23,7 +23,7 @@ const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export function WeekView() {
   const router = useRouter();
-  const [selectedDate] = useAtom(selectedDateAtom);
+  const [selectedDate, setSelectedDate] = useAtom(selectedDateAtom);
   const [eventsByDate] = useAtom(eventsByDateAtom);
   const setSelectedEvent = useSetAtom(selectedEventAtom);
   const setEventDetailOpen = useSetAtom(eventDetailOpenAtom);
@@ -50,10 +50,11 @@ export function WeekView() {
     setEventDetailOpen(true);
   };
 
-  // Double-click day to navigate to day view
+  // Double-click day to navigate to day view (path-based URL)
   const handleDayDoubleClick = (date: Date) => {
-    const dateStr = date.toISOString().split("T")[0];
-    router.push(`/calendar?view=day&date=${dateStr}`);
+    // Update selected date state, then navigate to day view
+    setSelectedDate(date);
+    router.push(`/calendar/day`, { scroll: false });
   };
 
   // Create event for date

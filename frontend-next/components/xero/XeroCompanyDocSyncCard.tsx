@@ -19,6 +19,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatDateTimeWithFallback } from "@/utils/formatters";
 
 /**
  * XeroCompanyDocSyncCard - Shows Xero document sync status for a specific company
@@ -158,28 +159,28 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
     switch (data.health.status) {
       case "healthy":
         return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300">
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Up to Date
           </Badge>
         );
       case "in_progress":
         return (
-          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300">
             <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
             Syncing
           </Badge>
         );
       case "partial":
         return (
-          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300">
+          <Badge className="bg-status-warning text-status-warning-foreground hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300">
             <Clock className="h-3 w-3 mr-1" />
             Partial
           </Badge>
         );
       case "warning":
         return (
-          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-300">
+          <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-300">
             <AlertTriangle className="h-3 w-3 mr-1" />
             Stale
           </Badge>
@@ -192,16 +193,6 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
           </Badge>
         );
     }
-  };
-
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "Never";
-    return new Date(dateString).toLocaleString("en-AU", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   // Stage progress component
@@ -246,7 +237,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
       </div>
       <Progress value={percentage} className="h-1.5" />
       <div className="flex justify-between text-xs text-muted-foreground">
-        <span>Last: {formatDate(lastSync)}</span>
+        <span>Last: {formatDateTimeWithFallback(lastSync, "Never")}</span>
       </div>
       {schedule && (
         <div className="text-xs text-muted-foreground/70 italic">
@@ -295,7 +286,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
             }
             lastSync={data.stage1_data_sync?.last_synced_at}
             schedule={data.stage1_data_sync?.schedule}
-            color="bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400"
+            color="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400"
           />
 
           {/* Stage 2: PDF Download */}
@@ -308,7 +299,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
             percentage={data.stage2_pdf_download?.progress_percentage || 0}
             lastSync={data.stage2_pdf_download?.last_synced_at}
             schedule={data.stage2_pdf_download?.schedule}
-            color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+            color="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"
           />
 
           {/* Stage 3: SharePoint Upload */}
@@ -333,7 +324,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
               percentage={data.stage3_sharepoint?.progress_percentage || 0}
               lastSync={data.stage3_sharepoint?.last_synced_at}
               schedule="Uploads with PDF sync"
-              color="bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+              color="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
             />
           </div>
         </div>

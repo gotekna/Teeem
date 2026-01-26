@@ -18,10 +18,8 @@ Rails.application.configure do
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
-  # Store uploaded files in Wasabi (S3-compatible) - SSoT for all document storage
-  # Credentials read from S3CompatibleCredential.active (database)
-  # This prevents file loss on Heroku dyno restarts (ephemeral filesystem)
-  config.active_storage.service = :wasabi
+  # REMOVED (Jan 2026): config.active_storage.service - SSoT is now StorageBlob
+  # All file storage now uses StorageBlob model with S3-compatible backend
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = true
@@ -84,7 +82,7 @@ Rails.application.configure do
   # ActionCable WebSocket allowed origins
   # Allow connections from Vercel frontend and Heroku backend
   config.action_cable.allowed_request_origins = [
-    "https://teeemlive.vercel.app",
+    "https://teeem.vercel.app",
     "https://teeemlive-ce8e2660a615.herokuapp.com",
     %r{https://teeem.*\.vercel\.app},  # Preview deployments
   ]

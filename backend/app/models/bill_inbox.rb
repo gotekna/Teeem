@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class BillInbox < ApplicationRecord
+  include StorageUploadable
+
   # Associations
   belongs_to :corporate_company, optional: true
   belongs_to :detected_company, class_name: "CorporateCompany", optional: true
@@ -8,21 +10,29 @@ class BillInbox < ApplicationRecord
   belongs_to :matched_purchase_order, class_name: "PurchaseOrder", optional: true
   belongs_to :approved_by, class_name: "User", optional: true
   belongs_to :external_invoice, optional: true
-  belongs_to :email_warehouse, class_name: "EmailWarehouse", optional: true
+  belongs_to :synced_email, class_name: "SyncedEmail", optional: true
   belongs_to :bpmn_process_instance, class_name: "BpmnProcessInstance", optional: true
 
-  has_many :bill_payments, dependent: :destroy
-  has_one_attached :invoice_file
-  has_many_attached :supporting_documents
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  belongs_to :storage_blob, optional: true
 
-  # File upload validation (security: prevents storage DoS and malware upload)
-  validates :invoice_file, content_type: %w[application/pdf image/jpeg image/png image/tiff],
-                           size: { less_than: 50.megabytes, message: "must be less than 50MB" }
-  validates :supporting_documents, content_type: %w[
+  # Phase 4: Universal warehouse metadata (SSoT for display_name, folder)
+  # Bill Inbox documents appear under Warehousing/BillInbox folder in File Warehouse
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
+  has_many :bill_payments, dependent: :destroy
+
+  # ActiveStorage has_one_attached :invoice_file was REMOVED (Jan 2026) - SSoT is storage_blob
+  # ActiveStorage has_many_attached :supporting_documents was REMOVED - use separate association
+  # Files stored via StorageBlob with deduplication via content_hash
+
+  # Allowed content types (used by upload validation in services)
+  ALLOWED_INVOICE_TYPES = %w[application/pdf image/jpeg image/png image/tiff].freeze
+  ALLOWED_SUPPORTING_TYPES = %w[
     application/pdf image/jpeg image/png image/tiff
     application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
     application/vnd.ms-excel text/csv
-  ], size: { less_than: 50.megabytes, message: "must be less than 50MB each" }
+  ].freeze
 
   # Validations
   validates :source, presence: true
@@ -48,7 +58,8 @@ class BillInbox < ApplicationRecord
 
   # Callbacks
   before_validation :set_defaults, on: :create
-  after_commit :upload_to_sharepoint, on: [:create, :update], if: :should_upload_to_sharepoint?
+  after_commit :upload_to_storage, on: [:create, :update], if: :should_upload_to_storage?
+  after_create :create_warehouse_entry
 
   # Instance methods
   def extract_invoice_data!
@@ -99,16 +110,17 @@ class BillInbox < ApplicationRecord
   end
 
   def sender_domain
-    return nil unless email_warehouse.present?
+    return nil unless synced_email.present?
 
-    from_email = email_warehouse.from_email
+    from_email = synced_email.from_email
     return nil unless from_email.present?
 
     from_email.split("@").last&.downcase
   end
 
   def internal_sender?
-    sender_domain == "tekna.com.au"
+    # SSoT: Use CorporateCompanySetting for internal domains
+    CorporateCompanySetting.internal_email_domains.include?(sender_domain)
   end
 
   def variance_percent
@@ -134,8 +146,40 @@ class BillInbox < ApplicationRecord
     end
   end
 
+  # Phase 4: Virtual folder path for File Warehouse
+  # SSoT: Reads from StorageConfiguration.virtual_template_for(:bill_inbox)
+  # Configure at: /settings/company/entity-config → Storage Config
+  def virtual_folder_path
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(:bill_inbox)
+    return "Warehousing/BillInbox/Unknown" unless template
+
+    year = (created_at || Time.current).year.to_s
+    month = format("%02d", (created_at || Time.current).month)
+    status_folder = status&.titleize || "Pending"
+
+    result = template.dup
+    result.gsub!("{{Status}}", status_folder)
+    result.gsub!("{{Year}}", year)
+    result.gsub!("{{Month}}", month)
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    result.gsub!(%r{//+}, "/")
+    result
+  end
+
+  # Display name for File Warehouse
+  def display_name
+    invoice_number.presence || supplier&.display_name || "Bill #{id}"
+  end
+
   def has_invoice_file?
-    sharepoint_file_id.present?
+    storage_reference.present?
+  end
+
+  # Provider-agnostic storage reference (SSoT: storage_item_id)
+  # Falls back to sharepoint_file_id for backwards compatibility
+  def storage_reference
+    storage_item_id.presence || storage_file_id
   end
 
   def invoice_file_content_type
@@ -150,27 +194,56 @@ class BillInbox < ApplicationRecord
   end
 
   def invoice_file_filename
-    # Use original_filename column if stored, or try Active Storage as fallback during migration
+    # SSoT: Use original_filename column or storage_blob
     return original_filename if original_filename.present?
-    invoice_file.attached? ? invoice_file.filename.to_s : nil
+    storage_blob&.original_filename
   end
 
-  # Download invoice file from SharePoint (SSoT)
+  # Download invoice file from storage (SSoT)
+  # Priority: storage_blob (S3/Wasabi) > warehouse_document.storage_blob > legacy storage_file_id
   def download_invoice_file
-    return nil unless sharepoint_file_id.present?
+    # SSoT: Use DocumentStorageService with self to leverage storage_blob
+    if storage_blob.present? || warehouse_document&.storage_blob.present?
+      service = DocumentStorageService.new
+      result = service.download(self)
+      return result[:success] ? result[:content] : nil
+    end
 
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.sharepoint_credential
-    return nil unless credential
+    # Legacy fallback: storage_file_id (SharePoint) - should be migrated
+    file_ref = storage_path.presence || storage_file_id
+    return nil unless file_ref.present?
 
-    client = MicrosoftGraphClient.new(credential)
-    client.download_file(sharepoint_file_id)
-  rescue MicrosoftGraphClient::APIError => e
-    Rails.logger.error("[BillInbox] SharePoint download failed for #{id}: #{e.message}")
+    Rails.logger.warn("[BillInbox] #{id} using legacy storage_file_id - needs migration to storage_blob")
+    result = download_from_storage(file_ref)
+    result[:success] ? result[:content] : nil
+  rescue StandardError => e
+    Rails.logger.error("[BillInbox] Storage download failed for #{id}: #{e.message}")
     nil
   end
 
   private
+
+  # Create WarehouseDocument entry for this bill inbox item
+  def create_warehouse_entry
+    return unless storage_blob
+
+    create_warehouse_document!(
+      source_type: "warehouse",
+      folder: virtual_folder_path,
+      display_name: display_name,
+      original_filename: invoice_file_filename,
+      storage_blob: storage_blob,
+      metadata: {
+        bill_inbox_id: id,
+        status: status,
+        invoice_number: invoice_number,
+        supplier_id: supplier_id,
+        total_amount: total_amount
+      }
+    )
+  rescue StandardError => e
+    Rails.logger.error("[BillInbox] Failed to create warehouse entry: #{e.message}")
+  end
 
   def set_defaults
     self.source ||= "email"
@@ -179,12 +252,12 @@ class BillInbox < ApplicationRecord
     self.currency ||= "AUD"
   end
 
-  def should_upload_to_sharepoint?
-    # Upload if we have an Active Storage file but no SharePoint ID yet
-    invoice_file.attached? && sharepoint_file_id.blank?
+  def should_upload_to_storage?
+    # Upload only happens when storage_blob is assigned but not yet uploaded
+    storage_blob.present? && storage_blob.storage_path.blank?
   end
 
-  def upload_to_sharepoint
-    BillInboxSharepointUploadJob.perform_later(id)
+  def upload_to_storage
+    BillInboxStorageUploadJob.perform_later(id)
   end
 end

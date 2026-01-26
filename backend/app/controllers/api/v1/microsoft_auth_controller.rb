@@ -225,7 +225,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     email_sync_status = EmailSyncStatus.find_by(user: current_user)
 
     # Count emails synced by this user
-    emails_synced_by_user = EmailWarehouse.where(synced_by_user_id: current_user.id).count
+    emails_synced_by_user = SyncedEmail.where(synced_by_user_id: current_user.id).count
 
     # Get user's email sync stats
     email_stats = {
@@ -391,9 +391,13 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   def update_unified_microsoft_credential(user, tokens, email)
     Rails.logger.info "[Microsoft Auth] SSoT: Updating MicrosoftCredential for user #{user.id}..."
 
-    # Get default organization for user-level credentials
-    # TODO: Use user.organization when User model has organization association
-    default_org = Organization.first
+    # SSoT (Jan 2026): Derive organization from tenant, not Organization.first
+    tenant = user.tenant || ActsAsTenant.current_tenant
+    default_org = tenant&.organizations&.first
+
+    unless default_org
+      Rails.logger.warn "[Microsoft Auth] No organization found for user #{user.id} - tenant: #{tenant&.name}"
+    end
 
     # Find or create user's MicrosoftCredential
     credential = MicrosoftCredential.find_or_initialize_by(
@@ -428,10 +432,14 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     # Deactivate any existing org-level delegated credentials
     MicrosoftCredential.delegated_credentials.org_level.active.update_all(is_active: false)
 
+    # SSoT (Jan 2026): Derive organization from tenant
+    tenant = user.tenant || ActsAsTenant.current_tenant
+    org = tenant&.organizations&.first
+
     # Create new credential
     credential = MicrosoftCredential.create!(
       credential_type: "delegated",
-      organization: Organization.first,
+      organization: org,
       access_token: tokens[:access_token],
       refresh_token: tokens[:refresh_token],
       token_expires_at: Time.current + tokens[:expires_in].to_i.seconds,
@@ -442,31 +450,36 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     Rails.logger.info "[Microsoft Auth] Created org credential ID: #{credential.id}"
 
-    # Try to connect to the TEEEM SharePoint site
+    # SSoT: Get SharePoint site name from StorageConfiguration or company settings (Jan 2026)
+    # No hardcoded org names - tenant configures their own site name
+    storage_config = StorageConfiguration.instance
+    site_name = storage_config&.site_name.presence || CorporateCompanySetting.instance.company_name
+    site_name_lower = site_name&.downcase || ""
+
     begin
       client = MicrosoftGraphClient.new(credential)
 
-      # First try to find the TEEEM SharePoint site
-      Rails.logger.info "[Microsoft Auth] Looking for TEEEM SharePoint site..."
+      # Try to find the configured SharePoint site
+      Rails.logger.info "[Microsoft Auth] Looking for SharePoint site: #{site_name}..."
 
       # Search for the site by name
       begin
-        result = client.use_sharepoint_site("TEEEM")
-        Rails.logger.info "[Microsoft Auth] Connected to SharePoint site: #{result[:site]['displayName'] || 'TEEEM'}"
+        result = client.use_sharepoint_site(site_name)
+        Rails.logger.info "[Microsoft Auth] Connected to SharePoint site: #{result[:site]['displayName'] || site_name}"
       rescue StandardError => e
-        Rails.logger.warn "[Microsoft Auth] Could not find TEEEM site by name: #{e.message}"
+        Rails.logger.warn "[Microsoft Auth] Could not find #{site_name} site by name: #{e.message}"
 
         # Try searching for it
         begin
           sites = client.list_sharepoint_sites
-          teeem_site = sites.find { |s| s[:name]&.downcase&.include?("teeem") }
+          matching_site = sites.find { |s| s[:name]&.downcase&.include?(site_name_lower) }
 
-          if teeem_site
-            result = client.use_sharepoint_site(teeem_site[:id])
-            Rails.logger.info "[Microsoft Auth] Connected to SharePoint via search: #{teeem_site[:name]}"
+          if matching_site
+            result = client.use_sharepoint_site(matching_site[:id])
+            Rails.logger.info "[Microsoft Auth] Connected to SharePoint via search: #{matching_site[:name]}"
           else
             # Fall back to personal OneDrive
-            Rails.logger.warn "[Microsoft Auth] No TEEEM SharePoint found, using personal OneDrive"
+            Rails.logger.warn "[Microsoft Auth] No #{site_name} SharePoint found, using personal OneDrive"
             drive_info = client.get("/me/drive")
             credential.update!(
               drive_id: drive_info["id"],
@@ -656,7 +669,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   end
 
   def build_sharepoint_connection_info(org_credential)
-    return { connected: false, name: "TEEEM SharePoint", auth_type: "organization" } unless org_credential
+    # SSoT: Use company name from settings, not hardcoded (Jan 2026)
+    company_name = CorporateCompanySetting.instance.company_name
+    display_name = "#{company_name} SharePoint"
+    return { connected: false, name: display_name, auth_type: "organization" } unless org_credential
 
     # Get the actual authenticated user from Graph API
     authenticated_as = nil
@@ -671,12 +687,13 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     # SSoT: Get SharePoint config from StorageConfiguration
     storage_config = StorageConfiguration.instance
     site_url = storage_config&.site_url.presence
-    drive_name = storage_config&.drive_name.presence || "Shared Documents"
-    documents_url = site_url ? "#{site_url}/#{drive_name.gsub(' ', '%20')}" : nil
+    # SSoT: drive_name comes from StorageConfiguration - no hardcoded fallback
+    drive_name = storage_config&.drive_name.presence
+    documents_url = (site_url && drive_name) ? "#{site_url}/#{drive_name.gsub(' ', '%20')}" : nil
 
     {
       connected: true,
-      name: "TEEEM SharePoint",
+      name: display_name,  # SSoT: Dynamic from company settings (Jan 2026)
       url: documents_url,
       document_library: drive_name,
       root_folder: storage_config&.root_path,

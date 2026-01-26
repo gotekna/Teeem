@@ -106,8 +106,12 @@ export function DataHealthWidget({
       const data = await api.get<HealthData>(url);
       setHealthData(data);
     } catch (err) {
-      console.error("Failed to load health data:", err);
-      setError(err instanceof Error ? err.message : "Failed to load health data");
+      // Don't spam console for expected "Foundation not found" errors
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (!errorMessage.includes('Foundation not found')) {
+        console.error("Failed to load health data:", err);
+      }
+      setError(errorMessage);
       setHealthData(null);
     } finally {
       setLoading(false);
@@ -396,9 +400,9 @@ export function DataHealthWidget({
                             variant="secondary"
                             className={cn(
                               "text-xs uppercase",
-                              color === "red" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-                              color === "orange" && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-                              color === "blue" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                              color === "red" && "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300",
+                              color === "orange" && "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400",
+                              color === "blue" && "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400",
                               color === "gray" && "bg-secondary text-secondary-foreground"
                             )}
                           >
@@ -496,7 +500,11 @@ export function HealthIndicatorButton({
       );
       setHealthData(data);
     } catch (err) {
-      console.error("Failed to load health data:", err);
+      // Don't spam console for expected "Foundation not found" errors
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (!errorMessage.includes('Foundation not found')) {
+        console.error("Failed to load health data:", err);
+      }
       setHealthData(null);
     } finally {
       setLoading(false);
@@ -514,9 +522,9 @@ export function HealthIndicatorButton({
 
   // Get color based on health score
   const getHealthColor = (score: number) => {
-    if (score >= 100) return "text-green-600 bg-green-50 border-green-200 hover:bg-green-100";
-    if (score >= 75) return "text-orange-600 bg-orange-50 border-orange-200 hover:bg-orange-100";
-    return "text-red-600 bg-red-50 border-red-200 hover:bg-red-100";
+    if (score >= 100) return "text-green-600 dark:text-green-400 bg-green-50 border-green-200 hover:bg-green-100";
+    if (score >= 75) return "text-orange-600 dark:text-orange-400 bg-orange-50 border-orange-200 hover:bg-orange-100";
+    return "text-red-600 dark:text-red-400 bg-red-50 border-red-200 hover:bg-red-100";
   };
 
   const score = healthData?.overall_health ?? 0;

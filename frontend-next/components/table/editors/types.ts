@@ -129,6 +129,9 @@ export interface TextEditorProps extends CellEditorProps<string> {
 
   /** Number of rows for textarea */
   rows?: number;
+
+  /** Enable AI spell check (default: false for performance) */
+  enableSpellCheck?: boolean;
 }
 
 /**

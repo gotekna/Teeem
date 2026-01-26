@@ -14,6 +14,8 @@
 class MicrosoftAppGraphClient
   GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 
+  attr_reader :credential
+
   class NotConnectedError < StandardError; end
   class ApiError < StandardError; end
   class DeadTokenError < NotConnectedError; end
@@ -176,18 +178,21 @@ class MicrosoftAppGraphClient
 
   # Get email in MIME format (.eml)
   # Returns the raw MIME content of the email message
+  # Uses with_retry for proper 429 throttling handling
   def get_email_mime_content(user_identifier, message_id)
     endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/$value"
 
-    # This endpoint returns raw MIME content, not JSON
-    response = HTTP.auth("Bearer #{access_token}")
-                   .get("#{GRAPH_API_BASE}#{endpoint}")
+    with_retry(max_retries: 5) do
+      # This endpoint returns raw MIME content, not JSON
+      response = HTTP.auth("Bearer #{access_token}")
+                     .get("#{GRAPH_API_BASE}#{endpoint}")
 
-    unless response.status.success?
-      raise ApiError, "Failed to get email MIME content: #{response.code} - #{response.body}"
+      unless response.status.success?
+        raise ApiError, "Failed to get email MIME content: #{response.code} - #{response.body}"
+      end
+
+      response.body.to_s
     end
-
-    response.body.to_s
   end
 
   # List mail folders for a user (including nested subfolders)
@@ -1043,16 +1048,17 @@ class MicrosoftAppGraphClient
           Rails.logger.error "[MicrosoftAppGraph] Max retries exceeded for token refresh"
           raise NotConnectedError, "SharePoint authentication failed after #{max_retries} attempts."
         end
-      elsif error_msg.include?("429") || error_msg.include?("Too Many Requests")
+      elsif error_msg.include?("429") || error_msg.include?("Too Many Requests") || error_msg.include?("ApplicationThrottled")
         # Rate limited - use exponential backoff
+        # Microsoft Graph API returns 429 with "ApplicationThrottled" for MailboxConcurrency limits
         if attempt <= max_retries
-          wait_time = 2 ** attempt  # 2s, 4s, 8s
+          wait_time = 2 ** attempt  # 2s, 4s, 8s, 16s, 32s
           Rails.logger.warn "[MicrosoftAppGraph] Rate limited (attempt #{attempt}/#{max_retries}), waiting #{wait_time}s..."
           sleep(wait_time)
           retry
         else
           Rails.logger.error "[MicrosoftAppGraph] Max retries exceeded for rate limiting"
-          raise ApiError, "SharePoint API rate limit exceeded. Please try again later."
+          raise ApiError, "Microsoft API rate limit exceeded. Please try again later."
         end
       elsif error_msg.include?("503") || error_msg.include?("Service Unavailable")
         # Service unavailable - retry with backoff

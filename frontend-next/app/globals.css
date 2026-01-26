@@ -5,7 +5,7 @@
 @layer base {
   :root {
     /* ========================================
-       TEKNA BRAND GUIDELINES - DESIGN TOKENS
+       TEEEM BRAND GUIDELINES - DESIGN TOKENS
        ======================================== */
 
     /* Typography - Geist fonts loaded via next/font in layout.tsx */
@@ -528,26 +528,68 @@ a.bg-primary svg {
 }
 
 /* ========================================
+   NATIVE BROWSER SPELLCHECK
+   ======================================== */
+
+/*
+ * Browser spellcheck is enabled via spellcheck="true" attribute on ProseMirror.
+ * The red wavy underlines are rendered by the browser, not CSS.
+ * No additional CSS is needed - browsers handle this natively.
+ */
+
+/* ========================================
    WRITING CHECKER - Spell/Grammar/Tone
    ======================================== */
 
 /* Spelling errors - red wavy underline */
-.writing-error-spelling {
+.writing-issue-spelling {
   text-decoration: underline wavy #ef4444;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
   text-decoration-skip-ink: none;
   cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 0.15s ease;
+}
+.writing-issue-spelling:hover {
+  background-color: rgba(239, 68, 68, 0.1);
 }
 
-/* Grammar errors - yellow wavy underline */
-.writing-error-grammar {
-  text-decoration: underline wavy #eab308;
+/* Grammar errors - amber/yellow wavy underline */
+.writing-issue-grammar {
+  text-decoration: underline wavy #f59e0b;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
   text-decoration-skip-ink: none;
   cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 0.15s ease;
+}
+.writing-issue-grammar:hover {
+  background-color: rgba(245, 158, 11, 0.1);
 }
 
 /* Tone suggestions - blue wavy underline */
-.writing-error-tone {
+.writing-issue-tone {
   text-decoration: underline wavy #3b82f6;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
   text-decoration-skip-ink: none;
   cursor: pointer;
+  border-radius: 2px;
+  transition: background-color 0.15s ease;
 }
+.writing-issue-tone:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* Legacy class names (for backwards compatibility with old code) */
+.writing-error-spelling,
+.writing-error-grammar,
+.writing-error-tone {
+  cursor: pointer;
+  text-decoration-skip-ink: none;
+}
+.writing-error-spelling { text-decoration: underline wavy #ef4444; }
+.writing-error-grammar { text-decoration: underline wavy #f59e0b; }
+.writing-error-tone { text-decoration: underline wavy #3b82f6; }

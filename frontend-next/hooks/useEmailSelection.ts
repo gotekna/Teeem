@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import { useAtom } from "jotai";
+import { selectedEmailIdsAtom } from "@/lib/email-atoms";
 
 export interface EmailForSelection {
   id: number;
@@ -28,6 +30,8 @@ export interface UseEmailSelectionReturn {
 /**
  * Hook for managing email multi-selection state
  *
+ * SSoT: Uses selectedEmailIdsAtom from lib/email-atoms.ts
+ *
  * Usage:
  * const { selectedIds, toggle, selectRange, selectAll, clear, count } = useEmailSelection();
  *
@@ -45,7 +49,8 @@ export interface UseEmailSelectionReturn {
  * }}
  */
 export function useEmailSelection(): UseEmailSelectionReturn {
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  // SSoT: Use atom instead of local useState
+  const [selectedIds, setSelectedIds] = useAtom(selectedEmailIdsAtom);
 
   const isSelected = useCallback(
     (id: number): boolean => selectedIds.has(id),
@@ -62,7 +67,7 @@ export function useEmailSelection(): UseEmailSelectionReturn {
       }
       return next;
     });
-  }, []);
+  }, [setSelectedIds]);
 
   const selectRange = useCallback(
     (fromId: number, toId: number, emails: EmailForSelection[]) => {
@@ -82,16 +87,16 @@ export function useEmailSelection(): UseEmailSelectionReturn {
         return next;
       });
     },
-    []
+    [setSelectedIds]
   );
 
   const selectAll = useCallback((emails: EmailForSelection[]) => {
     setSelectedIds(new Set(emails.map((e) => e.id)));
-  }, []);
+  }, [setSelectedIds]);
 
   const clear = useCallback(() => {
-    setSelectedIds(new Set());
-  }, []);
+    setSelectedIds(new Set<number>());
+  }, [setSelectedIds]);
 
   const count = useMemo(() => selectedIds.size, [selectedIds]);
   const hasSelection = useMemo(() => selectedIds.size > 0, [selectedIds]);

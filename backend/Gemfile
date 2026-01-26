@@ -40,8 +40,9 @@ gem "thruster", require: false
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 # gem "image_processing", "~> 1.2"
 
-# ActiveStorage file upload validation (size, content type)
-gem "active_storage_validations", "~> 2.0"
+# ActiveStorage file upload validation - REMOVED (Jan 2026)
+# SSoT: StorageBlob replaces ActiveStorage. Validation now in StorageBlob model.
+# gem "active_storage_validations", "~> 2.0"
 
 # Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin Ajax possible
 gem "rack-cors"
@@ -54,6 +55,7 @@ gem "rack-attack", "~> 6.7"
 gem "caxlsx", "~> 4.1.0"  # Excel generation
 gem "caxlsx_rails", "~> 0.6.3"  # Rails integration for Excel export
 gem "pdf-reader", "~> 2.12"  # PDF text extraction for email attachments
+gem "rubyzip", "~> 2.3"  # Zip file creation for bulk downloads
 gem "business_time", "~> 0.13"  # Business days calculation for bill approval workflows
 gem "hexapdf", "~> 0.42"  # PDF manipulation for splitting documents
 gem "sablon", "~> 0.4"  # DOCX mail merge for document templates
@@ -83,6 +85,9 @@ gem "twilio-ruby", "~> 7.3"  # Twilio SDK for SMS messaging
 
 # Payment processing
 gem "stripe", "~> 13.0"  # Stripe SDK for payment portal
+
+# Multi-tenancy
+gem "acts_as_tenant", "~> 1.0"  # Row-level multi-tenant data isolation
 
 # AI integration for plan analysis
 gem "anthropic", "~> 0.3.0"  # Claude API for AI-powered plan review

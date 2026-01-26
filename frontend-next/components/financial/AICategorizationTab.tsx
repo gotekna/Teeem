@@ -55,6 +55,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface BankTransaction {
   id: number;
@@ -328,33 +329,17 @@ export default function AICategorizationTab() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(Math.abs(amount));
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   const getConfidenceBadge = (confidence: number) => {
     const pct = Math.round(confidence * 100);
     if (pct >= 90) {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           {pct}%
         </Badge>
       );
     } else if (pct >= 70) {
       return (
-        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+        <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400">
           {pct}%
         </Badge>
       );
@@ -371,27 +356,27 @@ export default function AICategorizationTab() {
     switch (status) {
       case "pending":
         return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             Pending
           </Badge>
         );
       case "accepted":
         return (
-          <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+          <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Accepted
           </Badge>
         );
       case "rejected":
         return (
-          <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+          <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300">
             <XCircle className="h-3 w-3 mr-1" />
             Rejected
           </Badge>
         );
       case "corrected":
         return (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+          <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-400">
             <Edit3 className="h-3 w-3 mr-1" />
             Corrected
           </Badge>
@@ -419,7 +404,7 @@ export default function AICategorizationTab() {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <Button variant="outline" onClick={handleRefresh}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
@@ -436,8 +421,8 @@ export default function AICategorizationTab() {
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-green-600" />
-              <div className="text-2xl font-bold text-green-600">
+              <Target className="h-5 w-5 text-green-600 dark:text-green-400" />
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {accuracyStats?.accuracy_rate?.toFixed(0) || 0}%
               </div>
             </div>
@@ -446,7 +431,7 @@ export default function AICategorizationTab() {
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {accuracyStats?.pending || 0}
             </div>
             <p className="text-xs text-muted-foreground">Pending Review</p>
@@ -454,7 +439,7 @@ export default function AICategorizationTab() {
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {accuracyStats?.accepted || 0}
             </div>
             <p className="text-xs text-muted-foreground">Accepted</p>
@@ -470,7 +455,7 @@ export default function AICategorizationTab() {
         </Card>
         <Card>
           <CardContent className="pt-4">
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {ruleSuggestions.length}
             </div>
             <p className="text-xs text-muted-foreground">Rule Suggestions</p>
@@ -642,7 +627,7 @@ export default function AICategorizationTab() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    className="h-8 w-8 text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-50"
                                     onClick={() => handleAccept(prediction)}
                                   >
                                     <Check className="h-4 w-4" />
@@ -657,7 +642,7 @@ export default function AICategorizationTab() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    className="h-8 w-8 text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50"
                                     onClick={() => openRejectDialog(prediction)}
                                   >
                                     <X className="h-4 w-4" />
@@ -753,8 +738,8 @@ export default function AICategorizationTab() {
                           variant="outline"
                           className={
                             suggestion.transaction_type === "credit"
-                              ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                              : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                              ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
+                              : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
                           }
                         >
                           {suggestion.transaction_type === "credit" ? "Income" : "Expense"}
@@ -862,7 +847,7 @@ export default function AICategorizationTab() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-red-500" />
+              <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
               Reject Prediction
             </DialogTitle>
             <DialogDescription>

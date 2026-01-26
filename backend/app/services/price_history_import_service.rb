@@ -269,11 +269,13 @@ class PriceHistoryImportService
     supplier = Contact.find_by("LOWER(display_name) = ?", name.downcase)
 
     # Create new contact if not found
+    # SSoT: Multi-tenancy - set tenant_id from current tenant (controller context)
     unless supplier
       supplier = Contact.create!(
         display_name: name,
         entity_type: "company", # Default to company for suppliers
-        is_active: true
+        is_active: true,
+        tenant_id: ActsAsTenant.current_tenant&.id
       )
       @warnings << "Created new contact: #{name}"
     end

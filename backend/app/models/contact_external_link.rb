@@ -1,37 +1,29 @@
 class ContactExternalLink < ApplicationRecord
+  include ExternalSyncConstants
+
   belongs_to :contact
 
   # Callbacks to keep Contact's cached xero columns in sync
   after_save :update_contact_xero_cache
   after_destroy :update_contact_xero_cache
 
-  # Sources
-  SOURCES = %w[xero myob quickbooks].freeze
-
-  # Sync directions
-  SYNC_DIRECTIONS = %w[import_only export_only bidirectional].freeze
-
-  # Match types for cross-tenant matching
-  MATCH_TYPES = %w[exact_abn exact_email fuzzy_name manual].freeze
+  # SSoT: ACCOUNTING_SYSTEMS, RECORD_SYNC_DIRECTIONS, MATCH_TYPES defined in ExternalSyncConstants concern
 
   # Xero contact status tracking
   XERO_STATUSES = %w[active archived deleted not_found].freeze
 
-  validates :source, presence: true, inclusion: { in: SOURCES }
+  validates :source, presence: true, inclusion: { in: ACCOUNTING_SYSTEMS }
   validates :xero_contact_status, inclusion: { in: XERO_STATUSES }, allow_nil: true
   validates :tenant_id, presence: true
   validates :external_contact_id, presence: true
-  validates :sync_direction, inclusion: { in: SYNC_DIRECTIONS }
+  validates :sync_direction, inclusion: { in: RECORD_SYNC_DIRECTIONS }
   # NOTE: Removed contact_id uniqueness validation to support merged Xero contacts
   # One TEEEM contact CAN have multiple Xero links (e.g., "Bunnings" and "Bunnings Group Limited" after merge)
   validates :external_contact_id, uniqueness: { scope: [ :source, :tenant_id ], message: "already linked to another contact" }
 
   scope :enabled, -> { where(sync_enabled: true) }
-  scope :for_source, ->(source) { where(source: source) }
+  # SSoT: source scopes (xero, myob, quickbooks, for_source) defined in ExternalSyncConstants
   scope :for_tenant, ->(tenant_id) { where(tenant_id: tenant_id) }
-  scope :xero, -> { for_source("xero") }
-  scope :myob, -> { for_source("myob") }
-  scope :quickbooks, -> { for_source("quickbooks") }
   scope :with_errors, -> { where.not(sync_error: nil) }
   scope :with_conflicts, -> { where("conflict_fields != '{}'") }
   scope :pending_review, -> { where(needs_review: true) }

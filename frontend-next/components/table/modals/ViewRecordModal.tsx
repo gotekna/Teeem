@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Eye, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatDate } from '@/utils/formatters';
 import type { TableColumn, TableRow } from '../types';
 
 // Alias for consistency
@@ -51,7 +52,12 @@ function formatDisplayValue(column: TableColumn, value: unknown): React.ReactNod
     return <span className="text-muted-foreground italic">—</span>;
   }
 
-  const columnType = column.column_type || 'string';
+  // SSoT: column_type should always be set - log error if missing (skip system columns)
+  const systemColumns = ['id', 'created_at', 'updated_at'];
+  if (!column.column_type && !systemColumns.includes(column.key)) {
+    console.error(`[SSoT] Column "${column.key}" missing column_type - defaulting to single_line_text`);
+  }
+  const columnType = column.column_type || 'single_line_text';
 
   switch (columnType) {
     case 'boolean':
@@ -63,7 +69,8 @@ function formatDisplayValue(column: TableColumn, value: unknown): React.ReactNod
 
     case 'date':
       try {
-        return new Date(String(value)).toLocaleDateString('en-AU');
+        const formatted = formatDate(String(value));
+        return formatted === '-' ? String(value) : formatted;
       } catch {
         return String(value);
       }
@@ -101,7 +108,7 @@ function formatDisplayValue(column: TableColumn, value: unknown): React.ReactNod
           href={String(value)}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:underline dark:text-blue-400"
+          className="text-blue-600 dark:text-blue-400 hover:underline dark:text-blue-400"
         >
           {String(value)}
         </a>
@@ -111,7 +118,7 @@ function formatDisplayValue(column: TableColumn, value: unknown): React.ReactNod
       return (
         <a
           href={`mailto:${String(value)}`}
-          className="text-blue-600 hover:underline dark:text-blue-400"
+          className="text-blue-600 dark:text-blue-400 hover:underline dark:text-blue-400"
         >
           {String(value)}
         </a>

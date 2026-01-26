@@ -11,12 +11,21 @@
 #
 # Part of Site Presence & Cost Intelligence System
 #
+# SSoT Integration:
+# - Includes StorableDocument for Wasabi storage
+# - document_type determines folder (via primary_tab) and filename (via file_name template)
+# - Falls back to task.completion_document_type if document_type not set directly
+#
 class SmTaskPhoto < ApplicationRecord
+  include StorableDocument
+  storage_scope :job  # Photos go in job folders: /Jobs/{{JobCode}}/{{TabName}}/
+
   # Associations
   belongs_to :task, class_name: "SmTask", foreign_key: "sm_task_id", optional: true
   belongs_to :job, optional: true
   belongs_to :uploaded_by, class_name: "User", optional: true
   belongs_to :resource, class_name: "SmResource", optional: true
+  belongs_to :document_type, optional: true  # SSoT: determines folder + filename
 
   # Site presence associations
   has_one :checkin_session, class_name: "SitePresenceSession", foreign_key: "checkin_photo_id"
@@ -93,6 +102,79 @@ class SmTaskPhoto < ApplicationRecord
     longitude || exif_longitude
   end
 
+  # ========================================
+  # SSoT Storage Integration
+  # ========================================
+
+  # SSoT: Get document_type from task.completion_document_type if not set directly
+  def effective_document_type
+    document_type || task&.completion_document_type
+  end
+
+  # SSoT: Get the EntityTab from DocumentType (primary_entity_tab method)
+  # This provides the folder name and storage_folder_path template
+  def effective_entity_tab
+    effective_document_type&.primary_entity_tab
+  end
+
+  # SSoT: All tokens come from related records - NOTHING HARDCODED
+  # Used by StorableDocument.upload_to_storage() to build the storage path
+  #
+  # Path is built from:
+  # 1. EntityTab.storage_folder_path template (from database, NOT hardcoded)
+  # 2. Tokens expanded from this method
+  def default_storage_tokens
+    doc_type = effective_document_type
+    entity_tab = effective_entity_tab
+    effective_job = job || task&.job
+
+    {
+      # Job tokens
+      JobCode: effective_job&.job_code,
+      JobTitle: effective_job&.title,
+
+      # Tab tokens (from EntityTab - SSoT for folder structure)
+      TabName: entity_tab&.display_name || doc_type&.primary_tab,
+      TabKey: entity_tab&.tab_key,
+      SubTabName: entity_tab&.parent&.display_name,
+
+      # DocumentType tokens
+      DocTypeCode: doc_type&.code || doc_type&.abbreviation,
+      DocTypeName: doc_type&.name,
+      Folder: doc_type&.folder,
+
+      # Date/time tokens
+      Date: (taken_at || created_at)&.strftime("%Y-%m-%d"),
+      DateTime: (taken_at || created_at)&.strftime("%Y-%m-%d_%H%M%S"),
+
+      # File tokens
+      OriginalFileName: File.basename(photo_url.to_s, ".*")
+    }.compact
+  end
+
+  # SSoT: Get the storage folder path template from EntityTab
+  # This is the database-stored template, NOT a hardcoded constant
+  def storage_folder_template
+    effective_entity_tab&.storage_folder_path
+  end
+
+  # SSoT: Filename from DocumentType.file_name template
+  # Falls back to "{DocTypeCode} {JobCode} {Date}" if no template
+  def storage_filename
+    doc_type = effective_document_type
+    tokens = default_storage_tokens
+
+    base_name = if doc_type&.file_name.present?
+      expand_filename_template(doc_type.file_name, tokens)
+    else
+      # Fallback: use tokens directly
+      [tokens[:DocTypeCode], tokens[:JobCode], tokens[:Date]].compact.join(" ")
+    end
+
+    ext = File.extname(photo_url.to_s).presence || ".jpg"
+    "#{base_name}#{ext}"
+  end
+
   private
 
   def set_taken_at
@@ -103,5 +185,12 @@ class SmTaskPhoto < ApplicationRecord
     return if sm_task_id.present? || job_id.present?
 
     errors.add(:base, "Must belong to either a task or a job")
+  end
+
+  # Expand {Token} placeholders in filename template
+  def expand_filename_template(template, tokens)
+    result = template.dup
+    tokens.each { |key, value| result.gsub!("{#{key}}", value.to_s) }
+    result.gsub(/\{[^}]+\}/, "") # Remove unexpanded tokens
   end
 end

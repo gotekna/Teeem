@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  ArrowLeft,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Plus,
   Pencil,
   Trash2,
@@ -26,6 +33,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -64,6 +72,7 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
 export default function MinuteTemplatesPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [templates, setTemplates] = React.useState<MinuteTemplate[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedType, setSelectedType] = React.useState("all");
@@ -196,7 +205,7 @@ export default function MinuteTemplatesPage() {
   };
 
   const handleDelete = async (template: MinuteTemplate) => {
-    if (!confirm(`Delete template "${template.name}"? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete template "${template.name}"? This cannot be undone.`))) return;
 
     try {
       await api.delete(`/api/v1/minute_templates/${template.id}`);
@@ -277,9 +286,7 @@ export default function MinuteTemplatesPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/corporate" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">Minute Templates</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -297,18 +304,19 @@ export default function MinuteTemplatesPage() {
       <div className="flex flex-wrap gap-4 items-center">
         <div>
           <label className="block text-sm font-medium text-muted-foreground mb-1">Type</label>
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="rounded-md border px-3 py-2 text-sm bg-background"
-          >
-            <option value="all">All Types</option>
-            {TEMPLATE_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {formatType(type)}
-              </option>
-            ))}
-          </select>
+          <Select value={selectedType} onValueChange={setSelectedType}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {TEMPLATE_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {formatType(type)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex items-center pt-6 gap-2">
@@ -444,17 +452,18 @@ export default function MinuteTemplatesPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-1">Type</label>
-                <select
-                  value={formData.template_type}
-                  onChange={(e) => handleFormChange("template_type", e.target.value)}
-                  className="w-full rounded-md border px-3 py-2 text-sm bg-background"
-                >
-                  {TEMPLATE_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {formatType(type)}
-                    </option>
-                  ))}
-                </select>
+                <Select value={formData.template_type} onValueChange={(v) => handleFormChange("template_type", v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TEMPLATE_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {formatType(type)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

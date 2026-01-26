@@ -10,6 +10,7 @@ import {
   X,
   Camera,
 } from "lucide-react";
+import { copyToClipboard } from "@/utils/formatters";
 import consoleCapture, { type LogEntry } from "@/utils/consoleCapture";
 
 export function DebugToolbar() {
@@ -198,7 +199,7 @@ export function DebugToolbar() {
         .forEach((el) => el.remove());
       let html = clone.outerHTML;
       html = simplifyHTMLUltraLight(html);
-      await navigator.clipboard.writeText(html);
+      await copyToClipboard(html);
       setCopiedButton("code");
       setTimeout(() => setCopiedButton(null), 2000);
       console.log("💻 Screen code copied to clipboard!");
@@ -251,7 +252,7 @@ Captured at: ${new Date().toLocaleString()}
         formatted += "\n✅ No errors or warnings found. Everything looks good!\n";
       }
 
-      await navigator.clipboard.writeText(formatted);
+      await copyToClipboard(formatted);
       setCopiedButton("context");
       setTimeout(() => setCopiedButton(null), 2000);
       console.log(`🎯 Context copied! ${errors.length} errors, ${warnings.length} warnings`);
@@ -299,7 +300,7 @@ ${formattedLogs}
 ${html}
 `;
 
-      await navigator.clipboard.writeText(formatted);
+      await copyToClipboard(formatted);
       setCopiedButton("complete");
       setTimeout(() => setCopiedButton(null), 2000);
       console.log(`📦 Complete context copied! ${logs.length} logs + HTML`);
@@ -379,7 +380,7 @@ ${warnings.length > 0 ? `⚠️  FOUND ${warnings.length} WARNING(S)` : "✅ No 
 ${formattedLogs || "(No console logs captured)"}
 `;
 
-      await navigator.clipboard.writeText(formatted);
+      await copyToClipboard(formatted);
       setCopiedButton("validation");
       setTimeout(() => setCopiedButton(null), 2000);
       console.log(

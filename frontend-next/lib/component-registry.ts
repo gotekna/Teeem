@@ -115,6 +115,61 @@ export interface DeprecatedComponent {
 // =============================================================================
 
 // =============================================================================
+// 🔴 URL PATTERNS - STANDARD ROUTE CONVENTIONS
+// =============================================================================
+//
+// All routes should follow these patterns for consistency and human-readability.
+//
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ PATH-BASED URLs (Preferred over query params)                              │
+// ├─────────────────────────────────────────────────────────────────────────────┤
+// │                                                                             │
+// │ Pattern              │ Example                    │ Use Case               │
+// │ ─────────────────────┼────────────────────────────┼─────────────────────── │
+// │ /entity              │ /jobs                      │ List page              │
+// │ /entity/[id]         │ /jobs/123                  │ Detail by numeric ID   │
+// │ /entity/[slug]       │ /foundations/sm_trades     │ Detail by slug         │
+// │ /entity/[email]      │ /email/robert@teeem.au     │ Detail by email        │
+// │ /entity/[id]/[tab]   │ /jobs/123/plans            │ Detail with tab        │
+// │ /entity/[[...path]]  │ /email or /email/x@y.com   │ Optional catch-all     │
+// │                                                                             │
+// │ ❌ WRONG: /email?account=123        (numeric ID in query param)            │
+// │ ❌ WRONG: /email?account=robert%40  (encoded email in query param)         │
+// │ ✅ RIGHT: /email/robert@teeem.au    (clean, human-readable path)           │
+// │                                                                             │
+// └─────────────────────────────────────────────────────────────────────────────┘
+//
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ OPTIONS AS PATH SEGMENTS (Avoid query params where possible)               │
+// ├─────────────────────────────────────────────────────────────────────────────┤
+// │                                                                             │
+// │ Boolean flags - use path segment (presence = true):                        │
+// │ ✅ /email/robert@teeem.au/standalone    (standalone mode)                  │
+// │ ✅ /email/robert@teeem.au/fullscreen    (fullscreen mode)                  │
+// │                                                                             │
+// │ Value options - use underscore separator:                                  │
+// │ ✅ /jobs/filter_active                  (filter by active)                 │
+// │ ✅ /jobs/sort_date                      (sort by date)                     │
+// │                                                                             │
+// │ ❌ AVOID: ?standalone=true, ?filter=active (query params)                  │
+// │                                                                             │
+// └─────────────────────────────────────────────────────────────────────────────┘
+//
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ BACKWARDS COMPATIBILITY                                                     │
+// ├─────────────────────────────────────────────────────────────────────────────┤
+// │                                                                             │
+// │ When migrating from query params to paths, support BOTH for a period:      │
+// │                                                                             │
+// │ const accountParam = params.account?.[0] || searchParams.get("account");   │
+// │                                                                             │
+// │ This allows old bookmarks to continue working while new URLs are clean.    │
+// │                                                                             │
+// └─────────────────────────────────────────────────────────────────────────────┘
+//
+// =============================================================================
+
+// =============================================================================
 // TIER 1: CORE PRIMITIVES (High Usage)
 // =============================================================================
 
@@ -179,6 +234,62 @@ const TIER_1_COMPONENTS: StandardComponent[] = [
     description: "Compact status indicator with variants and optional remove button",
     whenToUse: "Status indicators, tags, labels with semantic colors, dismissible tags",
     usageCount: 2,
+  },
+  {
+    id: "attachment-badge",
+    name: "AttachmentBadge",
+    displayName: "Attachment Badge",
+    category: "display",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/attachment-badge",
+    description:
+      "SSoT for attachment indicators and file badges. Auto-detects file type icons from extension/content type.",
+    whenToUse:
+      "Attachment count indicators (paperclip), file badges with type icons, download/remove actions. Replaces getFileIcon() patterns.",
+    usageCount: 0,
+  },
+  {
+    id: "empty-state",
+    name: "EmptyState",
+    displayName: "Empty State",
+    category: "feedback",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/empty-state",
+    description:
+      "SSoT for empty state displays. Shows icon, title, description, and optional action button.",
+    whenToUse:
+      "Empty tables/lists, no search results, no data in a section, empty dropdowns. Replaces ad-hoc 'No results' patterns.",
+    usageCount: 0,
+  },
+  {
+    id: "status-indicator",
+    name: "StatusIndicator",
+    displayName: "Status Indicator",
+    category: "display",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/status-indicator",
+    description:
+      "SSoT for status displays. Supports dot, badge, and dot+text variants with consistent colors.",
+    whenToUse:
+      "Connection status, task/workflow status, sync status, any status indicator. Replaces inline colored dots and status badges.",
+    usageCount: 0,
+  },
+  {
+    id: "truncated-text",
+    name: "TruncatedText",
+    displayName: "Truncated Text",
+    category: "display",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/truncated-text",
+    description:
+      "SSoT for text truncation with automatic tooltips. Supports single-line max-width and multi-line clamping.",
+    whenToUse:
+      "Table cells with limited width, card titles that might overflow, any text needing truncation with tooltip fallback.",
+    usageCount: 0,
   },
   {
     id: "input",
@@ -358,6 +469,78 @@ const TIER_1_COMPONENTS: StandardComponent[] = [
     importPath: "@/hooks/useUrlState",
     description: "Complex hook for syncing multiple state values to URL params. Supports strings, arrays, nullable values.",
     whenToUse: "Multiple navigation state values (expanded items, edit mode, active IDs) that should persist in URL.",
+    usageCount: 1,
+  },
+  {
+    id: "use-async-operation",
+    name: "useAsyncOperation",
+    displayName: "Async Operation Hook",
+    category: "hooks",
+    tier: 1,
+    status: "standard",
+    importPath: "@/hooks/useAsyncOperation",
+    description: "SSoT hook for managing async operations with loading, error, and data states. Auto-handles AbortController cleanup.",
+    whenToUse: "Any async operation needing loading/error state. Replaces manual useState(loading) + useState(error) patterns.",
+    usageCount: 0,
+  },
+  {
+    id: "use-abort-controller",
+    name: "useAbortController",
+    displayName: "Abort Controller Hook",
+    category: "hooks",
+    tier: 1,
+    status: "standard",
+    importPath: "@/hooks/useAbortController",
+    description: "SSoT hook for managing AbortController lifecycle. Auto-aborts on unmount, prevents stale responses.",
+    whenToUse: "Cancellable async operations, fetch requests that should abort on unmount or when replaced.",
+    usageCount: 0,
+  },
+  {
+    id: "confirmation-dialog",
+    name: "ConfirmationDialog",
+    displayName: "Confirmation Dialog",
+    category: "feedback",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/confirmation-dialog",
+    description: "SSoT for all confirmation dialogs (delete, cancel, discard). Built-in loading state for async confirms.",
+    whenToUse: "Delete confirmations, destructive actions, 'are you sure' dialogs. Includes useConfirmation() hook for imperative usage.",
+    usageCount: 0,
+  },
+  {
+    id: "form-field",
+    name: "FormField",
+    displayName: "Form Field",
+    category: "forms",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/form-field",
+    description: "SSoT wrapper for form inputs with label, error message, hint text, and required indicator.",
+    whenToUse: "Wrap any form input to add consistent label, error display, and accessibility attributes.",
+    usageCount: 0,
+  },
+  {
+    id: "form-modal",
+    name: "FormModal",
+    displayName: "Form Modal",
+    category: "overlays",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/form-modal",
+    description: "SSoT for all form modals (add, edit, create). Built-in form handling, loading state, cancel/submit buttons.",
+    whenToUse: "Any modal with a form inside. Replaces Dialog + form + manual submit/cancel button patterns.",
+    usageCount: 0,
+  },
+  {
+    id: "rich-text-editor-modal",
+    name: "RichTextEditorModal",
+    displayName: "Rich Text Editor Modal",
+    category: "overlays",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/rich-text-editor-modal",
+    description: "SSoT for rich text editing with Word-like ribbon toolbar. Supports Bold, Italic, Underline, Lists, Headings, etc.",
+    whenToUse: "Editing questions, headers, answers, notes, descriptions - any multi-line text that benefits from formatting.",
     usageCount: 1,
   },
 ];
@@ -583,6 +766,18 @@ const TIER_3_COMPONENTS: StandardComponent[] = [
 
 const TIER_4_COMPONENTS: StandardComponent[] = [
   {
+    id: "document-viewer",
+    name: "DocumentViewer",
+    displayName: "Document Viewer",
+    category: "document",
+    tier: 4,
+    status: "standard",
+    importPath: "@/components/ui/document-viewer",
+    description: "Universal document viewer with auto-detection for PDF, Image, Excel, and EML files. Supports Q&A context sidebar and multi-file navigation.",
+    whenToUse: "Public document sharing, email attachment preview, any context needing multi-format file viewing with optional Q&A context.",
+    usageCount: 1,
+  },
+  {
     id: "pdf-viewer",
     name: "PDFViewer",
     displayName: "PDF Viewer",
@@ -639,18 +834,6 @@ const TIER_4_COMPONENTS: StandardComponent[] = [
     importPath: "@/components/ui/sharepoint-folder-browser",
     description: "Tree view browser for SharePoint/OneDrive folders",
     whenToUse: "Browse and select SharePoint folders",
-    usageCount: 7,
-  },
-  {
-    id: "sharepoint-path-configurator",
-    name: "SharePointPathConfigurator",
-    displayName: "SharePoint Path Config",
-    category: "integration",
-    tier: 4,
-    status: "standard",
-    importPath: "@/components/ui/sharepoint-path-configurator",
-    description: "Configure SharePoint path templates with placeholders",
-    whenToUse: "Set up SharePoint folder paths with {{placeholders}}",
     usageCount: 7,
   },
   {
@@ -1004,6 +1187,30 @@ const TIER_5_COMPONENTS: StandardComponent[] = [
     description: "Page wrapper for fullscreen layouts. Hides sidebar.",
     whenToUse: "Fullscreen experiences like Schedule Master.",
     usageCount: 1,
+  },
+  {
+    id: "tabbed-settings-page",
+    name: "TabbedSettingsPage",
+    displayName: "Tabbed Settings Page",
+    category: "layout",
+    tier: 5,
+    status: "standard",
+    importPath: "@/components/ui/page-wrappers",
+    description: "Page wrapper for settings-style layouts with multiple tab rows. Auto-detects layout mode from children.",
+    whenToUse: "Settings pages with labeled tab sections (Personal, Organization, etc.). THE ONE for multi-tab-row layouts.",
+    usageCount: 1,
+  },
+  {
+    id: "tabbed-page",
+    name: "TabbedPage",
+    displayName: "Tabbed Page",
+    category: "layout",
+    tier: 5,
+    status: "standard",
+    importPath: "@/components/ui/page-wrappers",
+    description: "Page wrapper for simple tabbed pages with title, optional description, and single tab row.",
+    whenToUse: "Dashboard-style pages with tabs (Corporate, Financial, Xero, Leads, Training, etc.). THE ONE for single-tab-row layouts.",
+    usageCount: 0,
   },
   // Tab Container Components (internal padding, NOT layout mode)
   {

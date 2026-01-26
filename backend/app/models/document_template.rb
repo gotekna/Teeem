@@ -40,6 +40,9 @@
 #   <% if @job.has_warranty? %>      - Conditionals
 #
 class DocumentTemplate < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   # Constants
   CATEGORIES = %w[job contact quote invoice contract letter report certificate].freeze
   OUTPUT_FORMATS = %w[docx pdf both].freeze
@@ -55,6 +58,9 @@ class DocumentTemplate < ApplicationRecord
   ACTIVE_TEMPLATE_TYPES = %w[html pdf_overlay].freeze
   LEGAL_SOURCES = %w[qbcc hia].freeze
   LAYOUTS = %w[tekna qbcc_official hia_official none].freeze
+
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
 
   # Validations
   validates :name, presence: true
@@ -81,10 +87,13 @@ class DocumentTemplate < ApplicationRecord
   scope :legal_templates, -> { where(is_legal_format: true) }
   scope :tekna_branded, -> { where(is_legal_format: false) }
 
-  # Check if template is linked to SharePoint
-  def sharepoint_linked?
-    sharepoint_item_id.present?
+  # Check if template is linked to storage (provider-agnostic)
+  def storage_linked?
+    storage_item_id.present?
   end
+
+  # Legacy alias for backwards compatibility
+  alias_method :sharepoint_linked?, :storage_linked?
 
   # Template type helpers
   def html_template?

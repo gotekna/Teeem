@@ -3,7 +3,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :internal_messages]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :internal_messages, :documents]
 
       def read_only_fields
         render json: {
@@ -73,11 +73,15 @@ module Api
                                     .where(search_sql, q: search_term)
                                     .distinct
 
+          direct_match_ids = direct_matches.pluck(:id)
+
           # Find companies that match the search term
           company_search_sql = search_mode == 'exact' ? "LOWER(display_name) = LOWER(?)" : "display_name ILIKE ?"
           matching_company_ids = Contact.where(company_search_sql, search_term)
                                        .where(entity_type: %w[company trust sole_trader])
                                        .pluck(:id)
+
+          all_contact_ids = direct_match_ids
 
           if matching_company_ids.any?
             # Find employees of those companies (via primary_company_id OR via relationships)
@@ -92,10 +96,73 @@ module Api
             employee_ids = (employee_relationship_ids + employee_primary_company_ids).uniq
 
             # Combine direct matches with employees of matching companies
-            @contacts = @contacts.where(id: direct_matches.pluck(:id) + matching_company_ids + employee_ids)
-          else
-            @contacts = direct_matches
+            all_contact_ids = (direct_match_ids + matching_company_ids + employee_ids).uniq
           end
+
+          # EXPANDED SEARCH: When include_jobs=true, also find other contacts on same jobs
+          # This allows "search pam" to also show other clients/employees on Pam's jobs
+          # Only expand from contacts that have emails (otherwise we expand from contacts
+          # that won't even show in results due to with_email filter)
+          if params[:include_jobs] == "true" && direct_match_ids.any?
+            # Get job IDs for matching contacts (only those with emails)
+            matching_contacts_with_email = Contact.where(id: direct_match_ids).with_email.pluck(:id)
+            job_ids_from_matches = JobContact.where(contact_id: matching_contacts_with_email).pluck(:job_id).uniq
+
+            if job_ids_from_matches.any?
+              # Find all other contacts on those same jobs (colleagues)
+              job_colleague_ids = JobContact.where(job_id: job_ids_from_matches)
+                                            .where.not(contact_id: direct_match_ids)
+                                            .pluck(:contact_id)
+                                            .uniq
+
+              # Store which jobs each colleague is related to (for display)
+              @colleague_job_map = {}
+              if job_colleague_ids.any?
+                JobContact.where(contact_id: job_colleague_ids, job_id: job_ids_from_matches)
+                          .includes(:job)
+                          .each do |jc|
+                  @colleague_job_map[jc.contact_id] ||= []
+                  @colleague_job_map[jc.contact_id] << {
+                    id: jc.job_id,
+                    name: jc.job&.name,
+                    location: jc.job&.location
+                  }
+                end
+              end
+
+              all_contact_ids = (all_contact_ids + job_colleague_ids).uniq
+            end
+
+            # Also find other contacts in the same companies
+            # Only expand from contacts that have emails (otherwise we expand from contacts
+            # that won't even show in results due to with_email filter)
+            primary_company_ids_from_matches = Contact.where(id: direct_match_ids)
+                                                      .where.not(primary_company_id: nil)
+                                                      .with_email  # Only expand from contacts with emails
+                                                      .pluck(:primary_company_id)
+                                                      .uniq
+
+            if primary_company_ids_from_matches.any?
+              # Find other employees of those same companies
+              company_colleague_ids = Contact.where(primary_company_id: primary_company_ids_from_matches)
+                                             .where.not(id: direct_match_ids)
+                                             .where(is_active: true)
+                                             .pluck(:id)
+
+              all_contact_ids = (all_contact_ids + company_colleague_ids).uniq
+
+              # Also include the company contacts themselves (the company's own email)
+              # e.g., when Dan Ryan matches, also include "Davidson Ryan Lawyers" company contact
+              company_contact_ids = Contact.where(id: primary_company_ids_from_matches)
+                                           .with_email
+                                           .where(is_active: true)
+                                           .where.not(id: direct_match_ids)
+                                           .pluck(:id)
+              all_contact_ids = (all_contact_ids + company_contact_ids).uniq
+            end
+          end
+
+          @contacts = @contacts.where(id: all_contact_ids)
         end
 
         # Filter by role (updated from deprecated contact_types to roles)
@@ -116,14 +183,19 @@ module Api
             # where an EMPLOYEE matches the search term (e.g., search "troy" finds "Pre Hung Doors"
             # if Troy Wilson works there and Pre Hung Doors is a supplier)
             # The matched employee names are returned in `matched_employees` for UI display
+            #
+            # NOTE: For simpler search scenarios without employee match tracking, use:
+            #   Contact.search_by_relevance(term, suppliers_only: true, include_employee_matches: true)
+            # This controller has extended logic for UI display of matched employee names.
             if params[:search].present?
               search_term = "%#{params[:search]}%"
 
               # Find people (employees) matching the search term
+              # Note: Must include is_team_contact because display_name method depends on it
               matching_employees = Contact.where(entity_type: "person")
                                           .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
                                                  search_term, search_term, search_term)
-                                          .select(:id, :display_name, :primary_company_id)
+                                          .select(:id, :display_name, :primary_company_id, :is_team_contact)
 
               # Build mapping: employer_id -> [employee names]
               @matched_employees_by_company = {}
@@ -157,14 +229,27 @@ module Api
               valid_employer_ids = employer_company_ids.any? ?
                 Contact.where(id: employer_company_ids, is_active: true).pluck(:id) : []
 
-              # Build final result: direct supplier matches + employer companies of matching employees
+              # Build final result:
+              # 1. Direct supplier matches (name matches + is_supplier_cached=true)
+              # 2. Direct name matches (company name matches, regardless of is_supplier_cached)
+              #    This is critical: allows finding "Dam Plasterboard" even before first PO
+              # 3. Employer companies of matching employees (potential suppliers via employee)
+              #
               # Exclude employees (people with primary_company_id) - show their company instead
               direct_supplier_ids = @contacts.where(is_supplier_cached: true)
                                              .where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
                                              .pluck(:id)
 
-              all_supplier_ids = (direct_supplier_ids + valid_employer_ids).uniq
+              # Include ALL companies whose name matches the search term (potential suppliers by company name)
+              # This ensures "Dam Plasterboard" appears in results even with is_supplier_cached=false
+              direct_name_match_ids = @contacts.where("contacts.entity_type IN ('company', 'trust') OR contacts.primary_company_id IS NULL")
+                                               .pluck(:id)
+
+              all_supplier_ids = (direct_supplier_ids + direct_name_match_ids + valid_employer_ids).uniq
               @contacts = Contact.where(id: all_supplier_ids).where(is_active: true)
+
+              # Store search term for relevance-based ordering
+              @supplier_search_term = params[:search]
             else
               # No search term - show all suppliers (excluding employees who have employer companies)
               @contacts = @contacts.where(is_supplier_cached: true)
@@ -238,7 +323,34 @@ module Api
         # Solution: Resolve DISTINCT via subquery, then order the final results.
         if @contacts.distinct_value || @contacts.to_sql.include?("DISTINCT")
           contact_ids = @contacts.pluck(:id)
-          @contacts = Contact.where(id: contact_ids).order(:display_name)
+          @contacts = Contact.where(id: contact_ids)
+        end
+
+        # Relevance-based ordering for supplier search:
+        # Prioritize prefix matches over contains matches, and suppliers over non-suppliers
+        # This ensures "Dam Plasterboard" appears before "Adam" when searching "dam"
+        if @supplier_search_term.present?
+          prefix_term = "#{@supplier_search_term}%"      # Starts with
+          contains_term = "%#{@supplier_search_term}%"   # Contains anywhere
+          # Order by:
+          # 1. Prefix match + is_supplier (name STARTS with search term and is supplier) → highest
+          # 2. Prefix match (name STARTS with search term) → high
+          # 3. Contains match + is_supplier (name CONTAINS search term and is supplier) → medium
+          # 4. Contains match (name CONTAINS search term) → lower
+          # 5. Everything else (employee-derived matches) → lowest
+          # 6. Alphabetical within each group
+          @contacts = @contacts.order(
+            Arel.sql(Contact.sanitize_sql_array([
+              "CASE
+                WHEN display_name ILIKE ? AND is_supplier_cached = true THEN 1
+                WHEN display_name ILIKE ? THEN 2
+                WHEN display_name ILIKE ? AND is_supplier_cached = true THEN 3
+                WHEN display_name ILIKE ? THEN 4
+                ELSE 5
+              END, display_name ASC",
+              prefix_term, prefix_term, contains_term, contains_term
+            ]))
+          )
         else
           @contacts = @contacts.order(:display_name)
         end
@@ -251,8 +363,10 @@ module Api
         director_fields = params[:is_director] == "true" ? [ :place_of_birth, :birth_state, :birth_country, :residential_address ] : []
 
         # Performance: Eager load associations to avoid N+1 queries
-        # portal_user and corporate_group are always included in as_json response
-        @contacts = @contacts.includes(:portal_user, :corporate_group)
+        # portal_user and corporate_groups_via_membership are always included in as_json response
+        # FRC (Jan 2026): Fixed from :corporate_group (doesn't exist) to :corporate_groups_via_membership (has_many through)
+        # contact_emails needed for email method (used by email composer autocomplete)
+        @contacts = @contacts.includes(:portal_user, :corporate_groups_via_membership, :contact_emails)
 
         # Conditional eager loading for company relationships
         if include_companies
@@ -273,12 +387,23 @@ module Api
 
         # Note: Removed is_customer?, is_supplier?, is_director?, company_group_memberships_count from methods
         # These are pre-computed above to avoid N+1 queries
+        #
+        # Include contact_emails when with_email=true (for email compose autocomplete)
+        # This allows frontend to show/select from multiple emails per contact
+        include_all_emails = params[:with_email] == "true"
+
+        json_includes = {
+          portal_user: {},
+          corporate_groups_via_membership: {}
+        }
+
+        if include_all_emails
+          json_includes[:contact_emails] = { only: [ :id, :email, :is_primary, :label ] }
+        end
+
         contacts_json = @contacts.as_json(
-          include: {
-            portal_user: {},
-            corporate_group: {}
-          },
-          methods: [ :is_sales?, :is_land_agent?, :display_name, :xero_linked_count, :xero_customer?, :xero_supplier? ]
+          include: json_includes,
+          methods: [ :is_sales?, :is_land_agent?, :display_name, :xero_linked_count, :xero_customer?, :xero_supplier?, :email ]
         )
 
         # Performance: Build hash map for O(1) lookups instead of O(n²) array search
@@ -325,6 +450,29 @@ module Api
             {}
           end
 
+          # Performance: Pre-fetch ALL jobs for each contact (for email compose display)
+          # Returns array of jobs per contact, showing location/address for context
+          jobs_by_contact = {}
+          if include_jobs
+            job_contacts = JobContact
+              .where(contact_id: contact_ids)
+              .includes(job: :job_status)
+              .joins(:job)
+              .order("jobs.created_at DESC")
+
+            # Group all jobs by contact_id
+            job_contacts.each do |jc|
+              jobs_by_contact[jc.contact_id] ||= []
+              jobs_by_contact[jc.contact_id] << {
+                id: jc.job.id,
+                name: jc.job.name,
+                job_code: jc.job.job_code,
+                location: jc.job.location,
+                role: jc.role
+              }
+            end
+          end
+
           contacts_json.each do |contact_json|
             contact = contacts_by_id[contact_json["id"]]
             next unless contact
@@ -360,6 +508,18 @@ module Api
             if include_jobs
               # Use pre-fetched count (avoids N+1)
               contact_json["jobs_count"] = job_counts_by_contact[contact.id] || 0
+
+              # Include ALL jobs for this contact (for email compose job linking)
+              if jobs_by_contact[contact.id]
+                contact_json["jobs"] = jobs_by_contact[contact.id]
+              end
+
+              # Mark contacts found via job colleague expansion (for UI display)
+              # These are contacts who share a job with the original search match
+              if @colleague_job_map && @colleague_job_map[contact.id]
+                contact_json["found_via_job"] = true
+                contact_json["related_jobs"] = @colleague_job_map[contact.id]
+              end
             end
           end
         end
@@ -445,8 +605,7 @@ module Api
             contact_persons: {},
             contact_addresses: {},
             contact_groups: {},
-            portal_user: {},
-            corporate_group: {}
+            portal_user: {}
           },
           methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies, :display_name ]
         )
@@ -749,6 +908,22 @@ module Api
       def destroy
         # Comprehensive safety checks before deletion
 
+        # BLOCKER: Check for linked User account (this person can login!)
+        if @contact.user.present?
+          return render json: {
+            success: false,
+            error: "Cannot delete contact with linked user account.",
+            reason: "has_user_account",
+            details: {
+              user_id: @contact.user.id,
+              user_email: @contact.user.email,
+              message: "This contact has a linked user account (#{@contact.user.email}) that can login to the system. " \
+                       "To remove this contact: either archive it (data preserved), or delete the user account first."
+            },
+            can_archive: true
+          }, status: :unprocessable_entity
+        end
+
         # Check for Company Group links (SSoT protection)
         if @contact.link_to_cg
           if @contact.linked_company_id.present?
@@ -897,6 +1072,115 @@ module Api
         render json: {
           success: false,
           error: "Failed to delete contact: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/:id/deletion_check
+      # Pre-flight check before attempting delete - returns warnings and blockers
+      def deletion_check
+        check = @contact.deletion_check
+
+        # Add controller-level checks not in model
+        # Check for Company Group links
+        if @contact.link_to_cg
+          if @contact.linked_company_id.present?
+            company = CorporateCompany.find_by(id: @contact.linked_company_id)
+            check[:can_delete] = false
+            check[:blockers] << {
+              type: "linked_to_company",
+              message: "This contact is linked to Company '#{company&.name || 'Unknown'}'.",
+              action: "Unlink from Company Group first."
+            }
+          else
+            membership_count = ContactCorporateGroupMembership.where(contact_id: @contact.id).count
+            if membership_count > 0
+              check[:can_delete] = false
+              check[:blockers] << {
+                type: "has_company_group_memberships",
+                message: "This contact has #{membership_count} Company Group membership(s).",
+                action: "Remove memberships first."
+              }
+            end
+          end
+        end
+
+        # Check for Xero links
+        xero_links = @contact.external_links.where(source: "xero")
+        if xero_links.any?
+          check[:can_delete] = false
+          check[:blockers] << {
+            type: "has_xero_links",
+            message: "This contact has #{xero_links.count} active Xero link(s).",
+            action: "Unlink from Xero first."
+          }
+        end
+
+        render json: {
+          success: true,
+          data: {
+            contact_id: @contact.id,
+            display_name: @contact.display_name,
+            is_user: @contact.is_user_cached?,
+            is_archived: @contact.archived?,
+            **check
+          }
+        }
+      end
+
+      # POST /api/v1/contacts/:id/archive
+      # Archive contact instead of delete - preserves all data
+      def archive
+        if @contact.archived?
+          return render json: {
+            success: false,
+            error: "Contact is already archived"
+          }, status: :unprocessable_entity
+        end
+
+        @contact.archive!
+
+        render json: {
+          success: true,
+          message: "Contact archived successfully. Data preserved but hidden from normal views.",
+          data: {
+            id: @contact.id,
+            display_name: @contact.display_name,
+            is_active: @contact.is_active,
+            archived_at: Time.current
+          }
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to archive contact: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/:id/restore
+      # Restore an archived contact
+      def restore
+        unless @contact.archived?
+          return render json: {
+            success: false,
+            error: "Contact is not archived"
+          }, status: :unprocessable_entity
+        end
+
+        @contact.restore!
+
+        render json: {
+          success: true,
+          message: "Contact restored successfully.",
+          data: {
+            id: @contact.id,
+            display_name: @contact.display_name,
+            is_active: @contact.is_active
+          }
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to restore contact: #{e.message}"
         }, status: :internal_server_error
       end
 
@@ -1213,6 +1497,109 @@ module Api
         }, status: :internal_server_error
       end
 
+      # GET /api/v1/contacts/:id/documents
+      # Returns ContactDocument records for this contact (including migrated Xero PDFs)
+      # Optional params:
+      #   - tab_key: Filter by EntityTab (returns docs where document_type is linked to tab via primary or also_show_in)
+
+      def documents
+        # Query ContactDocument records (includes Xero invoice/bill PDFs)
+        # Note: .with_attached_file was REMOVED Jan 2026 when ActiveStorage attachment was replaced
+        # with StorageBlob (belongs_to :storage_blob). Use .includes(:storage_blob) for eager loading.
+        documents = ContactDocument.where(contact_id: @contact.id)
+                                   .includes(:document_type, :storage_blob)
+                                   .order(created_at: :desc)
+
+        # Filter by tab if tab_key provided
+        if params[:tab_key].present?
+          entity_tab = EntityTab.find_by(tab_key: params[:tab_key], warehouse_type: "contact")
+          if entity_tab
+            # Get all document_type_ids linked to this tab (primary + also_show_in)
+            doc_type_ids = entity_tab.document_type_ids
+            documents = documents.where(document_type_id: doc_type_ids) if doc_type_ids.any?
+          end
+        end
+
+        # Generate download URLs in batch
+        storage_service = DocumentStorageService.new
+
+        # Build lookup map for ExternalInvoice dates (for Xero docs)
+        # ContactDocument.external_id format: "xero:{invoice_id}:pdf" or "xero:{invoice_id}:attachment:{n}"
+        # ExternalInvoice.external_id format: "{invoice_id}" (just the Xero invoice ID)
+        invoice_dates_map = {}
+        xero_docs = documents.select { |d| d.source == "xero" && d.external_id.present? }
+        if xero_docs.any?
+          # Extract actual Xero invoice IDs from ContactDocument external_ids
+          xero_invoice_ids = xero_docs.map do |d|
+            # Parse "xero:{id}:pdf" or "xero:{id}:attachment:1" → extract {id}
+            parts = d.external_id.to_s.split(":")
+            parts.length >= 2 ? parts[1] : nil
+          end.compact.uniq
+
+          # Lookup ExternalInvoice records by their external_id
+          ExternalInvoice.where(external_id: xero_invoice_ids, source: "xero").find_each do |inv|
+            invoice_dates_map[inv.external_id] = {
+              due_date: inv.due_date,
+              fully_paid_date: inv.fully_paid_date,
+              invoice_date: inv.invoice_date
+            }
+          end
+        end
+
+        # Format response with download URLs
+        docs_json = documents.map do |doc|
+          # Generate presigned download URL
+          download_url = nil
+          begin
+            result = storage_service.download_url(doc, expires_in: 3600)
+            download_url = result[:url] if result[:success]
+          rescue => e
+            Rails.logger.warn("[ContactsController#documents] Failed to generate URL for doc #{doc.id}: #{e.message}")
+          end
+
+          # Get invoice dates for Xero documents
+          # Parse external_id to extract the actual Xero invoice ID
+          xero_invoice_id = if doc.source == "xero" && doc.external_id.present?
+            parts = doc.external_id.to_s.split(":")
+            parts.length >= 2 ? parts[1] : nil
+          end
+          invoice_dates = xero_invoice_id ? (invoice_dates_map[xero_invoice_id] || {}) : {}
+
+          {
+            id: doc.id,
+            name: doc.file_name,
+            displayName: doc.display_name || doc.file_name,
+            folder: doc.folder,
+            fileSize: doc.file_size,
+            contentType: doc.content_type,
+            source: doc.source,
+            externalId: doc.external_id,
+            storagePath: doc.storage_path,
+            storageProvider: doc.storage_provider,
+            documentType: doc.document_type&.name,
+            createdAt: doc.created_at&.iso8601,
+            updatedAt: doc.updated_at&.iso8601,
+            downloadUrl: download_url,
+            invoiceDate: invoice_dates[:invoice_date]&.iso8601,
+            dueDate: invoice_dates[:due_date]&.iso8601,
+            datePaid: invoice_dates[:fully_paid_date]&.iso8601
+          }
+        end
+
+        render json: {
+          success: true,
+          exists: documents.any?,
+          total: documents.count,
+          documents: docs_json
+        }
+      rescue => e
+        Rails.logger.error("[ContactsController#documents] Error: #{e.message}")
+        render json: {
+          success: false,
+          error: "Failed to fetch documents: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # GET /api/v1/contacts/:id/company_group_memberships
       # Returns all corporate group memberships for this contact
 
@@ -1313,6 +1700,56 @@ module Api
       # GET /api/v1/contacts/invalid_entity_types
       # Health check: Find contacts with invalid entity_type values
 
+      # GET /api/v1/contacts/frequent
+      # Returns contacts the user emails most frequently
+      # Used by compose modal to show quick-add contact chips
+      def frequent
+        # Get email addresses the user has sent to most frequently
+        # Use tenant_id for multi-tenancy
+        email_counts = SyncedEmail
+          .where(tenant_id: current_user&.tenant_id)
+          .where(direction: "sent")
+          .where.not(to_emails: nil)
+          .pluck(:to_emails, :cc_emails)
+          .flatten
+          .compact
+          .flatten
+          .map(&:downcase)
+          .tally
+          .sort_by { |_email, count| -count }
+          .first(20)
+          .to_h
+
+        # Match emails to contacts
+        frequent_emails = email_counts.keys
+        contacts_with_emails = Contact
+          .joins(:contact_emails)
+          .where("LOWER(contact_emails.email) IN (?)", frequent_emails)
+          .includes(:contact_emails, :primary_company)
+          .distinct
+          .limit(15)
+
+        # Build response with email counts
+        result = contacts_with_emails.map do |contact|
+          email = contact.contact_emails.find { |ce| frequent_emails.include?(ce.email&.downcase) }&.email
+          {
+            id: contact.id,
+            display_name: contact.display_name,
+            email: email || contact.email,
+            email_count: email_counts[email&.downcase] || 0,
+            primary_company: contact.primary_company ? {
+              id: contact.primary_company.id,
+              name: contact.primary_company.display_name
+            } : nil
+          }
+        end
+
+        # Sort by email count descending
+        result.sort_by! { |c| -c[:email_count] }
+
+        render json: { success: true, data: result }
+      end
+
       private
 
       def titleize_name(name)
@@ -1335,9 +1772,10 @@ module Api
 
         # Eager load associations for show action to avoid N+1 queries
         # This reduces the show action from ~500ms to ~50ms
+        # Note: :corporate_group removed - Contact uses :corporate_groups_via_membership (has_many through)
         eager_load_associations = if action_name == "show"
           [:contact_emails, :contact_phones, :contact_persons, :contact_addresses,
-           :contact_groups, :portal_user, :corporate_group]
+           :contact_groups, :portal_user]
         else
           []
         end

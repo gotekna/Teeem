@@ -19,7 +19,7 @@ class SsotAuditor
     SmTask CaseRecord QuoteRequest QuoteResponse Meeting User
     Lead Project PricebookItem PricebookCategory
     CorporateCompanyShareholding CorporateCompanyDirector
-    EmailWarehouse BillInbox
+    SyncedEmail BillInbox
   ].freeze
 
   # Common method names and their likely actual implementations

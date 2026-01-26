@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import {
   Save,
   Palette,
@@ -235,6 +236,7 @@ function ColourCategory({
 export default function ColourSelectionBuilderPage() {
   const params = useParams();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const jobId = params.id as string;
 
   const [job, setJob] = useState<Job | null>(null);
@@ -392,7 +394,7 @@ export default function ColourSelectionBuilderPage() {
 
   // Initialize from template
   const handleInitializeFromTemplate = async () => {
-    if (!confirm("This will initialize colour selections from the template. Continue?")) return;
+    if (!(await confirm("This will initialize colour selections from the template. Continue?"))) return;
 
     try {
       const response = await api.post<{

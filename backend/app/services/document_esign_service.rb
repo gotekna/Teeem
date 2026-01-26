@@ -6,7 +6,9 @@
 # to provide a seamless "generate and send for signing" workflow.
 #
 # ============================================================================
-# SSoT: Uses TeknaDocumentGenerator for document generation (Dec 2024)
+# SSoT:
+# - Uses TeknaDocumentGenerator for document generation (Dec 2024)
+# - Uses DocumentProviderAware for provider-agnostic storage operations
 # ============================================================================
 #
 # Usage (NEW - template_key):
@@ -28,6 +30,8 @@
 #   )
 #
 class DocumentEsignService
+  include DocumentProviderAware
+
   class Error < StandardError; end
 
   attr_reader :template, :template_key, :job, :signers, :options
@@ -61,9 +65,9 @@ class DocumentEsignService
       generated[:pdf_filename] ||= generated[:filename].sub(/\.\w+$/, ".pdf")
     end
 
-    # Step 2: Upload to SharePoint (to job's Documents folder)
-    Rails.logger.info "[DocumentEsignService] Uploading to SharePoint"
-    uploaded_file = upload_to_sharepoint(generated)
+    # Step 2: Upload to storage (to job's Documents folder)
+    Rails.logger.info "[DocumentEsignService] Uploading to storage"
+    uploaded_file = upload_to_storage(generated)
 
     # Step 3: Create e-signature request
     Rails.logger.info "[DocumentEsignService] Creating e-signature request"
@@ -136,12 +140,13 @@ class DocumentEsignService
     end
   end
 
-  def upload_to_sharepoint(generated)
-    # Get SharePoint credentials - use org credential (SSoT) or template's IDs (deprecated)
-    credential = MicrosoftCredential.sharepoint_credential
-    raise Error, "No active SharePoint credential configured" unless credential
-
-    graph_client = MicrosoftGraphClient.new(credential)
+  def upload_to_storage(generated)
+    # Setup provider-agnostic storage
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      raise Error, "Storage not connected: #{e.message}"
+    end
 
     # Determine destination folder (job's Documents folder or specified folder)
     folder_path = options[:destination_folder] || build_job_folder_path
@@ -150,23 +155,18 @@ class DocumentEsignService
     content = generated[:pdf_content] || generated[:docx_content]
     filename = generated[:pdf_filename] || generated[:filename]
 
-    # SSoT: Use StorageConfiguration for site/drive IDs (not credential)
-    storage_config = StorageConfiguration.instance
-    site_id = storage_config.site_id
-    drive_id = storage_config.drive_id
+    # Ensure folder exists
+    get_or_create_folder_path(folder_path)
 
-    graph_client.upload_file(
-      folder_path,
-      filename,
-      content
-    )
+    # Upload using provider-agnostic method
+    upload_to_provider(folder_path, content, filename, content_type: "application/pdf")
   end
 
   def build_job_folder_path
     # Build path like: "Jobs/123 - Smith Residence/Documents"
     # SSoT: EntityTab owns folder names, StorageConfiguration owns base path
     base_path = StorageConfiguration.instance.path_for(:jobs)
-    job_folder = job.sharepoint_folder_name || "#{job.id} - #{job.name}"
+    job_folder = "#{job.id} - #{job.name}"
 
     # SSoT: Use EntityTab for folder name instead of hardcoding
     documents_tab = EntityTab.find_by(scope: "job", tab_key: "documents")
@@ -188,9 +188,9 @@ class DocumentEsignService
       expires_at: (options[:expires_in_days] || 30).days.from_now,
       message_to_signers: options[:message_to_signers],
       send_reminders: options[:send_reminders] != false,
-      original_sharepoint_file_id: uploaded_file[:id],
-      sharepoint_site_id: storage_config.site_id,
-      sharepoint_drive_id: storage_config.drive_id
+      original_storage_file_id: uploaded_file[:id],
+      storage_site_id: storage_config.site_id,
+      storage_drive_id: storage_config.drive_id
     )
 
     # Add signers
@@ -213,13 +213,20 @@ class DocumentEsignService
     request
   end
 
-  def calculate_document_hash(file_id)
-    credential = MicrosoftCredential.sharepoint_credential
-    return nil unless credential
+  def calculate_document_hash(file_info)
+    # file_info can have :id (SharePoint) or :path (S3/Wasabi)
+    file_identifier = file_info[:path] || file_info[:id]
+    return nil unless file_identifier
 
-    graph_client = MicrosoftGraphClient.new(credential)
-    content = graph_client.download_file(file_id)
-    Digest::SHA256.hexdigest(content)
+    storage_service = DocumentStorageService.new
+    doc = OpenStruct.new(
+      storage_path: file_info[:path],
+      sharepoint_file_id: file_info[:id]
+    )
+    result = storage_service.download(doc)
+    return nil unless result[:success] && result[:content].present?
+
+    Digest::SHA256.hexdigest(result[:content])
   rescue StandardError => e
     Rails.logger.warn "[DocumentEsignService] Could not calculate document hash: #{e.message}"
     nil

@@ -127,9 +127,9 @@ export function TaskHub() {
           <h1 className="text-lg font-semibold font-serif">Tasks</h1>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span><span className="font-mono font-medium text-foreground">{meta.totalCount}</span> total</span>
-            <span><span className="font-mono font-medium text-blue-600">{meta.inProgressCount}</span> active</span>
+            <span><span className="font-mono font-medium text-blue-600 dark:text-blue-400">{meta.inProgressCount}</span> active</span>
             {meta.overdueCount > 0 && (
-              <span className="text-red-600"><span className="font-mono font-medium">{meta.overdueCount}</span> overdue</span>
+              <span className="text-red-600 dark:text-red-400"><span className="font-mono font-medium">{meta.overdueCount}</span> overdue</span>
             )}
           </div>
         </div>

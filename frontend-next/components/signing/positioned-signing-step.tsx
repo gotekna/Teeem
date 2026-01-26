@@ -240,10 +240,10 @@ export function PositionedSigningStep({
         disabled={isCompleted}
       >
         {isCompleted ? (
-          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
         ) : (
           <>
-            <Icon className="h-4 w-4 text-blue-600" />
+            <Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             {field.label && (
               <span className="text-xs text-blue-700 font-medium truncate max-w-[80%]">
                 {field.label}
@@ -391,7 +391,7 @@ export function PositionedSigningStep({
                   size="sm"
                   className={cn(
                     "text-xs",
-                    field.completed && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                    field.completed && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
                   )}
                   onClick={() => {
                     setCurrentPage(field.page_number);

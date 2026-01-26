@@ -6,7 +6,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  ArrowLeft,
   Building2,
   Key,
   Eye,
@@ -15,6 +14,8 @@ import {
   Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { copyToClipboard } from "@/utils/formatters";
+import { BackButton } from "@/components/ui/back-button";
 import {
   Table,
   TableBody,
@@ -23,6 +24,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Company {
   id: number;
@@ -90,22 +98,19 @@ export default function AsicLoginsPage() {
     setShowPasswords((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const copyToClipboard = async (text: string, companyId: number, field: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      const key = `${companyId}-${field}`;
-      setCopiedField(key);
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch (error) {
-      console.error("Failed to copy:", error);
-    }
+  const handleCopy = async (text: string, companyId: number, field: string) => {
+    await copyToClipboard(text);
+    const key = `${companyId}-${field}`;
+    setCopiedField(key);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const handleGroupChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const groupId = e.target.value;
-    setSelectedGroup(groupId);
-    if (groupId) {
-      router.push(`/corporate/asic-logins/group/${groupId}`);
+  const handleGroupChange = (groupId: string) => {
+    // Convert "__all__" back to empty string for the API
+    const actualGroupId = groupId === "__all__" ? "" : groupId;
+    setSelectedGroup(actualGroupId);
+    if (actualGroupId) {
+      router.push(`/corporate/asic-logins/group/${actualGroupId}`);
     } else {
       router.push("/corporate/asic-logins");
     }
@@ -124,26 +129,25 @@ export default function AsicLoginsPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/corporate" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">ASIC Logins</h1>
             <p className="text-sm text-muted-foreground mt-1">View and manage ASIC portal credentials for all companies</p>
           </div>
         </div>
-        <select
-          value={selectedGroup}
-          onChange={handleGroupChange}
-          className="rounded-md border px-3 py-2 text-sm bg-background"
-        >
-          <option value="">All Company Groups</option>
-          {companyGroups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
+        <Select value={selectedGroup || "__all__"} onValueChange={handleGroupChange}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="All Company Groups" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All Company Groups</SelectItem>
+            {companyGroups.map((group) => (
+              <SelectItem key={group.id} value={String(group.id)}>
+                {group.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -184,11 +188,11 @@ export default function AsicLoginsPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-mono">{company.corporate_key}</span>
                         <button
-                          onClick={() => copyToClipboard(company.corporate_key!, company.id, "corporate_key")}
+                          onClick={() => handleCopy(company.corporate_key!, company.id, "corporate_key")}
                           className="text-muted-foreground hover:text-foreground"
                         >
                           {copiedField === `${company.id}-corporate_key` ? (
-                            <Check className="h-4 w-4 text-green-500" />
+                            <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                           ) : (
                             <Copy className="h-4 w-4" />
                           )}
@@ -203,11 +207,11 @@ export default function AsicLoginsPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-mono">{company.asic_username}</span>
                         <button
-                          onClick={() => copyToClipboard(company.asic_username!, company.id, "username")}
+                          onClick={() => handleCopy(company.asic_username!, company.id, "username")}
                           className="text-muted-foreground hover:text-foreground"
                         >
                           {copiedField === `${company.id}-username` ? (
-                            <Check className="h-4 w-4 text-green-500" />
+                            <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                           ) : (
                             <Copy className="h-4 w-4" />
                           )}
@@ -230,11 +234,11 @@ export default function AsicLoginsPage() {
                           {showPasswords[`${company.id}-password`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                         <button
-                          onClick={() => copyToClipboard(company.asic_password!, company.id, "password")}
+                          onClick={() => handleCopy(company.asic_password!, company.id, "password")}
                           className="text-muted-foreground hover:text-foreground"
                         >
                           {copiedField === `${company.id}-password` ? (
-                            <Check className="h-4 w-4 text-green-500" />
+                            <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                           ) : (
                             <Copy className="h-4 w-4" />
                           )}
@@ -260,11 +264,11 @@ export default function AsicLoginsPage() {
                               {showPasswords[`${company.id}-recovery`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
                             <button
-                              onClick={() => copyToClipboard(company.recovery_answer!, company.id, "recovery")}
+                              onClick={() => handleCopy(company.recovery_answer!, company.id, "recovery")}
                               className="text-muted-foreground hover:text-foreground"
                             >
                               {copiedField === `${company.id}-recovery` ? (
-                                <Check className="h-4 w-4 text-green-500" />
+                                <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                               ) : (
                                 <Copy className="h-4 w-4" />
                               )}

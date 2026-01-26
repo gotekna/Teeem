@@ -1,7 +1,8 @@
 require "anthropic"
 
 class EmailToCaseService
-  CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+  include AnthropicClient
+  # SSoT: Use AnthropicClient constants for model names
   MAX_TOKENS = 3000
   RATE_LIMIT_PER_HOUR = 20
 
@@ -9,7 +10,7 @@ class EmailToCaseService
   class AIExtractionError < StandardError; end
   class CaseCreationError < StandardError; end
 
-  def initialize(email_warehouse, user:)
+  def initialize(synced_email, user:)
     @email = email_warehouse
     @user = user
   end
@@ -36,13 +37,13 @@ class EmailToCaseService
 
     # Create proposal record
     proposal = EmailCaseProposal.create!(
-      email_warehouse: @email,
+      synced_email: @email,
       created_by: @user,
       extracted_data: extracted_data,
       ai_prompt: prompt,
       ai_response_raw: ai_response,
       processing_time_ms: processing_time,
-      ai_model_used: CLAUDE_MODEL,
+      ai_model_used: CLAUDE_SONNET,
       confidence_score: extracted_data["confidence_score"],
       status: "pending"
     )
@@ -59,7 +60,7 @@ class EmailToCaseService
 
     # Create error proposal
     EmailCaseProposal.create!(
-      email_warehouse: @email,
+      synced_email: @email,
       created_by: @user,
       extracted_data: { error: e.message },
       status: "error",
@@ -91,7 +92,7 @@ class EmailToCaseService
       investigation_start_date: parse_date(case_data.dig("key_dates", 0, "date")),
       metadata: {
         source: "email_proposal",
-        email_warehouse_id: @email.id,
+        synced_email_id: @email.id,
         proposal_id: proposal.id
       }
     )
@@ -139,7 +140,7 @@ class EmailToCaseService
   def build_email_thread_context
     # Get all emails in the same conversation thread
     thread_emails = if @email.conversation_id.present?
-      EmailWarehouse
+      SyncedEmail
         .where(conversation_id: @email.conversation_id)
         .order(received_at: :asc)
     else
@@ -205,8 +206,9 @@ class EmailToCaseService
     end.join("\n\n")
 
     # Extract text from PDF attachments
+    # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
     pdf_content = nil
-    if @email.files.attached?
+    if @email.email_attachments.any?
       pdf_texts = @email.extract_pdf_text
       if pdf_texts.present?
         pdf_content = pdf_texts.map do |pdf|
@@ -476,13 +478,15 @@ class EmailToCaseService
           company_contact = find_or_create_company(party["company"])
         end
 
+        # SSoT: Multi-tenancy - set tenant_id from user
         contact = Contact.create(
           email: email,
           display_name: party["name"],
           mobile_phone: party["phone"],
           company_name_or_trust: party["company"],
           primary_company_id: company_contact&.id,
-          entity_type: "person"
+          entity_type: "person",
+          tenant_id: @user&.tenant_id
         )
       end
 
@@ -531,9 +535,11 @@ class EmailToCaseService
     return company if company
 
     # SSoT: Use find_or_create_by! with RecordNotUnique rescue for race condition protection
+    # SSoT: Multi-tenancy - set tenant_id from user
     company = Contact.find_or_create_by!(
       display_name: company_name.strip,
-      entity_type: "company"
+      entity_type: "company",
+      tenant_id: @user&.tenant_id
     )
     Rails.logger.info "[EmailToCase] Created new company contact: #{company.display_name} (ID: #{company.id})"
     company
@@ -611,7 +617,7 @@ class EmailToCaseService
   def link_email_thread(case_record)
     return unless @email.conversation_id.present?
 
-    thread_emails = EmailWarehouse
+    thread_emails = SyncedEmail
       .where(conversation_id: @email.conversation_id)
       .where.not(id: @email.id)
 
@@ -647,12 +653,13 @@ class EmailToCaseService
   end
 
   def sync_pdf_attachments_if_needed
-    return unless @email.has_attachments && !@email.files.attached?
+    # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
+    return unless @email.has_attachments && @email.email_attachments.empty?
 
     begin
       # SSoT: Per-user Outlook credentials removed - use org credentials via sync_attachments!
       @email.sync_attachments!
-      Rails.logger.info "Synced #{@email.files.count} PDF attachments for email #{@email.id}"
+      Rails.logger.info "Synced #{@email.email_attachments.count} PDF attachments for email #{@email.id}"
     rescue StandardError => e
       Rails.logger.error "Failed to sync attachments for email #{@email.id}: #{e.message}"
     end

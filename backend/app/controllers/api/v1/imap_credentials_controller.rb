@@ -1,4 +1,6 @@
 class Api::V1::ImapCredentialsController < ApplicationController
+  include PresignedUploadHandler
+
   before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
 
   # GET /api/v1/imap_credentials
@@ -209,7 +211,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       end
     else
       # Fetch IMAP folders
-      credential = current_user.imap_credentials.find_by(id: account_id)
+      # SSoT: Use accessible_by to include both owned and shared credentials
+      credential = ImapCredential.accessible_by(current_user).find_by(id: account_id)
       unless credential
         return render json: {
           success: false,
@@ -261,12 +264,32 @@ class Api::V1::ImapCredentialsController < ApplicationController
       user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
       configured_emails = user_mailbox_access[current_user.id.to_s] || []
 
-      # SSoT: Auto-include user's own email ONLY if it exists in this tenant
-      tenant_emails = org_cred.list_tenant_users.map { |u| u[:email]&.downcase }.compact
-      auto_emails = if current_user.email.present? && tenant_emails.include?(current_user.email.downcase)
-        [current_user.email]
-      else
-        []
+      # SSoT: Auto-include user's own email if it matches the org credential's known domain
+      # PERFORMANCE FIX: Don't call list_tenant_users (Graph API call was causing 30+ second delays)
+      # Instead, use a simple domain check based on the credential's name/known domains
+      auto_emails = []
+      if current_user.email.present?
+        user_domain = current_user.email.split("@").last&.downcase
+
+        # Known domains per org name
+        # TODO: Move to MicrosoftCredential.metadata[:email_domains] for SSoT
+        # These are hardcoded because:
+        # 1. Graph API call to get domains was too slow (30+ sec)
+        # 2. Multiple tenants exist with different domains
+        known_domains = {
+          "Tekna" => CorporateCompanySetting.internal_email_domains,
+          "100xBestLife" => ["100xbestlife.com"],
+          "Homes of Hope" => ["homesofhope.org.au"],
+          "Love Your World" => ["loveyourworld.org"]
+        }
+
+        # Get domains for this org
+        org_domains = known_domains[org_cred.name] || []
+
+        # Include user's email if their domain matches this tenant
+        if org_domains.any? { |d| d.casecmp?(user_domain) }
+          auto_emails = [current_user.email]
+        end
       end
 
       # Combine auto + configured, remove duplicates
@@ -359,19 +382,22 @@ class Api::V1::ImapCredentialsController < ApplicationController
     attachments = build_attachments_from_params
 
     # Use unified EmailSendingService (SSoT)
-    result = EmailSendingService.send(
+    # SSoT: Use send_and_log to immediately store sent email in SyncedEmail
+    # This ensures sent emails appear in Sent Items without waiting for sync
+    result = EmailSendingService.send_and_log(
       account_type: account_type,
       credential_id: credential_id,
       user: current_user,
-      to: Array(params[:to]),
-      cc: Array(params[:cc]),
-      bcc: Array(params[:bcc]),
+      to: parse_recipients(params[:to]),
+      cc: parse_recipients(params[:cc]),
+      bcc: parse_recipients(params[:bcc]),
       subject: params[:subject],
       body: params[:body],
       attachments: attachments,
       from_address: params[:from_address],
       reply_to_message_id: params[:reply_to_message_id],
-      mailbox_email: params[:mailbox_email]
+      mailbox_email: params[:mailbox_email],
+      sm_task_id: params[:sm_task_id]  # Optional: Link sent email to SM task
     )
 
     if result.success?
@@ -405,9 +431,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
       account_type: account_type,
       credential_id: credential_id,
       user: current_user,
-      to: Array(params[:to]),
-      cc: Array(params[:cc]),
-      bcc: Array(params[:bcc]),
+      to: parse_recipients(params[:to]),
+      cc: parse_recipients(params[:cc]),
+      bcc: parse_recipients(params[:bcc]),
       subject: params[:subject],
       body: params[:body],
       from_address: params[:from_address],
@@ -596,7 +622,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
     if service.move_email(uid.to_i, destination_folder, source_folder: source_folder)
       # Update local record if it exists
-      email = EmailWarehouse.find_by(imap_credential: @credential, uid: uid.to_i)
+      email = SyncedEmail.find_by(imap_credential: @credential, uid: uid.to_i)
       email&.update!(folder_name: destination_folder)
 
       render json: {
@@ -704,6 +730,18 @@ class Api::V1::ImapCredentialsController < ApplicationController
     @credential = ImapCredential.accessible_by(current_user).find(params[:id])
   end
 
+  # Parse recipients from comma-separated string or array
+  # Handles: "a@b.com, c@d.com" or ["a@b.com", "c@d.com"] or ["a@b.com, c@d.com"]
+  def parse_recipients(value)
+    return [] if value.blank?
+
+    # Handle both array and string inputs
+    values = value.is_a?(Array) ? value : [value]
+
+    # Split each value by comma/semicolon, strip whitespace, remove blanks
+    values.flat_map { |v| v.to_s.split(/[,;]/).map(&:strip) }.reject(&:blank?)
+  end
+
   # Infer account type from credential_id format
   def infer_account_type(credential_id)
     case credential_id.to_s
@@ -714,17 +752,36 @@ class Api::V1::ImapCredentialsController < ApplicationController
     end
   end
 
-  # Build attachments array from uploaded files
+  # SSoT: Build attachments array from either uploaded files or storage keys
   def build_attachments_from_params
-    return [] unless params[:attachments].present?
+    attachments = []
 
-    params[:attachments].map do |file|
-      {
-        filename: file.original_filename,
-        content: file.read,
-        content_type: file.content_type
-      }
+    # Handle direct file uploads
+    if params[:attachments].present?
+      Array(params[:attachments]).each do |file|
+        attachments << {
+          filename: file.original_filename,
+          content: file.read,
+          content_type: file.content_type
+        }
+      end
     end
+
+    # Handle storage keys (from presigned URL uploads)
+    if params[:attachment_storage_keys].present?
+      Array(params[:attachment_storage_keys]).each do |storage_key|
+        file = download_from_storage(storage_key)
+        next unless file
+
+        attachments << {
+          filename: file.original_filename,
+          content: file.read,
+          content_type: file.content_type
+        }
+      end
+    end
+
+    attachments
   end
 
   def credential_params

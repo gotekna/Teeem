@@ -8,6 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { WAREHOUSE_PAGE_SIZE } from "@/lib/constants/pagination-constants";
@@ -45,11 +51,14 @@ import {
   X,
   Users,
   Settings,
+  Paperclip,
+  Briefcase,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { SharePointTab } from "./SharePointTab";
+import { StorageConfigTab } from "./StorageConfigTab";
+import { formatFileSize } from "@/utils/formatters";
 
 interface WarehouseViewStatus {
   key: string;
@@ -134,6 +143,27 @@ interface OrgDataStats {
       direction_rate: number;
       body_preview_rate: number;
     };
+    storage_upload?: {
+      uploaded: number;
+      uploadable: number;
+      remaining: number;
+      upload_rate: number;
+      attachments: {
+        total: number;
+        with_blob: number;
+        legacy_sharepoint: number;
+        migration_rate: number;
+        // StorageBlob deduplication stats
+        unique_blobs?: number;
+        total_storage_bytes?: number;
+        dedup_ratio?: number;
+        files_saved_by_dedup?: number;
+      };
+      pending_by_mailbox?: Array<{
+        mailbox: string;
+        pending: number;
+      }>;
+    };
   };
   storage: {
     provider_type: string;
@@ -180,6 +210,35 @@ interface OrgDataStats {
     pdf_files: number;
     image_files: number;
     total_size: number;
+  };
+  warehouse_breakdown?: Array<{
+    source_type: string;
+    label: string;
+    total: number;
+    with_blob: number;
+    with_file: number;
+    without_blob: number;
+    storage_rate: number;
+    file_rate: number;
+    linked?: number;  // For Xero: WarehouseDocument records created
+    missing?: number; // For Xero: total - with_file (SSoT from external_invoices)
+    tenant_breakdown?: Array<{  // Per-org breakdown for Xero
+      tenant_id: string;
+      tenant_name: string;
+      total: number;
+      with_blob: number;
+      with_file: number;
+      linked: number;
+      missing: number;
+      file_rate: number;
+    }>;
+  }>;
+  blob_stats?: {
+    total_blobs: number;
+    total_bytes: number;
+    blobs_format: number;
+    legacy_format: number;
+    migration_rate: number;
   };
   last_updated: string;
 }
@@ -235,6 +294,7 @@ interface MicrosoftOrgStats {
   admin_consent_granted_by?: string;
   stats: {
     emails: number;
+    attachments: number;  // SSoT: total attachment count from API
     email_storage_bytes: number;
     linked_to_job: number;
     size_by_job: number;
@@ -247,6 +307,12 @@ interface MicrosoftOrgStats {
       email_count: number;
       last_sync: string | null;
       last_email_received: string | null;
+      attachment_count: number;
+      shared_attachments: number;
+      emails_wasabi: number;
+      emails_sharepoint: number;
+      attachments_wasabi: number;
+      attachments_sharepoint: number;
     }>;
     ai_classification: {
       spam: number;
@@ -262,6 +328,23 @@ interface MicrosoftOrgStats {
       with_body_preview: number;
       direction_rate: number;
       body_preview_rate: number;
+    };
+    storage_location: {
+      emails: {
+        wasabi: { count: number; bytes: number };
+        sharepoint: { count: number; bytes: number };
+      };
+      attachments: {
+        wasabi: { count: number };
+        sharepoint: { count: number };
+        dedup_savings_count: number;
+        dedup_savings_bytes: number;
+      };
+      documents: {
+        wasabi: number;
+        sharepoint: number;
+        s3: number;
+      } | null;
     };
   };
 }
@@ -337,13 +420,15 @@ export function DataWarehouseTab() {
     router.push("/data-warehouse");
   };
 
-  const loadStats = async () => {
+  const loadStats = async (forceRefresh = false) => {
     try {
       setLoading(true);
       // Use company-specific endpoint if filtering by company
-      const endpoint = companyId
+      const baseEndpoint = companyId
         ? `/api/v1/companies/${companyId}/data_stats`
         : "/api/v1/organization/data_stats";
+      // Add refresh=true to skip server cache when user clicks Refresh button
+      const endpoint = forceRefresh ? `${baseEndpoint}?refresh=true` : baseEndpoint;
       const response = await api.get<{ success: boolean; data: OrgDataStats }>(endpoint);
       if (response?.success) {
         setStats(response.data);
@@ -353,7 +438,7 @@ export function DataWarehouseTab() {
       // Set mock data for now
       setStats({
         organization: {
-          name: "Tekna Homes",
+          name: "Teeem Homes",
           total_companies: 45,
           total_jobs: 127,
         },
@@ -395,7 +480,7 @@ export function DataWarehouseTab() {
           status: "connected",
           connection_info: {
             endpoint: "s3.ap-southeast-2.wasabisys.com",
-            bucket: "teeem-documents",
+            bucket: "teeem-tekna",
             region: "ap-southeast-2",
           },
           root_path: "/documents",
@@ -404,7 +489,7 @@ export function DataWarehouseTab() {
         },
         xero: {
           connected: true,
-          tenant_name: "Tekna Homes",
+          tenant_name: "Teeem Homes",
           companies_connected: 12,
           last_sync: new Date().toISOString(),
         },
@@ -451,8 +536,8 @@ export function DataWarehouseTab() {
       if (response?.success) {
         setMicrosoftOrgStats(response);
       }
-    } catch (error) {
-      console.error("Failed to load Microsoft org stats:", error);
+    } catch {
+      // Expected to fail when Microsoft/SharePoint not connected - fail silently
     }
   };
 
@@ -494,7 +579,8 @@ export function DataWarehouseTab() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadStats(), loadWarehouseStatus()]);
+    // Pass true to force server cache refresh
+    await Promise.all([loadStats(true), loadWarehouseStatus()]);
     setRefreshing(false);
   };
 
@@ -518,13 +604,6 @@ export function DataWarehouseTab() {
   };
 
 
-  const formatBytes = (bytes: number) => {
-    if (!bytes) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-  };
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Never";
@@ -585,7 +664,7 @@ export function DataWarehouseTab() {
             variant="ghost"
             size="sm"
             onClick={clearCompanyFilter}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
           >
             <X className="h-4 w-4 mr-1" />
             Clear Filter
@@ -618,7 +697,7 @@ export function DataWarehouseTab() {
             <TabsTrigger key={org.name} value={`org-${org.name}`} className="gap-1">
               {org.name}
               {org.connected ? (
-                <CheckCircle className="h-3 w-3 text-green-500" />
+                <CheckCircle className="h-3 w-3 text-green-500 dark:text-green-400" />
               ) : (
                 <XCircle className="h-3 w-3 text-muted-foreground" />
               )}
@@ -896,7 +975,7 @@ export function DataWarehouseTab() {
 
         {/* Storage Config Tab - Embeds the same component from Entity Configurator */}
         <TabsContent value="storage-config" className="space-y-4">
-          <SharePointTab />
+          <StorageConfigTab />
         </TabsContent>
 
         {/* Microsoft 365 Organization Tabs */}
@@ -941,14 +1020,14 @@ export function DataWarehouseTab() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="p-4 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
-                          <Mail className="h-4 w-4 text-blue-500" />
+                          <Mail className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                           <span className="text-sm font-medium">Emails</span>
                         </div>
                         <p className="text-2xl font-bold">{org.stats.emails.toLocaleString()}</p>
                       </div>
                       <div className="p-4 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
-                          <HardDrive className="h-4 w-4 text-purple-500" />
+                          <HardDrive className="h-4 w-4 text-purple-500 dark:text-purple-400" />
                           <span className="text-sm font-medium">Storage</span>
                         </div>
                         <p className="text-2xl font-bold">
@@ -960,14 +1039,14 @@ export function DataWarehouseTab() {
                       </div>
                       <div className="p-4 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
-                          <FolderOpen className="h-4 w-4 text-green-500" />
+                          <FolderOpen className="h-4 w-4 text-green-500 dark:text-green-400" />
                           <span className="text-sm font-medium">Linked to Jobs</span>
                         </div>
                         <p className="text-2xl font-bold">{org.stats.linked_to_job.toLocaleString()}</p>
                       </div>
                       <div className="p-4 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
-                          <Clock className="h-4 w-4 text-orange-500" />
+                          <Clock className="h-4 w-4 text-orange-500 dark:text-orange-400" />
                           <span className="text-sm font-medium">Last Sync</span>
                         </div>
                         <p className="text-lg font-medium">
@@ -989,6 +1068,131 @@ export function DataWarehouseTab() {
                       )}
                     </div>
 
+                    {/* Storage Location Summary */}
+                    {org.stats.storage_location && (
+                      <div className="pt-4 border-t">
+                        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                          <HardDrive className="h-4 w-4" />
+                          Storage Location
+                        </h4>
+                        <div className="space-y-3">
+                          {/* Email Storage Progress - SSoT: org.stats.emails is total from warehouse */}
+                          {(() => {
+                            const totalEmails = org.stats.emails; // SSoT: total emails in warehouse
+                            const wasabiCount = org.stats.storage_location.emails.wasabi.count;
+                            const sharepointCount = org.stats.storage_location.emails.sharepoint.count;
+                            const pendingCount = totalEmails - wasabiCount - sharepointCount;
+                            const wasabiPercent = totalEmails > 0 ? Math.round((wasabiCount / totalEmails) * 100) : 0;
+                            const sharepointPercent = totalEmails > 0 ? Math.round((sharepointCount / totalEmails) * 100) : 0;
+                            const pendingPercent = 100 - wasabiPercent - sharepointPercent;
+                            return (
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-muted-foreground">Emails ({totalEmails.toLocaleString()} total)</span>
+                                  <span className="text-xs">
+                                    <span className="text-green-600 dark:text-green-400">{wasabiPercent}% Wasabi</span>
+                                    {sharepointPercent > 0 && (
+                                      <span className="text-blue-600 dark:text-blue-400"> | {sharepointPercent}% SharePoint</span>
+                                    )}
+                                    {pendingPercent > 0 && (
+                                      <span className="text-muted-foreground"> | {pendingPercent}% Pending</span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="h-2 rounded-full bg-muted overflow-hidden flex">
+                                  <div
+                                    className="h-full bg-green-500 transition-all"
+                                    style={{ width: `${wasabiPercent}%` }}
+                                  />
+                                  <div
+                                    className="h-full bg-blue-500 transition-all"
+                                    style={{ width: `${sharepointPercent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Attachment Storage Progress - SSoT: org.stats.attachments from API */}
+                          {(() => {
+                            const totalAttachments = org.stats.attachments;  // SSoT: total from API
+                            const wasabiCount = org.stats.storage_location.attachments.wasabi.count;
+                            const sharepointCount = org.stats.storage_location.attachments.sharepoint.count;
+                            const wasabiPercent = totalAttachments > 0 ? Math.round((wasabiCount / totalAttachments) * 100) : 0;
+                            const sharepointPercent = totalAttachments > 0 ? Math.round((sharepointCount / totalAttachments) * 100) : 0;
+                            return (
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-muted-foreground">Attachments ({totalAttachments.toLocaleString()} total)</span>
+                                  <span className="text-xs">
+                                    <span className="text-green-600 dark:text-green-400">{wasabiPercent}% Wasabi</span>
+                                    {sharepointPercent > 0 && (
+                                      <span className="text-blue-600 dark:text-blue-400"> | {sharepointPercent}% SharePoint</span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="h-2 rounded-full bg-muted overflow-hidden flex">
+                                  <div
+                                    className="h-full bg-green-500 transition-all"
+                                    style={{ width: `${wasabiPercent}%` }}
+                                  />
+                                  <div
+                                    className="h-full bg-blue-500 transition-all"
+                                    style={{ width: `${sharepointPercent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Document Storage Progress */}
+                          {org.stats.storage_location.documents && (
+                            (() => {
+                              const docs = org.stats.storage_location.documents;
+                              const wasabiCount = docs.wasabi + docs.s3;
+                              const sharepointCount = docs.sharepoint;
+                              const totalDocs = wasabiCount + sharepointCount;
+                              const wasabiPercent = totalDocs > 0 ? Math.round((wasabiCount / totalDocs) * 100) : 0;
+                              const sharepointPercent = 100 - wasabiPercent;
+                              return (
+                                <div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs text-muted-foreground">Documents ({totalDocs.toLocaleString()} total)</span>
+                                    <span className="text-xs">
+                                      <span className="text-green-600 dark:text-green-400">{wasabiPercent}% Wasabi</span>
+                                      {sharepointPercent > 0 && (
+                                        <span className="text-blue-600 dark:text-blue-400"> | {sharepointPercent}% SharePoint</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div className="h-2 rounded-full bg-muted overflow-hidden flex">
+                                    <div
+                                      className="h-full bg-green-500 transition-all"
+                                      style={{ width: `${wasabiPercent}%` }}
+                                    />
+                                    <div
+                                      className="h-full bg-blue-500 transition-all"
+                                      style={{ width: `${sharepointPercent}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })()
+                          )}
+
+                          {/* Deduplication Savings */}
+                          {org.stats.storage_location.attachments.dedup_savings_count > 0 && (
+                            <p className="text-xs text-muted-foreground pt-1">
+                              <span className="text-green-600 dark:text-green-400 font-medium">
+                                {org.stats.storage_location.attachments.dedup_savings_count.toLocaleString()} attachments
+                              </span>
+                              {" "}deduplicated (saving {formatFileSize(org.stats.storage_location.attachments.dedup_savings_bytes)})
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Per-Person Email Stats */}
                     {org.stats.per_mailbox?.length > 0 && (
                       <div className="pt-4 border-t">
@@ -996,12 +1200,18 @@ export function DataWarehouseTab() {
                           <Users className="h-4 w-4" />
                           Emails by Person ({org.stats.per_mailbox.length})
                         </h4>
-                        <div className="border rounded-lg overflow-hidden">
+                        <div className="border rounded-lg overflow-hidden overflow-x-auto">
                           <Table>
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Mailbox</TableHead>
                                 <TableHead className="text-right">Emails</TableHead>
+                                <TableHead className="text-right text-green-600 dark:text-green-400">Wasabi</TableHead>
+                                <TableHead className="text-right text-blue-600 dark:text-blue-400">SharePoint</TableHead>
+                                <TableHead className="text-right">Attachments</TableHead>
+                                <TableHead className="text-right text-green-600 dark:text-green-400">Att Wasabi</TableHead>
+                                <TableHead className="text-right text-blue-600 dark:text-blue-400">Att SP</TableHead>
+                                <TableHead className="text-right">Shared</TableHead>
                                 <TableHead className="text-right">Last Email</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -1010,6 +1220,22 @@ export function DataWarehouseTab() {
                                 <TableRow key={mb.mailbox}>
                                   <TableCell className="font-medium">{mb.mailbox}</TableCell>
                                   <TableCell className="text-right">{mb.email_count.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right text-green-600 dark:text-green-400">
+                                    {mb.emails_wasabi > 0 ? mb.emails_wasabi.toLocaleString() : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right text-blue-600 dark:text-blue-400">
+                                    {mb.emails_sharepoint > 0 ? mb.emails_sharepoint.toLocaleString() : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right">{mb.attachment_count.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right text-green-600 dark:text-green-400">
+                                    {mb.attachments_wasabi > 0 ? mb.attachments_wasabi.toLocaleString() : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right text-blue-600 dark:text-blue-400">
+                                    {mb.attachments_sharepoint > 0 ? mb.attachments_sharepoint.toLocaleString() : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {mb.shared_attachments > 0 ? mb.shared_attachments.toLocaleString() : "-"}
+                                  </TableCell>
                                   <TableCell className="text-right text-muted-foreground">
                                     {mb.last_email_received ? format(new Date(mb.last_email_received), "PPp") : "Never"}
                                   </TableCell>
@@ -1037,19 +1263,19 @@ export function DataWarehouseTab() {
                       />
                       <div className="grid grid-cols-5 gap-2">
                         <div className="text-center p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                          <p className="text-sm font-bold text-red-600">{(org.stats.ai_classification?.spam || 0).toLocaleString()}</p>
+                          <p className="text-sm font-bold text-red-600 dark:text-red-400">{(org.stats.ai_classification?.spam || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Spam</p>
                         </div>
                         <div className="text-center p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                          <p className="text-sm font-bold text-orange-600">{(org.stats.ai_classification?.marketing || 0).toLocaleString()}</p>
+                          <p className="text-sm font-bold text-orange-600 dark:text-orange-400">{(org.stats.ai_classification?.marketing || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Marketing</p>
                         </div>
                         <div className="text-center p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                          <p className="text-sm font-bold text-blue-600">{(org.stats.ai_classification?.transactional || 0).toLocaleString()}</p>
+                          <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{(org.stats.ai_classification?.transactional || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Transactional</p>
                         </div>
                         <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                          <p className="text-sm font-bold text-green-600">{(org.stats.ai_classification?.business || 0).toLocaleString()}</p>
+                          <p className="text-sm font-bold text-green-600 dark:text-green-400">{(org.stats.ai_classification?.business || 0).toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Business</p>
                         </div>
                         <div className="text-center p-2 bg-muted dark:bg-card rounded-lg">
@@ -1059,30 +1285,18 @@ export function DataWarehouseTab() {
                       </div>
                     </div>
 
-                    {/* SSoT Migration Progress (same as Overview) */}
+                    {/* Email Data Completeness */}
                     <div className="pt-4 border-t">
-                      <h4 className="text-sm font-medium mb-3">SSoT Migration Progress</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-muted-foreground">Direction Field</span>
-                            <span className="text-xs font-medium">{org.stats.ssot_migration?.direction_rate || 0}%</span>
-                          </div>
-                          <Progress value={org.stats.ssot_migration?.direction_rate || 0} className="h-1.5" />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {(org.stats.ssot_migration?.with_direction || 0).toLocaleString()} of {org.stats.emails.toLocaleString()}
-                          </p>
+                      <h4 className="text-sm font-medium mb-3">Email Data Completeness</h4>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-muted-foreground">Body Preview Available</span>
+                          <span className="text-xs font-medium">{org.stats.ssot_migration?.body_preview_rate || 0}%</span>
                         </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-muted-foreground">Body Preview</span>
-                            <span className="text-xs font-medium">{org.stats.ssot_migration?.body_preview_rate || 0}%</span>
-                          </div>
-                          <Progress value={org.stats.ssot_migration?.body_preview_rate || 0} className="h-1.5" />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {(org.stats.ssot_migration?.with_body_preview || 0).toLocaleString()} of {org.stats.emails.toLocaleString()}
-                          </p>
-                        </div>
+                        <Progress value={org.stats.ssot_migration?.body_preview_rate || 0} className="h-1.5" />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {(org.stats.ssot_migration?.with_body_preview || 0).toLocaleString()} of {org.stats.emails.toLocaleString()}
+                        </p>
                       </div>
                     </div>
 
@@ -1094,17 +1308,17 @@ export function DataWarehouseTab() {
                       </h4>
                       <div className="grid grid-cols-3 gap-3">
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-xl font-bold text-purple-600">{org.stats.emails.toLocaleString()}</p>
+                          <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{org.stats.emails.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Total Emails</p>
-                          <p className="text-xs text-muted-foreground mt-1">{formatBytes(org.stats.email_storage_bytes)}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{formatFileSize(org.stats.email_storage_bytes)}</p>
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-xl font-bold text-green-600">{org.stats.linked_to_job.toLocaleString()}</p>
+                          <p className="text-xl font-bold text-green-600 dark:text-green-400">{org.stats.linked_to_job.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Linked to Jobs</p>
-                          <p className="text-xs text-muted-foreground mt-1">{formatBytes(org.stats.size_by_job)}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{formatFileSize(org.stats.size_by_job)}</p>
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
-                          <p className="text-xl font-bold text-red-600">{org.stats.junk_emails.toLocaleString()}</p>
+                          <p className="text-xl font-bold text-red-600 dark:text-red-400">{org.stats.junk_emails.toLocaleString()}</p>
                           <p className="text-xs text-muted-foreground">Spam</p>
                         </div>
                       </div>
@@ -1189,13 +1403,139 @@ export function DataWarehouseTab() {
                 <HardDrive className="h-5 w-5 text-orange-600 dark:text-orange-400" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{formatBytes(stats.documents.total_file_size + stats.job_documents.total_size)}</p>
-                <p className="text-xs text-muted-foreground">Total Storage</p>
+                <p className="text-2xl font-bold">{formatFileSize(stats.blob_stats?.total_bytes || 0)}</p>
+                <p className="text-xs text-muted-foreground">Total Storage (SSoT)</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Warehouse Document Breakdown (SSoT) */}
+      {stats.warehouse_breakdown && stats.warehouse_breakdown.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Document Storage Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Source Type</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Linked</TableHead>
+                  <TableHead className="text-right">Has File</TableHead>
+                  <TableHead className="text-right">Missing</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats.warehouse_breakdown.map((row) => {
+                  // SSoT: Use row.missing if provided (for Xero), otherwise calculate
+                  const missingFile = row.missing ?? (row.with_blob - (row.with_file || 0));
+                  return (
+                    <React.Fragment key={row.source_type}>
+                      <TableRow>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {row.source_type === "email_body" && <Mail className="h-4 w-4 text-purple-500" />}
+                            {row.source_type === "email_attachment" && <Paperclip className="h-4 w-4 text-purple-400" />}
+                            {row.source_type === "email" && <Mail className="h-4 w-4 text-purple-500" />}
+                            {row.source_type === "corporate" && <Building2 className="h-4 w-4 text-blue-500" />}
+                            {row.source_type === "contact" && <Users className="h-4 w-4 text-green-500" />}
+                            {row.source_type === "xero" && <FileText className="h-4 w-4 text-[#13B5EA]" />}
+                            {row.source_type === "job" && <Briefcase className="h-4 w-4 text-amber-600" />}
+                            {row.source_type === "task" && <CheckCircle className="h-4 w-4 text-teal-500" />}
+                            {row.source_type === "people" && <Users className="h-4 w-4 text-pink-500" />}
+                            {row.source_type === "warehouse" && <Box className="h-4 w-4 text-gray-500" />}
+                            {row.source_type === "user" && <Users className="h-4 w-4 text-indigo-500" />}
+                            {row.label}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">{row.total.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {/* For Xero: linked = WarehouseDocument records, with_blob = has PDF */}
+                          {row.source_type === "xero" ? (row.linked ?? row.with_blob).toLocaleString() : row.with_blob.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right text-green-600 dark:text-green-400">
+                          {(row.with_file || 0).toLocaleString()}
+                          {row.file_rate !== undefined && (
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({row.file_rate}%)
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {missingFile > 0 ? (
+                            <span className="text-red-600 dark:text-red-400">{missingFile.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-green-600 dark:text-green-400">-</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {/* Per-tenant breakdown for Xero */}
+                      {row.source_type === "xero" && row.tenant_breakdown && row.tenant_breakdown.map((tenant) => (
+                        <TableRow key={tenant.tenant_id} className="bg-muted/30">
+                          <TableCell className="pl-8 text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground/50">└</span>
+                              {tenant.tenant_name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">{tenant.total.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{tenant.linked.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-green-600/80 dark:text-green-400/80">
+                            {tenant.with_file.toLocaleString()}
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({tenant.file_rate}%)
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {tenant.missing > 0 ? (
+                              <span className="text-red-600/80 dark:text-red-400/80">{tenant.missing.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-green-600/80 dark:text-green-400/80">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            {/* Blob Storage Summary */}
+            {stats.blob_stats && (
+              <div className="mt-4 pt-4 border-t flex flex-wrap gap-4 text-sm text-muted-foreground">
+                <div>
+                  <span className="font-medium text-foreground">{stats.blob_stats.total_blobs.toLocaleString()}</span>{" "}
+                  unique blobs
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">{formatFileSize(stats.blob_stats.total_bytes)}</span>{" "}
+                  total storage
+                </div>
+                <div>
+                  <span className="font-medium text-green-600 dark:text-green-400">
+                    {stats.blob_stats.blobs_format.toLocaleString()}
+                  </span>{" "}
+                  content-addressed
+                </div>
+                {stats.blob_stats.legacy_format > 0 && (
+                  <div>
+                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                      {stats.blob_stats.legacy_format.toLocaleString()}
+                    </span>{" "}
+                    legacy format
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Integrations Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1211,7 +1551,7 @@ export function DataWarehouseTab() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
               {stats.storage.connected ? (
-                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                <Badge variant="default" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   Connected
                 </Badge>
@@ -1299,7 +1639,7 @@ export function DataWarehouseTab() {
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
               {stats.xero.connected ? (
-                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                <Badge variant="default" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   Connected
                 </Badge>
@@ -1360,19 +1700,19 @@ export function DataWarehouseTab() {
             {/* Health Summary */}
             <div className="grid grid-cols-5 gap-2">
               <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <p className="text-xl font-bold text-green-600">{warehouseStatus.health.healthy}</p>
+                <p className="text-xl font-bold text-green-600 dark:text-green-400">{warehouseStatus.health.healthy}</p>
                 <p className="text-xs text-muted-foreground">Healthy</p>
               </div>
               <div className="text-center p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                <p className="text-xl font-bold text-yellow-600">{warehouseStatus.health.stale}</p>
+                <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">{warehouseStatus.health.stale}</p>
                 <p className="text-xs text-muted-foreground">Stale</p>
               </div>
               <div className="text-center p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <p className="text-xl font-bold text-orange-600">{warehouseStatus.health.warning}</p>
+                <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{warehouseStatus.health.warning}</p>
                 <p className="text-xs text-muted-foreground">Warning</p>
               </div>
               <div className="text-center p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <p className="text-xl font-bold text-red-600">{warehouseStatus.health.error}</p>
+                <p className="text-xl font-bold text-red-600 dark:text-red-400">{warehouseStatus.health.error}</p>
                 <p className="text-xs text-muted-foreground">Error</p>
               </div>
               <div className="text-center p-2 bg-muted dark:bg-card rounded-lg">
@@ -1444,11 +1784,11 @@ export function DataWarehouseTab() {
                     >
                       <div className="flex items-center gap-2">
                         {activity.status === "success" ? (
-                          <CheckCircle className="h-3 w-3 text-green-500" />
+                          <CheckCircle className="h-3 w-3 text-green-500 dark:text-green-400" />
                         ) : activity.status === "failed" ? (
-                          <XCircle className="h-3 w-3 text-red-500" />
+                          <XCircle className="h-3 w-3 text-red-500 dark:text-red-400" />
                         ) : (
-                          <Spinner size={12} className="text-blue-500" />
+                          <Spinner size={12} className="text-blue-500 dark:text-blue-400" />
                         )}
                         <span className="font-mono">{activity.view_name}</span>
                       </div>
@@ -1488,19 +1828,19 @@ export function DataWarehouseTab() {
             />
             <div className="grid grid-cols-5 gap-2">
               <div className="text-center p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <p className="text-lg font-bold text-red-600">{(stats.emails.ai_classification?.spam || 0).toLocaleString()}</p>
+                <p className="text-lg font-bold text-red-600 dark:text-red-400">{(stats.emails.ai_classification?.spam || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Spam</p>
               </div>
               <div className="text-center p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <p className="text-lg font-bold text-orange-600">{(stats.emails.ai_classification?.marketing || 0).toLocaleString()}</p>
+                <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{(stats.emails.ai_classification?.marketing || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Marketing</p>
               </div>
               <div className="text-center p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <p className="text-lg font-bold text-blue-600">{(stats.emails.ai_classification?.transactional || 0).toLocaleString()}</p>
+                <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{(stats.emails.ai_classification?.transactional || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Transactional</p>
               </div>
               <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <p className="text-lg font-bold text-green-600">{(stats.emails.ai_classification?.business || 0).toLocaleString()}</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">{(stats.emails.ai_classification?.business || 0).toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">Business</p>
               </div>
               <div className="text-center p-2 bg-muted dark:bg-card rounded-lg">
@@ -1510,34 +1850,146 @@ export function DataWarehouseTab() {
             </div>
           </div>
 
-          {/* SSoT Migration Progress */}
+          {/* Email Body Preview Coverage */}
           <div className="pt-4 border-t">
-            <h4 className="text-sm font-medium mb-3">SSoT Migration Progress</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-muted-foreground">Direction Field</span>
-                  <span className="text-xs font-medium">{stats.emails.ssot_migration?.direction_rate || 0}%</span>
-                </div>
-                <Progress value={stats.emails.ssot_migration?.direction_rate || 0} className="h-1.5" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(stats.emails.ssot_migration?.with_direction || 0).toLocaleString()} of {stats.emails.total_emails.toLocaleString()}
-                </p>
+            <h4 className="text-sm font-medium mb-3">Email Data Completeness</h4>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground">Body Preview Available</span>
+                <span className="text-xs font-medium">{stats.emails.ssot_migration?.body_preview_rate || 0}%</span>
               </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-muted-foreground">Body Preview</span>
-                  <span className="text-xs font-medium">{stats.emails.ssot_migration?.body_preview_rate || 0}%</span>
-                </div>
-                <Progress value={stats.emails.ssot_migration?.body_preview_rate || 0} className="h-1.5" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {(stats.emails.ssot_migration?.with_body_preview || 0).toLocaleString()} of {stats.emails.total_emails.toLocaleString()}
-                </p>
-              </div>
+              <Progress value={stats.emails.ssot_migration?.body_preview_rate || 0} className="h-1.5" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {(stats.emails.ssot_migration?.with_body_preview || 0).toLocaleString()} of {stats.emails.total_emails.toLocaleString()}
+              </p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Email Storage Upload Progress */}
+      {stats.emails.storage_upload && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              Email Storage Upload to Wasabi
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* .eml Upload Progress */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Email Files (.eml)</span>
+                <span className="text-sm text-muted-foreground">
+                  {stats.emails.storage_upload.upload_rate}% uploaded
+                </span>
+              </div>
+              <Progress value={stats.emails.storage_upload.upload_rate} className="h-2 mb-3" />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <p className="text-xl font-bold text-green-600 dark:text-green-400">{stats.emails.storage_upload.uploaded.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Uploaded</p>
+                </div>
+                <div className="text-center p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                  <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{stats.emails.storage_upload.remaining.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Remaining</p>
+                </div>
+                <div className="text-center p-3 bg-muted rounded-lg">
+                  <p className="text-xl font-bold">{stats.emails.storage_upload.uploadable.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Total Uploadable</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Attachments Deduplication Progress */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Attachment Migration (SharePoint → Wasabi)</span>
+                <span className="text-sm text-muted-foreground">
+                  {stats.emails.storage_upload.attachments.migration_rate}% migrated
+                </span>
+              </div>
+              <Progress value={stats.emails.storage_upload.attachments.migration_rate} className="h-2 mb-3" />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <p className="text-xl font-bold text-green-600 dark:text-green-400">{stats.emails.storage_upload.attachments.with_blob.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Migrated to Wasabi</p>
+                </div>
+                <div className="text-center p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                  <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{stats.emails.storage_upload.attachments.legacy_sharepoint.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Pending (SharePoint)</p>
+                </div>
+                <div className="text-center p-3 bg-muted rounded-lg">
+                  <p className="text-xl font-bold">{stats.emails.storage_upload.attachments.total.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Total Attachments</p>
+                </div>
+              </div>
+
+              {/* StorageBlob Deduplication Stats */}
+              {stats.emails.storage_upload.attachments.unique_blobs !== undefined && stats.emails.storage_upload.attachments.unique_blobs > 0 && (
+                <div className="mt-4 pt-3 border-t border-dashed">
+                  <div className="flex items-center gap-2 mb-3">
+                    <HardDrive className="h-4 w-4 text-purple-500 dark:text-purple-400" />
+                    <span className="text-sm font-medium">Storage Deduplication (SSoT)</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="text-center p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                      <p className="text-lg font-bold text-purple-600 dark:text-purple-400">{stats.emails.storage_upload.attachments.unique_blobs?.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">Unique Files</p>
+                    </div>
+                    <div className="text-center p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
+                      <p className="text-lg font-bold text-cyan-600">{formatFileSize(stats.emails.storage_upload.attachments.total_storage_bytes || 0)}</p>
+                      <p className="text-xs text-muted-foreground">Storage Used</p>
+                    </div>
+                    <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                      <p className="text-lg font-bold text-green-600 dark:text-green-400">{stats.emails.storage_upload.attachments.files_saved_by_dedup?.toLocaleString() || 0}</p>
+                      <p className="text-xs text-muted-foreground">Files Deduplicated</p>
+                    </div>
+                    <div className="text-center p-2 bg-muted rounded-lg">
+                      <p className="text-lg font-bold">{stats.emails.storage_upload.attachments.dedup_ratio?.toFixed(1) || 0}x</p>
+                      <p className="text-xs text-muted-foreground">Dedup Ratio</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pending Emails by Mailbox - Collapsible */}
+            {stats.emails.storage_upload.pending_by_mailbox && stats.emails.storage_upload.pending_by_mailbox.length > 0 && (
+              <div className="pt-4 border-t">
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="pending-mailboxes" className="border-none">
+                    <AccordionTrigger className="py-2 hover:no-underline">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-orange-500 dark:text-orange-400" />
+                        <span className="text-sm font-medium">Pending Emails by Mailbox</span>
+                        <Badge variant="outline" className="ml-2">
+                          {stats.emails.storage_upload.pending_by_mailbox.length} mailboxes
+                        </Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2 pt-2">
+                        {stats.emails.storage_upload.pending_by_mailbox.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                            <span className="text-sm text-muted-foreground truncate max-w-[200px]" title={item.mailbox}>
+                              {item.mailbox}
+                            </span>
+                            <Badge variant={item.pending > 5000 ? "destructive" : item.pending > 1000 ? "default" : "secondary"}>
+                              {item.pending.toLocaleString()} pending
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Email Warehouse Breakdown */}
       <Card>
@@ -1550,24 +2002,24 @@ export function DataWarehouseTab() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-purple-600">{stats.emails.total_emails.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.emails.total_emails.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Total Emails</p>
-              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.total_size)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.total_size)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">{stats.emails.linked_to_contact.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.emails.linked_to_contact.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Linked to Contact</p>
-              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_by_contact)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_by_contact)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-green-600">{stats.emails.linked_to_job.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.emails.linked_to_job.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Linked to Job</p>
-              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_by_job)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_by_job)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-orange-600">{stats.emails.linked_to_company.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.emails.linked_to_company.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Linked to Company</p>
-              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_by_company)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_by_company)}</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
               <p className="text-2xl font-bold text-cyan-600">{stats.emails.linked_to_company_group.toLocaleString()}</p>
@@ -1575,9 +2027,9 @@ export function DataWarehouseTab() {
               <p className="text-xs text-muted-foreground mt-1">-</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-red-600">{stats.emails.junk_emails.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.emails.junk_emails.toLocaleString()}</p>
               <p className="text-xs text-muted-foreground">Spam Emails</p>
-              <p className="text-xs text-muted-foreground mt-1">{formatBytes(stats.emails.size_junk)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{formatFileSize(stats.emails.size_junk)}</p>
             </div>
           </div>
           <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
@@ -1607,15 +2059,15 @@ export function DataWarehouseTab() {
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div className="text-center p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <p className="text-xl font-bold text-blue-600">{stats.corporate.total}</p>
+                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{stats.corporate.total}</p>
                 <p className="text-xs text-muted-foreground">Total Companies</p>
               </div>
               <div className="text-center p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                <p className="text-xl font-bold text-yellow-600">{stats.corporate.missing_abn}</p>
+                <p className="text-xl font-bold text-yellow-600 dark:text-yellow-400">{stats.corporate.missing_abn}</p>
                 <p className="text-xs text-muted-foreground">Missing ABN</p>
               </div>
               <div className="text-center p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <p className="text-xl font-bold text-orange-600">{stats.corporate.missing_acn}</p>
+                <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{stats.corporate.missing_acn}</p>
                 <p className="text-xs text-muted-foreground">Missing ACN</p>
               </div>
               <div className="text-center p-3 bg-muted dark:bg-card rounded-lg">
@@ -1623,7 +2075,7 @@ export function DataWarehouseTab() {
                 <p className="text-xs text-muted-foreground">No Review Date</p>
               </div>
               <div className="text-center p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <p className="text-xl font-bold text-red-600">{stats.corporate.overdue_review}</p>
+                <p className="text-xl font-bold text-red-600 dark:text-red-400">{stats.corporate.overdue_review}</p>
                 <p className="text-xs text-muted-foreground">Overdue Review</p>
               </div>
             </div>
@@ -1664,9 +2116,9 @@ export function DataWarehouseTab() {
           <div className="flex flex-wrap gap-3">
             {Object.entries(stats.documents.by_ai_status).map(([status, count]) => {
               const config: Record<string, { color: string; icon: React.ElementType }> = {
-                verified: { color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: CheckCircle },
-                mismatch: { color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
-                needs_review: { color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: AlertTriangle },
+                verified: { color: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400", icon: CheckCircle },
+                mismatch: { color: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300", icon: XCircle },
+                needs_review: { color: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400", icon: AlertTriangle },
                 pending: { color: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground", icon: Clock },
               };
               const { color, icon: Icon } = config[status] || { color: "bg-muted text-muted-foreground", icon: FileText };
@@ -1692,23 +2144,23 @@ export function DataWarehouseTab() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">{stats.job_documents.revit_files}</p>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.job_documents.revit_files}</p>
               <p className="text-xs text-muted-foreground">Revit (.rvt)</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-orange-600">{stats.job_documents.autocad_files}</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.job_documents.autocad_files}</p>
               <p className="text-xs text-muted-foreground">AutoCAD (.dwg)</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-red-600">{stats.job_documents.pdf_files}</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.job_documents.pdf_files}</p>
               <p className="text-xs text-muted-foreground">PDF (.pdf)</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-green-600">{stats.job_documents.image_files}</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.job_documents.image_files}</p>
               <p className="text-xs text-muted-foreground">Images</p>
             </div>
             <div className="text-center p-3 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold">{formatBytes(stats.job_documents.total_size)}</p>
+              <p className="text-2xl font-bold">{formatFileSize(stats.job_documents.total_size)}</p>
               <p className="text-xs text-muted-foreground">Total Size</p>
             </div>
           </div>
@@ -1726,8 +2178,8 @@ export function DataWarehouseTab() {
               <p className="text-sm text-muted-foreground">No documents yet</p>
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {stats.document_types.slice(0, 10).map((dt) => (
-                  <div key={dt.type || "unknown"} className="flex items-center justify-between">
+                {stats.document_types.slice(0, 10).map((dt, index) => (
+                  <div key={`${dt.type || "unknown"}-${index}`} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {dt.abbreviation && (
                         <Badge variant="outline" className="font-mono text-xs">
@@ -1759,10 +2211,10 @@ export function DataWarehouseTab() {
                 return (
                   <div key={source} className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {isCloudStorage && <Cloud className="h-4 w-4 text-blue-500 flex-shrink-0" />}
-                      {source === "upload" && <FolderOpen className="h-4 w-4 text-green-500 flex-shrink-0" />}
+                      {isCloudStorage && <Cloud className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />}
+                      {source === "upload" && <FolderOpen className="h-4 w-4 text-green-500 dark:text-green-400 flex-shrink-0" />}
                       {source === "xero" && <BarChart3 className="h-4 w-4 text-cyan-500 flex-shrink-0" />}
-                      {source === "email" && <Mail className="h-4 w-4 text-purple-500 flex-shrink-0" />}
+                      {source === "email" && <Mail className="h-4 w-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />}
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm font-medium">
                           {isCloudStorage ? stats.storage.provider_name : source.charAt(0).toUpperCase() + source.slice(1)}
@@ -1772,7 +2224,7 @@ export function DataWarehouseTab() {
                             href={storageUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline truncate flex items-center gap-1"
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline truncate flex items-center gap-1"
                           >
                             {stats.storage.connection_info.site_url}{stats.storage.root_path}
                             <ExternalLink className="h-3 w-3 flex-shrink-0" />

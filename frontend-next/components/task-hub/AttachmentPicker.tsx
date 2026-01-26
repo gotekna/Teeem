@@ -14,6 +14,12 @@ import {
   Upload,
   X,
   Search,
+  Building2,
+  User,
+  Briefcase,
+  UserCircle,
+  CheckSquare,
+  GripVertical,
 } from "lucide-react";
 
 export interface PendingAttachment {
@@ -45,9 +51,20 @@ interface DocumentResult {
   id: number;
   name: string;
   display_title?: string;
+  source_type: 'corporate' | 'user' | 'job' | 'contact' | 'task';
   document_type?: { id: number; name: string; abbreviation: string } | null;
   url?: string;
+  file_url?: string;
 }
+
+// Source type display config
+const SOURCE_CONFIG: Record<DocumentResult['source_type'], { label: string; icon: typeof Building2; color: string }> = {
+  corporate: { label: 'Company', icon: Building2, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
+  user: { label: 'My Docs', icon: User, color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
+  job: { label: 'Job', icon: Briefcase, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
+  contact: { label: 'Contact', icon: UserCircle, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
+  task: { label: 'Task', icon: CheckSquare, color: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300' },
+};
 
 export function AttachmentPicker({ attachments, onAdd, onRemove, jobId }: AttachmentPickerProps) {
   const [activeTab, setActiveTab] = React.useState<'email' | 'document' | 'upload'>('email');
@@ -131,7 +148,7 @@ function EmailSearchPanel({
       if (jobId) params.append('job_id', jobId);
 
       const response = await api.get<{ emails?: EmailResult[] } | EmailResult[]>(
-        `/api/v1/email_warehouse?${params}`
+        `/api/v1/synced_emails?${params}`
       );
       const emailList = Array.isArray(response) ? response : response?.emails || [];
       setEmails(emailList);
@@ -212,11 +229,16 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
   const [documents, setDocuments] = React.useState<DocumentResult[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [search, setSearch] = React.useState('');
+  const [draggingId, setDraggingId] = React.useState<string | null>(null);
 
   const loadDocuments = React.useCallback(async (query: string) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: '50' });
+      // Fetch from all non-email sources
+      const params = new URLSearchParams({
+        limit: '50',
+        sources: 'corporate,user,job,contact,task'
+      });
       if (query) params.append('search', query);
 
       const response = await api.get<{ documents?: DocumentResult[] } | DocumentResult[]>(
@@ -244,11 +266,26 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
     return () => clearTimeout(timer);
   }, [search, loadDocuments]);
 
+  // Handle drag start for document
+  const handleDragStart = (e: React.DragEvent, doc: DocumentResult) => {
+    const uniqueId = `${doc.source_type}-${doc.id}`;
+    setDraggingId(uniqueId);
+    // Set document data for drop targets
+    e.dataTransfer.setData('application/x-document-id', doc.id.toString());
+    e.dataTransfer.setData('application/x-document-source', doc.source_type);
+    e.dataTransfer.setData('application/x-document-name', doc.display_title || doc.name);
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+  };
+
   return (
     <div className="space-y-2">
       <div className="relative">
         <Input
-          placeholder="Search documents..."
+          placeholder="Search all documents..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="text-sm pr-8"
@@ -259,40 +296,67 @@ function DocumentBrowserPanel({ onSelect }: { onSelect: (att: PendingAttachment)
           <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         )}
       </div>
+      <p className="text-xs text-muted-foreground">
+        Drag documents to questions or click to attach
+      </p>
       <div className="max-h-[320px] overflow-y-auto space-y-1">
         {loading ? (
           <div className="flex justify-center py-4">
             <Spinner size={24} className="text-muted-foreground" />
           </div>
         ) : documents.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-4">No documents found</p>
+          <p className="text-xs text-muted-foreground text-center py-4">
+            {search ? 'No documents found' : 'Search for documents by name'}
+          </p>
         ) : (
-          documents.map((doc) => (
-            <Card
-              key={doc.id}
-              className="p-2 cursor-pointer hover:bg-accent transition-colors"
-              onClick={() =>
-                onSelect({
-                  type: 'document',
-                  id: doc.id,
-                  displayName: doc.display_title || doc.name,
-                  metadata: { type: doc.document_type?.name, url: doc.url },
-                })
-              }
-            >
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">
-                    {doc.display_title || doc.name}
+          documents.map((doc) => {
+            const uniqueId = `${doc.source_type}-${doc.id}`;
+            const sourceConfig = SOURCE_CONFIG[doc.source_type] || SOURCE_CONFIG.corporate;
+            const SourceIcon = sourceConfig.icon;
+            const isDragging = draggingId === uniqueId;
+
+            return (
+              <Card
+                key={uniqueId}
+                draggable
+                onDragStart={(e) => handleDragStart(e, doc)}
+                onDragEnd={handleDragEnd}
+                className={`p-2 cursor-grab hover:bg-accent transition-colors group ${
+                  isDragging ? 'opacity-50 ring-2 ring-primary' : ''
+                }`}
+                onClick={() =>
+                  onSelect({
+                    type: 'document',
+                    id: doc.id,
+                    displayName: doc.display_title || doc.name,
+                    metadata: {
+                      type: doc.document_type?.name,
+                      url: doc.url || doc.file_url,
+                      source_type: doc.source_type
+                    },
+                  })
+                }
+              >
+                <div className="flex items-center gap-2">
+                  <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground/50 group-hover:text-muted-foreground" />
+                  <SourceIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">
+                      {doc.display_title || doc.name}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${sourceConfig.color}`}>
+                        {sourceConfig.label}
+                      </span>
+                      {doc.document_type && (
+                        <span className="text-xs text-muted-foreground">{doc.document_type.name}</span>
+                      )}
+                    </div>
                   </div>
-                  {doc.document_type && (
-                    <div className="text-xs text-muted-foreground">{doc.document_type.name}</div>
-                  )}
                 </div>
-              </div>
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
       </div>
     </div>
@@ -368,7 +432,7 @@ function FileUploadPanel({ onSelect }: { onSelect: (att: PendingAttachment) => v
         <p className={`text-sm ${isDragging ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
           {isDragging ? 'Drop files here' : 'Drag files here or click to upload'}
         </p>
-        <p className="text-xs text-muted-foreground mt-1">PDF, Word, Excel, Images</p>
+        <p className="text-xs text-muted-foreground mt-1">Any file type supported</p>
       </label>
     </div>
   );

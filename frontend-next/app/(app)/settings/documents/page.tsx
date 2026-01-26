@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Import document-related tab components from admin
@@ -15,6 +16,8 @@ import { PdfFieldsTab } from "@/app/(app)/admin/system/components/PdfFieldsTab";
  * SSoT: This is THE ONE location for document configuration.
  * Part of the Settings/Admin merge - Organization section.
  * Admin role required (enforced by layout).
+ *
+ * URL is SSoT for tab state: /settings/documents/[tab]
  */
 
 const DOCUMENT_TABS = [
@@ -23,20 +26,30 @@ const DOCUMENT_TABS = [
   { id: "pdf-fields", label: "PDF Fields" },
 ];
 
+const DEFAULT_TAB = "types";
+
 export default function DocumentsSettingsPage() {
-  const [activeTab, setActiveTab] = React.useState("types");
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // URL is SSoT for tab state (path-based navigation)
+  // Default to DEFAULT_TAB if no tab specified - no redirect needed
+  // This allows breadcrumb navigation to /settings/documents to work
+  const activeTab = useMemo(() => {
+    const parts = pathname.replace("/settings/documents", "").split("/").filter(Boolean);
+    const tab = parts[0] || DEFAULT_TAB;
+    // Validate tab exists
+    return DOCUMENT_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+  }, [pathname]);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    router.push(`/settings/documents/${tabId}`, { scroll: false });
+  }, [router]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Document Configuration</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage document types, templates, and PDF field mappings
-        </p>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-muted/50 p-1">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList className="flex-wrap h-auto gap-1">
           {DOCUMENT_TABS.map((tab) => (
             <TabsTrigger
               key={tab.id}
@@ -50,10 +63,10 @@ export default function DocumentsSettingsPage() {
 
         <div className="mt-6">
           <TabsContent value="types">
-            <DocumentTypesTab />
+            <DocumentTypesTab basePath="/settings/documents/types" />
           </TabsContent>
           <TabsContent value="templates">
-            <DocumentTemplatesTab />
+            <DocumentTemplatesTab basePath="/settings/documents/templates" />
           </TabsContent>
           <TabsContent value="pdf-fields">
             <PdfFieldsTab />

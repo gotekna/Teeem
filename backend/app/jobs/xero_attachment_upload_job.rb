@@ -1,13 +1,17 @@
 # frozen_string_literal: true
 
 # XeroAttachmentUploadJob - Upload documents from TEEEM to Xero
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Downloads from Wasabi, SharePoint, or S3                         ║
+# ╚═══════════════════════════════════════════════════════════════════╝
 #
 # This job handles uploading attachments to Xero entities (invoices, contacts, etc.)
 # Part of the two-way sync implementation for documents.
 #
 # It can upload:
 # - CorporateCompanyDocuments linked to ExternalInvoices
-# - OneDrive files linked to Xero entities
+# - Storage files linked to Xero entities
 #
 # Usage:
 #   XeroAttachmentUploadJob.perform_later(document_id: 123)
@@ -16,6 +20,7 @@
 #
 class XeroAttachmentUploadJob < ApplicationJob
   include XeroJobBase
+  include DocumentProviderAware
 
   queue_as :xero_bulk
 
@@ -263,51 +268,18 @@ class XeroAttachmentUploadJob < ApplicationJob
     end
   end
 
-  # Download document content from SharePoint (SSoT - no fallbacks)
+  # Download document content from storage
+  # SSoT: Delegates to DocumentStorageService (handles S3, SharePoint, ActiveStorage)
   def download_document_content(document)
-    unless document.sharepoint_file_id.present?
-      Rails.logger.error("[XeroAttachmentUploadJob] No sharepoint_file_id for document #{document.id}")
-      return nil
+    service = DocumentStorageService.new
+    result = service.download(document)
+
+    if result[:success]
+      result[:content]
+    else
+      Rails.logger.error("[XeroAttachmentUploadJob] Download failed for document #{document.id}: #{result[:error]}")
+      nil
     end
-
-    download_from_onedrive(document)
-  rescue StandardError => e
-    Rails.logger.error("[XeroAttachmentUploadJob] Error downloading document #{document.id}: #{e.message}")
-    nil
-  end
-
-  # Download file from OneDrive
-  def download_from_onedrive(document)
-    # Try to find the right Microsoft credential
-    company = document.corporate_company
-    return nil unless company
-
-    ms_credential = company.microsoft_graph_credential
-    return nil unless ms_credential
-
-    # Use Microsoft Graph API to download
-    client = MicrosoftGraphClient.new(ms_credential)
-    client.download_file(document.sharepoint_file_id)
-  rescue StandardError => e
-    Rails.logger.error("[XeroAttachmentUploadJob] OneDrive download failed: #{e.message}")
-    nil
-  end
-
-  # Download file from SharePoint
-  def download_from_sharepoint(document)
-    # SharePoint downloads typically go through Microsoft Graph
-    company = document.corporate_company
-    return nil unless company
-
-    ms_credential = company.microsoft_graph_credential
-    return nil unless ms_credential
-
-    # Parse SharePoint URL and download
-    client = MicrosoftGraphClient.new(ms_credential)
-    client.download_sharepoint_file(document.share_point_url)
-  rescue StandardError => e
-    Rails.logger.error("[XeroAttachmentUploadJob] SharePoint download failed: #{e.message}")
-    nil
   end
 
   # Download file from a direct URL

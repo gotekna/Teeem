@@ -143,6 +143,48 @@ interface UseOfflineEmailsResult {
    * Team email domains from API.
    */
   teamDomains: string[];
+
+  /**
+   * Update a single email in local state (for marking read, star, etc.)
+   * This updates the displayed list without requiring a full refresh.
+   */
+  updateEmail: (emailId: number, changes: Partial<CachedEmail>) => void;
+}
+
+// =============================================================================
+// Performance: In-memory cache to prevent redundant API calls
+// =============================================================================
+
+// Cache split inbox responses in memory with TTL (prevents re-fetch on rapid tab switches)
+const MEMORY_CACHE_TTL_MS = 30000; // 30 seconds
+let memoryCache: {
+  data: SplitInboxAPIResponse['data'] | null;
+  timestamp: number;
+  accountId: string | undefined;
+} = {
+  data: null,
+  timestamp: 0,
+  accountId: undefined,
+};
+
+function getMemoryCache(accountId: string | undefined): SplitInboxAPIResponse['data'] | null {
+  const now = Date.now();
+  if (
+    memoryCache.data &&
+    memoryCache.accountId === accountId &&
+    now - memoryCache.timestamp < MEMORY_CACHE_TTL_MS
+  ) {
+    return memoryCache.data;
+  }
+  return null;
+}
+
+function setMemoryCache(data: SplitInboxAPIResponse['data'], accountId: string | undefined): void {
+  memoryCache = {
+    data,
+    timestamp: Date.now(),
+    accountId,
+  };
 }
 
 // =============================================================================
@@ -158,6 +200,7 @@ interface UseOfflineEmailsResult {
  * - Shows stale indicator instead of errors on timeout
  * - Works offline (read cached emails)
  * - Syncs when back online
+ * - In-memory cache prevents re-fetch on rapid tab switches (30s TTL)
  *
  * @example
  * ```tsx
@@ -212,6 +255,7 @@ export function useOfflineEmails(
   const { isOnline, wasOffline } = useNetworkStatus();
   const fetchingRef = useRef(false);
   const mountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Load from cache
   const loadFromCache = useCallback(async () => {
@@ -267,8 +311,45 @@ export function useOfflineEmails(
   }, [isCacheAvailable, selectedCategory]);
 
   // Fetch from API and update cache
-  const fetchFromAPI = useCallback(async () => {
+  const fetchFromAPI = useCallback(async (forceRefresh = false) => {
     if (!enabled || fetchingRef.current) return;
+
+    // Performance: Check in-memory cache first (prevents re-fetch on rapid tab switches)
+    if (!forceRefresh) {
+      const cached = getMemoryCache(accountId);
+      if (cached) {
+        console.log("[useOfflineEmails] Using memory cache (< 30s old)");
+        // Update state from memory cache without API call
+        const now = Date.now();
+        setCounts({
+          vip: cached.categories.vip.count,
+          team: cached.categories.team.count,
+          newsletters: cached.categories.newsletters.count,
+          other: cached.categories.other.count,
+        });
+        setUnreadCounts({
+          vip: cached.categories.vip.unread_count,
+          team: cached.categories.team.unread_count,
+          newsletters: cached.categories.newsletters.unread_count,
+          other: cached.categories.other.unread_count,
+        });
+        const selectedEmails = cached.categories[selectedCategory].emails.map((email): CachedEmail => ({
+          ...email,
+          _cachedAt: now,
+          _category: selectedCategory,
+        }));
+        setEmails(selectedEmails);
+        setTeamDomains(cached.team_domains);
+        setIsStale(false);
+        return;
+      }
+    }
+
+    // Performance: Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
 
     fetchingRef.current = true;
     setIsFetching(true);
@@ -276,7 +357,7 @@ export function useOfflineEmails(
 
     try {
       // Build URL with optional account filter
-      let url = "/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true";
+      let url = "/api/v1/synced_emails?split_inbox=true&my_emails=true&latest_only=true";
 
       // Add account filter if provided
       if (accountId) {
@@ -297,7 +378,8 @@ export function useOfflineEmails(
         { timeout: API_TIMEOUT_EMAIL_OFFLINE }
       );
 
-      if (!mountedRef.current) return;
+      // Check if request was aborted or component unmounted
+      if (!mountedRef.current || abortControllerRef.current?.signal.aborted) return;
 
       const data = (response as SplitInboxAPIResponse).data;
 
@@ -376,8 +458,16 @@ export function useOfflineEmails(
       setIsStale(false);
       setError(null);
 
+      // Performance: Store in memory cache to prevent re-fetch on rapid tab switches
+      setMemoryCache(data, accountId);
+
       console.log("[useOfflineEmails] Fetched and cached split inbox data");
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+
       console.error("[useOfflineEmails] API fetch failed:", err);
 
       if (mountedRef.current) {
@@ -393,13 +483,13 @@ export function useOfflineEmails(
     }
   }, [enabled, isCacheAvailable, selectedCategory, accountId]);
 
-  // Manual refresh (always fetches)
+  // Manual refresh (always fetches, bypasses memory cache)
   const refresh = useCallback(async () => {
     if (!isOnline) {
       console.log("[useOfflineEmails] Cannot refresh while offline");
       return;
     }
-    await fetchFromAPI();
+    await fetchFromAPI(true); // forceRefresh = true to bypass memory cache
   }, [isOnline, fetchFromAPI]);
 
   // Refetch when account changes
@@ -422,6 +512,10 @@ export function useOfflineEmails(
 
     return () => {
       mountedRef.current = false;
+      // Cleanup: abort pending requests on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, [loadFromCache, fetchOnMount, isOnline, fetchFromAPI]);
 
@@ -462,6 +556,32 @@ export function useOfflineEmails(
     }
   }, [wasOffline, enabled, fetchFromAPI]);
 
+  // Update a single email in local state (for marking read, star, etc.)
+  const updateEmail = useCallback((emailId: number, changes: Partial<CachedEmail>) => {
+    setEmails(prev => prev.map(e =>
+      e.id === emailId ? { ...e, ...changes } : e
+    ));
+
+    // Update unread count if is_read changed
+    if (changes.is_read !== undefined) {
+      setUnreadCounts(prev => {
+        const email = emails.find(e => e.id === emailId);
+        if (!email) return prev;
+
+        const category = email._category;
+        if (!category) return prev;
+
+        // If marking as read, decrement unread count
+        // If marking as unread, increment unread count
+        const delta = changes.is_read ? -1 : 1;
+        return {
+          ...prev,
+          [category]: Math.max(0, (prev[category] || 0) + delta),
+        };
+      });
+    }
+  }, [emails]);
+
   return {
     emails,
     counts,
@@ -477,6 +597,7 @@ export function useOfflineEmails(
     isCacheAvailable,
     refresh,
     teamDomains,
+    updateEmail,
   };
 }
 

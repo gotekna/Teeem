@@ -11,6 +11,7 @@ import { useCallback } from 'react';
 import { useSetAtom } from 'jotai';
 import { api } from '@/lib/api';
 import { invalidateColumnsCacheAtom } from '@/lib/column-state-atoms';
+import { copyToClipboard } from '@/utils/formatters';
 import type { TableColumn } from '../../types';
 
 export interface UseSchemaHandlersProps {
@@ -195,7 +196,7 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
   // Copy table ID to clipboard
   const handleCopyTableId = useCallback(() => {
     if (foundationIdNumeric) {
-      navigator.clipboard.writeText(String(foundationIdNumeric));
+      copyToClipboard(String(foundationIdNumeric));
       toast({ title: "Copied", description: `Table ID ${foundationIdNumeric} copied to clipboard` });
     }
   }, [foundationIdNumeric, toast]);
@@ -206,7 +207,12 @@ export function useSchemaHandlers(props: UseSchemaHandlersProps): UseSchemaHandl
     if (col) {
       setEditingColumnKey(columnKey);
       setEditColumnName(col.label);
-      setEditColumnType(col.column_type || "text");
+      // SSoT: column_type should always be set - log error if missing (skip system columns)
+      const systemColumns = ['id', 'created_at', 'updated_at'];
+      if (!col.column_type && !systemColumns.includes(col.key)) {
+        console.error(`[SSoT] Column "${col.key}" missing column_type - defaulting to single_line_text`);
+      }
+      setEditColumnType(col.column_type || "single_line_text");
       setShowEditColumnModal(true);
     }
   }, [COLUMNS, setEditingColumnKey, setEditColumnName, setEditColumnType, setShowEditColumnModal]);

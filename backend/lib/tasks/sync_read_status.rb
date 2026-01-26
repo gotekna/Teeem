@@ -29,7 +29,7 @@ message_ids.each_slice(100) do |batch|
     next unless message_id
 
     # Find existing email and update is_read if different
-    email = EmailWarehouse.find_by(internet_message_id: message_id)
+    email = SyncedEmail.find_by(internet_message_id: message_id)
     if email && email.is_read != is_read
       email.update_column(:is_read, is_read)
       updated += 1

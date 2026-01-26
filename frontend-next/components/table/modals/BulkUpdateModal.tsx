@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 import { ComboboxDropdown } from '@/components/ui/combobox-dropdown';
 import { Spinner } from "@/components/ui/spinner";
+import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';
 import type { TableColumn } from '../types';
 
 export interface BulkUpdateModalProps {
@@ -129,9 +130,10 @@ export function BulkUpdateModal({
               {(() => {
                 const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
                 const hasChoices = selectedCol?.choices && selectedCol.choices.length > 0;
-                const isLookup = selectedCol?.column_type === 'lookup' || !!selectedCol?.lookup_foundation_id;
-                const isMultipleLookups = selectedCol?.column_type === 'multiple_lookups';
-                const isChoice = selectedCol?.column_type === 'choice' || selectedCol?.column_type === 'single_select';
+                const colType = selectedCol?.column_type;
+                const isLookup = (isLookupColumn(colType) && colType !== 'multiple_lookups') || !!selectedCol?.lookup_foundation_id;
+                const isMultipleLookups = colType === 'multiple_lookups';
+                const isChoice = isChoiceColumn(colType);
 
                 // For multiple_lookups columns, show checkboxes for multi-select
                 if (isMultipleLookups) {

@@ -1,6 +1,8 @@
 module Api
   module V1
     class JobPlansController < ApplicationController
+      include DocumentProviderAware
+
       before_action :set_job
       before_action :set_job_plan, only: [:show, :update, :destroy, :add_revision, :set_on_issue, :reprocess]
 
@@ -132,7 +134,7 @@ module Api
         revision = @job_plan.add_revision!(revision_params)
 
         # Queue thumbnail generation for instant preview (background job)
-        if revision.sharepoint_file_id.present?
+        if revision.storage_reference.present?
           GeneratePlanThumbnailJob.perform_later(revision.id)
         end
 
@@ -224,6 +226,7 @@ module Api
 
       # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set
       # Uploads a multi-page PDF - processing is done in background to avoid timeout
+      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
       def upload_plan_set
         unless params[:file].present?
           return render json: { success: false, error: 'No file provided' }, status: :unprocessable_entity
@@ -232,34 +235,35 @@ module Api
         # Ensure job has plan tabs
         ensure_job_has_plan_tabs
 
-        # Upload to SharePoint as staging file (accessible from worker dyno)
-        # This avoids Heroku's ephemeral filesystem issue where web/worker dynos can't share files
-        uploaded_file = params[:file]
-        credential = MicrosoftCredential.sharepoint_credential
-        unless credential
-          return render json: { success: false, error: 'SharePoint not connected' }, status: :unprocessable_entity
+        # SSoT: Setup provider using StorageConfiguration
+        begin
+          setup_default_provider!
+        rescue DocumentProviders::NotConnectedError => e
+          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
         end
 
-        client = MicrosoftGraphClient.new(credential)
+        uploaded_file = params[:file]
 
-        # Upload to a staging location in SharePoint
-        job_folder = client.find_job_folder(@job)
-        unless job_folder
-          return render json: { success: false, error: 'Job folder not found in SharePoint' }, status: :unprocessable_entity
+        # Build job folder path
+        job_folder_path = build_job_folder_path(@job)
+
+        # Ensure job folder exists
+        unless folder_exists_in_provider?(job_folder_path)
+          return render json: { success: false, error: 'Job folder not found in storage' }, status: :unprocessable_entity
         end
 
         # Create staging filename with timestamp
         staging_filename = "_staging_#{Time.now.to_i}_#{uploaded_file.original_filename}"
-        staging_result = client.upload_file_content(job_folder["id"], staging_filename, uploaded_file.read)
+        staging_result = upload_to_provider(job_folder_path, uploaded_file.read, staging_filename, content_type: uploaded_file.content_type)
         uploaded_file.rewind
 
         staging_file_id = staging_result[:id]
-        Rails.logger.info "[upload_plan_set] Staged file to SharePoint: #{staging_file_id}"
+        Rails.logger.info "[upload_plan_set] Staged file to storage: #{staging_file_id} (provider: #{current_provider_type})"
 
         # Get the first tab (or specified tab) for categorizing plans
         tab_id = params[:job_plan_tab_id] || @job.job_plan_tabs.root_tabs.ordered.first&.id
 
-        # Queue background job for processing with SharePoint file ID
+        # Queue background job for processing with storage file ID
         PlanSetUploadJob.perform_later(
           @job.id,
           staging_file_id,
@@ -271,10 +275,14 @@ module Api
           success: true,
           data: {
             message: "Plan set upload queued for processing",
-            processing: true
+            processing: true,
+            provider: current_provider_type.to_s
           }
         }, status: :accepted
 
+      rescue DocumentProviders::Error => e
+        Rails.logger.error("upload_plan_set storage error: #{e.message}")
+        render json: { success: false, error: "Storage error: #{e.message}" }, status: :bad_gateway
       rescue StandardError => e
         Rails.logger.error("upload_plan_set failed: #{e.class} - #{e.message}")
         Rails.logger.error(e.backtrace.first(10).join("\n"))
@@ -321,7 +329,7 @@ module Api
         queued_plans = []
 
         @job.job_plans.includes(:current_revision).find_each do |plan|
-          next unless plan.current_revision&.sharepoint_file_id.present?
+          next unless plan.current_revision&.storage_reference.present?
 
           # Queue AI analysis job
           PlanAiAnalysisJob.perform_later(plan.id)
@@ -341,7 +349,7 @@ module Api
       # POST /api/v1/jobs/:job_id/job_plans/:id/reprocess
       # Reprocess a single plan with the AI Processing Pipeline (OCR + AI)
       def reprocess
-        unless @job_plan.current_revision&.sharepoint_file_id.present?
+        unless @job_plan.current_revision&.storage_reference.present?
           return render json: {
             success: false,
             error: "Plan has no file attached to reprocess"
@@ -407,6 +415,11 @@ module Api
 
       private
 
+      # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+      def build_job_folder_path(job)
+        storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
+      end
+
       def set_job
         @job = Job.find(params[:job_id])
       end
@@ -428,6 +441,9 @@ module Api
         params.permit(
           :revision_date,
           :notes,
+          :storage_file_id,
+          :storage_web_url,
+          # Legacy param names (backwards compat)
           :sharepoint_file_id,
           :sharepoint_web_url,
           :file_name,
@@ -472,7 +488,9 @@ module Api
           revision_label: revision.revision_label,
           is_on_issue: revision.is_on_issue,
           has_file: revision.has_file?,
-          sharepoint_file_id: revision.sharepoint_file_id,
+          # SSoT: Use storage_reference (provider-agnostic), keep key for backwards compat
+          sharepoint_file_id: revision.storage_reference,
+          storage_reference: revision.storage_reference,
           micro_thumbnail_base64: revision.micro_thumbnail_base64,
           thumbnail_file_id: revision.thumbnail_file_id
         }
@@ -516,8 +534,10 @@ module Api
           issued_date: revision.issued_date,
           is_on_issue: revision.is_on_issue,
           has_file: revision.has_file?,
-          sharepoint_file_id: revision.sharepoint_file_id,
-          sharepoint_web_url: revision.sharepoint_web_url,
+          # SSoT: Use storage_reference (provider-agnostic), keep key for backwards compat
+          sharepoint_file_id: revision.storage_reference,
+          storage_reference: revision.storage_reference,
+          sharepoint_web_url: revision.storage_web_url,
           file_name: revision.file_name,
           file_size: revision.file_size,
           formatted_file_size: revision.formatted_file_size,

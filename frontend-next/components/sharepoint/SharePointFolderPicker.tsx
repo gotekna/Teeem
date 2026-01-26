@@ -127,7 +127,7 @@ export function SharePointFolderPicker({
             <div key={index} className="flex items-center gap-1">
               <button
                 onClick={() => handleBreadcrumbClick(index)}
-                className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400"
+                className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:text-blue-400"
               >
                 {index === 0 && <Home className="h-4 w-4" />}
                 <span className="whitespace-nowrap">{crumb.name}</span>
@@ -189,7 +189,7 @@ export function SharePointFolderPicker({
                     onClick={() => handleFolderClick(folder)}
                     className="flex items-center gap-3 flex-1 text-left"
                   >
-                    <Folder className="h-5 w-5 text-blue-500 flex-shrink-0" />
+                    <Folder className="h-5 w-5 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{folder.name}</p>
                       <p className="text-xs text-muted-foreground">

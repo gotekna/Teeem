@@ -15,6 +15,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 // Warehouse invoice type (from external_invoices table)
 interface ExternalInvoice {
@@ -110,21 +111,6 @@ export function XeroInvoicesList({
     }
   };
 
-  const formatCurrency = (amount: number, currency: string = "AUD") => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: currency,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   const formatRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -146,13 +132,13 @@ export function XeroInvoicesList({
     // Handle both Xero statuses (UPPERCASE) and normalized statuses (lowercase)
     const normalizedStatus = status?.toUpperCase();
     const statusColors: Record<string, string> = {
-      PAID: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-      AUTHORISED: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-      APPROVED: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+      PAID: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300",
+      AUTHORISED: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300",
+      APPROVED: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300",
       DRAFT: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground",
-      SUBMITTED: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-      DELETED: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-      VOIDED: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+      SUBMITTED: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300",
+      DELETED: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/30 dark:text-red-300",
+      VOIDED: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/30 dark:text-red-300",
     };
 
     return (
@@ -242,7 +228,7 @@ export function XeroInvoicesList({
                 <TableCell>{invoice.due_date ? formatDate(invoice.due_date) : '-'}</TableCell>
                 <TableCell className="text-sm">
                   {invoice.job_title ? (
-                    <span className="text-blue-600">{invoice.job_title}</span>
+                    <span className="text-blue-600 dark:text-blue-400">{invoice.job_title}</span>
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
@@ -260,7 +246,7 @@ export function XeroInvoicesList({
                 </TableCell>
                 <TableCell className="text-right">
                   {invoice.amount_due > 0 ? (
-                    <span className="text-red-600 font-medium">
+                    <span className="text-red-600 dark:text-red-400 font-medium">
                       {formatCurrency(invoice.amount_due, invoice.currency_code)}
                     </span>
                   ) : (

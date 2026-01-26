@@ -863,6 +863,7 @@ class XeroContactSyncService
     is_company = xero_contact_is_company?(xero_contact)
 
     # Note: xero_id and xero_contact_status are stored in contact_external_links (SSoT)
+    # SSoT: Multi-tenancy - set tenant_id from sync context
     contact_data = {
       display_name: xero_contact["Name"],
       first_name: is_company ? nil : xero_contact["FirstName"],
@@ -877,6 +878,7 @@ class XeroContactSyncService
       xero_contact_number: xero_contact["ContactNumber"],
       xero_account_number: xero_contact["AccountNumber"],
       website: xero_contact["Website"],
+      tenant_id: tenant_id,
       default_discount: xero_contact["Discount"],
       default_purchase_account: xero_contact["PurchasesDefaultAccountCode"],
       default_sales_account: xero_contact["SalesDefaultAccountCode"]
@@ -1388,8 +1390,9 @@ class XeroContactSyncService
 
     person_contact = nil
 
+    # SSoT: emails are now in contact_emails table, not contacts.email column
     if email.present?
-      person_contact = Contact.find_by("LOWER(email) = ?", email)
+      person_contact = Contact.find_by_email(email)
     end
 
     if person_contact.nil?
@@ -1405,23 +1408,33 @@ class XeroContactSyncService
         first_name: first_name,
         last_name: last_name,
         display_name: display_name,
-        email: email.presence,
         primary_company_id: company_contact.id,
         entity_type: "person"
       )
       Rails.logger.info("Updated person contact: #{display_name} (linked to #{company_contact.display_name})")
     else
+      # SSoT: Multi-tenancy - inherit tenant_id from parent company contact
       person_contact = Contact.create!(
         first_name: first_name,
         last_name: last_name,
         display_name: display_name,
-        email: email.presence,
         primary_company_id: company_contact.id,
         entity_type: "person",
-        sync_with_xero: false
+        sync_with_xero: false,
+        tenant_id: company_contact.tenant_id
       )
       Rails.logger.info("Created person contact: #{display_name} (linked to #{company_contact.display_name})")
       @stats[:created_in_teeem] += 1
+    end
+
+    # SSoT: Add email to contact_emails table if not already present
+    if email.present? && !person_contact.contact_emails.exists?(["LOWER(email) = ?", email.downcase])
+      person_contact.contact_emails.create!(
+        email: email,
+        label: "xero",
+        is_primary: person_contact.contact_emails.empty?,
+        position: person_contact.contact_emails.count
+      )
     end
 
     # director_id column was removed - primary person is tracked via primary_company_id on the person contact

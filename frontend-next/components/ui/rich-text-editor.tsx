@@ -1,5 +1,8 @@
 "use client";
 
+// SSoT: TipTap warning suppression - must be first import
+import "@/lib/tiptap-utils";
+
 import * as React from "react";
 import { useEditor, EditorContent, Editor, Extension } from "@tiptap/react";
 
@@ -566,12 +569,12 @@ export function EditorToolbar({
                 <span className="text-xs">Checking...</span>
               </div>
             ) : issues.length > 0 ? (
-              <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-500">
+              <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
                 <SpellCheck className="h-4 w-4" />
                 <span className="text-xs font-medium">{issues.length}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-1 text-green-600 dark:text-green-500">
+              <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
                 <SpellCheck className="h-4 w-4" />
               </div>
             )}
@@ -1299,10 +1302,10 @@ export function RichTextEditor({
           showOnlyWhenEditable: true,
           includeChildren: false,
         }),
-        Underline,
-        TextStyle,
+        Underline.configure({}),
+        TextStyle.configure({}),
         FontSize,
-        Color,
+        Color.configure({}),
         Highlight.configure({
           multicolor: true,
         }),
@@ -1312,7 +1315,7 @@ export function RichTextEditor({
         Link.configure({
           openOnClick: false,
           HTMLAttributes: {
-            class: "text-blue-600 underline hover:text-blue-800",
+            class: "text-blue-600 dark:text-blue-400 underline hover:text-blue-800",
           },
         }),
         Image.configure({
@@ -1341,9 +1344,9 @@ export function RichTextEditor({
             class: "email-signature-table",
           },
         }),
-        TableRow,
-        TableCell,
-        TableHeader,
+        TableRow.configure({}),
+        TableCell.configure({}),
+        TableHeader.configure({}),
         createSlashCommandExtension(onSlashCommand),
       ];
 
@@ -1412,9 +1415,10 @@ export function RichTextEditor({
       )}
     >
       {!hideToolbar && <EditorToolbar editor={editor} showWritingChecker={enableWritingChecker} />}
-      <div style={{ minHeight }} className="overflow-y-auto">
+      <div style={{ minHeight }} className="overflow-y-auto" spellCheck={true}>
         <EditorContent
           editor={editor}
+          spellCheck={true}
           className="[&_.ProseMirror>p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)] [&_.ProseMirror>p.is-editor-empty:first-child]:before:text-muted-foreground [&_.ProseMirror>p.is-editor-empty:first-child]:before:float-left [&_.ProseMirror>p.is-editor-empty:first-child]:before:h-0 [&_.ProseMirror>p.is-editor-empty:first-child]:before:pointer-events-none [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol_ol]:list-[lower-roman] [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul_ul]:list-[square] [&_li]:my-1 [&_ul.task-list]:list-none [&_ul.task-list]:pl-0 [&_.task-item]:flex [&_.task-item]:items-center [&_.task-item]:gap-2 [&_.task-item>label]:flex [&_.task-item>label]:items-center [&_.task-item>label]:shrink-0 [&_.task-item>div]:flex-1 [&_.task-item>div]:min-w-0"
         />
       </div>
@@ -1485,6 +1489,7 @@ export function InlineRichTextEditor({
           "[&_ul]:list-disc [&_ul]:ml-3 [&_ol]:list-decimal [&_ol]:ml-3",
           "dark:prose-invert text-sm"
         ),
+        spellcheck: "true",
       },
     },
   });
@@ -1531,7 +1536,7 @@ export function InlineRichTextEditor({
           <List className="h-3 w-3" />
         </Button>
       </div>
-      <EditorContent editor={editor} />
+      <EditorContent editor={editor} spellCheck={true} />
     </div>
   );
 }

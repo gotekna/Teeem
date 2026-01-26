@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
+import { formatFileSize } from "@/utils/formatters";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
@@ -34,6 +36,7 @@ import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
 import { Spinner } from "@/components/ui/spinner";
 import type { CorporateCompany } from "@/lib/types/corporate";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 // Document interface for table
 interface CompanyDocument extends TableRow {
@@ -80,14 +83,6 @@ const DOCUMENT_TYPE_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-// Format file size helper
-function formatFileSize(bytes?: number): string {
-  if (!bytes) return "-";
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${sizes[i]}`;
-}
-
 interface CompanyDocumentsTabProps {
   companyId: string;
   company: CorporateCompany;
@@ -95,6 +90,8 @@ interface CompanyDocumentsTabProps {
 }
 
 export function CompanyDocumentsTab({ companyId, company, category }: CompanyDocumentsTabProps) {
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [documents, setDocuments] = React.useState<CompanyDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [companies, setCompanies] = React.useState<CorporateCompany[]>([]);
@@ -187,7 +184,13 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   };
 
   const handleDelete = async (doc: CompanyDocument) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
+    const confirmed = await confirm({
+      title: "Delete Document",
+      description: "Are you sure you want to delete this document?",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     try {
       await api.delete(`/api/v1/company_documents/${doc.id}`);
       await loadDocuments();
@@ -197,7 +200,13 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   };
 
   const handleBulkDelete = async (ids: (number | string)[]) => {
-    if (!confirm(`Delete ${ids.length} documents? This cannot be undone.`)) return;
+    const confirmed = await confirm({
+      title: "Delete Documents",
+      description: `Delete ${ids.length} documents? This cannot be undone.`,
+      confirmLabel: "Delete All",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     try {
       await Promise.all(ids.map((id) => api.delete(`/api/v1/company_documents/${id}`)));
       await loadDocuments();
@@ -221,7 +230,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
       await loadDocuments();
     } catch (error) {
       console.error(`Failed to update document ${field}:`, error);
-      alert(`Failed to update ${field}`);
+      toast({ title: "Error", description: `Failed to update ${field}`, variant: "destructive" });
     }
   };
 
@@ -232,7 +241,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
         if (doc.validated) {
           return (
             <div className="flex justify-center" title={doc.validation_source === "user" ? "Validated by user" : "Validated by AI"}>
-              <CheckCircle className={cn("h-5 w-5", doc.validation_source === "ai" ? "text-blue-500" : "text-green-500")} />
+              <CheckCircle className={cn("h-5 w-5", doc.validation_source === "ai" ? "text-blue-500 dark:text-blue-400" : "text-green-500 dark:text-green-400")} />
             </div>
           );
         }
@@ -245,15 +254,15 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
         if (doc.ai_verification_status === "processing") {
           return (
             <div className="flex justify-center" title="AI analyzing...">
-              <Spinner size={16} className="text-purple-500" />
+              <Spinner size={16} className="text-purple-500 dark:text-purple-400" />
             </div>
           );
         }
         if (doc.ai_confidence_score) {
           const score = doc.ai_confidence_score;
-          const colorClass = score >= 90 ? "text-green-600 bg-green-100 dark:bg-green-900/30"
-            : score >= 70 ? "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30"
-            : "text-red-600 bg-red-100 dark:bg-red-900/30";
+          const colorClass = score >= 90 ? "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30"
+            : score >= 70 ? "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30"
+            : "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30";
           return (
             <div className="flex justify-center" title={`AI confidence: ${score}%\n${doc.ai_analysis_notes || ''}`}>
               <Badge variant="outline" className={cn("text-[10px] px-1 py-0 font-mono", colorClass)}>
@@ -277,7 +286,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
       case "source":
         if (doc.source === "sharepoint") {
           return (
-            <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+            <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300">
               <Cloud className="h-3 w-3 mr-1" />
               SharePoint
             </Badge>
@@ -298,7 +307,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
             >
               <SelectValue placeholder="Select...">
                 {doc.folder ? (
-                  <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                  <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300">
                     {doc.folder}
                   </Badge>
                 ) : (
@@ -363,7 +372,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
               <Badge
                 key={year}
                 variant="outline"
-                className="text-[10px] px-1 py-0 font-mono bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 cursor-pointer hover:bg-blue-100"
+                className="text-[10px] px-1 py-0 font-mono bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300 cursor-pointer hover:bg-blue-100"
                 title={`Filter by FY${year.toString().slice(-2)}`}
               >
                 FY{year.toString().slice(-2)}

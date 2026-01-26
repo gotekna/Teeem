@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils/formatters";
 
 interface Recipe {
   id: number;
@@ -82,15 +83,6 @@ interface GeneratedPO {
 interface JobRecipesPanelProps {
   jobId: string | number;
   onPOGenerated?: () => void;
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 export function JobRecipesPanel({ jobId, onPOGenerated }: JobRecipesPanelProps) {
@@ -410,7 +402,7 @@ export function JobRecipesPanel({ jobId, onPOGenerated }: JobRecipesPanelProps) 
                               size="sm"
                               onClick={() => handleRemoveRecipe(jr.id)}
                             >
-                              <Trash2 className="h-4 w-4 text-red-500" />
+                              <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                             </Button>
                           </div>
                         </TableCell>

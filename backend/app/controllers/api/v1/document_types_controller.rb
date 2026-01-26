@@ -1,7 +1,7 @@
 module Api
   module V1
     class DocumentTypesController < ApplicationController
-      before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate ]
+      before_action :set_document_type, only: [ :show, :update, :destroy, :duplicate, :detect_signature_fields ]
 
       # GET /api/v1/document_types
       # PERFORMANCE: Eager load entity_tabs to prevent N+1 queries in serialize_document_type
@@ -29,19 +29,21 @@ module Api
 
         # Optionally group by folder
         if params[:grouped] == "true"
-          # PERFORMANCE: Use eager-loaded @document_types instead of ungrouped_by_folder
-          # to prevent N+1 queries when serializing
-          grouped = @document_types.active.order(:folder, :name).group_by(&:folder)
+          # SSoT: folder is computed from primary EntityTab - group in Ruby after query
+          # Include entity_tabs association for folder computation
+          types = @document_types.active.includes(entity_tab_document_types: :entity_tab).order(:name)
+          grouped = types.group_by(&:folder).sort_by { |folder, _| folder || "" }.to_h
           render json: {
             success: true,
-            data: grouped.transform_values { |types|
-              types.map { |t| serialize_document_type(t) }
+            data: grouped.transform_values { |doc_types|
+              doc_types.map { |t| serialize_document_type(t) }
             }
           }
         else
+          # SSoT: folder is computed - sort by name only, frontend can re-sort if needed
           render json: {
             success: true,
-            data: @document_types.order(:folder, :name).map { |t| serialize_document_type(t) },
+            data: @document_types.order(:name).map { |t| serialize_document_type(t) },
             summary: document_type_summary,
             available_tabs: all_available_tabs
           }
@@ -192,6 +194,94 @@ module Api
         }
       end
 
+      # POST /api/v1/document_types/:id/detect_signature_fields
+      # Uses Claude Vision to detect signature field positions in a PDF
+      #
+      # Params:
+      #   pdf_content: Base64-encoded PDF content
+      #
+      # Response:
+      #   { success: true, fields: [{signatory_type, page_number, x_percent, y_percent, ...}] }
+      #
+      # The detected fields can be adjusted in the frontend UI, then saved via PATCH /document_types/:id
+      def detect_signature_fields
+        unless params[:pdf_content].present?
+          return render json: {
+            success: false,
+            error: "pdf_content parameter is required (base64-encoded PDF)"
+          }, status: :bad_request
+        end
+
+        begin
+          # Decode base64 PDF content
+          pdf_content = Base64.decode64(params[:pdf_content])
+
+          # Detect signature fields using Claude Vision
+          result = DocumentVerificationService.detect_signature_fields!(pdf_content)
+
+          if result[:success]
+            render json: {
+              success: true,
+              fields: result[:fields],
+              analysis_notes: result[:analysis_notes]
+            }
+          else
+            render json: {
+              success: false,
+              error: result[:error]
+            }, status: :unprocessable_entity
+          end
+        rescue StandardError => e
+          Rails.logger.error("Signature detection failed: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to detect signature fields: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/document_types/suggest
+      # Returns suggested DocumentTypes for a given filename with confidence scores
+      #
+      # Params:
+      #   filename: The filename to match (required)
+      #   scope: Optional filter (company, job, contacts, etc.)
+      #   limit: Max results (default: 5)
+      #
+      # Response:
+      #   { suggestions: [{ id, name, confidence, match_type, matched_term }, ...] }
+      def suggest
+        filename = params[:filename]
+
+        unless filename.present?
+          return render json: {
+            success: false,
+            error: "filename parameter is required"
+          }, status: :bad_request
+        end
+
+        suggestions = DocumentTypeMatcher.suggest(
+          filename,
+          scope: params[:scope],
+          limit: (params[:limit] || 5).to_i
+        )
+
+        render json: {
+          success: true,
+          suggestions: suggestions.map do |s|
+            {
+              id: s[:document_type].id,
+              name: s[:document_type].name,
+              display_name: s[:document_type].display_name,
+              folder: s[:document_type].folder,
+              confidence: s[:confidence],
+              match_type: s[:match_type],
+              matched_term: s[:matched_term]
+            }
+          end
+        }
+      end
+
       private
 
       def set_document_type
@@ -216,6 +306,7 @@ module Api
           :supports_versioning,
           :generates_certificate,     # Auto-generate certificate on task completion
           :certificate_template,      # Template to use (e.g., "form_43")
+          :signature_field_config,    # JSONB: Signature field positions for Word→PDF conversion
           tabs: [],
           file_extensions: [],
           folder_ids: [],
@@ -279,6 +370,7 @@ module Api
           supports_versioning: document_type.supports_versioning,
           generates_certificate: document_type.generates_certificate || false,
           certificate_template: document_type.certificate_template,
+          signature_field_config: document_type.signature_field_config || [],
           documents_count: document_type.corporate_company_documents.count,
           created_at: document_type.created_at,
           updated_at: document_type.updated_at
@@ -288,7 +380,7 @@ module Api
       def document_type_summary
         {
           total: DocumentType.count,
-          by_category: DocumentType.group(:category).count,
+          # SSoT: category column removed (Jan 2026) - use folder for grouping
           by_folder: DocumentType.group(:folder).count,
           requiring_filing: DocumentType.requiring_filing.count
         }

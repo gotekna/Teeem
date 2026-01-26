@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * EntityTabsTable - Tree view for Entity Tabs & Folders Configuration
+ * EntityTabsTable - Tree view for Storage Locations (Folder Configuration)
  *
  * Shows the complete hierarchy:
  * - Tab Groups (Overview, Documents, Special)
@@ -52,6 +52,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { XeroTabsKanban } from "./XeroTabsKanban";
 
 // =============================================================================
@@ -74,6 +75,11 @@ interface EntityTab {
   order_position: number;
   icon_name?: string;
   description?: string;
+  // New naming (SSoT)
+  warehouse_enabled?: boolean;
+  warehouse_folder?: string;
+  warehouse_type?: string;
+  // Legacy backwards compat aliases (API returns both)
   has_sharepoint_folder?: boolean;
   sharepoint_folder_path?: string;
   sub_tabs?: SubTab[];
@@ -117,6 +123,7 @@ const GROUP_CONFIG = {
 
 export function EntityTabsTable() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   // State
   const [tabs, setTabs] = React.useState<EntityTab[]>([]);
@@ -151,7 +158,7 @@ export function EntityTabsTable() {
   // Load tabs from API
   const loadTabs = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs?scope=corporate_entity");
+      const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs?warehouse_type=corporate_entity");
       if (response.success && response.data?.tabs) {
         setTabs(response.data.tabs);
       }
@@ -242,20 +249,20 @@ export function EntityTabsTable() {
     });
   };
 
-  // Save SharePoint path
+  // Save warehouse folder path
   const handleSavePath = async (tab: EntityTab) => {
     if (!editingPath) return;
     setSaving(true);
     try {
       await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
         tab: {
-          has_sharepoint_folder: !!editingPath.value,
-          sharepoint_folder_path: editingPath.value || null,
+          warehouse_enabled: !!editingPath.value,
+          warehouse_folder: editingPath.value || null,
         }
       });
       await loadTabs();
       setEditingPath(null);
-      toast({ title: "Path updated", description: "Storage folder path saved" });
+      toast({ title: "Path updated", description: "Warehouse folder path saved" });
     } catch (error) {
       console.error("Failed to update path:", error);
       toast({ title: "Error", description: "Failed to update path", variant: "destructive" });
@@ -294,7 +301,7 @@ export function EntityTabsTable() {
   // Delete sub-tab
   const handleDeleteSubTab = async (tab: EntityTab, subTabKey: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Delete sub-folder "${subTabKey}"?`)) return;
+    if (!(await confirm(`Delete sub-folder "${subTabKey}"?`))) return;
     setSaving(true);
     try {
       const newSubTabs = (tab.sub_tabs || []).filter((st) => st.key !== subTabKey);
@@ -347,8 +354,8 @@ export function EntityTabsTable() {
 
       await api.patch(`/api/v1/corporate/entity_tabs/${folderBrowserTab.id}`, {
         tab: {
-          has_sharepoint_folder: true,
-          sharepoint_folder_path: folderName,
+          warehouse_enabled: true,
+          warehouse_folder: folderName,
         }
       });
       await loadTabs();
@@ -380,9 +387,9 @@ export function EntityTabsTable() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium">Entity Tabs & Folders</h3>
+          <h3 className="text-lg font-medium">Storage Locations</h3>
           <p className="text-sm text-muted-foreground">
-            Configure tabs and their SharePoint folder connections for company pages
+            Configure folder paths and storage locations
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
@@ -444,7 +451,10 @@ export function EntityTabsTable() {
                     {groupTabs.map((tab) => {
                       const isTabExpanded = expandedTabs.has(tab.id);
                       const hasSubTabs = tab.sub_tabs && tab.sub_tabs.length > 0;
-                      const hasFolder = tab.has_sharepoint_folder && tab.sharepoint_folder_path;
+                      // Use new naming with fallback to legacy
+                      const warehouseEnabled = tab.warehouse_enabled ?? tab.has_sharepoint_folder;
+                      const warehouseFolder = tab.warehouse_folder ?? tab.sharepoint_folder_path;
+                      const hasFolder = warehouseEnabled && warehouseFolder;
 
                       return (
                         <div key={tab.id}>
@@ -532,7 +542,7 @@ export function EntityTabsTable() {
                                   onClick={() => handleSavePath(tab)}
                                   disabled={saving}
                                 >
-                                  {saving ? <Spinner size={12} /> : <Check className="h-3 w-3 text-green-600" />}
+                                  {saving ? <Spinner size={12} /> : <Check className="h-3 w-3 text-green-600 dark:text-green-400" />}
                                 </Button>
                                 <Button
                                   size="icon"
@@ -553,7 +563,7 @@ export function EntityTabsTable() {
                                 className="flex items-center gap-1 text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline"
                               >
                                 <FolderTree className="h-3 w-3" />
-                                /{tab.sharepoint_folder_path}
+                                /{warehouseFolder}
                               </button>
                             ) : groupKey === "documents" ? (
                               <button
@@ -759,7 +769,7 @@ export function EntityTabsTable() {
               <span>Corporate Trustee</span>
             </div>
             <div className="flex items-center gap-1.5 ml-4">
-              <FolderOpen className="h-3.5 w-3.5 text-blue-600" />
+              <FolderOpen className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
               <span>Has SharePoint folder</span>
             </div>
           </div>
@@ -781,10 +791,10 @@ export function EntityTabsTable() {
 
           <div className="mt-6 space-y-4">
             {/* Current path info */}
-            {folderBrowserTab?.sharepoint_folder_path && (
+            {(folderBrowserTab?.warehouse_folder || folderBrowserTab?.sharepoint_folder_path) && (
               <div className="text-sm">
                 <span className="text-muted-foreground">Current folder: </span>
-                <span className="font-mono text-blue-600">/{folderBrowserTab.sharepoint_folder_path}</span>
+                <span className="font-mono text-blue-600 dark:text-blue-400">/{folderBrowserTab?.warehouse_folder || folderBrowserTab?.sharepoint_folder_path}</span>
               </div>
             )}
 
@@ -805,7 +815,7 @@ export function EntityTabsTable() {
             {/* Selected folder preview */}
             {selectedFolder && (
               <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                <FolderOpen className="h-5 w-5 text-green-600" />
+                <FolderOpen className="h-5 w-5 text-green-600 dark:text-green-400" />
                 <div className="flex-1">
                   <p className="font-medium text-sm">{selectedFolder.name}</p>
                   <p className="text-xs font-mono text-muted-foreground">{selectedFolder.path}</p>

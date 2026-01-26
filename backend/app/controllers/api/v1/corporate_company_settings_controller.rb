@@ -40,46 +40,56 @@ module Api
       end
 
       # GET /api/v1/corporate_company_settings/document_paths
-      # SSoT: Reads from sharepoint_* columns (the SSoT) but returns legacy key names for compatibility
-      # Deprecated: Use /api/v1/corporate_company_settings/sharepoint instead
+      # SSoT: StorageConfiguration is THE ONE source for storage paths
+      # Deprecated: Use /api/v1/storage_configuration instead
       def document_paths
-        settings = CorporateCompanySetting.instance
+        storage_config = StorageConfiguration.instance
         render json: {
           success: true,
           data: {
-            # SSoT: Use sharepoint_* columns, return with legacy key names for backward compatibility
-            company_documents_base_path: settings.sharepoint_company_path.presence || "Corporate",
-            people_documents_base_path: settings.sharepoint_people_path.presence || "Corporate/People",
-            job_documents_base_path: settings.sharepoint_jobs_path.presence || "Jobs"
+            # SSoT: StorageConfiguration is THE ONE source for storage paths
+            company_documents_base_path: storage_config&.path_for(:corporate) || "Corporate",
+            people_documents_base_path: storage_config&.path_for(:people) || "People",
+            job_documents_base_path: storage_config&.path_for(:job) || "Jobs"
           }
         }
       end
 
       # PATCH /api/v1/corporate_company_settings/document_paths
-      # SSoT: Writes to sharepoint_* columns (the SSoT)
-      # Deprecated: Use /api/v1/corporate_company_settings/sharepoint instead
+      # SSoT: StorageConfiguration is THE ONE source for storage paths
+      # Deprecated: Use /api/v1/storage_configuration instead
       def update_document_paths
-        settings = CorporateCompanySetting.instance
+        storage_config = StorageConfiguration.instance
 
-        # SSoT: Map legacy param names to SSoT column names
-        ssot_params = {}
-        ssot_params[:sharepoint_company_path] = params.dig(:settings, :company_documents_base_path) if params.dig(:settings, :company_documents_base_path)
-        ssot_params[:sharepoint_people_path] = params.dig(:settings, :people_documents_base_path) if params.dig(:settings, :people_documents_base_path)
-        ssot_params[:sharepoint_jobs_path] = params.dig(:settings, :job_documents_base_path) if params.dig(:settings, :job_documents_base_path)
+        # SSoT: Update scope_root_folders in StorageConfiguration
+        update_attrs = {}
+        new_scope_root_folders = storage_config.scope_root_folders&.dup || {}
 
-        if settings.update(ssot_params)
+        if params.dig(:settings, :company_documents_base_path)
+          new_scope_root_folders['corporate_entity'] = params.dig(:settings, :company_documents_base_path)
+        end
+        if params.dig(:settings, :people_documents_base_path)
+          new_scope_root_folders['people'] = params.dig(:settings, :people_documents_base_path)
+        end
+        if params.dig(:settings, :job_documents_base_path)
+          new_scope_root_folders['job'] = params.dig(:settings, :job_documents_base_path)
+        end
+
+        update_attrs[:scope_root_folders] = new_scope_root_folders if new_scope_root_folders.present?
+
+        if update_attrs.empty? || storage_config.update(update_attrs)
           render json: {
             success: true,
             data: {
-              company_documents_base_path: settings.sharepoint_company_path.presence || "Corporate",
-              people_documents_base_path: settings.sharepoint_people_path.presence || "Corporate/People",
-              job_documents_base_path: settings.sharepoint_jobs_path.presence || "Jobs"
+              company_documents_base_path: storage_config.path_for(:corporate) || "Corporate",
+              people_documents_base_path: storage_config.path_for(:people) || "People",
+              job_documents_base_path: storage_config.path_for(:job) || "Jobs"
             }
           }
         else
           render json: {
             success: false,
-            errors: settings.errors.full_messages
+            errors: storage_config.errors.full_messages
           }, status: :unprocessable_entity
         end
       end
@@ -132,10 +142,10 @@ module Api
         new_status = case provider_type
         when "sharepoint"
           (connection_config["site_id"].present? && connection_config["drive_id"].present?) ? "connected" : "disconnected"
-        when "s3", "wasabi"
+        when "s3_compatible"
           (connection_config["endpoint"].present? && connection_config["bucket"].present?) ? "connected" : "disconnected"
         when "local"
-          "connected"  # Local is always "connected"
+          "connected"
         else
           "disconnected"
         end
@@ -148,6 +158,22 @@ module Api
         }
         update_attrs[:root_path] = sp[:sharepoint_root_path] if sp.key?(:sharepoint_root_path)
         update_attrs[:scope_folders] = sp[:scope_folders] if sp.key?(:scope_folders)
+
+        # SSoT: Track old templates BEFORE update for automatic file reorganization
+        # File name templates (for document downloads)
+        if sp.key?(:file_name_templates)
+          existing_file_templates = storage_config.file_name_templates || {}
+          update_attrs[:file_name_templates] = existing_file_templates.merge(sp[:file_name_templates].to_h)
+        end
+        # SSoT: Config links for scope folders (URL to external config page)
+        # Format: { "contact": "/admin/system/entity-config/contact" } or { "contact": null } to remove
+        if sp.key?(:config_links)
+          existing_config_links = storage_config.config_links || {}
+          new_config_links = sp[:config_links].to_h
+          # Merge, but remove keys with null/empty values
+          merged_links = existing_config_links.merge(new_config_links).reject { |_, v| v.blank? }
+          update_attrs[:config_links] = merged_links
+        end
 
         if storage_config.update(update_attrs)
           render json: {
@@ -395,7 +421,7 @@ module Api
           :twilio_enabled,
           :timezone,
           :contact_documents_path,
-          :contact_folder_format,
+          # SSoT: contact_folder_format removed - use StorageConfiguration.template_for(:contact)
           working_days: [
             :monday,
             :tuesday,
@@ -432,8 +458,12 @@ module Api
           :s3_region,
           # Root path
           :sharepoint_root_path,
-          # Scope folders (SSoT: configurable base folder per scope)
-          scope_folders: [:job, :corporate, :people, :users, :user_photos, :user_contracts, :my_docs, :contact, :email, :email_attachments, :warehouse, :task, :billinbox, :pricebook, :chat, :active_storage, :templates, :bank_statements, :contracts]
+          # SSoT: Scope folders from StorageConfiguration.effective_scope_folders
+          scope_folders: StorageConfiguration.instance.effective_scope_folders.keys.map(&:to_sym),
+          # SSoT: File name templates (auto-saved from Entity Config)
+          file_name_templates: {},
+          # SSoT: Config links for scope folders (URL to external config page)
+          config_links: {}
         )
       end
 

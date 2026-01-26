@@ -35,6 +35,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useToast } from "@/components/ui/use-toast";
 
 export function PDFEditorImpl({
   url,
@@ -43,6 +44,7 @@ export function PDFEditorImpl({
   onClose,
   className,
 }: PDFEditorProps) {
+  const { toast } = useToast();
   // PDF document state
   const {
     pages,
@@ -131,7 +133,7 @@ export function PDFEditorImpl({
       await mergePDF(file);
     } catch (err) {
       console.error("Failed to merge PDF:", err);
-      alert("Failed to merge PDF. Please try again.");
+      toast({ title: "Error", description: "Failed to merge PDF. Please try again.", variant: "destructive" });
     }
 
     // Reset input
@@ -160,7 +162,7 @@ export function PDFEditorImpl({
       }
     } catch (err) {
       console.error("Failed to save PDF:", err);
-      alert("Failed to save PDF. Please try again.");
+      toast({ title: "Error", description: "Failed to save PDF. Please try again.", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -273,8 +275,8 @@ export function PDFEditorImpl({
           {selectedPage ? (
             <AnnotationCanvas
               pageImage={selectedPage.thumbnail}
-              width={selectedPage.width * 3} // Scale up from thumbnail
-              height={selectedPage.height * 3}
+              width={selectedPage.width} // Use actual rendered dimensions (now at 1.5x * dpr)
+              height={selectedPage.height}
               zoom={zoom}
               currentTool={currentTool}
               strokeColor={strokeColor}

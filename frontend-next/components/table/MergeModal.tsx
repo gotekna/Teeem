@@ -219,9 +219,9 @@ export function MergeModal({
                           variant="outline"
                           className={
                             isPerson(record.entity_type)
-                              ? "text-purple-600 border-purple-200 bg-purple-50 dark:bg-purple-950 dark:border-purple-800"
+                              ? "text-purple-600 dark:text-purple-400 border-purple-200 bg-purple-50 dark:bg-purple-950 dark:border-purple-800"
                               : isCompany(record.entity_type)
-                              ? "text-blue-600 border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800"
+                              ? "text-blue-600 dark:text-blue-400 border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800"
                               : isTrust(record.entity_type)
                               ? "text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800"
                               : "text-muted-foreground border-border"

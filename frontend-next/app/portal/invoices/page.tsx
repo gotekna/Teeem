@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
+import { formatDate } from "@/utils/formatters";
 import {
   Table,
   TableBody,
@@ -20,6 +21,9 @@ import {
   XCircleIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
+import { useToast } from "@/components/ui/use-toast";
+import { Spinner } from "@/components/ui/spinner";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface Invoice {
   id: number;
@@ -53,6 +57,7 @@ interface InvoicesData {
 type TabKey = "all" | "pending" | "synced" | "paid" | "failed";
 
 export default function PortalInvoices() {
+  const { toast } = useToast();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -90,7 +95,7 @@ export default function PortalInvoices() {
 
   const loadInvoices = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.get("/api/v1/portal/invoices");
@@ -107,7 +112,7 @@ export default function PortalInvoices() {
 
   const handleRetrySync = async (invoiceId: number) => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.post(
@@ -119,10 +124,11 @@ export default function PortalInvoices() {
       }
     } catch (error: any) {
       console.error("Failed to retry sync:", error);
-      alert(
-        "Failed to retry sync: " +
-          (error.response?.data?.error || error.message)
-      );
+      toast({
+        title: "Error",
+        description: "Failed to retry sync: " + (error.response?.data?.error || error.message),
+        variant: "destructive",
+      });
     }
   };
 
@@ -172,19 +178,10 @@ export default function PortalInvoices() {
     );
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <Spinner className="h-12 w-12" />
       </div>
     );
   }
@@ -203,7 +200,7 @@ export default function PortalInvoices() {
           </p>
         </div>
         <button
-          onClick={() => alert("Create invoice functionality coming soon")}
+          onClick={() => toast({ title: "Coming Soon", description: "Create invoice functionality coming soon" })}
           className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
         >
           <PlusIcon className="h-5 w-5 mr-2" />

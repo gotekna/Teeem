@@ -55,6 +55,14 @@ interface TenantRateLimits {
   is_limited: boolean;
 }
 
+interface TenantPdfSyncStats {
+  total: number;
+  synced: number;
+  pending: number;
+  percentage: number;
+  last_synced_at: string | null;
+}
+
 interface TenantStats {
   tenant_id: string;
   tenant_name: string;
@@ -64,6 +72,7 @@ interface TenantStats {
   documents: TenantDocStats;
   match_breakdown: MatchBreakdown;
   rate_limits: TenantRateLimits | null;
+  pdf_sync?: TenantPdfSyncStats;
 }
 
 interface PendingReviewItem {
@@ -121,7 +130,33 @@ export function XeroSyncStats() {
     try {
       const response = await api.get<{ success: boolean; data: SyncStatsData }>("/api/v1/xero/sync_stats");
       if (response.success) {
-        setData(response.data);
+        // Enrich tenant data with PDF sync stats
+        const enrichedTenants = await Promise.all(
+          response.data.tenants.map(async (tenant) => {
+            try {
+              const pdfResponse = await api.get<{ success: boolean; data: any }>(
+                `/api/v1/xero/pdf_sync_status?tenant_id=${tenant.tenant_id}`
+              );
+              if (pdfResponse.success && pdfResponse.data) {
+                const stage2 = pdfResponse.data.stage2_pdf_download || pdfResponse.data;
+                return {
+                  ...tenant,
+                  pdf_sync: {
+                    total: stage2.total_to_sync || 0,
+                    synced: stage2.downloaded || 0,
+                    pending: stage2.pending || 0,
+                    percentage: stage2.progress_percentage || 0,
+                    last_synced_at: stage2.last_synced_at || null,
+                  },
+                };
+              }
+            } catch (e) {
+              console.error(`Failed to fetch PDF sync for ${tenant.tenant_name}:`, e);
+            }
+            return tenant;
+          })
+        );
+        setData({ ...response.data, tenants: enrichedTenants });
         setError(null);
       } else {
         setError("Failed to fetch sync stats");
@@ -263,7 +298,7 @@ export function XeroSyncStats() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-blue-100 rounded">
-                <Users className="h-4 w-4 text-blue-600" />
+                <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               </div>
               <CardTitle className="text-base">Contacts</CardTitle>
             </div>
@@ -272,7 +307,7 @@ export function XeroSyncStats() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-2xl font-bold">{global.totals.contacts_with_links.toLocaleString()}</span>
-                <Badge className="bg-blue-100 text-blue-800">
+                <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
                   {global.totals.total_links.toLocaleString()} links
                 </Badge>
               </div>
@@ -295,7 +330,7 @@ export function XeroSyncStats() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-green-100 rounded">
-                <FileText className="h-4 w-4 text-green-600" />
+                <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
               </div>
               <CardTitle className="text-base">Documents</CardTitle>
             </div>
@@ -304,7 +339,7 @@ export function XeroSyncStats() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-2xl font-bold">{global.totals.all_documents.toLocaleString()}</span>
-                <Badge className="bg-green-100 text-green-800">
+                <Badge className="bg-status-success text-status-success-foreground">
                   {global.recent_activity.invoice_syncs_24h} synced today
                 </Badge>
               </div>
@@ -331,7 +366,7 @@ export function XeroSyncStats() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-purple-100 rounded">
-                <Link2 className="h-4 w-4 text-purple-600" />
+                <Link2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               </div>
               <CardTitle className="text-base">Match Quality</CardTitle>
             </div>
@@ -344,7 +379,7 @@ export function XeroSyncStats() {
                     ? Math.round(((global.match_breakdown.exact_abn + global.match_breakdown.exact_email) / global.match_breakdown.total) * 100)
                     : 0}%
                 </span>
-                <Badge className="bg-purple-100 text-purple-800">
+                <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
                   auto-matched
                 </Badge>
               </div>
@@ -373,7 +408,7 @@ export function XeroSyncStats() {
 
       {/* Pending Reviews Alert */}
       {global.pending_reviews.count > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -398,7 +433,7 @@ export function XeroSyncStats() {
               {global.pending_reviews.items.slice(0, 5).map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between p-2 bg-white rounded border border-amber-200"
+                  className="flex items-center justify-between p-2 bg-white dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -433,7 +468,7 @@ export function XeroSyncStats() {
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Building2 className="h-5 w-5 text-muted-foreground" />
-          <h3 className="font-semibold">Xero Organizations</h3>
+          <h3 className="text-sm font-semibold">Xero Organizations</h3>
           <Badge className="bg-muted text-muted-foreground">{tenants.length} connected</Badge>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -459,14 +494,14 @@ export function XeroSyncStats() {
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-sm font-medium">{tenant.tenant_name}</CardTitle>
                       {tenant.is_primary && (
-                        <Badge className="bg-cyan-100 text-cyan-800 text-xs">Primary</Badge>
+                        <Badge className="bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 text-xs">Primary</Badge>
                       )}
                     </div>
                     <Badge
                       className={`text-xs ${
                         tenant.status === "connected"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-amber-100 text-amber-800"
+                          ? "bg-status-success text-status-success-foreground"
+                          : "bg-status-warning text-status-warning-foreground"
                       }`}
                     >
                       {tenant.status === "connected" ? (
@@ -479,6 +514,39 @@ export function XeroSyncStats() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {/* Stage 1 & Stage 2 Progress */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Stage 1: Xero Data */}
+                    <div className="p-2 bg-muted/30 rounded border">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-muted-foreground">Stage 1</span>
+                        <span className="text-xs font-medium text-green-600">100%</span>
+                      </div>
+                      <div className="text-sm font-medium">Xero Data</div>
+                      <Progress value={100} className="h-1.5 mt-1 [&>div]:bg-green-500" />
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {tenant.documents.total.toLocaleString()} / {tenant.documents.total.toLocaleString()}
+                      </div>
+                    </div>
+                    {/* Stage 2: PDF Sync */}
+                    <div className="p-2 bg-muted/30 rounded border">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-muted-foreground">Stage 2</span>
+                        <span className={`text-xs font-medium ${(tenant.pdf_sync?.percentage || 0) >= 100 ? "text-green-600" : "text-blue-600"}`}>
+                          {tenant.pdf_sync?.percentage?.toFixed(1) || 0}%
+                        </span>
+                      </div>
+                      <div className="text-sm font-medium">PDF Sync</div>
+                      <Progress
+                        value={tenant.pdf_sync?.percentage || 0}
+                        className={`h-1.5 mt-1 ${(tenant.pdf_sync?.percentage || 0) >= 100 ? "[&>div]:bg-green-500" : "[&>div]:bg-blue-500"}`}
+                      />
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {(tenant.pdf_sync?.synced || 0).toLocaleString()} / {(tenant.pdf_sync?.total || tenant.documents.total).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Stats Grid */}
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div className="p-2 bg-muted/50 rounded">
@@ -520,7 +588,7 @@ export function XeroSyncStats() {
 
                   {/* Pending Reviews Warning */}
                   {tenant.contacts.pending_review > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
                       <AlertTriangle className="h-3 w-3" />
                       {tenant.contacts.pending_review} pending review
                     </div>

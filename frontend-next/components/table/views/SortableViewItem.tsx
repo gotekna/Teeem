@@ -91,13 +91,13 @@ export function SortableViewItem({
       <div className="flex-1 min-w-0 overflow-hidden">
         <div className="flex items-center gap-1.5">
           {view.is_global ? (
-            <Globe className="h-3 w-3 text-blue-500 shrink-0" />
+            <Globe className="h-3 w-3 text-blue-500 dark:text-blue-400 shrink-0" />
           ) : (
             <User className="h-3 w-3 text-muted-foreground shrink-0" />
           )}
           <span className="text-sm font-medium truncate">{view.name}</span>
           {isUnsaved && (
-            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 text-orange-600 border-orange-400 shrink-0">
+            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 text-orange-600 dark:text-orange-400 border-orange-400 shrink-0">
               unsaved
             </Badge>
           )}

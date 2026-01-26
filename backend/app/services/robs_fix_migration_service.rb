@@ -407,8 +407,8 @@ class RobsFixMigrationService
       )
       base_name + file_ext
     else
-      # Fallback: JobCode + Date + original name
-      job_code = "J#{job.id.to_s.rjust(3, '0')}"
+      # Fallback: JobCode + Date + original name - SSoT: use database column
+      job_code = job.job_code
       date = Date.current.strftime("%d-%m-%Y")
       clean_name = original_name.gsub(/^\d{4}[-_]\d{2}[-_]\d{2}[-_]?/, "") # Remove date prefix if exists
       "#{job_code} #{date} #{clean_name}"

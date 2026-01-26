@@ -5,7 +5,7 @@ require "rails"
 require "active_model/railtie"
 require "active_job/railtie"
 require "active_record/railtie"
-require "active_storage/engine"
+# require "active_storage/engine"  # REMOVED (Jan 2026) - SSoT: StorageBlob replaces ActiveStorage
 require "action_controller/railtie"
 require "action_mailer/railtie"
 require "action_mailbox/engine"
@@ -42,6 +42,10 @@ module Backend
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+
+    # Re-enable cookies middleware for tenant switching (signed cookies)
+    # API-only mode disables this by default, but we need it for admin_tenant_id cookie
+    config.middleware.use ActionDispatch::Cookies
 
     # Response compression (performance: reduces large JSON responses by 70-90%)
     # Compresses responses larger than 1KB using gzip/deflate

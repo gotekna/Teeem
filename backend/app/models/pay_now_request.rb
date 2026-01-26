@@ -38,9 +38,11 @@ class PayNowRequest < ApplicationRecord
   belongs_to :payment, optional: true
   belongs_to :pay_now_weekly_limit, optional: true
 
-  # ActiveStorage attachments for proof of completion
-  has_one_attached :invoice_file
-  has_many_attached :proof_photos
+  # SSoT: Links to deduplicated file storage (Jan 2026)
+  belongs_to :invoice_blob, class_name: "StorageBlob", optional: true
+  # proof_photo_blob_ids is a JSONB array of StorageBlob IDs
+
+  # ActiveStorage attachments REMOVED (Jan 2026) - violated SSoT.
 
   # Validations
   validates :original_amount, presence: true, numericality: { greater_than: 0 }
@@ -65,7 +67,6 @@ class PayNowRequest < ApplicationRecord
   after_create :reserve_weekly_limit
   after_create :notify_supervisors
   after_update :handle_status_changes, if: :saved_change_to_status?
-  after_commit :upload_files_to_sharepoint, on: [:create, :update], if: :should_upload_to_sharepoint?
 
   # Scopes
   scope :pending, -> { where(status: "pending") }
@@ -82,6 +83,12 @@ class PayNowRequest < ApplicationRecord
     today = CorporateCompanySetting.today
     for_week(today.beginning_of_week(:monday))
   }
+
+  # SSoT: Storage reference for provider-agnostic access
+  # Returns storage_item_id (new) or storage_file_id (legacy, renamed from sharepoint_file_id)
+  def storage_reference
+    storage_item_id.presence || storage_file_id
+  end
 
   # State machine methods
   def approve!(user:, notes: nil)
@@ -301,13 +308,78 @@ class PayNowRequest < ApplicationRecord
   def notify_supervisors
     PayNowNotificationJob.perform_later(id, "submitted")
   end
+end
 
-  def should_upload_to_sharepoint?
-    (invoice_file.attached? && sharepoint_file_id.blank?) ||
-      (proof_photos.attached? && proof_photos_sharepoint_ids.blank?)
+# ========================================
+# StorageBlob File Access (SSoT) - reopened for cleaner code
+# ========================================
+class PayNowRequest
+  # Invoice file methods
+  def has_invoice_file?
+    invoice_blob_id.present?
   end
 
-  def upload_files_to_sharepoint
-    PayNowSharepointUploadJob.perform_later(id)
+  def invoice_file_url(expires_in: 3600)
+    return nil unless invoice_blob
+
+    invoice_blob.presigned_url(expires_in: expires_in)
+  end
+
+  def attach_invoice_file(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    invoice_blob&.decrement_reference! if invoice_blob_id.present?
+    self.invoice_blob = blob
+    blob.increment_reference!
+  end
+
+  # Proof photo methods (multiple photos via JSONB array)
+  def proof_photo_blobs
+    return [] if proof_photo_blob_ids.blank?
+
+    StorageBlob.where(id: proof_photo_blob_ids)
+  end
+
+  def has_proof_photos?
+    proof_photo_blob_ids.present? && proof_photo_blob_ids.any?
+  end
+
+  def proof_photo_urls(expires_in: 3600)
+    return [] unless has_proof_photos?
+
+    proof_photo_blobs.map do |blob|
+      {
+        id: blob.id,
+        url: blob.presigned_url(expires_in: expires_in),
+        filename: blob.original_filename,
+        content_type: blob.content_type
+      }
+    end
+  end
+
+  def add_proof_photo(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+    blob.increment_reference!
+
+    self.proof_photo_blob_ids ||= []
+    self.proof_photo_blob_ids << blob.id unless proof_photo_blob_ids.include?(blob.id)
+    blob
+  end
+
+  def remove_proof_photo(blob_id)
+    return unless proof_photo_blob_ids&.include?(blob_id)
+
+    blob = StorageBlob.find_by(id: blob_id)
+    blob&.decrement_reference!
+
+    self.proof_photo_blob_ids = proof_photo_blob_ids - [blob_id]
   end
 end

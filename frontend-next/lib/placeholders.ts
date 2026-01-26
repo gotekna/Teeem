@@ -8,7 +8,7 @@
  *
  * Placeholder Format:
  * - SHORT: {Code} → "TH" (for file names, compact)
- * - LONG: {CodeLong} → "Tekna Homes" (for display, human-readable)
+ * - LONG: {CodeLong} → "Teeem Homes" (for display, human-readable)
  */
 
 // =============================================================================
@@ -22,7 +22,7 @@ export interface PlaceholderToken {
   example: string;
   /** Long code variant (optional), e.g., "{CompanyName}" */
   longCode?: string;
-  /** Example value for long code, e.g., "Tekna Homes" */
+  /** Example value for long code, e.g., "Teeem Homes" */
   longExample?: string;
   /** Display label (optional), overrides code for display */
   label?: string;
@@ -39,7 +39,7 @@ export type PlaceholderColor =
   | "green"   // Date-related
   | "gray";   // Other
 
-export type PlaceholderScope = "company" | "job" | "document" | "sharepoint" | "all";
+export type PlaceholderScope = "company" | "job" | "document" | "storage" | "all";
 
 // =============================================================================
 // COMPANY PLACEHOLDERS (Purple)
@@ -50,13 +50,13 @@ export const COMPANY_PLACEHOLDERS: PlaceholderToken[] = [
     code: "{CompanyCode}",
     example: "TH",
     longCode: "{CompanyName}",
-    longExample: "Tekna Homes",
+    longExample: "Teeem Homes",
     color: "purple",
     description: "Company abbreviation/code",
   },
   {
     code: "{CompanyGroup}",
-    example: "Tekna Group",
+    example: "Teeem Group",
     color: "purple",
     description: "Parent company group name",
   },
@@ -149,6 +149,14 @@ export const DATE_PLACEHOLDERS: PlaceholderToken[] = [
     longExample: "9th",
     color: "green",
     description: "Day of month",
+  },
+  {
+    code: "{Month}",
+    example: "01",
+    longCode: "{MonthLong}",
+    longExample: "January",
+    color: "green",
+    description: "Month (number or name)",
   },
   {
     code: "{MonthYear}",
@@ -397,15 +405,121 @@ export const DOCUMENT_PLACEHOLDERS: PlaceholderToken[] = [
 ];
 
 // =============================================================================
-// SHAREPOINT PLACEHOLDERS (Used with {{double braces}})
+// STORAGE PLACEHOLDERS (Used with {{double braces}} for folder paths)
 // =============================================================================
 
-export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
+export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
+  // Job-related tokens
   {
     code: "{{JobCode}}",
     example: "J069",
     color: "orange",
-    description: "Job code for SharePoint paths",
+    description: "Job code for storage paths",
+  },
+  {
+    code: "{{JobName}}",
+    example: "05 Wategors",
+    color: "orange",
+    description: "Job name/title (short)",
+  },
+  {
+    code: "{{JobTitle}}",
+    example: "83 West Ridge",
+    color: "orange",
+    description: "Job title (full)",
+  },
+  {
+    code: "{{JobAddress}}",
+    example: "Lot 5 Wategois Street",
+    color: "orange",
+    description: "Full job address",
+  },
+  {
+    code: "{{LotNumber}}",
+    example: "5",
+    color: "orange",
+    description: "Lot number",
+  },
+  {
+    code: "{{StreetName}}",
+    example: "Wategois Street",
+    color: "orange",
+    description: "Street name",
+  },
+  {
+    code: "{{Suburb}}",
+    example: "Claamvale",
+    color: "orange",
+    description: "Suburb",
+  },
+  {
+    code: "{{TaskId}}",
+    example: "T-001",
+    color: "orange",
+    description: "Task identifier for storage paths",
+  },
+  {
+    code: "{{TaskNumber}}",
+    example: "001",
+    color: "orange",
+    description: "Task number (sequential)",
+  },
+  {
+    code: "{{TaskName}}",
+    example: "Framing Inspection",
+    color: "orange",
+    description: "Task name/title",
+  },
+  {
+    code: "{{TaskStatus}}",
+    example: "In Progress",
+    color: "orange",
+    description: "Task status",
+  },
+  // Task folder suffix tokens (literal text for folder naming)
+  {
+    code: "{{Attachments}}",
+    example: "Attachments",
+    color: "orange",
+    description: "Literal 'Attachments' folder name",
+  },
+  {
+    code: "{{Responses}}",
+    example: "Responses",
+    color: "orange",
+    description: "Literal 'Responses' folder name",
+  },
+  // Task Attachments tokens
+  {
+    code: "{{AttachmentName}}",
+    example: "site-photo.jpg",
+    color: "orange",
+    description: "Original attachment filename",
+  },
+  {
+    code: "{{AttachmentType}}",
+    example: "Photo",
+    color: "orange",
+    description: "Attachment type (Photo, Document, etc.)",
+  },
+  // Task Responses tokens
+  {
+    code: "{{ResponseBy}}",
+    example: "John Smith",
+    color: "orange",
+    description: "Who submitted the response",
+  },
+  {
+    code: "{{ResponseDate}}",
+    example: "2026-01-26",
+    color: "green",
+    description: "Response submission date",
+  },
+  {
+    code: "{{ResponseText}}",
+    example: "Approved with notes",
+    color: "blue",
+    description: "Response text/comment",
   },
   {
     code: "{{Category}}",
@@ -415,7 +529,7 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
   },
   {
     code: "{{CompanyGroup}}",
-    example: "Tekna Group",
+    example: "Teeem Group",
     color: "purple",
     description: "Company group name",
   },
@@ -426,10 +540,16 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Company code",
   },
   {
-    code: "{{TabName}}",
-    example: "Finance",
+    code: "{{CompanyName}}",
+    example: "Teeem Homes Pty Ltd",
+    color: "purple",
+    description: "Company name (full)",
+  },
+  {
+    code: "{{TeeemXL}}",
+    example: "TeeemXL",
     color: "blue",
-    description: "Parent tab name (use for root tabs only)",
+    description: "Folder name from tab",
   },
   {
     code: "{{SubTabName}}",
@@ -443,7 +563,144 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
     color: "gray",
     description: "Contact name",
   },
+  // File name specific placeholders
+  {
+    code: "{{OriginalFileName}}",
+    example: "Invoice.pdf",
+    color: "blue",
+    description: "Original uploaded file name",
+  },
+  {
+    code: "{{Date}}",
+    example: "2025-01-12",
+    color: "green",
+    description: "Upload date (YYYY-MM-DD)",
+  },
+  {
+    code: "{{Year}}",
+    example: "2025",
+    color: "green",
+    description: "Year (4 digit)",
+  },
+  {
+    code: "{{Month}}",
+    example: "01",
+    color: "green",
+    description: "Month (2 digit)",
+  },
+  {
+    code: "{{UploadedBy}}",
+    example: "RH",
+    color: "gray",
+    description: "User code who uploaded",
+  },
+  {
+    code: "{{Sequence}}",
+    example: "001",
+    color: "gray",
+    description: "Sequential number",
+  },
+  {
+    code: "{{UserCode}}",
+    example: "RH",
+    color: "gray",
+    description: "User code (initials)",
+  },
+  {
+    code: "{{UserName}}",
+    example: "Robert Harder",
+    color: "gray",
+    description: "Full user name",
+  },
+  {
+    code: "{{Mailbox}}",
+    example: "robert@teeem.com.au",
+    color: "gray",
+    description: "Email mailbox address",
+  },
+  {
+    code: "{{Subject}}",
+    example: "RE Invoice Question",
+    color: "blue",
+    description: "Email subject line (sanitized for folder names)",
+  },
+  {
+    code: "{{ReceivedTime}}",
+    example: "14-30",
+    color: "green",
+    description: "Time email was received (HH-MM)",
+  },
+  // Case tokens
+  {
+    code: "{{CaseId}}",
+    example: "C-001",
+    color: "purple",
+    description: "Case identifier",
+  },
+  {
+    code: "{{CaseName}}",
+    example: "Insurance Claim",
+    color: "purple",
+    description: "Case name/title",
+  },
+  // Asset tokens
+  {
+    code: "{{AssetName}}",
+    example: "Forklift-01",
+    color: "purple",
+    description: "Asset name/identifier",
+  },
+  {
+    code: "{{AssetId}}",
+    example: "A-001",
+    color: "purple",
+    description: "Asset ID",
+  },
+  // Template tokens
+  {
+    code: "{{TemplateType}}",
+    example: "Contract",
+    color: "blue",
+    description: "Template type/category",
+  },
+  {
+    code: "{{TemplateName}}",
+    example: "Standard Agreement",
+    color: "blue",
+    description: "Template name",
+  },
+  // Chat/Context tokens
+  {
+    code: "{{Context}}",
+    example: "Job-123",
+    color: "gray",
+    description: "Chat context reference",
+  },
+  // Bill/Invoice tokens
+  {
+    code: "{{Status}}",
+    example: "Pending",
+    color: "gray",
+    description: "Status (Pending, Approved, etc.)",
+  },
+  // Notebook tokens
+  {
+    code: "{{NotebookName}}",
+    example: "Work Notes",
+    color: "blue",
+    description: "Notebook name",
+  },
+  // Folder token (generic)
+  {
+    code: "{{Folder}}",
+    example: "Documents",
+    color: "blue",
+    description: "Folder/category name",
+  },
 ];
+
+// Backwards compatibility alias
+export const SHAREPOINT_PLACEHOLDERS = STORAGE_PLACEHOLDERS;
 
 // =============================================================================
 // COMBINED EXPORTS BY SCOPE
@@ -453,7 +710,7 @@ export const PLACEHOLDERS_BY_SCOPE: Record<PlaceholderScope, PlaceholderToken[]>
   company: [...COMPANY_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
   job: [...JOB_PLACEHOLDERS, ...TAB_PLACEHOLDERS, ...PLAN_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
   document: [...DOCUMENT_PLACEHOLDERS, ...TAB_PLACEHOLDERS, ...PLAN_PLACEHOLDERS],
-  sharepoint: SHAREPOINT_PLACEHOLDERS,
+  storage: STORAGE_PLACEHOLDERS,
   all: [
     ...DOCUMENT_PLACEHOLDERS,
     ...COMPANY_PLACEHOLDERS,
@@ -617,22 +874,24 @@ export function resolveSharePointPath(template: string): string {
     "{{JobName}}": "Tulum Street Jimboomba",
     "{{JobTitle}}": "Tulum Street Jimboomba QLD",
     // Double brace format - Company examples
-    "{{CompanyGroup}}": "Tekna Group",
+    "{{CompanyGroup}}": "Teeem Group",
     "{{CompanyCode}}": "TH",
-    "{{TabName}}": "Finance",
+    "{{CompanyName}}": "Teeem Homes Pty Ltd",
+    "{{TeeemXL}}": "TeeemXL",
     "{{SubTabName}}": "Photos",
     "{{ContactName}}": "Robert Harder",
-    "{{EntityName}}": "Tekna Homes Pty Ltd",
+    "{{EntityName}}": "Teeem Homes Pty Ltd",
     // Single brace format (also common in paths)
     "{JobCode}": "077",
     "{Category}": "Contract Drawings",
     "{CategoryCode}": "ConD",
     "{JobName}": "Tulum Street Jimboomba",
     "{JobTitle}": "Tulum Street Jimboomba QLD",
-    "{TabName}": "Finance",
+    "{TeeemXL}": "TeeemXL",
     "{SubTabName}": "Photos",
-    "{CompanyGroup}": "Tekna Group",
+    "{CompanyGroup}": "Teeem Group",
     "{CompanyCode}": "TH",
+    "{CompanyName}": "Teeem Homes Pty Ltd",
   };
 
   // Replace all placeholders with examples

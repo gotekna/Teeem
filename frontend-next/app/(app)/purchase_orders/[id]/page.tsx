@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TASK_STATUS } from "@/lib/constants/task-status";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ import {
   CheckCircle2,
   XCircle,
   Lock,
+  Unlock,
   ListTodo,
   ExternalLink,
   Clock,
@@ -64,6 +65,7 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils/formatters";
 
 interface Supplier {
   id: number;
@@ -241,6 +243,10 @@ interface PurchaseOrder {
   is_labour_po?: boolean;
   labour_budget?: number;
   labour_actual?: number;
+  // Budget lockdown
+  budget_locked?: boolean;
+  budget_locked_by_name?: string;
+  budget_locked_at?: string;
 }
 
 const STATUS_OPTIONS = [
@@ -256,24 +262,14 @@ const STATUS_OPTIONS = [
 
 const STATUS_BADGE_VARIANTS: Record<string, string> = {
   draft: "bg-muted text-foreground border-border",
-  pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
-  approved: "bg-blue-100 text-blue-800 border-blue-300",
-  sent: "bg-purple-100 text-purple-800 border-purple-300",
-  received: "bg-green-100 text-green-800 border-green-300",
-  invoiced: "bg-indigo-100 text-indigo-800 border-indigo-300",
-  paid: "bg-emerald-100 text-emerald-800 border-emerald-300",
-  cancelled: "bg-red-100 text-red-800 border-red-300",
+  pending: "bg-status-warning text-status-warning-foreground border-yellow-300",
+  approved: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300",
+  sent: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300",
+  received: "bg-status-success text-status-success-foreground border-green-300",
+  invoiced: "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 border-indigo-300",
+  paid: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-300",
+  cancelled: "bg-status-error text-status-error-foreground border-red-300",
 };
-
-function formatCurrency(value: number | undefined | null): string {
-  if (value === undefined || value === null) return "$0.00";
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
 
 /**
  * Calculate payment due date based on supplier's payment terms
@@ -328,6 +324,10 @@ export default function PurchaseOrderDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Performance: Track last fetch time and abort controller for deduplication
+  const lastFetchTimeRef = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // Local SmTasks for this job (for task/description lookup)
   const [taskItems, setTaskItems] = useState<TaskComboboxItem[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
@@ -351,6 +351,12 @@ export default function PurchaseOrderDetailPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
+  // Budget lockdown state
+  const [budgetLocked, setBudgetLocked] = useState(false);
+  const [budgetLockedBy, setBudgetLockedBy] = useState<string | null>(null);
+  const [budgetLockedAt, setBudgetLockedAt] = useState<string | null>(null);
+  const [lockingBudget, setLockingBudget] = useState(false);
+
   // Original state for change tracking
   const [originalState, setOriginalState] = useState<{
     description: string;
@@ -368,29 +374,41 @@ export default function PurchaseOrderDetailPage() {
   // Load purchase order
   useEffect(() => {
     loadPurchaseOrder();
-     
+
+    // Cleanup: abort pending requests on unmount or recordId change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [recordId]);
 
-  // Refetch data when window regains focus (e.g., switching back from pricebook tab)
+  // Performance: Only refetch on window focus if it's been > 5 minutes since last fetch
+  // This prevents slow page loads when switching tabs frequently
   useEffect(() => {
+    const STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
     const handleFocus = () => {
-      console.log('[PO Detail] Window focused - reloading data');
-      loadPurchaseOrder();
+      const timeSinceLastFetch = Date.now() - lastFetchTimeRef.current;
+      if (timeSinceLastFetch > STALE_THRESHOLD_MS) {
+        console.log('[PO Detail] Window focused after stale period - reloading data');
+        loadPurchaseOrder();
+      }
     };
 
     window.addEventListener('focus', handleFocus);
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
-     
+
   }, [recordId]);
 
-  // Load SmTasks when purchaseOrder is loaded (for task dropdown)
+  // Fallback: Load SmTasks if not already loaded (parallel fetch in loadPurchaseOrder is primary)
   useEffect(() => {
-    if (purchaseOrder?.job_id) {
-      loadSmTasks();
+    if (purchaseOrder?.job_id && taskItems.length === 0) {
+      loadSmTasksForJob(purchaseOrder.job_id);
     }
-  }, [purchaseOrder?.job_id]);
+  }, [purchaseOrder?.job_id, taskItems.length]);
 
   // SSoT: Auto-populate required date from linked task
   // This runs after taskItems are loaded, since loadPurchaseOrder runs before tasks load
@@ -415,10 +433,32 @@ export default function PurchaseOrderDetailPage() {
   }, [taskItems, selectedTaskId, requiredDate, purchaseOrder?.sm_tasks]);
 
   const loadPurchaseOrder = async () => {
+    // Performance: Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       setLoading(true);
+
+      // Performance: Track fetch time for stale data checks
+      lastFetchTimeRef.current = Date.now();
+
       const response = await api.get<PurchaseOrder>(`/api/v1/purchase_orders/${recordId}`);
+
+      // Check if request was aborted
+      if (abortControllerRef.current?.signal.aborted) {
+        return;
+      }
+
       setPurchaseOrder(response);
+
+      // Performance: Start loading tasks immediately if we have job_id (parallel fetch)
+      if (response.job_id && taskItems.length === 0) {
+        // Fire and forget - don't await, let it load in background
+        loadSmTasksForJob(response.job_id);
+      }
 
       // Initialize editable fields
       const desc = response.description || "";
@@ -454,6 +494,11 @@ export default function PurchaseOrderDetailPage() {
       setSelectedSupplier(supp);
       setLineItems(itemsWithBlank);
 
+      // Initialize budget lock state
+      setBudgetLocked(response.budget_locked || false);
+      setBudgetLockedBy(response.budget_locked_by_name || null);
+      setBudgetLockedAt(response.budget_locked_at || null);
+
       // Store original state for change tracking (with sorted items)
       setOriginalState({
         description: desc,
@@ -475,16 +520,15 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
-  // Load local SmTasks for this job (for task/description lookup)
+  // Performance: Load SmTasks with job_id parameter (allows parallel fetch)
   // Uses lightweight endpoint (?for=select) for fast dropdown loading
-  const loadSmTasks = async () => {
-    if (!purchaseOrder?.job_id) return;
-    if (taskItems.length > 0) return;
+  const loadSmTasksForJob = async (jobId: number) => {
+    if (taskItems.length > 0) return; // Already loaded
     try {
       setLoadingTasks(true);
       // Fetch SmTasks for this specific job - use lightweight endpoint for dropdown
       const response = await api.get<{ sm_tasks: Array<{ id: number; name: string; task_number: number; start_date?: string }> }>(
-        `/api/v1/jobs/${purchaseOrder.job_id}/sm_tasks?for=select`
+        `/api/v1/jobs/${jobId}/sm_tasks?for=select`
       );
       // Convert to ComboboxItem format - SSoT: Use SmTask.id as the key
       const items: TaskComboboxItem[] = (response?.sm_tasks || []).map((task) => ({
@@ -498,6 +542,13 @@ export default function PurchaseOrderDetailPage() {
       console.error("Failed to load SmTasks:", err);
     } finally {
       setLoadingTasks(false);
+    }
+  };
+
+  // Legacy wrapper for backward compatibility
+  const loadSmTasks = () => {
+    if (purchaseOrder?.job_id) {
+      loadSmTasksForJob(purchaseOrder.job_id);
     }
   };
 
@@ -653,6 +704,11 @@ export default function PurchaseOrderDetailPage() {
       setSelectedSupplier(supp);
       setLineItems(itemsWithBlank);
 
+      // Update budget lock state after save
+      setBudgetLocked(response.budget_locked || false);
+      setBudgetLockedBy(response.budget_locked_by_name || null);
+      setBudgetLockedAt(response.budget_locked_at || null);
+
       // Store original state for change tracking (with sorted items)
       setOriginalState({
         description: desc,
@@ -763,6 +819,71 @@ export default function PurchaseOrderDetailPage() {
     setNotes(originalState.notes);
     setSelectedSupplier(originalState.selectedSupplier);
     setLineItems([...originalState.lineItems]);
+  };
+
+  // Budget lockdown handlers
+  const handleLockBudget = async () => {
+    if (!purchaseOrder || lockingBudget) return;
+
+    try {
+      setLockingBudget(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        data: PurchaseOrder;
+        message?: string;
+        error?: string;
+      }>(`/api/v1/purchase_orders/${recordId}/lock_budget`);
+
+      if (response?.success && response.data) {
+        setBudgetLocked(true);
+        setBudget(response.data.budget?.toString() || "");
+        setBudgetLockedBy(response.data.budget_locked_by_name || null);
+        setBudgetLockedAt(response.data.budget_locked_at || null);
+        setPurchaseOrder(response.data);
+      } else {
+        setError(response?.error || "Failed to lock budget");
+      }
+    } catch (err) {
+      console.error("Failed to lock budget:", err);
+      setError("Failed to lock budget");
+    } finally {
+      setLockingBudget(false);
+    }
+  };
+
+  const handleUnlockBudget = async () => {
+    if (!purchaseOrder || lockingBudget) return;
+
+    const reason = prompt("Reason for unlocking budget:");
+    if (!reason) return;
+
+    try {
+      setLockingBudget(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        data: PurchaseOrder;
+        message?: string;
+        error?: string;
+      }>(`/api/v1/purchase_orders/${recordId}/unlock_budget`, { reason });
+
+      if (response?.success && response.data) {
+        setBudgetLocked(false);
+        setBudgetLockedBy(null);
+        setBudgetLockedAt(null);
+        setPurchaseOrder(response.data);
+      } else {
+        setError(response?.error || "Failed to unlock budget");
+      }
+    } catch (err) {
+      console.error("Failed to unlock budget:", err);
+      setError("Failed to unlock budget");
+    } finally {
+      setLockingBudget(false);
+    }
   };
 
   // Line item handlers
@@ -1053,14 +1174,67 @@ export default function PurchaseOrderDetailPage() {
               Ex GST: {formatCurrency(subtotal)} GST: {formatCurrency(gst)}
             </div>
             <div className="mt-3">
-              <label className="text-sm text-muted-foreground">Budget:</label>
-              <Input
-                type="number"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="0.00"
-                className="mt-1"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm text-muted-foreground">Budget:</label>
+                {budgetLocked && (
+                  <Badge variant="secondary" className="gap-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-300">
+                    <Lock className="h-3 w-3" />
+                    Locked
+                  </Badge>
+                )}
+              </div>
+
+              {budgetLocked ? (
+                <div className="text-2xl font-bold">{formatCurrency(parseFloat(budget) || 0)}</div>
+              ) : (
+                <Input
+                  type="number"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                  placeholder="0.00"
+                />
+              )}
+
+              <div className="mt-2 flex gap-2">
+                {!budgetLocked ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLockBudget}
+                    disabled={lockingBudget}
+                    className="gap-1 text-xs"
+                  >
+                    {lockingBudget ? (
+                      <Spinner className="h-3 w-3" />
+                    ) : (
+                      <Lock className="h-3 w-3" />
+                    )}
+                    Lock from PO Total
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleUnlockBudget}
+                    disabled={lockingBudget}
+                    className="gap-1 text-xs text-amber-600 hover:text-amber-700"
+                  >
+                    {lockingBudget ? (
+                      <Spinner className="h-3 w-3" />
+                    ) : (
+                      <Unlock className="h-3 w-3" />
+                    )}
+                    Unlock (Admin)
+                  </Button>
+                )}
+              </div>
+
+              {budgetLocked && budgetLockedBy && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Locked by {budgetLockedBy}
+                  {budgetLockedAt && ` on ${formatDate(budgetLockedAt)}`}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -1086,8 +1260,8 @@ export default function PurchaseOrderDetailPage() {
                     "text-lg font-semibold",
                     purchaseOrder.labour_actual && purchaseOrder.labour_budget &&
                     purchaseOrder.labour_actual > purchaseOrder.labour_budget
-                      ? "text-red-500"
-                      : "text-green-500"
+                      ? "text-red-500 dark:text-red-400"
+                      : "text-green-500 dark:text-green-400"
                   )}>
                     {purchaseOrder.labour_actual ? formatCurrency(purchaseOrder.labour_actual) : "$0.00"}
                   </span>
@@ -1098,7 +1272,7 @@ export default function PurchaseOrderDetailPage() {
                     <span className={cn(
                       "text-lg font-semibold",
                       (purchaseOrder.labour_budget - (purchaseOrder.labour_actual || 0)) < 0
-                        ? "text-red-500"
+                        ? "text-red-500 dark:text-red-400"
                         : "text-muted-foreground"
                     )}>
                       {formatCurrency(purchaseOrder.labour_budget - (purchaseOrder.labour_actual || 0))}
@@ -1373,7 +1547,7 @@ export default function PurchaseOrderDetailPage() {
                         className={cn(
                           "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
                           shouldGreyOut && "text-muted-foreground",
-                          hasPriceChanged && "text-orange-600 font-semibold"
+                          hasPriceChanged && "text-orange-600 dark:text-orange-400 font-semibold"
                         )}
                         style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                         min={0}
@@ -1518,7 +1692,7 @@ export default function PurchaseOrderDetailPage() {
                     <div key={task.id} className="border rounded-lg p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-semibold flex items-center gap-2">
+                          <h4 className="text-sm font-semibold flex items-center gap-2">
                             #{task.task_number} {task.name}
                             {task.locked && (
                               <Badge variant="outline" className="text-amber-600 border-amber-300">
@@ -1594,7 +1768,7 @@ export default function PurchaseOrderDetailPage() {
                           <TableCell className="p-3">{formatDate(syncPreview.linked_tasks[0]?.start_date)}</TableCell>
                           <TableCell className="p-3 text-center">
                             {syncPreview.linked_tasks[0]?.date_matches ? (
-                              <CheckCircle2 className="h-5 w-5 text-green-600 inline" />
+                              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 inline" />
                             ) : (
                               <AlertTriangle className="h-5 w-5 text-amber-500 inline" />
                             )}
@@ -1606,7 +1780,7 @@ export default function PurchaseOrderDetailPage() {
                           <TableCell className="p-3">{syncPreview.linked_tasks[0]?.supplier_name || "Not set"}</TableCell>
                           <TableCell className="p-3 text-center">
                             {syncPreview.linked_tasks[0]?.supplier_matches ? (
-                              <CheckCircle2 className="h-5 w-5 text-green-600 inline" />
+                              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 inline" />
                             ) : (
                               <AlertTriangle className="h-5 w-5 text-amber-500 inline" />
                             )}
@@ -1649,7 +1823,7 @@ export default function PurchaseOrderDetailPage() {
                   {/* Already in sync */}
                   {syncPreview.sync_preview?.nothing_to_sync && (
                     <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center gap-3">
-                      <CheckCircle2 className="h-6 w-6 text-green-600" />
+                      <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
                       <div>
                         <p className="font-medium text-green-800 dark:text-green-200">Already in Sync</p>
                         <p className="text-sm text-green-700 dark:text-green-300">

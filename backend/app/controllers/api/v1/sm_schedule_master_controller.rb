@@ -76,12 +76,25 @@ module Api
       def update
         @row.updated_by = current_user
 
+        # Debug logging for dependency_broken
+        if params[:row]&.key?(:dependency_broken)
+          Rails.logger.info "[SmScheduleMaster] Update row #{@row.id}: dependency_broken in params = #{params[:row][:dependency_broken].inspect} (was #{@row.dependency_broken})"
+        end
+
         # Auto-clear dependency_broken when predecessors are re-added
         clear_dependency_broken_if_needed
+
+        # Debug: log after clear_dependency_broken_if_needed
+        if params[:row]&.key?(:dependency_broken)
+          Rails.logger.info "[SmScheduleMaster] After clear_dependency_broken_if_needed: dependency_broken = #{params[:row][:dependency_broken].inspect}"
+        end
 
         if @row.update(row_params)
           # Reload to get fresh data after any updates
           @row.reload
+
+          # Debug: log final value
+          Rails.logger.info "[SmScheduleMaster] After save, row #{@row.id}: dependency_broken = #{@row.dependency_broken.inspect}, predecessor_ids_backup = #{@row.predecessor_ids_backup.inspect}"
 
           render json: {
             success: true,
@@ -196,15 +209,49 @@ module Api
       end
 
       # Clear dependency_broken flag when predecessors are re-added
+      # Also backup predecessors when breaking dependencies
       def clear_dependency_broken_if_needed
         return unless params[:row]
+
+        # Auto-backup predecessors when breaking dependencies
+        # SSoT: When dependency_broken is set to true, backup current predecessors
+        # Use ActiveModel cast to handle string "true" vs boolean true
+        breaking_deps = ActiveModel::Type::Boolean.new.cast(params[:row][:dependency_broken])
+        if breaking_deps && !@row.dependency_broken
+          # Backup current predecessors before they're cleared
+          if @row.predecessor_ids.present?
+            @row.predecessor_ids_backup = @row.predecessor_ids
+          end
+          @row.dependency_broken = true  # Explicitly set this to ensure it's saved
+          @row.dependency_broken_at = Time.current
+          @row.dependency_broken_by_id = current_user&.id
+          Rails.logger.info "[SmScheduleMaster] Breaking dependency - set dependency_broken=true, backup=#{@row.predecessor_ids_backup.inspect}"
+          return
+        end
+
         return unless @row.dependency_broken
 
-        # If predecessor_ids are being set and there are actual predecessors
+        # Only clear dependency_broken if a backed-up predecessor is being restored
+        # (not just because any predecessors are being set)
         new_preds = params[:row][:predecessor_ids]
-        if new_preds.present? && new_preds.is_a?(Array) && new_preds.any?
-          # Predecessors being added - clear the broken flag
+        return unless new_preds.present? && new_preds.is_a?(Array)
+
+        backup_preds = @row.predecessor_ids_backup || []
+        return if backup_preds.empty?
+
+        # Get IDs from backup (handle both hash and integer formats)
+        backup_ids = backup_preds.map { |p| p.is_a?(Hash) ? p['id'] || p[:id] : p }.compact
+        # Get IDs from new predecessors
+        new_ids = new_preds.map { |p| p.is_a?(Hash) ? p['id'] || p[:id] : p }.compact
+
+        # Check if any backed-up predecessor is being restored
+        restored = backup_ids.any? { |id| new_ids.include?(id) || new_ids.include?(id.to_s) || new_ids.include?(id.to_i) }
+
+        if restored
+          # A backed-up predecessor is being restored - clear the broken flag
           params[:row][:dependency_broken] = false
+          # Also clear the backup since it's been restored
+          params[:row][:predecessor_ids_backup] = []
         end
       end
 
@@ -227,9 +274,9 @@ module Api
           # Completion document requirement
           :requires_document_to_complete, :completion_document_type_id,
           # New Schedule Master fields
-          :supplier_confirm,
+          :supplier_confirm, :supplier_confirmation_method, :supplier_confirmed_contact_name,
           # Manual positioning and task status
-          :hold, :hold_date, :dependency_broken, :started,
+          :hold, :hold_date, :dependency_broken, :dependency_broken_at, :dependency_broken_by_id, :started,
           # Header and active status
           :allow_header, :is_active,
           # Task group for PO/non-PO grouping
@@ -237,6 +284,7 @@ module Api
           # Claim task settings (SSoT for job claims)
           :is_claim_task, :is_variation, :claim_percentage, :claim_sequence_number, :claim_invoice_pattern, :claim_invoice_template_id, :claim_trading_name_id,
           predecessor_ids: [ :id, :type, :lag ],
+          predecessor_ids_backup: [ :id, :type, :lag ],
           linked_task_ids: [],
           subtask_names: [],
           tags: [],
@@ -369,8 +417,14 @@ module Api
           hold: row.hold,
           hold_date: row.hold_date,
           previous_hold_date: row.previous_manual_start_date,
+          # Started indicator (task has begun execution)
+          started: row.started,
           # Broken dependency indicator (locked task detached from flow)
           dependency_broken: row.dependency_broken,
+          # Broken dependency tracking - for restore in dependency editor
+          predecessor_ids_backup: row.predecessor_ids_backup || [],
+          dependency_broken_at: row.dependency_broken_at,
+          dependency_broken_by: row.dependency_broken_by_id.present? ? User.find_by(id: row.dependency_broken_by_id)&.name : nil,
           created_at: row.created_at,
           updated_at: row.updated_at
         }

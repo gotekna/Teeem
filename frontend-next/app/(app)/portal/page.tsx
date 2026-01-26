@@ -20,7 +20,9 @@ import {
   TrendingUp,
   Calendar,
   FileText,
+  CloudOff,
 } from "lucide-react";
+import { OfflineSyncManager } from "@/components/offline";
 
 // Foundation ID for Portal Users table
 
@@ -75,6 +77,10 @@ export default function PortalPage() {
           <TabsList>
             <TabsTrigger value="users">Portal Users</TabsTrigger>
             <TabsTrigger value="leaderboard">Kudos Leaderboard</TabsTrigger>
+            <TabsTrigger value="offline" className="flex items-center gap-1.5">
+              <CloudOff className="h-3.5 w-3.5" />
+              Offline
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -100,7 +106,7 @@ export default function PortalPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5 text-yellow-500" />
+                  <Award className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
                   Top Performers
                 </CardTitle>
                 <CardDescription>
@@ -118,11 +124,11 @@ export default function PortalPage() {
                         <div
                           className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
                             index === 0
-                              ? "bg-yellow-100 text-yellow-700"
+                              ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
                               : index === 1
                               ? "bg-muted text-foreground"
                               : index === 2
-                              ? "bg-orange-100 text-orange-700"
+                              ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300"
                               : "bg-secondary text-muted-foreground"
                           }`}
                         >
@@ -136,7 +142,7 @@ export default function PortalPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Star className="h-4 w-4 text-yellow-500" />
+                        <Star className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
                         <span className="font-mono font-bold">{Number(user.kudos_score) || 0}</span>
                       </div>
                     </div>
@@ -149,7 +155,7 @@ export default function PortalPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
+                  <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
                   Kudos Metrics
                 </CardTitle>
                 <CardDescription>How suppliers earn kudos points</CardDescription>
@@ -158,37 +164,41 @@ export default function PortalPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/10">
                     <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                       <span>On-time completion</span>
                     </div>
-                    <Badge className="bg-green-100 text-green-700">+10 pts</Badge>
+                    <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">+10 pts</Badge>
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-900/10">
                     <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-600" />
+                      <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       <span>Quote submitted on time</span>
                     </div>
-                    <Badge className="bg-blue-100 text-blue-700">+5 pts</Badge>
+                    <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">+5 pts</Badge>
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-900/10">
                     <div className="flex items-center gap-2">
-                      <Star className="h-4 w-4 text-purple-600" />
+                      <Star className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                       <span>5-star rating received</span>
                     </div>
-                    <Badge className="bg-purple-100 text-purple-700">+15 pts</Badge>
+                    <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">+15 pts</Badge>
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/10">
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-yellow-600" />
+                      <Calendar className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                       <span>Arrived on schedule</span>
                     </div>
-                    <Badge className="bg-yellow-100 text-yellow-700">+5 pts</Badge>
+                    <Badge className="bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300">+5 pts</Badge>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="offline" className="mt-4 px-4">
+          <OfflineSyncManager />
         </TabsContent>
       </Tabs>
     </TablePage>

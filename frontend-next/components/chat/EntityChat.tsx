@@ -261,7 +261,7 @@ export function EntityChat({
                       </span>
                       {/* Saved indicator */}
                       {message.saved_to_job && (
-                        <span className="text-[10px] text-green-600 flex items-center gap-0.5">
+                        <span className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-0.5">
                           <Check className="h-2.5 w-2.5" />
                           Saved
                         </span>

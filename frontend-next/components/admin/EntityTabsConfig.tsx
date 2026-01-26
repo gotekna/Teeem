@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { resolveWithExamples, resolveSharePointPath, SHAREPOINT_PLACEHOLDERS } from "@/lib/placeholders";
+import { resolveWithExamples, resolveSharePointPath, STORAGE_PLACEHOLDERS } from "@/lib/placeholders";
 import { TokenBuilder } from "@/components/ui/tokens";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,6 +84,8 @@ import {
   CornerDownRight,
   AlertCircle,
   Pencil,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -101,6 +103,48 @@ import type {
   ReorderTabParams,
 } from "@/lib/types/entity-tabs";
 import { SCOPE_LABELS, GROUP_LABELS } from "@/lib/types/entity-tabs";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
+import { useAuth } from "@/contexts/AuthContext";
+
+// SSoT: Warehouse Sub-Scope Configuration
+// All warehouse sub-scopes defined once, used for both initialization and rendering
+export interface WarehouseScopeConfig {
+  id: string;
+  label: string;
+  color: string;
+  defaultTemplate: string;
+  previewReplacements: Record<string, string>;
+}
+
+export const WAREHOUSE_SCOPE_CONFIGS: WarehouseScopeConfig[] = [
+  { id: 'primary', label: 'Warehousing', color: 'blue', defaultTemplate: '{{Category}}', previewReplacements: { '{{Category}}': 'General' } },
+  { id: 'bill_inbox', label: 'Bill Inbox', color: 'orange', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Invoices' } },
+  { id: 'pricebook_photos', label: 'Pricebook Photos', color: 'purple', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Products' } },
+  { id: 'chat', label: 'Chat', color: 'green', defaultTemplate: '{{UserCode}}', previewReplacements: { '{{UserCode}}': 'RH' } },
+  { id: 'templates', label: 'Templates', color: 'cyan', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Contracts' } },
+  { id: 'custom', label: 'Custom', color: 'gray', defaultTemplate: '{{Category}}', previewReplacements: { '{{Category}}': 'Misc' } },
+  { id: 'pdf', label: 'PDF Documents', color: 'red', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Reports' } },
+  { id: 'word', label: 'Word Documents', color: 'blue', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Documents' } },
+  { id: 'excel', label: 'Excel Documents', color: 'green', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Spreadsheets' } },
+  { id: 'notes', label: 'Notes', color: 'yellow', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Notes' } },
+  { id: 'powerpoint', label: 'PowerPoint Documents', color: 'orange', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Presentations' } },
+  { id: 'bank_statements', label: 'Bank Statements', color: 'emerald', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Statements' } },
+  { id: 'contracts', label: 'Contracts', color: 'indigo', defaultTemplate: '{{TabName}}', previewReplacements: { '{{TabName}}': 'Agreements' } },
+];
+
+// Color classes for warehouse scope badges (Tailwind colors)
+const WAREHOUSE_SCOPE_COLORS: Record<string, { bg: string; text: string }> = {
+  blue: { bg: 'bg-blue-100 dark:bg-blue-900', text: 'text-blue-700 dark:text-blue-300' },
+  orange: { bg: 'bg-orange-100 dark:bg-orange-900', text: 'text-orange-700 dark:text-orange-300' },
+  purple: { bg: 'bg-purple-100 dark:bg-purple-900', text: 'text-purple-700 dark:text-purple-300' },
+  green: { bg: 'bg-green-100 dark:bg-green-900', text: 'text-green-700 dark:text-green-300' },
+  cyan: { bg: 'bg-cyan-100 dark:bg-cyan-900', text: 'text-cyan-700 dark:text-cyan-300' },
+  gray: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
+  red: { bg: 'bg-red-100 dark:bg-red-900', text: 'text-red-700 dark:text-red-300' },
+  yellow: { bg: 'bg-yellow-100 dark:bg-yellow-900', text: 'text-yellow-700 dark:text-yellow-300' },
+  emerald: { bg: 'bg-emerald-100 dark:bg-emerald-900', text: 'text-emerald-700 dark:text-emerald-300' },
+  indigo: { bg: 'bg-indigo-100 dark:bg-indigo-900', text: 'text-indigo-700 dark:text-indigo-300' },
+};
 
 // Hook to fetch used icons for a scope
 function useUsedIcons(scope: EntityTabScope) {
@@ -235,13 +279,18 @@ export function EntityTabsConfig({
     updateEntityTypes,
   } = useEntityTypes();
 
+  // Auth context for guarding API calls
+  const { isAuthenticated } = useAuth();
+
   // Fetch used icons for icon picker (SSoT: unique icons per root tab)
   const { usedIcons, refetch: refetchUsedIcons } = useUsedIcons(scope);
 
   // SSoT: Fetch storage configuration for scope folder paths
   const [storageConfig, setStorageConfig] = React.useState<{
     root_path?: string;
-    scope_folders?: Record<string, string>;
+    warehouse_folders?: Record<string, string>;
+    scope_templates?: Record<string, string>;
+    file_name_templates?: Record<string, string>;
   } | null>(null);
 
   React.useEffect(() => {
@@ -249,8 +298,13 @@ export function EntityTabsConfig({
       try {
         const response = await api.get<{
           success: boolean;
-          data: { root_path?: string; scope_folders?: Record<string, string> };
-        }>("/api/v1/corporate_company_settings/sharepoint");
+          data: {
+            root_path?: string;
+            warehouse_folders?: Record<string, string>;
+            scope_templates?: Record<string, string>;
+            file_name_templates?: Record<string, string>;
+          };
+        }>("/api/v1/storage_configuration");
         if (response?.success && response.data) {
           setStorageConfig(response.data);
         }
@@ -262,12 +316,43 @@ export function EntityTabsConfig({
   }, []);
 
   // SSoT: Get base path for a scope from StorageConfiguration
+  // warehouse_folders contains full template like "Jobs/{{JobCode}}/{{TabName}}"
   const getBasePath = React.useCallback((scopeKey: string): string => {
     const rootPath = storageConfig?.root_path || "";
-    const scopePath = storageConfig?.scope_folders?.[scopeKey] || "";
-    if (!scopePath) return rootPath || "/";
-    return rootPath ? `${rootPath}/${scopePath}` : `/${scopePath}`;
+    // SSoT: warehouse_folders is THE ONE source for scope root paths
+    const scopePath = storageConfig?.warehouse_folders?.[scopeKey] || "";
+    if (!scopePath) return rootPath || "";
+    // Combine root and scope path, normalize slashes
+    const fullPath = [rootPath, scopePath].filter(Boolean).join('/');
+    return fullPath.replace(/\/+/g, '/').replace(/\/+$/, '');
   }, [storageConfig]);
+
+  // SSoT: THE ONE function to get full storage path for a tab
+  // Handles storage_path_type override (e.g., Corporate tab using 'people' path)
+  const getTabFullPath = React.useCallback((tab: EntityTab, defaultScope: string): string => {
+    // Determine which scope folder to use based on storage_path_type override
+    const pathScope = tab.sharepoint_path_type === 'corporate' ? 'people' : defaultScope;
+    const basePath = getBasePath(pathScope);
+    const folderPath = tab.sharepoint_folder_path || tab.display_name;
+    // Combine and normalize: collapse multiple slashes, strip trailing
+    const fullPath = [basePath, folderPath].filter(Boolean).join('/');
+    return fullPath.replace(/\/+/g, '/').replace(/\/+$/, '');
+  }, [getBasePath]);
+
+  // SSoT: Get default folder path template for a scope
+  // These match StorageConfiguration::SCOPE_TEMPLATES in the backend
+  const getDefaultTemplate = React.useCallback((scopeKey: string): string => {
+    const templates: Record<string, string> = {
+      task: "{{TaskId}}/{{Category}}",
+      job: "{{JobCode}}/{{TabName}}",
+      corporate_entity: "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
+      people: "{{ContactName}}/{{TabName}}",
+      contact: "{{ContactName}}/{{TabName}}",
+      email: "{{Year}}/{{Month}}",
+      warehouse: "{{TabName}}",
+    };
+    return templates[scopeKey] || "{{Name}}/{{Category}}";
+  }, []);
 
   const [saving, setSaving] = React.useState(false);
 
@@ -280,6 +365,10 @@ export function EntityTabsConfig({
   // Local state for expanded items
   const [expandedItems, setExpandedItemsState] = React.useState<Set<string>>(new Set());
   const [expandedDocTypes, setExpandedDocTypesState] = React.useState<Set<string>>(new Set());
+  // Expanded warehouse sections (collapsed by default)
+  const [expandedWarehouseSections, setExpandedWarehouseSections] = React.useState<Set<string>>(new Set());
+  // Warehouse scope order (for drag-and-drop reordering)
+  const [warehouseScopeOrder, setWarehouseScopeOrder] = React.useState<WarehouseScopeConfig[]>(WAREHOUSE_SCOPE_CONFIGS);
 
   // Derive values from local state
   const isDialogOpen = dialogAction === "create" || dialogAction === "edit";
@@ -359,6 +448,176 @@ export function EntityTabsConfig({
   const [showEntityTypesEditor, setShowEntityTypesEditor] = React.useState(false);
   const [newEntityType, setNewEntityType] = React.useState("");
 
+  // SSoT: Editable folder path template for system scopes (task, email, warehouse)
+  const [folderPathTemplate, setFolderPathTemplate] = React.useState<string>("");
+  // SSoT: Separate template for email attachments (only used when scope === 'email')
+  const [attachmentsPathTemplate, setAttachmentsPathTemplate] = React.useState<string>("");
+  // SSoT: Warehouse sub-scope templates (only used when scope === 'warehouse')
+  const [warehouseTemplates, setWarehouseTemplates] = React.useState<Record<string, string>>({});
+  // SSoT: File name templates (how files are named when uploaded)
+  const [fileNameTemplate, setFileNameTemplate] = React.useState<string>("{{OriginalFileName}}");
+  const [attachmentsFileNameTemplate, setAttachmentsFileNameTemplate] = React.useState<string>("{{OriginalFileName}}");
+  const [warehouseFileNameTemplates, setWarehouseFileNameTemplates] = React.useState<Record<string, string>>({});
+
+  // SSoT: Auto-save templates when they change (debounced)
+  // Track whether we've finished initial data load (to avoid saving on mount)
+  const isInitialLoadRef = React.useRef(true);
+
+  // Initialize folder path template when scope or storageConfig changes
+  React.useEffect(() => {
+    if (showSharePointPaths && storageConfig) {
+      // Mark as initial load so auto-save effect skips
+      isInitialLoadRef.current = true;
+
+      // Try to get from scope_templates in storageConfig, fallback to getDefaultTemplate
+      // Use ?? to allow empty string (user intentionally cleared the template)
+      const savedTemplate = storageConfig?.scope_templates?.[scope];
+      setFolderPathTemplate(savedTemplate ?? getDefaultTemplate(scope));
+
+      // Initialize file name template
+      const savedFileNameTemplate = storageConfig?.file_name_templates?.[scope];
+      setFileNameTemplate(savedFileNameTemplate ?? '{{OriginalFileName}}');
+
+      // Initialize attachments template for email scope
+      if (scope === 'email') {
+        const savedAttachmentsTemplate = storageConfig?.scope_templates?.['email_attachments'];
+        setAttachmentsPathTemplate(savedAttachmentsTemplate ?? getDefaultTemplate('email'));
+        const savedAttachmentsFileName = storageConfig?.file_name_templates?.['email_attachments'];
+        setAttachmentsFileNameTemplate(savedAttachmentsFileName ?? '{{OriginalFileName}}');
+      }
+
+      // Initialize warehouse sub-scope templates (SSoT: WAREHOUSE_SCOPE_CONFIGS)
+      if (scope === 'warehouse') {
+        const templates: Record<string, string> = {};
+        const fileNameTemplates: Record<string, string> = {};
+        WAREHOUSE_SCOPE_CONFIGS.forEach(config => {
+          // Skip 'primary' - it uses the main scope template
+          if (config.id === 'primary') return;
+          const saved = storageConfig?.scope_templates?.[config.id];
+          // Use ?? to allow empty string (user intentionally cleared the template)
+          templates[config.id] = saved ?? config.defaultTemplate;
+          const savedFileName = storageConfig?.file_name_templates?.[config.id];
+          fileNameTemplates[config.id] = savedFileName ?? '{{OriginalFileName}}';
+        });
+        setWarehouseTemplates(templates);
+        setWarehouseFileNameTemplates(fileNameTemplates);
+      }
+    }
+  }, [scope, storageConfig, showSharePointPaths, getDefaultTemplate]);
+  const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [saveStatus, setSaveStatus] = React.useState<'idle' | 'saving' | 'saved'>('idle');
+
+  // Helper to render label with save indicator
+  const labelWithStatus = (text: string) => (
+    <span className="flex items-center gap-2">
+      <span>{text}</span>
+      {saveStatus === 'saving' && (
+        <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span className="text-xs">saving...</span>
+        </span>
+      )}
+      {saveStatus === 'saved' && (
+        <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+          <Check className="h-3 w-3" />
+          <span className="text-xs">saved</span>
+        </span>
+      )}
+    </span>
+  );
+
+  // Save templates to API (debounced)
+  const saveTemplates = React.useCallback(async () => {
+    if (!showSharePointPaths) return;
+
+    try {
+      // Build scope_templates object
+      // Always include templates even if empty (user may intentionally clear them)
+      const scopeTemplates: Record<string, string> = {};
+      const fileNameTemplatesPayload: Record<string, string> = {};
+
+      // Add main scope template (always save, even if empty)
+      scopeTemplates[scope] = folderPathTemplate;
+      if (fileNameTemplate !== '{{OriginalFileName}}') {
+        fileNameTemplatesPayload[scope] = fileNameTemplate;
+      }
+
+      // Add email attachments template
+      if (scope === 'email') {
+        scopeTemplates['email_attachments'] = attachmentsPathTemplate;
+        if (attachmentsFileNameTemplate !== '{{OriginalFileName}}') {
+          fileNameTemplatesPayload['email_attachments'] = attachmentsFileNameTemplate;
+        }
+      }
+
+      // Add warehouse sub-scope templates (always save, even if empty)
+      if (scope === 'warehouse') {
+        Object.entries(warehouseTemplates).forEach(([key, value]) => {
+          scopeTemplates[key] = value;
+        });
+        Object.entries(warehouseFileNameTemplates).forEach(([key, value]) => {
+          if (value !== '{{OriginalFileName}}') {
+            fileNameTemplatesPayload[key] = value;
+          }
+        });
+      }
+
+      console.log('[EntityTabsConfig] Setting status to saving...');
+      setSaveStatus('saving');
+      await api.patch('/api/v1/storage_configuration', {
+        storage: {
+          scope_templates: scopeTemplates,
+          file_name_templates: fileNameTemplatesPayload,
+        }
+      });
+
+      // Show green tick - stays until page closes or next change
+      console.log('[EntityTabsConfig] Setting status to saved...');
+      setSaveStatus('saved');
+      console.log('[EntityTabsConfig] Auto-saved templates');
+    } catch (err) {
+      console.error('[EntityTabsConfig] Failed to auto-save templates:', err);
+      setSaveStatus('idle');
+    }
+  }, [
+    showSharePointPaths, scope, folderPathTemplate, fileNameTemplate,
+    attachmentsPathTemplate, attachmentsFileNameTemplate,
+    warehouseTemplates, warehouseFileNameTemplates
+  ]);
+
+  // Auto-save effect with debounce
+  React.useEffect(() => {
+    // Skip initial load
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      return;
+    }
+
+    // Skip if not showing path config
+    if (!showSharePointPaths) return;
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Debounce save by 1 second
+    saveTimeoutRef.current = setTimeout(() => {
+      saveTemplates();
+    }, 1000);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [
+    folderPathTemplate, fileNameTemplate,
+    attachmentsPathTemplate, attachmentsFileNameTemplate,
+    warehouseTemplates, warehouseFileNameTemplates,
+    saveTemplates, showSharePointPaths
+  ]);
+
   // SSoT: Track original display_name to detect changes for folder rename prompt
   const [originalDisplayName, setOriginalDisplayName] = React.useState<string | null>(null);
 
@@ -373,8 +632,10 @@ export function EntityTabsConfig({
   // All document types for linking (SSoT)
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; display_name?: string }>>([]);
 
-  // Fetch all document types on mount
+  // Fetch all document types when authenticated
   React.useEffect(() => {
+    if (!isAuthenticated) return;
+
     const fetchDocumentTypes = async () => {
       try {
         const response = await api.get<{ success: boolean; data: any[] }>('/api/v1/document_types');
@@ -390,7 +651,7 @@ export function EntityTabsConfig({
       }
     };
     fetchDocumentTypes();
-  }, []);
+  }, [isAuthenticated]);
 
   // Form state for create/edit
   const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams & { sharepoint_path_type?: 'corporate' | 'contacts'; display_mode?: TabDisplayMode; hidden_by_default?: boolean }>>({});
@@ -464,6 +725,60 @@ export function EntityTabsConfig({
     });
   };
 
+  // Toggle warehouse section expansion (for Bill Inbox, Pricebook Photos, etc.)
+  const toggleWarehouseSection = (sectionKey: string) => {
+    setExpandedWarehouseSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionKey)) {
+        next.delete(sectionKey);
+      } else {
+        next.add(sectionKey);
+      }
+      return next;
+    });
+  };
+
+  // Handle warehouse scope reorder (drag-and-drop)
+  const handleWarehouseScopeReorder = (newOrder: WarehouseScopeConfig[]) => {
+    setWarehouseScopeOrder(newOrder);
+    // Note: Order could be persisted to backend in future if needed
+  };
+
+  // Helper to get template value for a warehouse scope
+  const getWarehouseScopeTemplate = (scopeId: string): string => {
+    if (scopeId === 'primary') {
+      return folderPathTemplate ?? getDefaultTemplate(scope);
+    }
+    const config = WAREHOUSE_SCOPE_CONFIGS.find(c => c.id === scopeId);
+    return warehouseTemplates[scopeId] ?? config?.defaultTemplate ?? '{{TabName}}';
+  };
+
+  // Helper to set template value for a warehouse scope
+  const setWarehouseScopeTemplate = (scopeId: string, value: string) => {
+    if (scopeId === 'primary') {
+      setFolderPathTemplate(value);
+    } else {
+      setWarehouseTemplates(prev => ({ ...prev, [scopeId]: value }));
+    }
+  };
+
+  // Helper to get file name template for a warehouse scope
+  const getWarehouseScopeFileNameTemplate = (scopeId: string): string => {
+    if (scopeId === 'primary') {
+      return fileNameTemplate;
+    }
+    return warehouseFileNameTemplates[scopeId] ?? '{{OriginalFileName}}';
+  };
+
+  // Helper to set file name template for a warehouse scope
+  const setWarehouseScopeFileNameTemplate = (scopeId: string, value: string) => {
+    if (scopeId === 'primary') {
+      setFileNameTemplate(value);
+    } else {
+      setWarehouseFileNameTemplates(prev => ({ ...prev, [scopeId]: value }));
+    }
+  };
+
   // Handle drag-and-drop reorder
   const handleReorder = async (newItems: EntityTab[], group?: TabGroup) => {
     setSaving(true);
@@ -515,7 +830,7 @@ export function EntityTabsConfig({
       setDeleteConfirmTab(null);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Failed to delete tab";
-      alert(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -575,8 +890,31 @@ export function EntityTabsConfig({
   };
 
   // Get available parent tabs (root-level tabs that can be parents)
+  // SSoT: Filter out parents that already have a child with the same tab_key (prevents duplicate key conflicts)
   const availableParents = React.useMemo(() => {
-    return tabs.filter((t) => !t.parent_id && t.id !== editingTab?.id);
+    if (!editingTab) return [];
+
+    return tabs.filter((t) => {
+      // Must be a root tab (no parent)
+      if (t.parent_id) return false;
+      // Can't be the tab we're editing
+      if (t.id === editingTab.id) return false;
+      // Can't have a child with the same tab_key (would cause duplicate key conflict)
+      const hasChildWithSameKey = t.children?.some(child => child.tab_key === editingTab.tab_key);
+      if (hasChildWithSameKey) return false;
+
+      return true;
+    });
+  }, [tabs, editingTab]);
+
+  // SSoT: Check if moving to root level would conflict with existing root tab
+  const canMoveToRoot = React.useMemo(() => {
+    if (!editingTab) return true;
+    // If already a root tab, can stay root
+    if (!editingTab.parent_id) return true;
+    // Check if there's already a root tab with this tab_key
+    const hasRootTabWithSameKey = tabs.some(t => !t.parent_id && t.tab_key === editingTab.tab_key);
+    return !hasRootTabWithSameKey;
   }, [tabs, editingTab]);
 
   // Handle form submit
@@ -792,7 +1130,8 @@ export function EntityTabsConfig({
                 <TableRow className="border-b bg-muted/50">
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-20">CODE</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-48">NAME</TableHead>
-                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">FILE NAME</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground w-24">STATUS</TableHead>
+                  <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">SEND NAME</TableHead>
                   <TableHead className="text-left py-1.5 px-3 font-medium text-muted-foreground">DISPLAY NAME</TableHead>
                 </TableRow>
               </TableHeader>
@@ -821,6 +1160,18 @@ export function EntityTabsConfig({
                       >
                         <TableCell className="py-1.5 px-3 font-mono text-xs">{dt.abbreviation || '—'}</TableCell>
                         <TableCell className="py-1.5 px-3">{dt.name}</TableCell>
+                        <TableCell className="py-1.5 px-3">
+                          {/* SSoT: is_primary flag indicates primary vs secondary link */}
+                          {dt.is_primary ? (
+                            <Badge variant="default" className="bg-green-600 hover:bg-green-600 text-white text-xs">
+                              Primary
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">
+                              Secondary
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.file_name || '—'}</TableCell>
                         <TableCell className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.display_name || '—'}</TableCell>
                       </TableRow>
@@ -831,6 +1182,7 @@ export function EntityTabsConfig({
                       >
                         <TableCell className="py-1 px-3 text-xs text-green-600 dark:text-green-400">↳ eg.</TableCell>
                         <TableCell className="py-1 px-3 text-xs text-muted-foreground italic"></TableCell>
+                        <TableCell className="py-1 px-3"></TableCell>
                         <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleFileName}</TableCell>
                         <TableCell className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleDisplayName}</TableCell>
                       </TableRow>
@@ -949,7 +1301,8 @@ export function EntityTabsConfig({
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {tab.has_sharepoint_folder && (
+              {/* SSoT: Show folder path badge if tab has folder OR has children (children inherit parent path) */}
+              {(tab.has_sharepoint_folder || hasChildren) && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -963,24 +1316,32 @@ export function EntityTabsConfig({
                         )}
                       >
                         <FolderOpen className="h-3 w-3 shrink-0" />
-                        <span>{
-                          tab.uses_custom_path
-                            ? (tab.sharepoint_folder_path || tab.display_name)
-                            : (tab.sharepoint_base_path && tab.effective_sharepoint_path
-                                ? `${tab.sharepoint_base_path}/${tab.effective_sharepoint_path}`
-                                : (tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name))
-                        }</span>
+                        <span>{getTabFullPath(tab, scope)}</span>
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent side="bottom" className="max-w-lg">
-                      <p className="font-mono text-xs break-all">{
-                        tab.uses_custom_path
-                          ? (tab.sharepoint_folder_path || tab.display_name)
-                          : (tab.sharepoint_base_path && tab.effective_sharepoint_path
-                              ? `${tab.sharepoint_base_path}/${tab.effective_sharepoint_path}`
-                              : (tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name))
-                      }</p>
+                      <p className="font-mono text-xs break-all">{getTabFullPath(tab, scope)}</p>
                       <p className="text-muted-foreground mt-1">{tab.uses_custom_path ? "Custom path" : "Global template"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {/* SSoT: Primary Xero badge for tabs with xero_scope */}
+              {tab.xero_scope === "primary" && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant="outline"
+                        className="text-xs gap-1 bg-purple-50 border-purple-300 text-purple-700 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300"
+                      >
+                        <span className="font-normal">Primary Xero:</span>
+                        <span className="font-medium">{tab.xero_account_name || "Not configured"}</span>
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>Documents stored from the Primary Xero account</p>
+                      <p className="text-muted-foreground mt-1">Configure at Settings → Company → Info</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -1056,6 +1417,22 @@ export function EntityTabsConfig({
               </div>
             )}
           </div>
+
+          {/* SSoT: Visibility rule - prominent centered box */}
+          {tab.visibility_rule && (
+            <div className="hidden md:flex items-center justify-center px-3">
+              <div
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-medium border",
+                  tab.visibility_rule === "Always visible" || tab.visibility_rule?.startsWith("Always visible")
+                    ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300"
+                    : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300"
+                )}
+              >
+                {tab.visibility_rule}
+              </div>
+            </div>
+          )}
 
           {/* Description - right aligned */}
           {tab.description && (
@@ -1375,13 +1752,322 @@ export function EntityTabsConfig({
             </div>
           </CardHeader>
           <CardContent className="pt-0">
+            {/* SSoT: Storage Configuration for system scopes (task, email, warehouse) - always visible */}
+            {showSharePointPaths && (
+              <div className="space-y-6 mb-6">
+                {/* Primary scope configuration (EML Files for email, Warehousing for warehouse, etc.) */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => toggleWarehouseSection('primary')}
+                    className="w-full flex items-center justify-between text-sm font-medium hover:bg-muted/50 rounded px-2 py-1.5 -mx-2 transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-bold">1</span>
+                      {scope === 'email' ? 'EML Files' : scope === 'warehouse' ? 'Warehousing' : scope === 'task' ? 'Tasks' : 'Primary'}
+                    </span>
+                    {expandedWarehouseSections.has('primary') ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                  {expandedWarehouseSections.has('primary') && (
+                    <div className="space-y-3 mt-3">
+                      {/* Base path from StorageConfiguration (read-only) */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
+                        <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
+                          <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                            {getBasePath(scope)}
+                          </span>
+                          <span className="text-muted-foreground">/</span>
+                        </div>
+                      </div>
+
+                      {/* Folder Path template with token builder - drag and drop enabled */}
+                      {/* SSoT: inherited_template from API (computed from storage_path_type) takes precedence */}
+                      <TokenBuilder
+                        label={labelWithStatus("Folder Path")}
+                        value={folderPathTemplate || editingTab?.inherited_template || getDefaultTemplate(scope)}
+                        onChange={setFolderPathTemplate}
+                        scope="storage"
+                        placeholders={STORAGE_PLACEHOLDERS}
+                        showPreview={true}
+                        placeholder="Click tokens below to add..."
+                        disabled={false}
+                        defaultExpanded={true}
+                        separator="/"
+                      />
+
+                      {/* Full path preview */}
+                      {(() => {
+                        const basePath = getBasePath(scope);
+                        // SSoT: Use effective template priority:
+                        // 1. Local state (user editing)
+                        // 2. inherited_template from API (computed from storage_path_type)
+                        // 3. getDefaultTemplate (hardcoded fallback)
+                        const effectiveTemplate = folderPathTemplate || editingTab?.inherited_template || getDefaultTemplate(scope);
+                        // Replace tokens with example values
+                        const resolvedPath = effectiveTemplate
+                          ? `/${effectiveTemplate
+                              .replace(/\{\{TaskId\}\}/g, "T-001")
+                              .replace(/\{\{Category\}\}/g, "Responses")
+                              .replace(/\{\{TabName\}\}/g, editingTab?.display_name || "Documents")
+                              .replace(/\{\{Year\}\}/g, "2025")
+                              .replace(/\{\{Month\}\}/g, "01")
+                              .replace(/\{\{UserCode\}\}/g, "RH")
+                              .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                              .replace(/\{\{JobCode\}\}/g, "J069")
+                              .replace(/\{\{CompanyGroup\}\}/g, "Teeem Group")
+                              .replace(/\{\{CompanyCode\}\}/g, "TH")
+                              .replace(/\{\{ContactName\}\}/g, "John Smith")}`
+                          : '';
+                        const fullPath = `${basePath}${resolvedPath}`;
+                        return (
+                          <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
+                            <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
+                            <span className="text-green-700 dark:text-green-300">{fullPath}</span>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Send Name template */}
+                      <TokenBuilder
+                        label={labelWithStatus("Send Name")}
+                        value={fileNameTemplate}
+                        onChange={setFileNameTemplate}
+                        scope="storage"
+                        placeholders={STORAGE_PLACEHOLDERS}
+                        showPreview={true}
+                        placeholder="Click tokens below to add..."
+                        disabled={false}
+                        defaultExpanded={false}
+                      />
+                      <div className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 font-mono">
+                        <span className="text-blue-600 dark:text-blue-400 font-medium">Example: </span>
+                        <span className="text-blue-700 dark:text-blue-300">
+                          {fileNameTemplate
+                            .replace(/\{\{OriginalFileName\}\}/g, "Invoice.pdf")
+                            .replace(/\{\{Date\}\}/g, "2025-01-12")
+                            .replace(/\{\{TaskId\}\}/g, "T-001")
+                            .replace(/\{\{Year\}\}/g, "2025")
+                            .replace(/\{\{Month\}\}/g, "01")
+                            .replace(/\{\{UploadedBy\}\}/g, "RH")
+                            .replace(/\{\{Sequence\}\}/g, "001")
+                            .replace(/\{\{Category\}\}/g, "Documents")
+                            .replace(/\{\{UserCode\}\}/g, "RH")
+                              .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                            .replace(/\{\{JobCode\}\}/g, "J069")
+                            .replace(/\{\{ContactName\}\}/g, "John Smith")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Email Attachments Configuration (only for email scope) */}
+                {scope === 'email' && (
+                  <div className="pt-4 border-t">
+                    <button
+                      type="button"
+                      onClick={() => toggleWarehouseSection('attachments')}
+                      className="w-full flex items-center justify-between text-sm font-medium hover:bg-muted/50 rounded px-2 py-1.5 -mx-2 transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 text-xs font-bold">2</span>
+                        Attachments
+                      </span>
+                      {expandedWarehouseSections.has('attachments') ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
+                    {expandedWarehouseSections.has('attachments') && (
+                      <div className="space-y-3 mt-3">
+                        {/* Base path for attachments */}
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
+                          <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
+                            <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                              {getBasePath('email_attachments')}
+                            </span>
+                            <span className="text-muted-foreground">/</span>
+                          </div>
+                        </div>
+
+                        {/* Attachments Folder Path template */}
+                        <TokenBuilder
+                          label={labelWithStatus("Folder Path")}
+                          value={attachmentsPathTemplate ?? getDefaultTemplate('email')}
+                          onChange={setAttachmentsPathTemplate}
+                          scope="storage"
+                          placeholders={STORAGE_PLACEHOLDERS}
+                          showPreview={true}
+                          placeholder="Click tokens below to add..."
+                          disabled={false}
+                          defaultExpanded={false}
+                        />
+
+                        {/* Full path preview for attachments */}
+                        {(() => {
+                          const basePath = getBasePath('email_attachments');
+                          // Replace tokens with example values only if template exists
+                          const resolvedPath = attachmentsPathTemplate
+                            ? `/${attachmentsPathTemplate
+                                .replace(/\{\{Year\}\}/g, "2025")
+                                .replace(/\{\{Month\}\}/g, "01")
+                                .replace(/\{\{Category\}\}/g, "Attachments")
+                                .replace(/\{\{UserCode\}\}/g, "RH")
+                              .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                                .replace(/\{\{JobCode\}\}/g, "J069")
+                                .replace(/\{\{ContactName\}\}/g, "John Smith")}`
+                            : '';
+                          const fullPath = `${basePath}${resolvedPath}`;
+                          return (
+                            <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono" title={fullPath}>
+                              <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
+                              <span className="text-green-700 dark:text-green-300">{fullPath}</span>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Send Name template for attachments */}
+                        <TokenBuilder
+                          label={labelWithStatus("Send Name")}
+                          value={attachmentsFileNameTemplate}
+                          onChange={setAttachmentsFileNameTemplate}
+                          scope="storage"
+                          placeholders={STORAGE_PLACEHOLDERS}
+                          showPreview={true}
+                          placeholder="Click tokens below to add..."
+                          disabled={false}
+                          defaultExpanded={false}
+                        />
+                        <div className="text-xs bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 font-mono">
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">Example: </span>
+                          <span className="text-blue-700 dark:text-blue-300">
+                            {attachmentsFileNameTemplate
+                              .replace(/\{\{OriginalFileName\}\}/g, "Report.xlsx")
+                              .replace(/\{\{Date\}\}/g, "2025-01-12")
+                              .replace(/\{\{Year\}\}/g, "2025")
+                              .replace(/\{\{Month\}\}/g, "01")
+                              .replace(/\{\{UploadedBy\}\}/g, "RH")
+                              .replace(/\{\{Sequence\}\}/g, "001")
+                              .replace(/\{\{UserCode\}\}/g, "RH")
+                              .replace(/\{\{UserName\}\}/g, "Robert Harder")
+                              .replace(/\{\{JobCode\}\}/g, "J069")
+                              .replace(/\{\{ContactName\}\}/g, "John Smith")}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Warehouse Sub-Scopes Configuration (only for warehouse scope) - uses SortableList for drag-and-drop */}
+                {scope === 'warehouse' && (
+                  <SortableList
+                    items={warehouseScopeOrder.filter(c => c.id !== 'primary')}
+                    onReorder={handleWarehouseScopeReorder}
+                    className="space-y-2"
+                  >
+                    {warehouseScopeOrder.filter(c => c.id !== 'primary').map((config, index) => {
+                      const colorClasses = WAREHOUSE_SCOPE_COLORS[config.color] || WAREHOUSE_SCOPE_COLORS.gray;
+                      const isExpanded = expandedWarehouseSections.has(config.id);
+                      const template = getWarehouseScopeTemplate(config.id);
+                      const fileNameTpl = getWarehouseScopeFileNameTemplate(config.id);
+                      const basePath = getBasePath(config.id);
+
+                      // Build preview path with replacements
+                      let previewPath = template;
+                      Object.entries(config.previewReplacements).forEach(([key, value]) => {
+                        previewPath = previewPath.replace(new RegExp(key.replace(/[{}]/g, '\\$&'), 'g'), value);
+                      });
+
+                      return (
+                        <SortableItem
+                          key={config.id}
+                          id={config.id}
+                          position={index + 2}
+                          badgeColor={config.color as any}
+                          variant="card"
+                          className="border rounded"
+                        >
+                          <div className="flex-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleWarehouseSection(config.id)}
+                              className="w-full flex items-center justify-between py-1"
+                            >
+                              <span className="text-sm font-medium">{config.label}</span>
+                              <ExpandChevron expanded={isExpanded} size={16} />
+                            </button>
+
+                            {isExpanded && (
+                              <div className="space-y-3 mt-3 pt-3 border-t">
+                                {/* Base Path */}
+                                <div className="space-y-1">
+                                  <Label className="text-xs text-muted-foreground">Base Path</Label>
+                                  <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
+                                    <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                                      {basePath}
+                                    </span>
+                                    <span className="text-muted-foreground">/</span>
+                                  </div>
+                                </div>
+
+                                {/* Folder Path Template */}
+                                <TokenBuilder
+                                  label={labelWithStatus("Folder Path")}
+                                  value={template}
+                                  onChange={(val) => setWarehouseScopeTemplate(config.id, val)}
+                                  scope="storage"
+                                  placeholders={STORAGE_PLACEHOLDERS}
+                                  showPreview={true}
+                                  placeholder="Click tokens below to add..."
+                                  disabled={false}
+                                  defaultExpanded={false}
+                                  separator="/"
+                                />
+
+                                {/* Full Path Preview */}
+                                <div className="text-xs bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded px-2 py-1.5 font-mono">
+                                  <span className="text-green-600 dark:text-green-400 font-medium">Full Path: </span>
+                                  <span className="text-green-700 dark:text-green-300">{basePath}{template ? `/${previewPath}` : ''}</span>
+                                </div>
+
+                                {/* Send Name Template */}
+                                <TokenBuilder
+                                  label={labelWithStatus("Send Name")}
+                                  value={fileNameTpl}
+                                  onChange={(val) => setWarehouseScopeFileNameTemplate(config.id, val)}
+                                  scope="storage"
+                                  placeholders={STORAGE_PLACEHOLDERS}
+                                  showPreview={true}
+                                  disabled={false}
+                                  defaultExpanded={false}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </SortableItem>
+                      );
+                    })}
+                  </SortableList>
+                )}
+              </div>
+            )}
+
+            {/* Tabs list */}
             {flatTabs.length > 0 ? (
               <SortableList items={flatTabs} onReorder={handleReorder}>
                 <div className="space-y-1">
                   {flatTabs.map((tab, index) => renderTabWithChildren(tab, index))}
                 </div>
               </SortableList>
-            ) : (
+            ) : !showSharePointPaths && (
               <div className="text-center py-4 text-muted-foreground">
                 No tabs configured
               </div>
@@ -1599,7 +2285,9 @@ export function EntityTabsConfig({
                       <SelectValue placeholder="Select parent tab" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">No parent (root level)</SelectItem>
+                      <SelectItem value="none" disabled={!canMoveToRoot}>
+                        No parent (root level){!canMoveToRoot && " - tab key already exists at root"}
+                      </SelectItem>
                       {availableParents.map((parent) => (
                         <SelectItem key={parent.id} value={parent.id.toString()}>
                           {parent.display_name}
@@ -1638,29 +2326,6 @@ export function EntityTabsConfig({
                 </div>
               )}
 
-              {/* Corporate/Contacts path toggle - only for contact scope */}
-              {scope === "contact" && (
-                <div className="flex items-center gap-2 pt-2">
-                  <Switch
-                    id="corporate_path"
-                    checked={formData.sharepoint_path_type === 'corporate'}
-                    onCheckedChange={(checked) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        sharepoint_path_type: checked ? 'corporate' : 'contacts',
-                      }))
-                    }
-                  />
-                  <div>
-                    <Label htmlFor="corporate_path">Corporate Path</Label>
-                    <p className="text-xs text-muted-foreground">
-                      {formData.sharepoint_path_type === 'corporate'
-                        ? "Uses Corporate/People folder"
-                        : "Uses Contacts folder"}
-                    </p>
-                  </div>
-                </div>
-              )}
 
               {/* Photo Category checkbox - SSoT: Explicit flag for photo gallery view */}
               <div className="flex items-center space-x-3 pt-4 mt-4 border-t">
@@ -1708,36 +2373,76 @@ export function EntityTabsConfig({
             {/* Storage Folder Path */}
             {showSharePointPaths && (
               <div className="space-y-3">
-                {/* Base path from StorageConfiguration (read-only) - SSoT for scope folders */}
+                {/* Base path from StorageConfiguration - SSoT for scope folders */}
+                {/* SSoT: Sub-tabs inherit base path from parent - not editable */}
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
-                  <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
-                    <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                      {/* SSoT: Get base path from StorageConfiguration scope_folders */}
-                      {scope === "contact"
-                        ? (formData.sharepoint_path_type === 'corporate'
-                            ? getBasePath("people")
-                            : getBasePath("contact"))
-                        : (editingTab?.sharepoint_base_path || getBasePath(scope))}
-                    </span>
-                    <span className="text-muted-foreground">/</span>
-                  </div>
+                  <Label className="text-xs text-muted-foreground">
+                    Base Path
+                    {(formData.parent_id || editingTab?.parent_id) && (
+                      <span className="ml-1 text-blue-600 dark:text-blue-400">(inherited from parent)</span>
+                    )}
+                  </Label>
+                  {(formData.parent_id || editingTab?.parent_id) ? (
+                    // Sub-tabs: inherit from parent - read-only display
+                    <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
+                      <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                        {editingTab?.sharepoint_base_path || getBasePath(scope)}
+                      </span>
+                      <span className="text-muted-foreground">/</span>
+                    </div>
+                  ) : scope === "contact" ? (
+                    // Root contact tabs: can choose between /Contacts/ or /Corporate/People/
+                    <div className="flex items-center gap-1">
+                      <Select
+                        value={formData.sharepoint_path_type === 'corporate' ? 'people' : 'contact'}
+                        onValueChange={(value) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            sharepoint_path_type: value === 'people' ? 'corporate' : 'contacts',
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="w-full font-mono text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="contact">
+                            <span className="font-mono">/{getBasePath("contact")}/</span>
+                            <span className="text-muted-foreground ml-2">- Contact documents</span>
+                          </SelectItem>
+                          <SelectItem value="people">
+                            <span className="font-mono">/{getBasePath("people")}/</span>
+                            <span className="text-muted-foreground ml-2">- Corporate people</span>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    // Other scopes: read-only display
+                    <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
+                      <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
+                        {editingTab?.sharepoint_base_path || getBasePath(scope)}
+                      </span>
+                      <span className="text-muted-foreground">/</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Editable folder path (read-only for system tabs) */}
                 <TokenBuilder
                   label={editingTab?.is_system_tab ? "Folder Path (system-managed)" : "Folder Path (add placeholders)"}
-                  value={formData.sharepoint_folder_path || editingTab?.effective_sharepoint_path || (formData.display_name || editingTab?.display_name || "")}
+                  value={formData.sharepoint_folder_path ?? ""}
                   onChange={(value) =>
                     setFormData((prev) => ({
                       ...prev,
                       sharepoint_folder_path: value,
                     }))
                   }
+                  scope="storage"
                   // SSoT: Filter placeholders based on tab hierarchy
                   // - Root tabs: show {{TabName}} only (no subtab)
                   // - Subtabs: show BOTH {{TabName}} (parent) and {{SubTabName}} (current)
-                  placeholders={SHAREPOINT_PLACEHOLDERS.filter((p) => {
+                  placeholders={STORAGE_PLACEHOLDERS.filter((p) => {
                     const isSubtab = !!(formData.parent_id || editingTab?.parent_id);
                     if (isSubtab) {
                       // Subtabs: show BOTH TabName (parent) and SubTabName (current)
@@ -1785,7 +2490,7 @@ export function EntityTabsConfig({
                     .replace(/\{\{TabName\}\}/g, parentTabName || currentTabName)
                     .replace(/\{\{JobCode\}\}/g, "077")
                     .replace(/\{\{Category\}\}/g, currentTabName)
-                    .replace(/\{\{CompanyGroup\}\}/g, "Tekna Group")
+                    .replace(/\{\{CompanyGroup\}\}/g, "Teeem Group")
                     .replace(/\{\{CompanyCode\}\}/g, "TH")
                     .replace(/\{\{ContactName\}\}/g, "Robert Harder");
 

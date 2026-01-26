@@ -15,12 +15,28 @@ class XeroApiClient
   class AuthenticationError < StandardError; end
   class RateLimitError < StandardError; end
 
-  def initialize
+  # Allowed origins for dynamic redirect_uri
+  # Must match exactly what's registered in Xero Developer Portal
+  ALLOWED_ORIGINS = [
+    "https://teeem.vercel.app",
+    "https://teeem-staging.vercel.app",
+    "https://teeem-beta.vercel.app",
+    "https://teeemrob.vercel.app"
+  ].freeze
+
+  def initialize(redirect_uri: nil)
     @client_id = ENV["XERO_CLIENT_ID"]
     @client_secret = ENV["XERO_CLIENT_SECRET"]
-    @redirect_uri = ENV["XERO_REDIRECT_URI"]
+    @redirect_uri = redirect_uri || ENV["XERO_REDIRECT_URI"]
 
     raise AuthenticationError, "Missing Xero credentials in environment" unless credentials_present?
+  end
+
+  # Build redirect_uri from origin if origin is whitelisted
+  def self.redirect_uri_for_origin(origin)
+    return nil unless origin.present?
+    return nil unless ALLOWED_ORIGINS.include?(origin)
+    "#{origin}/xero/callback"
   end
 
   # OAuth scopes for Xero API access
@@ -343,21 +359,60 @@ class XeroApiClient
         needs_attention: needs_attention_count
       }
     else
-      # All good - green
+      # Credentials all good - now check sync health for orange indicator
       primary = XeroCredential.current
       primary_health = primary ? XeroConnectionHealth.for_credential(primary) : nil
-      {
-        connected: true,
-        status: "connected",
-        display_status: "connected",
-        tenant_name: primary&.tenant_name,
-        tenant_id: primary&.tenant_id,
-        expires_at: primary_health&.expires_at,
-        expired: primary&.expired?,
-        total: total,
-        connected_count: working_count,
-        needs_attention: 0
-      }
+
+      # SSoT: Check sync health - show orange if any sync is stalled
+      sync_health = XeroSyncStatus.health_summary
+      sync_stalled = sync_health[:overall_health] == "red" || sync_health[:overall_health] == "yellow"
+
+      # Determine specific sync issue for message
+      sync_issue_message = nil
+      if sync_stalled
+        stalled_types = []
+        sync_health[:sync_types]&.each do |type, info|
+          if info[:health_status] == "red" || info[:health_status] == "yellow"
+            stalled_types << type
+          end
+        end
+        sync_issue_message = "Sync stalled: #{stalled_types.join(', ')}" if stalled_types.any?
+      end
+
+      if sync_stalled
+        # Credentials connected but sync is stalled - orange
+        {
+          connected: true,
+          status: "degraded",
+          display_status: "warning",
+          message: sync_issue_message || "Sync health degraded",
+          tenant_name: primary&.tenant_name,
+          tenant_id: primary&.tenant_id,
+          expires_at: primary_health&.expires_at,
+          expired: primary&.expired?,
+          total: total,
+          connected_count: working_count,
+          needs_attention: 0,
+          sync_stalled: true,
+          sync_health: sync_health[:overall_health]
+        }
+      else
+        # All good - green
+        {
+          connected: true,
+          status: "connected",
+          display_status: "connected",
+          tenant_name: primary&.tenant_name,
+          tenant_id: primary&.tenant_id,
+          expires_at: primary_health&.expires_at,
+          expired: primary&.expired?,
+          total: total,
+          connected_count: working_count,
+          needs_attention: 0,
+          sync_stalled: false,
+          sync_health: "green"
+        }
+      end
     end
   end
 
@@ -421,25 +476,27 @@ class XeroApiClient
   end
 
   # Fetch tax rates from Xero
+  # SSoT: Returns data directly without persisting (XeroTaxRate table was deprecated)
+  # For persistent storage, use Gl::TaxRate with external_provider: 'xero'
   def get_tax_rates
     response = make_request(:get, "TaxRates")
 
     if response[:success]
-      tax_rates = response[:data]["TaxRates"] || []
-
-      # Update local database
-      tax_rates.each do |rate|
-        XeroTaxRate.find_or_initialize_by(code: rate["TaxType"]).tap do |tax_rate|
-          tax_rate.name = rate["Name"]
-          tax_rate.rate = rate["EffectiveRate"]
-          tax_rate.active = rate["Status"] == "ACTIVE"
-          tax_rate.display_rate = rate["DisplayTaxRate"]
-          tax_rate.tax_type = rate["TaxType"]
-          tax_rate.save!
+      tax_rates = (response[:data]["TaxRates"] || [])
+        .select { |rate| rate["Status"] == "ACTIVE" }
+        .sort_by { |rate| rate["Name"] }
+        .map do |rate|
+          OpenStruct.new(
+            code: rate["TaxType"],
+            name: rate["Name"],
+            rate: rate["EffectiveRate"],
+            display_rate: rate["DisplayTaxRate"],
+            tax_type: rate["TaxType"],
+            active: true
+          )
         end
-      end
 
-      { success: true, tax_rates: XeroTaxRate.where(active: true).order(:name) }
+      { success: true, tax_rates: tax_rates }
     else
       { success: false, error: "Failed to fetch tax rates from Xero" }
     end

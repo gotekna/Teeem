@@ -52,19 +52,24 @@ interface IconPickerProps {
 // Categorize icons for better UX
 const ICON_CATEGORIES: Record<string, string[]> = {
   "Photo": ["Camera", "Image", "Images", "ImagePlus"],
-  "Documents": ["FileText", "Folder", "FolderOpen", "FileCheck", "FileBadge", "FileStack", "Files", "ScrollText"],
+  "Documents": ["FileText", "Folder", "FolderOpen", "FileCheck", "FileBadge", "FileStack", "Files", "ScrollText", "Archive"],
   "Awards": ["Award", "BadgeCheck", "Medal", "Trophy"],
   "Plans": ["Ruler", "PenTool", "Compass", "LayoutDashboard", "House", "LandPlot", "MapPin", "Landmark"],
   "Schedule": ["Calendar", "CalendarClock", "CalendarDays", "CalendarCheck", "CalendarRange", "Clock", "Timer", "Hourglass", "AlarmClock"],
   "Tasks": ["ListTodo", "ListChecks", "CheckSquare", "SquareCheck", "CircleCheck", "ListOrdered", "ClipboardList", "ClipboardCheck"],
-  "Construction": ["HardHat", "Hammer", "Construction", "Truck"],
+  "Construction": ["HardHat", "Hammer", "Construction", "Truck", "Warehouse", "Factory"],
   "Finance": ["DollarSign", "TrendingUp", "Receipt", "Wallet", "CreditCard", "PiggyBank", "Calculator", "Banknote"],
-  "Communication": ["Mail", "Phone", "Video", "Send", "Inbox", "MessageSquare"],
-  "Navigation": ["Home", "Map", "Target", "ExternalLink"],
-  "People": ["Users", "UserCog"],
-  "Business": ["Briefcase", "Building2", "Package"],
+  "Communication": ["Mail", "Phone", "Video", "Send", "Inbox", "MessageSquare", "Bell"],
+  "Navigation": ["Home", "Map", "Target", "ExternalLink", "Search", "Filter", "SlidersHorizontal"],
+  "People": ["Users", "UserCog", "User", "UserPlus", "UserMinus"],
+  "Business": ["Briefcase", "Building2", "Building", "Package", "Box", "Store"],
+  "Charts": ["BarChart", "BarChart2", "LineChart", "PieChart", "GanttChartSquare"],
+  "Data": ["Database", "HardDrive", "Layers"],
+  "Social": ["Heart", "ThumbsUp", "ThumbsDown", "Share2", "Star"],
+  "Security": ["Shield", "Lock", "Unlock", "Key"],
   "Status": ["Eye", "EyeOff", "Check", "X", "Info", "AlertTriangle", "CheckCircle", "XCircle"],
-  "Other": ["Shield", "Settings", "Wrench", "Scale", "History", "Workflow", "Layers", "FileQuestion", "Sparkles", "Zap", "Star", "Tag", "Palette", "Activity", "Cloud", "FileSignature", "ShoppingCart", "BookOpen", "MoreHorizontal", "MoreVertical"],
+  "Food": ["ChefHat", "Coffee", "UtensilsCrossed"],
+  "Other": ["Settings", "Wrench", "Scale", "History", "Workflow", "FileQuestion", "Sparkles", "Zap", "Tag", "Palette", "Activity", "Cloud", "FileSignature", "ShoppingCart", "BookOpen", "MoreHorizontal", "MoreVertical"],
 };
 
 // Get category for an icon
@@ -130,7 +135,7 @@ export function IconPicker({
     });
 
     // Sort categories to put common ones first
-    const categoryOrder = ["Photo", "Documents", "Awards", "Plans", "Schedule", "Tasks", "Finance", "Communication", "Business", "Navigation", "People", "Construction", "Status", "Other"];
+    const categoryOrder = ["Photo", "Documents", "Awards", "Plans", "Schedule", "Tasks", "Finance", "Communication", "Business", "Navigation", "People", "Construction", "Charts", "Data", "Social", "Security", "Status", "Food", "Other"];
     const sortedGroups: Record<string, string[]> = {};
 
     categoryOrder.forEach((cat) => {
@@ -250,7 +255,7 @@ export function IconPicker({
                               )}
                               {/* SSoT: Small globe indicator for global usage */}
                               {!isSelected && hasGlobalUsage && (
-                                <Globe className="h-2 w-2 absolute top-0.5 right-0.5 text-blue-500" />
+                                <Globe className="h-2 w-2 absolute top-0.5 right-0.5 text-blue-500 dark:text-blue-400" />
                               )}
                               <IconComponent className="h-4 w-4" />
                             </button>
@@ -258,14 +263,14 @@ export function IconPicker({
                           <TooltipContent side="bottom" className="max-w-xs">
                             <p className="font-medium">{iconName}</p>
                             {isUsed && user && (
-                              <p className="text-xs text-orange-500">
+                              <p className="text-xs text-orange-500 dark:text-orange-400">
                                 Used in this scope: {user.display_name}
                               </p>
                             )}
                             {/* SSoT: Show global usage for consistency */}
                             {hasGlobalUsage && (
                               <div className="mt-1 pt-1 border-t border-border/50">
-                                <p className="text-xs text-blue-500 flex items-center gap-1">
+                                <p className="text-xs text-blue-500 dark:text-blue-400 flex items-center gap-1">
                                   <Globe className="h-3 w-3" />
                                   Used elsewhere:
                                 </p>
@@ -307,7 +312,7 @@ export function IconPicker({
               {showGlobalUsage && (
                 <span className="inline-flex items-center gap-1">
                   <span className="w-3 h-3 border border-blue-300 rounded relative">
-                    <Globe className="h-2 w-2 absolute -top-0.5 -right-0.5 text-blue-500" />
+                    <Globe className="h-2 w-2 absolute -top-0.5 -right-0.5 text-blue-500 dark:text-blue-400" />
                   </span>
                   Used elsewhere (for consistency)
                 </span>

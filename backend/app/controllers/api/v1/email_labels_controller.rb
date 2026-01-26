@@ -92,7 +92,7 @@ class Api::V1::EmailLabelsController < ApplicationController
   # POST /api/v1/email_labels/:id/toggle_email
   # Toggle this label on/off for an email
   def toggle_email
-    email = EmailWarehouse.find(params[:email_id])
+    email = SyncedEmail.find(params[:email_id])
 
     assigned = @label.toggle_for(email)
 
@@ -137,7 +137,7 @@ class Api::V1::EmailLabelsController < ApplicationController
   # POST /api/v1/email_labels/bulk_assign
   # Assign multiple labels to an email
   def bulk_assign
-    email = EmailWarehouse.find(params[:email_id])
+    email = SyncedEmail.find(params[:email_id])
     label_ids = params[:label_ids] || []
 
     # Get user's labels
@@ -163,7 +163,7 @@ class Api::V1::EmailLabelsController < ApplicationController
   # DELETE /api/v1/email_labels/bulk_remove
   # Remove multiple labels from an email
   def bulk_remove
-    email = EmailWarehouse.find(params[:email_id])
+    email = SyncedEmail.find(params[:email_id])
     label_ids = params[:label_ids] || []
 
     # Get user's labels
@@ -189,7 +189,7 @@ class Api::V1::EmailLabelsController < ApplicationController
   # GET /api/v1/email_labels/for_email/:email_id
   # Get all labels assigned to an email
   def for_email
-    email = EmailWarehouse.find(params[:email_id])
+    email = SyncedEmail.find(params[:email_id])
     all_labels = current_user.email_labels.ordered
     assigned_ids = email.email_label_ids
 

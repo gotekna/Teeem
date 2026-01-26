@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import {
-  DRAFTS_STORAGE_KEY,
   AUTO_SAVE_INTERVAL_MS,
   MAX_DRAFTS,
 } from "@/lib/email-constants";
 import type { EmailDraft, AutoSaveConfig } from "@/lib/email-types";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Re-export types for backwards compatibility
 export type { EmailDraft } from "@/lib/email-types";
@@ -36,9 +36,7 @@ function getDraftsFromStorage(): EmailDraft[] {
   if (typeof window === "undefined") return [];
 
   try {
-    const stored = localStorage.getItem(DRAFTS_STORAGE_KEY);
-    if (!stored) return [];
-    return JSON.parse(stored);
+    return getStorageItem<EmailDraft[]>(STORAGE_KEYS.EMAIL_DRAFTS, []);
   } catch (error) {
     console.error("Failed to parse drafts from localStorage:", error);
     return [];
@@ -57,7 +55,7 @@ function saveDraftsToStorage(drafts: EmailDraft[]): void {
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       .slice(0, MAX_DRAFTS);
 
-    localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(trimmedDrafts));
+    setStorageItem(STORAGE_KEYS.EMAIL_DRAFTS, trimmedDrafts);
   } catch (error) {
     console.error("Failed to save drafts to localStorage:", error);
   }

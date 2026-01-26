@@ -164,13 +164,13 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
                   <SheetTitle className="text-xl font-serif">{contact.display_name}</SheetTitle>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {contact["is_supplier?"] && (
-                      <Badge className="bg-purple-100 text-purple-700">Supplier</Badge>
+                      <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">Supplier</Badge>
                     )}
                     {contact["is_customer?"] && (
-                      <Badge className="bg-blue-100 text-blue-700">Customer</Badge>
+                      <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">Customer</Badge>
                     )}
                     {contact.is_family_member && (
-                      <Badge className="bg-green-100 text-green-700">Family</Badge>
+                      <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">Family</Badge>
                     )}
                     {contact.xero_contact_id && (
                       <Badge variant="outline" className="gap-1">

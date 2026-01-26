@@ -33,6 +33,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface TparReport {
   id: number;
@@ -73,23 +74,6 @@ interface Contractor {
   abn: string;
   tpar_required: boolean;
   tpar_industry_code: string | null;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function TparTab() {
@@ -199,14 +183,14 @@ export default function TparTab() {
         );
       case "submitted":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <Send className="h-3 w-3 mr-1" />
             Submitted
           </Badge>
         );
       case "lodged":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Lodged
           </Badge>
@@ -250,7 +234,7 @@ export default function TparTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{lodgedCount}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{lodgedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">with ATO</p>
           </CardContent>
         </Card>
@@ -262,7 +246,7 @@ export default function TparTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{draftCount}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{draftCount}</div>
             <p className="text-xs text-muted-foreground mt-1">pending review</p>
           </CardContent>
         </Card>
@@ -513,7 +497,7 @@ export default function TparTab() {
                       <TableCell>{contractor.tpar_industry_code || "-"}</TableCell>
                       <TableCell className="text-center">
                         {contractor.tpar_required ? (
-                          <CheckCircle className="h-5 w-5 text-green-600 mx-auto" />
+                          <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mx-auto" />
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}

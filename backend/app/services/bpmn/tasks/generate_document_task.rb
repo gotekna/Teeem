@@ -244,10 +244,9 @@ module Bpmn
           if defined?(JobDocument)
             JobDocument.create(
               job: job,
-              name: file[:name],
-              document_type: "generated",
-              sharepoint_url: file[:web_url],
-              sharepoint_item_id: file[:id]
+              file_name: file[:name],
+              file_type: "generated",
+              web_url: file[:web_url]
             )
           end
         end

@@ -246,13 +246,13 @@ export function XeroConnectionCard({
               "w-10 h-10 rounded-lg flex items-center justify-center",
               status?.connected ? "bg-blue-100 dark:bg-blue-900/30" : "bg-muted"
             )}>
-              <svg viewBox="0 0 24 24" className={cn("h-6 w-6", status?.connected ? "text-blue-600" : "text-muted-foreground")}>
+              <svg viewBox="0 0 24 24" className={cn("h-6 w-6", status?.connected ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground")}>
                 <path fill="currentColor" d="M12.076 2.018C5.956 2.018 1.001 6.974 1.001 13.093c0 6.12 4.955 11.075 11.075 11.075 6.119 0 11.075-4.955 11.075-11.075 0-6.12-4.956-11.075-11.075-11.075zm0 19.875c-4.863 0-8.8-3.937-8.8-8.8s3.937-8.8 8.8-8.8 8.8 3.937 8.8 8.8-3.937 8.8-8.8 8.8z"/>
                 <path fill="currentColor" d="M15.951 10.343l-3.875 2.75-3.875-2.75c-.325-.231-.778-.156-1.009.169-.231.325-.156.778.169 1.009l4.5 3.193c.131.094.281.14.432.14s.3-.047.431-.14l4.5-3.193c.325-.231.4-.684.169-1.009-.231-.325-.684-.4-1.009-.169h-.433z"/>
               </svg>
             </div>
             <div>
-              <h3 className="font-medium">
+              <h3 className="text-sm font-medium">
                 Xero Integration
                 {status?.connected && status.xero_tenant_name && (
                   <span className="ml-2 text-sm font-normal text-muted-foreground">
@@ -274,7 +274,7 @@ export function XeroConnectionCard({
                       </span>
                     )}
                     {status?.days_since_sync !== undefined && status?.days_since_sync !== null && status?.days_since_sync > 7 && (
-                      <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                      <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-300">
                         <AlertTriangle className="h-3 w-3 mr-1" />
                         {status.days_since_sync} days since last sync
                       </Badge>
@@ -394,7 +394,7 @@ export function XeroConnectionCard({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              <AlertTriangle className="h-5 w-5 text-orange-500 dark:text-orange-400" />
               Confirm Xero Connection
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -407,7 +407,7 @@ export function XeroConnectionCard({
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Connected to Xero:</span>
-                    <span className="font-medium text-blue-600">{pendingConnection?.xero_tenant_name || "Unknown"}</span>
+                    <span className="font-medium text-blue-600 dark:text-blue-400">{pendingConnection?.xero_tenant_name || "Unknown"}</span>
                   </div>
                 </div>
                 <p className="text-sm text-orange-600 dark:text-orange-400">
@@ -419,7 +419,7 @@ export function XeroConnectionCard({
           <AlertDialogFooter>
             <AlertDialogCancel
               onClick={handleRejectConnection}
-              className="bg-red-50 text-red-700 hover:bg-red-100 border-red-200"
+              className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 border-red-200"
             >
               Wrong Company - Disconnect
             </AlertDialogCancel>

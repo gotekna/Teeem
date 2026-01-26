@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useCallback } from "react";
-// useRouter removed - ConnectionsTab now uses local state for sub-tabs
+import { useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,11 @@ import {
   Play,
   Square,
   RotateCcw,
+  FileSpreadsheet,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
+import Link from "next/link";
 import {
   Select,
   SelectContent,
@@ -56,10 +60,12 @@ import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // SharePoint Connection Component
 function SharePointConnection() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [status, setStatus] = React.useState<{
     connected: boolean;
     driveName?: string;
@@ -100,7 +106,7 @@ function SharePointConnection() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("Are you sure you want to disconnect cloud storage?")) return;
+    if (!(await confirm("Are you sure you want to disconnect cloud storage?"))) return;
     setDisconnecting(true);
     try {
       await api.delete("/api/v1/documents/disconnect");
@@ -292,7 +298,7 @@ function OutlookConnection() {
           </div>
           <Badge
             variant={status?.connected ? (status?.needs_refresh ? "outline" : "default") : "secondary"}
-            className={cn(status?.needs_refresh && "border-orange-500 text-orange-600")}
+            className={cn(status?.needs_refresh && "border-orange-500 text-orange-600 dark:text-orange-400")}
           >
             {status?.connected ? (
               status?.needs_refresh ? (
@@ -640,6 +646,7 @@ const PROVIDER_PRESETS: Record<string, { name: string; description: string; endp
 // S3 Storage Connection Component - Simplified
 function S3StorageConnection() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [credentials, setCredentials] = React.useState<S3Credential[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -666,7 +673,11 @@ function S3StorageConnection() {
       const data = await api.get<{ success: boolean; data: S3Credential[] }>("/api/v1/s3_credentials");
       setCredentials(data.data || []);
     } catch (error) {
-      console.error("Failed to load S3 credentials:", error);
+      // Silence decryption errors - expected in local dev when keys don't match production
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('Decryption')) {
+        console.error("Failed to load S3 credentials:", error);
+      }
     } finally {
       setLoading(false);
     }
@@ -730,7 +741,7 @@ function S3StorageConnection() {
   };
 
   const handleDelete = async (cred: S3Credential) => {
-    if (!confirm(`Delete "${cred.name}"?`)) return;
+    if (!(await confirm(`Delete "${cred.name}"?`))) return;
     try {
       await api.delete(`/api/v1/s3_credentials/${cred.id}`);
       toast({ title: "Deleted", description: "Storage removed" });
@@ -781,7 +792,7 @@ function S3StorageConnection() {
                     <p className="text-xs text-muted-foreground">{cred.bucket} • {cred.region}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="text-red-600">
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="text-red-600 dark:text-red-400">
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -812,7 +823,7 @@ function S3StorageConnection() {
         {showForm && preset && (
           <div className="space-y-4 p-4 rounded-lg border bg-muted/20">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium">{preset.name} Configuration</h4>
+              <h4 className="text-sm font-medium">{preset.name} Configuration</h4>
               <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); setSelectedProvider(""); }}>
                 <X className="h-4 w-4" />
               </Button>
@@ -887,7 +898,7 @@ function S3StorageConnection() {
             {testResult && (
               <div className={cn(
                 "p-2 rounded text-sm",
-                testResult.success ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                testResult.success ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400" : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
               )}>
                 {testResult.success ? <Check className="h-4 w-4 inline mr-1" /> : <X className="h-4 w-4 inline mr-1" />}
                 {testResult.message}
@@ -945,6 +956,7 @@ interface OrgDocumentProvider {
 // Document Storage Provider Selection (SSoT)
 function DocumentStorageProvider() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [selectedProvider, setSelectedProvider] = React.useState<string>("sharepoint");
   const [selectedCredentialId, setSelectedCredentialId] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -991,7 +1003,11 @@ function DocumentStorageProvider() {
       const data = await api.get<{ success: boolean; data: S3Credential[] }>("/api/v1/s3_credentials");
       setS3Credentials(data.data || []);
     } catch (error) {
-      console.error("Failed to load S3 credentials:", error);
+      // Silence decryption errors - expected in local dev when keys don't match production
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (!errorMessage.includes('Decryption')) {
+        console.error("Failed to load S3 credentials:", error);
+      }
     }
   };
 
@@ -1080,7 +1096,7 @@ function DocumentStorageProvider() {
   };
 
   const handleDelete = async (cred: S3Credential) => {
-    if (!confirm(`Delete "${cred.name}"?`)) return;
+    if (!(await confirm(`Delete "${cred.name}"?`))) return;
     try {
       await api.delete(`/api/v1/s3_credentials/${cred.id}`);
       toast({ title: "Deleted", description: "Storage removed" });
@@ -1164,9 +1180,9 @@ function DocumentStorageProvider() {
                   <SelectItem key={cred.id} value={cred.id.toString()}>
                     <div className="flex items-center gap-2">
                       {cred.status === "connected" ? (
-                        <Check className="h-3 w-3 text-green-600" />
+                        <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
                       ) : (
-                        <X className="h-3 w-3 text-red-600" />
+                        <X className="h-3 w-3 text-red-600 dark:text-red-400" />
                       )}
                       {cred.name} ({cred.bucket})
                     </div>
@@ -1214,7 +1230,7 @@ function DocumentStorageProvider() {
                   <span className="text-sm">{cred.name}</span>
                   <span className="text-xs text-muted-foreground">{cred.bucket}</span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="h-6 w-6 p-0 text-red-600">
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="h-6 w-6 p-0 text-red-600 dark:text-red-400">
                   <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
@@ -1310,7 +1326,7 @@ function DocumentStorageProvider() {
             {testResult && (
               <div className={cn(
                 "p-2 rounded text-xs",
-                testResult.success ? "bg-green-50 text-green-700 dark:bg-green-900/30" : "bg-red-50 text-red-700 dark:bg-red-900/30"
+                testResult.success ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30" : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 dark:bg-red-900/30"
               )}>
                 {testResult.success ? <Check className="h-3 w-3 inline mr-1" /> : <X className="h-3 w-3 inline mr-1" />}
                 {testResult.message}
@@ -1359,8 +1375,27 @@ interface MigrationStatus {
   additional_files?: {
     email_eml: number;
     email_attachments: number;
+    task_attachments: number;
     total: number;
   };
+}
+
+// Email Storage Upload Progress
+interface StorageUploadProgress {
+  uploaded: number;
+  uploadable: number;
+  remaining: number;
+  upload_rate: number;
+  attachments: {
+    total: number;
+    with_blob: number;
+    legacy_sharepoint: number;
+    migration_rate: number;
+  };
+  pending_by_mailbox?: Array<{
+    mailbox: string;
+    pending: number;
+  }>;
 }
 
 interface MigrationEstimate {
@@ -1371,9 +1406,381 @@ interface MigrationEstimate {
   estimated_time_formatted: string;
 }
 
-// Document Migration Component
-function DocumentMigration() {
+// ============================================
+// Card 1: Email Migration to Wasabi
+// ============================================
+function EmailMigrationCard() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
+  const [storageUpload, setStorageUpload] = React.useState<StorageUploadProgress | null>(null);
+  const [activeEmailJob, setActiveEmailJob] = React.useState<{ status: string; processed: number; total: number } | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [stopping, setStopping] = React.useState(false);
+  const emailJobRefreshRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  React.useEffect(() => {
+    loadStorageUpload();
+    loadActiveEmailJob();
+
+    return () => {
+      if (emailJobRefreshRef.current) {
+        clearInterval(emailJobRefreshRef.current);
+      }
+    };
+  }, []);
+
+  const loadStorageUpload = async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          emails?: {
+            storage_upload?: StorageUploadProgress;
+            total_emails?: number;
+          }
+        }
+      }>("/api/v1/organization/data_stats");
+      if (response.data?.emails?.storage_upload) {
+        setStorageUpload(response.data.emails.storage_upload);
+      }
+    } catch (error) {
+      console.error("Failed to load storage upload progress:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadActiveEmailJob = async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        active: boolean;
+        data?: { status: string; processed_items: number; total_items: number };
+      }>("/api/v1/background_jobs/progress/email_storage_upload");
+      if (response.active && response.data) {
+        setActiveEmailJob({
+          status: response.data.status,
+          processed: response.data.processed_items,
+          total: response.data.total_items,
+        });
+        if (!emailJobRefreshRef.current) {
+          emailJobRefreshRef.current = setInterval(() => {
+            loadActiveEmailJob();
+            loadStorageUpload();
+          }, 5000);
+        }
+      } else {
+        setActiveEmailJob(null);
+        if (emailJobRefreshRef.current) {
+          clearInterval(emailJobRefreshRef.current);
+          emailJobRefreshRef.current = null;
+          loadStorageUpload();
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load active email job:", error);
+      setActiveEmailJob(null);
+    }
+  };
+
+  const handleStart = async () => {
+    try {
+      await api.post("/api/v1/background_jobs/start_email_upload", { batch_size: 5000 });
+      toast({ title: "Started", description: "Email migration job queued" });
+      setTimeout(loadActiveEmailJob, 1000);
+    } catch {
+      toast({ title: "Error", description: "Failed to start email migration", variant: "destructive" });
+    }
+  };
+
+  const handleStop = async () => {
+    if (!(await confirm("Stop email migration? The current batch will complete but no new batches will start."))) return;
+    setStopping(true);
+    try {
+      // Find and cancel the active job
+      const response = await api.get<{
+        success: boolean;
+        active: boolean;
+        data?: { id: number };
+      }>("/api/v1/background_jobs/progress/email_storage_upload");
+      if (response.active && response.data?.id) {
+        await api.post(`/api/v1/background_jobs/${response.data.id}/cancel`);
+        toast({ title: "Stopped", description: "Email migration stopped" });
+        setActiveEmailJob(null);
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to stop migration", variant: "destructive" });
+    } finally {
+      setStopping(false);
+      loadActiveEmailJob();
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-24">
+          <Spinner size={20} className="text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!storageUpload || storageUpload.uploadable === 0) {
+    return null; // Don't show card if no emails to migrate
+  }
+
+  const isComplete = storageUpload.upload_rate >= 100;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900">
+              <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Email Migration to Wasabi</CardTitle>
+              <CardDescription>Upload .eml files from Microsoft to Wasabi storage</CardDescription>
+            </div>
+          </div>
+          <Badge
+            variant={isComplete ? "default" : "outline"}
+            className={cn("text-xs", isComplete && "bg-green-600")}
+          >
+            {storageUpload.upload_rate}% Complete
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Emails uploaded</span>
+            <span className="font-semibold">
+              {storageUpload.uploaded.toLocaleString()} / {storageUpload.uploadable.toLocaleString()}
+            </span>
+          </div>
+          <Progress value={storageUpload.upload_rate} className="h-3" />
+          {storageUpload.remaining > 0 && (
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-orange-600 dark:text-orange-400">
+                {storageUpload.remaining.toLocaleString()}
+              </span>{" "}
+              emails remaining
+            </p>
+          )}
+        </div>
+
+        {/* Pending Emails by Mailbox - Collapsible */}
+        {storageUpload.pending_by_mailbox && storageUpload.pending_by_mailbox.length > 0 && (
+          <Accordion type="single" collapsible className="border-t pt-2">
+            <AccordionItem value="pending-mailboxes" className="border-none">
+              <AccordionTrigger className="py-2 hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 text-orange-500 dark:text-orange-400" />
+                  <span className="text-sm font-medium">Pending by Mailbox</span>
+                  <Badge variant="outline" className="ml-1">
+                    {storageUpload.pending_by_mailbox.length}
+                  </Badge>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-1.5 pt-1 max-h-64 overflow-y-auto">
+                  {storageUpload.pending_by_mailbox.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between py-1.5 px-2 bg-muted/50 rounded text-sm">
+                      <span className="text-muted-foreground truncate max-w-[180px]" title={item.mailbox}>
+                        {item.mailbox}
+                      </span>
+                      <Badge
+                        variant={item.pending > 5000 ? "destructive" : item.pending > 1000 ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {item.pending.toLocaleString()}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        )}
+
+        <div className="flex items-center justify-between pt-2 border-t">
+          <div className="flex items-center gap-2">
+            {activeEmailJob ? (
+              <>
+                <Spinner className="h-4 w-4" />
+                <span className="text-sm text-blue-600 dark:text-blue-400">
+                  Running... {activeEmailJob.processed}/{activeEmailJob.total}
+                </span>
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                {isComplete ? "Migration complete" : "Paused"}
+              </span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {activeEmailJob ? (
+              <Button variant="outline" size="sm" onClick={handleStop} disabled={stopping}>
+                {stopping ? <Spinner size={16} /> : <Square className="h-3 w-3 mr-1" />}
+                Stop
+              </Button>
+            ) : !isComplete ? (
+              <Button size="sm" onClick={handleStart}>
+                <Play className="h-3 w-3 mr-1" />
+                Continue
+              </Button>
+            ) : null}
+            <Button variant="ghost" size="sm" onClick={() => { loadStorageUpload(); loadActiveEmailJob(); }}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================
+// Card 2: Attachment Deduplication
+// ============================================
+function AttachmentDeduplicationCard() {
+  const { toast } = useToast();
+  const [attachments, setAttachments] = React.useState<{
+    total: number;
+    with_blob: number;
+    legacy_sharepoint: number;
+    migration_rate: number;
+  } | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [starting, setStarting] = React.useState(false);
+
+  React.useEffect(() => {
+    loadAttachmentStats();
+  }, []);
+
+  const loadAttachmentStats = async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          emails?: {
+            storage_upload?: StorageUploadProgress;
+          }
+        }
+      }>("/api/v1/organization/data_stats");
+      if (response.data?.emails?.storage_upload?.attachments) {
+        setAttachments(response.data.emails.storage_upload.attachments);
+      }
+    } catch (error) {
+      console.error("Failed to load attachment stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStart = async () => {
+    setStarting(true);
+    try {
+      const response = await api.post<{ success: boolean; count?: number; error?: string }>(
+        "/api/v1/background_jobs/start_attachment_deduplication",
+        { batch_size: 1000 }
+      );
+      if (response?.success) {
+        toast({ title: "Started", description: `Queued ${response.count || 0} attachments for processing` });
+      } else {
+        toast({ title: "Info", description: response?.error || "No attachments to process" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Failed to start deduplication", variant: "destructive" });
+    } finally {
+      setStarting(false);
+      loadAttachmentStats();
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-24">
+          <Spinner size={20} className="text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!attachments || attachments.total === 0) {
+    return null;
+  }
+
+  const isComplete = attachments.migration_rate >= 100;
+  const pending = attachments.legacy_sharepoint;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900">
+              <HardDrive className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Attachment Deduplication</CardTitle>
+              <CardDescription>Migrate email attachments and remove duplicates</CardDescription>
+            </div>
+          </div>
+          <Badge
+            variant={isComplete ? "default" : "outline"}
+            className={cn("text-xs", isComplete && "bg-green-600")}
+          >
+            {attachments.migration_rate}% Complete
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Attachments deduplicated</span>
+            <span className="font-semibold">
+              {attachments.with_blob.toLocaleString()} / {attachments.total.toLocaleString()}
+            </span>
+          </div>
+          <Progress value={attachments.migration_rate} className="h-2" />
+          <div className="flex gap-4 text-xs text-muted-foreground">
+            <span>Legacy SharePoint: {attachments.legacy_sharepoint.toLocaleString()}</span>
+            <span>Deduplicated: {attachments.with_blob.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t">
+          <span className="text-sm text-muted-foreground">
+            {isComplete ? "All attachments processed" : `${pending.toLocaleString()} pending`}
+          </span>
+          <div className="flex gap-2">
+            {!isComplete && (
+              <Button size="sm" onClick={handleStart} disabled={starting}>
+                {starting ? <Spinner size={16} /> : <Play className="h-3 w-3 mr-1" />}
+                Process Batch
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={loadAttachmentStats}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================
+// Card 3: Document Migration (SharePoint → S3)
+// ============================================
+function DocumentMigrationCard() {
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [status, setStatus] = React.useState<MigrationStatus | null>(null);
   const [estimate, setEstimate] = React.useState<MigrationEstimate | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1382,7 +1789,6 @@ function DocumentMigration() {
   const [retrying, setRetrying] = React.useState(false);
   const [deleteSource, setDeleteSource] = React.useState(false);
 
-  // Auto-refresh interval for ongoing migrations
   const refreshIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
   React.useEffect(() => {
@@ -1396,10 +1802,9 @@ function DocumentMigration() {
     };
   }, []);
 
-  // Set up auto-refresh when migration is in progress
   React.useEffect(() => {
     if (status?.migration_in_progress) {
-      refreshIntervalRef.current = setInterval(loadStatus, 5000); // Refresh every 5 seconds
+      refreshIntervalRef.current = setInterval(loadStatus, 5000);
     } else if (refreshIntervalRef.current) {
       clearInterval(refreshIntervalRef.current);
       refreshIntervalRef.current = null;
@@ -1437,7 +1842,7 @@ function DocumentMigration() {
   };
 
   const handleStartMigration = async () => {
-    if (!confirm("This will migrate all SharePoint documents to S3. Are you sure?")) return;
+    if (!(await confirm("This will migrate all SharePoint documents to S3. Are you sure?"))) return;
 
     setStarting(true);
     try {
@@ -1459,7 +1864,7 @@ function DocumentMigration() {
   };
 
   const handleCancelMigration = async () => {
-    if (!confirm("Cancel pending migrations?")) return;
+    if (!(await confirm("Cancel pending migrations?"))) return;
 
     setCancelling(true);
     try {
@@ -1493,14 +1898,13 @@ function DocumentMigration() {
   if (loading) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center h-32">
-          <Spinner size={24} className="text-muted-foreground" />
+        <CardContent className="flex items-center justify-center h-24">
+          <Spinner size={20} className="text-muted-foreground" />
         </CardContent>
       </Card>
     );
   }
 
-  const totalProcessed = (status?.status_counts.completed || 0) + (status?.status_counts.failed || 0);
   const totalQueued = (status?.status_counts.pending || 0) + (status?.status_counts.in_progress || 0);
   const hasPendingWork = totalQueued > 0;
   const hasFailures = (status?.status_counts.failed || 0) > 0;
@@ -1510,12 +1914,12 @@ function DocumentMigration() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900">
-              <ArrowRightLeft className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900">
+              <ArrowRightLeft className="h-5 w-5 text-green-600 dark:text-green-400" />
             </div>
             <div>
               <CardTitle className="text-base">Document Migration</CardTitle>
-              <CardDescription>Move documents between storage providers</CardDescription>
+              <CardDescription>Move job/company documents from SharePoint to S3</CardDescription>
             </div>
           </div>
           {status?.migration_in_progress && (
@@ -1526,39 +1930,18 @@ function DocumentMigration() {
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {/* Provider Breakdown */}
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div className="p-3 rounded-lg border bg-muted/30">
-            <p className="text-muted-foreground text-xs">SharePoint Files</p>
-            <p className="text-2xl font-semibold">{status?.provider_breakdown?.sharepoint || 0}</p>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="p-2 rounded-lg border bg-muted/30">
+            <p className="text-muted-foreground text-xs">SharePoint</p>
+            <p className="text-xl font-semibold">{status?.provider_breakdown?.sharepoint || 0}</p>
           </div>
-          <div className="p-3 rounded-lg border bg-muted/30">
-            <p className="text-muted-foreground text-xs">S3 Files</p>
-            <p className="text-2xl font-semibold">{status?.provider_breakdown?.s3_compatible || 0}</p>
+          <div className="p-2 rounded-lg border bg-muted/30">
+            <p className="text-muted-foreground text-xs">S3/Wasabi</p>
+            <p className="text-xl font-semibold">{status?.provider_breakdown?.s3_compatible || 0}</p>
           </div>
         </div>
-
-        {/* Additional Files (Emails & Attachments) */}
-        {status?.additional_files && (status.additional_files.email_eml > 0 || status.additional_files.email_attachments > 0) && (
-          <div className="text-xs text-muted-foreground p-2 rounded bg-muted/30">
-            <span className="font-medium">Includes:</span>{" "}
-            {status.additional_files.email_eml > 0 && (
-              <span>{status.additional_files.email_eml.toLocaleString()} email EML files</span>
-            )}
-            {status.additional_files.email_eml > 0 && status.additional_files.email_attachments > 0 && " + "}
-            {status.additional_files.email_attachments > 0 && (
-              <span>{status.additional_files.email_attachments.toLocaleString()} email attachments</span>
-            )}
-          </div>
-        )}
-
-        {/* Grand Total */}
-        {status?.grand_total && status.grand_total !== status.total_documents && (
-          <div className="text-sm font-medium text-center p-2 border-t">
-            Total Warehouse Files: {status.grand_total.toLocaleString()}
-          </div>
-        )}
 
         {/* Migration Progress */}
         {hasPendingWork && (
@@ -1571,173 +1954,289 @@ function DocumentMigration() {
             <div className="flex gap-4 text-xs text-muted-foreground">
               <span>Pending: {status?.status_counts.pending || 0}</span>
               <span>In Progress: {status?.status_counts.in_progress || 0}</span>
-              <span className="text-green-600">Completed: {status?.status_counts.completed || 0}</span>
-              {hasFailures && <span className="text-red-600">Failed: {status?.status_counts.failed || 0}</span>}
+              <span className="text-green-600 dark:text-green-400">Completed: {status?.status_counts.completed || 0}</span>
+              {hasFailures && <span className="text-red-600 dark:text-red-400">Failed: {status?.status_counts.failed || 0}</span>}
             </div>
           </div>
         )}
 
         {/* Migration Status Summary */}
         {!hasPendingWork && (status?.status_counts.completed || 0) > 0 && (
-          <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+          <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
             <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
               <Check className="h-4 w-4" />
-              <span>{status?.status_counts.completed} documents successfully migrated</span>
+              <span>{status?.status_counts.completed} documents migrated</span>
             </div>
           </div>
         )}
 
         {/* Recent Failures */}
         {hasFailures && status?.recent_failures && status.recent_failures.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-red-600">Recent Failures</p>
-            <div className="max-h-32 overflow-y-auto space-y-1">
-              {status.recent_failures.map((failure) => (
-                <div key={failure.id} className="text-xs p-2 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
-                  <span className="font-medium">{failure.file_name}:</span> {failure.error}
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="failures" className="border-none">
+              <AccordionTrigger className="py-2 text-sm text-red-600 dark:text-red-400 hover:no-underline">
+                {status.status_counts.failed} failed migrations
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="max-h-24 overflow-y-auto space-y-1">
+                  {status.recent_failures.map((failure) => (
+                    <div key={failure.id} className="text-xs p-1.5 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300">
+                      <span className="font-medium">{failure.file_name}:</span> {failure.error}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         )}
 
         {/* Migration Estimate */}
         {!hasPendingWork && estimate && estimate.document_count > 0 && (
-          <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
-            <p className="text-sm font-medium">Migration Estimate</p>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <span className="text-muted-foreground">Documents:</span>
-                <p className="font-medium">{estimate.document_count}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Total Size:</span>
-                <p className="font-medium">{estimate.total_size_formatted}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Est. Time:</span>
-                <p className="font-medium">{estimate.estimated_time_formatted}</p>
-              </div>
-            </div>
+          <div className="p-2 rounded-lg border bg-muted/30 text-xs">
+            <span className="text-muted-foreground">Ready to migrate:</span>{" "}
+            <span className="font-medium">{estimate.document_count} documents</span>{" "}
+            <span className="text-muted-foreground">({estimate.total_size_formatted})</span>
           </div>
         )}
 
         {/* Delete Source Option */}
         <div className="flex items-center gap-2">
           <Checkbox
-            id="delete_source"
+            id="delete_source_doc"
             checked={deleteSource}
             onCheckedChange={(checked) => setDeleteSource(checked as boolean)}
           />
-          <Label htmlFor="delete_source" className="text-sm cursor-pointer">
-            Delete from source after migration
+          <Label htmlFor="delete_source_doc" className="text-xs cursor-pointer">
+            Delete from SharePoint after migration
           </Label>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 pt-2">
-          {!hasPendingWork ? (
-            <>
-              <Button
-                onClick={handleStartMigration}
-                disabled={starting || !estimate || estimate.document_count === 0}
-              >
-                {starting ? (
-                  <Spinner size={16} className="mr-2" />
-                ) : (
-                  <Play className="h-4 w-4 mr-2" />
+        <div className="flex items-center justify-between pt-2 border-t">
+          <span className="text-sm text-muted-foreground">
+            {hasPendingWork ? "Migration in progress..." : estimate?.document_count === 0 ? "All documents migrated" : "Ready to migrate"}
+          </span>
+          <div className="flex gap-2">
+            {!hasPendingWork ? (
+              <>
+                {estimate && estimate.document_count > 0 && (
+                  <Button size="sm" onClick={handleStartMigration} disabled={starting}>
+                    {starting ? <Spinner size={16} /> : <Play className="h-3 w-3 mr-1" />}
+                    Start
+                  </Button>
                 )}
-                Start Migration
+                {hasFailures && (
+                  <Button variant="outline" size="sm" onClick={handleRetryFailed} disabled={retrying}>
+                    {retrying ? <Spinner size={16} /> : <RotateCcw className="h-3 w-3 mr-1" />}
+                    Retry
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={handleCancelMigration} disabled={cancelling}>
+                {cancelling ? <Spinner size={16} /> : <Square className="h-3 w-3 mr-1" />}
+                Stop
               </Button>
-              {hasFailures && (
-                <Button variant="outline" onClick={handleRetryFailed} disabled={retrying}>
-                  {retrying ? (
-                    <Spinner size={16} className="mr-2" />
-                  ) : (
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                  )}
-                  Retry Failed
-                </Button>
-              )}
-            </>
-          ) : (
-            <Button variant="destructive" onClick={handleCancelMigration} disabled={cancelling}>
-              {cancelling ? (
-                <Spinner size={16} className="mr-2" />
-              ) : (
-                <Square className="h-4 w-4 mr-2" />
-              )}
-              Cancel Migration
+            )}
+            <Button variant="ghost" size="sm" onClick={() => { loadStatus(); loadEstimate(); }}>
+              <RefreshCw className="h-4 w-4" />
             </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={() => { loadStatus(); loadEstimate(); }}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          </div>
         </div>
-
-        {/* Info Text */}
-        <p className="text-xs text-muted-foreground">
-          Migration copies documents from SharePoint to S3. Existing documents in SharePoint remain accessible until deleted.
-          New documents will be stored based on the active provider setting above.
-        </p>
       </CardContent>
     </Card>
   );
 }
 
-// Main Connections Tab
-export function ConnectionsTab({ innerTab }: { innerTab?: string }) {
-  // Use local state for sub-tab switching instead of URL navigation
-  // This component is now used within /settings/company, not standalone admin pages
-  const [activeTab, setActiveTab] = React.useState(innerTab || "provider");
+// ===== INTEGRATIONS SUB-TAB =====
+interface XeroStatus {
+  connected: boolean;
+  organization_name?: string;
+  tenant_name?: string;
+}
 
-  const handleTabChange = useCallback((tabId: string) => {
-    setActiveTab(tabId);
+function IntegrationsSubTab() {
+  const [xeroStatus, setXeroStatus] = React.useState<XeroStatus | null>(null);
+  const [cloudflareStatus, setCloudflareStatus] = React.useState<{ connected: boolean; account_id?: string } | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchStatuses = async () => {
+      try {
+        // Fetch Xero status
+        const xeroResponse = await api.xero.getStatus();
+        setXeroStatus(xeroResponse.data || { connected: false });
+
+        // Fetch Cloudflare status
+        try {
+          const cloudflareResponse = await api.get<{ success: boolean; data: { status: string; account_id: string } | null }>('/cloudflare_credentials');
+          if (cloudflareResponse?.success && cloudflareResponse.data) {
+            setCloudflareStatus({ connected: cloudflareResponse.data.status === 'connected', account_id: cloudflareResponse.data.account_id });
+          } else {
+            setCloudflareStatus({ connected: false });
+          }
+        } catch {
+          setCloudflareStatus({ connected: false });
+        }
+      } catch (error) {
+        console.error("Failed to fetch integration statuses:", error);
+        setXeroStatus({ connected: false });
+        setCloudflareStatus({ connected: false });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStatuses();
   }, []);
 
   return (
-    <div className="space-y-4">
-      {/* Sub-tabs */}
-      <div className="flex gap-1 border-b">
-        <button
-          onClick={() => handleTabChange("provider")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-            activeTab === "provider"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Storage Provider
-        </button>
-        <button
-          onClick={() => handleTabChange("migration")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-            activeTab === "migration"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Migration
-        </button>
-        <button
-          onClick={() => handleTabChange("costs")}
-          className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-            activeTab === "costs"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Cost Comparison
-        </button>
-      </div>
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Connect your external services to Teeem
+      </p>
 
-      {/* Tab Content */}
-      {activeTab === "provider" && <DocumentStorageProvider />}
-      {activeTab === "migration" && <DocumentMigration />}
-      {activeTab === "costs" && <StorageCostTab />}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Xero */}
+        <Card className="hover:bg-accent/50 transition-colors">
+          <Link href="/settings/integrations/xero">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-cyan-100 dark:bg-cyan-900 rounded-lg">
+                    <FileSpreadsheet className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Xero</CardTitle>
+                    <CardDescription>Accounting Software</CardDescription>
+                  </div>
+                </div>
+                {!loading && (
+                  xeroStatus?.connected ? (
+                    <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Connected
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Not Connected
+                    </Badge>
+                  )
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Sync invoices, bills, and contacts with your Xero accounting system.
+              </p>
+              {!loading && xeroStatus?.connected && xeroStatus.tenant_name && (
+                <p className="text-sm font-medium mt-2 text-cyan-700 dark:text-cyan-400">
+                  {xeroStatus.tenant_name}
+                </p>
+              )}
+            </CardContent>
+          </Link>
+        </Card>
+
+        {/* Cloudflare */}
+        <Card className="hover:bg-accent/50 transition-colors">
+          <Link href="/settings/integrations/cloudflare">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                    <Cloud className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Cloudflare</CardTitle>
+                    <CardDescription>DNS Management</CardDescription>
+                  </div>
+                </div>
+                {!loading && (
+                  cloudflareStatus?.connected ? (
+                    <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Connected
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Not Connected
+                    </Badge>
+                  )
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Automatic DNS provisioning for email reseller domains.
+              </p>
+              {!loading && cloudflareStatus?.connected && cloudflareStatus.account_id && (
+                <p className="text-sm font-medium mt-2 text-orange-700 dark:text-orange-400 font-mono">
+                  Account: {cloudflareStatus.account_id}
+                </p>
+              )}
+            </CardContent>
+          </Link>
+        </Card>
+      </div>
     </div>
+  );
+}
+
+// Sub-tab definitions for connections
+const CONNECTIONS_SUB_TABS = [
+  { id: "provider", label: "Storage Provider" },
+  { id: "integrations", label: "Integrations" },
+  { id: "migration", label: "Migration" },
+  { id: "costs", label: "Cost Comparison" },
+];
+
+const DEFAULT_CONNECTIONS_BASE_PATH = "/settings/company/connections";
+
+interface ConnectionsTabProps {
+  subTab?: string;
+  basePath?: string;
+}
+
+// Main Connections Tab
+export function ConnectionsTab({ subTab, basePath = DEFAULT_CONNECTIONS_BASE_PATH }: ConnectionsTabProps) {
+  const router = useRouter();
+
+  // Validate and default the sub-tab
+  const activeSubTab = CONNECTIONS_SUB_TABS.some((t) => t.id === subTab) ? subTab : "provider";
+
+  const handleSubTabChange = (tabId: string) => {
+    // Navigate to sub-tab URL
+    router.push(`${basePath}/${tabId}`, { scroll: false });
+  };
+
+  return (
+    <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className="space-y-4">
+      <TabsList className="flex-wrap h-auto gap-1">
+        {CONNECTIONS_SUB_TABS.map((tab) => (
+          <TabsTrigger key={tab.id} value={tab.id} className="text-sm">
+            {tab.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+
+      <TabsContent value="provider">
+        <DocumentStorageProvider />
+      </TabsContent>
+      <TabsContent value="integrations">
+        <IntegrationsSubTab />
+      </TabsContent>
+      <TabsContent value="migration">
+        <div className="space-y-4">
+          <EmailMigrationCard />
+          <AttachmentDeduplicationCard />
+          <DocumentMigrationCard />
+        </div>
+      </TabsContent>
+      <TabsContent value="costs">
+        <StorageCostTab />
+      </TabsContent>
+    </Tabs>
   );
 }

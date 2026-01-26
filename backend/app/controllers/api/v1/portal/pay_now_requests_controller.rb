@@ -107,16 +107,26 @@ module Api
           request = po.pay_now_requests.build(request_params)
 
           if request.save
-            # Attach uploaded files
+            # SSoT: Attach uploaded files via StorageBlob (Jan 2026)
             if params[:invoice_file].present?
-              request.invoice_file.attach(params[:invoice_file])
+              request.attach_invoice_file(
+                params[:invoice_file].read,
+                filename: params[:invoice_file].original_filename,
+                content_type: params[:invoice_file].content_type
+              )
             end
 
             if params[:proof_photos].present?
               params[:proof_photos].each do |photo|
-                request.proof_photos.attach(photo)
+                request.add_proof_photo(
+                  photo.read,
+                  filename: photo.original_filename,
+                  content_type: photo.content_type
+                )
               end
             end
+
+            request.save!  # Save the blob associations
 
             render json: {
               success: true,
@@ -158,23 +168,34 @@ module Api
 
         # POST /api/v1/portal/pay_now_requests/:id/upload_documents
         def upload_documents
+          # SSoT: Upload via StorageBlob (Jan 2026)
           if params[:proof_photos].present?
             params[:proof_photos].each do |photo|
-              @request.proof_photos.attach(photo)
+              @request.add_proof_photo(
+                photo.read,
+                filename: photo.original_filename,
+                content_type: photo.content_type
+              )
             end
           end
 
           if params[:invoice_file].present?
-            @request.invoice_file.attach(params[:invoice_file])
+            @request.attach_invoice_file(
+              params[:invoice_file].read,
+              filename: params[:invoice_file].original_filename,
+              content_type: params[:invoice_file].content_type
+            )
           end
+
+          @request.save!  # Save the blob associations
 
           render json: {
             success: true,
             message: "Documents uploaded successfully - files uploading to SharePoint",
             data: {
-              has_invoice: @request.invoice_file.attached?,
-              proof_photos_count: @request.proof_photos.count,
-              upload_pending: @request.sharepoint_file_id.blank?
+              has_invoice: @request.has_invoice_file?,
+              proof_photos_count: @request.proof_photo_blob_ids&.count || 0,
+              upload_pending: @request.storage_reference.blank?
             }
           }
         end
@@ -271,9 +292,9 @@ module Api
               reference_number: request.payment.reference_number
             } : nil,
             paid_at: request.paid_at,
-            has_invoice: request.sharepoint_file_id.present?,
-            sharepoint_file_id: request.sharepoint_file_id,
-            proof_photos_sharepoint_ids: request.proof_photos_sharepoint_ids || []
+            has_invoice: request.storage_reference.present?,
+            sharepoint_file_id: request.storage_reference,  # Keep JSON key for backwards compat
+            proof_photos_sharepoint_ids: request.proof_photos_storage_ids || []
           }
         end
 

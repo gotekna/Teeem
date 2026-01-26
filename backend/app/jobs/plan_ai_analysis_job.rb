@@ -1,11 +1,18 @@
 # frozen_string_literal: true
 
 # Job to analyze a job plan with AI and update its display name
-# Downloads the PDF from SharePoint, runs through PlanIdentificationService
+# Downloads the PDF from storage, runs through PlanIdentificationService
+#
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Downloads from Wasabi, SharePoint, or S3                         ║
+# ╚═══════════════════════════════════════════════════════════════════╝
 #
 # SSoT: Uses PlanIdentificationService for ALL plan type matching
 #
 class PlanAiAnalysisJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   def perform(job_plan_id)
@@ -13,16 +20,26 @@ class PlanAiAnalysisJob < ApplicationJob
     return unless plan
 
     revision = plan.current_revision
-    return unless revision&.sharepoint_file_id.present?
+    return unless revision&.storage_reference.present?
 
     Rails.logger.info "[PlanAiAnalysisJob] Analyzing plan #{job_plan_id}: #{plan.display_name}"
 
-    # Download the file from SharePoint
-    credential = MicrosoftCredential.sharepoint_credential
-    return unless credential
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      Rails.logger.error "[PlanAiAnalysisJob] No storage provider configured: #{e.message}"
+      return
+    end
 
-    client = MicrosoftGraphClient.new(credential)
-    content = client.download_file(revision.sharepoint_file_id)
+    # Download the file from storage using file ID
+    begin
+      content = download_from_provider(revision.storage_reference)
+    rescue DocumentProviders::Error => e
+      Rails.logger.error "[PlanAiAnalysisJob] Failed to download file: #{e.message}"
+      return
+    end
+
     return unless content
 
     # Use PlanIdentificationService (THE ONE SSoT)

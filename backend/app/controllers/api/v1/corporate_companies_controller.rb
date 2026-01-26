@@ -717,7 +717,7 @@ module Api
         # Email linking is done through contacts associated with this company
         company_contact_emails = contacts.pluck(:email).compact.reject(&:empty?)
         linked_emails = company_contact_emails.any? ?
-          EmailWarehouse.where("from_email IN (?) OR to_emails && ARRAY[?]::text[]",
+          SyncedEmail.where("from_email IN (?) OR to_emails && ARRAY[?]::text[]",
                                company_contact_emails, company_contact_emails).count : 0
 
         checks << {

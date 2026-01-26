@@ -12,17 +12,65 @@
 #
 module DocumentProviders
   class SharePoint < Base
+    # SSoT: Factory method to create provider for a tenant (Jan 2026 fix)
+    # @param tenant [Tenant] The tenant
+    # @return [DocumentProviders::SharePoint] The provider instance
+    def self.for_tenant(tenant)
+      credential = find_credential_for_tenant(tenant)
+      raise NotConnectedError, "SharePoint not connected. Please connect in Admin > System > Connections." unless credential
+      new(credential, tenant: tenant)
+    end
+
+    # DEPRECATED: Use for_tenant instead
     # Factory method to create a provider for an organization
     # @param organization [Organization] The organization
     # @return [DocumentProviders::SharePoint] The provider instance
     def self.for_organization(organization)
-      # Use the existing credential lookup pattern
+      Rails.logger.warn "[DEPRECATED] SharePoint.for_organization - use for_tenant instead"
       credential = find_credential_for_organization(organization)
       raise NotConnectedError, "SharePoint not connected. Please connect in Admin > System > Connections." unless credential
-      new(credential)
+      new(credential, tenant: organization&.tenant)
     end
 
-    # Find the appropriate credential for an organization
+    # Find credential for tenant (SSoT: Jan 2026 fix)
+    def self.find_credential_for_tenant(tenant)
+      return nil unless defined?(MicrosoftCredential)
+      return nil unless tenant
+
+      # Get all organizations in this tenant
+      org_ids = tenant.organizations.pluck(:id)
+
+      if org_ids.any?
+        # Try tenant's org-specific delegated credentials first
+        cred = MicrosoftCredential.active
+                                  .where(organization_id: org_ids)
+                                  .delegated_credentials
+                                  .connected
+                                  .first
+        return cred if cred
+
+        # Also check app credentials for tenant's orgs
+        app_cred = MicrosoftCredential.active
+                                      .where(organization_id: org_ids)
+                                      .app_credentials
+                                      .connected
+                                      .first
+        return app_cred if app_cred
+      end
+
+      # Fall back to any org-level delegated credential
+      cred = MicrosoftCredential.delegated_credentials.org_level.active.first
+      return cred if cred
+
+      # Also check app credentials
+      app_cred = MicrosoftCredential.app_credentials.connected.first
+      return app_cred if app_cred
+
+      # Final fallback: any active SharePoint credential
+      MicrosoftCredential.sharepoint_credential
+    end
+
+    # Find the appropriate credential for an organization (legacy)
     # Note: Currently credentials are org-wide, not per-organization
     # Future: Add organization_id filtering when multi-org support is added
     def self.find_credential_for_organization(organization)
@@ -55,13 +103,14 @@ module DocumentProviders
         return app_cred if app_cred
       end
 
-      # Fall back to legacy OrganizationSharePointCredential (no org filtering - global)
+      # Final fallback: any active SharePoint credential
       MicrosoftCredential.sharepoint_credential
     end
 
-    def initialize(credential)
+    def initialize(credential, tenant: nil)
       super(credential)
       @client = MicrosoftGraphClient.new(credential)
+      @tenant = tenant
     end
 
     # ====================
@@ -331,7 +380,8 @@ module DocumentProviders
 
     # Get file by path
     def get_file_by_path(path)
-      encoded_path = path.sub(/^\//, "").split("/").map { |s| CGI.escape(s) }.join("/")
+      # Use %20 for spaces (not +) - required by Microsoft Graph API
+      encoded_path = path.sub(/^\//, "").split("/").map { |s| CGI.escape(s).gsub("+", "%20") }.join("/")
       @client.get("#{@client.send(:drive_path)}/root:/#{encoded_path}")
     rescue MicrosoftGraphClient::APIError => e
       return nil if e.message.include?("itemNotFound")

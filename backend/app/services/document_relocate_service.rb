@@ -1,74 +1,86 @@
-# Service to move/rename documents in OneDrive when their metadata changes
+# Service to move/rename documents in storage when their metadata changes
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 class DocumentRelocateService
+  include DocumentProviderAware
+
   class RelocateError < StandardError; end
 
   def initialize(document)
     @document = document
-    @credential = MicrosoftCredential.sharepoint_credential
-    @client = MicrosoftGraphClient.new(@credential) if @credential
   end
 
-  # Relocate document in OneDrive based on updated metadata
+  # Relocate document in storage based on updated metadata
   # This handles:
   # - Renaming the file (file_name change)
   # - Moving to different company folder (company_id change)
   # - Moving to different subfolder (folder change)
   def relocate!(new_company_id: nil, new_folder: nil, new_file_name: nil)
-    return { success: true, skipped: true, reason: "No OneDrive file" } unless @document.sharepoint_file_id.present?
-    return { success: false, error: "No OneDrive credential" } unless @client
+    # Check for storage identifier - SSoT: use storage_reference
+    file_identifier = @document.storage_reference
+    return { success: true, skipped: true, reason: "No storage file" } unless file_identifier.present?
+
+    # Setup provider
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      return { success: false, error: "Storage not connected: #{e.message}" }
+    end
 
     actions = []
-    drive_id = @credential.drive_id
-
-    # Get current file info
-    current_file = @client.get("/drives/#{drive_id}/items/#{@document.sharepoint_file_id}")
 
     # Determine what needs to change
     needs_rename = new_file_name.present? && new_file_name != @document.file_name
     needs_move = (new_company_id.present? && new_company_id.to_s != @document.company_id.to_s) ||
                  (new_folder.present? && new_folder != @document.folder)
 
-    # Calculate target folder if moving
+    # Calculate target folder path if moving
+    target_folder_path = nil
     if needs_move
-      target_folder_id = find_target_folder_id(
+      target_folder_path = build_target_folder_path(
         company_id: new_company_id || @document.company_id,
         folder: new_folder || @document.folder
       )
 
-      unless target_folder_id
-        return { success: false, error: "Target folder not found in OneDrive" }
+      unless target_folder_path
+        return { success: false, error: "Could not determine target folder path" }
       end
+
+      # Ensure target folder exists
+      get_or_create_folder_path(target_folder_path)
     end
 
-    # Build the update payload
-    update_payload = {}
-
-    # Add rename if needed
+    # Handle rename
     if needs_rename
       # Preserve file extension
-      current_extension = File.extname(current_file["name"])
-      # Sanitize the file_name for OneDrive (remove illegal characters)
-      sanitized_name = sanitize_onedrive_filename(new_file_name)
+      current_extension = File.extname(@document.file_name || "")
+      # Sanitize the file_name (remove illegal characters)
+      sanitized_name = sanitize_storage_filename(new_file_name)
       new_name = sanitized_name.end_with?(current_extension) ? sanitized_name : "#{sanitized_name}#{current_extension}"
-      update_payload[:name] = new_name
-      actions << { type: "rename", from: current_file["name"], to: new_name }
+      actions << { type: "rename", from: @document.file_name, to: new_name }
     end
 
-    # Add move if needed
-    if needs_move && target_folder_id
-      update_payload[:parentReference] = { id: target_folder_id }
-      actions << { type: "move", to_folder: target_folder_id }
+    # Handle move
+    if needs_move && target_folder_path
+      actions << { type: "move", to_folder: target_folder_path }
     end
 
-    # Execute the update if there are changes
-    if update_payload.present?
-      @client.patch("/drives/#{drive_id}/items/#{@document.sharepoint_file_id}", update_payload)
+    # Execute the operations
+    if actions.any?
+      # If both rename and move, do move with rename
+      if needs_rename && needs_move
+        result = move_file_in_provider(file_identifier, target_folder_path, new_name)
+      elsif needs_rename
+        result = rename_file_in_provider(file_identifier, new_name)
+      elsif needs_move
+        result = move_file_in_provider(file_identifier, target_folder_path, @document.file_name)
+      end
 
       # Update the document record
       updates = {}
-      updates[:file_name] = new_file_name if needs_rename
+      updates[:file_name] = new_name if needs_rename
       updates[:company_id] = new_company_id if new_company_id.present?
       updates[:folder] = new_folder if new_folder.present?
+      updates[:storage_path] = result[:path] if result.is_a?(Hash) && result[:path]
 
       @document.update!(updates)
 
@@ -81,9 +93,9 @@ class DocumentRelocateService
       { success: true, skipped: true, reason: "No changes required" }
     end
 
-  rescue MicrosoftGraphClient::APIError => e
+  rescue DocumentProviders::Error => e
     Rails.logger.error("Document relocate failed: #{e.message}")
-    { success: false, error: "OneDrive API error: #{e.message}" }
+    { success: false, error: "Storage API error: #{e.message}" }
   rescue StandardError => e
     Rails.logger.error("Document relocate failed: #{e.class} - #{e.message}")
     { success: false, error: e.message }
@@ -91,72 +103,27 @@ class DocumentRelocateService
 
   private
 
-  # Sanitize filename for OneDrive - remove characters not allowed by Microsoft
-  # SSoT: Use centralized SharePoint filename sanitization
-  # See lib/sharepoint/filename_sanitizer.rb for rules
-  def sanitize_onedrive_filename(filename)
+  # Sanitize filename for storage - remove illegal characters
+  # SSoT: Use centralized filename sanitization
+  def sanitize_storage_filename(filename)
+    return filename unless defined?(SharePoint::FilenameSanitizer)
     SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
-  # Find the SharePoint folder ID for the target company/folder
-  def find_target_folder_id(company_id:, folder:)
+  # Build target folder path for company/folder combination
+  # SSoT: Uses StorageConfiguration for path building
+  def build_target_folder_path(company_id:, folder:)
     company = CorporateCompany.find_by(id: company_id)
     return nil unless company
 
-    drive_id = @credential.drive_id
+    storage_config = StorageConfiguration.instance
+    base_path = storage_config.path_for(:corporate)
+    company_folder = company.document_folder_name || company.name
 
-    # First, find or verify company folder
-    company_folder_id = company.sharepoint_folder_id
-
-    unless company_folder_id
-      # Try to find company folder by name in the root
-      # SSoT: Use StorageConfiguration for corporate path
-      base_path = StorageConfiguration.instance.path_for(:corporate)
-      root_items = @client.get("/drives/#{drive_id}/root:/#{base_path}:/children")
-      company_folder = root_items["value"]&.find { |item| item["name"] == company.name && item["folder"].present? }
-      company_folder_id = company_folder&.dig("id")
-
-      # Update company record if found
-      company.update(sharepoint_folder_id: company_folder_id) if company_folder_id
-    end
-
-    return nil unless company_folder_id
-
-    # If no specific folder requested, return company root
-    return company_folder_id unless folder.present?
-
-    # Find subfolder within company folder
-    subfolders = @client.get("/drives/#{drive_id}/items/#{company_folder_id}/children")
-    target_subfolder = subfolders["value"]&.find do |item|
-      item["folder"].present? && item["name"].upcase == folder.upcase
-    end
-
-    if target_subfolder
-      target_subfolder["id"]
+    if folder.present?
+      "/#{base_path}/#{company_folder}/#{folder.upcase}"
     else
-      # Create the folder if it doesn't exist
-      create_folder(company_folder_id, folder)
+      "/#{base_path}/#{company_folder}"
     end
-  end
-
-  # Create a folder if it doesn't exist
-  def create_folder(parent_id, folder_name)
-    drive_id = @credential.drive_id
-
-    result = @client.post("/drives/#{drive_id}/items/#{parent_id}/children", {
-      name: folder_name.upcase,
-      folder: {},
-      "@microsoft.graph.conflictBehavior" => "fail"
-    })
-
-    result["id"]
-  rescue MicrosoftGraphClient::APIError => e
-    # Folder might already exist, try to get it
-    if e.message.include?("nameAlreadyExists")
-      subfolders = @client.get("/drives/#{drive_id}/items/#{parent_id}/children")
-      target = subfolders["value"]&.find { |item| item["name"].upcase == folder_name.upcase }
-      return target["id"] if target
-    end
-    nil
   end
 end

@@ -24,6 +24,7 @@ import { api } from "@/lib/api";
 import { User, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
+import { formatDateTime } from "@/utils/formatters";
 import Link from "next/link";
 
 interface CaseContactData {
@@ -203,7 +204,7 @@ export function EditCaseContactDialog({
                 </div>
                 <Link
                   href={`/contacts/${contactData.contact_id}`}
-                  className="text-sm text-blue-600 hover:text-blue-500 flex items-center gap-1"
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:text-blue-400 flex items-center gap-1"
                 >
                   View Contact
                   <ExternalLink className="h-3 w-3" />
@@ -309,7 +310,7 @@ export function EditCaseContactDialog({
                     Automatically link ALL emails from/to this contact to the case
                   </p>
                   {contactData.auto_linked_email_count !== undefined && contactData.auto_linked_email_count > 0 && (
-                    <p className="text-xs font-medium text-green-600 mt-1">
+                    <p className="text-xs font-medium text-green-600 dark:text-green-400 mt-1">
                       ✓ {contactData.auto_linked_email_count} emails auto-linked
                     </p>
                   )}
@@ -340,7 +341,7 @@ export function EditCaseContactDialog({
               {/* Reason */}
               <div className="space-y-2">
                 <Label htmlFor="reason">
-                  Reason <span className="text-red-500">*</span>
+                  Reason <span className="text-red-500 dark:text-red-400">*</span>
                 </Label>
                 <Textarea
                   id="reason"
@@ -361,13 +362,7 @@ export function EditCaseContactDialog({
               {contactData.added_by_name && contactData.added_at && (
                 <div className="p-3 bg-muted rounded-lg text-sm">
                   <p className="text-muted-foreground">
-                    Added {new Date(contactData.added_at).toLocaleDateString('en-AU', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })} by {contactData.added_by_name}
+                    Added {formatDateTime(contactData.added_at)} by {contactData.added_by_name}
                   </p>
                 </div>
               )}

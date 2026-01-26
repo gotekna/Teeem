@@ -16,7 +16,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { clearAllCachedRecords } from "@/lib/records-cache";
 import {
   Persona,
   getStoredPersona,
@@ -34,11 +37,30 @@ import {
   PopoverTrigger,
 } from "./popover";
 import { Badge } from "./badge";
-import { api } from "@/lib/api";
+import { api, getCurrentEnvironment } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
+import { useTenantOptional } from "@/contexts/TenantContext";
+import { Building2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useNavigation, useToggleNavCollapse, type NavigationItem, type NavigationChildItem } from "@/hooks/useNavigation";
 import { getIcon } from "@/lib/icon-map";
 import { SIDEBAR_NAVIGATION_EVENT } from "@/contexts/BreadcrumbContext";
+
+// Tenant info for sidebar display
+interface TenantInfo {
+  currentTenant: { id: number; name: string; slug: string; environment: string } | null;
+  tenants: { id: number; name: string; slug: string; environment: string }[];
+  isTeeemStaff: boolean;
+  canSwitchTenants: boolean;
+  switchTenant: (id: number) => Promise<boolean>;
+  isLoading: boolean;
+}
 
 // Props interface for SidebarContent - extracted to maintain stable component identity
 interface SidebarContentProps {
@@ -52,11 +74,13 @@ interface SidebarContentProps {
   backendVersion: string | null;
   herokuRelease: string | null;
   deployedAt: string | null;
+  apiEnvironment: string | null;
   user: { name?: string; email?: string } | null;
   mounted: boolean;
   resolvedTheme: string | undefined;
   setTheme: (theme: string) => void;
   handleLogout: () => void;
+  tenantInfo: TenantInfo | null;
 }
 
 // SidebarContent extracted OUTSIDE Sidebar to maintain stable React component identity
@@ -72,12 +96,74 @@ function SidebarContent({
   backendVersion,
   herokuRelease,
   deployedAt,
+  apiEnvironment,
   user,
   mounted,
   resolvedTheme,
   setTheme,
   handleLogout,
+  tenantInfo,
 }: SidebarContentProps) {
+  const queryClient = useQueryClient();
+  const [clearing, setClearing] = useState(false);
+
+  // Clear ALL app caches - use this after hotfixes
+  const handleClearCache = async () => {
+    setClearing(true);
+    try {
+      // 1. Clear React Query cache
+      queryClient.clear();
+      console.log("[ClearCache] React Query cache cleared");
+
+      // 2. Clear records cache (L1 + L2)
+      clearAllCachedRecords();
+      console.log("[ClearCache] Records cache cleared");
+
+      // 3. Clear app localStorage (but not auth)
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session")) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+      // 4. Clear sessionStorage (but not auth)
+      const sessionKeysToRemove: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && !key.includes("token") && !key.includes("auth") && !key.includes("session")) {
+          sessionKeysToRemove.push(key);
+        }
+      }
+      sessionKeysToRemove.forEach((key) => sessionStorage.removeItem(key));
+
+      console.log("[ClearCache] All caches cleared, reloading...");
+
+      // Brief feedback then reload
+      setTimeout(() => {
+        window.location.reload();
+      }, 300);
+    } catch (err) {
+      console.error("[ClearCache] Error:", err);
+      setClearing(false);
+    }
+  };
+
+  // Environment badge variant
+  const getEnvironmentBadgeVariant = (env: string) => {
+    switch (env) {
+      case 'production':
+        return 'default';
+      case 'beta':
+        return 'secondary';
+      case 'staging':
+        return 'outline';
+      default:
+        return 'outline';
+    }
+  };
   return (
     <div className="flex flex-col h-full">
       {/* Logo - only on mobile sheet */}
@@ -123,103 +209,96 @@ function SidebarContent({
               <span>{backendVersion}</span>
               {herokuRelease && <span>Heroku: {herokuRelease}</span>}
               {deployedAt && <span>D: {deployedAt}</span>}
+              {apiEnvironment && <span className="text-amber-500 font-medium">{apiEnvironment}</span>}
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
               <span>{backendVersion}</span>
               {herokuRelease && <span>{herokuRelease}</span>}
+              {apiEnvironment && <span className="text-amber-500">{apiEnvironment.charAt(0)}</span>}
             </div>
           )}
         </div>
       )}
 
-      {/* User Profile */}
+      {/* Company/Tenant Info - shows company name + environment for all users */}
+      {/* TEEEM staff can switch tenants, regular users just see their company */}
       <div className="p-2 border-t border-border">
-        <Popover>
-          <PopoverTrigger asChild>
+        {tenantInfo?.currentTenant ? (
+          tenantInfo.isTeeemStaff && tenantInfo.canSwitchTenants ? (
+            // TEEEM staff: dropdown to switch tenants
             <div
               className={cn(
-                "flex items-center gap-3 p-2 hover:bg-secondary/50 transition-colors cursor-pointer rounded-md",
+                "flex items-center gap-2 p-2",
                 !isExpanded && !mobile && "justify-center"
               )}
             >
-              <Avatar className="w-8 h-8">
-                <AvatarImage src="" />
-                <AvatarFallback>
-                  {user?.name
-                    ?.split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-              {(isExpanded || mobile) && (
-                <div className="flex flex-col overflow-hidden flex-1">
-                  <span className="text-sm font-medium truncate">{user?.name || "User"}</span>
-                  <span className="text-xs text-muted-foreground truncate">
-                    {user?.email || ""}
-                  </span>
+              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              {(isExpanded || mobile) ? (
+                <select
+                  value={tenantInfo.currentTenant.id.toString()}
+                  onChange={(e) => {
+                    tenantInfo.switchTenant(parseInt(e.target.value, 10));
+                  }}
+                  disabled={tenantInfo.isLoading}
+                  className="h-7 text-xs flex-1 border border-border bg-background px-2 py-1 rounded min-w-0"
+                >
+                  {tenantInfo.tenants.map((t) => (
+                    <option key={t.id} value={t.id.toString()}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                // Collapsed: just show tooltip on hover
+                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
+                  {tenantInfo.currentTenant.name}
                 </div>
               )}
             </div>
-          </PopoverTrigger>
-          <PopoverContent side="right" align="end" className="w-56 p-2 ml-2">
-            <div className="flex flex-col gap-1">
-              <Link
-                href="/profile"
-                prefetch={false}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
-              >
-                <Users className="h-4 w-4" />
-                Profile
-              </Link>
-              <Link
-                href="/settings"
-                prefetch={false}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
-              >
-                <Settings className="h-4 w-4" />
-                Settings
-              </Link>
-              <div className="my-1 border-t border-border" />
-              <button
-                onClick={() => {
-                  // Only toggle if we have a resolved theme to avoid race conditions
-                  if (mounted && resolvedTheme) {
-                    setTheme(resolvedTheme === "dark" ? "light" : "dark");
-                  }
-                }}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left"
-              >
-                {/* Show consistent icon based on actual resolved theme, with fallback for SSR */}
-                {mounted && resolvedTheme ? (
-                  resolvedTheme === "dark" ? (
-                    <Sun className="h-4 w-4" />
-                  ) : (
-                    <Moon className="h-4 w-4" />
-                  )
-                ) : (
-                  // Neutral placeholder during hydration to prevent flash
-                  <div className="h-4 w-4" />
-                )}
-                {mounted && resolvedTheme
-                  ? resolvedTheme === "dark"
-                    ? "Light mode"
-                    : "Dark mode"
-                  : "Loading..."}
-              </button>
-              <div className="my-1 border-t border-border" />
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left text-destructive"
-              >
-                <LogOut className="h-4 w-4" />
-                Sign out
-              </button>
+          ) : (
+            // Regular users: just display company name
+            <div
+              className={cn(
+                "flex items-center gap-2 p-2 group relative",
+                !isExpanded && !mobile && "justify-center"
+              )}
+            >
+              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              {(isExpanded || mobile) ? (
+                <span className="text-sm font-medium truncate flex-1 min-w-0">
+                  {tenantInfo.currentTenant.name}
+                </span>
+              ) : (
+                // Collapsed: show tooltip on hover
+                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
+                  {tenantInfo.currentTenant.name}
+                </div>
+              )}
             </div>
-          </PopoverContent>
-        </Popover>
+          )
+        ) : null}
       </div>
+
+      {/* Clear Cache Button - visible when sidebar expanded or mobile */}
+      {(isExpanded || mobile) && (
+        <div className="px-2 pb-2">
+          <button
+            onClick={handleClearCache}
+            disabled={clearing}
+            className={cn(
+              "w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-all",
+              clearing
+                ? "bg-red-300 text-white cursor-wait"
+                : "bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:bg-red-500/20 dark:text-red-400 dark:hover:bg-red-500/30"
+            )}
+            title="Clear all cached data and refresh"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {clearing ? "Clearing..." : "Clear Cache"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -231,6 +310,7 @@ export function Sidebar() {
   const [emailAccountBadges, setEmailAccountBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
+  const [apiEnvironment, setApiEnvironment] = useState<string | null>(null);
 
   // Fetch navigation from API (SSoT - order from NavigationItem, collapse from user prefs)
   const { data: apiNavigation, isLoading: navLoading, isError: navError } = useNavigation();
@@ -242,11 +322,31 @@ export function Sidebar() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
 
+  // Tenant context for company/environment display
+  const tenantContext = useTenantOptional();
+
   // Track mounted state for theme hydration (next-themes fix)
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Load API environment - prefer TenantContext (for tenant switching), fallback to localStorage
+  useEffect(() => {
+    // First check TenantContext (for TEEEM staff switching tenants)
+    const tenantEnv = tenantContext?.currentTenant?.environment;
+    if (tenantEnv && tenantEnv !== 'production') {
+      setApiEnvironment(tenantEnv.charAt(0).toUpperCase() + tenantEnv.slice(1));
+      return;
+    }
+    // Fallback to localStorage (set during login)
+    const env = getCurrentEnvironment();
+    if (env && env !== 'production') {
+      setApiEnvironment(env.charAt(0).toUpperCase() + env.slice(1));
+    } else {
+      setApiEnvironment(null);
+    }
+  }, [tenantContext?.currentTenant?.environment]);
 
   // Prevent duplicate fetches (React StrictMode double-mount)
   const badgeFetchingRef = useRef(false);
@@ -399,7 +499,7 @@ export function Sidebar() {
 
       // Load unread email counts
       const emailResponse = await safeFetch<{ total: number; by_account: Array<{ email: string; count: number }> }>(
-        "/api/v1/email_warehouse/unread_counts"
+        "/api/v1/synced_emails/unread_counts"
       );
       if (emailResponse) {
         setBadges(prev => ({ ...prev, unreadEmails: emailResponse.total || 0 }));
@@ -479,8 +579,8 @@ export function Sidebar() {
   ) => {
     const ItemIcon = getIcon(item.icon);
     const active = isActive(item.href);
-    // Check for email account badge (href like /email?account=X means it's an email account)
-    const isEmailAccount = item.href.startsWith('/email?account=');
+    // Check for email account badge (href like /email/x@y.com or /email?account=X)
+    const isEmailAccount = item.href.startsWith('/email/') || item.href.startsWith('/email?account=');
     const emailAccountCount = isEmailAccount ? (emailAccountBadges[item.name.toLowerCase()] ?? 0) : null;
     const badgeCount = emailAccountCount !== null ? emailAccountCount : (item.badge_key ? badges[item.badge_key] : 0);
     const showBadge = emailAccountCount !== null || badgeCount > 0; // Always show for email accounts
@@ -490,9 +590,8 @@ export function Sidebar() {
     const handleDoubleClick = (e: React.MouseEvent) => {
       if (isEmailAccount) {
         e.preventDefault();
-        const standaloneUrl = item.href.includes('?')
-          ? `${item.href}&standalone=true`
-          : `${item.href}?standalone=true`;
+        // Use path segment for standalone: /email/x@y.com/standalone
+        const standaloneUrl = `${item.href}/standalone`;
         window.open(standaloneUrl, '_blank');
       }
     };
@@ -734,6 +833,16 @@ export function Sidebar() {
   };
 
   // Common props for SidebarContent
+  // Build tenant info for sidebar display
+  const tenantInfo: TenantInfo | null = tenantContext ? {
+    currentTenant: tenantContext.currentTenant,
+    tenants: tenantContext.tenants,
+    isTeeemStaff: tenantContext.isTeeemStaff,
+    canSwitchTenants: tenantContext.canSwitchTenants,
+    switchTenant: tenantContext.switchTenant,
+    isLoading: tenantContext.isLoading,
+  } : null;
+
   const sidebarContentProps = {
     isExpanded,
     navRef,
@@ -744,11 +853,13 @@ export function Sidebar() {
     backendVersion,
     herokuRelease,
     deployedAt,
+    apiEnvironment,
     user,
     mounted,
     resolvedTheme,
     setTheme,
     handleLogout,
+    tenantInfo,
   };
 
   return (
@@ -780,6 +891,48 @@ export function Sidebar() {
           isExpanded ? "w-[240px]" : "w-[70px]"
         )}
       >
+        {/* DEBUG: Direct tenant switch buttons - NOT in SidebarContent */}
+        {tenantContext?.isTeeemStaff && tenantContext?.canSwitchTenants && isExpanded && (
+          <div
+            className="p-2 bg-red-100 dark:bg-red-900 border-b border-red-300 flex gap-1"
+            onMouseDown={() => console.log('[DEBUG] Container mousedown!')}
+            onPointerDown={() => console.log('[DEBUG] Container pointerdown!')}
+          >
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                console.log('[DEBUG] Button mousedown!', e.target);
+              }}
+              onPointerDown={(e) => {
+                console.log('[DEBUG] Button pointerdown!', e.target);
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[DEBUG] Direct Pilgrim click!');
+                tenantContext.switchTenant(77);
+              }}
+              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+              style={{ pointerEvents: 'auto', position: 'relative', zIndex: 9999 }}
+            >
+              Pilgrim (77)
+            </button>
+            <button
+              type="button"
+              onMouseDown={() => console.log('[DEBUG] Teeem mousedown!')}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[DEBUG] Direct Teeem click!');
+                tenantContext.switchTenant(76);
+              }}
+              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+              style={{ pointerEvents: 'auto', position: 'relative', zIndex: 9999 }}
+            >
+              Teeem (76)
+            </button>
+          </div>
+        )}
         <SidebarContent {...sidebarContentProps} />
         {/* Chevron Toggle Button */}
         <button

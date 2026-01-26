@@ -1,6 +1,9 @@
 require "anthropic"
 
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 class DocumentDuplicateService
+  include DocumentProviderAware
+
   MODEL = "claude-sonnet-4-20250514"
 
   class DuplicateError < StandardError; end
@@ -47,7 +50,7 @@ class DocumentDuplicateService
         created_at: doc.created_at,
         file_size: doc.file_size,
         ai_status: doc.ai_verification_status,
-        sharepoint_file_id: doc.sharepoint_file_id,
+        storage_reference: doc.storage_reference,
         content_preview: extract_content_preview(doc)
       }
     end
@@ -217,19 +220,21 @@ class DocumentDuplicateService
       created_at: doc.created_at,
       file_size: doc.file_size,
       ai_verification_status: doc.ai_verification_status,
-      sharepoint_file_id: doc.sharepoint_file_id
+      storage_reference: doc.storage_reference
     }
   end
 
+  # Extract content preview using provider-agnostic storage
+  # SSoT: Uses DocumentStorageService for downloads
   def self.extract_content_preview(doc)
-    return nil unless doc.sharepoint_file_id.present?
+    return nil unless doc.storage_reference.present?
 
     begin
-      credential = MicrosoftCredential.sharepoint_credential
-      return nil unless credential
+      service = DocumentStorageService.new
+      result = service.download(doc)
+      return nil unless result[:success]
 
-      client = MicrosoftGraphClient.new(credential)
-      content = client.download_file(doc.sharepoint_file_id)
+      content = result[:content]
 
       # Extract text preview based on file type
       if doc.file_name&.end_with?(".pdf")
@@ -238,6 +243,9 @@ class DocumentDuplicateService
         # For other files, just get first 500 chars
         content.to_s.force_encoding("UTF-8").scrub[0..500]
       end
+    rescue DocumentProviders::Error => e
+      Rails.logger.warn("Could not extract content preview for doc #{doc.id}: #{e.message}")
+      nil
     rescue StandardError => e
       Rails.logger.warn("Could not extract content preview for doc #{doc.id}: #{e.message}")
       nil
@@ -288,7 +296,7 @@ class DocumentDuplicateService
         Created: #{d[:created_at]}
         File Size: #{d[:file_size]} bytes
         AI Status: #{d[:ai_status]}
-        OneDrive ID: #{d[:sharepoint_file_id]}
+        Storage ID: #{d[:storage_reference]}
         Content Preview: #{d[:content_preview] || "(could not extract)"}
       DOC
     end.join("\n---\n")
@@ -402,34 +410,32 @@ class DocumentDuplicateService
     }
   end
 
+  # Rename document using provider-agnostic storage
+  # SSoT: Uses DocumentRenameService for provider-agnostic rename
   def self.rename_document(document_id, new_name)
     doc = CorporateCompanyDocument.find(document_id)
 
-    # Rename in SharePoint
-    if doc.sharepoint_file_id.present?
-      credential = MicrosoftCredential.sharepoint_credential
-      if credential
-        client = MicrosoftGraphClient.new(credential)
-        client.rename_file(doc.sharepoint_file_id, new_name)
-      end
+    # Use DocumentRenameService for provider-agnostic rename
+    service = DocumentRenameService.new(doc)
+    result = service.rename!(new_name)
+
+    if result[:success]
+      {
+        success: true,
+        document_id: doc.id,
+        old_name: result[:old_name],
+        new_name: result[:new_name],
+        message: "Renamed document from '#{result[:old_name]}' to '#{result[:new_name]}'"
+      }
+    else
+      { error: result[:error] || "Rename failed" }
     end
-
-    # Update database
-    old_name = doc.file_name
-    doc.update!(file_name: new_name)
-
-    {
-      success: true,
-      document_id: doc.id,
-      old_name: old_name,
-      new_name: new_name,
-      message: "Renamed document from '#{old_name}' to '#{new_name}'"
-    }
   rescue StandardError => e
     { error: "Rename failed: #{e.message}" }
   end
 
   # Merge multiple PDFs into one combined PDF
+  # SSoT: Uses DocumentStorageService for provider-agnostic operations
   def self.merge_documents(document_ids, keep_id)
     docs = CorporateCompanyDocument.where(id: document_ids).includes(:corporate_company)
     return { error: "No documents found" } if docs.empty?
@@ -447,17 +453,18 @@ class DocumentDuplicateService
     end
 
     begin
-      credential = MicrosoftCredential.sharepoint_credential
-      return { error: "No active OneDrive credential" } unless credential
+      storage_service = DocumentStorageService.new
 
-      client = MicrosoftGraphClient.new(credential)
-
-      # Download all PDFs
+      # Download all PDFs using provider-agnostic service
       pdf_contents = docs.order(:created_at).map do |doc|
+        result = storage_service.download(doc)
+        unless result[:success]
+          raise "Could not download document #{doc.id}: #{result[:error]}"
+        end
         {
           id: doc.id,
           file_name: doc.file_name,
-          content: client.download_file(doc.sharepoint_file_id)
+          content: result[:content]
         }
       end
 
@@ -476,30 +483,42 @@ class DocumentDuplicateService
       merged_pdf.write(output)
       merged_content = output.string
 
-      # Upload merged PDF (replace the keep document)
-      file_info = client.get_item(keep_doc.sharepoint_file_id)
-      parent_folder_id = file_info.dig("parentReference", "id")
+      # Get parent folder path from the document being kept
+      parent_folder_path = if keep_doc.storage_path.present?
+        File.dirname(keep_doc.storage_path)
+      elsif keep_doc.respond_to?(:folder) && keep_doc.folder.present?
+        storage_config = StorageConfiguration.instance
+        base_path = storage_config.path_for(:corporate)
+        company = keep_doc.corporate_company
+        company_folder = company&.document_folder_name || company&.name
+        "/#{base_path}/#{company_folder}/#{keep_doc.folder}"
+      else
+        raise "Cannot determine parent folder for merged document"
+      end
 
       # Delete original keep file first
-      client.delete_file(keep_doc.sharepoint_file_id) rescue nil
+      storage_service.delete(keep_doc) rescue nil
 
       # Upload merged file with same name
-      result = client.upload_file_content(parent_folder_id, keep_doc.file_name, merged_content)
+      instance = new(nil)
+      instance.send(:setup_default_provider!)
+      result = instance.send(:upload_to_provider, parent_folder_path, merged_content, keep_doc.file_name, content_type: "application/pdf")
 
       # Update keep document record
       keep_doc.update!(
         sharepoint_file_id: result[:id],
+        storage_path: result[:path],
         file_size: merged_content.bytesize,
         ai_verification_status: "pending", # Re-verify merged doc
         ai_analysis_notes: "Merged from #{docs.count} documents: #{docs.pluck(:id).join(', ')}"
       )
 
-      # Delete other documents from SharePoint and database
+      # Delete other documents from storage and database
       other_docs.each do |doc|
         begin
-          client.delete_file(doc.sharepoint_file_id) if doc.sharepoint_file_id.present?
+          storage_service.delete(doc)
         rescue StandardError => e
-          Rails.logger.warn("Could not delete SharePoint file #{doc.sharepoint_file_id}: #{e.message}")
+          Rails.logger.warn("Could not delete storage file for doc #{doc.id}: #{e.message}")
         end
         doc.destroy
       end
@@ -513,6 +532,9 @@ class DocumentDuplicateService
         message: "Merged #{docs.count} documents into #{keep_doc.file_name} (#{merged_pdf.pages.count} pages)"
       }
 
+    rescue DocumentProviders::Error => e
+      Rails.logger.error("PDF merge storage error: #{e.message}")
+      { error: "Merge failed: #{e.message}" }
     rescue StandardError => e
       Rails.logger.error("PDF merge failed: #{e.message}")
       Rails.logger.error(e.backtrace.first(10).join("\n"))
@@ -533,6 +555,7 @@ class DocumentDuplicateService
 
   # Mark documents for deletion by renaming with DELETE prefix
   # This is a safety net - users can review before permanently deleting
+  # SSoT: Uses DocumentRenameService for provider-agnostic rename
   def self.mark_for_deletion(document_ids)
     results = []
 
@@ -546,17 +569,26 @@ class DocumentDuplicateService
       new_name = "#{DELETE_PREFIX}#{doc.file_name}"
 
       begin
-        # Rename in SharePoint
-        if doc.sharepoint_file_id.present?
-          credential = MicrosoftCredential.sharepoint_credential
-          if credential
-            client = MicrosoftGraphClient.new(credential)
-            client.rename_file(doc.sharepoint_file_id, new_name)
+        # Use DocumentRenameService for provider-agnostic rename
+        service = DocumentRenameService.new(doc)
+        # Bypass skip_rename check for deletion marking
+        old_name = doc.file_name
+
+        # Direct rename in storage if identifier exists - SSoT: use storage_reference
+        if doc.storage_reference.present?
+          instance = new(nil)
+          begin
+            instance.send(:setup_default_provider!)
+            file_identifier = doc.storage_reference
+            instance.send(:rename_file_in_provider, file_identifier, new_name)
+          rescue DocumentProviders::NotConnectedError
+            # Continue with database update even if storage rename fails
+          rescue DocumentProviders::Error => e
+            Rails.logger.warn("Could not rename in storage for doc #{doc.id}: #{e.message}")
           end
         end
 
         # Update database
-        old_name = doc.file_name
         doc.update!(file_name: new_name)
         Rails.logger.info("Marked for deletion: #{old_name} -> #{new_name}")
 
@@ -571,20 +603,22 @@ class DocumentDuplicateService
   end
 
   # Actually delete documents (for when user confirms deletion of marked files)
+  # SSoT: Uses DocumentStorageService for provider-agnostic deletion
   def self.permanently_delete(document_ids)
+    storage_service = DocumentStorageService.new
+
     CorporateCompanyDocument.where(id: document_ids).find_each do |doc|
-      # Delete from SharePoint
-      if doc.sharepoint_file_id.present?
+      # Delete from storage (provider-agnostic) - SSoT: use storage_reference
+      if doc.storage_reference.present?
         begin
-          credential = MicrosoftCredential.sharepoint_credential
-          if credential
-            client = MicrosoftGraphClient.new(credential)
-            client.delete_file(doc.sharepoint_file_id)
-            Rails.logger.info("Permanently deleted SharePoint file: #{doc.sharepoint_file_id}")
-          end
+          storage_service.delete(doc)
+          Rails.logger.info("Permanently deleted storage file for doc #{doc.id}")
+        rescue DocumentProviders::Error => e
+          Rails.logger.warn("Could not delete storage file for doc #{doc.id}: #{e.message}")
+          # Continue with database deletion even if storage fails
         rescue StandardError => e
-          Rails.logger.warn("Could not delete SharePoint file #{doc.sharepoint_file_id}: #{e.message}")
-          # Continue with database deletion even if SharePoint fails
+          Rails.logger.warn("Could not delete storage file for doc #{doc.id}: #{e.message}")
+          # Continue with database deletion even if storage fails
         end
       end
 
@@ -607,6 +641,7 @@ class DocumentDuplicateService
   end
 
   # Restore a document marked for deletion (remove DELETE prefix)
+  # SSoT: Uses DocumentProviderAware for provider-agnostic rename
   def self.restore_document(document_id)
     doc = CorporateCompanyDocument.find(document_id)
 
@@ -616,12 +651,17 @@ class DocumentDuplicateService
 
     new_name = doc.file_name.sub(DELETE_PREFIX, "")
 
-    # Rename in SharePoint
-    if doc.sharepoint_file_id.present?
-      credential = MicrosoftCredential.sharepoint_credential
-      if credential
-        client = MicrosoftGraphClient.new(credential)
-        client.rename_file(doc.sharepoint_file_id, new_name)
+    # Rename in storage (provider-agnostic) - SSoT: use storage_reference
+    if doc.storage_reference.present?
+      begin
+        instance = new(nil)
+        instance.send(:setup_default_provider!)
+        file_identifier = doc.storage_reference
+        instance.send(:rename_file_in_provider, file_identifier, new_name)
+      rescue DocumentProviders::NotConnectedError
+        # Continue with database update even if storage rename fails
+      rescue DocumentProviders::Error => e
+        Rails.logger.warn("Could not rename in storage for restore: #{e.message}")
       end
     end
 

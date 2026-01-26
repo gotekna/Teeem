@@ -76,7 +76,7 @@ export function QuickWinsCard({ quickWins, onFix, loading }: QuickWinsCardProps)
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
-            <Spinner size={24} className="text-orange-500" />
+            <Spinner size={24} className="text-orange-500 dark:text-orange-400" />
           </div>
         </CardContent>
       </Card>
@@ -129,7 +129,7 @@ export function QuickWinsCard({ quickWins, onFix, loading }: QuickWinsCardProps)
             )}
           >
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <Zap className="h-4 w-4 text-orange-500 flex-shrink-0" />
+              <Zap className="h-4 w-4 text-orange-500 dark:text-orange-400 flex-shrink-0" />
               <div className="min-w-0">
                 <p className="font-medium text-sm truncate">
                   {quickWin.title}
@@ -143,7 +143,7 @@ export function QuickWinsCard({ quickWins, onFix, loading }: QuickWinsCardProps)
             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
               <Badge
                 variant="secondary"
-                className="bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300 font-mono"
+                className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 dark:bg-orange-900/50 dark:text-orange-300 font-mono"
               >
                 +{quickWin.points} pts
               </Badge>

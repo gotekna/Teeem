@@ -1,6 +1,8 @@
 module Api
   module V1
     class PricebookItemsController < ApplicationController
+      include DocumentProviderAware
+
       before_action :set_pricebook_item, only: [ :show, :update, :destroy, :history, :fetch_image, :update_image, :add_price, :set_default_supplier, :delete_price_history, :update_price_history, :proxy_image ]
 
       # GET /api/v1/pricebook
@@ -719,11 +721,12 @@ module Api
       end
 
       # GET /api/v1/pricebook/:id/proxy_image/:file_type
-      # Proxies OneDrive images through our backend to avoid CORS and expiration issues
+      # Proxies images through our backend to avoid CORS and expiration issues
+      # SSoT: Uses DocumentProviderAware for provider-agnostic storage
       def proxy_image
         file_type = params[:file_type] # 'image', 'spec', or 'qr_code'
 
-        # Get the file ID based on the file type
+        # Get the file ID and path based on the file type
         file_id = case file_type
         when "image"
           @item.image_file_id
@@ -735,22 +738,24 @@ module Api
           return render json: { error: "Invalid file type" }, status: :bad_request
         end
 
-        if file_id.blank?
+        # Also check for path (used by S3/Wasabi)
+        file_path = case file_type
+        when "image"
+          @item.respond_to?(:image_path) ? @item.image_path : nil
+        when "spec"
+          @item.respond_to?(:spec_path) ? @item.spec_path : nil
+        when "qr_code"
+          @item.respond_to?(:qr_code_path) ? @item.qr_code_path : nil
+        else
+          nil
+        end
+
+        if file_id.blank? && file_path.blank?
           return render json: { error: "File not found" }, status: :not_found
         end
 
         begin
-          # SSoT: Use MicrosoftCredential
-          credential = MicrosoftCredential.sharepoint_credential
-          unless credential && credential.valid_credential?
-            return render json: { error: "SharePoint not connected" }, status: :service_unavailable
-          end
-
-          # Initialize Microsoft Graph client
-          client = MicrosoftGraphClient.new(credential)
-
-          # Get file content from OneDrive
-          response = client.get_file_content(file_id)
+          setup_default_provider!
 
           # Detect content type from file extension or default to image/jpeg
           content_type = case File.extname(@item.send("#{file_type}_url") || "").downcase
@@ -764,11 +769,34 @@ module Api
             "application/octet-stream"
           end
 
+          response = nil
+
+          if current_provider_type == :sharepoint && file_id.present?
+            # SharePoint: Download by file ID
+            credential = MicrosoftCredential.sharepoint_credential
+            unless credential && credential.valid_credential?
+              return render json: { error: "Storage not connected" }, status: :service_unavailable
+            end
+            client = MicrosoftGraphClient.new(credential)
+            response = client.get_file_content(file_id)
+          elsif file_path.present?
+            # S3/Wasabi: Download by path
+            response = download_from_provider(file_path)
+          else
+            return render json: { error: "File not available for current storage provider" }, status: :not_found
+          end
+
           # Set caching headers (cache for 1 hour)
           expires_in 1.hour, public: true
 
           # Stream the file content
           send_data response, type: content_type, disposition: "inline"
+        rescue DocumentProviders::NotConnectedError => e
+          Rails.logger.error "Storage not connected: #{e.message}"
+          render json: { error: "Storage not connected" }, status: :service_unavailable
+        rescue DocumentProviders::Error => e
+          Rails.logger.error "Storage error proxying image: #{e.message}"
+          render json: { error: "Failed to fetch image" }, status: :internal_server_error
         rescue => e
           Rails.logger.error "Error proxying image: #{e.message}"
           render json: { error: "Failed to fetch image" }, status: :internal_server_error

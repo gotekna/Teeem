@@ -74,7 +74,7 @@ export interface TokenBuilderProps {
   /** Whether preview should use long variants */
   previewUseLong?: boolean;
   /** Label for the field */
-  label?: string;
+  label?: React.ReactNode;
   /** Placeholder text for empty state */
   placeholder?: string;
   /** Whether the field is disabled */
@@ -87,6 +87,8 @@ export interface TokenBuilderProps {
   helpText?: string;
   /** Whether palette is expanded by default */
   defaultExpanded?: boolean;
+  /** Separator between tokens. Use "/" for folder paths, " " for text. Default: " " */
+  separator?: string;
 }
 
 // Token item with unique ID for drag-and-drop
@@ -203,7 +205,8 @@ export function TokenBuilder({
   className,
   error,
   helpText,
-  defaultExpanded = true,
+  defaultExpanded = false,
+  separator = " ",
 }: TokenBuilderProps) {
   const [customText, setCustomText] = React.useState("");
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -228,13 +231,22 @@ export function TokenBuilder({
   }, [allPlaceholders, search]);
 
   // Parse current value into tokens with unique IDs
+  // When separator is "/" (folder paths), hide separator-only text tokens
+  const isFolderPathMode = separator === "/";
+
   const tokens: TokenItem[] = React.useMemo(() => {
-    const parsed = parseTemplate(value);
-    return parsed.map((token, index) => ({
+    const parsed = parseTemplate(value ?? "");
+
+    // In folder path mode, filter out separator-only text tokens
+    const filtered = isFolderPathMode
+      ? parsed.filter(token => !(token.type === "text" && token.value.trim() === "/"))
+      : parsed;
+
+    return filtered.map((token, index) => ({
       ...token,
       id: `token-${index}-${token.value}`,
     }));
-  }, [value]);
+  }, [value, isFolderPathMode]);
 
   // Find active item for drag overlay
   const activeItem = React.useMemo(
@@ -246,25 +258,26 @@ export function TokenBuilder({
   const preview = React.useMemo(() => {
     if (!showPreview) return "";
     if (previewData) {
-      let result = value;
+      let result = value ?? "";  // Handle null value
       Object.entries(previewData).forEach(([key, val]) => {
         // Support both {Key} and {{Key}} formats
         result = result.replace(new RegExp(`\\{\\{?${key}\\}\\}?`, "g"), val);
       });
       return result;
     }
-    return resolveWithExamples(value, previewUseLong);
+    return resolveWithExamples(value ?? "", previewUseLong);  // Handle null value
   }, [value, showPreview, previewData, previewUseLong]);
 
-  // Insert a token at the end (auto-add space if needed)
+  // Insert a token at the end (auto-add separator if needed)
   const insertToken = (code: string) => {
     if (!value) {
       onChange(code);
     } else {
-      // Auto-add space unless value ends with space or separator
+      // Auto-add separator unless value ends with a separator character
       const lastChar = value.slice(-1);
-      const noSpaceNeeded = lastChar === " " || lastChar === "-" || lastChar === "_" || lastChar === "/" || lastChar === "(";
-      const newValue = noSpaceNeeded ? `${value}${code}` : `${value} ${code}`;
+      const separators = [" ", "-", "_", "/", "("];
+      const noSeparatorNeeded = separators.includes(lastChar);
+      const newValue = noSeparatorNeeded ? `${value}${code}` : `${value}${separator}${code}`;
       onChange(newValue);
     }
   };
@@ -272,7 +285,14 @@ export function TokenBuilder({
   // Remove a token at index
   const removeToken = (index: number) => {
     const newTokens = tokens.filter((_, i) => i !== index);
-    onChange(buildTemplate(newTokens.map(({ type, value }) => ({ type, value }))));
+
+    // In folder path mode, rebuild by joining placeholders with separator
+    if (isFolderPathMode) {
+      const newValue = newTokens.map(t => t.value).join(separator);
+      onChange(newValue);
+    } else {
+      onChange(buildTemplate(newTokens.map(({ type, value }) => ({ type, value }))));
+    }
   };
 
   // Add custom text
@@ -306,7 +326,14 @@ export function TokenBuilder({
       const oldIndex = tokens.findIndex((t) => t.id === active.id);
       const newIndex = tokens.findIndex((t) => t.id === over.id);
       const reordered = arrayMove(tokens, oldIndex, newIndex);
-      onChange(buildTemplate(reordered.map(({ type, value }) => ({ type, value }))));
+
+      // In folder path mode, rebuild by joining with separator
+      if (isFolderPathMode) {
+        const newValue = reordered.map(t => t.value).join(separator);
+        onChange(newValue);
+      } else {
+        onChange(buildTemplate(reordered.map(({ type, value }) => ({ type, value }))));
+      }
     }
   };
 
@@ -425,16 +452,20 @@ export function TokenBuilder({
                       type="button"
                       onClick={() => insertToken(p.code)}
                       className={cn(
-                        "inline-flex items-center gap-1 px-2 py-1 rounded-none border text-xs font-mono",
-                        "hover:shadow-sm transition-all cursor-pointer hover:scale-105",
+                        "inline-flex items-center gap-1.5 px-2 py-1.5 rounded-none border text-xs font-mono",
+                        "hover:shadow-sm transition-all cursor-pointer hover:scale-[1.02]",
                         colorClasses.bg,
                         colorClasses.text,
                         colorClasses.border
                       )}
                       title={p.description || `Add ${p.code}`}
                     >
-                      <Plus className="h-2.5 w-2.5 opacity-60" />
-                      {p.code}
+                      <Plus className="h-2.5 w-2.5 opacity-60 flex-shrink-0" />
+                      <span className="flex items-center gap-1.5">
+                        <span>{p.code}</span>
+                        <span className="opacity-50">→</span>
+                        <span className="opacity-70 truncate">{p.example}</span>
+                      </span>
                     </button>
                   );
                 })}

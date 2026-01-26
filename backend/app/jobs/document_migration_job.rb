@@ -101,9 +101,22 @@ class DocumentMigrationJob < ApplicationJob
       # Step 1: Get source provider
       source_provider = get_provider(source_provider_type, organization)
 
-      # Step 2: Download file content from source
+      # Step 2: Determine download reference
+      # Primary: storage_reference (file ID or path)
+      # Fallback: expected_storage_path (for Xero-imported docs without file_url)
+      download_ref = document.storage_reference.presence
+      if download_ref.blank? && document.respond_to?(:expected_storage_path)
+        download_ref = document.expected_storage_path
+        Rails.logger.info "[DocumentMigration] Using expected_storage_path: #{download_ref}"
+      end
+
+      if download_ref.blank?
+        raise StandardError, "No storage reference or expected path available for download"
+      end
+
+      # Step 3: Download file content from source
       Rails.logger.info "[DocumentMigration] Downloading from #{source_provider_type}..."
-      content = source_provider.download_file(document.storage_reference)
+      content = source_provider.download_file(download_ref)
 
       unless content.present?
         raise StandardError, "Failed to download file from #{source_provider_type}"
@@ -187,13 +200,16 @@ class DocumentMigrationJob < ApplicationJob
 
   private
 
-  # Find the organization for a document based on its type
-  # For single-tenant usage (Tekna), Organization.first is the SSoT.
-  # Note: Most models don't have direct organization associations.
+  # SSoT (Jan 2026): Derive organization from tenant
+  # Uses ActsAsTenant.current_tenant which should be set when job is enqueued
   def find_organization(_document)
-    # Single-tenant: Always use the primary organization (Tekna)
-    # which has S3/SharePoint configured
-    Organization.first
+    tenant = ActsAsTenant.current_tenant
+    if tenant
+      tenant.organizations.first
+    else
+      Rails.logger.warn "[DocumentMigration] No tenant context - falling back to first organization"
+      Organization.first
+    end
   end
 
   # Get the appropriate provider for a given type
@@ -213,33 +229,67 @@ class DocumentMigrationJob < ApplicationJob
   end
 
   # Build folder path for document based on type
-  # Uses clean, URL-friendly paths: jobs/49/contract/po-49678.pdf
+  # SSoT: Uses StorageConfiguration.instance.path_for() for base folder names
+  # This ensures consistency between migration paths and UI display
   def build_folder_path(document, document_type)
+    storage_config = StorageConfiguration.instance
+
     case document_type
     when 'JobDocument'
       job = document.job
+      # SSoT: Get base folder from StorageConfiguration (e.g., "jobs")
+      base_folder = storage_config.path_for(:job)
       subfolder = slugify_path(document.folder_path.presence || "documents")
       filename = slugify_filename(document.file_name)
-      "jobs/#{job.id}/#{subfolder}/#{filename}"
+      "#{base_folder}/#{job.id}/#{subfolder}/#{filename}"
 
     when 'CorporateCompanyDocument'
-      company = document.corporate_company
-      if company
+      # SSoT: Task documents use EntityTab storage_folder_path template
+      task_attachment = document.sm_task_attachments.first
+      if task_attachment&.sm_task
+        task = task_attachment.sm_task
+        filename = slugify_filename(document.file_name)
+
+        # SSoT: Get path from EntityTab (scope: task) + StorageConfiguration
+        entity_tab = EntityTab.find_by(scope: 'task')
+        base_folder = storage_config.path_for(:task) # "Tasks"
+
+        if entity_tab&.storage_folder_path.present?
+          # Resolve template with task values
+          year = (document.created_at || task.created_at || Time.current).year
+          template = entity_tab.storage_folder_path
+          resolved_path = CorporateCompanySetting.resolve_template(template, {
+            "Year" => year.to_s,
+            "TaskId" => task.id.to_s,
+            "OriginalFileName" => filename
+          })
+          "#{base_folder}/#{resolved_path}"
+        else
+          # Fallback if no EntityTab config
+          "#{base_folder}/#{task.id}/#{filename}"
+        end
+      elsif document.corporate_company
+        company = document.corporate_company
+        # SSoT: Get base folder from StorageConfiguration (e.g., "corporate")
+        base_folder = storage_config.path_for(:corporate)
         folder = slugify_path(document.folder.presence || "documents")
         filename = slugify_filename(document.file_name)
-        "corporate/#{company.id}/#{folder}/#{filename}"
+        "#{base_folder}/#{company.id}/#{folder}/#{filename}"
       else
-        "corporate/unassigned/#{slugify_filename(document.file_name)}"
+        base_folder = storage_config.path_for(:corporate)
+        "#{base_folder}/unassigned/#{slugify_filename(document.file_name)}"
       end
 
     when 'PeopleDocument'
       contact = document.contact
+      # SSoT: Get base folder from StorageConfiguration (e.g., "people")
+      base_folder = storage_config.path_for(:people)
       if contact
         folder = slugify_path(document.folder.presence || "documents")
         filename = slugify_filename(document.file_name)
-        "people/#{contact.id}/#{folder}/#{filename}"
+        "#{base_folder}/#{contact.id}/#{folder}/#{filename}"
       else
-        "people/unassigned/#{slugify_filename(document.file_name)}"
+        "#{base_folder}/unassigned/#{slugify_filename(document.file_name)}"
       end
 
     else

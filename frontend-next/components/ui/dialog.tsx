@@ -33,12 +33,34 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     hideClose?: boolean;
   }
->(({ className, children, hideClose, onOpenAutoFocus, ...props }, ref) => (
+>(({ className, children, hideClose, onOpenAutoFocus, onPointerDownOutside, onInteractOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       aria-describedby={undefined}
+      onPointerDownOutside={(e) => {
+        // Allow clicks on writing-checker tooltips (rendered outside dialog portal)
+        // These tooltips use createRoot portal to document.body, which Radix treats as "outside"
+        const target = e.target as HTMLElement;
+        const isWritingChecker = target.closest('[data-writing-checker-tooltip]');
+        if (isWritingChecker) {
+          console.log('[Dialog] Allowing writing-checker tooltip click');
+          e.preventDefault(); // Prevent Radix from closing dialog or blocking event
+          return;
+        }
+        onPointerDownOutside?.(e);
+      }}
+      onInteractOutside={(e) => {
+        // Also handle onInteractOutside for writing-checker tooltips
+        const target = e.target as HTMLElement;
+        if (target.closest('[data-writing-checker-tooltip]')) {
+          console.log('[Dialog] Allowing writing-checker tooltip interaction');
+          e.preventDefault();
+          return;
+        }
+        onInteractOutside?.(e);
+      }}
       onOpenAutoFocus={(e) => {
         // Prevent auto-focus to avoid aria-hidden conflict
         e.preventDefault();
@@ -77,12 +99,30 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 const DialogContentFrameless = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onOpenAutoFocus, ...props }, ref) => (
+>(({ className, children, onOpenAutoFocus, onPointerDownOutside, onInteractOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       aria-describedby={undefined}
+      onPointerDownOutside={(e) => {
+        // Allow clicks on writing-checker tooltips (rendered outside dialog portal)
+        const target = e.target as HTMLElement;
+        if (target.closest('[data-writing-checker-tooltip]')) {
+          e.preventDefault();
+          return;
+        }
+        onPointerDownOutside?.(e);
+      }}
+      onInteractOutside={(e) => {
+        // Also handle onInteractOutside for writing-checker tooltips
+        const target = e.target as HTMLElement;
+        if (target.closest('[data-writing-checker-tooltip]')) {
+          e.preventDefault();
+          return;
+        }
+        onInteractOutside?.(e);
+      }}
       onOpenAutoFocus={(e) => {
         // Prevent auto-focus to avoid aria-hidden conflict
         e.preventDefault();

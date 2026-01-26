@@ -2,7 +2,10 @@
  * Email utility functions for parsing and extracting email addresses
  */
 
-import { EMAIL_REGEX } from "./email-constants";
+import { EMAIL_REGEX, isValidEmail } from "./email-constants";
+
+// Re-export isValidEmail from SSoT
+export { isValidEmail };
 
 /**
  * Parse email with optional display name
@@ -106,16 +109,7 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/**
- * Basic email validation
- *
- * @param email - Email address to validate
- * @returns True if email appears valid
- */
-export function isValidEmail(email: string): boolean {
-  // SSoT: Use EMAIL_REGEX from email-constants.ts
-  return email.includes("@") && EMAIL_REGEX.test(email);
-}
+// isValidEmail is re-exported from email-constants.ts (SSoT)
 
 /**
  * Extract domain from email address

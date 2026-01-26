@@ -17,7 +17,7 @@ class SyncExclusionRule < ApplicationRecord
   belongs_to :user, optional: true
 
   # Validations
-  validates :rule_type, presence: true, inclusion: { in: %w[extension size pattern] }
+  validates :rule_type, presence: true, inclusion: { in: %w[extension size pattern category folder_scope] }
   validates :value, presence: true
   validates :action, presence: true, inclusion: { in: %w[skip include] }
   validate :must_have_scope
@@ -30,35 +30,113 @@ class SyncExclusionRule < ApplicationRecord
   scope :include_rules, -> { where(action: "include") }
   scope :by_priority, -> { order(priority: :desc, id: :asc) }
 
+  # Folder scopes for opt-in sync (Office 365/SharePoint folders)
+  # Users choose which folder scopes to sync (none by default)
+  FOLDER_SCOPES = {
+    jobs: {
+      name: "Jobs",
+      description: "Job folders and documents",
+      icon: "briefcase",
+      warehouse_type: "job"
+    },
+    corporate: {
+      name: "Corporate",
+      description: "Company and entity documents",
+      icon: "building",
+      warehouse_type: "corporate_entity"
+    },
+    contacts: {
+      name: "Contacts",
+      description: "Contact and people documents",
+      icon: "users",
+      warehouse_type: "contact"
+    },
+    emails: {
+      name: "Emails",
+      description: "Email archives and attachments",
+      icon: "mail",
+      warehouse_type: "email"
+    },
+    tasks: {
+      name: "Tasks",
+      description: "Task attachments and responses",
+      icon: "clipboard",
+      warehouse_type: "task"
+    },
+    warehouse: {
+      name: "Warehouse",
+      description: "General file warehouse",
+      icon: "warehouse",
+      warehouse_type: "warehouse"
+    },
+    user: {
+      name: "Teeem Docs",
+      description: "Personal user documents",
+      icon: "folder-heart",
+      warehouse_type: "user"
+    }
+  }.freeze
+
+  # File type categories for opt-in sync
+  # Users choose which categories to sync (none by default)
+  FILE_CATEGORIES = {
+    documents: {
+      name: "Documents",
+      description: "PDF, Word, Excel, PowerPoint",
+      extensions: %w[.pdf .doc .docx .xls .xlsx .ppt .pptx .txt .rtf .odt .ods .odp]
+    },
+    images: {
+      name: "Images",
+      description: "Photos and graphics",
+      extensions: %w[.jpg .jpeg .png .gif .bmp .tiff .webp .svg]
+    },
+    cad: {
+      name: "CAD & Design",
+      description: "AutoCAD, Revit, SketchUp",
+      extensions: %w[.dwg .dxf .rvt .rfa .skp .3ds .obj .fbx]
+    },
+    adobe: {
+      name: "Adobe Creative",
+      description: "Photoshop, Illustrator, InDesign",
+      extensions: %w[.psd .ai .indd .eps .xd]
+    },
+    video: {
+      name: "Video",
+      description: "Video files (large)",
+      extensions: %w[.mp4 .mov .avi .mkv .wmv .flv .webm]
+    },
+    audio: {
+      name: "Audio",
+      description: "Music and sound files",
+      extensions: %w[.mp3 .wav .aac .flac .ogg .m4a]
+    },
+    archives: {
+      name: "Archives",
+      description: "Compressed files",
+      extensions: %w[.zip .rar .7z .tar .gz]
+    },
+    emails: {
+      name: "Emails",
+      description: "Email files",
+      extensions: %w[.eml .msg]
+    }
+  }.freeze
+
   # Default exclusion rules (system-wide)
+  # OPT-IN MODEL: Skip all by default, users enable categories they want
   DEFAULT_RULES = [
-    # Large CAD/Design files - skip by default
-    { rule_type: "extension", value: ".rvt", action: "skip", description: "Revit files", priority: 10 },
-    { rule_type: "extension", value: ".rfa", action: "skip", description: "Revit family files", priority: 10 },
-    { rule_type: "extension", value: ".dwg", action: "skip", description: "AutoCAD files", priority: 10 },
-    { rule_type: "extension", value: ".dxf", action: "skip", description: "AutoCAD exchange files", priority: 10 },
-    { rule_type: "extension", value: ".skp", action: "skip", description: "SketchUp files", priority: 10 },
+    # Base rule: Skip all files by default (lowest priority, can be overridden)
+    { rule_type: "pattern", value: "*", action: "skip", description: "All files (enable categories below)", priority: 1 },
 
-    # Adobe files
-    { rule_type: "extension", value: ".psd", action: "skip", description: "Photoshop files", priority: 10 },
-    { rule_type: "extension", value: ".ai", action: "skip", description: "Illustrator files", priority: 10 },
-    { rule_type: "extension", value: ".indd", action: "skip", description: "InDesign files", priority: 10 },
-
-    # Video files
-    { rule_type: "extension", value: ".mp4", action: "skip", description: "MP4 video files", priority: 10 },
-    { rule_type: "extension", value: ".mov", action: "skip", description: "MOV video files", priority: 10 },
-    { rule_type: "extension", value: ".avi", action: "skip", description: "AVI video files", priority: 10 },
-    { rule_type: "extension", value: ".mkv", action: "skip", description: "MKV video files", priority: 10 },
-
-    # Temporary/system files - always skip
+    # Temporary/system files - always skip (highest priority, cannot be overridden)
     { rule_type: "pattern", value: "~$*", action: "skip", description: "Office temp files", priority: 100 },
     { rule_type: "pattern", value: "*.tmp", action: "skip", description: "Temporary files", priority: 100 },
     { rule_type: "pattern", value: ".DS_Store", action: "skip", description: "macOS metadata", priority: 100 },
     { rule_type: "pattern", value: "Thumbs.db", action: "skip", description: "Windows thumbnails", priority: 100 },
     { rule_type: "pattern", value: "desktop.ini", action: "skip", description: "Windows folder settings", priority: 100 },
 
-    # Size limit
-    { rule_type: "size", value: "500MB", action: "skip", description: "Files over 500MB", priority: 5 }
+    # Size limit - skip very large files
+    { rule_type: "size", value: "500MB", action: "skip", description: "Files over 500MB", priority: 90 }
   ].freeze
 
   # Seed default rules
@@ -93,6 +171,165 @@ class SyncExclusionRule < ApplicationRecord
 
     # Sort by priority and deduplicate (later rules override earlier)
     rules.sort_by(&:priority).reverse
+  end
+
+  # Get file categories with enabled status for a user
+  def self.categories_for_user(user)
+    return [] unless user
+
+    # Get user's enabled categories (stored as "include" rules for category extensions)
+    user_rules = for_user(user).include_rules.where(rule_type: "category").pluck(:value)
+
+    FILE_CATEGORIES.map do |key, category|
+      {
+        key: key.to_s,
+        name: category[:name],
+        description: category[:description],
+        extensions: category[:extensions],
+        enabled: user_rules.include?(key.to_s)
+      }
+    end
+  end
+
+  # Enable a category for a user
+  def self.enable_category(user, category_key)
+    return false unless FILE_CATEGORIES.key?(category_key.to_sym)
+
+    find_or_create_by!(
+      user: user,
+      rule_type: "category",
+      value: category_key.to_s
+    ) do |rule|
+      rule.action = "include"
+      rule.description = FILE_CATEGORIES[category_key.to_sym][:name]
+      rule.priority = 50
+    end
+    true
+  end
+
+  # Disable a category for a user
+  def self.disable_category(user, category_key)
+    for_user(user).where(rule_type: "category", value: category_key.to_s).destroy_all
+    true
+  end
+
+  # ==========================================
+  # FOLDER SCOPES (Opt-in sync for folders)
+  # ==========================================
+
+  # Get folder scopes with enabled status for a user
+  def self.folder_scopes_for_user(user)
+    return [] unless user
+
+    # Get user's enabled folder scopes
+    user_rules = for_user(user).include_rules.where(rule_type: "folder_scope").pluck(:value)
+
+    # Get storage configuration for folder paths
+    config = StorageConfiguration.instance
+
+    FOLDER_SCOPES.map do |key, scope|
+      folder_path = config.root_folder_for(scope[:warehouse_type])
+      {
+        key: key.to_s,
+        name: scope[:name],
+        description: scope[:description],
+        icon: scope[:icon],
+        warehouse_type: scope[:warehouse_type],
+        folder_path: folder_path,
+        enabled: user_rules.include?(key.to_s)
+      }
+    end
+  end
+
+  # Enable a folder scope for a user
+  def self.enable_folder_scope(user, scope_key)
+    return false unless FOLDER_SCOPES.key?(scope_key.to_sym)
+
+    find_or_create_by!(
+      user: user,
+      rule_type: "folder_scope",
+      value: scope_key.to_s
+    ) do |rule|
+      rule.action = "include"
+      rule.description = FOLDER_SCOPES[scope_key.to_sym][:name]
+      rule.priority = 50
+    end
+    true
+  end
+
+  # Disable a folder scope for a user
+  def self.disable_folder_scope(user, scope_key)
+    for_user(user).where(rule_type: "folder_scope", value: scope_key.to_s).destroy_all
+    true
+  end
+
+  # Get enabled folder scopes for a user
+  def self.enabled_folder_scopes(user)
+    return [] unless user
+    for_user(user).include_rules.where(rule_type: "folder_scope").pluck(:value)
+  end
+
+  # Check if a folder scope is enabled for a user
+  def self.folder_scope_enabled?(user, scope_key)
+    return false unless user
+    for_user(user).include_rules.where(rule_type: "folder_scope", value: scope_key.to_s).exists?
+  end
+
+  # Check if a file should sync based on enabled categories
+  def self.should_sync_file?(user, filename, file_size = nil)
+    # Always skip temp/system files
+    DEFAULT_RULES.each do |rule|
+      next unless rule[:priority] >= 90 && rule[:action] == "skip"
+      return false if matches_rule?(rule, filename, file_size)
+    end
+
+    # Check size limit
+    if file_size && file_size > 500.megabytes
+      return false
+    end
+
+    # Get user's enabled categories
+    enabled_categories = for_user(user).include_rules.where(rule_type: "category").pluck(:value)
+    return false if enabled_categories.empty?
+
+    # Check if file extension matches any enabled category
+    ext = File.extname(filename).downcase
+    enabled_categories.any? do |cat_key|
+      category = FILE_CATEGORIES[cat_key.to_sym]
+      category && category[:extensions].include?(ext)
+    end
+  end
+
+  # Helper to match a rule hash against a file
+  def self.matches_rule?(rule, filename, file_size)
+    case rule[:rule_type]
+    when "pattern"
+      pattern = rule[:value].gsub(".", "\\.").gsub("*", ".*").gsub("?", ".")
+      filename.match?(/^#{pattern}$/i)
+    when "size"
+      file_size && file_size > parse_size(rule[:value])
+    when "extension"
+      File.extname(filename).downcase == rule[:value].downcase
+    else
+      false
+    end
+  end
+
+  # Parse size string to bytes
+  def self.parse_size(size_str)
+    match = size_str.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB)$/i)
+    return 0 unless match
+
+    number = match[1].to_f
+    unit = match[2].upcase
+
+    case unit
+    when "B" then number.to_i
+    when "KB" then (number * 1024).to_i
+    when "MB" then (number * 1024 * 1024).to_i
+    when "GB" then (number * 1024 * 1024 * 1024).to_i
+    else 0
+    end
   end
 
   # Check if a file matches this rule

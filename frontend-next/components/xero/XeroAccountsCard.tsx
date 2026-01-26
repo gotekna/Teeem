@@ -217,7 +217,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         const hasMismatch = entry._has_mismatch as boolean;
 
         if (present) {
-          return <Check className="h-4 w-4 text-green-600 mx-auto" />;
+          return <Check className="h-4 w-4 text-green-600 dark:text-green-400 mx-auto" />;
         } else {
           // Highlight missing with warning if this account exists in OTHER companies (mismatch)
           return hasMismatch ? (
@@ -232,7 +232,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
       if (columnKey === "active") {
         const active = entry[columnKey] as boolean;
         return active ? (
-          <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+          <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/20 dark:text-green-400">
             Active
           </Badge>
         ) : (
@@ -268,7 +268,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
       if (columnKey === "mapped") {
         const mapped = entry[columnKey] as boolean;
         return mapped ? (
-          <Check className="h-4 w-4 text-green-600 mx-auto" />
+          <Check className="h-4 w-4 text-green-600 dark:text-green-400 mx-auto" />
         ) : (
           <X className="h-4 w-4 text-red-400 mx-auto" />
         );
@@ -350,7 +350,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
       <Card>
         <CardContent className="p-6">
           <div className="text-center text-muted-foreground">
-            <XCircle className={`h-8 w-8 mx-auto mb-2 ${isNoConnection ? "text-amber-500" : "text-red-500"}`} />
+            <XCircle className={`h-8 w-8 mx-auto mb-2 ${isNoConnection ? "text-amber-500" : "text-red-500 dark:text-red-400"}`} />
             <p className="font-medium">{isNoConnection ? "Xero Not Connected" : error}</p>
             {isNoConnection && (
               <p className="text-sm mt-2">
@@ -417,7 +417,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
             <div className="font-medium text-green-700 dark:text-green-400">
               Bank Account Names Standardized
             </div>
-            <div className="text-sm text-green-600 dark:text-green-500">
+            <div className="text-sm text-green-600 dark:text-green-400">
               {standardizeResult.renamed_count} accounts renamed
               {standardizeResult.skipped_count > 0 && `, ${standardizeResult.skipped_count} skipped`}
               {standardizeResult.error_count > 0 && `, ${standardizeResult.error_count} errors`}

@@ -111,8 +111,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     };
 
     const fetchIntegrationStatus = async () => {
-      // Check Xero connection
-      // TEEEM Rule: Xero must ALWAYS be connected - self-heal, never show disconnected/error
+      // Check Xero connection - SSoT: show actual status to user
       try {
         const xeroResponse = await api.get<{
           connected?: boolean;
@@ -134,28 +133,23 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           // Fully connected and healthy
           setXeroStatus('connected');
           setXeroTooltip(`Xero: Connected${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
-          // Clear any self-heal flag on successful connection
-          if (typeof window !== 'undefined') {
-            sessionStorage.removeItem('xero_self_heal_attempted');
-          }
         } else if (xeroData?.status === 'degraded' || needsReauth) {
-          // Show as "needs attention" but DON'T auto-redirect (causes infinite loop)
-          // User must manually click to reconnect on the Xero settings page
+          // Token expired, needs attention, or sync stalled
           setXeroStatus('degraded');
-          setXeroTooltip('Xero: Token expired - click to reconnect');
-
-          // Log for debugging but don't auto-redirect
-          console.info('[Xero] Token issue detected - user should reconnect via settings');
+          // Show specific message from backend (e.g., "Sync stalled: pdfs")
+          const message = xeroData?.message || (needsReauth ? 'Token expired - click to reconnect' : 'Needs attention');
+          setXeroTooltip(`Xero: ${message}`);
+          console.info(`[Xero] Issue detected: ${message}`);
         } else {
-          // Default: always show as connected (TEEEM rule - never disconnected)
-          setXeroStatus('connected');
-          setXeroTooltip(`Xero: Connected${xeroData?.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
+          // Not connected - show actual disconnected state
+          setXeroStatus('disconnected');
+          setXeroTooltip('Xero: Not Connected - click to set up');
         }
       } catch (error) {
         console.debug("Failed to fetch Xero status:", error);
-        // TEEEM Rule: Even on API error, show as connected (never disconnected)
-        setXeroStatus('connected');
-        setXeroTooltip('Xero: Connected');
+        // On API error, show disconnected (honest about status)
+        setXeroStatus('disconnected');
+        setXeroTooltip('Xero: Not Connected');
       }
 
       // Check organization-wide Microsoft 365 connection status
@@ -217,11 +211,11 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const getStatusColors = (status: ConnectionStatus) => {
     switch (status) {
       case 'connected':
-        return "text-green-500 hover:text-green-600";
+        return "text-green-500 dark:text-green-400 hover:text-green-600 dark:text-green-400";
       case 'degraded':
-        return "text-orange-500 hover:text-orange-600";
+        return "text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:text-orange-400";
       case 'error':
-        return "text-red-500 hover:text-red-600";
+        return "text-red-500 dark:text-red-400 hover:text-red-600 dark:text-red-400";
       default:
         return "text-muted-foreground hover:text-muted-foreground dark:text-muted-foreground dark:hover:text-muted-foreground";
     }
@@ -322,12 +316,54 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             href="/admin/system/teeem-xl"
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 text-muted-foreground hover:text-green-500 dark:hover:text-green-400 rounded-md"
+            className="p-1.5 text-muted-foreground hover:text-green-500 dark:text-green-400 dark:hover:text-green-400 rounded-md"
             title="TeeemXL - New Spreadsheet (opens in new tab)"
           >
             <span className="sr-only">TeeemXL</span>
             <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
               XL
+            </div>
+          </a>
+
+          {/* TeeemWord - Word Documents (opens in new tab, fullscreen) */}
+          <a
+            href="/admin/system/teeem-word"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 text-muted-foreground hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-400 rounded-md"
+            title="TeeemWord - New Document (opens in new tab)"
+          >
+            <span className="sr-only">TeeemWord</span>
+            <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
+              W
+            </div>
+          </a>
+
+          {/* TeeemPowerPoint - Presentations (opens in new tab, fullscreen) */}
+          <a
+            href="/admin/system/teeem-powerpoint"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 text-muted-foreground hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-400 rounded-md"
+            title="TeeemPowerPoint - New Presentation (opens in new tab)"
+          >
+            <span className="sr-only">TeeemPowerPoint</span>
+            <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
+              PP
+            </div>
+          </a>
+
+          {/* TeeemPDF - PDF Editor (opens in new tab, fullscreen) */}
+          <a
+            href="/admin/system/teeem-pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 text-muted-foreground hover:text-red-500 dark:text-red-400 dark:hover:text-red-400 rounded-md"
+            title="TeeemPDF - New PDF Document (opens in new tab)"
+          >
+            <span className="sr-only">TeeemPDF</span>
+            <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
+              PDF
             </div>
           </a>
 
@@ -389,12 +425,15 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           >
             <span className="sr-only">Xero Connections</span>
             <XeroIcon className="h-4 w-4" />
-            {/* Status indicator dot */}
+            {/* Status indicator dot - shows actual connection status */}
             {xeroStatus === 'connected' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-border" />
             )}
             {xeroStatus === 'degraded' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-border" />
+            )}
+            {xeroStatus === 'disconnected' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-muted-foreground border border-white dark:border-border" />
             )}
             {xeroStatus === 'error' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-border" />
@@ -404,7 +443,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* Data Warehouse */}
           <Link prefetch={false}
             href="/data-warehouse"
-            className="p-1.5 text-red-500 hover:text-red-600 rounded-md transition-colors"
+            className="p-1.5 text-red-500 dark:text-red-400 hover:text-red-600 dark:text-red-400 rounded-md transition-colors"
             title="Data Warehouse"
           >
             <span className="sr-only">Data Warehouse</span>
@@ -417,7 +456,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             className="p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md transition-colors"
             title="System Health"
           >
-            <HeartPulse className="h-4 w-4 text-red-500" />
+            <HeartPulse className="h-4 w-4 text-red-500 dark:text-red-400" />
           </Link>
 
           {/* Inspiring Banner - centered */}

@@ -800,65 +800,57 @@ class TeknaDocumentGenerator
     raise GenerationError, "PDF overlay failed: #{e.message}"
   end
 
+  # Fetch document from storage (provider-agnostic)
+  # SSoT: Uses DocumentProviderAware for storage operations
   def fetch_from_sharepoint(job:)
     sharepoint_path = template_config[:sharepoint_path]
-    raise GenerationError, "SharePoint path not configured for #{template_key}" unless sharepoint_path
+    raise GenerationError, "Storage path not configured for #{template_key}" unless sharepoint_path
 
-    credential = MicrosoftCredential.sharepoint_credential
-    raise GenerationError, "No active OneDrive credential" unless credential
+    # Get job storage folder path
+    job_folder_path = job.storage_folder_path
+    raise GenerationError, "Job folder not found in storage for #{job.name}" unless job_folder_path
 
-    client = MicrosoftGraphClient.new(credential)
-
-    # Find the job folder
-    job_folder = client.find_job_folder(job)
-    raise GenerationError, "Job folder not found in SharePoint for #{job.name}" unless job_folder
-
-    # Navigate to the file path
+    # Build full path
     path_parts = sharepoint_path.split("/")
     filename = path_parts.pop
-    current_folder_id = job_folder["id"]
 
-    # Navigate through subfolders (SSoT: resolve folder names from EntityTab)
-    path_parts.each do |folder_name|
-      # SSoT: If folder matches a known tab pattern, resolve from EntityTab
-      resolved_folder_name = resolve_folder_name(folder_name)
+    # Resolve folder names from EntityTab
+    resolved_path_parts = path_parts.map { |f| resolve_folder_name(f) }
+    full_path = "#{job_folder_path}/#{resolved_path_parts.join('/')}/#{filename}"
 
-      response = client.list_folder_items(current_folder_id)
-      items = response["value"] || []
-      folder = items.find { |item| item["name"] == resolved_folder_name && item["folder"].present? }
-      raise GenerationError, "Folder '#{resolved_folder_name}' not found in job folder" unless folder
-      current_folder_id = folder["id"]
-    end
+    # Use DocumentStorageService for download
+    service = DocumentStorageService.new
 
-    # Find and download the file - try primary filename first, then alternative
-    response = client.list_folder_items(current_folder_id)
-    items = response["value"] || []
-    file = items.find { |item| item["name"] == filename && item["file"].present? }
+    # Create a document-like object
+    doc = OpenStruct.new(storage_path: full_path, sharepoint_file_id: nil)
 
-    # Try alternative filename if primary not found (handles URL encoding variations)
-    if file.nil? && template_config[:sharepoint_path_alt]
+    result = service.download(doc)
+
+    # Try alternative filename if primary not found
+    if !result[:success] && template_config[:sharepoint_path_alt]
       alt_filename = template_config[:sharepoint_path_alt].split("/").last
-      file = items.find { |item| item["name"] == alt_filename && item["file"].present? }
+      alt_path = "#{job_folder_path}/#{resolved_path_parts.join('/')}/#{alt_filename}"
+      doc = OpenStruct.new(storage_path: alt_path, sharepoint_file_id: nil)
+      result = service.download(doc)
     end
 
-    raise GenerationError, "File '#{filename}' not found in #{path_parts.join('/')}" unless file
+    raise GenerationError, "File '#{filename}' not found in #{path_parts.join('/')}" unless result[:success]
 
-    pdf_content = client.download_file(file["id"])
-    raise GenerationError, "Failed to download file from SharePoint" unless pdf_content
+    pdf_content = result[:content]
+    raise GenerationError, "Failed to download file from storage" unless pdf_content
 
     {
-      html: nil, # No HTML for SharePoint-sourced files
+      html: nil, # No HTML for storage-sourced files
       pdf_content: pdf_content,
       filename: generate_filename(job: job),
       generated_at: Time.current,
       template: template_key,
       title: template_config[:title],
-      source: :sharepoint,
-      sharepoint_file_id: file["id"],
-      sharepoint_web_url: file["webUrl"]
+      source: :storage,
+      storage_path: full_path
     }
-  rescue MicrosoftGraphClient::ClientError, MicrosoftGraphClient::AuthenticationError => e
-    raise GenerationError, "SharePoint error: #{e.message}"
+  rescue DocumentProviders::Error => e
+    raise GenerationError, "Storage error: #{e.message}"
   end
 
   # SSoT: Resolve folder names from EntityTab

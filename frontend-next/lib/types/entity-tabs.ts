@@ -1,7 +1,10 @@
-// EntityTab types - SSoT for unified tab configuration
-// Matches backend EntityTab model exactly
+// StorageLocation types - SSoT for folder/storage configuration
+// Renamed from EntityTab → StorageLocation (Jan 2026)
+// "StorageLocation" is clearer - it's a folder configuration, not a UI tab
+// Legacy name "EntityTab" kept as alias for backward compatibility
 
-export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
+// SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
+export type EntityTabScope = 'corporate_entity' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
 
 // Tab groups - matches backend EntityTab::TAB_GROUPS
 // 'system' is for system-managed tabs (email storage, warehousing) - read-only in UI
@@ -32,6 +35,11 @@ export interface EntityTab {
   hidden_by_default: boolean;  // SSoT: Tab hidden in overflow menu by default
   component_name: string | null;
   is_system_tab: boolean;
+  // SSoT: Visibility rules - when this tab is shown/hidden
+  visibility_rule: string | null;  // Human-readable condition (e.g., "Has Xero links AND is supplier")
+  // SSoT: Xero integration fields
+  xero_scope: 'primary' | null;  // Which Xero account this tab uses
+  xero_account_name: string | null;  // Resolved name (e.g., "Teeem Homes")
   has_sharepoint_folder: boolean;
   sharepoint_folder_path: string | null;
   full_sharepoint_path: string | null;
@@ -57,6 +65,7 @@ export interface EntityTabDocumentType {
   display_name: string;
   abbreviation?: string;
   file_name?: string;
+  is_primary?: boolean;  // SSoT: true = this tab is the primary home, false = secondary ("also show in")
 }
 
 export interface EntityTabsResponse {
@@ -65,6 +74,7 @@ export interface EntityTabsResponse {
     scope: EntityTabScope;
     tabs: EntityTab[];
     groups: TabGroup[];
+    primary_xero_name: string | null;  // SSoT: Name of primary Xero account
   };
 }
 
@@ -126,9 +136,9 @@ export interface ReorderTabParams {
 }
 
 // Scope display names for UI
+// SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
 export const SCOPE_LABELS: Record<EntityTabScope, string> = {
   corporate_entity: 'Corporate Entity',
-  people: 'People',
   job: 'Job',
   contact: 'Contact',
   email: 'Email',
@@ -150,3 +160,16 @@ export const GROUP_LABELS: Record<TabGroup, string> = {
 
 // Entity type options are now fetched from API (SSoT: CorporateCompanySetting)
 // See: GET /api/v1/entity_tabs/entity_types
+
+// ============================================================================
+// SSoT Rename (Jan 2026): EntityTab → StorageLocation
+// "StorageLocation" is clearer - it's a folder configuration, not a UI tab
+// These aliases allow gradual migration to new naming while maintaining compatibility
+// ============================================================================
+export type StorageLocationScope = EntityTabScope;
+export type StorageLocation = EntityTab;
+export type StorageLocationDocumentType = EntityTabDocumentType;
+export type StorageLocationsResponse = EntityTabsResponse;
+export type StorageLocationResponse = EntityTabResponse;
+export type StorageLocationCreateParams = EntityTabCreateParams;
+export type StorageLocationUpdateParams = EntityTabUpdateParams;

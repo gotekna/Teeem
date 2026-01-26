@@ -496,7 +496,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                   </div>
                   <div className="flex items-center gap-2">
                     {link.sync_enabled ? (
-                      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                      <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300">
                         Sync Enabled
                       </Badge>
                     ) : (
@@ -641,8 +641,8 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                       </div>
                       <div className="flex items-center">
                         {mapping.direction === "bidirectional" && <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />}
-                        {mapping.direction === "import" && <ArrowLeft className="h-4 w-4 text-blue-500" />}
-                        {mapping.direction === "export" && <ArrowRight className="h-4 w-4 text-green-500" />}
+                        {mapping.direction === "import" && <ArrowLeft className="h-4 w-4 text-blue-500 dark:text-blue-400" />}
+                        {mapping.direction === "export" && <ArrowRight className="h-4 w-4 text-green-500 dark:text-green-400" />}
                         {mapping.direction === "none" && <XCircle className="h-4 w-4 text-muted-foreground" />}
                       </div>
                       <div>

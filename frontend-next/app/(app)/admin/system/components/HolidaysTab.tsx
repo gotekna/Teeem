@@ -49,6 +49,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { format } from "date-fns";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 const REGIONS = [
   { value: "all", label: "All Regions" },
@@ -72,6 +73,7 @@ interface Holiday {
 
 export function HolidaysTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const currentYear = new Date().getFullYear();
   const [holidays, setHolidays] = React.useState<Holiday[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -268,7 +270,7 @@ export function HolidaysTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this holiday?")) return;
+    if (!(await confirm("Are you sure you want to delete this holiday?"))) return;
 
     setDeleting(id);
     try {

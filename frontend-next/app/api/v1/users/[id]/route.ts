@@ -41,17 +41,34 @@ export async function PATCH(
 
   try {
     const authHeader = request.headers.get("authorization");
-    const body = await request.json();
+    const contentType = request.headers.get("content-type") || "";
 
-    const response = await fetch(`${BACKEND_URL}/api/v1/users/${id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        ...(authHeader ? { Authorization: authHeader } : {}),
-      },
-      body: JSON.stringify(body),
-    });
+    let fetchOptions: RequestInit;
 
+    if (contentType.includes("multipart/form-data")) {
+      // Handle FormData (file uploads)
+      const formData = await request.formData();
+      fetchOptions = {
+        method: "PATCH",
+        headers: {
+          ...(authHeader ? { Authorization: authHeader } : {}),
+        },
+        body: formData,
+      };
+    } else {
+      // Handle JSON
+      const body = await request.json();
+      fetchOptions = {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authHeader ? { Authorization: authHeader } : {}),
+        },
+        body: JSON.stringify(body),
+      };
+    }
+
+    const response = await fetch(`${BACKEND_URL}/api/v1/users/${id}`, fetchOptions);
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {

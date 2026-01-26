@@ -29,6 +29,7 @@ import {
   ArrowDownRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatPercentage } from "@/utils/formatters";
 
 interface JobCosting {
   job_id: number;
@@ -95,19 +96,6 @@ interface BudgetVariance {
   }>;
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatPercent(value: number): string {
-  return `${value.toFixed(1)}%`;
-}
-
 export default function JobCostingTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -146,9 +134,9 @@ export default function JobCostingTab() {
 
   const getMarginBadge = (margin: number) => {
     if (margin >= 30) {
-      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Excellent</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Excellent</Badge>;
     } else if (margin >= 15) {
-      return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Good</Badge>;
+      return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Good</Badge>;
     } else if (margin >= 0) {
       return <Badge variant="secondary">Low</Badge>;
     } else {
@@ -159,7 +147,7 @@ export default function JobCostingTab() {
   const getVarianceStatus = (status: string) => {
     switch (status) {
       case "under":
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Under Budget</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Under Budget</Badge>;
       case "on_track":
         return <Badge variant="secondary">On Track</Badge>;
       case "over":
@@ -202,12 +190,12 @@ export default function JobCostingTab() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-green-600" />
+                <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
                 Total Revenue
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {formatCurrency(summary.totals.total_revenue)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">recognized</p>
@@ -217,12 +205,12 @@ export default function JobCostingTab() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-red-600" />
+                <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                 Total Costs
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                 {formatCurrency(summary.totals.total_costs)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">incurred</p>
@@ -237,11 +225,11 @@ export default function JobCostingTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${summary.totals.total_profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+              <div className={`text-2xl font-bold ${summary.totals.total_profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                 {formatCurrency(summary.totals.total_profit)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {formatPercent(summary.totals.average_margin)} margin
+                {formatPercentage(summary.totals.average_margin)} margin
               </p>
             </CardContent>
           </Card>
@@ -270,7 +258,7 @@ export default function JobCostingTab() {
           {summary.rankings.top_performers && summary.rankings.top_performers.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-600">
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-600 dark:text-green-400">
                   <Award className="h-4 w-4" />
                   Top Performers
                 </CardTitle>
@@ -286,8 +274,8 @@ export default function JobCostingTab() {
                         <span className="font-medium">{job.job_name}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-green-600">{formatPercent(job.gross_margin)}</span>
-                        <ArrowUpRight className="h-3 w-3 text-green-600" />
+                        <span className="text-green-600 dark:text-green-400">{formatPercentage(job.gross_margin)}</span>
+                        <ArrowUpRight className="h-3 w-3 text-green-600 dark:text-green-400" />
                       </div>
                     </li>
                   ))}
@@ -300,7 +288,7 @@ export default function JobCostingTab() {
           {summary.rankings.at_risk && summary.rankings.at_risk.length > 0 && (
             <Card className="border-orange-200 dark:border-orange-800">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2 text-orange-600">
+                <CardTitle className="text-sm font-medium flex items-center gap-2 text-orange-600 dark:text-orange-400">
                   <AlertTriangle className="h-4 w-4" />
                   At Risk Jobs
                 </CardTitle>
@@ -313,10 +301,10 @@ export default function JobCostingTab() {
                         <span className="font-medium">{job.job_name}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={job.gross_margin < 0 ? "text-red-600" : "text-orange-600"}>
-                          {formatPercent(job.gross_margin)}
+                        <span className={job.gross_margin < 0 ? "text-red-600 dark:text-red-400" : "text-orange-600 dark:text-orange-400"}>
+                          {formatPercentage(job.gross_margin)}
                         </span>
-                        <ArrowDownRight className="h-3 w-3 text-red-600" />
+                        <ArrowDownRight className="h-3 w-3 text-red-600 dark:text-red-400" />
                       </div>
                     </li>
                   ))}
@@ -384,19 +372,19 @@ export default function JobCostingTab() {
                           <div className="text-xs text-muted-foreground">{job.job_number}</div>
                         </TableCell>
                         <TableCell className="text-right">{formatCurrency(job.contract_value)}</TableCell>
-                        <TableCell className="text-right text-green-600">{formatCurrency(job.total_revenue)}</TableCell>
-                        <TableCell className="text-right text-red-600">{formatCurrency(job.total_costs)}</TableCell>
-                        <TableCell className={`text-right font-medium ${job.gross_profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <TableCell className="text-right text-green-600 dark:text-green-400">{formatCurrency(job.total_revenue)}</TableCell>
+                        <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(job.total_costs)}</TableCell>
+                        <TableCell className={`text-right font-medium ${job.gross_profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                           {formatCurrency(job.gross_profit)}
                         </TableCell>
                         <TableCell className="text-center">
                           {getMarginBadge(job.gross_margin)}
-                          <div className="text-xs text-muted-foreground mt-1">{formatPercent(job.gross_margin)}</div>
+                          <div className="text-xs text-muted-foreground mt-1">{formatPercentage(job.gross_margin)}</div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Progress value={job.percent_complete} className="w-16 h-2" />
-                            <span className="text-xs">{formatPercent(job.percent_complete)}</span>
+                            <span className="text-xs">{formatPercentage(job.percent_complete)}</span>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -425,13 +413,13 @@ export default function JobCostingTab() {
                     <Card className="flex-1">
                       <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Total Costs Incurred</div>
-                        <div className="text-xl font-bold text-red-600">{formatCurrency(wipReport.totals.total_costs)}</div>
+                        <div className="text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(wipReport.totals.total_costs)}</div>
                       </CardContent>
                     </Card>
                     <Card className="flex-1">
                       <CardContent className="pt-4">
                         <div className="text-sm text-muted-foreground">Total Revenue Recognized</div>
-                        <div className="text-xl font-bold text-green-600">{formatCurrency(wipReport.totals.total_revenue)}</div>
+                        <div className="text-xl font-bold text-green-600 dark:text-green-400">{formatCurrency(wipReport.totals.total_revenue)}</div>
                       </CardContent>
                     </Card>
                   </div>
@@ -453,12 +441,12 @@ export default function JobCostingTab() {
                             <div className="text-xs text-muted-foreground">{job.job_number}</div>
                           </TableCell>
                           <TableCell className="text-right font-medium">{formatCurrency(job.wip_value)}</TableCell>
-                          <TableCell className="text-right text-red-600">{formatCurrency(job.costs_incurred)}</TableCell>
-                          <TableCell className="text-right text-green-600">{formatCurrency(job.revenue_recognized)}</TableCell>
+                          <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(job.costs_incurred)}</TableCell>
+                          <TableCell className="text-right text-green-600 dark:text-green-400">{formatCurrency(job.revenue_recognized)}</TableCell>
                           <TableCell>
                             <div className="flex items-center justify-center gap-2">
                               <Progress value={job.percent_complete} className="w-16 h-2" />
-                              <span className="text-xs">{formatPercent(job.percent_complete)}</span>
+                              <span className="text-xs">{formatPercentage(job.percent_complete)}</span>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -497,11 +485,11 @@ export default function JobCostingTab() {
                         </TableCell>
                         <TableCell className="text-right">{formatCurrency(job.budget_total)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(job.actual_costs)}</TableCell>
-                        <TableCell className={`text-right font-medium ${job.variance >= 0 ? "text-green-600" : "text-red-600"}`}>
+                        <TableCell className={`text-right font-medium ${job.variance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                           {job.variance >= 0 ? "+" : ""}{formatCurrency(job.variance)}
                         </TableCell>
-                        <TableCell className={`text-center ${job.variance_percent >= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {job.variance_percent >= 0 ? "+" : ""}{formatPercent(job.variance_percent)}
+                        <TableCell className={`text-center ${job.variance_percent >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                          {job.variance_percent >= 0 ? "+" : ""}{formatPercentage(job.variance_percent)}
                         </TableCell>
                         <TableCell className="text-center">
                           {getVarianceStatus(job.status)}

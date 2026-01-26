@@ -102,18 +102,19 @@ class DocumentMigrationService
     # Migrate a single document type
     def migrate_document_type(klass, type_name, from, to, delete_source, batch_size, job_id = nil)
       # Build query based on document type
-      # Skip orphaned documents (sync_status: 'missing' means file deleted from source)
       documents = klass.where(storage_provider: [from, nil])
                        .where(migration_status: [nil, 'failed'])
-                       .where.not(sync_status: 'missing')
 
       # Add type-specific filters
       case type_name
       when 'JobDocument'
-        documents = documents.where.not(sharepoint_item_id: nil)
+        # Skip orphaned documents (sync_status: 'missing' means file deleted from source)
+        # Note: Only JobDocument has sync_status column
+        documents = documents.where.not(sync_status: 'missing')
+        documents = documents.where.not(storage_item_id: nil)
         documents = documents.where(job_id: job_id) if job_id.present?
       when 'CorporateCompanyDocument'
-        documents = documents.where.not(sharepoint_file_id: nil)
+        documents = documents.where.not(storage_file_id: nil)
       when 'PeopleDocument'
         documents = documents.where.not(external_id: nil)
       end
@@ -202,16 +203,19 @@ class DocumentMigrationService
 
       total_with_status = total_counts.values.sum - total_counts[:not_migrated]
 
-      # Email and attachment counts (stored but not migration-tracked)
-      email_eml_count = EmailWarehouse.where.not(sharepoint_email_path: [nil, ""]).count rescue 0
-      attachment_count = EmailAttachment.where.not(sharepoint_path: [nil, ""]).count rescue 0
+      # Email, attachment, and task counts (stored but not migration-tracked)
+      # Count emails actually in Wasabi (have /Emails/... storage_path)
+      email_eml_count = SyncedEmail.where("storage_path LIKE ?", "/Emails/%").count rescue 0
+      # Count deduplicated attachments in Wasabi (StorageBlobs)
+      email_attachment_count = StorageBlob.count rescue 0
+      task_doc_count = SmTaskAttachment.where(attachable_type: 'CorporateCompanyDocument').distinct.count(:attachable_id) rescue 0
 
       # Add to provider breakdown
       provider_breakdown['s3_compatible'] ||= 0
-      provider_breakdown['s3_compatible'] += email_eml_count + attachment_count
+      provider_breakdown['s3_compatible'] += email_eml_count + email_attachment_count + task_doc_count
 
-      # Grand total including emails and attachments
-      grand_total = total_documents + email_eml_count + attachment_count
+      # Grand total including emails, attachments, and tasks
+      grand_total = total_documents + email_eml_count + email_attachment_count + task_doc_count
 
       {
         total_documents: total_documents,
@@ -225,8 +229,9 @@ class DocumentMigrationService
         # Additional file types (not migration-tracked)
         additional_files: {
           email_eml: email_eml_count,
-          email_attachments: attachment_count,
-          total: email_eml_count + attachment_count
+          email_attachments: email_attachment_count,
+          task_documents: task_doc_count,
+          total: email_eml_count + email_attachment_count + task_doc_count
         }
       }
     end

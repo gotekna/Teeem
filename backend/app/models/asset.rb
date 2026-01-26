@@ -1,4 +1,7 @@
 class Asset < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   # Associations
   belongs_to :corporate_company, foreign_key: "company_id"
   belongs_to :assigned_user, class_name: "User", optional: true
@@ -15,12 +18,13 @@ class Asset < ApplicationRecord
   has_many :odometer_readings, class_name: "AssetOdometerReading", dependent: :destroy
   has_many :expenses, class_name: "AssetExpense", dependent: :destroy
 
-  # Active Storage for photos
-  has_many_attached :photos
+  # SSoT: Multiple photo storage via StorageBlob IDs (Jan 2026)
+  # photo_blob_ids is JSONB array of StorageBlob IDs
+  # ActiveStorage has_many_attached :photos was REMOVED - it violated SSoT.
 
-  # File upload validation (security: prevents storage DoS and malware upload)
-  validates :photos, content_type: %w[image/jpeg image/png image/heic image/webp image/gif],
-                     size: { less_than: 10.megabytes, message: "must be less than 10MB" }
+  # Allowed content types for photos
+  ALLOWED_PHOTO_TYPES = %w[image/jpeg image/png image/heic image/webp image/gif].freeze
+  MAX_PHOTO_SIZE = 10.megabytes
 
   # Asset type codes for asset number generation
   ASSET_TYPE_CODES = {
@@ -37,7 +41,7 @@ class Asset < ApplicationRecord
   validates :purchase_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :current_book_value, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :abbreviation, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
-  validates :asset_number, uniqueness: true, allow_nil: true
+  validates :asset_number, uniqueness: { scope: :tenant_id }, allow_nil: true
 
   # Scopes
   scope :active, -> { where(status: "active") }
@@ -225,33 +229,35 @@ class Asset < ApplicationRecord
     corporate_company&.code
   end
 
+  # ========================================
+  # StorageBlob Photo Access (SSoT)
+  # ========================================
+
+  # Get all photo StorageBlobs
+  def photo_blobs
+    return [] if photo_blob_ids.blank?
+
+    StorageBlob.where(id: photo_blob_ids)
+  end
+
+  # Check if asset has photos
+  def has_photos?
+    photo_blob_ids.present? && photo_blob_ids.any?
+  end
+
   # Photo URLs for frontend display
-  # Handles iPhone photos (typically 4032x3024, 3-4MB) by generating smaller thumbnails
   def photo_urls
-    return [] unless photos.attached?
+    return [] unless has_photos?
 
-    photos.map do |photo|
-      base_url = Rails.application.routes.url_helpers.rails_blob_url(photo, host: default_url_host)
-
-      # Generate thumbnail URL (400x400 for grid display)
-      thumb_url = begin
-        Rails.application.routes.url_helpers.rails_representation_url(
-          photo.variant(resize_to_limit: [400, 400]),
-          host: default_url_host
-        )
-      rescue StandardError => e
-        Rails.logger.warn "Thumbnail generation skipped for #{photo.filename}: #{e.message}"
-        base_url # Fall back to original if variant fails
-      end
-
+    photo_blobs.map do |blob|
       {
-        id: photo.id,
-        filename: photo.filename.to_s,
-        url: base_url,
-        thumbnail_url: thumb_url,
-        content_type: photo.content_type,
-        byte_size: photo.byte_size,
-        created_at: photo.created_at
+        id: blob.id,
+        filename: blob.original_filename,
+        url: blob.presigned_url(expires_in: 3600),
+        thumbnail_url: blob.presigned_url(expires_in: 3600), # No thumbnail processing - use full image
+        content_type: blob.content_type,
+        byte_size: blob.file_size,
+        created_at: blob.created_at
       }
     rescue StandardError => e
       Rails.logger.error "Failed to generate photo URL: #{e.message}"
@@ -259,29 +265,54 @@ class Asset < ApplicationRecord
     end.compact
   end
 
-  # First photo thumbnail for quick display on Details tab
-  # Uses 300x300 for fast loading while still looking crisp
+  # First photo URL for quick display on Details tab
   def thumbnail_url
-    return nil unless photos.attached? && photos.first.present?
+    return nil unless has_photos?
 
-    photo = photos.first
-    Rails.application.routes.url_helpers.rails_representation_url(
-      photo.variant(resize_to_limit: [300, 300]),
-      host: default_url_host
-    )
+    first_blob = photo_blobs.first
+    return nil unless first_blob
+
+    first_blob.presigned_url(expires_in: 3600)
   rescue StandardError => e
     Rails.logger.warn "Thumbnail URL failed: #{e.message}"
-    # Fall back to original URL if variant generation fails
-    begin
-      Rails.application.routes.url_helpers.rails_blob_url(photo, host: default_url_host)
-    rescue StandardError
-      nil
-    end
+    nil
   end
 
   # Photo count for display
   def photos_count
-    photos.attached? ? photos.count : 0
+    photo_blob_ids&.size || 0
+  end
+
+  # Add a photo using StorageBlob
+  def add_photo(content, filename:, content_type: nil)
+    unless ALLOWED_PHOTO_TYPES.include?(content_type)
+      raise ArgumentError, "Invalid content type. Must be one of: #{ALLOWED_PHOTO_TYPES.join(', ')}"
+    end
+
+    if content.bytesize > MAX_PHOTO_SIZE
+      raise ArgumentError, "Photo must be less than 10MB"
+    end
+
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+    blob.increment_reference!
+
+    self.photo_blob_ids ||= []
+    self.photo_blob_ids << blob.id unless photo_blob_ids.include?(blob.id)
+    blob
+  end
+
+  # Remove a photo by blob ID
+  def remove_photo(blob_id)
+    return unless photo_blob_ids&.include?(blob_id)
+
+    blob = StorageBlob.find_by(id: blob_id)
+    blob&.decrement_reference!
+
+    self.photo_blob_ids = photo_blob_ids - [blob_id]
   end
 
   private

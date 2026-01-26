@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,8 +19,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { api } from "@/lib/api";
-import { useAssignableRoles } from "@/hooks/useAssignableRoles";
+import { User, UserPlus } from "lucide-react";
 
 interface AddUserModalProps {
   isOpen: boolean;
@@ -34,84 +34,163 @@ interface FormData {
   email: string;
   password: string;
   password_confirmation: string;
-  role: string;
-  assigned_role: string;
+  mobile_phone: string;
+  contact_id: number | null;
+  role_ids: number[];
+}
+
+interface ContactOption {
+  id: number;
+  display_name: string;
+  email?: string;
+}
+
+interface RoleOption {
+  id: number;
+  name: string;
+  display_name: string;
 }
 
 export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps) {
-  // SSoT: Fetch assignable roles from backend (rolesWithNone includes "None" option)
-  const { rolesWithNone: assignableRoles } = useAssignableRoles();
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
     password: "",
     password_confirmation: "",
-    role: "user",
-    assigned_role: "",
+    mobile_phone: "",
+    contact_id: null,
+    role_ids: [],
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
-  const [roles, setRoles] = useState<Array<{ value: string; label: string }>>([]);
+  const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [contactSearch, setContactSearch] = useState("");
+  const [contactOptions, setContactOptions] = useState<ContactOption[]>([]);
+  const [searchingContacts, setSearchingContacts] = useState(false);
+  const [createNewContact, setCreateNewContact] = useState(true);
 
+  // Fetch available roles
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const response = await api.get<{ data: Array<{ value: string; label: string }> }>("/api/v1/roles");
+        const response = await api.get<{ data: RoleOption[] }>("/api/v1/roles");
         setRoles(response.data || []);
       } catch (error) {
         console.error("Failed to fetch roles:", error);
-        setRoles([
-          { value: "user", label: "User" },
-          { value: "admin", label: "Admin" },
-        ]);
       }
     };
-    fetchRoles();
+    if (isOpen) fetchRoles();
+  }, [isOpen]);
+
+  // Search contacts when typing
+  const searchContacts = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setContactOptions([]);
+      return;
+    }
+
+    setSearchingContacts(true);
+    try {
+      const response = await api.get<{ data: { records: ContactOption[] } }>(
+        `/api/v1/foundations/contacts/records?search=${encodeURIComponent(query)}&limit=10`
+      );
+      setContactOptions(response.data?.records || []);
+    } catch (error) {
+      console.error("Failed to search contacts:", error);
+      setContactOptions([]);
+    } finally {
+      setSearchingContacts(false);
+    }
   }, []);
+
+  // Debounce contact search
+  useEffect(() => {
+    if (!createNewContact && contactSearch.length >= 2) {
+      const timeout = setTimeout(() => searchContacts(contactSearch), 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [contactSearch, createNewContact, searchContacts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrors([]);
 
-    if (formData.password !== formData.password_confirmation) {
+    // Validation
+    if (!createNewContact && !formData.contact_id) {
+      setErrors(["Please select an existing contact or choose to create a new one"]);
+      setLoading(false);
+      return;
+    }
+
+    if (createNewContact && !formData.name.trim()) {
+      setErrors(["Name is required"]);
+      setLoading(false);
+      return;
+    }
+
+    if (createNewContact && !formData.email.trim()) {
+      setErrors(["Email is required"]);
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password && formData.password !== formData.password_confirmation) {
       setErrors(["Passwords do not match"]);
       setLoading(false);
       return;
     }
 
+    if (formData.password && formData.password.length < 8) {
+      setErrors(["Password must be at least 8 characters"]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await api.post<{ success: boolean; user: { id: number }; errors?: string[] }>(
-        "/api/v1/auth/signup",
-        {
-          user: {
-            name: formData.name,
-            email: formData.email,
-            password: formData.password,
-            password_confirmation: formData.password_confirmation,
-          },
-        }
+      const payload: Record<string, unknown> = {};
+
+      if (createNewContact) {
+        // Creating new contact - send user info
+        payload.name = formData.name;
+        payload.email = formData.email;
+        payload.mobile_phone = formData.mobile_phone || undefined;
+      } else {
+        // Linking to existing contact
+        payload.contact_id = formData.contact_id;
+        payload.email = formData.email; // Still need email for login
+        payload.name = formData.name; // Name for the user record
+      }
+
+      // Password is required for new users
+      if (formData.password) {
+        payload.password = formData.password;
+        payload.password_confirmation = formData.password_confirmation;
+      }
+
+      // Role assignment
+      if (formData.role_ids.length > 0) {
+        payload.role_ids = formData.role_ids;
+      }
+
+      const response = await api.post<{ success: boolean; errors?: string[] }>(
+        "/api/v1/users",
+        { user: payload }
       );
 
       if (response?.success) {
-        // If role or assigned_role is different from default, update them
-        if (formData.role !== "user" || formData.assigned_role) {
-          await api.patch(`/api/v1/users/${response?.user?.id}`, {
-            user: {
-              role: formData.role,
-              assigned_role: formData.assigned_role || null,
-            },
-          });
-        }
-
         onUserAdded();
         handleClose();
       } else {
         setErrors(response?.errors || ["Failed to create user"]);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to create user:", error);
-      setErrors([error.response?.data?.error || "Failed to create user"]);
+      const apiError = error as { response?: { data?: { error?: string; errors?: string[] } } };
+      const errorMessage = apiError.response?.data?.error ||
+                          apiError.response?.data?.errors?.join(", ") ||
+                          "Failed to create user";
+      setErrors([errorMessage]);
     } finally {
       setLoading(false);
     }
@@ -123,11 +202,31 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
       email: "",
       password: "",
       password_confirmation: "",
-      role: "user",
-      assigned_role: "",
+      mobile_phone: "",
+      contact_id: null,
+      role_ids: [],
     });
     setErrors([]);
+    setContactSearch("");
+    setContactOptions([]);
+    setCreateNewContact(true);
     onClose();
+  };
+
+  const handleContactSelect = (contact: ContactOption | null) => {
+    if (contact) {
+      setFormData({
+        ...formData,
+        contact_id: contact.id,
+        name: contact.display_name || "",
+        email: contact.email || formData.email,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        contact_id: null,
+      });
+    }
   };
 
   return (
@@ -136,7 +235,7 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
         <DialogHeader>
           <DialogTitle>Add New User</DialogTitle>
           <DialogDescription>
-            Create a new user account with role and group assignment
+            Create a new user account by linking to an existing contact or creating a new one
           </DialogDescription>
         </DialogHeader>
 
@@ -153,6 +252,90 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
             </Alert>
           )}
 
+          {/* Contact Selection Mode */}
+          <div className="space-y-3">
+            <Label>Contact</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={createNewContact ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setCreateNewContact(true);
+                  setFormData({ ...formData, contact_id: null });
+                }}
+                className="flex-1"
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Create New
+              </Button>
+              <Button
+                type="button"
+                variant={!createNewContact ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCreateNewContact(false)}
+                className="flex-1"
+              >
+                <User className="h-4 w-4 mr-2" />
+                Link Existing
+              </Button>
+            </div>
+          </div>
+
+          {/* Existing Contact Search */}
+          {!createNewContact && (
+            <div className="space-y-2">
+              <Label>Search Contact</Label>
+              <ComboboxDropdown
+                placeholder="Search contacts by name or email..."
+                searchPlaceholder="Type to search..."
+                items={contactOptions.map(c => ({
+                  id: c.id.toString(),
+                  label: c.display_name || `Contact #${c.id}`,
+                  searchText: c.email,
+                }))}
+                selectedItem={formData.contact_id ? {
+                  id: formData.contact_id.toString(),
+                  label: formData.name,
+                  searchText: undefined,
+                } : undefined}
+                onSelect={(item) => {
+                  const contact = contactOptions.find(c => c.id.toString() === item.id);
+                  handleContactSelect(contact || null);
+                }}
+                onInputChange={setContactSearch}
+                isLoading={searchingContacts}
+                disableInternalFilter={true}
+                emptyResults={contactSearch.length < 2 ? "Type at least 2 characters..." : "No contacts found"}
+                clearable
+                onClear={() => handleContactSelect(null)}
+                onCreate={(searchValue) => {
+                  // Switch to create mode with search term as name
+                  setCreateNewContact(true);
+                  setFormData({
+                    ...formData,
+                    contact_id: null,
+                    name: searchValue,
+                  });
+                  setContactSearch("");
+                  setContactOptions([]);
+                }}
+                renderOnCreate={(searchValue) => (
+                  <div className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    <span>Create &quot;{searchValue}&quot; as new contact</span>
+                  </div>
+                )}
+              />
+              {formData.contact_id && (
+                <p className="text-sm text-muted-foreground">
+                  Selected: {formData.name} {formData.email && `(${formData.email})`}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Name - always shown but may be pre-filled from contact */}
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
             <Input
@@ -162,11 +345,13 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="John Doe"
+              disabled={!createNewContact && !!formData.contact_id}
             />
           </div>
 
+          {/* Email - always required for login */}
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Login Email</Label>
             <Input
               id="email"
               type="email"
@@ -175,8 +360,26 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               placeholder="john@example.com"
             />
+            <p className="text-xs text-muted-foreground">
+              This email will be used for login
+            </p>
           </div>
 
+          {/* Mobile Phone - only when creating new contact */}
+          {createNewContact && (
+            <div className="space-y-2">
+              <Label htmlFor="mobile_phone">Mobile Phone (Optional)</Label>
+              <Input
+                id="mobile_phone"
+                type="tel"
+                value={formData.mobile_phone}
+                onChange={(e) => setFormData({ ...formData, mobile_phone: e.target.value })}
+                placeholder="0400 000 000"
+              />
+            </div>
+          )}
+
+          {/* Password */}
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input
@@ -204,43 +407,20 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
             />
           </div>
 
+          {/* Role Selection */}
           <div className="space-y-2">
             <Label htmlFor="role">Role</Label>
             <Select
-              value={formData.role}
-              onValueChange={(value) => setFormData({ ...formData, role: value })}
+              value={formData.role_ids[0]?.toString() || ""}
+              onValueChange={(value) => setFormData({ ...formData, role_ids: value ? [parseInt(value)] : [] })}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Select a role" />
               </SelectTrigger>
               <SelectContent>
                 {roles.map((role) => (
-                  <SelectItem key={role.value} value={role.value}>
-                    {role.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="assigned_role">Group Assignment</Label>
-            <Select
-              value={formData.assigned_role}
-              onValueChange={(value) => setFormData({ ...formData, assigned_role: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a group" />
-              </SelectTrigger>
-              <SelectContent>
-                {assignableRoles.map((role) => (
-                  <SelectItem key={role.value} value={role.value}>
-                    <div>
-                      <div className="font-medium">{role.label}</div>
-                      {role.description && (
-                        <div className="text-xs text-muted-foreground">{role.description}</div>
-                      )}
-                    </div>
+                  <SelectItem key={role.id} value={role.id.toString()}>
+                    {role.display_name || role.name}
                   </SelectItem>
                 ))}
               </SelectContent>

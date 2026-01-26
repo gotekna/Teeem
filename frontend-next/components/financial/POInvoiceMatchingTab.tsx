@@ -45,6 +45,7 @@ import {
   Eye,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 import { safePercent } from "@/lib/utils";
 
 // Types
@@ -231,7 +232,7 @@ export default function POInvoiceMatchingTab() {
   const getConfidenceBadge = (confidence: number) => {
     if (confidence >= 90) {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           <Target className="h-3 w-3 mr-1" />
           {confidence}%
         </Badge>
@@ -239,7 +240,7 @@ export default function POInvoiceMatchingTab() {
     }
     if (confidence >= 70) {
       return (
-        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
           <TrendingUp className="h-3 w-3 mr-1" />
           {confidence}%
         </Badge>
@@ -247,7 +248,7 @@ export default function POInvoiceMatchingTab() {
     }
     if (confidence >= 50) {
       return (
-        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+        <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900/30 dark:text-amber-400">
           <AlertCircle className="h-3 w-3 mr-1" />
           {confidence}%
         </Badge>
@@ -286,7 +287,7 @@ export default function POInvoiceMatchingTab() {
         );
       case "ai_suggestion":
         return (
-          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             <Brain className="h-3 w-3 mr-1" />
             AI Suggested
           </Badge>
@@ -298,24 +299,6 @@ export default function POInvoiceMatchingTab() {
           </Badge>
         );
     }
-  };
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
-  };
-
-  // Format date
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
   };
 
   if (loading) {
@@ -386,7 +369,7 @@ export default function POInvoiceMatchingTab() {
             <div className="flex items-center gap-2">
               {stats?.ai_enabled ? (
                 <>
-                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
                   <span className="text-lg font-semibold text-green-600 dark:text-green-400">Enabled</span>
                 </>
               ) : (
@@ -420,7 +403,7 @@ export default function POInvoiceMatchingTab() {
         <CardContent>
           {unmatchedBills.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500 opacity-50" />
+              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500 dark:text-green-400 opacity-50" />
               <p className="text-lg font-medium">All caught up!</p>
               <p className="text-sm mt-1">No bills awaiting PO matching</p>
             </div>
@@ -531,7 +514,7 @@ export default function POInvoiceMatchingTab() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-3">
                           {idx === 0 && (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                               Best Match
                             </Badge>
                           )}

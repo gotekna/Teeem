@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * SSoT: Contact Corporate Tab
+ * Part of Contact SSoT Consolidation
+ *
+ * This tab has TWO modes:
+ * 1. PERSON-centric: Shows a person's roles in companies (directorships, shareholdings, trust roles)
+ * 2. COMPANY-centric: Shows a company/trust's own corporate details (ASIC, compliance, share register)
+ *
+ * Mode is determined by contact.entity_type:
+ * - person, sole_trader → Person-centric view
+ * - company, trust → Company-centric view (using ContactCorporateDetailsSubTab)
+ */
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -31,6 +44,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
+import { ContactCorporateDetailsSubTab } from "./ContactCorporateDetailsSubTab";
 import type {
   Contact,
   Directorship,
@@ -83,6 +97,25 @@ export function ContactCorporateTab({
 }: ContactCorporateTabProps) {
   const router = useRouter();
 
+  // SSoT: Determine view mode based on entity_type
+  // Company/Trust contacts show their own corporate details (ASIC, compliance, etc.)
+  // Person/SoleTrader contacts show their roles in companies (directorships, shareholdings, etc.)
+  const isCompanyOrTrust =
+    contact.entity_type?.toLowerCase() === "company" ||
+    contact.entity_type?.toLowerCase() === "trust";
+
+  // For company/trust contacts, show the company-centric corporate details view
+  if (isCompanyOrTrust) {
+    return (
+      <ContactCorporateDetailsSubTab
+        contact={contact}
+        activeSubTab={activeSubTab}
+        onSubTabChange={handleCorporateSubTabChange}
+      />
+    );
+  }
+
+  // For person/sole_trader contacts, show the person-centric view (their roles in companies)
   return (
     <Tabs value={activeSubTab} onValueChange={handleCorporateSubTabChange}>
       <TabsList className="mb-4">
@@ -368,7 +401,7 @@ function DirectorshipsTable({
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
-          <Briefcase className="h-5 w-5 text-green-600" />
+          <Briefcase className="h-5 w-5 text-green-600 dark:text-green-400" />
           Directorships ({directorships.length})
         </CardTitle>
       </CardHeader>
@@ -400,7 +433,7 @@ function DirectorshipsTable({
               if (columnKey === "status") {
                 const status = entry.status as string;
                 return (
-                  <Badge className={status === "Current" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}>
+                  <Badge className={status === "Current" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300" : "bg-muted text-muted-foreground"}>
                     {status}
                   </Badge>
                 );
@@ -427,7 +460,7 @@ function ShareholdingsTable({
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
-          <Percent className="h-5 w-5 text-blue-600" />
+          <Percent className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           Shareholdings ({shareholdings.length})
         </CardTitle>
       </CardHeader>
@@ -461,7 +494,7 @@ function ShareholdingsTable({
               if (columnKey === "status") {
                 const status = entry.status as string;
                 return (
-                  <Badge className={status === "Current" ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"}>
+                  <Badge className={status === "Current" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" : "bg-muted text-muted-foreground"}>
                     {status}
                   </Badge>
                 );
@@ -515,7 +548,7 @@ function BankAccountsTable({ contact }: { contact: Contact }) {
                   <TableCell className="px-4 py-2">{account.account_name || "-"}</TableCell>
                   <TableCell className="px-4 py-2">
                     {account.linked_to_xero ? (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                      <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Linked
                       </Badge>
@@ -574,7 +607,7 @@ function TrustRolesTable({
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-purple-600" />
+          <ShieldCheck className="h-5 w-5 text-purple-600 dark:text-purple-400" />
           Trust Roles ({trustRoles.total_count})
         </CardTitle>
       </CardHeader>
@@ -595,16 +628,16 @@ function TrustRolesTable({
             if (columnKey === "role") {
               const role = entry.role as string;
               const colorClass = role === "Trustee"
-                ? "bg-purple-100 text-purple-700"
+                ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
                 : role === "Beneficiary"
-                  ? "bg-green-100 text-green-700"
-                  : "bg-amber-100 text-amber-700";
+                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                  : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300";
               return <Badge className={colorClass}>{role}</Badge>;
             }
             if (columnKey === "status") {
               const status = entry.status as string;
               return (
-                <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}>
+                <Badge className={status === "Active" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300" : "bg-muted text-muted-foreground"}>
                   {status}
                 </Badge>
               );
@@ -657,16 +690,16 @@ function CompanyGroupsTable({
               if (columnKey === "membership_type") {
                 const type = entry.membership_type as string;
                 const colorClass = type === "director"
-                  ? "bg-purple-100 text-purple-700"
+                  ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
                   : type === "shareholder"
-                    ? "bg-amber-100 text-amber-700"
+                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
                     : "bg-muted text-muted-foreground";
                 return <Badge className={colorClass}>{type}</Badge>;
               }
               if (columnKey === "status") {
                 const status = entry.status as string;
                 return (
-                  <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-muted text-muted-foreground"}>
+                  <Badge className={status === "Active" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300" : "bg-muted text-muted-foreground"}>
                     {status}
                   </Badge>
                 );

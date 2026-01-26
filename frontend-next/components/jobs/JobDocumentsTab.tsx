@@ -57,7 +57,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
-import { uploadToSharePointDirect, type UploadProgress } from "@/lib/sharepoint-upload";
+import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
+import { uploadFile } from "@/lib/upload-utils";
+import { formatFileSize } from "@/utils/formatters";
 
 interface OrgStatus {
   loading: boolean;
@@ -190,9 +192,10 @@ interface JobDocumentsTabProps {
   jobTitle?: string;
   initialCategory?: string; // e.g., "site-photo" -> auto-selects "Site Photo" category
   categories?: DocumentCategory[]; // SSoT: Categories from parent (useEntityTabs) - eliminates duplicate API call
+  storageFolderStatus?: "not_requested" | "pending" | "processing" | "completed" | "failed";
 }
 
-export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: propCategories }: JobDocumentsTabProps) {
+export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: propCategories, storageFolderStatus }: JobDocumentsTabProps) {
   const [viewMode, setViewMode] = useState<"tasks" | "sharepoint" | "allfiles" | "treeview">("tasks");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
@@ -214,6 +217,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadFolderId, setUploadFolderId] = useState<string | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [storageBucket, setStorageBucket] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<FolderPath[]>([]);
   const [folderContents, setFolderContents] = useState<SharePointItem[]>([]);
   const [loadingContents, setLoadingContents] = useState(false);
@@ -398,19 +402,22 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
   // Convert LegacyItem to PhotoItem for gallery display
   const convertToPhotoItem = (item: LegacyItem): PhotoItem => {
-    // Build API URL for fetching image through backend proxy (with auth)
-    // IMPORTANT: Always use proxy URL for main image because SharePoint direct URLs
-    // fail due to CORS when used in <img> tags. The lightbox fetches via api.getBlob()
-    // with proper auth to bypass this.
+    // SSoT: Use download_url from backend (provider-agnostic) or build using document_id
+    // The backend provides download_url pointing to /api/v1/documents/job_document_download
+    // which works for both SharePoint and S3/Wasabi
     const apiBase = getApiBaseUrl();
-    const proxyUrl = `${apiBase}/api/v1/documents/download?file_id=${item.id}&preview=true`;
-    // Use Graph API thumbnail URL if available (publicly accessible, no auth required)
+    const proxyUrl = item.download_url
+      ? `${item.download_url}&preview=true`
+      : item.document_id
+        ? `${apiBase}/api/v1/documents/job_document_download?document_id=${item.document_id}&preview=true`
+        : `${apiBase}/api/v1/documents/download?file_id=${encodeURIComponent(item.id)}&preview=true`;
+    // Use Graph API thumbnail URL if available (may expire after 24-48h)
     const thumbnailUrl = item.thumbnail_url || proxyUrl;
 
     return {
       id: item.id,
       name: item.name,
-      url: proxyUrl, // Always use proxy - lightbox fetches with auth via api.getBlob()
+      url: proxyUrl, // Backend proxy (always works via job_document_download)
       thumbnailUrl: thumbnailUrl,
       webUrl: item.web_url,
       createdAt: item.modified, // Use modified as fallback for created
@@ -601,9 +608,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const getVersionBadge = (status?: string) => {
     switch (status) {
       case "draft":
-        return { label: "Draft", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" };
+        return { label: "Draft", className: "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400" };
       case "signed":
-        return { label: "Signed", className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" };
+        return { label: "Signed", className: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400" };
       case "superseded":
         return { label: "Superseded", className: "bg-muted text-muted-foreground dark:bg-background/30 dark:text-muted-foreground" };
       default:
@@ -672,7 +679,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     // This makes uploads feel instant even though they take 10-15 seconds
     const blobUrl = URL.createObjectURL(file);
     const optimisticItem: LegacyItem = {
-      id: `optimistic_${Date.now()}`,
+      id: `optimistic_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       name: newFilename,
       type: "file",
       folder_path: folderPath,
@@ -686,25 +693,20 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     setAllFiles((prev) => [...prev, optimisticItem]);
 
     try {
-      // ULTRA MASTERPIECE: Direct upload to SharePoint (skips backend proxy!)
-      // Browser uploads directly to SharePoint using pre-authenticated URL
-      // This is 50% faster than going through Heroku
-      const result = await uploadToSharePointDirect(file, {
+      // SSoT: Upload photo using provider-agnostic function
+      // For SharePoint: Direct browser-to-storage upload (faster)
+      // For S3/Wasabi: Standard multipart upload through backend
+      const result = await uploadPhoto(file, {
         jobId,
         folderPath,
         filename: newFilename,
         onProgress: (progress: UploadProgress) => {
           // Could add progress UI here in the future
-          console.log(`[DirectUpload] ${progress.status}: ${progress.percentage}%`);
+          console.log(`[PhotoUpload] ${progress.status}: ${progress.percentage}%`);
         },
       });
 
       if (result.success) {
-        // FALLBACK: Trigger job-specific document sync to ensure warehouse is updated
-        // This handles edge cases where upload_complete is skipped (e.g., missing SharePoint item ID)
-        api.post("/api/v1/documents/sync_job_documents", { job_id: jobId })
-          .catch(err => console.warn("[PhotoUpload] Fallback sync failed:", err));
-
         // Refresh file list in background to get real SharePoint URLs
         // Wait for SharePoint to index the file (3s is usually enough)
         setTimeout(() => {
@@ -744,23 +746,21 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     if (!files || files.length === 0) return;
 
     const totalFiles = files.length;
-    let successCount = 0;
-    let failCount = 0;
 
-    // Upload all selected files sequentially
-    for (let i = 0; i < totalFiles; i++) {
-      // Show progress message for multi-upload
-      if (totalFiles > 1) {
-        setMessage({ type: "info", text: `Uploading photo ${i + 1} of ${totalFiles}...` });
-      }
-
-      const success = await handlePhotoUpload(files[i]);
-      if (success) {
-        successCount++;
-      } else {
-        failCount++;
-      }
+    // Show progress message for multi-upload
+    if (totalFiles > 1) {
+      setMessage({ type: "info", text: `Uploading ${totalFiles} photos...` });
     }
+
+    // Upload all files concurrently for faster performance
+    const uploadPromises = Array.from(files).map((file) => handlePhotoUpload(file));
+    const results = await Promise.allSettled(uploadPromises);
+
+    // Count successes and failures
+    const successCount = results.filter(
+      (r) => r.status === "fulfilled" && r.value === true
+    ).length;
+    const failCount = totalFiles - successCount;
 
     // Show final summary
     if (totalFiles > 1) {
@@ -772,14 +772,16 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         setMessage({ type: "success", text: `${successCount} uploaded, ${failCount} failed.` });
       }
 
-      // ULTRA FIX: Do a final refresh after all uploads complete
-      // This ensures we get the real SharePoint URLs for all photos
-      // Wait longer (5s) to give SharePoint time to index all files
+      // Refresh immediately to show uploaded photos
+      loadAllFiles();
+
+      // Also do a delayed refresh to ensure storage has indexed all files
       setTimeout(() => {
         loadAllFiles();
       }, 5000);
     } else if (successCount === 1) {
       setMessage({ type: "success", text: "Photo uploaded successfully!" });
+      loadAllFiles();
     }
 
     // Reset the input so the same files can be selected again
@@ -789,6 +791,14 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Track if org status has been checked for this job (prevents duplicate API calls)
   const orgStatusCheckedRef = useRef<string | null>(null);
 
+  // Stable reference for propCategories to prevent unnecessary re-renders
+  // Parent component creates categories inline (new reference each render)
+  // Without this, loadDocumentCategories would trigger on every parent re-render
+  const propCategoriesKey = useMemo(() => {
+    if (!propCategories) return "";
+    return propCategories.map(c => c.id).join(",");
+  }, [propCategories]);
+
   useEffect(() => {
     // Only check org status once per job (not on every category/prop change)
     if (orgStatusCheckedRef.current !== String(jobId)) {
@@ -797,7 +807,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     }
     loadDocumentCategories();
 
-  }, [jobId, initialCategory, propCategories]);  // SSoT: Re-run when initialCategory or propCategories changes
+  }, [jobId, initialCategory, propCategoriesKey]);  // SSoT: Use stable key instead of object reference
 
   // Track if initialCategory has been applied to prevent useEffect from overwriting it
   const initialCategoryAppliedRef = useRef(false);
@@ -846,7 +856,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         // Default to sharepoint if fetch fails
       }
 
-      const response = await api.get<{ connected: boolean; root_folder_path?: string }>(
+      const response = await api.get<{ connected: boolean; root_folder_path?: string; bucket?: string }>(
         "/api/v1/documents/status"
       );
 
@@ -855,6 +865,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         connected: response?.connected || false,
         rootFolderPath: response?.root_folder_path,
       });
+      setStorageBucket(response?.bucket || null);
 
       if (response?.connected) {
         await checkJobFolderStatus();
@@ -1099,26 +1110,23 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     }
   };
 
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return "";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  // ULTRA MASTERPIECE: Direct browser-to-SharePoint file upload
+  // Provider-agnostic file upload (folder browser)
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !uploadFolderId) return;
 
     try {
-      // Direct upload to SharePoint (skips backend proxy!)
-      const result = await uploadToSharePointDirect(file, {
+      // Derive folder path from breadcrumb for S3 fallback
+      const derivedPath = folderPath.map(f => f.name).join("/");
+
+      // SSoT: Use provider-agnostic upload function
+      const result = await uploadPhoto(file, {
         jobId,
-        folderId: uploadFolderId,
+        folderId: uploadFolderId, // For SharePoint direct upload
+        folderPath: derivedPath,  // For S3 fallback
         filename: file.name,
         onProgress: (progress: UploadProgress) => {
-          console.log(`[DirectUpload] ${progress.status}: ${progress.percentage}%`);
+          console.log(`[FileUpload] ${progress.status}: ${progress.percentage}%`);
         },
       });
 
@@ -1140,15 +1148,25 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const handleTaskUpload = async (taskId: number, file: File) => {
     try {
       setUploading(taskId);
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("task_id", String(taskId));
-      formData.append("construction_id", String(jobId));
-      formData.append("category", String(selectedCategory?.id));
 
-      const response = await api.postFormData<{ document_url: string; uploaded_at: string }>(
+      // SSoT: Use presigned URL upload (bypasses Heroku 30s timeout)
+      const uploadResult = await uploadFile(file, 'job_documents', {
+        metadata: { job_id: jobId }
+      });
+
+      if (!uploadResult.success || !uploadResult.key) {
+        throw new Error(uploadResult.error || "Failed to upload file");
+      }
+
+      // Confirm with backend using storage_key
+      const response = await api.post<{ document_url: string; uploaded_at: string }>(
         `/api/v1/jobs/${jobId}/document_tasks/${taskId}/upload`,
-        formData
+        {
+          storage_key: uploadResult.key,
+          task_id: taskId,
+          construction_id: jobId,
+          category: selectedCategory?.id,
+        }
       );
 
       if (response) {
@@ -1465,6 +1483,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   // Use a ref to prevent duplicate in-flight requests
   const loadAllFilesInFlightRef = useRef(false);
 
+  // Stable keys for selected categories to prevent unnecessary reloads
+  // Without this, category reference changes would trigger redundant file loads
+  const selectedCategoryKey = selectedCategory?.id;
+  const selectedSubCategoryKey = selectedSubCategory?.id;
+
   useEffect(() => {
     // Load files for: All Files tab, Document Tasks view (any category)
     const needsFiles = viewMode === "allfiles" || viewMode === "tasks" || viewMode === "treeview";
@@ -1479,14 +1502,14 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         loadAllFilesInFlightRef.current = false;
       });
     }
-  }, [viewMode, orgStatus.connected, selectedCategory, selectedSubCategory]);
+  }, [viewMode, orgStatus.connected, selectedCategoryKey, selectedSubCategoryKey]);
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
-      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Validated</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Validated</Badge>;
     }
     if (task.has_document) {
-      return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"><Paperclip className="h-3 w-3 mr-1" />Attached</Badge>;
+      return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"><Paperclip className="h-3 w-3 mr-1" />Attached</Badge>;
     }
     return <Badge variant="secondary">Pending</Badge>;
   };
@@ -1585,7 +1608,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Folder className="h-5 w-5 text-yellow-500" />
+                    <Folder className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
                     {activeCategory?.name}
                     {activeCategory?.folder_path && (
                       <span className="text-xs text-muted-foreground font-normal">
@@ -1840,7 +1863,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       return (
         <Card>
           <CardContent className="py-12 text-center">
-            <Folder className="h-16 w-16 text-yellow-500 mx-auto" />
+            <Folder className="h-16 w-16 text-yellow-500 dark:text-yellow-400 mx-auto" />
             <h3 className="mt-4 text-lg font-semibold">Create Folder Structure</h3>
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
               Create the folder structure in SharePoint for {jobTitle || "this job"}.
@@ -1880,8 +1903,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <h3 className="font-semibold">SharePoint Connected</h3>
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <h3 className="text-sm font-semibold">SharePoint Connected</h3>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Job folder found for {jobTitle || "this job"}
@@ -1962,12 +1985,12 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                         {item.folder ? (
                           <>
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            <Folder className="h-5 w-5 text-yellow-500" />
+                            <Folder className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
                           </>
                         ) : (
                           <>
                             <div className="w-4" />
-                            <File className="h-5 w-5 text-blue-500" />
+                            <File className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                           </>
                         )}
                         <div>
@@ -2014,7 +2037,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     >
                       <div className="flex items-center gap-3">
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        <Folder className="h-5 w-5 text-yellow-500" />
+                        <Folder className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
                         <div>
                           <p className="text-sm font-medium">{folder.name}</p>
                           {folder.lastModifiedDateTime && (
@@ -2093,7 +2116,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         {/* Header with refresh and open in SharePoint */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold">All Files</h3>
+            <h3 className="text-sm font-semibold">All Files</h3>
             <span className="text-sm text-muted-foreground">
               {loadingAllFiles ? "Loading..." : `${allFiles.length} files`}
               {allFilesDisplayMode === "gallery" && imagePhotos.length > 0 && (
@@ -2173,19 +2196,19 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             </Card>
             <Card className="bg-green-50 dark:bg-green-950/30">
               <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-green-600">{aiStats.analyzed}</div>
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{aiStats.analyzed}</div>
                 <div className="text-xs text-muted-foreground">Analyzed</div>
               </CardContent>
             </Card>
             <Card className="bg-yellow-50 dark:bg-yellow-950/30">
               <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-yellow-600">{aiStats.pending_review}</div>
+                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{aiStats.pending_review}</div>
                 <div className="text-xs text-muted-foreground">Pending Review</div>
               </CardContent>
             </Card>
             <Card className="bg-blue-50 dark:bg-blue-950/30">
               <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-blue-600">{aiStats.approved}</div>
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{aiStats.approved}</div>
                 <div className="text-xs text-muted-foreground">Approved</div>
               </CardContent>
             </Card>
@@ -2204,8 +2227,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-purple-600" />
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                     Bulk Categorize
                   </h4>
                   <p className="text-sm text-muted-foreground">
@@ -2254,7 +2277,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
           <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-yellow-600" />
+                <Sparkles className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                 AI Suggested Renames ({filesWithSuggestions.length})
               </CardTitle>
             </CardHeader>
@@ -2267,9 +2290,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   >
                     <div className="flex-1 min-w-0 mr-4">
                       <div className="flex items-center gap-2 text-sm">
-                        <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                        <File className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                         <span className="truncate text-muted-foreground">{item.name}</span>
-                        <ArrowRight className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+                        <ArrowRight className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
                         <span className="truncate font-medium text-foreground">{item.ai_proposed_name}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
@@ -2279,12 +2302,12 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           </Badge>
                         )}
                         {item.ai_confidence && (
-                          <span className={`${item.ai_confidence >= 80 ? "text-green-600" : item.ai_confidence >= 50 ? "text-yellow-600" : "text-red-600"}`}>
+                          <span className={`${item.ai_confidence >= 80 ? "text-green-600 dark:text-green-400" : item.ai_confidence >= 50 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
                             {item.ai_confidence}% confidence
                           </span>
                         )}
                         {item.folder_path && (
-                          <span className="text-blue-600">{item.folder_path}</span>
+                          <span className="text-blue-600 dark:text-blue-400">{item.folder_path}</span>
                         )}
                       </div>
                     </div>
@@ -2292,7 +2315,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                        className="h-8 w-8 p-0 text-green-600 dark:text-green-400 hover:text-green-700 hover:bg-green-100"
                         onClick={() => item.document_id && handleApproveRename(item.document_id, "approve")}
                         disabled={approvingDoc === item.document_id}
                         title="Approve rename"
@@ -2306,7 +2329,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
+                        className="h-8 w-8 p-0 text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-100"
                         onClick={() => item.document_id && handleApproveRename(item.document_id, "reject")}
                         disabled={approvingDoc === item.document_id}
                         title="Reject rename"
@@ -2404,7 +2427,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                   ) : (
                                     <div className="w-5" /> // Spacer for alignment
                                   )}
-                                  <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                  <File className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                                   <div className="min-w-0">
                                     <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
                                     {item.original_name && item.name !== item.original_name && (
@@ -2420,7 +2443,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                               </TableCell>
                               <TableCell>
                                 {item.storage_provider === "s3_compatible" && item.storage_path ? (
-                                  <span className="text-xs font-mono text-muted-foreground" title={`teeem-documents/${item.storage_path}`}>
+                                  <span className="text-xs font-mono text-muted-foreground" title={storageBucket ? `${storageBucket}/${item.storage_path}` : item.storage_path}>
                                     {item.storage_path.split('/').map((part, i, arr) => (
                                       <span key={i}>
                                         {i > 0 && <span className="text-muted-foreground/50"> / </span>}
@@ -2452,7 +2475,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                               </TableCell>
                               <TableCell>
                                 {item.rename_status === "completed" ? (
-                                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                  <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                                     <CheckCircle className="h-3 w-3 mr-1" />
                                     Renamed
                                   </Badge>
@@ -2461,7 +2484,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                     Skipped
                                   </Badge>
                                 ) : item.ai_analyzed ? (
-                                  <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                  <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
                                     <Sparkles className="h-3 w-3 mr-1" />
                                     Pending
                                   </Badge>
@@ -2705,7 +2728,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               <ChevronRight
                 className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`}
               />
-              <Folder className={`h-4 w-4 ${node.color ? "" : "text-yellow-500"}`} style={node.color ? { color: node.color } : {}} />
+              <Folder className={`h-4 w-4 ${node.color ? "" : "text-yellow-500 dark:text-yellow-400"}`} style={node.color ? { color: node.color } : {}} />
               <span className="font-medium">{node.name}</span>
               <Badge variant="secondary" className="ml-2 text-xs">
                 {fileCount} {fileCount === 1 ? "file" : "files"}
@@ -2731,7 +2754,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             style={{ paddingLeft: `${paddingLeft + 12}px` }}
           >
             {isImage && file.thumbnail_url ? (
-              <img src={file.thumbnail_url} alt="" className="h-5 w-5 rounded object-cover" />
+              <img src={file.thumbnail_url} alt="" crossOrigin="anonymous" className="h-5 w-5 rounded object-cover" />
             ) : (
               <File className="h-4 w-4 text-muted-foreground" />
             )}
@@ -2857,8 +2880,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
                   return (
                     <div key={folder.id} className="space-y-2">
-                      <h3 className="font-medium flex items-center gap-2">
-                        <Folder className="h-4 w-4 text-yellow-500" />
+                      <h3 className="text-sm font-medium flex items-center gap-2">
+                        <Folder className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
                         {folder.name}
                         <Badge variant="secondary" className="text-xs">{folderImages.length} photos</Badge>
                       </h3>
@@ -2875,6 +2898,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                               <img
                                 src={img.thumbnail_url}
                                 alt={img.name}
+                                crossOrigin="anonymous"
                                 className="w-full h-full object-cover"
                               />
                             ) : (
@@ -2916,13 +2940,125 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     );
   };
 
+  // State for creating folders
+  const [creatingStorageFolders, setCreatingStorageFolders] = useState(false);
+  const [folderCreationError, setFolderCreationError] = useState<string | null>(null);
+
+  // Poll for folder creation completion when status is pending/processing
+  useEffect(() => {
+    if (storageFolderStatus !== "pending" && storageFolderStatus !== "processing") {
+      return;
+    }
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await api.get<{ storage_folder_status: string }>(`/api/v1/jobs/${jobId}`);
+        if (response?.storage_folder_status === "completed") {
+          // Folders are ready - reload to show documents
+          window.location.reload();
+        } else if (response?.storage_folder_status === "failed") {
+          // Failed - reload to show error state
+          window.location.reload();
+        }
+      } catch {
+        // Ignore polling errors
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [storageFolderStatus, jobId]);
+
+  // Handle creating storage folders
+  const handleCreateStorageFolders = async () => {
+    setCreatingStorageFolders(true);
+    setFolderCreationError(null);
+    try {
+      const response = await api.post<{ success: boolean; status: string; error?: string }>(
+        `/api/v1/jobs/${jobId}/create_storage_folders`
+      );
+      if (response?.success) {
+        // Reload the page to refresh job data with new storage status
+        window.location.reload();
+      } else {
+        setFolderCreationError(response?.error || "Failed to create folders");
+      }
+    } catch (err) {
+      setFolderCreationError(err instanceof Error ? err.message : "Failed to create folders");
+    } finally {
+      setCreatingStorageFolders(false);
+    }
+  };
+
+  // Show "Folders Missing" screen if storage folders don't exist
+  if (storageFolderStatus && storageFolderStatus !== "completed") {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-4">
+        <div className="max-w-md w-full text-center space-y-6">
+          {/* Icon */}
+          <div className="mx-auto w-20 h-20 rounded-full bg-muted flex items-center justify-center">
+            <FolderInput className="h-10 w-10 text-muted-foreground" />
+          </div>
+
+          {/* Title */}
+          <div className="space-y-2">
+            <h2 className="text-2xl font-semibold">Storage Folders Missing</h2>
+            <p className="text-muted-foreground">
+              This job doesn&apos;t have storage folders set up yet. Create them to store photos and documents.
+            </p>
+          </div>
+
+          {/* Status indicator for pending/processing */}
+          {(storageFolderStatus === "pending" || storageFolderStatus === "processing") && (
+            <div className="flex items-center justify-center gap-2 text-blue-600 dark:text-blue-400">
+              <Spinner size={16} />
+              <span className="text-sm">
+                {storageFolderStatus === "pending" ? "Folder creation queued..." : "Creating folders..."}
+              </span>
+            </div>
+          )}
+
+          {/* Error message */}
+          {(storageFolderStatus === "failed" || folderCreationError) && (
+            <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              <p className="text-sm text-red-700 dark:text-red-300">
+                {folderCreationError || "Failed to create folders. Please try again."}
+              </p>
+            </div>
+          )}
+
+          {/* Create button */}
+          {(storageFolderStatus === "not_requested" || storageFolderStatus === "failed") && (
+            <Button
+              size="lg"
+              onClick={handleCreateStorageFolders}
+              disabled={creatingStorageFolders}
+              className="gap-2"
+            >
+              {creatingStorageFolders ? (
+                <>
+                  <Spinner size={16} />
+                  Creating Folders...
+                </>
+              ) : (
+                <>
+                  <Folder className="h-5 w-5" />
+                  Create Folders
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Messages */}
       {error && (
         <Card className="bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800">
           <CardContent className="p-4 flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-red-600" />
+            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
             <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
           </CardContent>
         </Card>
@@ -2934,9 +3070,9 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         }>
           <CardContent className="p-4 flex items-center gap-2">
             {message.type === "info" ? (
-              <Spinner size={20} className="text-blue-600" />
+              <Spinner size={20} className="text-blue-600 dark:text-blue-400" />
             ) : (
-              <CheckCircle className="h-5 w-5 text-green-600" />
+              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
             )}
             <p className={message.type === "info"
               ? "text-sm text-blue-700 dark:text-blue-300"
@@ -3057,7 +3193,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                         onCheckedChange={() => toggleFileSelection(item.id)}
                         onClick={(e) => e.stopPropagation()}
                       />
-                      <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                      <File className="h-4 w-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{item.name}</p>
                         <p className="text-xs text-muted-foreground">
@@ -3209,6 +3345,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                 <img
                   src={previewDocument.url}
                   alt={previewDocument.name}
+                  crossOrigin="anonymous"
                   className="max-h-full max-w-full object-contain"
                 />
               </div>
@@ -3294,7 +3431,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-purple-600" />
+              <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               {categorizeResult?.dry_run ? "Categorization Preview" : "Categorization Complete"}
             </DialogTitle>
             <DialogDescription>
@@ -3323,7 +3460,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   onClick={() => setCategorizeFilter("new")}
                 >
                   <CardContent className="p-2 text-center">
-                    <div className="text-lg font-bold text-green-600">{categorizeResult.stats.categorized || 0}</div>
+                    <div className="text-lg font-bold text-green-600 dark:text-green-400">{categorizeResult.stats.categorized || 0}</div>
                     <div className="text-xs text-muted-foreground">
                       {categorizeResult.dry_run ? "New" : "Categorized"}
                     </div>
@@ -3334,7 +3471,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   onClick={() => setCategorizeFilter("fixed")}
                 >
                   <CardContent className="p-2 text-center">
-                    <div className="text-lg font-bold text-orange-600">{categorizeResult.stats.recategorized || 0}</div>
+                    <div className="text-lg font-bold text-orange-600 dark:text-orange-400">{categorizeResult.stats.recategorized || 0}</div>
                     <div className="text-xs text-muted-foreground">
                       {categorizeResult.dry_run ? "Fix" : "Fixed"}
                     </div>
@@ -3345,7 +3482,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   onClick={() => setCategorizeFilter("correct")}
                 >
                   <CardContent className="p-2 text-center">
-                    <div className="text-lg font-bold text-blue-600">{categorizeResult.stats.already_correct || 0}</div>
+                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{categorizeResult.stats.already_correct || 0}</div>
                     <div className="text-xs text-muted-foreground">Correct</div>
                   </CardContent>
                 </Card>
@@ -3354,7 +3491,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   onClick={() => setCategorizeFilter("skipped")}
                 >
                   <CardContent className="p-2 text-center">
-                    <div className="text-lg font-bold text-yellow-600">{categorizeResult.stats.skipped}</div>
+                    <div className="text-lg font-bold text-yellow-600 dark:text-yellow-400">{categorizeResult.stats.skipped}</div>
                     <div className="text-xs text-muted-foreground">Skipped</div>
                   </CardContent>
                 </Card>
@@ -3363,7 +3500,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                   onClick={() => setCategorizeFilter("failed")}
                 >
                   <CardContent className="p-2 text-center">
-                    <div className="text-lg font-bold text-red-600">{categorizeResult.stats.failed}</div>
+                    <div className="text-lg font-bold text-red-600 dark:text-red-400">{categorizeResult.stats.failed}</div>
                     <div className="text-xs text-muted-foreground">Failed</div>
                   </CardContent>
                 </Card>
@@ -3438,11 +3575,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                                 }
                                 className={
                                   item.status.includes("recategorize")
-                                    ? "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
+                                    ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900 dark:text-orange-100"
                                     : item.status === "already_correct"
-                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-100"
                                     : item.status.includes("categorize")
-                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                                    ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-100"
                                     : ""
                                 }
                               >
@@ -3459,7 +3596,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                               {item.document_type ? (
                                 <div>
                                   {item.old_type && (
-                                    <div className="text-xs text-red-500 line-through">{item.old_type}</div>
+                                    <div className="text-xs text-red-500 dark:text-red-400 line-through">{item.old_type}</div>
                                   )}
                                   <div className="font-medium">{item.document_type}</div>
                                   {item.entity_tab && (

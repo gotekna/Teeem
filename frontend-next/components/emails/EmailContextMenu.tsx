@@ -13,6 +13,7 @@ import {
   ContextMenuTrigger,
   ContextMenuShortcut,
 } from "@/components/ui/context-menu";
+import { copyToClipboard } from "@/utils/formatters";
 import {
   Reply,
   ReplyAll,
@@ -132,7 +133,7 @@ export function EmailContextMenu({
   const handleDelete = async () => {
     setLoading("delete");
     try {
-      await api.delete(`/api/v1/email_warehouse/${emailId}/delete_from_outlook`);
+      await api.delete(`/api/v1/synced_emails/${emailId}/delete_from_outlook`);
       onDelete?.();
       onAction?.();
     } catch (error) {
@@ -184,7 +185,7 @@ export function EmailContextMenu({
   const handleSpam = async () => {
     setLoading("spam");
     try {
-      await api.post(`/api/v1/email_warehouse/${emailId}/mark_as_spam`, { delete_from_outlook: true });
+      await api.post(`/api/v1/synced_emails/${emailId}/mark_as_spam`, { delete_from_outlook: true });
       onSpam?.();
       onAction?.();
     } catch (error) {
@@ -215,13 +216,13 @@ export function EmailContextMenu({
 
   const handleCopySubject = () => {
     if (subject) {
-      navigator.clipboard.writeText(subject);
+      copyToClipboard(subject);
     }
   };
 
   const handleCopySenderEmail = () => {
     if (fromEmail) {
-      navigator.clipboard.writeText(fromEmail);
+      copyToClipboard(fromEmail);
     }
   };
 
@@ -260,7 +261,7 @@ export function EmailContextMenu({
         <ContextMenuItem
           onClick={handleDelete}
           disabled={loading === "delete"}
-          className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+          className="text-red-600 dark:text-red-400 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
         >
           <Trash2 className="mr-2 h-4 w-4" />
           Delete
@@ -355,7 +356,7 @@ export function EmailContextMenu({
         {/* Star with color submenu */}
         <ContextMenuSub>
           <ContextMenuSubTrigger>
-            <Star className={cn("mr-2 h-4 w-4", isStarred && "fill-current text-yellow-500")} />
+            <Star className={cn("mr-2 h-4 w-4", isStarred && "fill-current text-yellow-500 dark:text-yellow-400")} />
             {isStarred ? "Change star" : "Star"}
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-40">
@@ -406,7 +407,7 @@ export function EmailContextMenu({
         <ContextMenuItem
           onClick={handleSpam}
           disabled={loading === "spam"}
-          className="text-orange-600 dark:text-orange-400 focus:text-orange-600 dark:focus:text-orange-400"
+          className="text-orange-600 dark:text-orange-400 focus:text-orange-600 dark:text-orange-400 dark:focus:text-orange-400"
         >
           <AlertOctagon className="mr-2 h-4 w-4" />
           Mark as spam

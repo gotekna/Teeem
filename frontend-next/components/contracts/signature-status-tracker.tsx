@@ -4,6 +4,7 @@ import { Contract, ESIGN_STATUS_CONFIG } from "@/types/contracts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatDateTimeWithFallback } from "@/utils/formatters";
 import {
   Clock,
   Send,
@@ -36,17 +37,6 @@ export function SignatureStatusTracker({
   onRefresh,
 }: SignatureStatusTrackerProps) {
   const signers = contract.signers || [];
-
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return null;
-    return new Date(dateString).toLocaleString("en-AU", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
 
   // Calculate overall progress
   const signedCount = signers.filter((s) => s.status === "signed").length;
@@ -135,7 +125,7 @@ export function SignatureStatusTracker({
                     </span>
                     {signer.signed_at && (
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(signer.signed_at)}
+                        {formatDateTimeWithFallback(signer.signed_at, '')}
                       </p>
                     )}
                   </div>
@@ -167,7 +157,7 @@ export function SignatureStatusTracker({
         {contract.sent_for_signature_at && (
           <p className="text-xs text-muted-foreground text-center">
             Sent for signature on{" "}
-            {formatDate(contract.sent_for_signature_at)}
+            {formatDateTimeWithFallback(contract.sent_for_signature_at, '')}
           </p>
         )}
       </CardContent>

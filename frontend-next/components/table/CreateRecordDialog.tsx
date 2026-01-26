@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   DndContext,
   closestCenter,
@@ -52,6 +52,8 @@ import {
 } from "@/components/ui/accordion";
 import type { TableColumn } from "./types";
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
+import { isLookupColumn } from "@/lib/constants/column-types";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import type { LookupOption } from "./utils/lookup-cache";
 import { DocumentTypeLinker, type LinkedDocumentType, type DocumentType } from "@/components/schedule-master/DocumentTypeLinker";
 
@@ -195,6 +197,9 @@ export function CreateRecordDialog({
   const [linkedDocumentTypes, setLinkedDocumentTypes] = useState<LinkedDocumentType[]>([]);
   const [availableDocumentTypes, setAvailableDocumentTypes] = useState<DocumentType[]>([]);
 
+  // SSoT: localStorage key for persisting field preferences per foundation
+  const storageKey = `${STORAGE_KEYS.MODAL_FIELDS_PREFIX}${foundationId}`;
+
   // Detect if this is a Schedule Master foundation (supports document type linking)
   const isScheduleMaster = useMemo(() => {
     const nameCheck = tableName.toLowerCase().includes("schedule master");
@@ -256,7 +261,33 @@ export function CreateRecordDialog({
   // Initialize visible fields and order on first render or when columns change
   React.useEffect(() => {
     if (filteredColumns.length > 0 && visibleFields.size === 0) {
-      // Find required fields - they MUST be visible
+      // Try to load saved field preferences from localStorage (SSoT: storage-utils)
+      const saved = getStorageItem<{ visible?: string[]; order?: Record<string, number> } | null>(storageKey, null);
+      if (saved) {
+        const { visible, order } = saved;
+        // Validate that saved fields still exist in current columns
+        const validVisible = new Set<string>();
+        const columnKeys = new Set(filteredColumns.map(c => c.key));
+        (visible || []).forEach((key: string) => {
+          if (columnKeys.has(key)) validVisible.add(key);
+        });
+        // Also add any required fields that might be missing from saved preferences
+        const requiredFields = filteredColumns.filter((col) => col.required);
+        requiredFields.forEach((col) => validVisible.add(col.key));
+        // Only use saved if we have valid visible fields
+        if (validVisible.size > 0) {
+          setVisibleFields(validVisible);
+          // Merge saved order with current columns (new columns get high order)
+          const mergedOrder: Record<string, number> = {};
+          filteredColumns.forEach((col, idx) => {
+            mergedOrder[col.key] = order?.[col.key] ?? (idx + 100);
+          });
+          setFieldOrder(mergedOrder);
+          return; // Skip default initialization
+        }
+      }
+
+      // Default: Find required fields - they MUST be visible
       const requiredFields = filteredColumns.filter((col) => col.required);
 
       // Show first 8 fields by default, but always include required fields
@@ -281,7 +312,18 @@ export function CreateRecordDialog({
       });
       setFieldOrder(initialOrder);
     }
-  }, [filteredColumns, visibleFields.size]);
+  }, [filteredColumns, visibleFields.size, storageKey]);
+
+  // Save field preferences to localStorage when they change (SSoT: storage-utils)
+  useEffect(() => {
+    if (visibleFields.size > 0) {
+      const data = {
+        visible: Array.from(visibleFields),
+        order: fieldOrder,
+      };
+      setStorageItem(storageKey, data);
+    }
+  }, [visibleFields, fieldOrder, storageKey]);
 
   // Update visible fields when entity_type changes (Contacts only)
   React.useEffect(() => {
@@ -343,11 +385,7 @@ export function CreateRecordDialog({
 
       // Fetch lookup options for all lookup columns
       const lookupColumns = filteredColumns.filter(
-        (col) =>
-          col.column_type === "lookup" ||
-          col.column_type === "multiple_lookups" ||
-          col.column_type === "relation" ||
-          col.lookup_foundation_id
+        (col) => isLookupColumn(col.column_type) || col.lookup_foundation_id
       );
 
       lookupColumns.forEach(async (col) => {
@@ -491,8 +529,9 @@ export function CreateRecordDialog({
       ) : null;
 
     // Check if column is a lookup type
-    const isLookup = col.column_type === "lookup" || col.column_type === "relation" || col.lookup_foundation_id;
-    const isMultipleLookup = col.column_type === "multiple_lookups";
+    const colType = col.column_type;
+    const isLookup = (isLookupColumn(colType) && colType !== "multiple_lookups") || !!col.lookup_foundation_id;
+    const isMultipleLookup = colType === "multiple_lookups";
 
     // Handle multiple lookups (checkboxes for multi-select)
     if (isMultipleLookup) {
@@ -705,7 +744,6 @@ export function CreateRecordDialog({
         );
 
       case "choice":
-      case "single_select":
         // Handle choice columns with predefined options (searchable)
         if (col.choices && col.choices.length > 0) {
           const selectedChoice = col.choices.find(c => c === value);

@@ -5,8 +5,16 @@
 # Each user has their own independent state for each email.
 #
 class EmailUserState < ApplicationRecord
-  belongs_to :email_warehouse
+  # SSoT: Legacy column is email_warehouse_id, but actual model is SyncedEmail
+  # (EmailWarehouse was renamed to SyncedEmail in Jan 2026)
+  belongs_to :email_warehouse, class_name: "SyncedEmail"
   belongs_to :user
+
+  # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
+  alias_attribute :synced_email_id, :email_warehouse_id
+  # Use alias_method for associations (alias_attribute only works for columns in Rails 8)
+  alias_method :synced_email, :email_warehouse
+  alias_method :synced_email=, :email_warehouse=
 
   # Validations
   validates :star_color, inclusion: { in: %w[red orange yellow green blue purple] }, allow_blank: true
@@ -46,6 +54,8 @@ class EmailUserState < ApplicationRecord
 
   # Get or create state for an email/user combo
   def self.for(email, user)
+    # SSoT: Use email_warehouse (the actual association name), not synced_email alias
+    # synced_email is alias_method which doesn't work in find_or_create_by!
     find_or_create_by!(email_warehouse: email, user: user)
   end
 
@@ -129,7 +139,7 @@ class EmailUserState < ApplicationRecord
 
   # Get all pinned emails for a user
   def self.pinned_emails_for(user)
-    EmailWarehouse
+    SyncedEmail
       .joins(:email_user_states)
       .where(email_user_states: { user: user, is_pinned: true })
       .order("email_user_states.updated_at DESC")
@@ -137,7 +147,7 @@ class EmailUserState < ApplicationRecord
 
   # Get all starred emails for a user
   def self.starred_emails_for(user)
-    EmailWarehouse
+    SyncedEmail
       .joins(:email_user_states)
       .where(email_user_states: { user: user, is_starred: true })
       .order("email_user_states.updated_at DESC")
@@ -145,15 +155,15 @@ class EmailUserState < ApplicationRecord
 
   # Get all archived emails for a user
   def self.archived_emails_for(user)
-    EmailWarehouse
+    SyncedEmail
       .joins(:email_user_states)
       .where(email_user_states: { user: user, is_archived: true })
-      .order("email_warehouse.received_at DESC")
+      .order("synced_email.received_at DESC")
   end
 
   # Get emails with due reminders
   def self.due_reminders_for(user)
-    for_user(user).reminders_due.includes(:email_warehouse)
+    for_user(user).reminders_due.includes(:synced_email)
   end
 
   # Process due reminders (called by background job)
@@ -173,15 +183,15 @@ class EmailUserState < ApplicationRecord
   # Send reminder notification
   def send_reminder!
     return if reminder_sent
-    return unless email_warehouse.present?
+    return unless synced_email.present?
 
     # Create in-app notification
     Notification.create!(
       user: user,
-      notifiable: email_warehouse,
+      notifiable: synced_email,
       notification_type: "email_reminder",
       title: "Email Reminder",
-      message: "Reminder: #{email_warehouse.subject.to_s.truncate(100)}"
+      message: "Reminder: #{synced_email.subject.to_s.truncate(100)}"
     )
 
     update!(reminder_sent: true)
@@ -189,16 +199,16 @@ class EmailUserState < ApplicationRecord
 
   # Check if email is from a VIP sender for this user
   def from_vip?
-    return false unless email_warehouse&.from_email.present?
+    return false unless synced_email&.from_email.present?
 
-    VipSender.exists?(user: user, email_address: email_warehouse.from_email.downcase)
+    VipSender.exists?(user: user, email_address: synced_email.from_email.downcase)
   end
 
   # JSON representation
   def as_json(options = {})
     {
       id: id,
-      email_id: email_warehouse_id,
+      email_id: synced_email_id,
       user_id: user_id,
       is_pinned: is_pinned,
       is_starred: is_starred,
@@ -232,7 +242,7 @@ class EmailUserState < ApplicationRecord
 
     return if changes.empty?
 
-    EmailChannel.broadcast_state_change(user, email_warehouse_id, changes)
+    EmailChannel.broadcast_state_change(user, synced_email_id, changes)
   rescue StandardError => e
     Rails.logger.error "Failed to broadcast email state change: #{e.message}"
   end

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { EntityTabsTable } from "./EntityTabsTable";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,6 +58,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface CompanyGroup {
   id: number;
@@ -106,6 +108,7 @@ interface Company {
 // ===== GROUPS SUB-TAB =====
 function GroupsSubTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showDialog, setShowDialog] = React.useState(false);
@@ -209,7 +212,7 @@ function GroupsSubTab() {
       return;
     }
 
-    if (!confirm(`Delete group "${group.name}"? This cannot be undone.`)) return;
+    if (!(await confirm(`Delete group "${group.name}"? This cannot be undone.`))) return;
 
     setDeleting(group.id);
     try {
@@ -298,7 +301,7 @@ function GroupsSubTab() {
                     <Badge
                       className={cn(
                         group.active !== false
-                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                          ? "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300"
                           : "bg-muted text-foreground dark:bg-background dark:text-muted-foreground"
                       )}
                     >
@@ -451,6 +454,7 @@ function GroupsSubTab() {
 // ===== COMPANIES SUB-TAB =====
 function CompaniesSubTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [companies, setCompanies] = React.useState<Company[]>([]);
   const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -668,7 +672,7 @@ function CompaniesSubTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this company?")) return;
+    if (!(await confirm("Are you sure you want to delete this company?"))) return;
 
     setDeleting(id);
     try {
@@ -696,12 +700,12 @@ function CompaniesSubTab() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
+        return "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300";
       case "dormant":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300";
+        return "bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-300";
       case "struck_off":
       case "in_liquidation":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
+        return "bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300";
       default:
         return "";
     }
@@ -845,9 +849,9 @@ function CompaniesSubTab() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(
-                        company.entity_type === "Company" && "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800",
-                        company.entity_type === "Trust" && "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800",
-                        company.entity_type === "Superfund" && "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+                        company.entity_type === "Company" && "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800",
+                        company.entity_type === "Trust" && "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800",
+                        company.entity_type === "Superfund" && "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
                       )}>
                         {company.entity_type || "-"}
                       </Badge>
@@ -1129,8 +1133,8 @@ function CompaniesSubTab() {
                   <span className="font-medium">{selectedContactForAdd.display_name}</span>
                   <Badge variant="outline" className={cn(
                     "text-xs",
-                    selectedContactForAdd.entity_type === "company" && "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
-                    selectedContactForAdd.entity_type === "trust" && "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300"
+                    selectedContactForAdd.entity_type === "company" && "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
+                    selectedContactForAdd.entity_type === "trust" && "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300"
                   )}>
                     {selectedContactForAdd.entity_type}
                   </Badge>
@@ -1219,42 +1223,48 @@ function CompanyTabsSubTab() {
   return <EntityTabsTable />;
 }
 
+// Sub-tab definitions for corporate
+const CORPORATE_SUB_TABS = [
+  { id: "groups", label: "Groups", icon: FolderOpen },
+  { id: "companies", label: "Companies", icon: Building2 },
+  { id: "company-tabs", label: "Storage Locations", icon: LayoutGrid },
+];
+
 // ===== MAIN CORPORATE TAB =====
-export function CorporateTab() {
-  const [activeSubTab, setActiveSubTab] = React.useState("groups");
+const DEFAULT_CORPORATE_BASE_PATH = "/settings/corporate";
+
+interface CorporateTabProps {
+  subTab?: string;
+  basePath?: string;
+}
+
+export function CorporateTab({ subTab, basePath = DEFAULT_CORPORATE_BASE_PATH }: CorporateTabProps) {
+  const router = useRouter();
+
+  // Validate and default the sub-tab
+  const activeSubTab = CORPORATE_SUB_TABS.some((t) => t.id === subTab) ? subTab : "groups";
+
+  const handleSubTabChange = (tabId: string) => {
+    router.push(`${basePath}/${tabId}`, { scroll: false });
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Corporate Administration</h2>
-          <p className="text-sm text-muted-foreground">
-            Manage company groups and corporate entities
-          </p>
-        </div>
-        <Link
-          href="/corporate"
-          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-        >
-          Go to Corporate Dashboard
-          <ExternalLink className="h-4 w-4" />
-        </Link>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Manage company groups and corporate entities
+      </p>
 
-      <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
+      <Tabs value={activeSubTab} onValueChange={handleSubTabChange}>
         <TabsList>
-          <TabsTrigger value="groups" className="flex items-center gap-2">
-            <FolderOpen className="h-4 w-4" />
-            Groups
-          </TabsTrigger>
-          <TabsTrigger value="companies" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            Companies
-          </TabsTrigger>
-          <TabsTrigger value="company-tabs" className="flex items-center gap-2">
-            <LayoutGrid className="h-4 w-4" />
-            Entity Tabs
-          </TabsTrigger>
+          {CORPORATE_SUB_TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
         <div className="mt-6">

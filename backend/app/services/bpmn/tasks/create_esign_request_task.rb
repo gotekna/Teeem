@@ -42,9 +42,9 @@ module Bpmn
           signing_order: @config["signing_order"] || 0,
           expires_at: (@config["expires_in_days"] || 30).days.from_now,
           message_to_signers: get_config("message_to_signers", interpolate_value: true),
-          original_sharepoint_file_id: @config["document_file_id"],
-          sharepoint_site_id: @config["site_id"],
-          sharepoint_drive_id: @config["drive_id"],
+          original_storage_file_id: @config["document_file_id"],
+          storage_site_id: @config["site_id"],
+          storage_drive_id: @config["drive_id"],
           send_reminders: @config["send_reminders"] != false
         )
 
@@ -60,7 +60,7 @@ module Bpmn
         end
 
         # Calculate document hash
-        if request.original_sharepoint_file_id.present?
+        if request.original_storage_file_id.present?
           request.original_document_hash = calculate_document_hash(request)
         end
 
@@ -142,14 +142,14 @@ module Bpmn
       end
 
       def calculate_document_hash(request)
-        return nil unless request.original_sharepoint_file_id.present?
+        return nil unless request.original_storage_file_id.present?
 
         begin
           client = MicrosoftAppGraphClient.new
           content = client.get_drive_item_content(
-            site_id: request.sharepoint_site_id,
-            drive_id: request.sharepoint_drive_id,
-            item_id: request.original_sharepoint_file_id
+            site_id: request.storage_site_id,
+            drive_id: request.storage_drive_id,
+            item_id: request.original_storage_file_id
           )
           Digest::SHA256.hexdigest(content)
         rescue StandardError => e

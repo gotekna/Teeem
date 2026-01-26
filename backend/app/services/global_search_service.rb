@@ -27,7 +27,7 @@
 class GlobalSearchService
   # Searchable types and their model classes
   SEARCHABLE_TYPES = {
-    "emails" => EmailWarehouse,
+    "emails" => SyncedEmail,
     "documents" => CorporateCompanyDocument,
     "jobs" => Job,
     "contacts" => Contact,
@@ -159,7 +159,7 @@ class GlobalSearchService
 
   def base_scope(model)
     case model.name
-    when "EmailWarehouse"
+    when "SyncedEmail"
       model.order(received_at: :desc)
     when "CorporateCompanyDocument"
       model.includes(:document_type_record).order(created_at: :desc)
@@ -179,7 +179,7 @@ class GlobalSearchService
   # Serialize a result for API response
   def serialize_result(model, record)
     case model.name
-    when "EmailWarehouse"
+    when "SyncedEmail"
       {
         id: record.id,
         type: "email",
@@ -195,7 +195,8 @@ class GlobalSearchService
         title: record.display_name || record.file_name,
         subtitle: record.document_type_record&.name || "Document",
         date: record.created_at&.iso8601,
-        url: record.file_url
+        # SSoT: storage_url (from StorableDocument concern) is THE ONE way to get download URLs
+        url: record.storage_url || record.file_url
       }
     when "Job"
       {

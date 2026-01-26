@@ -178,7 +178,7 @@ class ESignatureRequest < ApplicationRecord
 
   # Document hash for integrity
   def calculate_original_document_hash
-    return nil unless original_sharepoint_file_id
+    return nil unless original_storage_file_id
 
     # This would download and hash the document
     # Implementation depends on your document storage
@@ -243,6 +243,24 @@ class ESignatureRequest < ApplicationRecord
       completed_at: completed_at,
       signers: signers.map(&:to_summary)
     }
+  end
+
+  # Provider-agnostic storage references (SSoT: original/signed_storage_item_id)
+  # Now uses storage_file_id columns (renamed from sharepoint_file_id)
+  def original_storage_reference
+    original_storage_item_id.presence || original_storage_file_id
+  end
+
+  def signed_storage_reference
+    signed_storage_item_id.presence || signed_storage_file_id
+  end
+
+  def set_original_storage_reference(item_id)
+    self.original_storage_item_id = item_id
+  end
+
+  def set_signed_storage_reference(item_id)
+    self.signed_storage_item_id = item_id
   end
 
   private

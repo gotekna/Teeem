@@ -26,11 +26,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatFileSize } from "@/utils/formatters";
 
 interface PlanFolderScan {
   id: number;
   job_id: number;
   job_name: string;
+  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
+  storage_item_id?: string;
   sharepoint_file_id: string;
   file_name: string;
   file_modified_at: string;
@@ -136,24 +139,18 @@ export default function PlansPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+        return <Badge variant="outline" className="bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 border-yellow-200"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
       case "processing":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200"><Spinner size={12} className="mr-1" />Processing</Badge>;
+        return <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200"><Spinner size={12} className="mr-1" />Processing</Badge>;
       case "processed":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Processed</Badge>;
+        return <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200"><CheckCircle className="h-3 w-3 mr-1" />Processed</Badge>;
       case "skipped":
         return <Badge variant="outline" className="bg-muted text-foreground border-border"><SkipForward className="h-3 w-3 mr-1" />Skipped</Badge>;
       case "error":
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200"><AlertCircle className="h-3 w-3 mr-1" />Error</Badge>;
+        return <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200"><AlertCircle className="h-3 w-3 mr-1" />Error</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (!bytes) return "-";
-    const mb = bytes / (1024 * 1024);
-    return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
   };
 
   const formatDate = (dateStr: string) => {
@@ -206,7 +203,7 @@ export default function PlansPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{meta.pending_count}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{meta.pending_count}</div>
           </CardContent>
         </Card>
         <Card>
@@ -214,7 +211,7 @@ export default function PlansPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Processing</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{meta.processing_count}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{meta.processing_count}</div>
           </CardContent>
         </Card>
         <Card>
@@ -222,7 +219,7 @@ export default function PlansPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Processed</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{meta.processed_count}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{meta.processed_count}</div>
           </CardContent>
         </Card>
       </div>
@@ -269,7 +266,7 @@ export default function PlansPage() {
                     <TableCell>{getStatusBadge(scan.status)}</TableCell>
                     <TableCell>
                       {scan.job_plan_name || (scan.error_message && (
-                        <span className="text-xs text-red-500" title={scan.error_message}>
+                        <span className="text-xs text-red-500 dark:text-red-400" title={scan.error_message}>
                           {scan.error_message.substring(0, 30)}...
                         </span>
                       )) || "-"}
@@ -302,7 +299,7 @@ export default function PlansPage() {
                           onClick={() => handleDelete(scan.id)}
                           title="Delete record"
                         >
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                         </Button>
                       </div>
                     </TableCell>

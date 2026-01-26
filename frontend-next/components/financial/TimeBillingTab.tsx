@@ -36,6 +36,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface BillableRate {
   id: number;
@@ -101,22 +102,6 @@ interface UnbilledData {
     total_amount: number;
     entry_count: number;
   };
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 function formatHours(hours: number): string {
@@ -199,11 +184,11 @@ export default function TimeBillingTab() {
       case "draft":
         return <Badge variant="secondary"><FileText className="h-3 w-3 mr-1" />Draft</Badge>;
       case "pending_approval":
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+        return <Badge variant="outline" className="bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
       case "approved":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
+        return <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
       case "billed":
-        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"><DollarSign className="h-3 w-3 mr-1" />Billed</Badge>;
+        return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"><DollarSign className="h-3 w-3 mr-1" />Billed</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -214,9 +199,9 @@ export default function TimeBillingTab() {
       case "draft":
         return <Badge variant="secondary">Draft</Badge>;
       case "approved":
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Approved</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Approved</Badge>;
       case "invoiced":
-        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Invoiced</Badge>;
+        return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Invoiced</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -264,12 +249,12 @@ export default function TimeBillingTab() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                 Unbilled
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                 {formatCurrency(summary.by_status.unbilled)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">ready to bill</p>
@@ -279,12 +264,12 @@ export default function TimeBillingTab() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4 text-orange-600" />
+                <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                 Pending
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
+              <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                 {formatCurrency(summary.by_status.pending)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">awaiting approval</p>
@@ -294,12 +279,12 @@ export default function TimeBillingTab() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-green-600" />
+                <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
                 Billed
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {formatCurrency(summary.by_status.billed)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">invoiced</p>
@@ -312,7 +297,7 @@ export default function TimeBillingTab() {
       {unbilled && unbilled.totals.entry_count > 0 && (
         <Card className="border-yellow-200 dark:border-yellow-800">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-yellow-600">
+            <CardTitle className="text-sm font-medium flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
               <AlertCircle className="h-4 w-4" />
               Unbilled Time Ready to Invoice
             </CardTitle>
@@ -328,7 +313,7 @@ export default function TimeBillingTab() {
                 <span className="text-muted-foreground ml-2">hours</span>
               </div>
               <div>
-                <span className="text-2xl font-bold text-green-600">{formatCurrency(unbilled.totals.total_amount)}</span>
+                <span className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(unbilled.totals.total_amount)}</span>
                 <span className="text-muted-foreground ml-2">value</span>
               </div>
             </div>
@@ -524,7 +509,7 @@ export default function TimeBillingTab() {
                         </TableCell>
                         <TableCell className="text-center">
                           {rate.active ? (
-                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Active</Badge>
+                            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">Active</Badge>
                           ) : (
                             <Badge variant="secondary">Inactive</Badge>
                           )}

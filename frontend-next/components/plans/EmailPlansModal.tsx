@@ -24,10 +24,13 @@ import {
   Building2,
   HardHat,
   Users,
-  X,
-  Search,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { EmailContactAutocomplete } from "@/components/emails/EmailContactAutocomplete";
+import type { EmailContact } from "@/lib/email-types";
+
+const CONTACT_SEARCH_MIN_CHARS = 2;
+const CONTACT_SEARCH_DEBOUNCE_MS = 300;
 
 interface JobPlan {
   id: number;
@@ -68,15 +71,51 @@ export function EmailPlansModal({
   const [sending, setSending] = useState(false);
   const [suggestedRecipients, setSuggestedRecipients] = useState<SuggestedRecipient[]>([]);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
-  const [customRecipients, setCustomRecipients] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SuggestedRecipient[]>([]);
-  const [searching, setSearching] = useState(false);
+  const [additionalRecipients, setAdditionalRecipients] = useState<string[]>([]);
   const [senderEmail, setSenderEmail] = useState<string>("");
+
+  // Contact search state for autocomplete
+  const [contacts, setContacts] = useState<EmailContact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
 
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Search contacts for autocomplete
+  const searchContacts = async (search: string) => {
+    if (!search || search.length < CONTACT_SEARCH_MIN_CHARS) {
+      setContacts([]);
+      return;
+    }
+    setContactsLoading(true);
+    try {
+      const response = await api.get<{ contacts: EmailContact[] }>(
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&include_jobs=true&per_page=20`
+      );
+      const typedResponse = response as { contacts: EmailContact[] };
+      setContacts((typedResponse.contacts || []).filter(c =>
+        c.email || (c.contact_emails && c.contact_emails.length > 0)
+      ));
+    } catch (err) {
+      console.error("Failed to search contacts:", err);
+    } finally {
+      setContactsLoading(false);
+    }
+  };
+
+  // Debounced contact search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (contactSearch) {
+        searchContacts(contactSearch);
+      } else {
+        setContacts([]);
+      }
+    }, CONTACT_SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [contactSearch]);
 
   // Fetch suggested recipients when modal opens
   useEffect(() => {
@@ -87,7 +126,7 @@ export function EmailPlansModal({
       setSubject(`Plans for ${jobTitle}: ${planNames}`);
       setBody(`Hi,\n\nPlease find attached the following plans for ${jobTitle}:\n\n${selectedPlans.map(p => `- ${p.display_name}${p.current_revision ? ` (Rev ${p.current_revision.revision_label})` : ""}`).join("\n")}\n\nPlease let us know if you have any questions.\n\nBest regards`);
       setSelectedRecipients([]);
-      setCustomRecipients("");
+      setAdditionalRecipients([]);
       setError(null);
     }
   }, [open, jobId, jobTitle, selectedPlans]);
@@ -112,63 +151,12 @@ export function EmailPlansModal({
     }
   };
 
-  const searchContacts = async (query: string) => {
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    setSearching(true);
-    try {
-      const response = await api.get<{ success: boolean; data: Array<{ id: number; display_name: string; email: string }> }>(
-        `/api/v1/contacts?search=${encodeURIComponent(query)}&per_page=10`
-      );
-      if (response.success && response.data) {
-        // Transform contacts to SuggestedRecipient format, filtering to only those with email
-        const withEmail = response.data
-          .filter(c => c.email)
-          .map(c => ({
-            id: c.id,
-            name: c.display_name,
-            email: c.email,
-            role: 'Contact',
-            type: 'contact' as const
-          }));
-        setSearchResults(withEmail);
-      }
-    } catch (err) {
-      console.error("Failed to search contacts:", err);
-      setSearchResults([]);
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery) {
-        searchContacts(searchQuery);
-      } else {
-        setSearchResults([]);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
   const toggleRecipient = (email: string) => {
     setSelectedRecipients(prev =>
       prev.includes(email)
         ? prev.filter(e => e !== email)
         : [...prev, email]
     );
-  };
-
-  const addFromSearch = (recipient: SuggestedRecipient) => {
-    if (!selectedRecipients.includes(recipient.email)) {
-      setSelectedRecipients(prev => [...prev, recipient.email]);
-    }
-    setSearchQuery("");
-    setSearchResults([]);
   };
 
   const getRecipientIcon = (type: string) => {
@@ -187,12 +175,8 @@ export function EmailPlansModal({
   const handleSend = async () => {
     setError(null);
 
-    // Combine selected recipients with custom recipients
-    const allRecipients = [...selectedRecipients];
-    if (customRecipients.trim()) {
-      const customEmails = customRecipients.split(/[,;\s]+/).filter(e => e.includes("@"));
-      allRecipients.push(...customEmails);
-    }
+    // Combine suggested recipients selection with additional recipients from autocomplete
+    const allRecipients = [...selectedRecipients, ...additionalRecipients];
 
     if (allRecipients.length === 0) {
       setError("Please select at least one recipient");
@@ -275,7 +259,7 @@ export function EmailPlansModal({
                       </span>
                     )}
                     {!plan.current_revision?.has_file && (
-                      <span className="text-xs text-red-500">(no file)</span>
+                      <span className="text-xs text-red-500 dark:text-red-400">(no file)</span>
                     )}
                   </Badge>
                 ))}
@@ -315,71 +299,23 @@ export function EmailPlansModal({
               </div>
             )}
 
-            {/* Search for contacts */}
-            <div className="space-y-2">
-              <Label>Search Contacts</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name or email..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck="false"
-                />
-                {searching && (
-                  <Spinner className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" />
-                )}
-              </div>
-              {searchResults.length > 0 && (
-                <div className="border rounded-lg divide-y max-h-[200px] overflow-y-auto">
-                  {searchResults.map(result => (
-                    <div
-                      key={result.email}
-                      className="flex items-center gap-3 p-2 hover:bg-muted/50 cursor-pointer"
-                      onClick={() => addFromSearch(result)}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{result.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{result.email}</p>
-                      </div>
-                      <Button variant="ghost" size="sm">Add</Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Custom recipients */}
+            {/* Additional Recipients - with contact autocomplete */}
             <div className="space-y-2">
               <Label>Additional Recipients</Label>
-              <Input
-                placeholder="Enter email addresses separated by commas..."
-                value={customRecipients}
-                onChange={e => setCustomRecipients(e.target.value)}
+              <EmailContactAutocomplete
+                value={additionalRecipients.join(", ")}
+                onChange={(value) => {
+                  // Parse comma-separated emails into array
+                  const emails = value.split(",").map(e => e.trim()).filter(Boolean);
+                  setAdditionalRecipients(emails);
+                }}
+                contacts={contacts}
+                isLoading={contactsLoading}
+                onSearch={setContactSearch}
+                placeholder="Search contacts or enter email..."
+                minSearchChars={CONTACT_SEARCH_MIN_CHARS}
               />
             </div>
-
-            {/* Selected recipients summary */}
-            {selectedRecipients.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {selectedRecipients.map(email => (
-                  <Badge key={email} variant="secondary" className="flex items-center gap-1">
-                    {email}
-                    <button
-                      type="button"
-                      onClick={() => toggleRecipient(email)}
-                      className="ml-1 hover:text-red-500"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            )}
 
             {/* Subject */}
             <div className="space-y-2">

@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, HardHat, Building2, LayoutGrid, PenTool, X, Check, History, FileText, ExternalLink } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 // Signature usage type
 interface SignatureUsage {
@@ -41,6 +42,7 @@ import {
   getStoredPersona,
   setStoredPersona,
 } from "@/lib/personas";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // QBCC Licence Classes relevant for Form 43 certificates
 const QBCC_LICENCE_CLASSES = [
@@ -68,6 +70,7 @@ const personaIcons: Record<Persona, typeof HardHat> = {
 
 export default function ProfileSettingsPage() {
   const { user, refreshUser } = useAuth();
+  const { toast } = useToast();
   const [saving, setSaving] = React.useState(false);
   const [persona, setPersona] = React.useState<Persona>("manager");
 
@@ -76,6 +79,12 @@ export default function ProfileSettingsPage() {
   const [profileEmail, setProfileEmail] = React.useState("");
   const [profilePhone, setProfilePhone] = React.useState("");
   const [profileJobTitle, setProfileJobTitle] = React.useState("");
+
+  // Profile photo state
+  const [photoUrl, setPhotoUrl] = React.useState<string | null>(null);
+  const [photoFile, setPhotoFile] = React.useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = React.useState<string | null>(null);
+  const photoInputRef = React.useRef<HTMLInputElement>(null);
 
   // QBCC/Signature state
   const [qbccLicenceNumber, setQbccLicenceNumber] = React.useState("");
@@ -102,6 +111,8 @@ export default function ProfileSettingsPage() {
       setProfileEmail(user.email || "");
       setProfilePhone((user as any).mobile_phone || "");
       setProfileJobTitle((user as any).job_title || "");
+      // Profile photo
+      setPhotoUrl((user as any).photo_url || null);
       // QBCC/Signature fields
       setQbccLicenceNumber((user as any).qbcc_licence_number || "");
       setQbccLicenceClass((user as any).qbcc_licence_class || "");
@@ -141,18 +152,39 @@ export default function ProfileSettingsPage() {
     }
   }, [showHistory]);
 
+  // Handle profile photo selection
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        toast({ title: "Invalid File", description: "Please select an image file (PNG, JPG, etc.)", variant: "destructive" });
+        return;
+      }
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: "File Too Large", description: "Photo must be less than 10MB", variant: "destructive" });
+        return;
+      }
+      setPhotoFile(file);
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setPhotoPreview(previewUrl);
+    }
+  };
+
   // Handle signature file selection
   const handleSignatureSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       // Validate file type
       if (!file.type.startsWith("image/")) {
-        alert("Please select an image file (PNG, JPG, etc.)");
+        toast({ title: "Invalid File", description: "Please select an image file (PNG, JPG, etc.)", variant: "destructive" });
         return;
       }
       // Validate file size (max 2MB)
       if (file.size > 2 * 1024 * 1024) {
-        alert("Signature image must be less than 2MB");
+        toast({ title: "File Too Large", description: "Signature image must be less than 2MB", variant: "destructive" });
         return;
       }
       setSignatureFile(file);
@@ -175,32 +207,43 @@ export default function ProfileSettingsPage() {
 
     setSaving(true);
     try {
-      // Use FormData if we have a signature file to upload
-      if (signatureFile) {
+      // Use FormData if we have a file to upload (photo or signature)
+      if (photoFile || signatureFile) {
         const formData = new FormData();
         formData.append("user[name]", profileName);
         formData.append("user[email]", profileEmail);
         formData.append("user[mobile_phone]", profilePhone);
         formData.append("user[qbcc_licence_number]", qbccLicenceNumber);
         formData.append("user[qbcc_licence_class]", qbccLicenceClass);
-        formData.append("user[signature]", signatureFile);
+        if (photoFile) {
+          formData.append("user[photo]", photoFile);
+        }
+        if (signatureFile) {
+          formData.append("user[signature]", signatureFile);
+        }
 
+        // Use Next.js proxy route for FormData uploads (handles CORS)
+        const token = getStorageItem(STORAGE_KEYS.TOKEN, '', false);
         const response = await fetch(`/api/v1/users/${user.id}`, {
           method: "PATCH",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: formData,
-          credentials: "include",
         });
         const data = await response.json();
 
         if (data?.success) {
+          setPhotoFile(null);
+          setPhotoPreview(null);
           setSignatureFile(null);
           setSignaturePreview(null);
           if (refreshUser) {
             await refreshUser();
           }
-          alert("Profile saved successfully!");
+          toast({ title: "Success", description: "Profile saved successfully" });
         } else {
-          alert(`Failed to save: ${data?.errors?.join("; ") || "Unknown error"}`);
+          toast({ title: "Error", description: `Failed to save: ${data?.errors?.join("; ") || "Unknown error"}`, variant: "destructive" });
         }
       } else {
         // Regular JSON request without file
@@ -221,18 +264,18 @@ export default function ProfileSettingsPage() {
           if (refreshUser) {
             await refreshUser();
           }
-          alert("Profile saved successfully!");
+          toast({ title: "Success", description: "Profile saved successfully" });
         } else {
           const errors = response?.errors || [];
           const errorMsg = Array.isArray(errors)
             ? errors.map((e: any) => (typeof e === "string" ? e : e.error || JSON.stringify(e))).join("; ")
             : "Unknown error";
-          alert(`Failed to save: ${errorMsg}`);
+          toast({ title: "Error", description: `Failed to save: ${errorMsg}`, variant: "destructive" });
         }
       }
     } catch (error) {
       console.error("Failed to save profile:", error);
-      alert("Failed to save profile. Please try again.");
+      toast({ title: "Error", description: "Failed to save profile. Please try again.", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -247,7 +290,7 @@ export default function ProfileSettingsPage() {
       <CardContent className="space-y-6">
         <div className="flex items-center gap-4">
           <Avatar className="h-20 w-20">
-            <AvatarImage src="" />
+            <AvatarImage src={photoPreview || photoUrl || ""} />
             <AvatarFallback className="text-lg">
               {user?.name
                 ?.split(" ")
@@ -257,11 +300,23 @@ export default function ProfileSettingsPage() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <Button variant="outline" size="sm">
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoSelect}
+              className="hidden"
+              id="photo-upload"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => photoInputRef.current?.click()}
+            >
               <Upload className="h-4 w-4 mr-2" />
               Upload Photo
             </Button>
-            <p className="text-xs text-muted-foreground mt-1">JPG, PNG or GIF. Max 2MB.</p>
+            <p className="text-xs text-muted-foreground mt-1">JPG, PNG or GIF. Max 10MB.</p>
           </div>
         </div>
 

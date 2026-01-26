@@ -1,8 +1,9 @@
 # =============================================================================
 # CorporateSharePointScannerService - DOCUMENT SCANNER
 # =============================================================================
-# Purpose: Scan SharePoint for existing corporate documents and link them to companies
-# SSoT: This service READS from SharePoint (discovery/scanning)
+# Purpose: Scan storage for existing corporate documents and link them to companies
+# SSoT: This service READS from storage (discovery/scanning)
+# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
 #
 # Key Methods:
 #   - scan_all: Scan all corporate folders for documents
@@ -13,6 +14,7 @@
 # RENAMED: CorporateOnedriveService → CorporateSharePointScannerService
 # =============================================================================
 class CorporateSharePointScannerService
+  include DocumentProviderAware
   attr_reader :credential, :results, :folder_path
 
   # SSoT: Get the preferred company folder path from StorageConfiguration
@@ -31,9 +33,7 @@ class CorporateSharePointScannerService
     ]
   end
 
-  # DEPRECATED: Use self.company_folder_path instead (SSoT: CorporateCompanySetting)
-  # Kept for backwards compatibility only - do not use in new code
-  DEFAULT_FOLDER_PATH = "Corporate"
+  # SSoT: Use StorageConfiguration.instance.path_for(:corporate) for folder paths
 
   # Known group folders that contain company subfolders
   # These match the groups defined in the Company model
@@ -309,15 +309,29 @@ class CorporateSharePointScannerService
   end
 
   def get_onedrive_client
-    return nil unless @credential
-    MicrosoftGraphClient.new(@credential)
+    # SSoT: Use DocumentProviderAware to setup provider
+    begin
+      setup_default_provider!
+      # Return self as the "client" since we use provider methods directly
+      # For SharePoint-specific operations, fall back to MicrosoftGraphClient
+      if current_provider_type == :sharepoint && @credential
+        MicrosoftGraphClient.new(@credential)
+      else
+        self  # Use DocumentProviderAware methods
+      end
+    rescue DocumentProviders::NotConnectedError
+      return nil unless @credential
+      # Fall back to direct client if provider not configured
+      MicrosoftGraphClient.new(@credential)
+    end
   end
 
   def find_folder_by_path(client, path)
     path_parts = path.split("/")
     current_folder = nil
-    # Use SharePoint drive if available, otherwise fall back to personal OneDrive
-    drive_path = @credential&.drive_id ? "/drives/#{@credential.drive_id}" : "/me/drive"
+    # SSoT: Get drive path from StorageConfiguration (Jan 2026)
+    storage_drive_id = StorageConfiguration.instance&.drive_id
+    drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
     current_parent_path = "#{drive_path}/root"
 
     path_parts.each do |folder_name|
@@ -337,8 +351,9 @@ class CorporateSharePointScannerService
 
   def list_folder_children(client, folder_id)
     all_items = []
-    # Use SharePoint drive if available, otherwise fall back to personal OneDrive
-    drive_path = @credential&.drive_id ? "/drives/#{@credential.drive_id}" : "/me/drive"
+    # SSoT: Get drive path from StorageConfiguration (Jan 2026)
+    storage_drive_id = StorageConfiguration.instance&.drive_id
+    drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
     next_link = "#{drive_path}/items/#{folder_id}/children"
 
     while next_link
@@ -370,9 +385,9 @@ class CorporateSharePointScannerService
     folder_display = group_name ? "#{group_name}/#{folder['name']}" : folder["name"]
     Rails.logger.info "Processing folder '#{folder_display}' for company '#{company.name}'"
 
-    # Store SharePoint folder URL for direct access
-    if folder["webUrl"].present? && company.sharepoint_folder_url != folder["webUrl"]
-      company.update_column(:sharepoint_folder_url, folder["webUrl"])
+    # Store storage folder URL for direct access
+    if folder["webUrl"].present? && company.storage_folder_url != folder["webUrl"]
+      company.update_column(:storage_folder_url, folder["webUrl"])
     end
 
     # Scan all documents in this folder (recursively)
@@ -418,8 +433,8 @@ class CorporateSharePointScannerService
       return company if company
     end
 
-    # PRIORITY 2: Check for explicit SharePoint folder name mapping (TEEEM is source of truth)
-    company = CorporateCompany.find_by("LOWER(sharepoint_folder_name) = ?", folder_name.downcase)
+    # PRIORITY 2: Check for explicit storage folder name mapping (TEEEM is source of truth)
+    company = CorporateCompany.find_by("LOWER(storage_folder_name) = ?", folder_name.downcase)
     return company if company
 
     # PRIORITY 3: Try exact name match
@@ -450,9 +465,9 @@ class CorporateSharePointScannerService
       return true if code == company.code.upcase
     end
 
-    # PRIORITY 2: Check explicit SharePoint folder name mapping (TEEEM is source of truth)
-    if company.sharepoint_folder_name.present?
-      return folder_name.downcase == company.sharepoint_folder_name.downcase
+    # PRIORITY 2: Check explicit storage folder name mapping (TEEEM is source of truth)
+    if company.storage_folder_name.present?
+      return folder_name.downcase == company.storage_folder_name.downcase
     end
 
     # PRIORITY 3: Fuzzy matching (fallback)
@@ -494,9 +509,9 @@ class CorporateSharePointScannerService
     document_type_string = parent_folder_name.upcase
 
     # Create or update company document record
-    # ⚠️ SAFETY: Don't blindly reuse existing records by sharepoint_file_id
+    # ⚠️ SAFETY: Don't blindly reuse existing records by storage_file_id
     # SharePoint can reuse IDs after file deletion, which would hijack old records
-    company_doc = CorporateCompanyDocument.find_by(sharepoint_file_id: doc["id"])
+    company_doc = CorporateCompanyDocument.find_by(storage_file_id: doc["id"])
 
     if company_doc
       # Verify this is actually the same file - check filename AND company match
@@ -548,7 +563,24 @@ class CorporateSharePointScannerService
 
     if company_doc.save
       @results[:documents_linked] += 1
-      Rails.logger.info "Linked document '#{doc['name']}' to #{company.name} [#{document_type&.name || 'Unknown'}]"
+
+      # SSoT: Use BulkDocumentCategorizationService for document_type_id assignment
+      # This ensures the same logic is used for corporate docs as for job docs
+      # The service will match folder_path to EntityTab and find the best document type
+      if company_doc.document_type_id.nil?
+        categorization_result = BulkDocumentCategorizationService
+          .for_company(company)
+          .categorize_single(company_doc)
+
+        if categorization_result[:stats][:categorized] > 0
+          company_doc.reload  # Refresh to get the new document_type_id
+          Rails.logger.info "Linked and categorized '#{doc['name']}' to #{company.name} [#{company_doc.document_type_record&.name || 'Unknown'}]"
+        else
+          Rails.logger.info "Linked document '#{doc['name']}' to #{company.name} [uncategorized - no matching EntityTab]"
+        end
+      else
+        Rails.logger.info "Linked document '#{doc['name']}' to #{company.name} [#{document_type&.name || 'Unknown'}]"
+      end
     else
       @results[:errors] << "Failed to save document '#{doc['name']}': #{company_doc.errors.full_messages.join(', ')}"
     end

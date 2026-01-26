@@ -129,9 +129,9 @@ interface ResourceTypeBadgeProps {
 
 function ResourceTypeBadge({ type }: ResourceTypeBadgeProps) {
   const styles = {
-    person: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    equipment: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-    material: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    person: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400",
+    equipment: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-400",
+    material: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400",
   };
 
   return (
@@ -149,9 +149,9 @@ interface ResourceListItemProps {
 
 function ResourceListItem({ resource, selected, onClick }: ResourceListItemProps) {
   const avatarStyles = {
-    person: "bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400",
-    equipment: "bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400",
-    material: "bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400",
+    person: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 dark:bg-blue-900/50 dark:text-blue-400",
+    equipment: "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300 dark:bg-amber-900/50 dark:text-amber-400",
+    material: "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300 dark:bg-green-900/50 dark:text-green-400",
   };
 
   return (

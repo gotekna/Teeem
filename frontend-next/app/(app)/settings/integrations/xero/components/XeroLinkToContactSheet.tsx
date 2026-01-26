@@ -379,7 +379,7 @@ export function XeroLinkToContactSheet({
         <SheetContent side="right-wide" className="p-0">
           <SheetHeader className="p-6 pb-4 border-b">
             <SheetTitle className="flex items-center gap-2">
-              <LinkIcon className="h-5 w-5 text-blue-500" />
+              <LinkIcon className="h-5 w-5 text-blue-500 dark:text-blue-400" />
               Manage Xero Link
             </SheetTitle>
             <SheetDescription>
@@ -401,7 +401,7 @@ export function XeroLinkToContactSheet({
                     variant="outline"
                     onClick={handleCreateNewContact}
                     disabled={creating}
-                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900 whitespace-nowrap"
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900 whitespace-nowrap"
                     title="Create new TEEEM contact from this Xero contact"
                   >
                     {creating ? (
@@ -453,7 +453,7 @@ export function XeroLinkToContactSheet({
                     size="sm"
                     onClick={() => setShowUnlinkConfirm(true)}
                     disabled={unlinking}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50"
                   >
                     {unlinking ? (
                       <Spinner size={14} className="mr-1" />
@@ -475,7 +475,7 @@ export function XeroLinkToContactSheet({
                       variant="outline"
                       onClick={handleCreateCompanyAndLinkEmployee}
                       disabled={creatingCompany}
-                      className="w-full text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950"
+                      className="w-full text-purple-600 dark:text-purple-400 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950"
                     >
                       {creatingCompany ? (
                         <Spinner size={14} className="mr-2" />
@@ -536,12 +536,12 @@ export function XeroLinkToContactSheet({
                             </Badge>
                           )}
                           {contact.id === localContactId ? (
-                            <span className="flex items-center gap-1 text-green-600">
+                            <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                               <Check className="h-3 w-3" />
                               currently linked
                             </span>
                           ) : contact.xero_tenant_names?.includes(xeroTenantName || '') ? (
-                            <span className="flex items-center gap-1 text-red-600">
+                            <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
                               linked in {xeroTenantName}
                             </span>
                           ) : contact.xero_linked_count && contact.xero_linked_count > 0 ? (

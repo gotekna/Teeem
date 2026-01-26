@@ -44,6 +44,7 @@ import {
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { formatFileSize } from "@/utils/formatters";
 
 interface QAPair {
   id: number;
@@ -81,7 +82,7 @@ interface DuplicateReview {
   existing_document_id: number;
   existing_title: string | null;
   existing_filename: string | null;
-  existing_sharepoint_path: string | null;
+  existing_storage_path: string | null;
   existing_file_size: number | null;
   existing_document_date: string | null;
   new_file_path: string | null;
@@ -108,13 +109,6 @@ interface CaseQATabProps {
     filing_folder_paths: string[];
     file_action: string;
   }) => void;
-}
-
-function formatFileSize(bytes: number | null): string {
-  if (!bytes) return "-";
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
 }
 
 export function CaseQATab({
@@ -346,7 +340,7 @@ export function CaseQATab({
                   <div className="space-y-1">
                     {displayFolderSettings.source_folder_paths.map((path, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <FolderOpen className="h-4 w-4 text-blue-500" />
+                        <FolderOpen className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                         <span className="truncate" title={path}>
                           {path.split("/").pop() || path}
                         </span>
@@ -363,7 +357,7 @@ export function CaseQATab({
                   <div className="space-y-1">
                     {displayFolderSettings.filing_folder_paths.map((path, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <FolderInput className="h-4 w-4 text-green-500" />
+                        <FolderInput className="h-4 w-4 text-green-500 dark:text-green-400" />
                         <span className="truncate" title={path}>
                           {path.split("/").pop() || path}
                         </span>
@@ -386,7 +380,7 @@ export function CaseQATab({
               {/* Source Folders */}
               <div>
                 <Label className="flex items-center gap-2 mb-2">
-                  <FolderOpen className="h-4 w-4 text-blue-500" />
+                  <FolderOpen className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                   Source Folders
                   <span className="text-muted-foreground font-normal text-xs">
                     (Where to scan for documents)
@@ -430,7 +424,7 @@ export function CaseQATab({
               {/* Filing Folders */}
               <div>
                 <Label className="flex items-center gap-2 mb-2">
-                  <FolderInput className="h-4 w-4 text-green-500" />
+                  <FolderInput className="h-4 w-4 text-green-500 dark:text-green-400" />
                   Filing Folders
                   <span className="text-muted-foreground font-normal text-xs">
                     (Where to organize case documents)
@@ -514,11 +508,11 @@ export function CaseQATab({
                   <Badge
                     className={cn(
                       processingStatus.status === "completed"
-                        ? "bg-green-100 text-green-700"
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
                         : processingStatus.status === "processing"
-                        ? "bg-blue-100 text-blue-700"
+                        ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                         : processingStatus.status === "failed"
-                        ? "bg-red-100 text-red-700"
+                        ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
                         : "bg-muted text-foreground"
                     )}
                   >
@@ -547,7 +541,7 @@ export function CaseQATab({
                 )}
                 {processingStatus.pending_duplicates_count > 0 && (
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-purple-600">
+                    <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                       {processingStatus.pending_duplicates_count}
                     </p>
                     <p className="text-xs text-muted-foreground">Duplicates</p>
@@ -631,7 +625,7 @@ export function CaseQATab({
                           </span>
                         )}
                         {!qa.is_answered && (
-                          <Badge className="bg-amber-100 text-amber-700">Unanswered</Badge>
+                          <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">Unanswered</Badge>
                         )}
                       </div>
                       <p className="font-medium">{qa.question}</p>
@@ -724,7 +718,7 @@ export function CaseQATab({
                             {dup.existing_title || dup.existing_filename}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {dup.existing_sharepoint_path}
+                            {dup.existing_storage_path}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Size: {formatFileSize(dup.existing_file_size)}

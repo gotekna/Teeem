@@ -56,6 +56,7 @@ import { Badge } from "@/components/ui/badge";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { Spinner } from "@/components/ui/spinner";
 import { fetchEntityTypes, EntityTypeMetadata } from "@/lib/entity-types";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 // Entity type field configuration - defines which fields are used/required for each type
 const ENTITY_TYPE_FIELDS = [
@@ -150,11 +151,11 @@ const FIELD_MATRIX: Record<string, Record<string, "required" | "optional" | "com
 function FieldStatusBadge({ status }: { status: "required" | "optional" | "computed" | "na" }) {
   switch (status) {
     case "required":
-      return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">Required</Badge>;
+      return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-100">Required</Badge>;
     case "optional":
-      return <Badge variant="outline" className="text-blue-600 border-blue-300">Optional</Badge>;
+      return <Badge variant="outline" className="text-blue-600 dark:text-blue-400 border-blue-300">Optional</Badge>;
     case "computed":
-      return <Badge variant="outline" className="text-purple-600 border-purple-300">Auto</Badge>;
+      return <Badge variant="outline" className="text-purple-600 dark:text-purple-400 border-purple-300">Auto</Badge>;
     case "na":
       return <span className="text-muted-foreground text-xs">—</span>;
   }
@@ -187,7 +188,7 @@ function EntityTypesReferenceCard() {
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Info className="h-5 w-5 text-muted-foreground" />
-          <h3 className="font-semibold">Entity Types Reference</h3>
+          <h3 className="text-sm font-semibold">Entity Types Reference</h3>
         </div>
         <p className="text-sm text-muted-foreground">
           This table shows which fields are used for each entity type. The database column updated depends on the entity type.
@@ -197,15 +198,15 @@ function EntityTypesReferenceCard() {
         {/* Legend */}
         <div className="flex flex-wrap gap-4 text-sm border-b pb-3">
           <div className="flex items-center gap-1.5">
-            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100 text-xs">Required</Badge>
+            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-100 text-xs">Required</Badge>
             <span className="text-muted-foreground">Must be filled</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className="text-blue-600 border-blue-300 text-xs">Optional</Badge>
+            <Badge variant="outline" className="text-blue-600 dark:text-blue-400 border-blue-300 text-xs">Optional</Badge>
             <span className="text-muted-foreground">Can be filled</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Badge variant="outline" className="text-purple-600 border-purple-300 text-xs">Auto</Badge>
+            <Badge variant="outline" className="text-purple-600 dark:text-purple-400 border-purple-300 text-xs">Auto</Badge>
             <span className="text-muted-foreground">Computed automatically</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -222,7 +223,7 @@ function EntityTypesReferenceCard() {
               <div key={entityType.value} className="border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-medium">{entityType.label}</h4>
+                    <h4 className="text-sm font-medium">{entityType.label}</h4>
                     <p className="text-xs text-muted-foreground">{entityType.description}</p>
                   </div>
                   <Badge variant="outline" className="text-xs">
@@ -254,14 +255,14 @@ function EntityTypesReferenceCard() {
                 <div className="pt-2 border-t space-y-1">
                   <div className="flex items-center gap-2 text-xs">
                     {entityType.can_have_employees ? (
-                      <span className="flex items-center gap-1 text-green-600"><Check className="h-3 w-3" /> Can have employees</span>
+                      <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><Check className="h-3 w-3" /> Can have employees</span>
                     ) : (
                       <span className="flex items-center gap-1 text-muted-foreground"><X className="h-3 w-3" /> No employees</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-xs">
                     {entityType.can_have_employer ? (
-                      <span className="flex items-center gap-1 text-green-600"><Check className="h-3 w-3" /> Can have employer</span>
+                      <span className="flex items-center gap-1 text-green-600 dark:text-green-400"><Check className="h-3 w-3" /> Can have employer</span>
                     ) : (
                       <span className="flex items-center gap-1 text-muted-foreground"><X className="h-3 w-3" /> No employer</span>
                     )}
@@ -274,7 +275,7 @@ function EntityTypesReferenceCard() {
 
         {/* Full Matrix Table */}
         <div className="pt-4 border-t">
-          <h4 className="font-medium mb-3">Full Field Matrix</h4>
+          <h4 className="text-sm font-medium mb-3">Full Field Matrix</h4>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -329,6 +330,7 @@ interface ContactType {
 export function ContactTypesTab() {
   const router = useRouter();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   const [contactTypes, setContactTypes] = React.useState<ContactType[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -374,20 +376,40 @@ export function ContactTypesTab() {
 
   const loadSettings = async () => {
     try {
+      // Load contact documents path from company_settings
       const settings = await api.get<any>("/api/v1/company_settings");
       setContactDocPath(settings.contact_documents_path || "");
-      setContactFolderFormat(settings.contact_folder_format || "id_name");
+
+      // SSoT: Load folder format from StorageConfiguration templates
+      const storageConfig = await api.get<{ success: boolean; data: any }>("/api/v1/storage_configuration");
+      const contactTemplate = storageConfig.data?.scope_templates?.contact || "{{ContactId}} - {{ContactName}}";
+      setContactFolderFormat(templateToFormat(contactTemplate));
     } catch (error) {
       console.error("Failed to load settings:", error);
     }
+  };
+
+  // SSoT: Map dropdown value to StorageConfiguration template string
+  const formatToTemplate: Record<string, string> = {
+    id_name: "{{ContactId}} - {{ContactName}}",
+    id_only: "{{ContactId}}",
+    name_only: "{{ContactName}}",
+  };
+
+  const templateToFormat = (template: string): string => {
+    if (template.includes("{{ContactId}}") && template.includes("{{ContactName}}")) return "id_name";
+    if (template.includes("{{ContactId}}") && !template.includes("{{ContactName}}")) return "id_only";
+    if (!template.includes("{{ContactId}}") && template.includes("{{ContactName}}")) return "name_only";
+    return "id_name";
   };
 
   const handleSaveFolderFormat = async (format: string) => {
     setSavingFormat(true);
     setContactFolderFormat(format);
     try {
-      await api.put("/api/v1/company_settings", {
-        company_setting: { contact_folder_format: format },
+      // SSoT: Save to StorageConfiguration templates
+      await api.patch("/api/v1/storage_configuration", {
+        storage: { scope_templates: { contact: formatToTemplate[format] } },
       });
       toast({
         title: "Success",
@@ -516,7 +538,7 @@ export function ContactTypesTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this contact type?")) return;
+    if (!(await confirm("Are you sure you want to delete this contact type?"))) return;
 
     setDeleting(id);
     try {
@@ -583,7 +605,7 @@ export function ContactTypesTab() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <FolderOpen className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Contact Documents Path</h3>
+            <h3 className="text-sm font-semibold">Contact Documents Path</h3>
           </div>
           <p className="text-sm text-muted-foreground">
             Select the SharePoint folder where documents associated with contacts should be stored.
@@ -623,7 +645,7 @@ export function ContactTypesTab() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Settings2 className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Contact Folder Naming</h3>
+            <h3 className="text-sm font-semibold">Contact Folder Naming</h3>
           </div>
           <p className="text-sm text-muted-foreground">
             Choose how contact folders are named. Using the Contact ID ensures all documents for a supplier
@@ -657,7 +679,7 @@ export function ContactTypesTab() {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-muted-foreground" />
-            <h3 className="font-semibold">Employee-Company Relationships</h3>
+            <h3 className="text-sm font-semibold">Employee-Company Relationships</h3>
           </div>
           <p className="text-sm text-muted-foreground">
             Search your email warehouse to find people who have communicated with specific email addresses.

@@ -3,11 +3,15 @@
 require "hexapdf"
 
 # Service for processing multi-page PDF plan sets
-# Uploads to SharePoint and extracts individual pages with AI-named files
+# Uploads to storage and extracts individual pages with AI-named files
 #
-# SSoT: Uses PlanIdentification::AiValidationLayer for AI sheet extraction
+# SSoT:
+# - Uses PlanIdentification::AiValidationLayer for AI sheet extraction
+# - Uses DocumentProviderAware for provider-agnostic storage operations
 #
 class PlanSetService
+  include DocumentProviderAware
+
   class ProcessingError < StandardError; end
 
   def initialize(construction, uploaded_file)
@@ -20,47 +24,45 @@ class PlanSetService
     rename_existing_plans!
   end
 
-  # Rename existing plans in SharePoint using AI
+  # Rename existing plans in storage using AI
   # Returns: { success: true, renamed: [...], skipped: [...], errors: [...] }
   def rename_existing_plans!
-    credential = MicrosoftCredential.sharepoint_credential
-    raise ProcessingError, "No active OneDrive credential" unless credential
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      raise ProcessingError, "Storage not connected: #{e.message}"
+    end
 
-    client = MicrosoftGraphClient.new(credential)
-
-    # Find the job folder
-    job_folder = client.find_job_folder(@construction)
-    raise ProcessingError, "Job folder not found" unless job_folder
+    # Get job folder path
+    raise ProcessingError, "Job has no storage folder" unless @construction.storage_folder_path.present?
 
     # SSoT: Get plans folder name from EntityTab
     plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
+    plans_folder_path = "#{@construction.storage_folder_path}/#{plans_folder_name}"
 
-    # Find plans folder
-    response = client.list_folder_items(job_folder["id"])
-    items = response["value"] || []
-    plans_folder = items.find { |item| item["name"] == plans_folder_name && item["folder"].present? }
-    raise ProcessingError, "#{plans_folder_name} folder not found" unless plans_folder
+    # Check plans folder exists
+    raise ProcessingError, "#{plans_folder_name} folder not found" unless folder_exists_in_provider?(plans_folder_path)
 
-    # List files in 04 Plans
-    plan_response = client.list_folder_items(plans_folder["id"])
-    plan_files = plan_response["value"] || []
-    pdf_files = plan_files.select { |f| f["file"].present? && f["name"]&.end_with?(".pdf") }
+    # List files in plans folder
+    plan_files = list_folder_in_provider(plans_folder_path)
+    pdf_files = plan_files.select { |f| !f[:is_folder] && f[:name]&.end_with?(".pdf") }
 
     renamed = []
     skipped = []
     errors = []
     used_filenames = Set.new
+    storage_service = DocumentStorageService.new
 
     # Sort files by name to maintain order (Page 1.pdf, Page 2.pdf, etc.)
-    sorted_files = pdf_files.sort_by { |f| f["name"] }
+    sorted_files = pdf_files.sort_by { |f| f[:name] }
 
     sorted_files.each_with_index do |file, index|
-      file_id = file["id"]
-      original_name = file["name"]
+      file_identifier = file[:path] || file[:id]
+      original_name = file[:name]
 
       # Skip "All Plans.pdf"
       if original_name == "All Plans.pdf"
-        skipped << { id: file_id, name: original_name, reason: "All Plans file" }
+        skipped << { id: file_identifier, name: original_name, reason: "All Plans file" }
         used_filenames.add(original_name)
         next
       end
@@ -72,7 +74,7 @@ class PlanSetService
       prefix_pattern = original_name.match(/^(\d{2})\s*-\s*.+\.pdf$/i)
 
       unless page_pattern || prefix_pattern
-        skipped << { id: file_id, name: original_name, reason: "Unrecognized format" }
+        skipped << { id: file_identifier, name: original_name, reason: "Unrecognized format" }
         used_filenames.add(original_name)
         next
       end
@@ -90,14 +92,16 @@ class PlanSetService
         Rails.logger.info "[PlanSetService] Renaming #{original_name}..."
 
         # Download the file content
-        content = client.download_file(file_id)
-        raise "Failed to download file" unless content
+        doc = OpenStruct.new(storage_path: file[:path], sharepoint_file_id: file[:id])
+        result = storage_service.download(doc)
+        raise "Failed to download file" unless result[:success] && result[:content].present?
+        content = result[:content]
 
         # Extract sheet info using AI
         sheet_info = extract_sheet_info_with_ai(content, page_num)
 
         if sheet_info[:sheet_number].blank? && sheet_info[:sheet_name].blank?
-          skipped << { id: file_id, name: original_name, reason: "AI could not extract sheet info" }
+          skipped << { id: file_identifier, name: original_name, reason: "AI could not extract sheet info" }
           used_filenames.add(original_name)
           next
         end
@@ -108,15 +112,15 @@ class PlanSetService
 
         # Skip if name wouldn't change
         if new_filename == original_name
-          skipped << { id: file_id, name: original_name, reason: "Name unchanged" }
+          skipped << { id: file_identifier, name: original_name, reason: "Name unchanged" }
           next
         end
 
-        # Rename in SharePoint
-        client.rename_file(file_id, new_filename)
+        # Rename in storage
+        rename_file_in_provider(file_identifier, new_filename)
 
         renamed << {
-          id: file_id,
+          id: file_identifier,
           original_name: original_name,
           new_name: new_filename,
           sheet_number: sheet_info[:sheet_number],
@@ -128,7 +132,7 @@ class PlanSetService
         Rails.logger.info "[PlanSetService] Renamed #{original_name} -> #{new_filename}"
       rescue StandardError => e
         Rails.logger.error "[PlanSetService] Error renaming #{original_name}: #{e.message}"
-        errors << { id: file_id, name: original_name, error: e.message }
+        errors << { id: file_identifier, name: original_name, error: e.message }
       end
     end
 
@@ -140,6 +144,9 @@ class PlanSetService
     }
   rescue ProcessingError => e
     { success: false, error: e.message }
+  rescue DocumentProviders::Error => e
+    Rails.logger.error("PlanSetService storage error: #{e.class} - #{e.message}")
+    { success: false, error: "Storage error: #{e.message}" }
   rescue StandardError => e
     Rails.logger.error("PlanSetService rename error: #{e.class} - #{e.message}")
     { success: false, error: "Failed to rename plans: #{e.message}" }
@@ -153,6 +160,13 @@ class PlanSetService
     @skip_ai = skip_ai
     validate_file!
 
+    # Setup provider-agnostic storage
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      raise ProcessingError, "Storage not connected: #{e.message}"
+    end
+
     # Read the PDF content
     content = @uploaded_file.read
     @uploaded_file.rewind
@@ -163,14 +177,14 @@ class PlanSetService
 
     raise ProcessingError, "PDF has no pages" if page_count.zero?
 
-    # Get or create the 04 Plans folder in SharePoint
-    plans_folder_id = get_or_create_plans_folder
+    # Get or create the plans folder path
+    plans_folder_path = get_or_create_plans_folder_path
 
     # Upload the full PDF as "All Plans.pdf"
-    all_plans = upload_full_pdf(content, plans_folder_id)
+    all_plans = upload_full_pdf(content, plans_folder_path)
 
     # Extract and upload individual pages (with AI-powered naming)
-    pages = extract_and_upload_pages(doc, plans_folder_id)
+    pages = extract_and_upload_pages(doc, plans_folder_path)
 
     {
       success: true,
@@ -183,6 +197,9 @@ class PlanSetService
   rescue HexaPDF::Error => e
     Rails.logger.error("PlanSetService HexaPDF error: #{e.message}")
     { success: false, error: "Invalid PDF file: #{e.message}" }
+  rescue DocumentProviders::Error => e
+    Rails.logger.error("PlanSetService storage error: #{e.message}")
+    { success: false, error: "Storage error: #{e.message}" }
   rescue StandardError => e
     Rails.logger.error("PlanSetService error: #{e.class} - #{e.message}")
     Rails.logger.error(e.backtrace.first(10).join("\n"))
@@ -200,52 +217,32 @@ class PlanSetService
     end
   end
 
-  def get_or_create_plans_folder
-    credential = MicrosoftCredential.sharepoint_credential
-    raise ProcessingError, "No active OneDrive credential" unless credential
-
-    client = MicrosoftGraphClient.new(credential)
-
-    # First, find the job's folder
-    job_folder = client.find_job_folder(@construction)
-    raise ProcessingError, "Job folder not found in SharePoint. Please create folder structure first." unless job_folder
+  def get_or_create_plans_folder_path
+    raise ProcessingError, "Job has no storage folder. Please create folder structure first." unless @construction.storage_folder_path.present?
 
     # SSoT: Get plans folder name from EntityTab
     plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
+    plans_folder_path = "#{@construction.storage_folder_path}/#{plans_folder_name}"
 
-    # Look for plans subfolder
-    response = client.list_folder_items(job_folder["id"])
-    items = response["value"] || []
-    plans_folder = items.find { |item| item["name"] == plans_folder_name && item["folder"].present? }
-
-    if plans_folder
-      plans_folder["id"]
-    else
-      # Create the plans folder
-      result = client.create_folder(plans_folder_name, parent_id: job_folder["id"])
-      result["id"]
-    end
+    # Ensure folder exists
+    get_or_create_folder_path(plans_folder_path)
+    plans_folder_path
   end
 
-  def upload_full_pdf(content, folder_id)
-    credential = MicrosoftCredential.sharepoint_credential
-    client = MicrosoftGraphClient.new(credential)
-
+  def upload_full_pdf(content, folder_path)
     # Upload as "All Plans.pdf"
-    result = client.upload_file_content(folder_id, "All Plans.pdf", content)
+    result = upload_to_provider(folder_path, content, "All Plans.pdf", content_type: "application/pdf")
 
     {
       name: "All Plans.pdf",
       file_id: result[:id],
-      web_url: result[:webUrl] || result[:web_url],
+      path: result[:path],
+      web_url: result[:web_url] || result[:url],
       size: content.bytesize
     }
   end
 
-  def extract_and_upload_pages(doc, folder_id)
-    credential = MicrosoftCredential.sharepoint_credential
-    client = MicrosoftGraphClient.new(credential)
-
+  def extract_and_upload_pages(doc, folder_path)
     pages = []
     used_filenames = Set.new([ "All Plans.pdf" ])
 
@@ -266,8 +263,8 @@ class PlanSetService
       filename = determine_filename(sheet_info, index, used_filenames)
       used_filenames.add(filename)
 
-      # Upload to SharePoint
-      result = client.upload_file_content(folder_id, filename, page_content)
+      # Upload to storage
+      result = upload_to_provider(folder_path, page_content, filename, content_type: "application/pdf")
 
       pages << {
         page_number: index + 1,
@@ -277,7 +274,8 @@ class PlanSetService
         sheet_issue: sheet_info[:sheet_issue],
         name: filename,
         file_id: result[:id],
-        web_url: result[:webUrl] || result[:web_url],
+        path: result[:path],
+        web_url: result[:web_url] || result[:url],
         size: page_content.bytesize,
         needs_ai_analysis: @skip_ai # Flag to indicate AI analysis is pending
       }

@@ -11,6 +11,8 @@ import {
   CalendarIcon,
   MapPinIcon,
 } from "@heroicons/react/24/outline";
+import { Spinner } from "@/components/ui/spinner";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface Construction {
   id: number;
@@ -77,7 +79,7 @@ export default function PortalJobs() {
 
   const loadJobs = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.get("/api/v1/portal/jobs");
@@ -153,7 +155,7 @@ export default function PortalJobs() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <Spinner size={48} />
       </div>
     );
   }

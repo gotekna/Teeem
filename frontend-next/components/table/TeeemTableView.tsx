@@ -68,7 +68,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import DOMPurify from "isomorphic-dompurify";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   Search,
   X,
@@ -187,6 +187,7 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -257,6 +258,10 @@ import { ActiveFiltersIndicator } from "./sections/ActiveFiltersIndicator";
 
 // Virtualization components (Phase 2 refactoring)
 import { VirtualizedGroupTable, VirtualizedFlatTable } from "./core/virtualization";
+
+// Mobile/tablet card view (Phase 2 mobile responsive)
+import { TableCardView } from "./TableCardView";
+import { useDeviceContext } from "@/lib/hooks/use-device-context";
 
 // Modals (Phase 7 refactoring)
 import { ExportModal } from "./modals/ExportModal";
@@ -426,6 +431,7 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 // Single hook provides all view state with SSR support and foundation isolation
 import { useFoundationViewState } from '@/lib/view-state/hooks/useFoundationViewState';
 import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
+import { isLookupColumn, isChoiceColumn } from '@/lib/constants/column-types';
 
 // Layer 2: Feature Hooks (new architecture - gradual migration)
 import { useSorting } from './hooks/useSorting';
@@ -554,6 +560,7 @@ export default function TeeemTableView({
   autoFetchRecords = false,
   autoFetchLimit, // Maximum records to auto-fetch before stopping (search still searches all)
   initialFilters,
+  legacyDataSource, // Documents why entries is used instead of autoFetchRecords (suppresses deprecation warning)
   showDataHealth = false,
   onDataHealthIssueClick,
   initialShowTotals = true,
@@ -577,6 +584,10 @@ export default function TeeemTableView({
   refreshTrigger,
   // Start with all groups collapsed (showing only group headers)
   initialGroupsCollapsed = false,
+  // Mobile card view
+  enableMobileCardView = true,
+  forceCardView = false,
+  cardViewMaxFields = 3,
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -585,6 +596,12 @@ export default function TeeemTableView({
   // Debug mode - add ?debug=grid to URL to show layout visualization
   const debugGrid = searchParams.get("debug") === "grid";
   const { toast } = useToast();
+  const { confirm } = useConfirm();
+
+  // Mobile/tablet card view detection
+  const { isMobile, isTablet } = useDeviceContext();
+  // Show cards when: forced OR ((mobile OR tablet) AND enabled AND enough columns to benefit)
+  // Card view is beneficial when there are >5 visible columns that would require scrolling
 
   // ============================================================================
   // AUTO-ENABLE FEATURES WHEN foundationIdNumeric IS SET
@@ -623,7 +640,8 @@ export default function TeeemTableView({
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       // Only warn if entries is used with a Foundation-backed table and autoFetchRecords is off
-      if (entries && entries.length > 0 && effectiveFoundationId && !autoFetchRecords) {
+      // Skip warning if legacyDataSource is documented (intentional use of entries)
+      if (entries && entries.length > 0 && effectiveFoundationId && !autoFetchRecords && !legacyDataSource) {
         console.warn(
           `[TeeemTableView DEPRECATION] The \`entries\` prop is deprecated for Foundation-backed tables.\n` +
           `Foundation: ${effectiveFoundationId}\n` +
@@ -637,7 +655,9 @@ export default function TeeemTableView({
           `  - Built-in caching (instant back navigation)\n` +
           `  - Server-side search\n\n` +
           `For embedded tables with filters, use:\n` +
-          `  <TeeemTableView foundationId="..." autoFetchRecords={true} initialFilters={[...]} />`
+          `  <TeeemTableView foundationId="..." autoFetchRecords={true} initialFilters={[...]} />\n\n` +
+          `If this table intentionally uses entries (custom API, client-side filtering), add:\n` +
+          `  legacyDataSource="custom-api: reason here"`
         );
       }
     }
@@ -704,7 +724,13 @@ export default function TeeemTableView({
     if (!effectiveFoundationId || ids.length === 0) return;
 
     // Confirmation dialog
-    const confirmed = window.confirm(`Delete ${ids.length} record${ids.length === 1 ? '' : 's'}? This action cannot be undone.`);
+    const confirmed = await confirm({
+      title: "Delete Records",
+      description: `Delete ${ids.length} record${ids.length === 1 ? '' : 's'}? This action cannot be undone.`,
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
     if (!confirmed) return;
 
     // Optimistic UI: Immediately hide the rows and clear selection
@@ -751,7 +777,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [effectiveFoundationId, onRefresh, toast, autoFetchRecords]);
+  }, [effectiveFoundationId, onRefresh, toast, autoFetchRecords, confirm]);
 
   const effectiveBulkDelete = onBulkDelete || (shouldAutoEnable ? defaultBulkDelete : undefined);
 
@@ -930,6 +956,11 @@ export default function TeeemTableView({
   // Ref to hold current cascade filters for use in search handler (prevents stale closure)
   // This ensures search always uses the LATEST filter state even if React hasn't re-rendered yet
   const cascadeFiltersRef = useRef<CascadeFilter[]>([]);
+
+  // Ref to hold current groupByColumns for use in search handler (bidirectional company search)
+  // When contacts page is grouped by primary_company_id, search needs to pass this to backend
+  // so it can find employees of matching companies (bidirectional search)
+  const groupByColumnsRef = useRef<string[]>([]);
 
   // SSR: Track if initial records have been applied (one-time only)
   // Prevents re-application on prop changes that would wipe load-more data
@@ -1182,7 +1213,11 @@ export default function TeeemTableView({
           isBackgroundRefreshRef.current = false;
         }
       } catch (error) {
-        console.error(`[TeeemTableView] Failed to fetch records for Foundation ${effectiveFoundationId}:`, error);
+        // Don't spam console for expected "Foundation not found" errors
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (!errorMessage.includes('Foundation not found')) {
+          console.error(`[TeeemTableView] Failed to fetch records for Foundation ${effectiveFoundationId}:`, error);
+        }
         isBackgroundRefreshRef.current = false; // Reset on error too
       } finally {
         if (!isBackground) {
@@ -1290,6 +1325,14 @@ export default function TeeemTableView({
           operator: f.operator,
           value: f.value,
         })));
+      }
+      // Include group_by for bidirectional search (contacts)
+      // When contacts are grouped by primary_company_id, backend does bidirectional search:
+      // - Search for company → also return its employees
+      // - Search for employee → also return their company
+      const currentGroupByColumns = groupByColumnsRef.current;
+      if (currentGroupByColumns.length > 0) {
+        params.group_by = currentGroupByColumns.join(",");
       }
       const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
         `/api/v1/foundations/${effectiveFoundationId}/records`,
@@ -1437,6 +1480,25 @@ export default function TeeemTableView({
     // Only run on mount - propSearchMode is initial value only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Clear search when foundationId OR pathname changes (prevents stale search across different tables/pages)
+  // This fixes bugs where:
+  // 1. Search persists when switching between Financial sub-tabs (foundationId change)
+  // 2. Search persists when navigating to a different contact (pathname change)
+  const pathname = usePathname();
+  const prevFoundationIdRef = useRef(effectiveFoundationId);
+  const prevPathnameRef = useRef(pathname);
+  useEffect(() => {
+    const foundationChanged = prevFoundationIdRef.current !== effectiveFoundationId && prevFoundationIdRef.current !== null;
+    const pathnameChanged = prevPathnameRef.current !== pathname && prevPathnameRef.current !== null;
+
+    if (foundationChanged || pathnameChanged) {
+      // Context changed - clear search to prevent stale queries
+      searchHook.actions.clearQuery();
+    }
+    prevFoundationIdRef.current = effectiveFoundationId;
+    prevPathnameRef.current = pathname;
+  }, [effectiveFoundationId, pathname, searchHook.actions]);
 
   // Wrap setSearch to also call onSearchChange callback, update URL, and save to session storage
   const setSearch = useCallback((value: string | ((prev: string) => string)) => {
@@ -1822,6 +1884,13 @@ export default function TeeemTableView({
   // Keep ref in sync for use in toggleSelectAll callback
   collapsedGroupsRef.current = collapsedGroups;
 
+  // Keep groupByColumnsRef in sync for use in search handler (bidirectional company search)
+  // CRITICAL: useLayoutEffect ensures ref is updated BEFORE any user interaction
+  // This enables backend to do bidirectional search when contacts are grouped by company
+  useLayoutEffect(() => {
+    groupByColumnsRef.current = groupByColumns;
+  }, [groupByColumns]);
+
   // Derive groupByColumn from groupByColumns - NOT a separate state (SSoT compliance)
   const groupByColumn = groupByColumns.length > 0 ? groupByColumns[0] : null;
 
@@ -1832,6 +1901,9 @@ export default function TeeemTableView({
 
   // Collapsed hierarchy headers (for "Header Hierarchy" display mode)
   const [collapsedHierarchyHeaders, setCollapsedHierarchyHeaders] = useState<Set<number>>(new Set());
+
+  // Track which invalid groupBy columns we've already warned about (to prevent spam)
+  const loggedInvalidGroupColumnsRef = useRef<Set<string>>(new Set());
 
   // Validate groupByColumn against actual Foundation columns (database columns only)
   // Computed columns (like tabs_display) don't exist in the database and will cause API errors
@@ -1847,8 +1919,11 @@ export default function TeeemTableView({
       (col) => col.key === groupByColumn && col.key !== 'select' && col.key !== 'actions'
     );
     if (!isValidDbColumn) {
-      // Don't log for every render, just when the value changes
-      console.debug(`[TeeemTableView] groupByColumn "${groupByColumn}" is not a database column, skipping API call`);
+      // Only log once per unique column name to prevent console spam
+      if (!loggedInvalidGroupColumnsRef.current.has(groupByColumn)) {
+        loggedInvalidGroupColumnsRef.current.add(groupByColumn);
+        console.debug(`[TeeemTableView] groupByColumn "${groupByColumn}" is not a database column, skipping API call`);
+      }
       return null;
     }
     return groupByColumn;
@@ -2077,6 +2152,7 @@ export default function TeeemTableView({
     visibleEntriesRef: filteredAndSortedEntriesRef,
     columns: COLUMNS,
     onSuccess: () => selection.actions.clear(),
+    onError: (message) => toast({ title: "Bulk Update Error", description: message, variant: "destructive" }),
     onRowUpdate: onRowUpdate ? async (id, field, value) => {
       await onRowUpdate(id, field, value);
     } : undefined,
@@ -2414,7 +2490,11 @@ export default function TeeemTableView({
       // FRC FIX 2: If we had a previous search, hasMore=false means "search results complete" not "all records loaded"
       // So we MUST do server search when changing from one search term to another
       const hasLimitedRecords = autoFetchLimit !== undefined;
-      if (!isClearing && !hadPreviousSearch && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords) {
+      // SSoT: Force server search for contacts in Company/Role view
+      // Backend has bidirectional search logic (search company → include employees, search employee → include company)
+      // Client-side search can't replicate this without duplicating logic - backend is THE source
+      const needsBidirectionalSearch = foundationSlug === 'contacts' && groupByColumns.includes('primary_company_id');
+      if (!isClearing && !hadPreviousSearch && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords && !needsBidirectionalSearch) {
         console.log('[TeeemTableView] All records loaded (no prior search), searching client-side');
         return; // Skip API call - safe because we truly have all records
       }
@@ -2440,7 +2520,7 @@ export default function TeeemTableView({
         }
       }
     },
-    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions, effectiveFoundationId]
+    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions, effectiveFoundationId, foundationSlug, groupByColumns]
   );
 
   const handleSearchAllChange = useCallback(
@@ -3084,8 +3164,8 @@ export default function TeeemTableView({
   const isDropdownColumn = useCallback((column: TableColumn): boolean => {
     const colType = column.column_type || '';
     const hasChoices = column.choices && column.choices.length > 0;
-    const isLookup = colType === 'lookup' || colType === 'relation' || colType === 'multiple_lookups' || !!column.lookup_foundation_id;
-    const isChoice = colType === 'choice' || colType === 'single_select' || colType === 'multi_select';
+    const isLookup = isLookupColumn(colType) || !!column.lookup_foundation_id;
+    const isChoice = isChoiceColumn(colType);
     const isBoolean = colType === 'boolean';
     return hasChoices || isLookup || isChoice || isBoolean;
   }, []);
@@ -3105,7 +3185,16 @@ export default function TeeemTableView({
   // isUserAction: set to true when user explicitly clicks to change view (for URL updates in embedded context)
   // NOTE: This function is now simplified - atoms handle the atomic state updates
   const loadViewState = useCallback(
-    (view: SavedView, skipUrlUpdate = false, isUserAction = false) => {
+    (view: SavedView, skipUrlUpdate = false, isUserAction = false, silentUrlUpdate = false) => {
+      console.log('[loadViewState] Called with:', {
+        viewId: view.id,
+        viewName: view.name,
+        skipUrlUpdate,
+        isUserAction,
+        silentUrlUpdate,
+        foundationSlug,
+      });
+
       // Mark that user has made a view selection - prevents default view from overriding
       // This fixes race condition where async loadSavedViews completion could override user's selection
       if (isUserAction) {
@@ -3158,13 +3247,16 @@ export default function TeeemTableView({
       // - Embedded context: Parent owns URL, only notify on user actions
       // - Standalone context: Navigate using path-based URLs (/jobs/view/live)
       // SSoT: isEmbeddedContext defined at component top
-      // IMPORTANT: Only update URL on explicit user action to prevent conflicts with
-      // other URL state management (e.g., useUrlState, tabs). Initial view load should
-      // NOT modify the URL - only user-initiated view changes should update it.
-      if (view.id && !skipUrlUpdate && !isEmbeddedContext && isUserAction && foundationSlug) {
-        const newViewSlug = view.slug || null;
-        // Use path-based navigation: /jobs/view/live
-        navigateToView(newViewSlug);
+      // - silentUrlUpdate: Use history.replaceState (no React re-render) - for auto-select
+      // - isUserAction: Use router.replace (triggers re-render for breadcrumbs) - for user clicks
+      if (view.id && !skipUrlUpdate && !isEmbeddedContext && foundationSlug) {
+        if (isUserAction || silentUrlUpdate) {
+          const newViewSlug = view.slug || null;
+          // Use path-based navigation: /jobs/view/live
+          // Silent mode for auto-select only (prevents flash on load)
+          // Normal mode for user clicks (updates breadcrumbs)
+          navigateToView(newViewSlug, { silent: silentUrlUpdate });
+        }
       }
 
       // Handle apiParams for server-side filtering
@@ -3189,13 +3281,15 @@ export default function TeeemTableView({
     // Reset user selection flag when foundation changes (new context = fresh start)
     userSelectedViewRef.current = false;
 
-    // ⚠️ DO NOT REMOVE - Abort flag for async cleanup (v2701)
+    // ⚠️ DO NOT REMOVE - Foundation tracking for async cleanup (v2701 updated Jan 2026)
     // ════════════════════════════════════════════════════════════════════
     // Why: When component remounts (key change), old async effect can still
     //      complete and apply view to global atoms, causing view conflicts.
-    //      The abort flag prevents applying view after unmount.
+    //      We track the foundation ID that started the load to prevent applying
+    //      views to a DIFFERENT foundation. StrictMode double-mount is safe
+    //      because the foundation ID remains the same.
     // ════════════════════════════════════════════════════════════════════
-    let aborted = false;
+    const loadStartFoundationId = effectiveFoundationId;
 
     const loadSavedViews = async () => {
       if (!effectiveFoundationId) return;
@@ -3224,11 +3318,15 @@ export default function TeeemTableView({
         // Pass inheritViewsFrom to include global views from related foundations
         const result = await loadViews(effectiveFoundationId, inheritViewsFrom);
 
-        // ⚠️ ABORT CHECK - Prevents applying view after component unmounts (v2701)
+        // ⚠️ FOUNDATION CHANGE CHECK - Prevents applying view to wrong foundation (v2701 updated Jan 2026)
         // This is critical for template switching: old component's async effect
-        // must not apply view to global atoms after it unmounts
-        if (aborted) {
-          console.log('[loadSavedViews] Aborted - component unmounted during load');
+        // must not apply view to a DIFFERENT foundation's global atoms.
+        // StrictMode double-mount is safe (same foundation ID) and should proceed.
+        if (loadStartFoundationId !== effectiveFoundationId) {
+          console.log('[loadSavedViews] Foundation changed during load, skipping view application', {
+            startedWith: loadStartFoundationId,
+            currentFoundation: effectiveFoundationId,
+          });
           return;
         }
 
@@ -3270,10 +3368,12 @@ export default function TeeemTableView({
         const urlViewExistsForFoundation = !!urlMatchedView;
         // Convert to number for selectDefaultView (database IDs are always numeric)
         const matchedViewNumericId = urlMatchedView ? (typeof urlMatchedView.id === 'number' ? urlMatchedView.id : parseInt(String(urlMatchedView.id), 10)) : null;
+
+        // Priority: URL view > default (URL is SSoT for view selection)
         const effectiveViewId = urlViewExistsForFoundation ? matchedViewNumericId : defaultViewId;
 
         const defaultView = selectDefaultView(filteredViews, {
-          urlViewId: effectiveViewId,
+          urlViewId: effectiveViewId as number | null,
           preferGlobal: true,
         });
 
@@ -3292,27 +3392,34 @@ export default function TeeemTableView({
           // ════════════════════════════════════════════════════════════════════
           const explicitlyNoView = defaultViewSlug === null;
 
-          console.log('[loadSavedViews] v2705 - View application check:', {
+          // Check if user has selected a view in THIS session
+          const userSelectedThisSession = userSelectedViewRef.current;
+
+          console.log('[loadSavedViews] View application check:', {
             defaultViewSlug,
             explicitlyNoView,
             ssrAlreadyAppliedView,
-            userSelected: userSelectedViewRef.current,
-            willApply: !ssrAlreadyAppliedView && !userSelectedViewRef.current && !explicitlyNoView,
+            userSelectedThisSession,
+            urlViewExistsForFoundation,
+            willApply: !ssrAlreadyAppliedView && !userSelectedThisSession && !explicitlyNoView,
             defaultViewName: defaultView?.name,
           });
 
-          // ALSO skip if user has already selected a view (prevents race condition override)
-          // This fixes: user clicks global view, but async loadSavedViews completion overrides it
-          if (!ssrAlreadyAppliedView && !userSelectedViewRef.current && !explicitlyNoView) {
-            // ⚠️ ABORT CHECK #2 - Final check before applying view (v2703)
-            // This catches the race where unmount happens between line 3053 check and here
-            if (aborted) {
-              console.log('[loadSavedViews] Aborted before loadViewState - component unmounted');
-              return;
-            }
-            // No SSR view and no user selection - apply default view now
-            const skipUrlUpdate = !!urlViewExistsForFoundation;
-            loadViewState(defaultView, skipUrlUpdate);
+          // Skip if:
+          // - SSR already applied a view, OR
+          // - User selected a view THIS session (prevents race condition), OR
+          // - Explicitly no view requested
+          if (!ssrAlreadyAppliedView && !userSelectedThisSession && !explicitlyNoView) {
+            // Apply the selected view
+            // URL is SSoT - always update it (event-based breadcrumbs handle sync)
+            console.log('[loadSavedViews] Auto-applying view:', {
+              viewId: defaultView.id,
+              viewName: defaultView.name,
+              viewSlug: defaultView.slug,
+            });
+            // silentUrlUpdate: true - uses history.replaceState + VIEW_CHANGE_EVENT
+            // This updates URL and triggers breadcrumb rebuild without React re-renders
+            loadViewState(defaultView, false, false, true);
           } else if (explicitlyNoView) {
             // ⚠️ v2706: CLEAR view filters when defaultViewSlug === null
             // ════════════════════════════════════════════════════════════════════
@@ -3357,11 +3464,8 @@ export default function TeeemTableView({
 
     loadSavedViews();
 
-    // Cleanup: abort async operation if component unmounts before it completes
-    // This prevents the old component's effect from applying view to global atoms
-    return () => {
-      aborted = true;
-    };
+    // No cleanup needed - viewsLoadingRef prevents duplicate loads
+    // Foundation ID check in loadSavedViews prevents applying to wrong foundation
   }, [effectiveFoundationId, preloadedViews, disableSavedViews, inheritViewsFrom]);
 
   // Expose loadViewState to parent via callback
@@ -3800,6 +3904,19 @@ export default function TeeemTableView({
     }, 0);
   }, [visibleColumnsInOrder, columnWidths]);
 
+  // Mobile/tablet card view detection
+  // Show card view when: forced OR ((mobile OR tablet) AND enabled AND enough columns to benefit from cards)
+  // Card view is beneficial when there are >5 data columns that would require horizontal scrolling
+  const shouldShowCardView = useMemo(() => {
+    if (forceCardView) return true;
+    if (!enableMobileCardView || (!isMobile && !isTablet)) return false;
+    // Count data columns (excluding select and actions)
+    const dataColumnCount = visibleColumnsInOrder.filter(
+      col => col.key !== 'select' && col.key !== 'actions'
+    ).length;
+    return dataColumnCount > 5;
+  }, [forceCardView, enableMobileCardView, isMobile, isTablet, visibleColumnsInOrder]);
+
   // Get all data columns (excluding select and actions)
   const allDataColumns = useMemo(() => {
     return COLUMNS.filter((c) => c.key !== "select" && c.key !== "actions");
@@ -4167,7 +4284,12 @@ export default function TeeemTableView({
     if (!search || !propSearchMode) return false;
 
     // Check if column type supports highlighting
-    const columnType = column.column_type || 'text';
+    // SSoT: column_type should always be set - log error if missing (skip system columns)
+    const systemColumns = ['id', 'created_at', 'updated_at'];
+    if (!column.column_type && !systemColumns.includes(column.key)) {
+      console.error(`[SSoT] Column "${column.key}" missing column_type - defaulting to single_line_text`);
+    }
+    const columnType = column.column_type || 'single_line_text';
     return TEXT_HIGHLIGHTABLE_TYPES.includes(columnType);
   }, [search, propSearchMode]);
 
@@ -4520,7 +4642,7 @@ export default function TeeemTableView({
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
                 {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
-                {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
+                {isFullyLoaded && <span className="ml-1 text-green-600 dark:text-green-400">✓</span>}
               </span>
               {hasPartialData && !isLoadingThisGroup && (
                 <button
@@ -4837,7 +4959,7 @@ export default function TeeemTableView({
               <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
                 {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
-                {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
+                {isFullyLoaded && <span className="ml-1 text-green-600 dark:text-green-400">✓</span>}
               </span>
             </div>
           </TableCell>
@@ -5564,7 +5686,19 @@ export default function TeeemTableView({
   };
 
   // Get active view name
-  const activeView = savedViews.find((v) => v.id === activeViewId);
+  // Use loose comparison to handle string/number ID mismatches from API
+  const activeView = savedViews.find((v) => String(v.id) === String(activeViewId));
+
+  // Debug logging for view selection
+  if (savedViews.length > 0) {
+    console.log('[TeeemTableView] View selection debug:', {
+      activeViewId,
+      activeViewIdType: typeof activeViewId,
+      foundActiveView: !!activeView,
+      savedViewsCount: savedViews.length,
+      savedViewIds: savedViews.map(v => ({ id: v.id, type: typeof v.id, name: v.name })),
+    });
+  }
 
   // NOTE: onViewChange is called from loadViewState when isUserAction=true
   // This prevents URL auto-updates on initial page load (confusing UX)
@@ -5705,7 +5839,8 @@ export default function TeeemTableView({
     },
     savedViews,
     activeView: activeView || null,
-    loadView: loadViewState,
+    // Context loadView is always user-initiated, so pass isUserAction=true
+    loadView: (view: SavedView) => loadViewState(view, false, true, false),
     isLoading: columnsLoading || isLoadingMore || serverSearchLoading,
     error: null,
     hasMore: hasMore || serverHasMore,
@@ -6094,6 +6229,25 @@ export default function TeeemTableView({
             grouped
             groupCount={initialGroupCounts?.groups?.length || 4}
           />
+        ) : shouldShowCardView ? (
+          /* Mobile card view - render rows as cards for better mobile UX */
+          <TableCardView
+            rows={filteredAndSortedEntries}
+            columns={visibleColumnsInOrder.filter(col => col.key !== 'select' && col.key !== 'actions')}
+            selectedRows={selectedRows}
+            onSelectRow={(id) => toggleRowSelection(id)}
+            onView={effectiveOnView}
+            onEdit={effectiveOnEdit}
+            onDelete={effectiveOnDelete}
+            onRowClick={onRowClick}
+            onRowDoubleClick={onRowDoubleClick}
+            viewOnly={viewOnly}
+            loading={columnsLoading || (effectiveLoadingMore && filteredAndSortedEntries.length === 0)}
+            searchTerm={search}
+            customCellRenderer={customCellRenderer}
+            maxKeyFields={cardViewMaxFields}
+            emptyMessage={search ? `No results found for "${search}"` : "No records found"}
+          />
         ) : activeView?.view_display_type === 'hierarchy' ? (
           renderHierarchyTable()
         ) : (
@@ -6259,7 +6413,13 @@ export default function TeeemTableView({
           foundationId={effectiveFoundationId}
           columns={COLUMNS
             .filter(col => col.key !== 'select' && col.key !== 'actions')
-            .map((col, index) => ({
+            .map((col, index) => {
+              // SSoT: column_type should always be set (skip system columns)
+              const systemColumns = ['id', 'created_at', 'updated_at'];
+              if (!col.column_type && !systemColumns.includes(col.key)) {
+                console.error(`[SSoT] Column "${col.key}" missing column_type`);
+              }
+              return {
               id: col.id || index,
               column_name: col.key,
               name: col.label,
@@ -6269,7 +6429,7 @@ export default function TeeemTableView({
               lookup_foundation_slug: col.lookup_foundation_slug,  // SSoT: Pass slug for portable lookups
               lookup_display_column: col.lookup_display_column,
               available_choices: col.choices,
-            }))}
+            };})}
           onViewsChange={onRefresh}
           onApplyView={loadViewState as (view: unknown) => void}
           onAutoFitChange={setAutoFitColumns}

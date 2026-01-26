@@ -328,7 +328,7 @@ export function WorkflowTasksView() {
               {/* Dynamic Form */}
               {selectedTask.form_schema?.fields && (
                 <div className="space-y-3 border-t pt-4">
-                  <h4 className="text-sm font-medium">Complete this task</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground">Complete this task</h4>
                   {getFormFields(selectedTask).map((field) => (
                     <div key={field.name} className="space-y-1">
                       <Label htmlFor={field.name} className="text-xs">

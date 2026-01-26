@@ -138,7 +138,7 @@ function CompanyNode({ data }: { data: CompanyNodeData }) {
     if (isTrustee) {
       return <Briefcase className={`${iconSize} text-indigo-600`} />;
     }
-    return <Building2 className={`${iconSize} text-blue-600`} />;
+    return <Building2 className={`${iconSize} text-blue-600 dark:text-blue-400`} />;
   };
 
   return (

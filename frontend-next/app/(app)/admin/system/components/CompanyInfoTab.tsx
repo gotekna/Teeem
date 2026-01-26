@@ -17,6 +17,7 @@ import { api } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { cn } from "@/lib/utils";
 import { Plus, Pencil, Trash2, Star, X, Check } from "lucide-react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -31,6 +32,25 @@ const TIMEZONES = [
   { value: "America/Los_Angeles", label: "Los Angeles (PST/PDT)" },
   { value: "Europe/London", label: "London (GMT/BST)" },
   { value: "UTC", label: "UTC" },
+];
+
+// API Environment options (SSoT: CorporateCompanySetting::VALID_API_ENVIRONMENTS)
+const API_ENVIRONMENTS = [
+  {
+    value: "production",
+    label: "Production (Recommended)",
+    description: "Stable, live data - for everyday use",
+  },
+  {
+    value: "beta",
+    label: "Beta",
+    description: "New features, early access - may have minor issues",
+  },
+  {
+    value: "staging",
+    label: "Staging",
+    description: "Internal testing only - not for production use",
+  },
 ];
 
 interface CompanySettings {
@@ -50,6 +70,8 @@ interface CompanySettings {
   bank_bsb: string;
   bank_account_number: string;
   bank_account_name: string;
+  // API Environment (production backend is "router")
+  api_environment: string;
   working_days: {
     monday: boolean;
     tuesday: boolean;
@@ -79,6 +101,7 @@ interface XeroTenant {
 }
 
 export default function CompanyInfoTab() {
+  const { confirm } = useConfirm();
   const [settings, setSettings] = React.useState<CompanySettings>({
     company_name: "",
     abn: "",
@@ -96,6 +119,8 @@ export default function CompanyInfoTab() {
     bank_bsb: "",
     bank_account_number: "",
     bank_account_name: "",
+    // API Environment
+    api_environment: "production",
     working_days: {
       monday: true,
       tuesday: true,
@@ -216,7 +241,7 @@ export default function CompanyInfoTab() {
   };
 
   const deleteTradingName = async (id: number) => {
-    if (!confirm("Delete this trading name?")) return;
+    if (!(await confirm("Delete this trading name?"))) return;
     try {
       await api.delete(`/api/v1/foundations/trading_names/records/${id}`);
       await loadTradingNames();
@@ -348,6 +373,44 @@ export default function CompanyInfoTab() {
           </p>
         </div>
 
+        {/* API Environment Section */}
+        <div className="space-y-2">
+          <Label>Environment</Label>
+          <p className="text-sm text-muted-foreground">
+            Select which backend environment this company uses. Change takes effect on next login.
+          </p>
+          <Select
+            value={settings.api_environment || "production"}
+            onValueChange={(value) => handleChange("api_environment", value)}
+          >
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue placeholder="Select environment" />
+            </SelectTrigger>
+            <SelectContent>
+              {API_ENVIRONMENTS.map((env) => (
+                <SelectItem key={env.value} value={env.value}>
+                  <div className="flex flex-col">
+                    <span>{env.label}</span>
+                    <span className="text-xs text-muted-foreground">{env.description}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {settings.api_environment && settings.api_environment !== "production" && (
+            <div className={cn(
+              "mt-2 p-3 rounded-md text-sm",
+              settings.api_environment === "staging"
+                ? "bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-200 border border-orange-200 dark:border-orange-800"
+                : "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800"
+            )}>
+              <strong>Warning:</strong> You are using a non-production environment.
+              {settings.api_environment === "staging" && " Staging is for internal testing only."}
+              {settings.api_environment === "beta" && " Beta may have experimental features."}
+            </div>
+          )}
+        </div>
+
         {/* Primary Xero Account Section */}
         <div className="space-y-2">
           <Label>Primary Xero Account</Label>
@@ -474,7 +537,7 @@ export default function CompanyInfoTab() {
         <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold">Trading Names</h3>
+              <h3 className="text-sm font-semibold">Trading Names</h3>
               <p className="text-xs text-muted-foreground">
                 Different company names used on invoices and documents
               </p>
@@ -521,7 +584,7 @@ export default function CompanyInfoTab() {
                     onClick={() => saveTradingName(newTradingName)}
                     disabled={!newTradingName.name?.trim() || savingTradingName}
                   >
-                    {savingTradingName ? <Spinner size={14} /> : <Check className="h-4 w-4 text-green-600" />}
+                    {savingTradingName ? <Spinner size={14} /> : <Check className="h-4 w-4 text-green-600 dark:text-green-400" />}
                   </Button>
                   <Button
                     type="button"
@@ -565,7 +628,7 @@ export default function CompanyInfoTab() {
                           onClick={() => saveTradingName(editingTradingName)}
                           disabled={!editingTradingName.name?.trim() || savingTradingName}
                         >
-                          {savingTradingName ? <Spinner size={14} /> : <Check className="h-4 w-4 text-green-600" />}
+                          {savingTradingName ? <Spinner size={14} /> : <Check className="h-4 w-4 text-green-600 dark:text-green-400" />}
                         </Button>
                         <Button
                           type="button"
@@ -621,7 +684,7 @@ export default function CompanyInfoTab() {
                             className="h-7 w-7 p-0"
                             onClick={() => deleteTradingName(tn.id)}
                           >
-                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                            <Trash2 className="h-3.5 w-3.5 text-red-500 dark:text-red-400" />
                           </Button>
                         </div>
                       </>
@@ -678,7 +741,7 @@ export default function CompanyInfoTab() {
         {/* Bank Details Section */}
         <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
           <div>
-            <h3 className="font-semibold mb-1">Bank Details</h3>
+            <h3 className="text-sm font-semibold mb-1">Bank Details</h3>
             <p className="text-xs text-muted-foreground">
               Used on invoices and payment requests
             </p>
@@ -721,7 +784,7 @@ export default function CompanyInfoTab() {
                 id="bank_account_name"
                 value={settings.bank_account_name || ""}
                 onChange={(e) => handleChange("bank_account_name", e.target.value)}
-                placeholder="e.g. Tekna Homes Pty Ltd"
+                placeholder="e.g. Teeem Homes Pty Ltd"
               />
             </div>
           </div>
@@ -730,7 +793,7 @@ export default function CompanyInfoTab() {
 
       {/* Template Tags Reference */}
       <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
-        <h3 className="font-semibold mb-3">Document Template Tags</h3>
+        <h3 className="text-sm font-semibold mb-3">Document Template Tags</h3>
         <p className="text-sm text-muted-foreground mb-4">
           Use these tags in your document templates. They will be replaced with
           the values above.

@@ -1,31 +1,79 @@
-# Service to sync attachments from Xero invoices/bills to CorporateCompanyDocuments
-# Links downloaded documents to ExternalInvoice via polymorphic documentable
-# Also uploads PDFs to SharePoint folder structure: Contacts/{contact_folder}/BILLS|INVOICES/
+# frozen_string_literal: true
+
+# Service to sync attachments from Xero invoices/bills to WarehouseDocument
+#
+# SSoT Architecture (Jan 2026):
+# ┌─────────────────────────────────────────────────────────────────┐
+# │ EntityTab (SSoT for folder structure)                           │
+# │ ├── warehouse_type: "contact"                                   │
+# │ ├── warehouse_folder: "{{ContactName}}/Bills"                   │
+# │     ↓ links via                                                 │
+# │ EntityTabDocumentType (join table, is_primary: true)            │
+# │     ↓ to                                                        │
+# │ DocumentType (classification)                                   │
+# │ ├── name: "Xero Bill"                                           │
+# │ ├── derived_scope: computed from EntityTab.warehouse_type       │
+# │     ↓ used by                                                   │
+# │ WarehouseDocument (universal metadata)                          │
+# │ ├── documentable: ExternalInvoice                               │
+# │ ├── storage_blob_id: → StorageBlob                              │
+# │ ├── folder: computed from EntityTab template                    │
+# │ ├── source_type: "xero"                                         │
+# │     ↓ links to                                                  │
+# │ StorageBlob (flat storage, deduplication)                       │
+# │ ├── content_hash: SHA256                                        │
+# │ ├── storage_path: "Blobs/ab/abc123.pdf"                         │
+# └─────────────────────────────────────────────────────────────────┘
+#
+# Physical Storage: s3://bucket/Blobs/{hash_prefix}/{hash}.pdf
+# Virtual Folders: Computed from EntityTab.warehouse_folder, stored in warehouse_documents.folder
+#
 class XeroAttachmentSyncService
+  include DocumentProviderAware
   attr_reader :external_invoice, :xero_client, :results
 
-  def initialize(external_invoice, skip_sharepoint: false)
+  def initialize(external_invoice, skip_storage_upload: false)
     @external_invoice = external_invoice
     @xero_client = XeroApiClient.new
-    @skip_sharepoint = skip_sharepoint
-    @results = { pdf: nil, attachments: [], errors: [], sharepoint_uploads: [] }
+    @skip_storage_upload = skip_storage_upload
+    # SSoT: Derive TEEEM tenant from Xero tenant_id
+    # ExternalInvoice.tenant_id is Xero tenant UUID, not TEEEM Tenant.id
+    @tenant = find_teeem_tenant_from_xero_tenant_id(external_invoice.tenant_id)
+    @storage_config = @tenant ? StorageConfiguration.for_tenant(@tenant) : nil
+    @results = { pdf: nil, attachments: [], errors: [], skipped: false }
+  end
+
+  # Map Xero tenant_id (UUID) to TEEEM Tenant
+  def find_teeem_tenant_from_xero_tenant_id(xero_tenant_id)
+    return nil unless xero_tenant_id.present?
+
+    xero_credential = XeroCredential.find_by(tenant_id: xero_tenant_id)
+    return nil unless xero_credential
+
+    org = Organization.where(is_active: true).first
+    org&.tenant
   end
 
   # Sync all attachments for this invoice
-  # @return [Hash] - { pdf: CorporateCompanyDocument, attachments: [CorporateCompanyDocument...], errors: [...] }
+  # @return [Hash] - { pdf: WarehouseDocument, attachments: [WarehouseDocument...], errors: [...] }
   def sync!
     return error_result("No external_id on invoice") unless external_invoice.external_id.present?
     return error_result("No tenant_id on invoice") unless external_invoice.tenant_id.present?
+    return error_result("Tenant not found for tenant_id #{external_invoice.tenant_id}") unless @tenant
+    return error_result("StorageConfiguration not found for tenant #{@tenant.name}") unless @storage_config
 
-    Rails.logger.info("[XeroAttachmentSync] Starting sync for invoice #{external_invoice.id} (#{external_invoice.invoice_number})")
+    # SSoT: Wrap entire sync in tenant context
+    ActsAsTenant.with_tenant(@tenant) do
+      Rails.logger.info("[XeroAttachmentSync] Starting sync for invoice #{external_invoice.id} (#{external_invoice.invoice_number})")
 
-    # 1. Sync the invoice PDF (Xero-generated)
-    sync_invoice_pdf
+      # 1. Sync the invoice PDF (Xero-generated)
+      sync_invoice_pdf
 
-    # 2. Sync any additional attachments
-    sync_attachments
+      # 2. Sync any additional attachments
+      sync_attachments
 
-    Rails.logger.info("[XeroAttachmentSync] Complete for invoice #{external_invoice.id}: PDF=#{results[:pdf].present?}, Attachments=#{results[:attachments].count}")
+      Rails.logger.info("[XeroAttachmentSync] Complete for invoice #{external_invoice.id}: PDF=#{results[:pdf].present?}, Attachments=#{results[:attachments].count}")
+    end
 
     results
   end
@@ -38,104 +86,80 @@ class XeroAttachmentSyncService
   end
 
   def sync_invoice_pdf
-    # Check if PDF already exists in SharePoint - skip API call if we have it
     external_doc_id = "xero:#{external_invoice.external_id}:pdf"
-    existing_pdf = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
 
-    if existing_pdf.present? && existing_pdf.sharepoint_file_id.present?
-      Rails.logger.info("[XeroAttachmentSync] PDF already synced to SharePoint, skipping: #{existing_pdf.title}")
-      results[:pdf] = existing_pdf
+    # Check if PDF already synced via WarehouseDocument
+    existing = WarehouseDocument.find_by(
+      documentable: external_invoice,
+      source_type: "xero"
+    )
+
+    if existing.present? && existing.storage_blob_id.present?
+      Rails.logger.info("[XeroAttachmentSync] PDF already synced via WarehouseDocument, skipping: #{existing.display_name}")
+      results[:pdf] = existing
       results[:skipped] = true
       return
     end
 
-    # Determine endpoint based on invoice type
-    entity_type = case external_invoice.invoice_type
-    when "quote" then "Quotes"
-    when "credit_note" then "CreditNotes"
-    else "Invoices"
-    end
-
-    pdf_result = case external_invoice.invoice_type
-    when "quote"
-                   xero_client.get_quote_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
-    when "credit_note"
-                   xero_client.get_credit_note_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
-    else
-                   xero_client.get_invoice_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
-    end
-
+    # Download PDF from Xero
+    pdf_result = download_invoice_pdf
     unless pdf_result[:success]
       results[:errors] << "Failed to fetch PDF: #{pdf_result[:error]}"
       return
     end
 
-    # Create or update CorporateCompanyDocument
+    pdf_content = pdf_result[:content]
     filename = build_pdf_filename
-    external_doc_id = "xero:#{external_invoice.external_id}:pdf"
 
-    document = CorporateCompanyDocument.find_or_initialize_by(
-      source: "xero",
-      external_id: external_doc_id
-    )
+    # SSoT: Get DocumentType from database (no hardcoding)
+    document_type = find_document_type_for_invoice
+    unless document_type
+      results[:errors] << "DocumentType not found for invoice type: #{external_invoice.invoice_type}"
+      return
+    end
 
-    # Attach the PDF content
-    # Link to contact (for contact document tabs) AND to external_invoice (for warehouse queries)
-    document.assign_attributes(
-      display_name: filename,
-      document_type: document_type_for_invoice,
-      folder: folder_for_invoice_type,              # BILLS, INVOICES, etc. for contact tabs
-      contact_id: external_invoice.contact_id,      # Link to contact for document management
-      documentable: external_invoice,               # Also link to warehouse record
-      job_id: external_invoice.job_id,
-      expected_sharepoint_path: expected_document_path(filename), # Full SharePoint path
-      file_size: pdf_result[:content_length] || pdf_result[:content].bytesize,
-      file_name: filename,
-      mime_type: "application/pdf",
-      ai_verification_status: "verified" # Xero-sourced, no need for AI verification
-    )
+    # SSoT: Get folder path from EntityTab (no hardcoding)
+    folder = compute_folder_from_document_type(document_type)
 
-    # Attach the file via Active Storage
-    document.file.attach(
-      io: StringIO.new(pdf_result[:content]),
+    # SSoT: Create StorageBlob (handles deduplication)
+    storage_blob = StorageBlob.find_or_create_for_content!(
+      pdf_content,
       filename: filename,
       content_type: "application/pdf"
     )
+    storage_blob.increment_reference!
 
-    if document.save
-      results[:pdf] = document
-      Rails.logger.info("[XeroAttachmentSync] Saved PDF: #{filename}")
+    # SSoT: Create WarehouseDocument (universal metadata)
+    warehouse_doc = existing || WarehouseDocument.new
+    warehouse_doc.assign_attributes(
+      documentable: external_invoice,
+      storage_blob: storage_blob,
+      source_type: "xero",
+      display_name: build_display_name,
+      original_filename: filename,
+      folder: folder,
+      tenant_id: @tenant.id,
+      content_type: "application/pdf",
+      file_size: pdf_content.bytesize,
+      # Link to contact for filtering in File Warehouse
+      linkable: external_invoice.contact,
+      metadata: build_metadata(document_type)
+    )
 
-      # Also upload to SharePoint
-      upload_result = upload_to_sharepoint(pdf_result[:content], filename)
-
-      # Update document with OneDrive file ID if upload succeeded
-      if upload_result && upload_result[:id]
-        document.update(sharepoint_file_id: upload_result[:id])
-        Rails.logger.info("[XeroAttachmentSync] Updated document with OneDrive file ID: #{upload_result[:id]}")
-      end
+    if warehouse_doc.save
+      results[:pdf] = warehouse_doc
+      Rails.logger.info("[XeroAttachmentSync] Saved PDF via WarehouseDocument: #{filename} -> #{storage_blob.storage_path}")
     else
-      results[:errors] << "Failed to save PDF: #{document.errors.full_messages.join(', ')}"
+      storage_blob.decrement_reference!
+      results[:errors] << "Failed to save WarehouseDocument: #{warehouse_doc.errors.full_messages.join(', ')}"
     end
   rescue ActiveRecord::RecordNotUnique => e
-    # Race condition: another process created this PDF between our check and save
-    # This is OK - just find the existing record and use it
-    existing = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
-    if existing
-      results[:pdf] = existing
-      results[:skipped] = true
-      Rails.logger.info("[XeroAttachmentSync] PDF already exists (race condition avoided): #{filename}")
-    else
-      # Shouldn't happen, but log it
-      results[:errors] << "Unique constraint violation but couldn't find existing record: #{e.message}"
-      Rails.logger.error("[XeroAttachmentSync] Unique constraint violation: #{e.message}")
-    end
+    handle_race_condition(e, external_invoice, "pdf")
   rescue XeroApiClient::RateLimitError => e
-    # Re-raise rate limit errors so the caller can handle with backoff
     raise e
   rescue StandardError => e
     results[:errors] << "PDF sync error: #{e.message}"
-    Rails.logger.error("[XeroAttachmentSync] PDF sync error: #{e.message}")
+    Rails.logger.error("[XeroAttachmentSync] PDF sync error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
   end
 
   def sync_attachments
@@ -164,11 +188,28 @@ class XeroAttachmentSyncService
     filename = attachment_info[:filename]
     attachment_id = attachment_info[:attachment_id]
 
-    # Skip if already synced
-    external_doc_id = "xero:#{external_invoice.external_id}:#{attachment_id}"
-    existing = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
+    # SSoT: Attachments link to the primary PDF document via parent_document_id
+    # This avoids the unique constraint on documentable (one WarehouseDoc per source record)
+    parent_doc = results[:pdf]
+    unless parent_doc
+      Rails.logger.warn("[XeroAttachmentSync] No parent PDF document for attachment: #{filename}")
+      results[:errors] << "No parent PDF document for attachment: #{filename}"
+      return
+    end
 
-    if existing.present?
+    # Check if already synced (using parent_document_id + attachment_id in metadata)
+    existing = WarehouseDocument.find_by(
+      parent_document_id: parent_doc.id
+    )&.then do |doc|
+      doc if doc.metadata&.dig("attachment_id") == attachment_id
+    end
+
+    # Alternative check: search by metadata
+    existing ||= WarehouseDocument.where(parent_document_id: parent_doc.id)
+                                  .where("metadata->>'attachment_id' = ?", attachment_id)
+                                  .first
+
+    if existing.present? && existing.storage_blob_id.present?
       Rails.logger.debug("[XeroAttachmentSync] Skipping existing attachment: #{filename}")
       results[:attachments] << existing
       return
@@ -187,230 +228,263 @@ class XeroAttachmentSyncService
       return
     end
 
-    # Create CorporateCompanyDocument
-    # Link to contact (for contact document tabs) AND to external_invoice (for warehouse queries)
-    document = CorporateCompanyDocument.new(
-      source: "xero",
-      external_id: external_doc_id,
-      display_name: filename,
-      document_type: guess_document_type(filename),
-      folder: folder_for_invoice_type,              # BILLS, INVOICES, etc. for contact tabs
-      contact_id: external_invoice.contact_id,      # Link to contact for document management
-      documentable: external_invoice,               # Also link to warehouse record
-      job_id: external_invoice.job_id,
-      expected_sharepoint_path: expected_document_path(filename), # Full SharePoint path
-      file_size: download_result[:content_length] || download_result[:content].bytesize,
-      file_name: filename,
-      mime_type: download_result[:mime_type] || attachment_info[:mime_type],
-      ai_verification_status: "pending" # Attachments should go through AI verification
-    )
+    content = download_result[:content]
+    mime_type = download_result[:mime_type] || attachment_info[:mime_type] || "application/octet-stream"
 
-    # Attach the file
-    document.file.attach(
-      io: StringIO.new(download_result[:content]),
+    # SSoT: Get DocumentType for attachment (no hardcoding)
+    document_type = find_document_type_for_attachment
+    unless document_type
+      results[:errors] << "DocumentType not found for attachment type: #{external_invoice.invoice_type}"
+      return
+    end
+
+    folder = compute_folder_from_document_type(document_type)
+
+    # SSoT: Create StorageBlob
+    storage_blob = StorageBlob.find_or_create_for_content!(
+      content,
       filename: filename,
-      content_type: download_result[:mime_type] || "application/octet-stream"
+      content_type: mime_type
+    )
+    storage_blob.increment_reference!
+
+    # SSoT: Create WarehouseDocument as child of primary PDF
+    # Attachments use parent_document_id to link to the primary PDF
+    # documentable is nil for attachments (parent has the link to ExternalInvoice)
+    warehouse_doc = WarehouseDocument.new(
+      documentable: nil,  # Attachments don't link directly to ExternalInvoice
+      parent_document_id: parent_doc.id,  # Link to primary PDF instead
+      storage_blob: storage_blob,
+      source_type: "xero",
+      display_name: filename,
+      original_filename: filename,
+      folder: folder,
+      tenant_id: @tenant.id,
+      content_type: mime_type,
+      file_size: content.bytesize,
+      linkable: external_invoice.contact,
+      metadata: build_attachment_metadata(document_type, attachment_id, filename)
     )
 
-    if document.save
-      results[:attachments] << document
-      Rails.logger.info("[XeroAttachmentSync] Saved attachment: #{filename}")
-
-      # Also upload to SharePoint
-      upload_result = upload_to_sharepoint(download_result[:content], filename)
-
-      # Update document with OneDrive file ID if upload succeeded
-      if upload_result && upload_result[:id]
-        document.update(sharepoint_file_id: upload_result[:id])
-        Rails.logger.info("[XeroAttachmentSync] Updated document with OneDrive file ID: #{upload_result[:id]}")
-      end
+    if warehouse_doc.save
+      results[:attachments] << warehouse_doc
+      Rails.logger.info("[XeroAttachmentSync] Saved attachment via WarehouseDocument (parent: #{parent_doc.id}): #{filename}")
     else
-      results[:errors] << "Failed to save #{filename}: #{document.errors.full_messages.join(', ')}"
+      storage_blob.decrement_reference!
+      results[:errors] << "Failed to save attachment #{filename}: #{warehouse_doc.errors.full_messages.join(', ')}"
     end
   rescue ActiveRecord::RecordNotUnique => e
-    # Race condition: another process created this attachment between our check and save
-    existing = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
-    if existing
-      results[:attachments] << existing
-      Rails.logger.info("[XeroAttachmentSync] Attachment already exists (race condition avoided): #{filename}")
-    else
-      results[:errors] << "Unique constraint violation but couldn't find existing record: #{e.message}"
-      Rails.logger.error("[XeroAttachmentSync] Unique constraint violation: #{e.message}")
-    end
+    handle_attachment_race_condition(e, attachment_id, filename)
   rescue StandardError => e
     results[:errors] << "Attachment sync error (#{filename}): #{e.message}"
     Rails.logger.error("[XeroAttachmentSync] Attachment sync error: #{e.message}")
   end
 
+  # ========================================
+  # SSoT: DocumentType Lookup (No Hardcoding)
+  # ========================================
+
+  # Find DocumentType based on invoice type - reads from database
+  def find_document_type_for_invoice
+    type_name = case external_invoice.invoice_type
+                when "bill" then "Xero Bill"
+                when "credit_note" then "Xero Credit Note"
+                else "Xero Invoice" # sales_invoice, quote
+                end
+
+    DocumentType.find_by(name: type_name)
+  end
+
+  # Find DocumentType for attachments - reads from database
+  def find_document_type_for_attachment
+    type_name = case external_invoice.invoice_type
+                when "bill" then "Xero Bill Attachment"
+                when "credit_note" then "Xero Credit Note Attachment"
+                else "Xero Invoice Attachment"
+                end
+
+    # Fall back to generic attachment if specific doesn't exist
+    DocumentType.find_by(name: type_name) ||
+      DocumentType.find_by(name: "Xero Invoice Attachment")
+  end
+
+  # ========================================
+  # SSoT: Folder Computation from EntityTab
+  # ========================================
+
+  # Compute folder path from DocumentType's primary EntityTab
+  # SSoT: Derives folder from StorageConfiguration.warehouse_folders (not EntityTab.warehouse_folder)
+  def compute_folder_from_document_type(document_type)
+    entity_tab = document_type.primary_entity_tab
+    return nil unless entity_tab
+
+    # SSoT: Derive template from StorageConfiguration.warehouse_folders
+    # root_folder_for already handles alias normalization (e.g., 'corporate_entity' → 'corporate')
+    warehouse_type = entity_tab.warehouse_type || 'corporate'
+    config = StorageConfiguration.instance
+    template = config.root_folder_for(warehouse_type)
+    return nil unless template.present?
+
+    # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)
+    # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
+    template = template.gsub('{{TeeemXL}}', entity_tab.display_name.to_s).gsub('{{TabName}}', entity_tab.display_name.to_s)
+
+    # Expand template with context from invoice/contact
+    expand_folder_template(template)
+  end
+
+  # Expand folder template with invoice/contact context
+  def expand_folder_template(template)
+    contact = external_invoice.contact
+    # Get company from tenant's billing_company (not contact)
+    company = @tenant&.billing_company
+
+    # Build substitution hash from actual data
+    substitutions = {
+      "ContactName" => contact_folder_name,
+      "ContactId" => contact&.id,
+      "CompanyGroup" => company&.company_group.presence || "Default",
+      "CompanyCode" => company&.company_code.presence || "Unknown",
+      "CompanyName" => company&.name,
+      "Year" => (external_invoice.invoice_date || Date.current).year,
+      "Month" => format("%02d", (external_invoice.invoice_date || Date.current).month)
+    }
+
+    result = template.dup
+    substitutions.each do |key, value|
+      result.gsub!("{{#{key}}}", value.to_s) if value.present?
+    end
+
+    # Remove unexpanded tokens
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    # Clean up double slashes
+    result.gsub!(%r{//+}, "/")
+    result.gsub!(%r{^/|/$}, "")
+
+    result
+  end
+
+  # ========================================
+  # Filename Building
+  # ========================================
+
   def build_pdf_filename
-    # If this bill matches a PO, use the PO number in the filename
-    # This prevents duplicates and links bills to their POs visually
-    # Format: 456-PO-000123.pdf (contact_id-po_number) for matched bills
-    # Format: 456-INV-001234.pdf (contact_id-invoice_number) for unmatched
     contact_id = external_invoice.contact_id
     matched_po = find_matching_purchase_order
 
     if matched_po
-      # Use PO number when matched
-      po_num = matched_po.purchase_order_number # e.g., "PO-000123"
-      if contact_id.present?
-        "#{contact_id}-#{po_num}.pdf"
-      else
-        "#{po_num}.pdf"
-      end
+      po_num = matched_po.purchase_order_number
+      contact_id.present? ? "#{contact_id}-#{po_num}.pdf" : "#{po_num}.pdf"
     else
-      # Fall back to invoice number
       invoice_num = external_invoice.invoice_number.presence || external_invoice.external_id[0..7]
-      if contact_id.present?
-        "#{contact_id}-#{invoice_num}.pdf"
-      else
-        "#{invoice_num}.pdf"
-      end
+      contact_id.present? ? "#{contact_id}-#{invoice_num}.pdf" : "#{invoice_num}.pdf"
     end
   end
 
-  # Find a PurchaseOrder that matches this external invoice
-  # Matches by xero_invoice_id (Xero GUID stored on PO when matched)
-  def find_matching_purchase_order
-    return nil unless external_invoice.bill? # Only match bills to POs
-    return nil unless external_invoice.external_id.present?
+  def build_display_name
+    invoice_num = external_invoice.invoice_number.presence || "Unknown"
+    contact_name = external_invoice.contact&.name || "Unknown Contact"
 
-    PurchaseOrder.find_by(xero_invoice_id: external_invoice.external_id)
-  end
-
-  def document_type_for_invoice
-    # Map invoice types to valid CorporateCompanyDocument document_types
-    # These must match DocumentType.pluck(:name) or LEGACY_DOCUMENT_TYPES
     case external_invoice.invoice_type
-    when "sales_invoice" then "Sales Document"
-    when "bill" then "Purchases"
-    when "credit_note" then "other"
-    when "quote" then "Estimation"
-    else "other"
+    when "bill"
+      "Bill #{invoice_num} - #{contact_name}"
+    when "credit_note"
+      "Credit Note #{invoice_num} - #{contact_name}"
+    else
+      "Invoice #{invoice_num} - #{contact_name}"
     end
   end
 
-  # Folder name for contact document tabs
-  # These appear in the contact's document management interface
-  def folder_for_invoice_type
-    case external_invoice.invoice_type
-    when "bill" then "BILLS"
-    when "sales_invoice" then "INVOICES"
-    when "credit_note" then "CREDIT_NOTES"
-    when "quote" then "QUOTES"
-    else "XERO"
-    end
-  end
-
-  # Generate the expected OneDrive path for this document
-  # SSoT: Uses StorageConfiguration.path_for(:contacts) + contact folder name + invoice type folder
-  # e.g., "Contacts/123 - ABC Supplies/BILLS/BILL-001234.pdf"
-  def expected_document_path(filename)
-    storage_config = StorageConfiguration.instance
-    base_path = storage_config&.path_for(:contacts) || "Contacts"
-    contact_folder = contact_folder_name
-    type_folder = folder_for_invoice_type
-
-    [ base_path, contact_folder, type_folder, filename ].compact.join("/")
-  end
-
-  # Get the contact folder name using the configured format
-  # Delegates to Contact.document_folder_name if contact is linked
   def contact_folder_name
     contact = external_invoice.contact
     return nil unless contact.present?
-
     contact.document_folder_name
   end
 
-  def guess_document_type(filename)
-    ext = File.extname(filename).downcase
-    name = filename.downcase
+  def find_matching_purchase_order
+    return nil unless external_invoice.bill?
+    return nil unless external_invoice.external_id.present?
+    PurchaseOrder.find_by(xero_invoice_id: external_invoice.external_id)
+  end
 
-    # Map attachment filenames to valid CorporateCompanyDocument document_types
-    # Uses existing DocumentType names from the database
-    return "Sales Document" if name.include?("invoice") || name.include?("inv")
-    return "Purchases" if name.include?("bill")
-    return "Expenses" if name.include?("receipt")
-    return "contract" if name.include?("contract")
-    return "Estimation" if name.include?("quote") || name.include?("estimate")
+  # ========================================
+  # Metadata Building
+  # ========================================
 
-    # Default based on extension - use "General" which is a valid type
-    case ext
-    when ".pdf" then "General"
-    when ".doc", ".docx" then "General"
-    when ".xls", ".xlsx" then "General"
-    when ".jpg", ".jpeg", ".png" then "General"
-    else "other"
+  def build_metadata(document_type)
+    {
+      "invoice_number" => external_invoice.invoice_number,
+      "invoice_type" => external_invoice.invoice_type,
+      "xero_id" => external_invoice.external_id,
+      "contact_id" => external_invoice.contact_id,
+      "document_type_id" => document_type&.id,
+      "document_type_name" => document_type&.name,
+      "synced_at" => Time.current.iso8601,
+      "is_primary" => true
+    }
+  end
+
+  def build_attachment_metadata(document_type, attachment_id, filename)
+    {
+      "invoice_number" => external_invoice.invoice_number,
+      "invoice_type" => external_invoice.invoice_type,
+      "xero_id" => external_invoice.external_id,
+      "attachment_id" => attachment_id,
+      "original_filename" => filename,
+      "contact_id" => external_invoice.contact_id,
+      "document_type_id" => document_type&.id,
+      "document_type_name" => document_type&.name,
+      "synced_at" => Time.current.iso8601,
+      "is_primary" => false
+    }
+  end
+
+  # ========================================
+  # Xero API Download
+  # ========================================
+
+  def download_invoice_pdf
+    case external_invoice.invoice_type
+    when "quote"
+      xero_client.get_quote_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+    when "credit_note"
+      xero_client.get_credit_note_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+    else
+      xero_client.get_invoice_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
     end
   end
 
-  # Upload file content to SharePoint using folder structure:
-  # Contacts/{contact_folder}/BILLS|INVOICES/{filename}
-  def upload_to_sharepoint(content, filename)
-    return nil if @skip_sharepoint
-    return nil unless external_invoice.contact.present?
+  # ========================================
+  # Race Condition Handling
+  # ========================================
 
-    begin
-      credential = MicrosoftCredential.sharepoint_credential
-      return nil unless credential.present?
+  def handle_race_condition(error, invoice, doc_type)
+    existing = WarehouseDocument.find_by(
+      documentable: invoice,
+      source_type: "xero"
+    )
+    if existing
+      results[:pdf] = existing
+      results[:skipped] = true
+      Rails.logger.info("[XeroAttachmentSync] PDF already exists (race condition avoided)")
+    else
+      results[:errors] << "Unique constraint violation: #{error.message}"
+      Rails.logger.error("[XeroAttachmentSync] Unique constraint violation: #{error.message}")
+    end
+  end
 
-      # MicrosoftGraphClient.new automatically refreshes expired tokens via ensure_valid_token!
-      # If refresh fails (e.g., refresh token expired), it will raise AuthenticationError
-      graph_client = MicrosoftGraphClient.new(credential)
-
-      # SSoT: Get contacts folder path from StorageConfiguration
-      storage_config = StorageConfiguration.instance
-      base_folder_name = storage_config&.path_for(:contacts) || "Contacts"
-
-      # Find or create the base Contacts folder
-      contacts_folder = graph_client.find_folder_in_drive_root(base_folder_name)
-      unless contacts_folder
-        contacts_folder = graph_client.create_folder(base_folder_name)
-        Rails.logger.info("[XeroAttachmentSync] Created SharePoint folder: #{base_folder_name}")
-      end
-
-      # Get or create contact subfolder (e.g., "456 - ABC Supplies")
-      contact_folder_name = contact_folder_name()
-      return nil unless contact_folder_name.present?
-
-      contact_folder = graph_client.get_or_create_subfolder(contacts_folder["id"] || contacts_folder[:id], contact_folder_name)
-      Rails.logger.info("[XeroAttachmentSync] Using contact folder: #{contact_folder_name}")
-
-      # Get or create type subfolder (BILLS, INVOICES, etc.)
-      type_folder_name = folder_for_invoice_type
-      type_folder = graph_client.get_or_create_subfolder(contact_folder[:id] || contact_folder["id"], type_folder_name)
-      Rails.logger.info("[XeroAttachmentSync] Using type folder: #{type_folder_name}")
-
-      # Upload the file
-      upload_result = graph_client.upload_file_content(
-        type_folder[:id] || type_folder["id"],
-        filename,
-        content
-      )
-
-      Rails.logger.info("[XeroAttachmentSync] Uploaded to SharePoint: #{filename} -> #{upload_result[:web_url]}")
-
-      results[:sharepoint_uploads] << {
-        filename: filename,
-        folder: "#{base_folder_name}/#{contact_folder_name}/#{type_folder_name}",
-        web_url: upload_result[:web_url]
-      }
-
-      upload_result
-    rescue MicrosoftGraphClient::AuthenticationError => e
-      error_msg = "OneDrive credential authentication failed - token refresh unsuccessful. Please reconnect OneDrive in Settings > Integrations."
-      results[:errors] << error_msg
-      Rails.logger.error("[XeroAttachmentSync] #{error_msg} Details: #{e.message}")
-      nil
-    rescue MicrosoftGraphClient::APIError => e
-      results[:errors] << "SharePoint API error: #{e.message}"
-      Rails.logger.error("[XeroAttachmentSync] SharePoint API error: #{e.message}")
-      nil
-    rescue StandardError => e
-      results[:errors] << "SharePoint upload error: #{e.message}"
-      Rails.logger.error("[XeroAttachmentSync] SharePoint upload error: #{e.message}")
-      nil
+  def handle_attachment_race_condition(error, attachment_id, filename)
+    existing = WarehouseDocument.find_by(
+      "metadata->>'attachment_id' = ? AND documentable_type = ? AND documentable_id = ?",
+      attachment_id,
+      "ExternalInvoice",
+      external_invoice.id
+    )
+    if existing
+      results[:attachments] << existing
+      Rails.logger.info("[XeroAttachmentSync] Attachment already exists (race condition avoided): #{filename}")
+    else
+      results[:errors] << "Unique constraint violation: #{error.message}"
     end
   end
 end

@@ -215,12 +215,14 @@ export const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                   height: virtualRow.size,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
-                onClick={() => {
-                  if (!isEditMode && onRowClick) {
-                    onRowClick(row);
+                onDoubleClick={(e) => {
+                  // Double click opens detail/edit
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!isEditMode && onRowDoubleClick) {
+                    onRowDoubleClick(row);
                   }
                 }}
-                onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {

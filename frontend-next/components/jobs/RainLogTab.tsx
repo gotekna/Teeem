@@ -29,6 +29,8 @@ import {
   MapPin,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
+import { formatDate } from "@/utils/formatters";
 
 interface RainLog {
   id: number;
@@ -69,6 +71,7 @@ function getTodayAsString(): string {
 }
 
 export function RainLogTab({ jobId }: RainLogTabProps) {
+  const { toast } = useToast();
   const [rainLogs, setRainLogs] = useState<RainLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -156,7 +159,7 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
       await loadRainLogs();
     } catch (err) {
       console.error("Failed to save rain log:", err);
-      alert("Failed to save rain log");
+      toast({ title: "Error", description: "Failed to save rain log", variant: "destructive" });
     }
   };
 
@@ -168,7 +171,7 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
       await loadRainLogs();
     } catch (err) {
       console.error("Failed to delete rain log:", err);
-      alert("Failed to delete rain log");
+      toast({ title: "Error", description: "Failed to delete rain log", variant: "destructive" });
     }
   };
 
@@ -192,11 +195,11 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
   const getSeverityBadge = (severity: string | null) => {
     switch (severity) {
       case "light":
-        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">Light</Badge>;
+        return <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Light</Badge>;
       case "moderate":
-        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Moderate</Badge>;
+        return <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">Moderate</Badge>;
       case "heavy":
-        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Heavy</Badge>;
+        return <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400">Heavy</Badge>;
       default:
         return <span className="text-muted-foreground">-</span>;
     }
@@ -204,19 +207,11 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
 
   const getSourceBadge = (source: string) => {
     if (source === "automatic") {
-      return <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400">Auto</Badge>;
+      return <Badge variant="secondary" className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-300 dark:bg-indigo-900/30 dark:text-indigo-400">Auto</Badge>;
     }
     return <Badge variant="secondary">Manual</Badge>;
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   if (loading) {
     return (
@@ -289,12 +284,12 @@ export function RainLogTab({ jobId }: RainLogTabProps) {
                   <p className="text-sm">{weatherResult.error}</p>
                 ) : weatherResult.rain_log_created ? (
                   <p className="text-sm flex items-center gap-1">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                     Rain log created: {weatherResult.rain_log?.rainfall_mm}mm recorded
                   </p>
                 ) : (
                   <p className="text-sm flex items-center gap-1">
-                    <CheckCircle className="h-4 w-4 text-blue-600" />
+                    <CheckCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                     {weatherResult.message || `No rainfall detected (${weatherResult.rainfall_mm || 0}mm)`}
                   </p>
                 )}

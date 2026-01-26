@@ -28,6 +28,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface MeetingType {
   id: number;
@@ -62,6 +63,7 @@ const DURATION_OPTIONS = [
 
 export function MeetingTypesTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [meetingTypes, setMeetingTypes] = React.useState<MeetingType[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showDialog, setShowDialog] = React.useState(false);
@@ -205,7 +207,7 @@ export function MeetingTypesTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this meeting type?")) return;
+    if (!(await confirm("Are you sure you want to delete this meeting type?"))) return;
 
     setDeleting(id);
     try {

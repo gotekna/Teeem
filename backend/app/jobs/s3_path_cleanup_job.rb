@@ -2,6 +2,13 @@
 
 # S3PathCleanupJob - Renames S3 objects to clean, human-readable paths
 #
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)  ║
+# ║  - path_for(:jobs) → default "Jobs" (with job.job_code prefix)    ║
+# ║  - path_for(:corporate) → default "Corporate"                     ║
+# ║  - path_for(:people) → default "People"                           ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 # Moves files within S3 (no re-download from SharePoint) using copy + delete.
 # Updates storage_path in database to match new location.
 #
@@ -33,12 +40,23 @@ class S3PathCleanupJob < ApplicationJob
     count
   end
 
-  # Check if path is already clean (lowercase, no spaces, no encoded chars)
+  # Check if path uses SSoT folder structure (TitleCase, proper prefixes)
+  # SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)
   def self.clean_path?(path)
     return true if path.blank?
 
-    # Clean paths: lowercase, no spaces, no URL encoding, starts with type prefix
-    path.match?(/\A(jobs|corporate|people)\/\d+\/[a-z0-9\-\/\.]+\z/)
+    # Get configured folder names from StorageConfiguration
+    config = StorageConfiguration.instance
+    jobs_folder = config&.path_for(:jobs) || "Jobs"
+    corporate_folder = config&.path_for(:corporate) || "Corporate"
+    people_folder = config&.path_for(:people) || "People"
+
+    # SSoT paths: Configured folders, job_code format (J{id}), no URL encoding
+    jobs_pattern = Regexp.escape(jobs_folder)
+    corporate_pattern = Regexp.escape(corporate_folder)
+    people_pattern = Regexp.escape(people_folder)
+
+    path.match?(/\A(#{jobs_pattern}\/J\d+|#{corporate_pattern}\/\d+|#{corporate_pattern}\/#{people_pattern}\/\d+)\/[a-zA-Z0-9\-\/\._\s]+\z/)
   end
 
   def perform(document_id, options = {})
@@ -88,7 +106,7 @@ class S3PathCleanupJob < ApplicationJob
       force_path_style: true
     )
 
-    bucket = credential.bucket
+    bucket = StorageConfiguration.bucket
 
     begin
       # Step 1: Copy object to new key
@@ -134,64 +152,85 @@ class S3PathCleanupJob < ApplicationJob
 
   private
 
-  # Build clean path for document (same logic as DocumentMigrationJob)
+  # Build clean path for document using SSoT from StorageConfiguration
+  # SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)
   def build_clean_path(document, document_type)
+    config = StorageConfiguration.instance
+
     case document_type
     when 'JobDocument'
       job = document.job
-      subfolder = slugify_path(document.folder_path.presence || "documents")
-      filename = slugify_filename(document.file_name)
-      "jobs/#{job.id}/#{subfolder}/#{filename}"
+      # SSoT: Use job.job_code (e.g., "J49") from database column
+      job_code = job.job_code
+      subfolder = clean_subfolder(document.folder_path.presence || "Documents")
+      filename = clean_filename(document.file_name)
+      # SSoT: path_for(:jobs) folder with job_code prefix (Jan 2026)
+      jobs_folder = config&.path_for(:jobs) || "Jobs"
+      "#{jobs_folder}/#{job_code}/#{subfolder}/#{filename}"
 
     when 'CorporateCompanyDocument'
       company = document.corporate_company
-      if company
-        folder = slugify_path(document.folder.presence || "documents")
-        filename = slugify_filename(document.file_name)
-        "corporate/#{company.id}/#{folder}/#{filename}"
-      else
-        "corporate/unassigned/#{slugify_filename(document.file_name)}"
-      end
+      # FAIL FAST: No fallbacks - missing data is a bug, not a feature (Jan 2026 FRC fix)
+      raise ArgumentError, "CorporateCompanyDocument #{document.id} has no corporate_company - cannot determine path" unless company
+      raise ArgumentError, "StorageConfiguration required for path generation" unless config
+
+      corporate_folder = config.path_for(:corporate)
+      folder = clean_subfolder(document.folder.presence || "Documents")
+      filename = clean_filename(document.file_name)
+      "#{corporate_folder}/#{company.id}/#{folder}/#{filename}"
 
     when 'PeopleDocument'
       contact = document.contact
-      if contact
-        folder = slugify_path(document.folder.presence || "documents")
-        filename = slugify_filename(document.file_name)
-        "people/#{contact.id}/#{folder}/#{filename}"
-      else
-        "people/unassigned/#{slugify_filename(document.file_name)}"
-      end
+      # FAIL FAST: No fallbacks - missing data is a bug (Jan 2026 FRC fix)
+      raise ArgumentError, "PeopleDocument #{document.id} has no contact - cannot determine path" unless contact
+      raise ArgumentError, "StorageConfiguration required for path generation" unless config
+
+      corporate_folder = config.path_for(:corporate)
+      people_folder = config.path_for(:people)
+      folder = clean_subfolder(document.folder.presence || "Documents")
+      filename = clean_filename(document.file_name)
+      "#{corporate_folder}/#{people_folder}/#{contact.id}/#{folder}/#{filename}"
 
     else
-      "documents/#{slugify_filename(document.file_name)}"
+      # FAIL FAST: Unknown document type is a bug (Jan 2026 FRC fix)
+      raise ArgumentError, "Unknown document type: #{document.class.name} - add explicit path handling"
     end
   end
 
-  # Convert path segments to URL-friendly slugs
-  def slugify_path(path)
-    return "documents" if path.blank?
-    path.split('/').map { |segment| slugify(segment) }.join('/')
+  # Clean subfolder path - preserve case, remove problematic characters
+  def clean_subfolder(path)
+    return "Documents" if path.blank?
+    path.split('/').map { |segment| clean_segment(segment) }.join('/')
   end
 
-  # Convert filename to URL-friendly format while preserving extension
-  def slugify_filename(filename)
+  # Clean filename - preserve case, remove problematic characters
+  def clean_filename(filename)
     return "untitled" if filename.blank?
     ext = File.extname(filename)
     base = File.basename(filename, ext)
-    "#{slugify(base)}#{ext.downcase}"
+    "#{clean_segment(base)}#{ext}"
   end
 
-  # Convert string to URL-friendly slug
-  def slugify(text)
-    return "untitled" if text.blank?
+  # Clean a single path segment - preserve case, remove only problematic chars
+  def clean_segment(text)
+    return "item" if text.blank?
     text.to_s
-        .downcase
-        .gsub(/^\d+\s*[-_]?\s*/, '')  # Remove leading numbers like "03 - "
-        .gsub(/[^a-z0-9\s-]/, '')     # Remove special chars except spaces/hyphens
-        .gsub(/\s+/, '-')              # Spaces to hyphens
-        .gsub(/-+/, '-')               # Collapse multiple hyphens
-        .gsub(/^-|-$/, '')             # Trim leading/trailing hyphens
+        .gsub(/[<>:"|?*\\]/, '')      # Remove Windows-invalid chars only
+        .gsub(/\s+/, ' ')              # Normalize whitespace
+        .strip
         .presence || "item"
+  end
+
+  # Legacy methods for backwards compatibility
+  def slugify_path(path)
+    clean_subfolder(path)
+  end
+
+  def slugify_filename(filename)
+    clean_filename(filename)
+  end
+
+  def slugify(text)
+    clean_segment(text)
   end
 end

@@ -33,6 +33,7 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { formatCurrency } from "@/utils/formatters";
 
 interface CompanyGroup {
   id: number;
@@ -171,15 +172,16 @@ export default function ConsolidationPage() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  // Use SSoT formatCurrency with Math.abs wrapper for absolute values
+  const formatCurrencyAbs = (amount: number) => {
     const absAmount = Math.abs(amount);
-    return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(absAmount);
+    return formatCurrencyAbs(absAmount);
   };
 
   const getHealthColor = (score: number) => {
-    if (score >= 90) return "text-green-600";
-    if (score >= 70) return "text-yellow-600";
-    return "text-red-600";
+    if (score >= 90) return "text-green-600 dark:text-green-400";
+    if (score >= 70) return "text-yellow-600 dark:text-yellow-400";
+    return "text-red-600 dark:text-red-400";
   };
 
   const getHealthBg = (score: number) => {
@@ -271,7 +273,7 @@ export default function ConsolidationPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                  <ArrowLeftRight className="h-5 w-5 text-blue-600" />
+                  <ArrowLeftRight className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Total Relationships</div>
@@ -285,11 +287,11 @@ export default function ConsolidationPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Matched</div>
-                  <div className="text-2xl font-bold text-green-600">{summary.matched}</div>
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.matched}</div>
                 </div>
               </div>
             </CardContent>
@@ -299,11 +301,11 @@ export default function ConsolidationPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
-                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Mismatched</div>
-                  <div className="text-2xl font-bold text-red-600">{summary.mismatched}</div>
+                  <div className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.mismatched}</div>
                 </div>
               </div>
             </CardContent>
@@ -372,24 +374,24 @@ export default function ConsolidationPage() {
                   <TableRow key={index} className={!rel.matched ? "bg-red-50 dark:bg-red-900/10" : ""}>
                     <TableCell className="font-medium">{rel.company_a.name}</TableCell>
                     <TableCell className="text-right font-mono">
-                      <span className={rel.company_a.amount >= 0 ? "text-green-600" : "text-red-600"}>
+                      <span className={rel.company_a.amount >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                         {rel.company_a.amount >= 0 ? (
                           <TrendingUp className="inline h-3 w-3 mr-1" />
                         ) : (
                           <TrendingDown className="inline h-3 w-3 mr-1" />
                         )}
-                        {formatCurrency(rel.company_a.amount)}
+                        {formatCurrencyAbs(rel.company_a.amount)}
                       </span>
                     </TableCell>
                     <TableCell className="font-medium">{rel.company_b.name}</TableCell>
                     <TableCell className="text-right font-mono">
-                      <span className={rel.company_b.amount >= 0 ? "text-green-600" : "text-red-600"}>
+                      <span className={rel.company_b.amount >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                         {rel.company_b.amount >= 0 ? (
                           <TrendingUp className="inline h-3 w-3 mr-1" />
                         ) : (
                           <TrendingDown className="inline h-3 w-3 mr-1" />
                         )}
-                        {formatCurrency(rel.company_b.amount)}
+                        {formatCurrencyAbs(rel.company_b.amount)}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -399,14 +401,14 @@ export default function ConsolidationPage() {
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {rel.discrepancy !== 0 && (
-                        <span className="text-red-600 font-semibold">
-                          {formatCurrency(rel.discrepancy)}
+                        <span className="text-red-600 dark:text-red-400 font-semibold">
+                          {formatCurrencyAbs(rel.discrepancy)}
                         </span>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
                       {rel.matched ? (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                        <Badge variant="secondary" className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">
                           <CheckCircle className="h-3 w-3 mr-1" />
                           Matched
                         </Badge>
@@ -447,14 +449,14 @@ export default function ConsolidationPage() {
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium">{group.name}</h4>
+                      <h4 className="text-sm font-medium">{group.name}</h4>
                       {group.latest_reconciliation && (
                         <Badge
                           variant="secondary"
                           className={cn(
                             group.latest_reconciliation.has_discrepancies
-                              ? "bg-red-100 text-red-800"
-                              : "bg-green-100 text-green-800"
+                              ? "bg-status-error text-status-error-foreground"
+                              : "bg-status-success text-status-success-foreground"
                           )}
                         >
                           {group.latest_reconciliation.health_score}%

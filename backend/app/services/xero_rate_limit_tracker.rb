@@ -10,12 +10,78 @@
 # This tracker uses Rails cache to store request counts and provides
 # real-time visibility into API usage.
 #
+# Also tracks Xero-enforced rate limits (429 responses with Retry-After header).
+# When Xero returns a 429, we store the lockout time and refuse to make requests
+# until it expires.
+#
 class XeroRateLimitTracker
   MINUTE_LIMIT = 60
   DAILY_LIMIT = 5000
   CONCURRENT_LIMIT = 5
 
+  # Cache key for Xero-enforced rate limit lockout
+  LOCKOUT_KEY = "xero:rate:lockout"
+
   class << self
+    # Record a Xero-enforced rate limit (from 429 response)
+    # This is THE SSoT for "is Xero actually blocking us right now"
+    # @param retry_after [Integer] Seconds until we can retry (from Xero's Retry-After header)
+    # @param tenant_id [String] Optional tenant ID for per-tenant tracking
+    def record_lockout!(retry_after, tenant_id: nil)
+      lockout_until = Time.current + retry_after.seconds
+      lockout_data = {
+        locked_until: lockout_until.iso8601,
+        retry_after_seconds: retry_after,
+        recorded_at: Time.current.iso8601,
+        tenant_id: tenant_id
+      }
+
+      # Store both global and per-tenant lockout
+      Rails.cache.write(LOCKOUT_KEY, lockout_data, expires_in: retry_after.seconds + 60)
+      Rails.cache.write("#{LOCKOUT_KEY}:#{tenant_id}", lockout_data, expires_in: retry_after.seconds + 60) if tenant_id.present?
+
+      Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Xero rate limited for #{retry_after} seconds (until #{lockout_until})")
+      lockout_data
+    end
+
+    # Check if we're currently locked out by Xero
+    # @return [Hash, nil] Lockout data if locked out, nil if OK to proceed
+    def current_lockout(tenant_id: nil)
+      # Check global lockout first
+      lockout = Rails.cache.read(LOCKOUT_KEY)
+      return lockout if lockout && Time.parse(lockout[:locked_until]) > Time.current
+
+      # Check tenant-specific lockout if provided
+      if tenant_id.present?
+        tenant_lockout = Rails.cache.read("#{LOCKOUT_KEY}:#{tenant_id}")
+        return tenant_lockout if tenant_lockout && Time.parse(tenant_lockout[:locked_until]) > Time.current
+      end
+
+      nil
+    end
+
+    # Check if we can make requests (not locked out)
+    def can_make_requests?(tenant_id: nil)
+      current_lockout(tenant_id: tenant_id).nil?
+    end
+
+    # Get time until lockout expires (for scheduling retry)
+    # @return [Integer] Seconds until we can make requests, 0 if not locked out
+    def lockout_remaining_seconds(tenant_id: nil)
+      lockout = current_lockout(tenant_id: tenant_id)
+      return 0 unless lockout
+
+      remaining = (Time.parse(lockout[:locked_until]) - Time.current).ceil
+      [remaining, 0].max
+    end
+
+    # Clear lockout (for testing or manual intervention)
+    def clear_lockout!(tenant_id: nil)
+      Rails.cache.delete(LOCKOUT_KEY)
+      Rails.cache.delete("#{LOCKOUT_KEY}:#{tenant_id}") if tenant_id.present?
+      Rails.logger.info("[XeroRateLimitTracker] Lockout cleared")
+    end
+
     # Record an API request
     def record_request(tenant_id)
       return unless tenant_id.present?
@@ -41,6 +107,10 @@ class XeroRateLimitTracker
       daily_count = Rails.cache.read(daily_key_for(tenant_id)).to_i
       total_count = Rails.cache.read(total_key_for(tenant_id)).to_i
 
+      # Check for Xero-enforced lockout (SSoT for "is Xero actually blocking us")
+      lockout = current_lockout(tenant_id: tenant_id)
+      is_locked_out = lockout.present?
+
       {
         minute: {
           used: minute_count,
@@ -55,7 +125,10 @@ class XeroRateLimitTracker
           percentage: (daily_count.to_f / DAILY_LIMIT * 100).round(1)
         },
         total_7d: total_count,
-        can_make_request: minute_count < MINUTE_LIMIT && daily_count < DAILY_LIMIT,
+        # SSoT: Check BOTH internal limits AND Xero-enforced lockout
+        can_make_request: !is_locked_out && minute_count < MINUTE_LIMIT && daily_count < DAILY_LIMIT,
+        locked_out: is_locked_out,
+        lockout: lockout,
         # SSoT: Xero daily limit resets at midnight UTC (10:00 AM Brisbane AEST)
         # Use UTC times for accurate reset calculation regardless of server timezone
         resets: {

@@ -12,16 +12,13 @@
 class ProcessNewTaskEmailsJob < ApplicationJob
   queue_as :default
 
-  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_newtask
-  NEW_TASK_EMAIL_ADDRESS = "newtask@tekna.com.au"
-
   def perform
     # SSoT: Get the monitored mailbox from configuration
     newtask_address = CorporateCompanySetting.monitored_mailbox_newtask
 
     # Find emails sent to the monitored mailbox that haven't been processed
     # A processed email has an SmTaskAttachment with the "Source email" notes
-    new_task_emails = EmailWarehouse
+    new_task_emails = SyncedEmail
       .where("? = ANY(to_emails)", newtask_address)
       .where.not(id: processed_email_ids)
       .where("received_at > ?", 24.hours.ago) # Only process recent emails
@@ -65,7 +62,7 @@ class ProcessNewTaskEmailsJob < ApplicationJob
   def processed_email_ids
     # Emails already attached to tasks as source
     SmTaskAttachment
-      .where(attachable_type: "EmailWarehouse")
+      .where(attachable_type: "SyncedEmail")
       .where("notes LIKE ?", "Source email%")
       .pluck(:attachable_id)
   end

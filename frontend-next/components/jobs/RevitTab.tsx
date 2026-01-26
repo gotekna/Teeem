@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
 import {
   Folder,
   File,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatDate, formatFileSize } from "@/utils/formatters";
 
 interface SharePointItem {
   id: string;
@@ -60,48 +62,25 @@ function getFileIcon(fileName: string) {
     case "rvt":
     case "rfa":
     case "rte":
-      return <FileCog className="h-5 w-5 text-orange-500" />;
+      return <FileCog className="h-5 w-5 text-orange-500 dark:text-orange-400" />;
     case "dwg":
     case "dxf":
-      return <FileCode className="h-5 w-5 text-blue-500" />;
+      return <FileCode className="h-5 w-5 text-blue-500 dark:text-blue-400" />;
     case "skp":
-      return <FileCode className="h-5 w-5 text-red-500" />;
+      return <FileCode className="h-5 w-5 text-red-500 dark:text-red-400" />;
     case "jpg":
     case "jpeg":
     case "png":
     case "gif":
     case "bmp":
-      return <FileImage className="h-5 w-5 text-green-500" />;
+      return <FileImage className="h-5 w-5 text-green-500 dark:text-green-400" />;
     case "pdf":
-      return <File className="h-5 w-5 text-red-600" />;
+      return <File className="h-5 w-5 text-red-600 dark:text-red-400" />;
     case "udatasmith":
     case "datasmith":
-      return <FileCog className="h-5 w-5 text-purple-500" />;
+      return <FileCog className="h-5 w-5 text-purple-500 dark:text-purple-400" />;
     default:
       return <File className="h-5 w-5 text-muted-foreground" />;
-  }
-}
-
-// Format file size
-function formatFileSize(bytes?: number): string {
-  if (!bytes) return "-";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-// Format date
-function formatDate(dateString?: string): string {
-  if (!dateString) return "-";
-  try {
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return "-";
   }
 }
 
@@ -284,6 +263,7 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
   };
 
   // Upload files to SharePoint
+  // SSoT: Use presigned URL upload (bypasses Heroku 30s timeout)
   const uploadFiles = async (files: File[]) => {
     if (!revitFolderId) return;
 
@@ -298,13 +278,18 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
       setUploadProgress({ current: i + 1, total: files.length });
 
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("job_id", jobId.toString());
-        formData.append("folder_id", revitFolderId);
+        const result = await uploadFile(file, 'job_documents', {
+          metadata: {
+            job_id: jobId,
+            folder_path: "Revit"
+          }
+        });
 
-        await api.postFormData("/api/v1/documents/upload", formData);
-        successCount++;
+        if (result.success) {
+          successCount++;
+        } else {
+          throw new Error(result.error || "Upload failed");
+        }
       } catch (err) {
         console.error(`Failed to upload ${file.name}:`, err);
         errorCount++;
@@ -506,7 +491,7 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
                 onClick={() => handleFolderClick(folder)}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Folder className="h-5 w-5 text-yellow-500 shrink-0" />
+                  <Folder className="h-5 w-5 text-yellow-500 dark:text-yellow-400 shrink-0" />
                   <span className="truncate font-medium">{folder.name}</span>
                   {folder.folder?.childCount !== undefined && (
                     <span className="text-xs text-muted-foreground">

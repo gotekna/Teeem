@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { copyToClipboard } from "@/utils/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import {
@@ -49,6 +50,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 import type {
@@ -174,6 +176,8 @@ export default function ChatPage() {
         message_type?: "text" | "image" | "file";
         file_url?: string | null;
         file_name?: string | null;
+        // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
+        storage_item_id?: string | null;
         sharepoint_file_id?: string | null;
         has_file?: boolean;
       }
@@ -191,7 +195,9 @@ export default function ChatPage() {
         message_type: msg.message_type || "text",
         file_url: msg.file_url || null,
         file_name: msg.file_name || null,
-        sharepoint_file_id: msg.sharepoint_file_id || null,
+        // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
+        storage_item_id: msg.storage_item_id || msg.sharepoint_file_id || null,
+        sharepoint_file_id: msg.sharepoint_file_id || null, // Keep for backwards compat
         created_at: msg.created_at,
         read_by: [msg.user_id],
         is_own: msg.user_id === user.id,
@@ -532,16 +538,22 @@ export default function ChatPage() {
       clearImagePreview();
 
       try {
-        const formData = new FormData();
-        formData.append("chat_message[content]", newMessage || "[Image]");
-        formData.append("chat_message[message_type]", "image");
-        formData.append("chat_message[file]", pastedImage);
-        if (recipientId) {
-          formData.append("chat_message[recipient_user_id]", recipientId.toString());
+        // SSoT: Upload image via presigned URL (bypasses Heroku 30s timeout)
+        const uploadResult = await uploadFile(pastedImage, 'chat');
+
+        if (!uploadResult.success || !uploadResult.key) {
+          throw new Error(uploadResult.error || "Failed to upload image");
         }
 
-        // Note: You'll need to update the backend to handle file uploads
-        await api.postFormData("/api/v1/chat_messages", formData);
+        // Send message with storage_key
+        await api.post("/api/v1/chat_messages", {
+          chat_message: {
+            content: newMessage || "[Image]",
+            message_type: "image",
+            storage_key: uploadResult.key,
+            recipient_user_id: recipientId,
+          }
+        });
       } catch (error) {
         console.error("Failed to send image:", error);
       }
@@ -706,7 +718,7 @@ export default function ChatPage() {
                         variant={user.presence_status === "online" ? "default" : "secondary"}
                         className={cn(
                           "text-xs",
-                          user.presence_status === "online" && "bg-green-500/10 text-green-600 hover:bg-green-500/20"
+                          user.presence_status === "online" && "bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20"
                         )}
                       >
                         {user.presence_status}
@@ -1229,7 +1241,7 @@ function MessageBubble({
                               ]);
                             } catch {
                               // Fallback: copy URL to clipboard
-                              await navigator.clipboard.writeText(message.file_url!);
+                              await copyToClipboard(message.file_url!);
                             }
                           }}
                           className="p-1.5 bg-black/60 hover:bg-black/80 rounded text-white"
@@ -1262,11 +1274,11 @@ function MessageBubble({
                     </div>
                   )
                 ) : message.file_name ? (
-                  // Fallback when file_url is not available yet (uploading to SharePoint)
+                  // Fallback when file_url is not available yet (uploading to storage)
                   <div className="flex items-center gap-2 px-3 py-2">
                     <FileIcon className="h-4 w-4 shrink-0" />
                     <span className="text-sm break-words">{message.file_name}</span>
-                    {!message.sharepoint_file_id && (
+                    {!message.storage_item_id && !message.sharepoint_file_id && (
                       <span className="text-xs text-muted-foreground">(uploading...)</span>
                     )}
                   </div>
@@ -1293,7 +1305,7 @@ function MessageBubble({
             <span>{formatTime(message.created_at)}</span>
             {message.is_own && (
               message.read_by.length > 1 ? (
-                <CheckCheck className="h-3 w-3 text-blue-500" />
+                <CheckCheck className="h-3 w-3 text-blue-500 dark:text-blue-400" />
               ) : (
                 <Check className="h-3 w-3" />
               )
@@ -1322,7 +1334,7 @@ function MessageBubble({
               </DropdownMenu>
             )}
             {message.saved_to_job && (
-              <span className="flex items-center gap-1 text-green-600">
+              <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                 <Bookmark className="h-3 w-3 fill-current" />
                 <span className="text-xs">Saved to job</span>
               </span>

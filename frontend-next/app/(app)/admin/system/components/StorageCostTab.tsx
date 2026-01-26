@@ -321,10 +321,10 @@ export function StorageCostTab() {
                     </span>
                   )}
                   {provider.downloadCostPerGB === 0 && provider.id !== "minio" && (
-                    <span className="text-green-600">Free egress</span>
+                    <span className="text-green-600 dark:text-green-400">Free egress</span>
                   )}
                   {savingsVsExpensive > 0 && provider.id !== mostExpensive.id && (
-                    <span className="text-green-600 font-medium">
+                    <span className="text-green-600 dark:text-green-400 font-medium">
                       Save ${savingsVsExpensive.toFixed(0)}/mo vs {mostExpensive.name}
                     </span>
                   )}
@@ -333,7 +333,7 @@ export function StorageCostTab() {
                 {/* Pros/Cons */}
                 <div className="mt-3 grid grid-cols-2 gap-4 text-xs">
                   <div>
-                    <span className="text-green-600 font-medium">Pros:</span>
+                    <span className="text-green-600 dark:text-green-400 font-medium">Pros:</span>
                     <ul className="mt-1 space-y-0.5 text-muted-foreground">
                       {provider.pros.map((pro, i) => (
                         <li key={i}>+ {pro}</li>
@@ -341,7 +341,7 @@ export function StorageCostTab() {
                     </ul>
                   </div>
                   <div>
-                    <span className="text-red-600 font-medium">Cons:</span>
+                    <span className="text-red-600 dark:text-red-400 font-medium">Cons:</span>
                     <ul className="mt-1 space-y-0.5 text-muted-foreground">
                       {provider.cons.map((con, i) => (
                         <li key={i}>- {con}</li>
@@ -370,17 +370,17 @@ export function StorageCostTab() {
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-sm text-muted-foreground">Cheapest Option</p>
-              <p className="text-lg font-bold text-green-600">{cheapest.name}</p>
+              <p className="text-lg font-bold text-green-600 dark:text-green-400">{cheapest.name}</p>
               <p className="text-sm">${cheapest.monthlyCost.toFixed(2)}/mo</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Most Expensive</p>
-              <p className="text-lg font-bold text-red-600">{mostExpensive.name}</p>
+              <p className="text-lg font-bold text-red-600 dark:text-red-400">{mostExpensive.name}</p>
               <p className="text-sm">${mostExpensive.monthlyCost.toFixed(2)}/mo</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Yearly Savings</p>
-              <p className="text-lg font-bold text-green-600">
+              <p className="text-lg font-bold text-green-600 dark:text-green-400">
                 ${((mostExpensive.yearlyCost - cheapest.yearlyCost)).toFixed(0)}
               </p>
               <p className="text-sm">with {cheapest.name}</p>

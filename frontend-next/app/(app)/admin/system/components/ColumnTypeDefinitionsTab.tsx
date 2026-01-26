@@ -45,6 +45,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { formatValue } from "@/lib/formatters/display-formatters";
 import { reloadTypeDefinitions, type ColumnTypeDefinition } from "@/lib/column-type-registry";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface TypeDefinitionsResponse {
   success: boolean;
@@ -100,6 +101,7 @@ const DISPLAY_FORMATTERS = [
 
 export function ColumnTypeDefinitionsTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [definitions, setDefinitions] = useState<ColumnTypeDefinition[]>([]);
@@ -243,7 +245,7 @@ export function ColumnTypeDefinitionsTab() {
   };
 
   const handleDelete = async (def: ColumnTypeDefinition) => {
-    if (!confirm(`Are you sure you want to deactivate "${def.display_name}"?`)) {
+    if (!(await confirm(`Are you sure you want to deactivate "${def.display_name}"?`))) {
       return;
     }
 

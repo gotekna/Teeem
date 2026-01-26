@@ -1,63 +1,147 @@
 class DocumentType < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   # Associations
   has_many :corporate_company_documents, dependent: :nullify
   has_many :job_documents, dependent: :nullify
 
-  # SSoT: EntityTab associations
-  has_many :entity_tab_document_types, dependent: :destroy
-  has_many :entity_tabs, through: :entity_tab_document_types
+  # SSoT: StorageLocation associations (renamed from EntityTab Jan 2026)
+  has_many :storage_location_document_types, foreign_key: :document_type_id, dependent: :destroy
+  has_many :storage_locations, through: :storage_location_document_types
 
-  # Get tab names for display (SSoT: uses EntityTabs)
-  def tab_names
-    entity_tabs.pluck(:display_name)
+  # Backwards compatibility aliases (renamed Jan 2026: EntityTab → StorageLocation)
+  # entity_tab_document_types is an alias for storage_location_document_types
+  def entity_tab_document_types
+    storage_location_document_types
+  end
+  has_many :entity_tabs, through: :storage_location_document_types, source: :storage_location
+
+  # Get location names for display
+  def location_names
+    storage_locations.pluck(:display_name)
   end
 
-  # Get the primary tab (first linked tab or first by position)
-  def primary_entity_tab
-    entity_tabs.ordered.first
+  # Get the primary storage location (uses is_primary flag from join table)
+  # SSoT: is_primary flag is THE ONE way to identify the primary location
+  def primary_storage_location
+    primary_join = storage_location_document_types.find_by(is_primary: true)
+    primary_join&.storage_location || storage_locations.ordered.first
   end
 
-  # Set tabs by EntityTab IDs (SSoT: replaces old folder_ids=)
-  def entity_tab_ids=(ids)
+  # Backwards compatibility alias (renamed Jan 2026: EntityTab → StorageLocation)
+  alias_method :primary_entity_tab, :primary_storage_location
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # SSoT: Derived attributes from primary StorageLocation
+  # These methods are THE ONE source of truth - columns are kept only for migration fallback
+  # ══════════════════════════════════════════════════════════════════════════════
+
+  # SSoT: Derive scope from primary StorageLocation's warehouse_type
+  # This is THE ONE place scope is determined
+  # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
+  def derived_scope
+    case primary_storage_location&.warehouse_type
+    when 'corporate_entity' then 'company'
+    when 'job' then 'job'
+    when 'contact' then 'contacts'
+    else 'company'
+    end
+  end
+
+  # Override scope getter to use derived value (fallback to column during migration)
+  def scope
+    primary_storage_location.present? ? derived_scope : read_attribute(:scope)
+  end
+
+  # SSoT: folder = primary location's display name
+  def folder
+    primary_storage_location&.display_name || read_attribute(:folder)
+  end
+
+  # SSoT: target_folder = primary location's hierarchy path
+  def target_folder
+    primary_storage_location&.hierarchy_path || read_attribute(:target_folder)
+  end
+
+  # SSoT: primary_tab = primary location's display name (for backward compatibility)
+  # Used by ContactDocument, SmTaskPhoto for filename token resolution
+  def primary_tab
+    primary_storage_location&.display_name || read_attribute(:primary_tab)
+  end
+
+  # SSoT: category is DEPRECATED (Jan 2026)
+  # Was used for legacy folder organization, now superseded by EntityTab hierarchy
+  # Returns nil - callers use .presence with "General" fallback
+  def category
+    nil
+  end
+
+  # SSoT: tabs is DEPRECATED (Jan 2026)
+  # Was a jsonb array, now superseded by entity_tab_document_types join table
+  # Returns empty array for backward compatibility with API serialization
+  def tabs
+    []
+  end
+
+  # Set storage locations by ID (renamed from entity_tab_ids= Jan 2026)
+  def storage_location_ids=(ids)
     ids = Array(ids).map(&:to_i).reject(&:zero?)
 
     # For new records, store the IDs and create associations after save
     if new_record?
-      @pending_entity_tab_ids = ids
+      @pending_storage_location_ids = ids
     else
-      sync_entity_tab_ids(ids)
+      sync_storage_location_ids(ids)
     end
   end
 
-  # Backwards compatibility: folder_ids now maps to entity_tab_ids
-  alias_method :folder_ids=, :entity_tab_ids=
-  alias_method :folder_ids, :entity_tab_ids
+  # Backwards compatibility aliases
+  alias_method :folder_ids=, :storage_location_ids=
+  alias_method :folder_ids, :storage_location_ids
 
-  # Get EntityTab IDs
-  def entity_tab_ids
-    entity_tab_document_types.pluck(:entity_tab_id)
+  # Get StorageLocation IDs (renamed from entity_tab_ids Jan 2026)
+  def storage_location_ids
+    storage_location_document_types.pluck(:storage_location_id)
   end
 
-  # Sync entity_tab_ids with the database
-  # SSoT: Also updates primary_tab column to match first EntityTab
-  def sync_entity_tab_ids(ids)
-    existing_ids = entity_tab_document_types.pluck(:entity_tab_id)
+  # Sync storage_location_ids with the database
+  # SSoT: Uses is_primary flag to track primary vs secondary locations
+  # First ID = primary location, rest = secondary ("also show in")
+  def sync_storage_location_ids(ids)
+    # Remove old assignments not in the new list
+    storage_location_document_types.where.not(storage_location_id: ids).destroy_all
 
-    # Remove old assignments
-    entity_tab_document_types.where.not(entity_tab_id: ids).destroy_all
-
-    # Add new assignments
-    (ids - existing_ids).each do |tab_id|
-      entity_tab_document_types.create(entity_tab_id: tab_id)
+    # Update/create assignments with is_primary flag
+    # First ID = primary, rest = secondary
+    ids.each_with_index do |loc_id, index|
+      is_primary = (index == 0)
+      existing = storage_location_document_types.find_by(storage_location_id: loc_id)
+      if existing
+        existing.update(is_primary: is_primary) if existing.is_primary != is_primary
+      else
+        storage_location_document_types.create(storage_location_id: loc_id, is_primary: is_primary)
+      end
     end
 
-    # SSoT: Update primary_tab column to match first EntityTab
-    primary_tab_id = ids.first
-    if primary_tab_id.present?
-      primary_entity_tab = EntityTab.find_by(id: primary_tab_id)
-      update_column(:primary_tab, primary_entity_tab&.display_name)
-    else
-      update_column(:primary_tab, nil)
+    # NOTE: primary_tab column is DEPRECATED (Jan 2026)
+    # scope, folder, target_folder are now derived from primary_storage_location
+    # Keeping column sync for backward compatibility during migration
+    if respond_to?(:has_attribute?) && has_attribute?(:primary_tab)
+      primary_tab_id = ids.first
+      if primary_tab_id.present?
+        primary_tab_record = EntityTab.find_by(id: primary_tab_id)
+        update_column(:primary_tab, primary_tab_record&.display_name) if primary_tab_record
+      else
+        update_column(:primary_tab, nil)
+      end
+    end
+
+    # SSoT: Sync scope column to match derived_scope (for uniqueness validation)
+    # This keeps the column value in sync with the computed value
+    if has_attribute?(:scope)
+      new_scope = derived_scope
+      update_column(:scope, new_scope) if read_attribute(:scope) != new_scope
     end
   end
 
@@ -66,8 +150,8 @@ class DocumentType < ApplicationRecord
   after_destroy :clear_abbreviation_cache
   # ULTRA SSoT: When display_name template changes, regenerate all linked documents' display_names
   after_save :regenerate_document_display_names, if: :saved_change_to_display_name?
-  # Sync pending entity_tab_ids after create (deferred from entity_tab_ids= setter)
-  after_create :sync_pending_entity_tab_ids
+  # Sync pending storage_location_ids after create (deferred from storage_location_ids= setter)
+  after_create :sync_pending_storage_location_ids
   # Track naming format changes for standardization prompts
   after_save :track_naming_format_change, if: :saved_change_to_file_name?
 
@@ -75,20 +159,27 @@ class DocumentType < ApplicationRecord
   attr_accessor :naming_format_change_info
 
   # Validations
-  # Name must be unique within each scope (company, job, people, both)
+  # Name must be unique within each scope (company, job, contacts, both)
   # This allows the same name in different scopes (e.g., "Invoice" for both company and job)
-  validates :name, presence: true, uniqueness: { scope: :scope, message: "has already been taken for this scope" }
+  validates :name, presence: true, uniqueness: { scope: [:tenant_id, :scope], message: "has already been taken for this scope" }
   # Note: category field is deprecated - tabs/folders (EntityTab) are now the primary organization method
 
   # Scopes
   scope :active, -> { where(active: true) }
-  scope :by_folder, ->(folder) { where(folder: folder) }
-  scope :by_category, ->(category) { where(category: category) }
+  # SSoT: by_folder queries through primary StorageLocation (folder column is derived)
+  scope :by_folder, ->(folder) {
+    joins(:storage_location_document_types)
+      .joins("INNER JOIN entity_tabs ON entity_tabs.id = entity_tab_document_types.storage_location_id")
+      .where(entity_tab_document_types: { is_primary: true })
+      .where(entity_tabs: { display_name: folder })
+  }
+  # DEPRECATED: category column removed (Jan 2026) - returns no results
+  scope :by_category, ->(_category) { none }
   scope :by_scope, ->(scope_name) { where(scope: scope_name) }
   scope :for_company, -> { where(scope: %w[company both]) }
   scope :for_job, -> { where(scope: %w[job both]) }
-  # SSoT: "contacts" is the canonical scope, "people" is legacy - include both for backwards compatibility
-  scope :for_contacts, -> { where(scope: %w[contacts people]) }
+  # SSoT: "contacts" is THE ONE scope for all individuals (Jan 2026 consolidation)
+  scope :for_contacts, -> { where(scope: 'contacts') }
   scope :requiring_filing, -> { where(requires_filing: true) }
   scope :supporting_versioning, -> { where(supports_versioning: true) }
 
@@ -264,9 +355,15 @@ class DocumentType < ApplicationRecord
     ([ name ] + db_aliases + default_aliases).uniq
   end
 
-  # Group document types by folder
+  # Group document types by folder (derived from primary StorageLocation)
+  # SSoT: folder is computed from primary_storage_location.display_name
   def self.grouped_by_folder
-    active.order(:folder, :name).group_by(&:folder)
+    # Eager load storage_locations to prevent N+1, then group by computed folder
+    active.includes(storage_location_document_types: :storage_location)
+          .order(:name)
+          .group_by(&:folder)
+          .sort_by { |folder, _| folder || "" }
+          .to_h
   end
 
   # Generate a preview title showing what the document will look like when named
@@ -280,10 +377,10 @@ class DocumentType < ApplicationRecord
     format = file_name.dup
 
     # Replace all placeholders with example values
-    # Corporate placeholders
+    # Corporate placeholders (SSoT: CorporateCompanySetting for company name)
     format.gsub!("{CompanyCode}", abbreviation.presence || "ABC")
     format.gsub!("{CompanyName}", "ABC Property Trust")
-    format.gsub!("{CompanyGroup}", "Tekna Group")
+    format.gsub!("{CompanyGroup}", CorporateCompanySetting.instance.company_name)
     format.gsub!("{LoanID}", "L001")
     format.gsub!("{LenderCode}", "NAB")
     format.gsub!("{AssetCode}", "PROP1")
@@ -318,7 +415,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Folder}", folder.presence || "GENERAL")
 
     # Time/DateTime placeholders
-    current_time = Time.current.in_time_zone("Australia/Brisbane")
+    current_time = CorporateCompanySetting.now
     time_24h = current_time.strftime("%H:%M")
     time_12h = current_time.strftime("%l:%M %p").strip
     short_date_time = "#{current_time.strftime('%d-%m-%y')} #{time_24h}"
@@ -345,8 +442,8 @@ class DocumentType < ApplicationRecord
 
     format = file_name.dup
 
-    # Job placeholders with actual data
-    job_code = "J#{job.id.to_s.rjust(3, '0')}"
+    # Job placeholders - SSoT: use database column, not hardcoded pattern
+    job_code = job.job_code
     job_title = job.title.to_s.split(",").first.to_s.strip.gsub(/[^\w\s-]/, "").strip[0..30] # First part of address, sanitized
 
     format.gsub!("{JobCode}", job_code)
@@ -367,10 +464,10 @@ class DocumentType < ApplicationRecord
     format.gsub!("{TabCode}", tab_code)
     format.gsub!("{TabName}", tab_name)
 
-    # Corporate placeholders (use abbreviation or defaults)
+    # Corporate placeholders (SSoT: CorporateCompanySetting for company name)
     format.gsub!("{CompanyCode}", abbreviation.presence || "ABC")
     format.gsub!("{CompanyName}", "ABC Property Trust")
-    format.gsub!("{CompanyGroup}", "Tekna Group")
+    format.gsub!("{CompanyGroup}", CorporateCompanySetting.instance.company_name)
     format.gsub!("{LoanID}", "L001")
     format.gsub!("{LenderCode}", "NAB")
     format.gsub!("{AssetCode}", "PROP1")
@@ -390,7 +487,7 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Folder}", folder.presence || "GENERAL")
 
     # Time/DateTime placeholders
-    current_time = Time.current.in_time_zone("Australia/Brisbane")
+    current_time = CorporateCompanySetting.now
     time_24h = current_time.strftime("%H:%M")
     time_12h = current_time.strftime("%l:%M %p").strip
     short_date_time = "#{current_time.strftime('%d-%m-%y')} #{time_24h}"
@@ -435,12 +532,12 @@ class DocumentType < ApplicationRecord
     end
   end
 
-  # Sync pending entity_tab_ids that were deferred during create
-  def sync_pending_entity_tab_ids
-    return unless @pending_entity_tab_ids.present?
+  # Sync pending storage_location_ids that were deferred during create
+  def sync_pending_storage_location_ids
+    return unless @pending_storage_location_ids.present?
 
-    sync_entity_tab_ids(@pending_entity_tab_ids)
-    @pending_entity_tab_ids = nil
+    sync_storage_location_ids(@pending_storage_location_ids)
+    @pending_storage_location_ids = nil
   end
 
   # Track naming format changes for standardization prompts

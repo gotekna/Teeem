@@ -1,4 +1,7 @@
 class Job < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   # Explicitly set table name since it was renamed from 'constructions' to 'jobs'
   self.table_name = "jobs"
 
@@ -31,8 +34,9 @@ class Job < ApplicationRecord
   belongs_to :job_type, optional: true
   belongs_to :job_status, optional: true
   belongs_to :job_stage, optional: true
+  belongs_to :supervisor, class_name: "User", optional: true
   has_many :chat_messages, dependent: :nullify
-  has_many :emails, class_name: 'EmailWarehouse', dependent: :nullify
+  has_many :emails, class_name: 'SyncedEmail', dependent: :nullify
   has_many :document_tasks, dependent: :destroy
   has_many :job_contacts, dependent: :destroy
   has_many :contacts, through: :job_contacts
@@ -103,6 +107,12 @@ class Job < ApplicationRecord
   def job_number
     id&.to_s&.rjust(4, "0")
   end
+
+  # SSoT: job_code is a database column (user-editable)
+  # Default format: "J" + id (e.g., "J201")
+  # Auto-generated on create, can be customized by user
+  validates :job_code, presence: true, uniqueness: { scope: :tenant_id }, on: :update
+  after_create :generate_job_code_if_blank
 
   # Description placeholder for document templates
   def description
@@ -257,11 +267,15 @@ class Job < ApplicationRecord
   end
 
   # Trigger storage folder creation if not already created
+  # SSoT: THE ONE way to create job folders
+  # - Uses CreateJobStorageFoldersJob (provider-agnostic)
+  # - Subfolder structure from EntityTab hierarchy
+  # - template_id param is DEPRECATED (ignored)
   def create_folders_if_needed!(template_id = nil)
     return unless folders_not_requested?
 
     update!(storage_folder_status: "pending")
-    CreateJobFoldersJob.perform_later(id, template_id)
+    CreateJobStorageFoldersJob.perform_later(id)
   end
 
   # Get primary contact
@@ -554,20 +568,6 @@ class Job < ApplicationRecord
     end
   end
 
-  # Queue storage folder creation after job is created
-  def queue_storage_folder_creation
-    # Only create folders if storage provider is connected
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.sharepoint_credential
-    return unless credential&.valid_credential?
-
-    # Queue the folder creation job (runs in background)
-    CreateJobSharepointFoldersJob.perform_later(id)
-    update_column(:storage_folder_status, "pending")
-  rescue StandardError => e
-    Rails.logger.error "Failed to queue storage folder creation for job #{id}: #{e.message}"
-  end
-
   # Activity logging callbacks
   def log_job_created
     JobActivity.log_job_created(self, user: Current.user)
@@ -691,5 +691,12 @@ class Job < ApplicationRecord
     EmailJobMatcherJob.perform_later(id, trigger: :job_created)
   rescue StandardError => e
     Rails.logger.error "Failed to queue email scan for job ##{id}: #{e.message}"
+  end
+
+  # SSoT: Auto-generate job_code on create (e.g., "J201")
+  # User can customize after creation
+  def generate_job_code_if_blank
+    return if job_code.present?
+    update_column(:job_code, "J#{id}")
   end
 end

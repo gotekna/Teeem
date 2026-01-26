@@ -184,6 +184,17 @@ export interface SmScheduleMaster {
   // SSoT: Inherited predecessors from header dependencies (calculated by backend)
   // When a header depends on another header, children inherit the predecessor header's tasks
   inherited_predecessor_ids?: number[];
+  // SSoT: Broken successors - tasks that have this task in their predecessor_ids_backup
+  // Allows the dependency editor to show "Broken Successors" from the predecessor's perspective
+  broken_successor_ids?: Array<{
+    id: number;
+    task_number: number;
+    name: string;
+    dependency_broken_at?: string | null;
+    dependency_broken_by?: string | null;
+    type: string;
+    lag: number;
+  }>;
   // Document types for GET task spawning
   document_types?: Array<{
     id: number;

@@ -185,7 +185,7 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <Table style={{ tableLayout: "fixed", width: "100%", minWidth: totalWidth }}>
+                <Table style={{ tableLayout: "fixed", width: totalWidth, minWidth: totalWidth }}>
                   <colgroup>
                     {visibleColumnsInOrder.map((column) => (
                       <col
@@ -214,11 +214,7 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                       onDoubleClick={() => {
                         // Double click opens detail/edit
                         if (!isEditMode && !editingRowIds.has(row.id)) {
-                          if (onRowClick) {
-                            onRowClick(row);
-                          } else {
-                            onRowDoubleClick?.(row);
-                          }
+                          onRowDoubleClick?.(row);
                         }
                       }}
                       onMouseEnter={() => handleRowMouseEnter(row.id, rowIndex)}

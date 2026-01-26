@@ -7,6 +7,11 @@
  * SSoT: This file is THE ONE place for expense tree data processing.
  */
 
+import { formatCurrency, formatPercentageRounded } from "@/utils/formatters";
+
+// Re-export formatters for convenience (SSoT: @/utils/formatters)
+export { formatCurrency, formatPercentageRounded, formatPercentageRounded as formatPercent };
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -14,7 +19,10 @@
 export interface PurchaseOrderRecord {
   id: number | string;
   po_number?: string;
+  // supplier can be string (legacy) or expanded lookup object
   supplier?: string | { id: number; display?: string; name?: string };
+  // supplier_id from Foundation API - expanded to { id, display } object
+  supplier_id?: number | { id: number; display?: string; name?: string } | null;
   budget?: number | null;
   total?: number | null;
   xero_amount_paid?: number | null;
@@ -24,6 +32,15 @@ export interface PurchaseOrderRecord {
   stage_from_task?: string | number | null;
   trade_from_task?: string | number | null;
   status?: string | null;
+  // Additional fields for redesigned Expenses tab
+  total_billed?: number | null;
+  xero_complete?: boolean | null;
+  task_category?: string | null;
+  // sm_task_id from Foundation API - expanded to { id, display } object
+  sm_task_id?: number | { id: number; display?: string; name?: string } | null;
+  sm_task?: { id: number; display?: string; name?: string } | null;
+  // Budget lock status
+  budget_locked_at?: string | null;
   [key: string]: unknown;
 }
 
@@ -106,25 +123,9 @@ export function getPercentage(spent: number, budget: number, cap = false): numbe
   return cap ? Math.min(percent, 100) : percent;
 }
 
-/**
- * Format currency with Australian locale
- */
-export function formatCurrency(amount: number | null | undefined): string {
-  if (amount === null || amount === undefined) return '$0';
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-/**
- * Format percentage with sign
- */
-export function formatPercent(value: number): string {
-  return `${Math.round(value)}%`;
-}
+// formatCurrency imported from @/utils/formatters (SSoT)
+// formatPercentageRounded imported from @/utils/formatters (SSoT)
+// Note: formatPercent() is DEPRECATED. Use formatPercentageRounded() instead.
 
 /**
  * Get display value from a field that might be a lookup object
@@ -265,12 +266,77 @@ export function calculateJobTotals(groups: ExpenseGroup[]): {
 
 /**
  * Get supplier display name from PO record
+ * SSoT: Foundation API returns supplier_id as { id, display } object
  */
 export function getSupplierName(po: PurchaseOrderRecord): string {
+  // Check supplier_id first (Foundation API format)
+  const supplierId = po.supplier_id as unknown;
+  if (supplierId && typeof supplierId === 'object') {
+    const obj = supplierId as { id?: number; display?: string; name?: string };
+    if (obj.display || obj.name) {
+      return obj.display || obj.name || `Supplier #${obj.id}`;
+    }
+  }
+
+  // Fallback to supplier field (PO detail API format)
   if (!po.supplier) return '(No Supplier)';
   if (typeof po.supplier === 'string') return po.supplier;
   if (typeof po.supplier === 'object') {
     return po.supplier.display || po.supplier.name || `Supplier #${po.supplier.id}`;
   }
   return '(No Supplier)';
+}
+
+/**
+ * Get task display name from PO record
+ * SSoT: Foundation API returns sm_task_id as { id, display } object
+ */
+export function getTaskName(po: PurchaseOrderRecord): string {
+  if (po.task_category) return String(po.task_category);
+
+  // Check sm_task_id first (Foundation API format)
+  const smTaskId = po.sm_task_id as unknown;
+  if (smTaskId && typeof smTaskId === 'object') {
+    const obj = smTaskId as { id?: number; display?: string; name?: string };
+    if (obj.display || obj.name) {
+      return obj.display || obj.name || `Task #${obj.id}`;
+    }
+  }
+
+  // Fallback to sm_task field (PO detail API format)
+  if (po.sm_task) {
+    if (typeof po.sm_task === 'object') {
+      return po.sm_task.display || po.sm_task.name || `Task #${po.sm_task.id}`;
+    }
+  }
+  return '-';
+}
+
+/**
+ * Format overrun value (negative = over budget, positive = under budget)
+ */
+export function formatOverrun(value: number | null | undefined): string {
+  if (value == null) return '-';
+  const num = Number(value);
+  if (num === 0) return '-';
+  // Display absolute value with sign indicator
+  return formatCurrency(num);
+}
+
+/**
+ * Check if PO is over-billed (billed more than PO total)
+ */
+export function isOverBilled(po: PurchaseOrderRecord): boolean {
+  const billed = Number(po.total_billed) || 0;
+  const total = Number(po.total) || 0;
+  return billed > total && total > 0;
+}
+
+/**
+ * Calculate cost to complete (PO total minus what's been paid)
+ */
+export function getCostToComplete(po: PurchaseOrderRecord): number {
+  const total = Number(po.total) || 0;
+  const paid = Number(po.xero_amount_paid) || 0;
+  return Math.max(0, total - paid);
 }

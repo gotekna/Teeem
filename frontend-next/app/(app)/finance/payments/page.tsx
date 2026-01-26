@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,6 @@ import {
   Download,
   CheckCircle,
   Clock,
-  ArrowLeft,
   CreditCard,
   Building2,
   DollarSign,
@@ -48,6 +48,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 
 interface BankAccount {
   id: number;
@@ -96,11 +97,11 @@ interface CorporateCompany {
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-foreground dark:bg-muted/50 dark:text-muted-foreground",
-  pending_approval: "bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500",
-  approved: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
-  submitted: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
+  pending_approval: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  approved: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-400/10 dark:text-green-400",
+  submitted: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-400/10 dark:text-blue-400",
   completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-400",
-  cancelled: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
+  cancelled: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-400/10 dark:text-red-400",
 };
 
 export default function PaymentBatchesPage() {
@@ -190,9 +191,11 @@ export default function PaymentBatchesPage() {
 
   const handleDownloadAba = async (batchId: number) => {
     try {
+      // SSoT: Using storage-utils for localStorage operations
+      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, "");
       const response = await fetch(`/api/v1/bill_payment_batches/${batchId}/download_aba`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       if (!response.ok) throw new Error("Download failed");
@@ -248,12 +251,7 @@ export default function PaymentBatchesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/finance">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Link>
-          </Button>
+<BackButton fallbackHref="/finance" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">Payment Batches</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -395,7 +393,7 @@ export default function PaymentBatchesPage() {
                   </TableCell>
                   <TableCell>
                     <Badge className={statusColors[batch.status] || statusColors.draft}>
-                      {batch.status.replace("_", " ")}
+                      {(batch.status || 'draft').replace("_", " ")}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -439,7 +437,7 @@ export default function PaymentBatchesPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-green-600"
+                          className="text-green-600 dark:text-green-400"
                           onClick={() => handleApprove(batch.id)}
                           title="Approve"
                         >

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect, useCallback } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +103,7 @@ const ACTION_TYPES: ActionType[] = [
 
 export default function EmailRulesPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [rules, setRules] = useState<EmailRule[]>([]);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -312,7 +314,7 @@ export default function EmailRulesPage() {
   };
 
   const deleteRule = async (rule: EmailRule) => {
-    if (!confirm(`Are you sure you want to delete the rule "${rule.name}"?`)) {
+    if (!(await confirm(`Are you sure you want to delete the rule "${rule.name}"?`))) {
       return;
     }
 

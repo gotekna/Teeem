@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAssignableRoles } from "@/hooks/useAssignableRoles";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface NavigationItem {
   id: number;
@@ -54,6 +55,7 @@ interface NavigationItem {
 export function NavigationTab() {
   // SSoT: Fetch roles from database via Role.for_select
   const { roles: userRoles } = useAssignableRoles();
+  const { confirm } = useConfirm();
 
   const [items, setItems] = React.useState<NavigationItem[]>([]);
   const [emailAccounts, setEmailAccounts] = React.useState<{ id: number | string; type: string; name: string; nav_position: number; org_name?: string }[]>([]);
@@ -279,7 +281,7 @@ export function NavigationTab() {
       ? `Delete "${item.name}"? Its ${getChildren(item.id).length} child items will become top-level.`
       : `Delete navigation item "${item.name}"?`;
 
-    if (!confirm(message)) return;
+    if (!(await confirm(message))) return;
     try {
       await api.delete(`/api/v1/navigation_items/${item.id}`);
       loadNavigation();
@@ -523,11 +525,11 @@ export function NavigationTab() {
 
       {/* New Item Dialog */}
       <Dialog open={showNewItem} onOpenChange={setShowNewItem}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>New Navigation Item</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-2">
             {/* Name & URL */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -710,11 +712,11 @@ export function NavigationTab() {
 
       {/* Edit Item Dialog */}
       <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Navigation Item</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-2">
             {/* Name & URL */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

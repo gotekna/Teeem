@@ -34,6 +34,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Expense {
   id: number;
@@ -68,22 +69,6 @@ interface ExpenseSummary {
   by_type: Record<string, number>;
   total_markup: number;
   unbilled_count: number;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function ExpensesTab() {
@@ -181,14 +166,14 @@ export default function ExpensesTab() {
         );
       case "approved":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Approved
           </Badge>
         );
       case "billed":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <FileText className="h-3 w-3 mr-1" />
             Billed
           </Badge>
@@ -227,7 +212,7 @@ export default function ExpensesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {formatCurrency(summary?.by_status?.pending || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -244,7 +229,7 @@ export default function ExpensesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(summary?.by_status?.approved || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -261,7 +246,7 @@ export default function ExpensesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {formatCurrency(summary?.by_status?.billed || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">invoiced to clients</p>
@@ -276,7 +261,7 @@ export default function ExpensesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {formatCurrency(summary?.total_markup || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">profit from billable expenses</p>
@@ -401,7 +386,7 @@ export default function ExpensesTab() {
                       {formatCurrency(expense.cost_amount)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="text-green-600">+{expense.markup_percent}%</span>
+                      <span className="text-green-600 dark:text-green-400">+{expense.markup_percent}%</span>
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(expense.billable_amount)}

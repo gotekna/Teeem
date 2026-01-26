@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatCurrency } from "@/utils/formatters";
 
 interface Referrer {
   id: number;
@@ -86,16 +87,6 @@ export default function ReferrersPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const formatCurrency = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "$0";
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   const getEligibilityBadge = (referrer: Referrer) => {
     if (referrer.l2_eligible) {
@@ -295,7 +286,7 @@ export default function ReferrersPage() {
                     onClick={() => router.push(`/admin/referrers/${referrer.id}`)}
                   >
                     <div className={`text-2xl font-bold ${
-                      index === 0 ? "text-yellow-500" :
+                      index === 0 ? "text-yellow-500 dark:text-yellow-400" :
                       index === 1 ? "text-muted-foreground" :
                       index === 2 ? "text-amber-600" : "text-muted-foreground"
                     }`}>

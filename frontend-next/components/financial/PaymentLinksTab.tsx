@@ -33,6 +33,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate, formatDateTime, copyToClipboard } from "@/utils/formatters";
 import Link from "next/link";
 
 interface PaymentLink {
@@ -121,51 +122,22 @@ export default function PaymentLinksTab() {
     fetchData();
   }, [fetchData]);
 
-  const copyToClipboard = async (url: string, token: string) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedToken(token);
-      setTimeout(() => setCopiedToken(null), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
-  };
-
-  const formatCurrency = (amount: number, currency: string = "AUD") => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: currency,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const handleCopy = async (url: string, token: string) => {
+    await copyToClipboard(url);
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Active</Badge>;
+        return <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200">Active</Badge>;
       case "paid":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Paid</Badge>;
+        return <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200">Paid</Badge>;
       case "expired":
         return <Badge variant="outline" className="bg-muted text-foreground border-border">Expired</Badge>;
       case "cancelled":
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Cancelled</Badge>;
+        return <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200">Cancelled</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -185,7 +157,7 @@ export default function PaymentLinksTab() {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <Button variant="outline" onClick={fetchData}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
@@ -208,13 +180,13 @@ export default function PaymentLinksTab() {
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-green-600">{stats.active_links}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.active_links}</div>
               <p className="text-xs text-muted-foreground">Active</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-blue-600">{stats.paid_links}</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.paid_links}</div>
               <p className="text-xs text-muted-foreground">Paid</p>
             </CardContent>
           </Card>
@@ -298,7 +270,7 @@ export default function PaymentLinksTab() {
                       <TableCell>
                         <Link
                           href={`/finance/invoices/${link.invoice_id}`}
-                          className="flex items-center gap-1 text-blue-600 hover:underline"
+                          className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
                         >
                           <FileText className="h-3 w-3" />
                           {link.invoice_number}
@@ -316,7 +288,7 @@ export default function PaymentLinksTab() {
                       <TableCell>{getStatusBadge(link.status)}</TableCell>
                       <TableCell className="text-sm">
                         {link.status === "paid" ? (
-                          <span className="text-green-600">Paid {formatDate(link.paid_at!)}</span>
+                          <span className="text-green-600 dark:text-green-400">Paid {formatDate(link.paid_at!)}</span>
                         ) : link.status === "expired" ? (
                           <span className="text-muted-foreground">Expired</span>
                         ) : (
@@ -335,11 +307,11 @@ export default function PaymentLinksTab() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8"
-                                  onClick={() => copyToClipboard(link.payment_url, link.token)}
+                                  onClick={() => handleCopy(link.payment_url, link.token)}
                                   disabled={link.status !== "active"}
                                 >
                                   {copiedToken === link.token ? (
-                                    <Check className="h-4 w-4 text-green-600" />
+                                    <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
                                   ) : (
                                     <Copy className="h-4 w-4" />
                                   )}
@@ -418,12 +390,12 @@ export default function PaymentLinksTab() {
                         </span>
                       </TableCell>
                       <TableCell className="font-medium">{payment.contact_name}</TableCell>
-                      <TableCell className="text-right font-mono font-semibold text-green-600">
+                      <TableCell className="text-right font-mono font-semibold text-green-600 dark:text-green-400">
                         {formatCurrency(payment.amount, payment.currency)}
                       </TableCell>
                       <TableCell>
                         {payment.status === "succeeded" ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200">
                             <CheckCircle className="h-3 w-3 mr-1" />
                             Succeeded
                           </Badge>

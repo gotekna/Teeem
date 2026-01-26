@@ -20,6 +20,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getColumnTypeEmoji, getColumnTypeLabel } from "@/lib/column-type-registry";
+import { isChoiceColumn } from "@/lib/constants/column-types";
+import { copyToClipboard } from "@/utils/formatters";
 import { Key, Link, Calculator, Copy, Check } from "lucide-react";
 import { TableColumn } from "./types";
 
@@ -120,8 +122,8 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
     fetchFoundationNames();
   }, [columns]);
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const handleCopy = async (text: string) => {
+    await copyToClipboard(text);
     setCopiedKey(text);
     setTimeout(() => setCopiedKey(null), 2000);
   };
@@ -258,7 +260,7 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger>
-                              <Calculator className="h-3 w-3 text-purple-500" />
+                              <Calculator className="h-3 w-3 text-purple-500 dark:text-purple-400" />
                             </TooltipTrigger>
                             <TooltipContent>Computed/Formula field</TooltipContent>
                           </Tooltip>
@@ -283,7 +285,7 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
                   <TableCell>
                     {lookupFoundationId ? (
                       <div className="flex items-center gap-2">
-                        <Link className="h-3 w-3 text-blue-500" />
+                        <Link className="h-3 w-3 text-blue-500 dark:text-blue-400" />
                         <span className="text-sm">
                           {foundations[lookupFoundationId] || `Table #${lookupFoundationId}`}
                         </span>
@@ -314,10 +316,10 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => copyToClipboard(column.key)}
+                            onClick={() => handleCopy(column.key)}
                           >
                             {copiedKey === column.key ? (
-                              <Check className="h-3 w-3 text-green-500" />
+                              <Check className="h-3 w-3 text-green-500 dark:text-green-400" />
                             ) : (
                               <Copy className="h-3 w-3" />
                             )}
@@ -335,12 +337,12 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
       </div>
 
       {/* Choice Columns Summary */}
-      {displayColumns.filter((c) => c.column_type === "choice" && c.choices?.length).length > 0 && (
+      {displayColumns.filter((c) => isChoiceColumn(c.column_type) && c.choices?.length).length > 0 && (
         <div className="border rounded-lg p-4 space-y-3">
           <h4 className="font-semibold text-sm">Choice Column Options</h4>
           <div className="grid gap-3">
             {displayColumns
-              .filter((c) => c.column_type === "choice" && c.choices?.length)
+              .filter((c) => isChoiceColumn(c.column_type) && c.choices?.length)
               .map((column) => (
                 <div key={column.key} className="flex items-start gap-3">
                   <span className="font-medium text-sm min-w-32">{column.label}:</span>

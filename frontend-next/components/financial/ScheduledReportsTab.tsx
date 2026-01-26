@@ -34,6 +34,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatDate, formatDateTime } from "@/utils/formatters";
 
 interface ScheduledReport {
   id: number;
@@ -62,25 +63,6 @@ interface ReportHistory {
   last_sent_at: string;
   recipients: string[];
   send_count: number;
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleString("en-AU", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default function ScheduledReportsTab() {
@@ -197,7 +179,7 @@ export default function ScheduledReportsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{activeCount}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{activeCount}</div>
             <p className="text-xs text-muted-foreground mt-1">running schedules</p>
           </CardContent>
         </Card>
@@ -209,7 +191,7 @@ export default function ScheduledReportsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{reports.length - activeCount}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{reports.length - activeCount}</div>
             <p className="text-xs text-muted-foreground mt-1">paused schedules</p>
           </CardContent>
         </Card>
@@ -279,7 +261,7 @@ export default function ScheduledReportsTab() {
                     <TableCell>
                       <div className="font-medium">{report.name}</div>
                       {report.last_error && (
-                        <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                        <div className="text-xs text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" />
                           {report.last_error}
                         </div>
@@ -307,7 +289,7 @@ export default function ScheduledReportsTab() {
                     <TableCell>{formatDateTime(report.next_send_at)}</TableCell>
                     <TableCell className="text-center">
                       {report.active ? (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                           <CheckCircle className="h-3 w-3 mr-1" />
                           Active
                         </Badge>

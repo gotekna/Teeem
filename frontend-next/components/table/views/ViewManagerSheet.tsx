@@ -93,6 +93,7 @@ import { SortableSortByItem } from "./SortableSortByItem";
 import { SortableGroupByItem } from "./SortableGroupByItem";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import { useContactChoices } from "@/hooks/useContactChoices";
+import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice } from "@/lib/constants/column-types";
 
 // Column interface for view manager
 interface Column {
@@ -812,8 +813,8 @@ export function ViewManagerSheet({
     }
 
     const columnType = column.column_type?.toLowerCase() || '';
-    const isLookupColumn = columnType === 'lookup' || columnType === 'relation' || columnType === 'multiple_lookups';
-    const isChoiceColumn = columnType === 'choice';
+    const isLookup = checkIsLookup(columnType);
+    const isChoice = checkIsChoice(columnType);
     const isBooleanColumn = columnType === 'boolean';
 
     if (isBooleanColumn) {
@@ -864,7 +865,7 @@ export function ViewManagerSheet({
 
     const hasAvailableChoices = column.available_choices && column.available_choices.length > 0;
 
-    if (isChoiceColumn || hasAvailableChoices) {
+    if (isChoice || hasAvailableChoices) {
       const choices = column.available_choices || [];
       if (choices.length > 0) {
         const choiceItems: ComboboxItem[] = choices.map((choice) => {
@@ -884,7 +885,7 @@ export function ViewManagerSheet({
             />
           </div>
         );
-      } else if (isChoiceColumn) {
+      } else if (isChoice) {
         return (
           <Input
             value={String(filter.value || "")}
@@ -902,7 +903,7 @@ export function ViewManagerSheet({
     const effectiveLookupFoundationId = column.lookup_foundation_id;
     const effectiveDisplayColumn = column.lookup_display_column || knownMapping?.displayColumn || 'name';
 
-    if (isLookupColumn) {
+    if (isLookup) {
       if (effectiveLookupFoundationId) {
         const cacheKey = `${effectiveLookupFoundationId}`;
         const options = lookupOptionsCache[cacheKey] || [];
@@ -1099,7 +1100,12 @@ export function ViewManagerSheet({
 
   // Get default width for a column based on its type
   const getDefaultColumnWidth = (col: Column): number => {
-    const type = col.column_type?.toLowerCase() || 'text';
+    // SSoT: column_type should always be set - log error if missing (skip system columns)
+    const systemColumns = ['id', 'created_at', 'updated_at'];
+    if (!col.column_type && !systemColumns.includes(col.column_name)) {
+      console.error(`[SSoT] Column "${col.column_name}" missing column_type`);
+    }
+    const type = col.column_type?.toLowerCase() || 'single_line_text';
     switch (type) {
       case 'id': return 60;
       case 'boolean': return 80;
@@ -1116,8 +1122,7 @@ export function ViewManagerSheet({
       case 'email':
       case 'url': return 200;
       case 'choice':
-      case 'lookup':
-      case 'relation': return 150;
+      case 'lookup': return 150;
       case 'multiple_lookups': return 200;
       case 'text':
       case 'single_line_text': return 150;
@@ -1271,7 +1276,7 @@ export function ViewManagerSheet({
                             disabled={!isEditing}
                           />
                           <Label htmlFor="global-switch" className={cn("text-sm flex items-center gap-1", !isEditing && "text-muted-foreground")}>
-                            {editIsGlobal ? <Globe className="h-3 w-3 text-blue-500" /> : <User className="h-3 w-3" />}
+                            {editIsGlobal ? <Globe className="h-3 w-3 text-blue-500 dark:text-blue-400" /> : <User className="h-3 w-3" />}
                             {editIsGlobal ? "Global" : "Personal"}
                           </Label>
                         </div>
@@ -1989,7 +1994,7 @@ export function ViewManagerSheet({
                     <SelectItem key={view.id} value={String(view.id)}>
                       <span className="flex items-center gap-2">
                         {view.is_global ? (
-                          <Globe className="h-4 w-4 text-blue-500" />
+                          <Globe className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                         ) : (
                           <User className="h-4 w-4 text-muted-foreground" />
                         )}
@@ -2004,7 +2009,7 @@ export function ViewManagerSheet({
               <div className="space-y-1">
                 <Label htmlFor="new-view-global" className="text-sm font-medium flex items-center gap-2">
                   {newViewIsGlobal ? (
-                    <Globe className="h-4 w-4 text-blue-500" />
+                    <Globe className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                   ) : (
                     <User className="h-4 w-4 text-muted-foreground" />
                   )}

@@ -16,6 +16,7 @@ import {
 import { RefreshCw, TrendingUp } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 interface MergedRow {
   row_type: "Header" | "Section" | "Row" | "SummaryRow";
@@ -77,17 +78,12 @@ export function XeroGroupPLCard({ companyId }: XeroGroupPLCardProps) {
     }
   };
 
-  // Format currency value
+  // Format currency value (0 decimals, "-" for null)
   const formatCurrency = (value: string | number | undefined) => {
     if (value === undefined || value === null || value === "") return "-";
     const num = typeof value === "number" ? value : parseFloat(String(value).replace(/[^\d.-]/g, ""));
     if (isNaN(num)) return String(value);
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(num);
+    return formatCurrencyWhole(num);
   };
 
   return (
@@ -142,7 +138,7 @@ export function XeroGroupPLCard({ companyId }: XeroGroupPLCardProps) {
         {!loading && rows.length === 0 && !error && (
           <div className="text-center py-12 text-muted-foreground">
             <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p className="font-medium mb-2">Select a date range and click Load</p>
+            <p className="text-sm font-medium mb-2">Select a date range and click Load</p>
             <p className="text-sm">The report will show P&L data from all group companies side-by-side.</p>
           </div>
         )}

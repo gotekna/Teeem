@@ -1,4 +1,7 @@
 class JobStatus < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   # Table renamed from job_status to job_statuses (Rails convention)
 
   # Many-to-many relationship with JobType through job_type_statuses
@@ -10,7 +13,7 @@ class JobStatus < ApplicationRecord
   has_many :job_status_stages, dependent: :destroy
   has_many :stages, through: :job_status_stages, source: :job_stage
 
-  validates :name, presence: true, uniqueness: true
+  validates :name, presence: true, uniqueness: { scope: :tenant_id }
 
   default_scope { order(:position) }
   scope :active, -> { where(is_active: true) }

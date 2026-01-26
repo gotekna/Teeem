@@ -25,6 +25,7 @@ import {
   Download,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface ReportLine {
   account_code: string;
@@ -77,14 +78,6 @@ interface TrialBalanceReport {
   }>;
   total_debits: number;
   total_credits: number;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
 }
 
 export default function ReportsTab() {
@@ -143,7 +136,7 @@ export default function ReportsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${(profitLoss?.net_income || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+            <div className={`text-2xl font-bold ${(profitLoss?.net_income || 0) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
               {formatCurrency(profitLoss?.net_income || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">year to date</p>
@@ -158,7 +151,7 @@ export default function ReportsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(profitLoss?.revenue?.total || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">gross income</p>
@@ -188,7 +181,7 @@ export default function ReportsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {formatCurrency(balanceSheet?.total_equity || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">net worth</p>
@@ -254,7 +247,7 @@ export default function ReportsTab() {
                         ))}
                         <TableRow className="font-semibold bg-muted/50">
                           <TableCell>Total Revenue</TableCell>
-                          <TableCell className="text-right font-mono text-green-600">
+                          <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
                             {formatCurrency(profitLoss.revenue?.total || 0)}
                           </TableCell>
                         </TableRow>
@@ -275,7 +268,7 @@ export default function ReportsTab() {
                         ))}
                         <TableRow className="font-semibold bg-muted/50">
                           <TableCell>Total Expenses</TableCell>
-                          <TableCell className="text-right font-mono text-red-600">
+                          <TableCell className="text-right font-mono text-red-600 dark:text-red-400">
                             {formatCurrency(profitLoss.operating_expenses?.total || 0)}
                           </TableCell>
                         </TableRow>
@@ -287,7 +280,7 @@ export default function ReportsTab() {
                   <div className="pt-4 border-t">
                     <div className="flex justify-between items-center text-xl font-bold">
                       <span>Net Income</span>
-                      <span className={profitLoss.net_income >= 0 ? "text-green-600" : "text-red-600"}>
+                      <span className={profitLoss.net_income >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                         {formatCurrency(profitLoss.net_income)}
                       </span>
                     </div>
@@ -365,7 +358,7 @@ export default function ReportsTab() {
                           ))}
                           <TableRow className="font-semibold bg-muted/50">
                             <TableCell>Total Equity</TableCell>
-                            <TableCell className="text-right font-mono text-blue-600">{formatCurrency(balanceSheet.total_equity)}</TableCell>
+                            <TableCell className="text-right font-mono text-blue-600 dark:text-blue-400">{formatCurrency(balanceSheet.total_equity)}</TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>

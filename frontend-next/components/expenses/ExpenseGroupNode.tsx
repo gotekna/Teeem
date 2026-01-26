@@ -12,7 +12,8 @@ import {
   STATUS_COLORS,
   type ExpenseGroup,
 } from "@/lib/expenses-utils";
-import { ExpensePORow } from "./ExpensePORow";
+import { ExpensePORow, ExpensePORowHeader, ExpensePORowTotals } from "./ExpensePORow";
+import { getCostToComplete } from "@/lib/expenses-utils";
 import { AlertTriangle, CheckCircle2, AlertCircle, Minus } from "lucide-react";
 
 interface ExpenseGroupNodeProps {
@@ -160,14 +161,29 @@ export function ExpenseGroupNode({
           ))}
 
           {/* Leaf POs (when this is the leaf level) */}
-          {group.isLeafLevel &&
-            group.pos.map((po) => (
-              <ExpensePORow
-                key={po.id}
-                po={po}
+          {group.isLeafLevel && group.pos.length > 0 && (
+            <>
+              <ExpensePORowHeader depth={depth + 1} />
+              {group.pos.map((po) => (
+                <ExpensePORow
+                  key={po.id}
+                  po={po}
+                  depth={depth + 1}
+                />
+              ))}
+              {/* Totals row at bottom */}
+              <ExpensePORowTotals
                 depth={depth + 1}
+                budget={group.budget}
+                total={group.spent}
+                invoiced={group.pos.reduce((sum, po) => sum + (Number(po.total_billed) || 0), 0)}
+                paid={group.paid}
+                costToComplete={group.pos.reduce((sum, po) => sum + getCostToComplete(po), 0)}
+                overrun={group.variance}
+                poCount={group.poCount}
               />
-            ))}
+            </>
+          )}
         </div>
       )}
     </div>

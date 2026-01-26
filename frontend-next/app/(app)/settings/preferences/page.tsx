@@ -19,8 +19,12 @@ import {
   Monitor,
   LayoutGrid,
   List,
+  Sparkles,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 /**
  * Preferences Page - Personal Settings
@@ -51,10 +55,64 @@ interface TrainingStats {
 
 export default function PreferencesPage() {
   const { theme, setTheme } = useTheme();
+  const { user, refreshUser } = useAuth();
+  const { toast } = useToast();
   const [trainingModules, setTrainingModules] = React.useState<TrainingModule[]>([]);
   const [trainingStats, setTrainingStats] = React.useState<TrainingStats | null>(null);
   const [viewMode, setViewMode] = React.useState<"grid" | "list">("grid");
   const [compactMode, setCompactMode] = React.useState(false);
+  const [enableAiWritingAssistant, setEnableAiWritingAssistant] = React.useState(false);
+  const [savingAi, setSavingAi] = React.useState(false);
+
+  // Initialize AI Writing Assistant from user data
+  React.useEffect(() => {
+    if (user) {
+      setEnableAiWritingAssistant((user as any).enable_ai_writing_assistant ?? false);
+    }
+  }, [user]);
+
+  // Handle AI Writing Assistant toggle
+  const handleAiWritingAssistantChange = async (checked: boolean) => {
+    if (!user?.id) return;
+
+    setEnableAiWritingAssistant(checked);
+    setSavingAi(true);
+
+    try {
+      const response = await api.patch<{ success: boolean; user?: any; errors?: string[] }>(
+        `/api/v1/users/${user.id}`,
+        { user: { enable_ai_writing_assistant: checked } }
+      );
+
+      if (response?.success) {
+        if (refreshUser) await refreshUser();
+        toast({
+          title: checked ? "AI Writing Assistant enabled" : "AI Writing Assistant disabled",
+          description: checked
+            ? "Grammar and tone checking is now active in text editors."
+            : "Only browser spell check will be used.",
+        });
+      } else {
+        // Revert on failure
+        setEnableAiWritingAssistant(!checked);
+        toast({
+          title: "Error",
+          description: "Failed to update setting",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      // Revert on error
+      setEnableAiWritingAssistant(!checked);
+      toast({
+        title: "Error",
+        description: "Failed to update setting",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingAi(false);
+    }
+  };
 
   React.useEffect(() => {
     // Load mock training data
@@ -196,6 +254,24 @@ export default function PreferencesPage() {
                 onCheckedChange={setCompactMode}
               />
             </div>
+
+            {/* AI Writing Assistant */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Label>AI Writing Assistant</Label>
+                  <Sparkles className="h-4 w-4 text-purple-500" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Enable grammar and tone checking powered by AI
+                </p>
+              </div>
+              <Switch
+                checked={enableAiWritingAssistant}
+                onCheckedChange={handleAiWritingAssistantChange}
+                disabled={savingAi}
+              />
+            </div>
           </CardContent>
         </Card>
       </section>
@@ -218,7 +294,7 @@ export default function PreferencesPage() {
           <Card>
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
                 <span className="text-sm text-muted-foreground">Completed</span>
               </div>
               <p className="text-2xl font-bold mt-1">{trainingStats?.completed_modules || 0}</p>
@@ -227,7 +303,7 @@ export default function PreferencesPage() {
           <Card>
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-2">
-                <Play className="h-4 w-4 text-blue-500" />
+                <Play className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                 <span className="text-sm text-muted-foreground">In Progress</span>
               </div>
               <p className="text-2xl font-bold mt-1">{trainingStats?.in_progress || 0}</p>
@@ -245,7 +321,7 @@ export default function PreferencesPage() {
           <Card>
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-2">
-                <Award className="h-4 w-4 text-yellow-500" />
+                <Award className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
                 <span className="text-sm text-muted-foreground">Certificates</span>
               </div>
               <p className="text-2xl font-bold mt-1">{trainingStats?.certificates_earned || 0}</p>
@@ -286,7 +362,7 @@ export default function PreferencesPage() {
                     {module.is_required && <Badge variant="secondary">Required</Badge>}
                   </div>
 
-                  <h3 className="font-medium mb-1">{module.title}</h3>
+                  <h3 className="text-sm font-medium mb-1">{module.title}</h3>
                   <p className="text-sm text-muted-foreground mb-4">{module.description}</p>
 
                   <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">

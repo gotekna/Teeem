@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 interface MonthlyPLData {
   id: number;
@@ -75,14 +76,9 @@ export function XeroProfitLossMonthly({ companyId }: XeroProfitLossMonthlyProps)
     loadData();
   }, [companyId]);
 
-  // Format currency for display
+  // Format currency for display (0 decimals)
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+    return formatCurrencyWhole(amount);
   };
 
   // Calculate totals

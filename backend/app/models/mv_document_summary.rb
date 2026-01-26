@@ -16,7 +16,6 @@ class MvDocumentSummary < ApplicationRecord
   scope :for_company_code, ->(code) { where(company_code: code) }
   scope :for_year, ->(year) { where(document_year: year) }
   scope :for_type, ->(type) { where(document_type: type) }
-  scope :for_category, ->(category) { where(document_category: category) }
   scope :pending_verification, -> { where(ai_verification_status: [ nil, "pending" ]) }
   scope :verified, -> { where(ai_verification_status: "verified") }
   scope :needs_review, -> { where(ai_verification_status: [ "mismatch", "needs_review" ]) }

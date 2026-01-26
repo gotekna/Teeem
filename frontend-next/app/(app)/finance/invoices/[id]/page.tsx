@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,8 +35,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { formatDate, formatCurrency } from "@/utils/formatters";
 
 // Types for external invoice data (from Xero)
 interface LineItem {
@@ -105,8 +108,8 @@ const statusColors: Record<string, string> = {
   SUBMITTED: "bg-yellow-500 text-white",
   DELETED: "bg-red-600 text-white",
   VOIDED: "bg-red-600 text-white",
-  pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500",
-  extracted: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
+  pending: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  extracted: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-400/10 dark:text-blue-400",
 };
 
 export default function InvoiceDetailPage() {
@@ -188,7 +191,7 @@ export default function InvoiceDetailPage() {
     setPdfError(null);
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, '', false);
       const response = await fetch(
         `${getApiBaseUrl()}/api/v1/external_invoices/${invoice.id}/pdf`,
         {
@@ -209,22 +212,6 @@ export default function InvoiceDetailPage() {
     } finally {
       setPdfLoading(false);
     }
-  };
-
-  const formatCurrency = (amount: number, currency: string = "AUD") => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: currency,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
   };
 
   if (loading) {
@@ -304,7 +291,7 @@ export default function InvoiceDetailPage() {
     if (!paymentLinkUrl) return;
 
     try {
-      await navigator.clipboard.writeText(paymentLinkUrl);
+      await copyToClipboard(paymentLinkUrl);
       setPaymentLinkCopied(true);
       setTimeout(() => setPaymentLinkCopied(false), 2000);
     } catch (err) {
@@ -394,7 +381,7 @@ export default function InvoiceDetailPage() {
                   {invoice.contact?.bank_bsb ? `${invoice.contact.bank_bsb}/${invoice.contact.bank_account_number}` : "No bank"}
                 </span>
                 <span className="text-muted-foreground">|</span>
-                <span className={isOverdue ? "text-red-600 font-semibold" : ""}>
+                <span className={isOverdue ? "text-red-600 dark:text-red-400 font-semibold" : ""}>
                   {formatDate(invoice.due_date)}
                   {isOverdue && " (Overdue)"}
                 </span>
@@ -452,14 +439,14 @@ export default function InvoiceDetailPage() {
                 <div className="p-1.5 rounded bg-green-100 dark:bg-green-900/40 border-2 border-green-400 shadow-sm">
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                     {isBill ? "Bill" : "Invoice"} #
-                    <CheckCircle2 className="h-3 w-3 text-green-600" />
+                    <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />
                   </p>
                   <p className="font-mono font-bold">{invoice.invoice_number || "-"}</p>
                 </div>
                 <div className="p-1.5 rounded bg-green-100 dark:bg-green-900/40 border-2 border-green-400 shadow-sm">
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                     {isBill ? "Bill" : "Invoice"} Date
-                    <CheckCircle2 className="h-3 w-3 text-green-600" />
+                    <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />
                   </p>
                   <p className="font-bold">{formatDate(invoice.invoice_date)}</p>
                 </div>
@@ -474,9 +461,9 @@ export default function InvoiceDetailPage() {
                 }`}>
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                     Due Date
-                    {!isOverdue && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                    {!isOverdue && <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />}
                   </p>
-                  <p className={`font-bold ${isOverdue ? "text-red-600" : ""}`}>
+                  <p className={`font-bold ${isOverdue ? "text-red-600 dark:text-red-400" : ""}`}>
                     {formatDate(invoice.due_date)}
                     {isOverdue && <span className="ml-1 text-[10px] font-normal">(Overdue)</span>}
                   </p>
@@ -496,7 +483,7 @@ export default function InvoiceDetailPage() {
                 <div className="p-1.5 rounded bg-green-100 dark:bg-green-900/40 border-2 border-green-400 shadow-sm">
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                     {isBill ? "Supplier" : "Customer"} ABN
-                    <CheckCircle2 className="h-3 w-3 text-green-600" />
+                    <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />
                   </p>
                   <p className="font-mono font-bold">
                     {(() => {
@@ -513,7 +500,7 @@ export default function InvoiceDetailPage() {
                 <div className="p-1.5 rounded bg-blue-100 dark:bg-blue-900/40 border-2 border-blue-400">
                   <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
                     Job
-                    <CheckCircle2 className="h-3 w-3 text-blue-600" />
+                    <CheckCircle2 className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                   </p>
                   <p className="font-bold text-blue-700 truncate">{invoice.job_title}</p>
                 </div>
@@ -535,14 +522,14 @@ export default function InvoiceDetailPage() {
                 <div className="flex justify-between p-2 font-bold text-sm rounded bg-green-200 dark:bg-green-900/50 border-2 border-green-500 shadow-md">
                   <span className="flex items-center gap-1">
                     Total
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                   </span>
                   <span className="font-mono text-lg">{formatCurrency(invoice.total, invoice.currency_code)}</span>
                 </div>
 
                 {totalPaid > 0 && (
                   <>
-                    <div className="flex justify-between text-green-600 p-1">
+                    <div className="flex justify-between text-green-600 dark:text-green-400 p-1">
                       <span>Paid</span>
                       <span className="font-mono">-{formatCurrency(totalPaid, invoice.currency_code)}</span>
                     </div>
@@ -738,7 +725,7 @@ export default function InvoiceDetailPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Amount Due</span>
-                <span className="font-mono font-semibold text-green-600">
+                <span className="font-mono font-semibold text-green-600 dark:text-green-400">
                   {formatCurrency(invoice.amount_due, invoice.currency_code)}
                 </span>
               </div>
@@ -754,7 +741,7 @@ export default function InvoiceDetailPage() {
                   </div>
                 ) : paymentLinkError ? (
                   <div className="space-y-2">
-                    <p className="text-sm text-red-600">{paymentLinkError}</p>
+                    <p className="text-sm text-red-600 dark:text-red-400">{paymentLinkError}</p>
                     <Button variant="outline" onClick={handleCreatePaymentLink}>
                       Try Again
                     </Button>
@@ -788,14 +775,14 @@ export default function InvoiceDetailPage() {
                     title="Copy to clipboard"
                   >
                     {paymentLinkCopied ? (
-                      <Check className="h-4 w-4 text-green-600" />
+                      <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
                     ) : (
                       <Copy className="h-4 w-4" />
                     )}
                   </Button>
                 </div>
                 {paymentLinkCopied && (
-                  <p className="text-xs text-green-600">Copied to clipboard!</p>
+                  <p className="text-xs text-green-600 dark:text-green-400">Copied to clipboard!</p>
                 )}
 
                 <div className="flex gap-2 pt-2">

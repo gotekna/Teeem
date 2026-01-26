@@ -235,7 +235,9 @@ module Api
                   contact_id: existing_company.contact_id
                 }
               else
-                # Create new company
+                # Create new company Contact (NOT CorporateCompany)
+                # SSoT: CorporateCompany = entities you OWN/MANAGE (SPVs, trusts)
+                #       Contact (entity_type='company') = companies you do business WITH
                 company_contact = Contact.create!(
                   display_name: company_name,
                   entity_type: "company",
@@ -243,25 +245,18 @@ module Api
                   created_by: current_user.id,
                   website: website_details[:website],
                   office_phone: website_details[:phone],
-                  email: website_details[:email]
-                )
-
-                company = CorporateCompany.create!(
-                  name: company_name,
-                  contact_id: company_contact.id,
-                  status: "active",
+                  email: website_details[:email],
                   abn: website_details[:abn],
                   acn: website_details[:acn],
-                  registered_office_address: website_details[:address],
-                  purpose: website_details[:description]
+                  address_line1: website_details[:address]
                 )
 
-                # Link person to company
+                # Link person to company contact
                 @contact.update!(primary_company_id: company_contact.id)
 
                 company_created = true
                 company_info = {
-                  id: company.id,
+                  id: company_contact.id,
                   name: company_name,
                   contact_id: company_contact.id
                 }
@@ -307,7 +302,7 @@ module Api
           email_to_parent_companies = Hash.new { |h, k| h[k] = Set.new }
 
           # Step 1: Get unique from_email addresses using pluck (memory efficient)
-          base_query = EmailWarehouse.involving_email(email_patterns)
+          base_query = SyncedEmail.involving_email(email_patterns)
 
           from_emails = base_query
             .where.not(from_email: nil)
@@ -378,7 +373,7 @@ module Api
           unique_senders.each_slice(50) do |sender_batch|
             # For each sender, get up to 3 recent emails with body_text
             sender_batch.each do |sender|
-              bodies = EmailWarehouse.where("LOWER(from_email) = ?", sender)
+              bodies = SyncedEmail.where("LOWER(from_email) = ?", sender)
                 .where.not(body_text: nil)
                 .order(received_at: :desc)
                 .limit(3)

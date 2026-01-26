@@ -1,7 +1,8 @@
 require "anthropic"
 
 class EmailToJobService
-  CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+  include AnthropicClient
+  # SSoT: Use AnthropicClient constants for model names
   MAX_TOKENS = 2000
   RATE_LIMIT_PER_HOUR = 20
 
@@ -39,7 +40,7 @@ class EmailToJobService
       ai_prompt: prompt,
       ai_response_raw: ai_response,
       processing_time_ms: processing_time,
-      ai_model_used: CLAUDE_MODEL,
+      ai_model_used: CLAUDE_SONNET,
       status: "pending"
     )
 
@@ -304,8 +305,9 @@ class EmailToJobService
     email_body = @email.body_text.presence || strip_html(@email.body_html)
 
     # Extract text from PDF attachments if present
+    # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
     pdf_content = nil
-    if @email.files.attached?
+    if @email.email_attachments.any?
       pdf_texts = @email.extract_pdf_text
       if pdf_texts.present?
         pdf_content = pdf_texts.map do |pdf|
@@ -524,13 +526,15 @@ class EmailToJobService
     # No existing contact found - create new one if we have email
     return nil unless email.present?
 
+    # SSoT: Multi-tenancy - set tenant_id from user
     Contact.create!(
       email: email,
       display_name: name,
       mobile_phone: normalize_phone(customer_data["phone"]),
       company_name_or_trust: customer_data["company"],
       entity_type: customer_data["entity_type"] || "person",
-      roles: [ "customer" ]
+      roles: [ "customer" ],
+      tenant_id: @user&.tenant_id
     )
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "Failed to create customer: #{e.message}"
@@ -837,6 +841,7 @@ class EmailToJobService
 
     # Build company contact
     # Note: Don't set roles for companies - roles are for person contacts (Employee, sales, etc.)
+    # SSoT: Multi-tenancy - set tenant_id from user
     company = Contact.new(
       entity_type: "company",
       company_name_or_trust: company_details["name"],
@@ -848,7 +853,8 @@ class EmailToJobService
       state: company_details["state"],
       postcode: company_details["postcode"],
       email_domains: [domain],  # Store domain for future auto-linking
-      is_active: true
+      is_active: true,
+      tenant_id: @user&.tenant_id
     )
 
     # Add company email if we can construct it
@@ -1072,12 +1078,13 @@ class EmailToJobService
 
   def sync_pdf_attachments_if_needed
     # Skip if no attachments or already synced
-    return unless @email.has_attachments && !@email.files.attached?
+    # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
+    return unless @email.has_attachments && @email.email_attachments.empty?
 
     begin
       # SSoT: Per-user Outlook credentials removed - use org credentials via sync_attachments!
       @email.sync_attachments!
-      Rails.logger.info "Synced #{@email.files.count} PDF attachments for email #{@email.id}"
+      Rails.logger.info "Synced #{@email.email_attachments.count} PDF attachments for email #{@email.id}"
     rescue StandardError => e
       Rails.logger.error "Failed to sync attachments for email #{@email.id}: #{e.message}"
       # Don't fail the whole process if attachment sync fails

@@ -31,15 +31,22 @@ import { EmailContactAutocomplete } from "./EmailContactAutocomplete";
 import { useUndoSend } from "@/hooks/useUndoSend";
 import { useAutoSaveDraft, useEmailDrafts } from "@/hooks/useEmailDrafts";
 import { useAuth } from "@/contexts/AuthContext";
-import { generateEmailSignature, hasSignature } from "@/lib/email-signature";
+import {
+  generateSignatureByStyle,
+  hasSignature,
+  hasSignaturePlaceholder,
+  replaceSignaturePlaceholder,
+  type SignatureStyleId,
+  DEFAULT_SIGNATURE_STYLE,
+} from "@/lib/email-signature";
 import {
   CONTACT_SEARCH_DEBOUNCE_MS,
   CONTACT_SEARCH_MIN_CHARS,
   CONTACT_SEARCH_MAX_RESULTS,
   MAX_ATTACHMENT_SIZE_BYTES,
   MAX_TOTAL_ATTACHMENTS_SIZE_BYTES,
-  formatFileSize,
 } from "@/lib/email-constants";
+import { formatFileSize } from "@/utils/formatters";
 import type { EmailDraft, EmailAccount, EmailContact } from "@/lib/email-types";
 import { LayoutTemplate } from "lucide-react";
 import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
@@ -61,6 +68,10 @@ interface ComposeEmailModalProps {
   draft?: EmailDraft;
   /** Pre-loaded file attachments (e.g., from Task response) */
   initialAttachments?: File[];
+  /** SM Task ID to link sent email to task */
+  smTaskId?: number;
+  /** Skip signature generation (when body already includes signature) */
+  skipSignature?: boolean;
   onSent?: () => void;
 }
 
@@ -75,6 +86,8 @@ export function ComposeEmailModal({
   defaultFromAccountId,
   draft,
   initialAttachments,
+  smTaskId,
+  skipSignature = false,
   onSent,
 }: ComposeEmailModalProps) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -123,11 +136,30 @@ export function ComposeEmailModal({
   // Get current user for signature generation
   const { user: currentUser } = useAuth();
 
-  // Company settings for signature logo
-  const [companySettings, setCompanySettings] = useState<{ logo_dark?: string } | null>(null);
+  // Company settings for signature
+  const [companySettings, setCompanySettings] = useState<{
+    logo_dark?: string;
+    logo_url?: string;
+    company_name?: string;
+    address?: string;
+    website?: string;
+    phone?: string;
+    brand_colors?: { primary?: string; primaryForeground?: string };
+  } | null>(null);
 
   // Store signature separately (not in editor) to preserve HTML formatting
   const [signatureHtml, setSignatureHtml] = useState<string>("");
+
+  // Frequent contacts for quick-add chips
+  interface FrequentContact {
+    id: number;
+    display_name: string;
+    email: string;
+    email_count: number;
+    primary_company?: { id: number; name: string } | null;
+  }
+  const [frequentContacts, setFrequentContacts] = useState<FrequentContact[]>([]);
+  const [frequentContactsLoading, setFrequentContactsLoading] = useState(false);
 
   // Auto-save draft hook
   const autoSave = useAutoSaveDraft({
@@ -146,7 +178,9 @@ export function ComposeEmailModal({
     existingDraftId: draft?.id,
   });
 
-  // Search contacts by name/email (include company info for grouping)
+  // Search contacts by name/email (include company info for grouping, job info for context)
+  // with_email=true returns contact_emails array for multi-email contacts
+  // include_jobs=true returns recent_job for job context
   const searchContacts = async (search: string) => {
     if (!search || search.length < CONTACT_SEARCH_MIN_CHARS) {
       setContacts([]);
@@ -155,10 +189,13 @@ export function ComposeEmailModal({
     setContactsLoading(true);
     try {
       const response = await api.get<{ contacts: Contact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&include_jobs=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
       );
       const typedResponse = response as { contacts: Contact[] };
-      setContacts((typedResponse.contacts || []).filter(c => c.email));
+      // Filter to contacts that have at least one email (primary or in contact_emails)
+      setContacts((typedResponse.contacts || []).filter(c =>
+        c.email || (c.contact_emails && c.contact_emails.length > 0)
+      ));
     } catch (err) {
       console.error("Failed to search contacts:", err);
     } finally {
@@ -179,25 +216,49 @@ export function ComposeEmailModal({
     return () => clearTimeout(timer);
   }, [contactSearch, ccSearch, bccSearch]);
 
-  // Generate signature from current user data (SSoT: branded Tekna signature)
+  // Generate signature from current user data (SSoT: uses user's preferred signature style)
   const getUserSignature = (): string => {
     if (!currentUser) return "";
-    return generateEmailSignature(
+
+    // Get user's preferred signature style or fall back to default
+    const signatureStyle = ((currentUser as { email_signature_style?: string }).email_signature_style as SignatureStyleId)
+      || DEFAULT_SIGNATURE_STYLE;
+
+    return generateSignatureByStyle(
+      signatureStyle,
       {
         name: currentUser.name,
         email: currentUser.email,
         mobile_phone: currentUser.mobile_phone as string | undefined,
         job_title: currentUser.job_title as string | undefined,
       },
-      companySettings ? { logo_dark: companySettings.logo_dark } : undefined
+      companySettings ? {
+        name: companySettings.company_name,
+        logo_dark: companySettings.logo_dark,
+        logo_light: companySettings.logo_url,
+        address: companySettings.address,
+        website: companySettings.website,
+        phone: companySettings.phone,
+        brand_color: companySettings.brand_colors?.primary,
+        brand_color_foreground: companySettings.brand_colors?.primaryForeground,
+      } : undefined
     );
   };
 
-  // Fetch company settings for logo
+  // Fetch company settings for signature
   useEffect(() => {
     const fetchCompanySettings = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: { logo_dark?: string } }>(
+        interface CompanySettingsData {
+          logo_dark?: string;
+          logo_url?: string;
+          company_name?: string;
+          address?: string;
+          website?: string;
+          phone?: string;
+          brand_colors?: { primary?: string; primaryForeground?: string };
+        }
+        const response = await api.get<{ success: boolean; data: CompanySettingsData }>(
           "/api/v1/company_settings"
         );
         if (response?.data) {
@@ -212,10 +273,28 @@ export function ComposeEmailModal({
     }
   }, [open, companySettings]);
 
+  // Fetch frequent contacts for quick-add chips
+  const fetchFrequentContacts = useCallback(async () => {
+    setFrequentContactsLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; data: FrequentContact[] }>(
+        '/api/v1/contacts/frequent'
+      );
+      if (response.data) {
+        setFrequentContacts(response.data);
+      }
+    } catch (err) {
+      console.debug('Failed to fetch frequent contacts:', err);
+    } finally {
+      setFrequentContactsLoading(false);
+    }
+  }, []);
+
   // Fetch accounts when modal opens
   useEffect(() => {
     if (open) {
       fetchAccounts();
+      fetchFrequentContacts();
       setContacts([]);
       setContactSearch("");
       setCcSearch("");
@@ -400,8 +479,25 @@ export function ComposeEmailModal({
 
     setSending(true);
     try {
-      // Combine body with signature (signature is stored separately to preserve HTML)
-      const fullBody = signatureHtml ? formData.body + signatureHtml : formData.body;
+      // Handle signature insertion
+      // Option 1: Body has placeholder (from Task response) - REPLACE with styled signature
+      // Option 2: Normal compose - INSERT signature before blockquote or at end
+      let fullBody = formData.body;
+
+      if (signatureHtml && hasSignaturePlaceholder(fullBody)) {
+        // Replace the simple placeholder with the user's styled signature
+        fullBody = replaceSignaturePlaceholder(fullBody, signatureHtml);
+      } else if (signatureHtml && !skipSignature) {
+        // Normal flow: insert signature before quoted thread (blockquote)
+        const blockquoteIndex = fullBody.indexOf('<blockquote');
+        if (blockquoteIndex !== -1) {
+          // Insert signature before quoted content
+          fullBody = fullBody.slice(0, blockquoteIndex) + signatureHtml + fullBody.slice(blockquoteIndex);
+        } else {
+          // No quoted content, append signature at end
+          fullBody = fullBody + signatureHtml;
+        }
+      }
 
       if (isScheduled) {
         // Schedule the email
@@ -432,6 +528,7 @@ export function ComposeEmailModal({
           body: fullBody,
           reply_to_message_id: replyToMessageId,
           attachments: attachments,
+          sm_task_id: smTaskId,  // Link sent email to SM task
         });
       }
 
@@ -683,6 +780,63 @@ export function ComposeEmailModal({
               </div>
             )}
 
+            {/* Frequent Contacts - Quick-add chips */}
+            {frequentContacts.length > 0 && (
+              <div className="flex items-center gap-2 px-4 py-2 border-b bg-muted/20">
+                <span className="text-xs text-muted-foreground shrink-0">Quick add:</span>
+                <div className="flex flex-wrap gap-1.5 overflow-x-auto">
+                  {frequentContacts.slice(0, 8).map((contact) => {
+                    // Check if already in To or CC
+                    const isInTo = formData.to.toLowerCase().includes(contact.email.toLowerCase());
+                    const isInCc = formData.cc.toLowerCase().includes(contact.email.toLowerCase());
+                    const isAdded = isInTo || isInCc;
+
+                    return (
+                      <div key={contact.id} className="relative group">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isAdded) return;
+                            // Add to To field
+                            const newTo = formData.to
+                              ? `${formData.to}, ${contact.email}`
+                              : contact.email;
+                            setFormData({ ...formData, to: newTo });
+                          }}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            if (isAdded) return;
+                            // Right-click adds to CC
+                            const newCc = formData.cc
+                              ? `${formData.cc}, ${contact.email}`
+                              : contact.email;
+                            setFormData({ ...formData, cc: newCc });
+                          }}
+                          disabled={isAdded}
+                          className={`
+                            flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors
+                            ${isAdded
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 cursor-default'
+                              : 'bg-muted hover:bg-primary/10 hover:text-primary cursor-pointer'}
+                          `}
+                          title={isAdded
+                            ? `Already added to ${isInTo ? 'To' : 'CC'}`
+                            : `Click to add to To, right-click to add to CC`}
+                        >
+                          <span className="truncate max-w-[120px]">
+                            {contact.display_name.split(' ')[0]}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {contact.email_count}
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Subject - Outlook style underlined */}
             <div className="flex items-center border-b px-4 py-2">
               <SmartInput
@@ -690,7 +844,7 @@ export function ComposeEmailModal({
                 value={formData.subject}
                 onChange={(value: string) => setFormData({ ...formData, subject: value })}
                 context="email_subject"
-                className="border-0 shadow-none text-base px-0 h-8 focus-visible:ring-0"
+                className="flex-1 w-full border-0 shadow-none text-base px-0 h-8 focus-visible:ring-0"
               />
             </div>
 
@@ -710,7 +864,7 @@ export function ComposeEmailModal({
                     <button
                       type="button"
                       onClick={() => removeAttachment(index)}
-                      className="ml-1 hover:text-red-500"
+                      className="ml-1 hover:text-red-500 dark:text-red-400"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -733,7 +887,8 @@ export function ComposeEmailModal({
                 />
 
                 {/* Signature Preview - rendered separately to preserve HTML formatting */}
-                {signatureHtml && (
+                {/* Hidden when skipSignature is true (signature already in body) */}
+                {signatureHtml && !skipSignature && (
                   <div
                     className="mt-4 pointer-events-none"
                     dangerouslySetInnerHTML={{ __html: signatureHtml }}

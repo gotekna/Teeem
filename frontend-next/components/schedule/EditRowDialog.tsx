@@ -410,13 +410,13 @@ export function EditRowDialog({
                   </span>
                 ) : null}
                 {autoSaveStatus === 'saved' ? (
-                  <span className="flex items-center text-green-600 dark:text-green-500">
+                  <span className="flex items-center text-green-600 dark:text-green-400">
                     <Check className="h-4 w-4 mr-2" />
                     Saved
                   </span>
                 ) : null}
                 {autoSaveStatus === 'error' ? (
-                  <span className="flex items-center text-red-600 dark:text-red-500">
+                  <span className="flex items-center text-red-600 dark:text-red-400">
                     <AlertCircle className="h-4 w-4 mr-2" />
                     Save failed
                   </span>
@@ -1160,7 +1160,7 @@ export function EditRowDialog({
                           {childCount} {childCount === 1 ? 'child' : 'children'}
                         </Badge>
                         {subHeaderCount > 0 ? (
-                          <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-500">
+                          <Badge variant="outline" className="text-[10px] border-blue-500 text-blue-500 dark:text-blue-400">
                             {subHeaderCount} sub-header{subHeaderCount !== 1 ? 's' : ''}
                           </Badge>
                         ) : null}

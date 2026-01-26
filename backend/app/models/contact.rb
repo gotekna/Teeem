@@ -1,4 +1,7 @@
 class Contact < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   include SelfHealing  # Auto-fix formatting issues and earn System kudos
   include Searchable
 
@@ -15,9 +18,6 @@ class Contact < ApplicationRecord
   has_one :user, dependent: :nullify  # Linked user for data sync
   has_many :contact_activities, dependent: :destroy
   has_many :sms_messages, dependent: :destroy
-
-  # Company group for document filing (family members)
-  belongs_to :corporate_group, optional: true, foreign_key: "company_group_id"
 
   # Multiple emails and phones
   has_many :contact_emails, -> { order(:position) }, dependent: :destroy
@@ -103,12 +103,33 @@ class Contact < ApplicationRecord
   # Personal documents (for family members, directors, etc.)
   has_many :corporate_company_documents, dependent: :destroy
 
+  # SSoT: Contact documents (Xero invoices, bills, etc.)
+  has_many :contact_documents, dependent: :destroy
+
+  # SSoT: People documents (ID, licenses, personal documents for people scope)
+  has_many :people_documents, dependent: :destroy
+
   # Company Group memberships (SSoT - links contact to company groups with permissions)
   has_many :corporate_group_memberships, class_name: "ContactCorporateGroupMembership", dependent: :destroy
   has_many :corporate_groups_via_membership, through: :corporate_group_memberships, source: :corporate_group
 
   # SSoT - if this contact is a company/trust, link to the Company record
   has_one :company_record, class_name: "CorporateCompany", foreign_key: "contact_id", dependent: :nullify
+
+  # SSoT: Corporate Details (alias for company_record)
+  # CorporateCompany is an EXTENSION table for corporate-specific data (ASIC, compliance, etc.)
+  # Contact is THE ONE SSoT for identity; CorporateCompany extends it for corporate management
+  alias_method :corporate_details, :company_record
+
+  # ============================================
+  # Corporate Hierarchy (SSoT: Contact level)
+  # ============================================
+  # Parent company for subsidiary contacts (companies/trusts)
+  # This mirrors CorporateCompany.parent_company_id but at the Contact level
+  belongs_to :parent_company_contact, class_name: "Contact", optional: true
+
+  # Subsidiary contacts (inverse of parent_company_contact)
+  has_many :subsidiary_contacts, class_name: "Contact", foreign_key: :parent_company_contact_id
 
   # ============================================
   # SaaS Customer & Referral Associations
@@ -265,6 +286,28 @@ class Contact < ApplicationRecord
   # Clear cached email (call after modifying contact_emails)
   def clear_email_cache!
     @primary_email = nil
+    @login_email = nil
+    @work_email = nil
+    @personal_email = nil
+  end
+
+  # Phase 4: Email label helpers
+  # SSoT: contact_emails.label is THE ONE for email categorization
+  # Labels: 'login' (User login email), 'work', 'personal', 'other'
+
+  # Login email - synced from User.email (label='login')
+  def login_email
+    @login_email ||= contact_emails.find_by(label: 'login')&.email
+  end
+
+  # Work email - either labeled 'work' or primary (default work email)
+  def work_email
+    @work_email ||= contact_emails.find_by(label: 'work')&.email || primary_email
+  end
+
+  # Personal email - labeled 'personal'
+  def personal_email
+    @personal_email ||= contact_emails.find_by(label: 'personal')&.email
   end
 
   # ============================================
@@ -468,6 +511,12 @@ class Contact < ApplicationRecord
     message: "already exists for another company"
   }, if: -> { entity_type == "company" && is_active? }
 
+  # SSoT: contact_code is a database column (user-editable)
+  # Default format: "C" + id (e.g., "C1310")
+  # Auto-generated on create, can be customized by user
+  validates :contact_code, presence: true, uniqueness: true, on: :update
+  after_create :generate_contact_code_if_blank
+
   # Entity-type specific name validations
   validate :validate_name_fields_for_entity_type
   validate :validate_name_casing          # Block ALL CAPS and lowercase names
@@ -501,6 +550,13 @@ class Contact < ApplicationRecord
   # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
   # If invoice.contact_name matches contact.display_name exactly, link them
   after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
+
+  # Phase 3: Prevent deletion of Contacts that have linked Users
+  before_destroy :prevent_destruction_if_has_user
+
+  # SSoT: Handle Xero links when contact is deactivated
+  # If deactivating a contact with Xero links, try to transfer them to an active duplicate
+  before_update :handle_xero_links_on_deactivation, if: :deactivating?
 
   # SSoT: Legacy phone/email columns removed - data now in contact_phones/contact_emails tables
   # These callbacks are disabled as the columns no longer exist
@@ -539,8 +595,17 @@ class Contact < ApplicationRecord
   scope :team_contacts, -> { where(is_team_contact: true) }
   scope :individual_contacts, -> { where(is_team_contact: false) }
 
+  # User scopes (Phase 3: is_user_cached flag)
+  # SSoT: is_user_cached is a cached flag, updated by User model callbacks
+  # Use this scope to find Contacts that have a linked User account
+  scope :users, -> { where(is_user_cached: true) }
+  scope :non_users, -> { where(is_user_cached: false) }
+
   # Active status scope (SSoT: is_active column)
+  # is_active: true = visible/active contact
+  # is_active: false = archived (not visible in normal lists, but data preserved)
   scope :active, -> { where(is_active: true) }
+  scope :archived, -> { where(is_active: false) }
 
   # ============================================
   # SaaS Customer Scopes
@@ -556,6 +621,103 @@ class Contact < ApplicationRecord
   scope :l1_eligible_referrers, -> { where(referrer_status: %w[eligible_l1 eligible_l2]) }
   scope :l2_eligible_referrers, -> { where(referrer_status: "eligible_l2") }
   scope :trained_referrers, -> { where.not(referrer_training_completed_at: nil) }
+
+  # ============================================
+  # SSoT: Relevance-Based Contact Search
+  # ============================================
+  # Standard search method for contacts with intelligent relevance ordering.
+  # Use this instead of simple ILIKE queries when user-facing search is needed.
+  #
+  # @param term [String] Search term
+  # @param options [Hash] Search options
+  #   - :include_employee_matches [Boolean] Include companies of matching employees (default: false)
+  #   - :suppliers_only [Boolean] Filter to suppliers only, prioritize suppliers in ordering (default: false)
+  #   - :companies_only [Boolean] Filter to companies/trusts only (default: false)
+  #   - :exclude_employees [Boolean] Exclude people with primary_company_id (default: false)
+  #
+  # @return [ActiveRecord::Relation] Ordered contacts with relevance priority:
+  #   1. Prefix match + supplier (name starts with term, is_supplier_cached=true)
+  #   2. Prefix match (name starts with term)
+  #   3. Contains match + supplier (name contains term, is_supplier_cached=true)
+  #   4. Contains match (name contains term)
+  #   5. Employee-derived (company of matching employee, if include_employee_matches)
+  #   Then alphabetical within each group
+  #
+  # @example Basic search
+  #   Contact.search_by_relevance("dam")
+  #   # => Dam Quality Plasterboard, Damian..., Adam..., Angelo Adamo...
+  #
+  # @example Supplier search with employee matching
+  #   Contact.search_by_relevance("troy", include_employee_matches: true, suppliers_only: true)
+  #   # => Troy's Company, then companies where Troy works
+  #
+  def self.search_by_relevance(term, options = {})
+    return none if term.blank?
+
+    include_employee_matches = options[:include_employee_matches] || false
+    suppliers_only = options[:suppliers_only] || false
+    companies_only = options[:companies_only] || false
+    exclude_employees = options[:exclude_employees] || false
+
+    prefix_term = "#{term}%"
+    contains_term = "%#{term}%"
+
+    # Base query: active contacts matching the search term
+    base_scope = active.where("display_name ILIKE ?", contains_term)
+
+    # Filter to companies/trusts if requested
+    if companies_only || exclude_employees
+      base_scope = base_scope.where("entity_type IN ('company', 'trust') OR primary_company_id IS NULL")
+    end
+
+    # Filter to suppliers only if requested (but still include potential suppliers)
+    if suppliers_only
+      # Get direct matches (may or may not be suppliers)
+      direct_match_ids = base_scope.pluck(:id)
+
+      # Optionally include employer companies of matching employees
+      employee_derived_ids = []
+      if include_employee_matches
+        # Find employees matching the search term
+        matching_employees = where(entity_type: "person")
+          .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
+                 contains_term, contains_term, contains_term)
+          .select(:id, :primary_company_id)
+
+        # Get employer IDs from primary_company_id
+        employer_ids = matching_employees.pluck(:primary_company_id).compact
+
+        # Also check ContactRelationship for employee_of relationships
+        if matching_employees.any?
+          relationship_employer_ids = ContactRelationship
+            .active
+            .where(relationship_type: "employee_of")
+            .where(source_contact_id: matching_employees.pluck(:id))
+            .pluck(:related_contact_id)
+          employer_ids = (employer_ids + relationship_employer_ids).uniq
+        end
+
+        employee_derived_ids = where(id: employer_ids, is_active: true).pluck(:id) if employer_ids.any?
+      end
+
+      all_ids = (direct_match_ids + employee_derived_ids).uniq
+      base_scope = where(id: all_ids, is_active: true)
+    end
+
+    # Apply relevance-based ordering
+    base_scope.order(
+      Arel.sql(sanitize_sql_array([
+        "CASE
+          WHEN display_name ILIKE ? AND is_supplier_cached = true THEN 1
+          WHEN display_name ILIKE ? THEN 2
+          WHEN display_name ILIKE ? AND is_supplier_cached = true THEN 3
+          WHEN display_name ILIKE ? THEN 4
+          ELSE 5
+        END, display_name ASC",
+        prefix_term, prefix_term, contains_term, contains_term
+      ]))
+    )
+  end
 
   # Instance methods
   # computed_display_name: Generates a display-friendly name based on entity type
@@ -697,6 +859,67 @@ class Contact < ApplicationRecord
   end
 
   # ============================================
+  # Corporate Management Helpers
+  # ============================================
+  # SSoT: Contact is THE ONE identity store for all entities
+  # is_corporate_managed flag indicates this contact has corporate features enabled
+
+  # Check if this contact has corporate management features
+  # Returns true if:
+  # 1. is_corporate_managed flag is set, OR
+  # 2. Contact has a linked CorporateCompany record (corporate_details)
+  def corporate_managed?
+    is_corporate_managed? || corporate_details.present?
+  end
+
+  # Check if this contact can have corporate features (company or trust)
+  def can_be_corporate_managed?
+    is_company? || is_trust?
+  end
+
+  # Enable corporate management for this contact
+  # Creates CorporateCompany extension record if needed
+  def enable_corporate_management!
+    return false unless can_be_corporate_managed?
+
+    transaction do
+      # Set flag
+      update!(is_corporate_managed: true)
+
+      # Create CorporateCompany if needed
+      unless corporate_details.present?
+        CorporateCompany.create!(
+          contact: self,
+          tenant: tenant,
+          name: display_name,
+          abn: abn,
+          acn: acn,
+          status: is_active? ? "active" : "dormant"
+        )
+      end
+    end
+
+    reload
+    true
+  rescue => e
+    Rails.logger.error("Contact##{id}: Failed to enable corporate management - #{e.message}")
+    false
+  end
+
+  # Get company hierarchy (if this is a company/trust with subsidiaries)
+  def company_hierarchy
+    return nil unless can_be_corporate_managed?
+
+    {
+      id: id,
+      name: display_name,
+      entity_type: entity_type,
+      parent: parent_company_contact&.slice(:id, :display_name, :entity_type),
+      subsidiaries: subsidiary_contacts.map { |s| s.slice(:id, :display_name, :entity_type) }
+    }
+  end
+
+  # ============================================
   # Cached Boolean Flags (Performance Optimization)
   # ============================================
   # These cached columns avoid expensive EXISTS queries on every request.
@@ -716,7 +939,8 @@ class Contact < ApplicationRecord
                           pricebook_items.exists? ||
                           price_histories.exists? ||
                           external_invoices.bills.exists?,
-      is_director_cached: current_directorships.exists?
+      is_director_cached: current_directorships.exists?,
+      is_user_cached: user.present?  # Phase 3: Contact Consolidation
     )
   end
 
@@ -738,6 +962,12 @@ class Contact < ApplicationRecord
   # Refresh only director flag (called by CorporateCompanyDirector callbacks)
   def refresh_director_flag!
     update_column(:is_director_cached, current_directorships.exists?)
+  end
+
+  # Refresh only user flag (Phase 3: Contact Consolidation)
+  # SSoT: Check if this Contact has a linked User account
+  def refresh_user_flag!
+    update_column(:is_user_cached, user.present?)
   end
 
   def director_companies
@@ -1158,43 +1388,26 @@ class Contact < ApplicationRecord
     relationships
   end
 
-  # Generate folder name for this contact based on company settings
-  # Used for document storage in OneDrive/SharePoint
-  # @return [String] folder name (e.g., "123 - ABC Supplies" or "ABC Supplies" or "123")
+  # Generate folder name for this contact
+  # SSoT: Uses StorageConfiguration.templates["contact"] for format
+  # @return [String] folder name (e.g., "123 - ABC Supplies")
   def document_folder_name
-    format = CorporateCompanySetting.instance.contact_folder_format || "id_name"
-    # SSoT: Use centralized SharePoint path sanitization
-    sanitized_name = SharePoint::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
-
-    case format
-    when "id_name"
-      "#{id} - #{sanitized_name}"
-    when "name_only"
-      sanitized_name
-    when "id_only"
-      id.to_s
-    else
-      "#{id} - #{sanitized_name}"
-    end
+    self.class.generate_folder_name(contact_id: id, display_name: display_name)
   end
 
   # Class method to generate folder name for a contact
-  # Useful when you only have the ID and display_name
-  def self.generate_folder_name(contact_id:, display_name:, format: nil)
-    format ||= CorporateCompanySetting.instance.contact_folder_format || "id_name"
-    # SSoT: Use centralized SharePoint path sanitization
+  # SSoT: StorageConfiguration.template_for(:contact) is THE ONE source
+  # @example Template "{{ContactId}} - {{ContactName}}" => "123 - ABC Supplies"
+  def self.generate_folder_name(contact_id:, display_name:)
+    template = StorageConfiguration.instance&.template_for(:contact) || "{{ContactId}} - {{ContactName}}"
     sanitized_name = SharePoint::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
 
-    case format
-    when "id_name"
-      "#{contact_id} - #{sanitized_name}"
-    when "name_only"
-      sanitized_name
-    when "id_only"
-      contact_id.to_s
-    else
-      "#{contact_id} - #{sanitized_name}"
-    end
+    result = template.dup
+    result.gsub!("{{ContactId}}", contact_id.to_s)
+    result.gsub!("{{ContactName}}", sanitized_name)
+    result.gsub!(%r{//+}, "/")
+    result.gsub!(%r{^/|/$}, "")
+    result
   end
 
   # ============================================
@@ -1780,5 +1993,136 @@ class Contact < ApplicationRecord
     end
   rescue StandardError => e
     Rails.logger.error("Contact##{id}: Auto-link invoices failed - #{e.message}")
+  end
+
+  # Phase 3: Prevent deletion if Contact has a linked User
+  # User must be unlinked or deleted first
+  def prevent_destruction_if_has_user
+    return true unless user.present?
+
+    errors.add(:base, "Cannot delete contact that has a linked user account (#{user.email}). " \
+                      "This contact can login to the system. To remove: either archive the contact, " \
+                      "or delete the user account first.")
+    throw(:abort)
+  end
+
+  # SSoT: Check if contact is being deactivated (is_active: true → false)
+  def deactivating?
+    is_active_changed? && is_active_was == true && is_active == false
+  end
+
+  # SSoT: Handle Xero links when deactivating a contact
+  # If there's an active contact with the same name, transfer links to it
+  # Otherwise, flag the links for review
+  def handle_xero_links_on_deactivation
+    return if xero_links.empty?
+
+    # Find an active contact with the same display_name
+    active_duplicate = Contact.where(is_active: true)
+      .where.not(id: id)
+      .where("LOWER(display_name) = ?", display_name&.downcase)
+      .first
+
+    if active_duplicate
+      # Transfer all Xero links to the active duplicate
+      xero_links.each do |link|
+        # Check if duplicate already has a link to this Xero tenant
+        existing = active_duplicate.xero_links.find_by(tenant_id: link.tenant_id)
+        if existing
+          # Duplicate already linked to this tenant - mark ours for review
+          link.update_columns(needs_review: true, sync_error: "Deactivated - duplicate link exists on Contact##{active_duplicate.id}")
+          Rails.logger.warn "[Contact#deactivation] Xero link ##{link.id} marked for review - duplicate exists"
+        else
+          # Transfer link to active contact
+          link.update_columns(contact_id: active_duplicate.id)
+          Rails.logger.info "[Contact#deactivation] Transferred Xero link ##{link.id} to Contact##{active_duplicate.id} (#{active_duplicate.display_name})"
+        end
+      end
+    else
+      # No active duplicate - flag all links for review
+      xero_links.update_all(needs_review: true, sync_error: "Contact deactivated - no active duplicate found")
+      Rails.logger.warn "[Contact#deactivation] #{xero_links.count} Xero links flagged for review - no active duplicate for '#{display_name}'"
+    end
+  end
+
+  # ============================================
+  # Archive System (SSoT: is_active column)
+  # ============================================
+  # Use archive instead of delete to preserve data while hiding from normal views
+
+  # Archive this contact (set is_active: false)
+  # Safe alternative to deletion - preserves all data and relationships
+  def archive!
+    update!(is_active: false)
+    Rails.logger.info "[Contact#archive!] Archived Contact##{id} (#{display_name})"
+  end
+
+  # Restore an archived contact
+  def restore!
+    update!(is_active: true)
+    Rails.logger.info "[Contact#restore!] Restored Contact##{id} (#{display_name})"
+  end
+
+  # Check if this contact can be safely deleted (not archived)
+  # Returns hash with { can_delete: boolean, warnings: [], blockers: [] }
+  def deletion_check
+    result = { can_delete: true, warnings: [], blockers: [] }
+
+    # Blocker: Has linked User account
+    if user.present?
+      result[:can_delete] = false
+      result[:blockers] << {
+        type: "has_user",
+        message: "This contact has a linked user account (#{user.email}) that can login to the system.",
+        action: "Delete or unlink the user account first, or archive the contact instead."
+      }
+    end
+
+    # Warning: Has corporate roles (director, shareholder, etc.)
+    corporate_roles = []
+    corporate_roles << "director" if directorships.any?
+    corporate_roles << "shareholder" if shareholdings.any?
+    corporate_roles << "secretary" if company_secretary_roles.any? rescue nil
+    if corporate_roles.any?
+      result[:warnings] << {
+        type: "corporate_roles",
+        message: "This contact has corporate roles: #{corporate_roles.join(', ')}.",
+        action: "These roles will need to be reassigned."
+      }
+    end
+
+    # Warning: Has documents
+    doc_count = contact_documents.count rescue 0
+    if doc_count > 0
+      result[:warnings] << {
+        type: "has_documents",
+        message: "This contact has #{doc_count} document(s) attached.",
+        action: "Documents will be orphaned if contact is deleted."
+      }
+    end
+
+    # Warning: Has relationships
+    rel_count = (contact_relationships.count + incoming_relationships.count) rescue 0
+    if rel_count > 0
+      result[:warnings] << {
+        type: "has_relationships",
+        message: "This contact has #{rel_count} relationship(s) with other contacts.",
+        action: "Relationships will be removed if contact is deleted."
+      }
+    end
+
+    result
+  end
+
+  # Check if archived
+  def archived?
+    !is_active?
+  end
+
+  # SSoT: Auto-generate contact_code on create (e.g., "C1310")
+  # User can customize after creation
+  def generate_contact_code_if_blank
+    return if contact_code.present?
+    update_column(:contact_code, "C#{id}")
   end
 end

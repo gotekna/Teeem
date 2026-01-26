@@ -54,6 +54,21 @@ Automatically scans the frontend codebase to find UI inconsistencies that make t
 - Old import paths
 - Legacy patterns that should be updated
 
+### 7. Settings Tab Consistency (NEW)
+- Redundant `<h2>` headings when tab name is already visible
+- "Go to X Dashboard" links that duplicate sidebar navigation
+- `TabsList` overriding `bg-muted` with `bg-muted/50`
+- Sub-tabs using `useState` instead of URL-based navigation
+- Missing breadcrumb display names for tabs/sub-tabs
+- Missing `font-serif` on page headings
+
+### 8. URL/Breadcrumb Integration (NEW)
+- Sub-tabs not updating URL on click
+- Missing auto-redirect to default sub-tab
+- `SETTINGS_NESTED_TABS` missing entries for tabs with sub-tabs
+- `TAB_DISPLAY_NAMES` missing entries for new tabs
+- `isSiblingTab()` not handling all URL depth patterns
+
 ## Execution
 
 ### Phase 1: Gather Standards
@@ -146,6 +161,43 @@ grep -rn "from.*data-table" frontend-next --include="*.tsx" | grep -v "TeeemTabl
 
 # Find router.back() usage (should use BackButton)
 grep -rn "router.back()" frontend-next --include="*.tsx"
+```
+
+#### 2.7 Settings Tab Consistency
+```bash
+# Find redundant h2 headings in admin tab components
+grep -rn '<h2.*text-lg.*font-semibold' frontend-next/app/\(app\)/admin/system/components --include="*.tsx"
+
+# Find "Go to X Dashboard" links (should be removed)
+grep -rn 'Go to.*Dashboard' frontend-next --include="*.tsx"
+
+# Find TabsList overriding background (should use default bg-muted)
+grep -rn 'TabsList.*bg-muted/50' frontend-next --include="*.tsx"
+
+# Find sub-tabs using useState instead of URL navigation
+grep -rn 'useState.*activeSubTab\|useState.*"tab' frontend-next/app/\(app\)/admin/system/components --include="*.tsx"
+
+# Find missing font-serif on page headings
+grep -rn '<h1.*text-2xl.*font-bold' frontend-next --include="*.tsx" | grep -v 'font-serif'
+grep -rn '<h2.*text-lg.*font-semibold' frontend-next --include="*.tsx" | grep -v 'font-serif'
+```
+
+#### 2.8 URL/Breadcrumb Integration
+```bash
+# Check TAB_DISPLAY_NAMES has entries for all tab values
+cat frontend-next/lib/breadcrumb-utils.ts | grep -A 100 'TAB_DISPLAY_NAMES'
+
+# Check SETTINGS_NESTED_TABS has all tabs with sub-tabs
+cat frontend-next/lib/breadcrumb-utils.ts | grep -A 20 'SETTINGS_NESTED_TABS'
+
+# Find tabs with sub-tabs that might need URL navigation
+grep -rn 'TabsList.*TabsTrigger' frontend-next/app/\(app\)/admin/system/components --include="*.tsx" -l
+
+# Check for proper subTab prop acceptance
+grep -rn 'subTab.*string' frontend-next/app/\(app\)/admin/system/components --include="*.tsx"
+
+# Check for default sub-tab redirects in company page
+grep -A 10 'Redirect to default sub-tab' frontend-next/app/\(app\)/settings/company/page.tsx
 ```
 
 ### Phase 3: Generate Report
@@ -247,15 +299,114 @@ The agent produces:
 ║  Raw HTML Elements:     5 instances                     [WARN] ║
 ║  Spacing Issues:        8 instances                     [INFO] ║
 ║  Deprecated Components: 2 instances                     [WARN] ║
+║  Redundant Headings:    15 instances                    [WARN] ║
+║  Tab Styling Issues:    3 instances                     [WARN] ║
+║  Missing URL Nav:       4 instances                     [WARN] ║
+║  Breadcrumb Gaps:       6 instances                     [WARN] ║
 ╠════════════════════════════════════════════════════════════════╣
-║  TOTAL: 50 inconsistencies across 34 files                     ║
+║  TOTAL: 78 inconsistencies across 42 files                     ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  TOP FILES TO FIX:                                             ║
-║  • components/settings/GeneralTab.tsx (8 issues)               ║
+║  • admin/system/components/SomeTab.tsx (8 issues)              ║
 ║  • app/(app)/contacts/page.tsx (6 issues)                      ║
-║  • components/ui/custom-modal.tsx (5 issues)                   ║
+║  • lib/breadcrumb-utils.ts (5 missing entries)                 ║
 ╚════════════════════════════════════════════════════════════════╝
 ```
+
+## Settings Tab Patterns Reference
+
+### Correct Patterns
+
+#### Tab Component Structure (NO redundant heading)
+```tsx
+// ✅ CORRECT - just description, no heading
+export function MyTab({ subTab }: { subTab?: string }) {
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Description of what this tab does.
+      </p>
+      {/* Content */}
+    </div>
+  );
+}
+
+// ❌ WRONG - redundant heading
+export function MyTab() {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-lg font-semibold">My Tab</h2>  {/* REMOVE */}
+      <p className="text-sm text-muted-foreground">Description...</p>
+    </div>
+  );
+}
+```
+
+#### TabsList Styling
+```tsx
+// ✅ CORRECT - uses default bg-muted
+<TabsList className="flex-wrap h-auto gap-1">
+
+// ❌ WRONG - overrides background
+<TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+```
+
+#### URL-based Sub-tab Navigation
+```tsx
+// ✅ CORRECT - URL-based navigation
+export function MyTab({ subTab }: { subTab?: string }) {
+  const router = useRouter();
+  const activeSubTab = VALID_TABS.includes(subTab) ? subTab : "default";
+
+  const handleTabChange = (tabId: string) => {
+    router.push(`/settings/section/tab/${tabId}`, { scroll: false });
+  };
+
+  return (
+    <Tabs value={activeSubTab} onValueChange={handleTabChange}>
+      {/* ... */}
+    </Tabs>
+  );
+}
+
+// ❌ WRONG - local state (URL doesn't update)
+export function MyTab() {
+  const [activeSubTab, setActiveSubTab] = useState("default");
+  return (
+    <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
+      {/* ... */}
+    </Tabs>
+  );
+}
+```
+
+#### Parent Page - Default Sub-tab Redirect
+```tsx
+// ✅ CORRECT - redirect to default sub-tab
+useEffect(() => {
+  if (!subTab) {
+    if (activeTab === "my-tab") {
+      router.replace("/settings/company/my-tab/default-sub", { scroll: false });
+    }
+  }
+}, [activeTab, subTab, router]);
+```
+
+### Breadcrumb Utils Checklist
+
+When adding new tabs with sub-tabs, update `lib/breadcrumb-utils.ts`:
+
+1. **TAB_DISPLAY_NAMES** - Add display name for each sub-tab value
+2. **SETTINGS_NESTED_TABS** - Register the parent tab and its sub-tabs
+3. **isSiblingTab()** - Verify it handles the URL depth (2, 3, or 4 segments)
+
+### Files That Must Stay in Sync
+
+| Change | Files to Update |
+|--------|-----------------|
+| New sub-tab | Tab component, company/page.tsx, breadcrumb-utils.ts |
+| Rename sub-tab | Tab component, breadcrumb-utils.ts |
+| New tab with sub-tabs | Tab component, company/page.tsx (redirect), breadcrumb-utils.ts (SETTINGS_NESTED_TABS) |
 
 ## Integration with Other Agents
 

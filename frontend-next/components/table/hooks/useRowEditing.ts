@@ -33,6 +33,7 @@ import {
 import { validateCell as validateCellValue } from '../core/column-renderer/CellValidation';
 import { api } from '@/lib/api';
 import { clearCachedRecords } from '@/lib/records-cache';
+import { isLookupColumn } from '@/lib/constants/column-types';
 import type { TableColumn } from '../types';
 
 // ============================================================================
@@ -153,8 +154,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     // Pre-fetch lookup options for lookup columns
     if (fetchLookupOptions) {
       columns.forEach(col => {
-        if ((col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') &&
-            col.lookup_foundation_id) {
+        if (isLookupColumn(col.column_type) && col.lookup_foundation_id) {
           fetchLookupOptions(col);
         }
       });
@@ -175,8 +175,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     // Pre-fetch lookup options
     if (fetchLookupOptions) {
       columns.forEach(col => {
-        if ((col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') &&
-            col.lookup_foundation_id) {
+        if (isLookupColumn(col.column_type) && col.lookup_foundation_id) {
           fetchLookupOptions(col);
         }
       });
@@ -205,6 +204,10 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     value: unknown,
     columnType?: string
   ) => {
+    // SSoT: column_type should always be provided - log error if missing
+    if (!columnType) {
+      console.error(`[SSoT] validateCell called without columnType for column "${columnKey}"`);
+    }
     const result = validateCellValue(value, columnType || 'single_line_text');
     const error = result.error;
 
@@ -242,6 +245,11 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         const column = columns.find(c => c.key === columnKey);
         if (!column) continue;
 
+        // SSoT: column_type should always be set - log error if missing (skip system columns)
+        const systemColumns = ['id', 'created_at', 'updated_at'];
+        if (!column.column_type && !systemColumns.includes(columnKey)) {
+          console.error(`[SSoT] Column "${columnKey}" missing column_type`);
+        }
         const result = validateCellValue(value, column.column_type || 'single_line_text');
         if (result.error) {
           rowErrors[columnKey] = result.error;

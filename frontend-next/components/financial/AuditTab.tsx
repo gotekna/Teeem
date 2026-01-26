@@ -36,6 +36,7 @@ import {
   Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatDate, formatDateTime } from "@/utils/formatters";
 
 interface AuditLog {
   id: number;
@@ -75,25 +76,6 @@ interface AuditSummary {
     eofy: number;
     last_snapshot: string | null;
   };
-}
-
-function formatDateTime(dateString: string): string {
-  return new Date(dateString).toLocaleString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function AuditTab() {
@@ -161,13 +143,13 @@ export default function AuditTab() {
     switch (action) {
       case "create":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             Create
           </Badge>
         );
       case "update":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             Update
           </Badge>
         );
@@ -181,7 +163,7 @@ export default function AuditTab() {
         );
       case "approve":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             Approve
           </Badge>
         );
@@ -196,13 +178,13 @@ export default function AuditTab() {
         return <Badge variant="outline">Daily</Badge>;
       case "monthly":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             Monthly
           </Badge>
         );
       case "eofy":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             EOFY
           </Badge>
         );
@@ -242,7 +224,7 @@ export default function AuditTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{summary?.today || 0}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary?.today || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">actions</p>
           </CardContent>
         </Card>
@@ -254,7 +236,7 @@ export default function AuditTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{summary?.this_week || 0}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{summary?.this_week || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">actions</p>
           </CardContent>
         </Card>

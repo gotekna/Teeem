@@ -1,24 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { useCallback, useMemo, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Import company-related tab components from admin
-import { SecurityTab } from "@/app/(app)/admin/system/components/SecurityTab";
-import { PermissionsTab } from "@/app/(app)/admin/system/components/PermissionsTab";
-import { CorporateTab } from "@/app/(app)/admin/system/components/CorporateTab";
+// SSoT: Security & Permissions moved to /settings/roles (consolidated Access Control page)
+// SSoT: Corporate moved to /settings/corporate (top-level Organization tab)
 import { HolidaysTab } from "@/app/(app)/admin/system/components/HolidaysTab";
 import { WorkflowsTab } from "@/app/(app)/admin/system/components/WorkflowsTab";
 import { BrandColorsTab } from "@/app/(app)/admin/system/components/BrandColorsTab";
-import { BrandGuidelinesTab } from "@/app/(app)/admin/system/components/BrandGuidelinesTab";
-import { DocumentTemplatesTab } from "@/app/(app)/admin/system/components/DocumentTemplatesTab";
 import { ConnectionsTab } from "@/app/(app)/admin/system/components/ConnectionsTab";
 import { JobSetupTab } from "@/app/(app)/admin/system/components/JobSetupTab";
-import { WorkflowConfigTab } from "@/app/(app)/admin/system/components/WorkflowConfigTab";
+import { DocumentsTab } from "@/app/(app)/admin/system/components/DocumentsTab";
+import { EntityConfigurationTab } from "@/app/(app)/admin/system/components/EntityConfigurationTab";
 import CompanyInfoTab from "@/app/(app)/admin/system/components/CompanyInfoTab";
+import { OfflineTab } from "@/app/(app)/admin/system/components/OfflineTab";
 
 /**
  * Company Settings Page - Organization Settings
@@ -26,46 +24,79 @@ import CompanyInfoTab from "@/app/(app)/admin/system/components/CompanyInfoTab";
  * SSoT: This is THE ONE location for company configuration.
  * Part of the Settings/Admin merge - Organization section.
  * Admin role required (enforced by layout).
+ *
+ * URL is SSoT for tab state: /settings/company/[tab]
+ *
+ * SSoT Note: Security & Permissions have been consolidated into /settings/roles
+ * SSoT Note: Corporate moved to /settings/corporate (top-level Organization tab)
  */
 
+// SSoT: Brand Guidelines moved to /settings/developer (developer tool)
+// SSoT: Workflow Config moved under Job Setup as sub-tab
+// SSoT: Documents consolidated here (was separate Organization tab)
+// SSoT: Folder Config (was Entity Config) moved here from Developer
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
   { id: "brand-colors", label: "Brand Colors" },
-  { id: "brand-guidelines", label: "Brand Guidelines" },
-  { id: "doc-templates", label: "Doc Templates" },
-  { id: "security", label: "Security" },
-  { id: "permissions", label: "Permissions" },
-  { id: "corporate", label: "Corporate" },
+  { id: "documents", label: "Documents" },
   { id: "holidays", label: "Holidays" },
   { id: "workflows", label: "Workflows" },
   { id: "connections", label: "Connections" },
   { id: "job-setup", label: "Job Setup" },
-  { id: "workflow-config", label: "Workflow Config" },
+  { id: "entity-config", label: "Folder Config" },
+  { id: "offline", label: "Offline" },
 ];
 
-export default function CompanySettingsPage() {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = React.useState("info");
+const DEFAULT_TAB = "info";
 
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-  };
+export default function CompanySettingsPage() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  // URL is SSoT for tab state (path-based navigation)
+  // Default to DEFAULT_TAB if no tab specified - no redirect needed
+  // This allows breadcrumb navigation to /settings/company to work
+  const { activeTab, subTab } = useMemo(() => {
+    const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
+    const tab = parts[0] || DEFAULT_TAB;
+    const sub = parts[1] || undefined;
+    // Validate tab exists
+    // For connections tab without subTab, default to "provider"
+    // For entity-config tab without subTab, default to "storage_config"
+    const validTab = COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
+    let effectiveSubTab = sub;
+    if (validTab === "connections" && !sub) effectiveSubTab = "provider";
+    if (validTab === "entity-config" && !sub) effectiveSubTab = "storage_config";
+    return {
+      activeTab: validTab,
+      subTab: effectiveSubTab,
+    };
+  }, [pathname]);
+
+  // Redirect to include default sub-tab in URL for breadcrumb visibility
+  // This keeps URL as SSoT for current tab state
+  useEffect(() => {
+    const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
+    const urlHasSubTab = parts.length >= 2;
+
+    // Redirect tabs with default sub-tabs to full URL
+    if (!urlHasSubTab) {
+      if (activeTab === "connections") {
+        router.replace(`/settings/company/connections/provider`, { scroll: false });
+      } else if (activeTab === "entity-config") {
+        router.replace(`/settings/company/entity-config/storage_config`, { scroll: false });
+      }
+    }
+  }, [pathname, activeTab, router]);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    router.push(`/settings/company/${tabId}`, { scroll: false });
+  }, [router]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Company Settings</h2>
-        <Link
-          href="/corporate"
-          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-        >
-          Go to Corporate Dashboard
-          <ExternalLink className="h-4 w-4" />
-        </Link>
-      </div>
-
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+        <TabsList className="flex-wrap h-auto gap-1">
           {COMPANY_TABS.map((tab) => (
             <TabsTrigger
               key={tab.id}
@@ -84,18 +115,6 @@ export default function CompanySettingsPage() {
           <TabsContent value="brand-colors">
             <BrandColorsTab />
           </TabsContent>
-          <TabsContent value="brand-guidelines">
-            <BrandGuidelinesTab />
-          </TabsContent>
-          <TabsContent value="security">
-            <SecurityTab />
-          </TabsContent>
-          <TabsContent value="permissions">
-            <PermissionsTab />
-          </TabsContent>
-          <TabsContent value="corporate">
-            <CorporateTab />
-          </TabsContent>
           <TabsContent value="holidays">
             <HolidaysTab />
           </TabsContent>
@@ -103,16 +122,19 @@ export default function CompanySettingsPage() {
             <WorkflowsTab />
           </TabsContent>
           <TabsContent value="connections">
-            <ConnectionsTab />
+            <ConnectionsTab subTab={subTab} />
           </TabsContent>
           <TabsContent value="job-setup">
-            <JobSetupTab />
+            <JobSetupTab subTab={subTab} basePath="/settings/company/job-setup" />
           </TabsContent>
-          <TabsContent value="workflow-config">
-            <WorkflowConfigTab />
+          <TabsContent value="documents">
+            <DocumentsTab subTab={subTab} basePath="/settings/company/documents" />
           </TabsContent>
-          <TabsContent value="doc-templates">
-            <DocumentTemplatesTab />
+          <TabsContent value="entity-config">
+            <EntityConfigurationTab subTab={subTab} basePath="/settings/company/entity-config" />
+          </TabsContent>
+          <TabsContent value="offline">
+            <OfflineTab />
           </TabsContent>
         </div>
       </Tabs>

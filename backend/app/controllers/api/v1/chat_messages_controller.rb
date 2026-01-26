@@ -1,4 +1,5 @@
 class Api::V1::ChatMessagesController < ApplicationController
+  include PresignedUploadHandler
   # GET /api/v1/chat_messages/online_users
   # Returns list of users with their online status
   def online_users
@@ -124,9 +125,11 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     messages_with_files = @messages.map do |msg|
       json = msg.as_json(include: { user: {} }, methods: [ :formatted_timestamp, :file_url ])
-      if msg.file.attached? || msg.sharepoint_file_id.present?
+      if msg.file.attached? || msg.storage_reference.present?
         json[:has_file] = true
-        json[:sharepoint_file_id] = msg.sharepoint_file_id
+        # SSoT: Use storage_reference, keep key for backwards compat
+        json[:sharepoint_file_id] = msg.storage_reference
+        json[:storage_reference] = msg.storage_reference
         json[:file_name] = msg.file_name
       end
       json
@@ -135,25 +138,38 @@ class Api::V1::ChatMessagesController < ApplicationController
   end
 
   # POST /api/v1/chat_messages
+  # SSoT: Supports both multipart file upload and presigned URL storage_key
   def create
     @message = ChatMessage.new(message_params)
     @message.user = current_user
 
-    # Handle file attachment if present
-    if params[:chat_message][:file].present?
-      @message.file.attach(params[:chat_message][:file])
-      @message.file_name = params[:chat_message][:file].original_filename
+    # SSoT: Handle file attachment via StorageBlob (Jan 2026)
+    # Accept either direct file upload or storage_key from presigned URL
+    uploaded_file = params.dig(:chat_message, :file)
+    storage_key = params.dig(:chat_message, :storage_key)
+
+    if storage_key.present? && uploaded_file.blank?
+      uploaded_file = download_from_storage(storage_key)
+    end
+
+    if uploaded_file.present?
+      @message.attach_file(
+        uploaded_file.read,
+        filename: uploaded_file.original_filename,
+        content_type: uploaded_file.content_type
+      )
+      @message.file_name = uploaded_file.original_filename
       @message.message_type ||= "file"
     end
 
     if @message.save
       # SharePoint upload happens via after_commit callback
       response_data = @message.as_json(include: { user: {} }, methods: [ :formatted_timestamp, :file_url ])
-      if @message.file.attached?
+      if @message.has_file?
         # File is being uploaded to SharePoint async
         response_data[:has_file] = true
         response_data[:file_name] = @message.file_name
-        response_data[:upload_pending] = @message.sharepoint_file_id.blank?
+        response_data[:upload_pending] = @message.storage_reference.blank?
       end
       render json: response_data, status: :created
     else

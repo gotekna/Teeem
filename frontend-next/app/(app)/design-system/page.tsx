@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { TabbedPage } from "@/components/ui/page-wrappers";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -179,19 +180,19 @@ function StatsCardDemo() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-blue-500" />
+            <Clock className="h-4 w-4 text-blue-500 dark:text-blue-400" />
             <span className="text-xs text-muted-foreground">Active Leads</span>
           </div>
-          <div className="text-2xl font-bold font-mono text-blue-600 mt-1">6</div>
+          <div className="text-2xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-1">6</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
             <span className="text-xs text-muted-foreground">Won</span>
           </div>
-          <div className="text-2xl font-bold font-mono text-green-600 mt-1">1</div>
+          <div className="text-2xl font-bold font-mono text-green-600 dark:text-green-400 mt-1">1</div>
         </CardContent>
       </Card>
       <Card>
@@ -228,16 +229,10 @@ export default function DesignSystemPage() {
   }, [router]);
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight font-serif">Teeem Design System</h1>
-        <p className="text-muted-foreground mt-2">
-          Component library and design guidelines for the Teeem construction management platform.
-          Built with Next.js 15, React 19, Tailwind CSS, and shadcn/ui.
-        </p>
-      </div>
-
+    <TabbedPage
+      title="Teeem Design System"
+      description="Component library and design guidelines for the Teeem construction management platform. Built with Next.js 15, React 19, Tailwind CSS, and shadcn/ui."
+    >
       <Tabs value={activeTab || "kanban"} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="kanban">Kanban & Pipeline</TabsTrigger>
@@ -298,7 +293,7 @@ export default function DesignSystemPage() {
                             <span>Coorparoo</span>
                           </div>
                           <div className="flex items-center justify-between pt-1">
-                            <div className="flex items-center gap-1 text-xs font-medium text-green-600">
+                            <div className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
                               <DollarSign className="h-3 w-3" />
                               $85K
                             </div>
@@ -312,7 +307,7 @@ export default function DesignSystemPage() {
 
                 {/* Specs */}
                 <div className="space-y-4 flex-1">
-                  <h4 className="font-medium">Column Specifications</h4>
+                  <h4 className="text-sm font-medium">Column Specifications</h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">Column Width</p>
@@ -340,7 +335,7 @@ export default function DesignSystemPage() {
                     </div>
                   </div>
 
-                  <h4 className="font-medium pt-4">Status Colors</h4>
+                  <h4 className="text-sm font-medium pt-4">Status Colors</h4>
                   <div className="space-y-2">
                     {PIPELINE_COLUMNS.map(col => (
                       <div key={col.status} className="flex items-center gap-3">
@@ -403,7 +398,7 @@ export default function DesignSystemPage() {
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-100 rounded-lg">
-                      <User className="h-5 w-5 text-blue-600" />
+                      <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                     </div>
                     <CardTitle className="text-base">Contact Details</CardTitle>
                   </div>
@@ -424,7 +419,7 @@ export default function DesignSystemPage() {
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-green-100 rounded-lg">
-                      <Building2 className="h-5 w-5 text-green-600" />
+                      <Building2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                     </div>
                     <CardTitle className="text-base">Site Details</CardTitle>
                   </div>
@@ -445,7 +440,7 @@ export default function DesignSystemPage() {
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-purple-100 rounded-lg">
-                      <Calendar className="h-5 w-5 text-purple-600" />
+                      <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                     </div>
                     <CardTitle className="text-base">Timeline</CardTitle>
                   </div>
@@ -508,15 +503,15 @@ export default function DesignSystemPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge className="bg-muted text-foreground">New</Badge>
-                <Badge className="bg-blue-100 text-blue-800">Contacted</Badge>
-                <Badge className="bg-purple-100 text-purple-800">Qualified</Badge>
-                <Badge className="bg-yellow-100 text-yellow-800">Proposal</Badge>
-                <Badge className="bg-orange-100 text-orange-800">Contract Sent</Badge>
-                <Badge className="bg-green-100 text-green-800">
+                <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">Contacted</Badge>
+                <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">Qualified</Badge>
+                <Badge className="bg-status-warning text-status-warning-foreground">Proposal</Badge>
+                <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300">Contract Sent</Badge>
+                <Badge className="bg-status-success text-status-success-foreground">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   Won
                 </Badge>
-                <Badge className="bg-red-100 text-red-800">Lost</Badge>
+                <Badge className="bg-status-error text-status-error-foreground">Lost</Badge>
               </div>
             </CardContent>
           </Card>
@@ -642,12 +637,12 @@ export default function DesignSystemPage() {
                 <AlertDescription>Something went wrong. Please try again.</AlertDescription>
               </Alert>
               <Alert className="border-green-200 bg-green-50 text-green-800">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                 <AlertTitle className="text-green-800">Success</AlertTitle>
                 <AlertDescription className="text-green-700">Your changes have been saved.</AlertDescription>
               </Alert>
               <Alert className="border-yellow-200 bg-yellow-50 text-yellow-800">
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                 <AlertTitle className="text-yellow-800">Warning</AlertTitle>
                 <AlertDescription className="text-yellow-700">Please review before proceeding.</AlertDescription>
               </Alert>
@@ -661,19 +656,27 @@ export default function DesignSystemPage() {
             </CardHeader>
             <CardContent className="flex items-center gap-8">
               <div className="flex flex-col items-center gap-2">
-                <Spinner />
-                <span className="text-xs text-muted-foreground">Default</span>
+                <Spinner className="h-4 w-4" />
+                <span className="text-xs text-muted-foreground">Small (h-4)</span>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-                <span className="text-xs text-muted-foreground">Spinner</span>
+                <Spinner />
+                <span className="text-xs text-muted-foreground">Default (h-6)</span>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <Spinner className="h-8 w-8" />
+                <span className="text-xs text-muted-foreground">Large (h-8)</span>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <Spinner className="h-12 w-12" />
+                <span className="text-xs text-muted-foreground">XL (h-12)</span>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <Button disabled>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  <Spinner className="h-4 w-4 mr-2" />
                   Loading...
                 </Button>
-                <span className="text-xs text-muted-foreground">Button Loading</span>
+                <span className="text-xs text-muted-foreground">In Button</span>
               </div>
             </CardContent>
           </Card>
@@ -739,6 +742,6 @@ export default function DesignSystemPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </TabbedPage>
   );
 }

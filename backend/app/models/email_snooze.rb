@@ -5,8 +5,15 @@
 # Supports preset durations and custom times.
 #
 class EmailSnooze < ApplicationRecord
-  belongs_to :email_warehouse
+  # SSoT: Legacy column is email_warehouse_id, but actual model is SyncedEmail
+  belongs_to :email_warehouse, class_name: "SyncedEmail"
   belongs_to :user
+
+  # Alias for legacy column name (EmailWarehouse was renamed to SyncedEmail)
+  alias_attribute :synced_email_id, :email_warehouse_id
+  # Use alias_method for associations (alias_attribute only works for columns in Rails 8)
+  alias_method :synced_email, :email_warehouse
+  alias_method :synced_email=, :email_warehouse=
 
   # Validations
   validates :snooze_until, presence: true
@@ -79,12 +86,13 @@ class EmailSnooze < ApplicationRecord
   # Class methods
 
   # Snooze an email for a user
-  # @param email [EmailWarehouse] The email to snooze
+  # @param email [SyncedEmail] The email to snooze
   # @param user [User] The user snoozing the email
   # @param until_time [DateTime] When to bring it back
   # @param reason [String] Optional reason/note
   def self.snooze!(email, user:, until_time:, reason: nil)
     # Cancel any existing active snooze for this email/user
+    # SSoT: Use email_warehouse (actual association), not synced_email alias
     active.where(email_warehouse: email, user: user).update_all(is_active: false)
 
     create!(
@@ -119,7 +127,7 @@ class EmailSnooze < ApplicationRecord
 
   # Get all snoozed emails for a user
   def self.snoozed_emails_for(user)
-    EmailWarehouse
+    SyncedEmail
       .joins(:email_snoozes)
       .where(email_snoozes: { user: user, is_active: true })
       .order("email_snoozes.snooze_until ASC")
@@ -127,11 +135,13 @@ class EmailSnooze < ApplicationRecord
 
   # Check if an email is snoozed for a user
   def self.snoozed?(email, user)
+    # SSoT: Use email_warehouse (actual association), not synced_email alias
     active.exists?(email_warehouse: email, user: user)
   end
 
   # Get the active snooze for an email/user if any
   def self.active_snooze_for(email, user)
+    # SSoT: Use email_warehouse (actual association), not synced_email alias
     active.find_by(email_warehouse: email, user: user)
   end
 
@@ -161,13 +171,13 @@ class EmailSnooze < ApplicationRecord
     )
 
     # Create in-app notification for wakeup
-    if email_warehouse.present?
+    if synced_email.present?
       Notification.create!(
         user: user,
-        notifiable: email_warehouse,
+        notifiable: synced_email,
         notification_type: "email_snooze_wakeup",
         title: "Snoozed Email",
-        message: "Back from snooze: #{email_warehouse.subject.to_s.truncate(100)}"
+        message: "Back from snooze: #{synced_email.subject.to_s.truncate(100)}"
       )
     end
 
@@ -212,7 +222,7 @@ class EmailSnooze < ApplicationRecord
   def as_json(options = {})
     {
       id: id,
-      email_id: email_warehouse_id,
+      email_id: synced_email_id,
       user_id: user_id,
       snooze_until: snooze_until,
       is_active: is_active,

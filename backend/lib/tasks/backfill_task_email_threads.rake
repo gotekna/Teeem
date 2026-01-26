@@ -7,7 +7,7 @@ namespace :tasks do
 
     # Find all tasks with email attachments
     task_ids_with_emails = SmTaskAttachment
-      .where(attachable_type: "EmailWarehouse")
+      .where(attachable_type: "SyncedEmail")
       .distinct
       .pluck(:sm_task_id)
 
@@ -23,7 +23,7 @@ namespace :tasks do
 
       # Get all conversation_ids for emails attached to this task
       attached_emails = SmTaskAttachment
-        .where(sm_task_id: task_id, attachable_type: "EmailWarehouse")
+        .where(sm_task_id: task_id, attachable_type: "SyncedEmail")
         .includes(:attachable)
         .map(&:attachable)
         .compact
@@ -34,7 +34,7 @@ namespace :tasks do
       # Find all emails in these conversations that aren't already attached
       attached_email_ids = attached_emails.map(&:id)
 
-      thread_emails = EmailWarehouse
+      thread_emails = SyncedEmail
         .where(conversation_id: conversation_ids)
         .where.not(id: attached_email_ids)
 

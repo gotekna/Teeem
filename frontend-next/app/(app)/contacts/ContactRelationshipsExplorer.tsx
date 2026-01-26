@@ -153,13 +153,13 @@ export default function ContactRelationshipsExplorer({ initialContactId }: Conta
   // Get relationship category color
   const getRelationshipColor = (relationshipType: string) => {
     if (relationshipType.includes("employee") || relationshipType.includes("contractor")) {
-      return "bg-blue-100 text-blue-800 border-blue-300";
+      return "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300";
     } else if (relationshipType.includes("director") || relationshipType.includes("shareholder")) {
-      return "bg-green-100 text-green-800 border-green-300";
+      return "bg-status-success text-status-success-foreground border-green-300";
     } else if (relationshipType.includes("trustee") || relationshipType.includes("beneficiary")) {
-      return "bg-purple-100 text-purple-800 border-purple-300";
+      return "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300";
     } else if (relationshipType.includes("family")) {
-      return "bg-pink-100 text-pink-800 border-pink-300";
+      return "bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-300 border-pink-300";
     }
     return "bg-muted text-foreground border-border";
   };

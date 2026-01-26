@@ -20,6 +20,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface BudgetItem {
   id: number;
@@ -48,20 +49,11 @@ interface JobBudgetTabProps {
   jobId: string | number;
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
 const STATUS_VARIANTS: Record<string, { variant: string; label: string }> = {
   pending: { variant: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground", label: "Pending" },
-  part_payment: { variant: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400", label: "Part Payment" },
-  complete: { variant: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", label: "Complete" },
-  manual_review: { variant: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", label: "Needs Review" },
+  part_payment: { variant: "bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400", label: "Part Payment" },
+  complete: { variant: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400", label: "Complete" },
+  manual_review: { variant: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400", label: "Needs Review" },
 };
 
 export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
@@ -129,7 +121,7 @@ export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
       <Card>
         <CardContent className="py-12 text-center">
           <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-          <h3 className="text-base font-semibold">Budget Tracking</h3>
+          <h3 className="text-sm font-semibold">Budget Tracking</h3>
           <p className="text-sm text-muted-foreground mt-1">
             No purchase orders yet. Create purchase orders to start tracking your budget.
           </p>
@@ -168,8 +160,8 @@ export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
               </p>
               {totals.budgeted > 0 && totals.variance_percentage != null && (
                 <p className={`text-sm ${getVarianceColor(totals.variance)}`}>
-                  ({totals.variance_percentage >= 0 ? "+" : ""}
-                  {totals.variance_percentage.toFixed(2)}%)
+                  ({Number(totals.variance_percentage) >= 0 ? "+" : ""}
+                  {(Number(totals.variance_percentage) || 0).toFixed(2)}%)
                 </p>
               )}
             </div>
@@ -235,7 +227,7 @@ export function JobBudgetTab({ jobId }: JobBudgetTabProps) {
       <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+            <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
             <div>
               <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
                 About Budget Tracking

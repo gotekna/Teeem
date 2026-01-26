@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   Plus,
-  ArrowLeft,
   Settings,
   Building2,
   DollarSign,
@@ -44,6 +43,7 @@ import {
   Shield,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 
 interface CompanyApprovalRule {
   id: number;
@@ -92,6 +92,7 @@ const approverTypeLabels: Record<string, string> = {
 };
 
 export default function FinanceSettingsPage() {
+  const { confirm } = useConfirm();
   const [rules, setRules] = useState<CompanyApprovalRule[]>([]);
   const [companies, setCompanies] = useState<CorporateCompany[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -210,7 +211,7 @@ export default function FinanceSettingsPage() {
   };
 
   const handleDelete = async (ruleId: number) => {
-    if (!confirm("Are you sure you want to delete this rule?")) return;
+    if (!(await confirm("Are you sure you want to delete this rule?"))) return;
     try {
       await api.delete(`/api/v1/company_approval_rules/${ruleId}`);
       await loadData();
@@ -235,12 +236,7 @@ export default function FinanceSettingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/finance">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Link>
-          </Button>
+<BackButton fallbackHref="/finance" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">Finance Settings</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -362,7 +358,7 @@ export default function FinanceSettingsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-red-600"
+                        className="text-red-600 dark:text-red-400"
                         onClick={() => handleDelete(rule.id)}
                       >
                         <Trash2 className="h-4 w-4" />

@@ -39,6 +39,7 @@ import { TokenBuilder } from "@/components/ui/tokens/TokenBuilder";
 import type { PlaceholderToken } from "@/lib/placeholders";
 import { SortableList, SortableItem, ItemBadge } from "@/components/ui/dnd";
 import { Spinner } from "@/components/ui/spinner";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 // Custom placeholders for Plan Types
 const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
@@ -225,6 +226,7 @@ export function PlansTab() {
 
 export function CategoriesSection() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [categories, setCategories] = React.useState<PlanCategory[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showDialog, setShowDialog] = React.useState(false);
@@ -299,7 +301,7 @@ export function CategoriesSection() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this category?")) return;
+    if (!(await confirm("Are you sure you want to delete this category?"))) return;
 
     setDeleting(id);
     try {
@@ -326,7 +328,7 @@ export function CategoriesSection() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium">Plan Categories</h3>
+          <h3 className="text-sm font-medium">Plan Categories</h3>
           <p className="text-sm text-muted-foreground">
             Categories group plan types (e.g., Drawings, Certification, Cabinets)
           </p>
@@ -388,7 +390,7 @@ export function CategoriesSection() {
                       {deleting === category.id ? (
                         <Spinner size={16} />
                       ) : (
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                       )}
                     </Button>
                   </div>
@@ -457,6 +459,7 @@ interface GlobalDefaults {
 
 export function TypesSection() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [types, setTypes] = React.useState<PlanType[]>([]);
   const [categories, setCategories] = React.useState<PlanCategory[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -590,7 +593,7 @@ export function TypesSection() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this plan type?")) return;
+    if (!(await confirm("Are you sure you want to delete this plan type?"))) return;
 
     setDeleting(id);
     try {
@@ -752,7 +755,7 @@ export function TypesSection() {
       {/* Plan Types List */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium">Plan Types</h3>
+          <h3 className="text-sm font-medium">Plan Types</h3>
           <p className="text-sm text-muted-foreground">
             Standard drawing types (e.g., 01-PERSPECTIVE, 07-SLAB PLAN)
           </p>
@@ -818,7 +821,7 @@ export function TypesSection() {
                         {deleting === type.id ? (
                           <Spinner size={16} />
                         ) : (
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                         )}
                       </Button>
                     </div>
@@ -1054,6 +1057,7 @@ export function TypesSection() {
 
 export function RevisionFormatsSection() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [formats, setFormats] = React.useState<RevisionFormat[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showDialog, setShowDialog] = React.useState(false);
@@ -1135,7 +1139,7 @@ export function RevisionFormatsSection() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this format?")) return;
+    if (!(await confirm("Are you sure you want to delete this format?"))) return;
 
     setDeleting(id);
     try {
@@ -1173,7 +1177,7 @@ export function RevisionFormatsSection() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium">Revision Formats</h3>
+          <h3 className="text-sm font-medium">Revision Formats</h3>
           <p className="text-sm text-muted-foreground">
             Configure revision sequences (e.g., A, B, C or 1, 2, 3)
           </p>
@@ -1206,7 +1210,7 @@ export function RevisionFormatsSection() {
                       <div className="flex items-center gap-2">
                         <p className="font-medium">{format.name}</p>
                         {format.is_default && (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
                             Default
                           </Badge>
                         )}
@@ -1243,7 +1247,7 @@ export function RevisionFormatsSection() {
                       {deleting === format.id ? (
                         <Spinner size={16} />
                       ) : (
-                        <Trash2 className="h-4 w-4 text-red-500" />
+                        <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                       )}
                     </Button>
                   </div>

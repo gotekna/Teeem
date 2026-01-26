@@ -16,6 +16,14 @@ import {
   FunnelIcon,
   CalendarIcon,
 } from "@heroicons/react/24/outline";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface Construction {
   id: number;
@@ -110,7 +118,7 @@ const TaskCard = ({
     >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-foreground dark:text-white truncate">{task.name}</h3>
+          <h3 className="text-sm font-medium text-foreground dark:text-white truncate">{task.name}</h3>
           <p className="text-sm text-muted-foreground dark:text-muted-foreground mt-1">{task.trade}</p>
         </div>
         <StatusBadge status={task.status} />
@@ -184,7 +192,7 @@ const TaskDetailModal = ({
   useEffect(() => {
     const fetchDetail = async () => {
       try {
-        const token = localStorage.getItem("portal_token");
+        const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
         axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
         const res = await axios.get(`/api/v1/portal/sm_tasks/${task.id}`);
@@ -200,7 +208,7 @@ const TaskDetailModal = ({
 
   const handleConfirm = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       await axios.patch(`/api/v1/portal/sm_tasks/${task.id}`, {
@@ -219,7 +227,7 @@ const TaskDetailModal = ({
     if (!newComment.trim()) return;
     setSubmitting(true);
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       await axios.post(`/api/v1/portal/sm_tasks/${task.id}/add_comment`, {
@@ -456,7 +464,7 @@ export default function PortalSchedule() {
 
   const fetchTasks = useCallback(async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const params: any = {};
@@ -533,16 +541,17 @@ export default function PortalSchedule() {
       {/* Filter */}
       <div className="mb-4 flex items-center gap-2">
         <FunnelIcon className="w-5 h-5 text-muted-foreground dark:text-muted-foreground" />
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="text-sm border-border dark:border-border dark:bg-muted dark:text-white rounded-md"
-        >
-          <option value="all">All Tasks</option>
-          <option value={TASK_STATUS.NOT_STARTED}>Upcoming</option>
-          <option value={TASK_STATUS.STARTED}>In Progress</option>
-          <option value={TASK_STATUS.COMPLETED}>Completed</option>
-        </select>
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="w-[150px] text-sm">
+            <SelectValue placeholder="All Tasks" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Tasks</SelectItem>
+            <SelectItem value={TASK_STATUS.NOT_STARTED}>Upcoming</SelectItem>
+            <SelectItem value={TASK_STATUS.STARTED}>In Progress</SelectItem>
+            <SelectItem value={TASK_STATUS.COMPLETED}>Completed</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Task list */}

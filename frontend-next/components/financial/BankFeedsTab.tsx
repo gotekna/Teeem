@@ -51,6 +51,7 @@ import {
   Zap,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 // Types
 interface BankAccount {
@@ -285,24 +286,6 @@ export default function BankFeedsTab() {
     }
   }, [successMessage]);
 
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
-  };
-
-  // Format date
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
   // Format time ago
   const formatTimeAgo = (dateString: string | null) => {
     if (!dateString) return "Never";
@@ -325,7 +308,7 @@ export default function BankFeedsTab() {
   const getConnectionBadge = (account: BankAccount) => {
     if (account.external_provider) {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           <Wifi className="h-3 w-3 mr-1" />
           Connected
         </Badge>
@@ -343,7 +326,7 @@ export default function BankFeedsTab() {
   const getReconciliationBadge = (recon: Reconciliation) => {
     if (recon.reconciled) {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
           <CheckCircle className="h-3 w-3 mr-1" />
           Reconciled
         </Badge>
@@ -351,7 +334,7 @@ export default function BankFeedsTab() {
     }
     if (recon.status === "in_progress") {
       return (
-        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+        <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
           <Clock className="h-3 w-3 mr-1" />
           In Progress
         </Badge>
@@ -759,7 +742,7 @@ export default function BankFeedsTab() {
                         <Landmark className="h-8 w-8 text-muted-foreground" />
                       </div>
                       <div>
-                        <h3 className="font-semibold">Open Banking Integration</h3>
+                        <h3 className="text-sm font-semibold">Open Banking Integration</h3>
                         <p className="text-sm text-muted-foreground mt-1">
                           Connect to 120+ Australian banks via CDR/Open Banking
                         </p>
@@ -771,7 +754,7 @@ export default function BankFeedsTab() {
                           <p className="text-xs text-muted-foreground">Live transaction sync</p>
                         </div>
                         <div className="p-3 rounded-lg bg-muted/50">
-                          <CheckCircle className="h-4 w-4 mx-auto mb-1 text-green-500" />
+                          <CheckCircle className="h-4 w-4 mx-auto mb-1 text-green-500 dark:text-green-400" />
                           <p className="font-medium">Secure</p>
                           <p className="text-xs text-muted-foreground">Bank-grade security</p>
                         </div>

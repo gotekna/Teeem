@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { useToast } from '@/components/ui/use-toast'
 
 /**
  * PredecessorEditor Modal
@@ -21,6 +22,7 @@ const DEPENDENCY_TYPES = [
 ]
 
 export default function PredecessorEditor({ isOpen, onClose, currentRow, allRows, onSave }) {
+  const { toast } = useToast()
   const [predecessors, setPredecessors] = useState([])
 
   useEffect(() => {
@@ -75,7 +77,7 @@ export default function PredecessorEditor({ isOpen, onClose, currentRow, allRows
     // Check direct circular dependency (task can't be its own predecessor)
     const hasDirectCircular = validPreds.some(p => p.id === currentTaskNumber)
     if (hasDirectCircular) {
-      alert('Error: A task cannot be a predecessor of itself.')
+      toast({ title: "Validation Error", description: "A task cannot be a predecessor of itself.", variant: "destructive" })
       return
     }
 

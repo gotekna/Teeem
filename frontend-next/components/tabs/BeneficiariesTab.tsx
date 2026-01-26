@@ -117,7 +117,7 @@ export function BeneficiariesTab({ company, onAddBeneficiary }: BeneficiariesTab
                 Named Beneficiaries ({namedBeneficiaries.length})
               </h4>
               <div className="space-y-2">
-                {namedBeneficiaries.map((b) => renderBeneficiaryCard(b, "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"))}
+                {namedBeneficiaries.map((b) => renderBeneficiaryCard(b, "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300"))}
               </div>
             </div>
           )}
@@ -130,7 +130,7 @@ export function BeneficiariesTab({ company, onAddBeneficiary }: BeneficiariesTab
               </h4>
               <p className="text-xs text-muted-foreground">Groups or classes of beneficiaries (e.g., &quot;children of X&quot;, &quot;relatives&quot;)</p>
               <div className="space-y-2">
-                {classBeneficiaries.map((b) => renderBeneficiaryCard(b, "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"))}
+                {classBeneficiaries.map((b) => renderBeneficiaryCard(b, "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300"))}
               </div>
             </div>
           )}
@@ -143,7 +143,7 @@ export function BeneficiariesTab({ company, onAddBeneficiary }: BeneficiariesTab
               </h4>
               <p className="text-xs text-muted-foreground">Receives trust property if trustee fails to exercise discretion or trust winds up</p>
               <div className="space-y-2">
-                {defaultBeneficiary.map((b) => renderBeneficiaryCard(b, "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"))}
+                {defaultBeneficiary.map((b) => renderBeneficiaryCard(b, "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900/30 dark:text-amber-300"))}
               </div>
             </div>
           )}

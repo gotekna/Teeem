@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import {
   Cog6ToothIcon,
   PauseIcon,
@@ -91,6 +92,7 @@ interface TemplatesResponse {
 
 function HoldReasonsTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [holdReasons, setHoldReasons] = useState<HoldReason[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -151,7 +153,7 @@ function HoldReasonsTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this hold reason?")) return;
+    if (!(await confirm("Delete this hold reason?"))) return;
     try {
       await api.delete(`/api/v1/sm_hold_reasons/${id}`);
       toast({ title: "Hold reason deleted" });
@@ -257,7 +259,7 @@ function HoldReasonsTab() {
                       variant="secondary"
                       className={
                         reason.is_active
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                          ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
                           : ""
                       }
                     >
@@ -269,7 +271,7 @@ function HoldReasonsTab() {
                   {editingId === reason.id ? (
                     <div className="flex items-center justify-end gap-2">
                       <Button variant="ghost" size="icon" onClick={handleSave}>
-                        <CheckIcon className="h-4 w-4 text-green-600" />
+                        <CheckIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => setEditingId(null)}>
                         <XMarkIcon className="h-4 w-4" />
@@ -425,6 +427,7 @@ function RolloverSettingsTab() {
 
 function TemplatesTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [templates, setTemplates] = useState<SmScheduleMasterTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -469,7 +472,7 @@ function TemplatesTab() {
   };
 
   const handleDelete = async (templateId: number) => {
-    if (!confirm("Archive this template?")) return;
+    if (!(await confirm("Archive this template?"))) return;
 
     try {
       await api.delete(`/api/v1/sm_schedule_master_templates/${templateId}`);
@@ -523,7 +526,7 @@ function TemplatesTab() {
                     variant="ghost"
                     size="icon"
                     onClick={() => handleSetDefault(template.id)}
-                    className={template.is_default ? "text-yellow-500" : "text-muted-foreground"}
+                    className={template.is_default ? "text-yellow-500 dark:text-yellow-400" : "text-muted-foreground"}
                     title={template.is_default ? "Default template" : "Set as default"}
                   >
                     {template.is_default ? (

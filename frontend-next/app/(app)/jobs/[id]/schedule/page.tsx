@@ -39,8 +39,7 @@ import { EditRowDialog, type EditRowData, type EditRowFormData } from "@/compone
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
-import { GanttUnified } from "@/components/gantt-v2";
+import { GanttUnified } from "@/components/gantt";
 import type { GanttTask, GanttDependency } from "@/lib/gantt/types";
 import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/spinner";
@@ -330,9 +329,6 @@ export default function SchedulePage() {
 
   // Check if Gantt should auto-open from URL param
   const shouldOpenGantt = searchParams.get('gantt') === 'true';
-
-  // Feature flag: Use Gantt V2 (new unified canvas) when ?v2=true
-  const useGanttV2 = searchParams.get('v2') === 'true';
 
   // SSoT: Path-based view URLs for embedded tables
   // Handles: /jobs/123/schedule/po-tasks-only → viewSlug = "po-tasks-only"
@@ -1343,7 +1339,7 @@ export default function SchedulePage() {
                 variant={selectedGanttTask?.jobClaimStageId ? "default" : "outline"}
                 size="sm"
                 className="h-7 px-2 text-xs"
-                onClick={() => window.open(`/jobs/${jobId}?tab=claims`, '_blank')}
+                onClick={() => window.open(`/jobs/${jobId}/claims`, '_blank')}
               >
                 Claims
               </Button>
@@ -1375,42 +1371,19 @@ export default function SchedulePage() {
               </div>
             </>
           ) : (
-            <>
-              {console.log('[SchedulePage] 🎨 Rendering Gantt', {
-                useGanttV2,
-                tasksCount: ganttTasksFormatted.length,
-                depsCount: ganttDependencies.length
-              })}
-              {useGanttV2 ? (
-                <GanttUnified
-                  tasks={ganttTasksFormatted}
-                  dependencies={ganttDependencies}
-                  showToolbar={true}
-                  onTaskDrag={handleTaskDrag}
-                  onTaskClick={(task) => {
-                    console.log('Gantt V2 task clicked:', task.id, task.name);
-                    setSelectedGanttTask(task);
-                  }}
-                  className="h-full"
-                  jobId={Number(jobId)}
-                  onDataChange={refetchGanttData}
-                />
-              ) : (
-                <GanttCanvasView
-                  staticTasks={ganttTasksFormatted}
-                  staticDependencies={ganttDependencies}
-                  showToolbar={true}
-                  onTaskDrag={handleTaskDrag}
-                  onTaskClick={(task) => {
-                    console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
-                    setSelectedGanttTask(task);
-                  }}
-                  className="h-full"
-                  jobId={Number(jobId)}
-                  onDataChange={refetchGanttData}
-                />
-              )}
-            </>
+            <GanttUnified
+              tasks={ganttTasksFormatted}
+              dependencies={ganttDependencies}
+              showToolbar={true}
+              onTaskDrag={handleTaskDrag}
+              onTaskClick={(task) => {
+                console.log('Gantt task clicked:', task.id, task.name);
+                setSelectedGanttTask(task);
+              }}
+              className="h-full"
+              jobId={Number(jobId)}
+              onDataChange={refetchGanttData}
+            />
           )}
         </div>
       </div>
@@ -1438,7 +1411,7 @@ export default function SchedulePage() {
             <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/purchase-orders`, '_blank')}>
               PO
             </Button>
-            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}?tab=claims`, '_blank')}>
+            <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/claims`, '_blank')}>
               Claims
             </Button>
             <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => window.open(`/jobs/${jobId}/site`, '_blank')}>
@@ -1482,10 +1455,10 @@ export default function SchedulePage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => router.push(`/jobs/${jobId}/schedule/gantt-v2`)}
+                onClick={() => router.push(`/jobs/${jobId}/schedule/gantt`)}
               >
                 <BarChart3 className="h-4 w-4 mr-2" />
-                Open Gantt v2
+                Open Gantt
               </Button>
             </div>
           }
@@ -1509,35 +1482,19 @@ export default function SchedulePage() {
                 <Spinner size={32} className="text-muted-foreground" />
               </div>
             ) : ganttTasks.length > 0 ? (
-              useGanttV2 ? (
-                <GanttUnified
-                  tasks={ganttTasksFormatted}
-                  dependencies={ganttDependencies}
-                  showToolbar={true}
-                  onTaskDrag={handleTaskDrag}
-                  onTaskClick={(task) => {
-                    console.log('Gantt V2 sheet task clicked:', task.id, task.name);
-                    setSelectedGanttTask(task);
-                  }}
-                  className="h-full"
-                  jobId={Number(jobId)}
-                  onDataChange={refetchGanttData}
-                />
-              ) : (
-                <GanttCanvasView
-                  staticTasks={ganttTasksFormatted}
-                  staticDependencies={ganttDependencies}
-                  showToolbar={true}
-                  onTaskDrag={handleTaskDrag}
-                  onTaskClick={(task) => {
-                    console.log('Gantt task clicked:', task.id, task.name, 'PO:', task.purchaseOrderId, task.purchaseOrderNumber);
-                    setSelectedGanttTask(task);
-                  }}
-                  className="h-full"
-                  jobId={Number(jobId)}
-                  onDataChange={refetchGanttData}
-                />
-              )
+              <GanttUnified
+                tasks={ganttTasksFormatted}
+                dependencies={ganttDependencies}
+                showToolbar={true}
+                onTaskDrag={handleTaskDrag}
+                onTaskClick={(task) => {
+                  console.log('Gantt task clicked:', task.id, task.name);
+                  setSelectedGanttTask(task);
+                }}
+                className="h-full"
+                jobId={Number(jobId)}
+                onDataChange={refetchGanttData}
+              />
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No tasks to display</p>
@@ -1665,7 +1622,7 @@ export default function SchedulePage() {
                    analyzeResult.summary.needs_confirmation_count === 0 &&
                    analyzeResult.summary.will_create_count === 0 && (
                     <div className="py-4 text-center">
-                      <Check className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                      <Check className="h-8 w-8 text-green-500 dark:text-green-400 mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">All template rows are already linked to job tasks.</p>
                     </div>
                   )}
@@ -1685,10 +1642,10 @@ export default function SchedulePage() {
                         <TableBody>
                           {analyzeResult.analysis.auto_link.map((match) => (
                             <UITableRow key={`auto-${match.template_row_id}`} className="bg-green-50/50 dark:bg-green-950/30">
-                              <TableCell><Check className="h-4 w-4 text-green-600" /></TableCell>
+                              <TableCell><Check className="h-4 w-4 text-green-600 dark:text-green-400" /></TableCell>
                               <TableCell><div className="font-medium text-sm">{match.name}</div></TableCell>
                               <TableCell><div className="font-medium text-sm">{match.task_name}</div></TableCell>
-                              <TableCell><Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">{match.similarity}%</Badge></TableCell>
+                              <TableCell><Badge variant="secondary" className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900 dark:text-green-300">{match.similarity}%</Badge></TableCell>
                               <TableCell><span className="text-xs text-green-600 dark:text-green-400">Auto-link</span></TableCell>
                             </UITableRow>
                           ))}
@@ -1715,7 +1672,7 @@ export default function SchedulePage() {
                                 <div className="font-medium text-sm">{match.task_name}</div>
                                 <div className="text-xs text-muted-foreground">#{match.task_task_number}</div>
                               </TableCell>
-                              <TableCell><Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">{match.similarity}%</Badge></TableCell>
+                              <TableCell><Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900 dark:text-amber-300">{match.similarity}%</Badge></TableCell>
                               <TableCell><span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Confirm</span></TableCell>
                             </UITableRow>
                           ))}
@@ -1905,7 +1862,7 @@ export default function SchedulePage() {
                               <TableCell className="font-mono text-muted-foreground text-sm">{task.task_number}</TableCell>
                               <TableCell><div className="font-medium text-sm">{task.name}</div></TableCell>
                               <TableCell>
-                                <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">
+                                <Badge variant="secondary" className="bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900 dark:text-red-300">
                                   Unlinked
                                 </Badge>
                               </TableCell>
@@ -1980,9 +1937,9 @@ export default function SchedulePage() {
                               <Badge
                                 variant="secondary"
                                 className={
-                                  comp.status === "will_create" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
-                                  comp.status === "will_update" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" :
-                                  comp.status === "will_skip" ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" :
+                                  comp.status === "will_create" ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900 dark:text-green-300" :
+                                  comp.status === "will_update" ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300" :
+                                  comp.status === "will_skip" ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-900 dark:text-amber-300" :
                                   "bg-muted text-muted-foreground dark:bg-card dark:text-muted-foreground"
                                 }
                               >
@@ -2008,9 +1965,9 @@ export default function SchedulePage() {
                                     return (
                                       <div key={field} className="flex gap-1">
                                         <span className="font-medium">{field}:</span>
-                                        <span className="text-red-500 line-through truncate max-w-[100px]">{formatValue(diff.task)}</span>
+                                        <span className="text-red-500 dark:text-red-400 line-through truncate max-w-[100px]">{formatValue(diff.task)}</span>
                                         <span>→</span>
-                                        <span className="text-green-600 truncate max-w-[100px]">{formatValue(diff.template)}</span>
+                                        <span className="text-green-600 dark:text-green-400 truncate max-w-[100px]">{formatValue(diff.template)}</span>
                                       </div>
                                     );
                                   })}
@@ -2209,7 +2166,7 @@ export default function SchedulePage() {
                 <div className="border-t pt-2 mt-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">PO links to preserve:</span>
-                    <span className="font-medium text-green-600">{resetPreview.po_links_to_preserve}</span>
+                    <span className="font-medium text-green-600 dark:text-green-400">{resetPreview.po_links_to_preserve}</span>
                   </div>
                   {resetPreview.po_links_to_orphan > 0 && (
                     <div className="flex justify-between text-sm">

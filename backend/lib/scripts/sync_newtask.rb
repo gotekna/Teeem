@@ -12,7 +12,7 @@ puts "Found #{emails.count} emails to sync"
 emails.each do |email_data|
   internet_message_id = email_data["internetMessageId"] || email_data["id"]
 
-  email = EmailWarehouse.find_or_initialize_by(internet_message_id: internet_message_id)
+  email = SyncedEmail.find_or_initialize_by(internet_message_id: internet_message_id)
 
   from_data = email_data["from"]&.dig("emailAddress") || {}
   to_emails = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact

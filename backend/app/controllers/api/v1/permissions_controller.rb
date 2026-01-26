@@ -61,7 +61,12 @@ module Api
             users_count: role.users.count,
             # Schedule Master task count for this role
             tasks_count: SmTask.for_role(role.name).count,
-            permissions: get_role_permissions(role.name)
+            permissions: get_role_permissions(role.name),
+            # Role settings (Jan 2026)
+            settings: role.settings || {},
+            default_task_view: role.default_task_view,
+            default_theme: role.default_theme,
+            sidebar_collapsed: role.sidebar_collapsed?
           }
         end
 
@@ -95,17 +100,38 @@ module Api
         role = Role.find(params[:id])
         role_params = params[:role] || params
 
-        if role.update(
-          display_name: role_params[:display_name],
-          description: role_params[:description]
-        )
+        # Update basic fields
+        role.display_name = role_params[:display_name] if role_params[:display_name].present?
+        role.description = role_params[:description] if role_params.key?(:description)
+
+        # Update settings if provided (Jan 2026)
+        if role_params[:settings].present?
+          role.update_settings(role_params[:settings])
+        end
+
+        # Individual setting fields (alternative to nested settings object)
+        if role_params[:default_task_view].present?
+          role.default_task_view = role_params[:default_task_view]
+        end
+        if role_params[:default_theme].present?
+          role.default_theme = role_params[:default_theme]
+        end
+        if role_params.key?(:sidebar_collapsed)
+          role.sidebar_collapsed = role_params[:sidebar_collapsed]
+        end
+
+        if role.save
           render json: {
             success: true,
             role: {
               id: role.id,
               name: role.name,
               display_name: role.display_name,
-              description: role.description
+              description: role.description,
+              settings: role.settings,
+              default_task_view: role.default_task_view,
+              default_theme: role.default_theme,
+              sidebar_collapsed: role.sidebar_collapsed?
             }
           }
         else

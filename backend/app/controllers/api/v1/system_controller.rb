@@ -306,7 +306,8 @@ module Api
           next_time
         when /at (\d+)am every day/i
           hour = $1.to_i
-          next_time = Time.current.in_time_zone("Australia/Brisbane").beginning_of_day + hour.hours
+          # SSoT: Use CorporateCompanySetting for timezone
+          next_time = CorporateCompanySetting.now.beginning_of_day + hour.hours
           next_time += 1.day if next_time < Time.current
           next_time
         else

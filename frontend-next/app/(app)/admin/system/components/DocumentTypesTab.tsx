@@ -2,10 +2,8 @@
 
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -21,12 +19,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Plus,
   Building2,
   Briefcase,
   Users,
-  FolderOpen,
+  PenTool,
 } from "lucide-react";
+import { SignatureFieldConfigModal, type SignatureFieldConfig } from "@/components/documents/signature-field-config-modal";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -35,12 +33,9 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
-import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 
 // SSoT: Use slug for Foundation lookup - numeric IDs differ per environment
 const DOCUMENT_TYPES_FOUNDATION_SLUG = "document_types";
-
-// SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
 
 interface FolderOption {
   id: number;
@@ -82,6 +77,8 @@ interface DocumentType extends TableRow {
   file_extensions?: string[];
   file_extensions_display?: string;
   target_folder?: string;
+  // Signature field configuration for Word→PDF conversion
+  signature_field_config?: SignatureFieldConfig[];
 }
 
 // Separate component for tabs display with popover - MUST be outside DocumentTypesTab to avoid hook violations
@@ -188,7 +185,7 @@ function TabsDisplayCell({
                   />
                   <span className="font-medium">
                     {parentFolder.name}
-                    {isPrimary && <span className="ml-1 text-blue-600">★</span>}
+                    {isPrimary && <span className="ml-1 text-blue-600 dark:text-blue-400">★</span>}
                   </span>
                 </div>
 
@@ -215,7 +212,7 @@ function TabsDisplayCell({
                           />
                           <span className="font-medium text-muted-foreground">
                             └ {child.name}
-                            {childPrimary && <span className="ml-1 text-green-600">★</span>}
+                            {childPrimary && <span className="ml-1 text-green-600 dark:text-green-400">★</span>}
                           </span>
                         </div>
                       );
@@ -231,7 +228,14 @@ function TabsDisplayCell({
   );
 }
 
-export function DocumentTypesTab() {
+interface DocumentTypesTabProps {
+  /** Base path for navigation (e.g., "/settings/documents/types" or "/admin/system/document-types") */
+  basePath?: string;
+}
+
+const DEFAULT_DOC_TYPES_BASE_PATH = "/admin/system/document-types";
+
+export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: DocumentTypesTabProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -243,40 +247,35 @@ export function DocumentTypesTab() {
   const scopeFilter = validScopes.includes(lastPart) ? lastPart as "company" | "job" | "contacts" : "all";
 
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [loading, setLoading] = React.useState(true);
   const [documentTypes, setDocumentTypes] = React.useState<DocumentType[]>([]);
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
-  const [showAddForm, setShowAddForm] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [newDocType, setNewDocType] = React.useState({
-    name: "",
-    abbreviation: "",
-    file_name: "{CompanyCode} {Description} {Date}",
-    folder: "GENERAL",
-    primary_tab: "GENERAL",
-    active: true
-  });
+  // SSoT: Add form handled by TeeemTableView's built-in "Add Record" modal
   const [availableFolders, setAvailableFolders] = React.useState<FolderOption[]>([]);
+  // Signature field configuration modal state
+  const [signatureModalOpen, setSignatureModalOpen] = React.useState(false);
+  const [signatureModalDocType, setSignatureModalDocType] = React.useState<DocumentType | null>(null);
+  const [signatureModalPdf, setSignatureModalPdf] = React.useState<string | undefined>(undefined);
 
   // Filter document types by scope
+  // SSoT: "contacts" is THE ONE scope for all individuals (Jan 2026 consolidation)
   const filteredDocTypes = React.useMemo(() => {
     if (scopeFilter === "all") return documentTypes;
-    // SSoT: "contacts" scope includes legacy "people" scope for backwards compatibility
     if (scopeFilter === "contacts") {
-      return documentTypes.filter(dt => dt.scope === "contacts" || dt.scope === "people");
+      return documentTypes.filter(dt => dt.scope === "contacts");
     }
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
 
   // Handle scope tab change - update URL for back button support
   const handleScopeChange = React.useCallback((value: string) => {
-    const basePath = "/admin/system/entity-config/document_types";
     if (value === "all") {
       router.push(basePath, { scroll: false });
     } else {
       router.push(`${basePath}/${value}`, { scroll: false });
     }
-  }, [router]);
+  }, [router, basePath]);
 
   React.useEffect(() => {
     fetchColumns();
@@ -382,7 +381,7 @@ export function DocumentTypesTab() {
   };
 
   const handleDelete = async (entry: DocumentType) => {
-    if (!confirm(`Delete document type "${entry.name}"? This cannot be undone.`)) {
+    if (!(await confirm(`Delete document type "${entry.name}"? This cannot be undone.`))) {
       return;
     }
     try {
@@ -394,7 +393,7 @@ export function DocumentTypesTab() {
   };
 
   const handleBulkDelete = async (ids: (number | string)[]) => {
-    if (!confirm(`Delete ${ids.length} document types? This cannot be undone.`)) {
+    if (!(await confirm(`Delete ${ids.length} document types? This cannot be undone.`))) {
       return;
     }
     try {
@@ -405,60 +404,87 @@ export function DocumentTypesTab() {
     }
   };
 
-  const handleAddDocType = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // SSoT: Add handled by TeeemTableView's built-in add modal via Foundation API
+
+  // Open signature field configuration modal
+  const handleOpenSignatureConfig = React.useCallback((docType: DocumentType) => {
+    setSignatureModalDocType(docType);
+    setSignatureModalPdf(undefined); // User will upload a PDF in the modal
+    setSignatureModalOpen(true);
+  }, []);
+
+  // Save signature field configuration
+  const handleSaveSignatureConfig = React.useCallback(async (config: SignatureFieldConfig[]) => {
+    if (!signatureModalDocType?.id) return;
+
     try {
-      setSaving(true);
-      await api.post("/api/v1/document_types", {
-        document_type: {
-          ...newDocType,
-          tabs: [newDocType.primary_tab]
-        }
+      await api.patch(`/api/v1/document_types/${signatureModalDocType.id}`, {
+        document_type: { signature_field_config: config }
       });
-      setShowAddForm(false);
-      setNewDocType({
-        name: "",
-        abbreviation: "",
-        file_name: "{CompanyCode} {Description} {Date}",
-        folder: "GENERAL",
-        primary_tab: "GENERAL",
-        active: true
+
+      // Update local state
+      setDocumentTypes(prev => prev.map(dt =>
+        dt.id === signatureModalDocType.id ? { ...dt, signature_field_config: config } : dt
+      ));
+
+      toast({
+        title: "Signature fields saved",
+        description: `Configured ${config.length} signature field(s) for "${signatureModalDocType.name}"`,
       });
-      await loadData();
     } catch (error) {
-      console.error("Failed to create document type:", error);
-    } finally {
-      setSaving(false);
+      console.error("Failed to save signature config:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save signature field configuration",
+        variant: "destructive",
+      });
     }
-  };
+  }, [signatureModalDocType, toast]);
 
-  // Handle row click - navigate to detail page
-  const handleRowClick = React.useCallback((row: DocumentType) => {
-    router.push(`/admin/system/document-types/${row.id}`);
-  }, [router]);
-
-  // Handle row double-click
+  // Handle row double-click - navigate to detail page
+  // Single-click selects row (default behavior), double-click opens detail
   const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
-    router.push(`/admin/system/document-types/${row.id}`);
-  }, [router]);
+    router.push(`${basePath}/${row.id}`);
+  }, [router, basePath]);
 
   // Custom cell renderer for tabs display and badges
   const customCellRenderer = (entry: DocumentType, columnKey: string) => {
-    // Make NAME column a clickable link to full-screen editor
+    // Make NAME column a clickable link to full-screen editor with signature config button
     if (columnKey === "name") {
       const value = entry.name;
       if (!value) return <span className="text-muted-foreground">-</span>;
+      const hasSignatureConfig = entry.signature_field_config && entry.signature_field_config.length > 0;
       return (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            router.push(`/admin/system/document-types/${entry.id}`);
-          }}
-          className="text-left text-primary hover:underline font-medium"
-          title="Click to open full editor"
-        >
-          {value}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`${basePath}/${entry.id}`);
+            }}
+            className="text-left text-primary hover:underline font-medium flex-1"
+            title="Click to open full editor"
+          >
+            {value}
+          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-6 w-6 shrink-0",
+              hasSignatureConfig ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenSignatureConfig(entry);
+            }}
+            title={hasSignatureConfig
+              ? `${entry.signature_field_config!.length} signature field(s) configured`
+              : "Configure signature fields"
+            }
+          >
+            <PenTool className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       );
     }
     if (columnKey === "scope") {
@@ -521,7 +547,7 @@ export function DocumentTypesTab() {
       const value = entry[columnKey as keyof DocumentType] as string | undefined;
       if (!value) return <span className="text-muted-foreground">-</span>;
       return (
-        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300">
           {value}
         </Badge>
       );
@@ -584,106 +610,51 @@ export function DocumentTypesTab() {
           </TabsTrigger>
           <TabsTrigger value="contacts" className="gap-2">
             <Users className="h-4 w-4" />
-            Contacts ({documentTypes.filter(dt => dt.scope === "contacts" || dt.scope === "people").length})
+            Contacts ({documentTypes.filter(dt => dt.scope === "contacts").length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value={scopeFilter} className="mt-6 space-y-6">
-
-
-
-      {/* Add Form */}
-      {showAddForm && (
-        <Card>
-          <CardContent className="p-4">
-            <form onSubmit={handleAddDocType} className="flex items-end gap-4 flex-wrap">
-              <div className="space-y-1">
-                <Label htmlFor="abbreviation">Code</Label>
-                <Input
-                  id="abbreviation"
-                  value={newDocType.abbreviation}
-                  onChange={(e) => setNewDocType({ ...newDocType, abbreviation: e.target.value.toUpperCase() })}
-                  placeholder="CTR"
-                  className="w-20"
-                />
-              </div>
-              <div className="flex-1 min-w-[200px] space-y-1">
-                <Label htmlFor="name">Document Type Name *</Label>
-                <Input
-                  id="name"
-                  value={newDocType.name}
-                  onChange={(e) => setNewDocType({ ...newDocType, name: e.target.value })}
-                  placeholder="CTR - Company Tax Return"
-                  required
-                />
-              </div>
-              <div className="flex-1 min-w-[200px] space-y-1">
-                <Label htmlFor="file_name">File Name</Label>
-                <Input
-                  id="file_name"
-                  value={newDocType.file_name}
-                  onChange={(e) => setNewDocType({ ...newDocType, file_name: e.target.value })}
-                  placeholder="{CompanyCode} CTR FY{YY}"
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Folder</Label>
-                <Select
-                  value={newDocType.folder}
-                  onValueChange={(value) => setNewDocType({ ...newDocType, folder: value, primary_tab: value })}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DOCUMENT_FOLDER_OPTIONS.map(f => (
-                      <SelectItem key={f} value={f}>{f}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit" disabled={saving}>
-                  {saving ? <Spinner size={16} className="mr-2" /> : null}
-                  Add
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setShowAddForm(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Table - SSoT: Use slug, TeeemTableView resolves numeric ID */}
+      {/* Add Record uses TeeemTableView's built-in modal via Foundation API */}
       <TeeemTableView
           foundationId="document_types"
           tableName={`Document Types (${filteredDocTypes.length}${scopeFilter !== "all" ? ` - ${scopeFilter}` : ""})`}
           entries={filteredDocTypes}
-          // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
+          // ⚠️ legacyDataSource: Documented exception to autoFetchRecords (per CLAUDE.md)
+          // Reasons:
+          // 1. Custom API: /api/v1/document_types with include_inactive=true param
+          // 2. Client-side OR filtering: scope="company" OR scope="both" (complex filter logic)
+          // 3. Computed grouping: Groups by primary_tab (not a database column)
+          legacyDataSource="custom-api: /api/v1/document_types?include_inactive=true + client-side scope OR filtering"
           onEdit={handleEdit}
           onRowUpdate={handleRowUpdate}
-          onRowClick={handleRowClick}
           onRowDoubleClick={handleRowDoubleClick}
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
+          onRefresh={loadData}
           enableExport={true}
           enableSchemaEditor={true}
           customCellRenderer={customCellRenderer}
           onColumnUpdate={fetchColumns}
           initialGroupByColumn="primary_tab"
-          leftActions={
-            <Button onClick={() => router.push(`/admin/system/document-types/new${scopeFilter !== "all" ? `?scope=${scopeFilter}` : ""}`)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Document Type
-            </Button>
-          }
         />
 
         </TabsContent>
       </Tabs>
+
+      {/* Signature Field Configuration Modal */}
+      {signatureModalDocType && (
+        <SignatureFieldConfigModal
+          open={signatureModalOpen}
+          onOpenChange={setSignatureModalOpen}
+          documentTypeId={signatureModalDocType.id as number}
+          documentTypeName={signatureModalDocType.name || "Document Type"}
+          pdfContent={signatureModalPdf}
+          initialConfig={signatureModalDocType.signature_field_config || []}
+          onSave={handleSaveSignatureConfig}
+        />
+      )}
     </div>
   );
 }

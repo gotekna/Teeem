@@ -28,6 +28,8 @@ class EmailMigration < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
 
   # Scopes
+  scope :pending, -> { where(status: %w[pending queued]) }
+  scope :in_progress, -> { where(status: "in_progress") }
   scope :active, -> { where(status: %w[queued in_progress paused]) }
   scope :completed, -> { where(status: "completed") }
   scope :failed, -> { where(status: "failed") }

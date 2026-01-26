@@ -23,6 +23,8 @@ import { api } from "@/lib/api";
 import { EntityChat } from "@/components/chat/EntityChat";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { useToast } from "@/components/ui/use-toast";
+import { getInitials } from "@/utils/formatters";
 
 interface Message {
   id: number;
@@ -93,18 +95,9 @@ function formatRelativeTime(dateString: string): string {
   }
 }
 
-function getInitials(name: string | undefined): string {
-  if (!name) return "U";
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
 // Internal Messages Component
 function InternalMessagesSection({ jobId }: { jobId: string | number }) {
+  const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -159,7 +152,7 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
       await loadMessages();
     } catch (error) {
       console.error("Failed to send message:", error);
-      alert("Failed to send message. Please try again.");
+      toast({ title: "Error", description: "Failed to send message. Please try again.", variant: "destructive" });
     } finally {
       setSending(false);
     }
@@ -210,7 +203,7 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
               <div key={message.id} className="flex items-start gap-3">
                 <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-primary/10 text-primary">
-                    {getInitials(message.user_name)}
+                    {getInitials(message.user_name) || "U"}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
@@ -256,6 +249,7 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
 
 // Email Section Component with email warehouse integration - SSoT TeeemTableView pattern
 function EmailsSection({ jobId }: { jobId: string | number }) {
+  const { toast } = useToast();
   const [emails, setEmails] = useState<Email[]>([]);
   const [suggestedEmails, setSuggestedEmails] = useState<SuggestedEmail[]>([]);
   const [loading, setLoading] = useState(true);
@@ -271,7 +265,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
     try {
       setLoading(true);
       const response = await api.get<{ emails: Email[]; suggested: SuggestedEmail[] }>(
-        `/api/v1/email_warehouse/for_job/${jobId}`,
+        `/api/v1/synced_emails/for_job/${jobId}`,
         {
           params: {
             include_suggestions: true,
@@ -293,20 +287,20 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
   const handleAssignSuggested = async (suggestion: SuggestedEmail, targetJobId?: number) => {
     try {
       const assignToJobId = targetJobId || jobId;
-      await api.post(`/api/v1/email_warehouse/${suggestion.email.id}/assign_to_job`, {
+      await api.post(`/api/v1/synced_emails/${suggestion.email.id}/assign_to_job`, {
         job_id: assignToJobId,
         assign_thread: true,
       });
       await loadEmails();
     } catch (error) {
       console.error("Failed to assign email:", error);
-      alert("Failed to assign email to job");
+      toast({ title: "Error", description: "Failed to assign email to job", variant: "destructive" });
     }
   };
 
   const handleDismissSuggestion = async (suggestion: SuggestedEmail) => {
     try {
-      await api.post(`/api/v1/email_warehouse/${suggestion.email.id}/dismiss_suggestion`, {
+      await api.post(`/api/v1/synced_emails/${suggestion.email.id}/dismiss_suggestion`, {
         job_id: jobId,
       });
       await loadEmails();
@@ -408,7 +402,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDismissSuggestion(suggestion)}
-                      className="text-xs text-muted-foreground hover:text-red-500"
+                      className="text-xs text-muted-foreground hover:text-red-500 dark:text-red-400"
                       title="Not relevant to this job"
                     >
                       ✕

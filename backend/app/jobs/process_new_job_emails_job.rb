@@ -2,9 +2,6 @@
 class ProcessNewJobEmailsJob < ApplicationJob
   queue_as :default
 
-  # DEPRECATED: Use CorporateCompanySetting.monitored_mailbox_newjob
-  NEW_JOB_EMAIL_ADDRESS = "newjob@tekna.com.au"
-
   # Legacy folder name (kept for backwards compatibility)
   NEW_JOB_FOLDER_NAME = "A - New Job"
 
@@ -15,9 +12,9 @@ class ProcessNewJobEmailsJob < ApplicationJob
     # Find emails sent to newjob@ mailbox OR in "A - New Job" folder
     # that don't have proposals yet
     # SSoT: Use LOWER() for folder name (case-insensitive matching)
-    new_job_emails = EmailWarehouse
+    new_job_emails = SyncedEmail
       .where("? = ANY(to_emails) OR LOWER(folder_name) = LOWER(?)", newjob_address, NEW_JOB_FOLDER_NAME)
-      .where.not(id: EmailJobProposal.select(:email_warehouse_id))
+      .where.not(id: EmailJobProposal.select(:synced_email_id))
       .where("created_at > ?", 1.hour.ago) # Only process recent emails
       .order(received_at: :desc)
 

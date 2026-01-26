@@ -5,25 +5,34 @@ module Api
     class EntityTabsController < ApplicationController
       before_action :set_entity_tab, only: [:show, :update, :destroy]
 
-      # GET /api/v1/entity_tabs?scope=corporate_entity
+      # GET /api/v1/entity_tabs?warehouse_type=corporate_entity
+      # Also accepts ?scope= for backwards compatibility
       # Use include_disabled=true for admin views to show all tabs
       #
       # Performance: Uses EntityTabQueryService to eliminate N+1 queries
       # Original: 431 queries (657ms) → Optimized: ~5 queries (<50ms)
       def index
+        # Accept both warehouse_type and scope params (scope for backwards compat)
+        warehouse_type = params[:warehouse_type] || params[:scope]
+
         service = EntityTabQueryService.new(
-          scope: params[:scope],
+          warehouse_type: warehouse_type,
           entity_type: params[:entity_type],
           include_disabled: params[:include_disabled] == "true",
-          tab_group: params[:tab_group]
+          tab_group: params[:tab_group],
+          with_document_types: params[:with_document_types] == "true"
         )
+
+        tabs = service.nested_tabs
 
         render json: {
           success: true,
           data: {
-            scope: params[:scope],
-            tabs: service.nested_tabs,
-            groups: EntityTab::TAB_GROUPS
+            warehouse_type: warehouse_type,
+            scope: warehouse_type,  # Legacy backwards compat
+            tabs: tabs,
+            groups: EntityTab::TAB_GROUPS,
+            primary_xero_name: EntityTab.primary_xero_name  # SSoT: Name of primary Xero account
           }
         }
       end
@@ -97,10 +106,14 @@ module Api
         }
       end
 
-      # GET /api/v1/entity_tabs/for_scope/:scope
-      # Returns flat list of all tabs for a scope (for dropdowns)
+      # GET /api/v1/entity_tabs/for_warehouse_type/:warehouse_type
+      # Also accepts for_scope/:scope for backwards compatibility (route alias)
+      # Returns flat list of all tabs for a warehouse type (for dropdowns)
       def for_scope
-        tabs = EntityTab.for_scope(params[:scope])
+        # Accept both warehouse_type and scope params (scope for backwards compat)
+        warehouse_type = params[:warehouse_type] || params[:scope]
+
+        tabs = EntityTab.for_warehouse_type(warehouse_type)
                         .enabled
                         .ordered
                         .includes(:parent)
@@ -108,7 +121,8 @@ module Api
         render json: {
           success: true,
           data: {
-            scope: params[:scope],
+            warehouse_type: warehouse_type,
+            scope: warehouse_type,  # Legacy backwards compat
             tabs: tabs.map do |tab|
               {
                 id: tab.id,
@@ -117,8 +131,9 @@ module Api
                 display_code: tab.display_code,
                 hierarchy_path: tab.hierarchy_path,
                 tab_group: tab.tab_group,
-                has_storage_folder: tab.has_storage_folder,
-                has_sharepoint_folder: tab.has_storage_folder  # Backwards compat
+                warehouse_enabled: tab.warehouse_enabled,
+                has_storage_folder: tab.warehouse_enabled,  # Legacy backwards compat
+                has_sharepoint_folder: tab.warehouse_enabled  # Legacy backwards compat
               }
             end
           }
@@ -153,12 +168,12 @@ module Api
       end
 
       # GET /api/v1/entity_tabs/document_type_counts
-      # Returns count of document types linked per scope + total document types
+      # Returns count of document types linked per warehouse type + total document types
       def document_type_counts
-        counts = EntityTab::SCOPES.each_with_object({}) do |scope, hash|
-          hash[scope] = EntityTabDocumentType
-            .joins(:entity_tab)
-            .where(entity_tabs: { scope: scope })
+        counts = StorageLocation::WAREHOUSE_TYPES.each_with_object({}) do |warehouse_type, hash|
+          hash[warehouse_type] = StorageLocationDocumentType
+            .joins(:storage_location)
+            .where(entity_tabs: { warehouse_type: warehouse_type })
             .distinct
             .count(:document_type_id)
         end
@@ -173,12 +188,12 @@ module Api
       end
 
       # POST /api/v1/entity_tabs/reset_paths
-      # Reset all tabs to use inherited SSoT paths (sets uses_custom_path = false and clears custom path)
+      # Reset all tabs to use inherited SSoT paths (clears warehouse_folder, sets uses_custom_path = false)
       def reset_paths
         updated_count = EntityTab
-          .where(has_storage_folder: true)
-          .where("uses_custom_path = true OR storage_folder_path IS NOT NULL AND storage_folder_path != ''")
-          .update_all(uses_custom_path: false, storage_folder_path: nil)
+          .where(warehouse_enabled: true)
+          .where("uses_custom_path = true OR warehouse_folder IS NOT NULL")
+          .update_all(uses_custom_path: false, warehouse_folder: nil)
 
         render json: {
           success: true,
@@ -187,11 +202,14 @@ module Api
         }
       end
 
-      # GET /api/v1/entity_tabs/used_icons?scope=job
-      # Returns list of icons already used by root tabs in a scope
+      # GET /api/v1/entity_tabs/used_icons?warehouse_type=job
+      # Also accepts ?scope= for backwards compatibility
+      # Returns list of icons already used by root tabs in a warehouse type
       # Used by IconPicker to gray out already-used icons
       def used_icons
-        icons = EntityTab.for_scope(params[:scope])
+        warehouse_type = params[:warehouse_type] || params[:scope]
+
+        icons = EntityTab.for_warehouse_type(warehouse_type)
                          .root_tabs
                          .global
                          .where.not(icon_name: [nil, ''])
@@ -210,9 +228,9 @@ module Api
       def global_icon_usage
         usages = {}
 
-        # Collect icon usage from ALL entity tab scopes
-        EntityTab::SCOPES.each do |scope|
-          EntityTab.for_scope(scope)
+        # Collect icon usage from ALL entity tab warehouse types
+        EntityTab::WAREHOUSE_TYPES.each do |warehouse_type|
+          EntityTab.for_warehouse_type(warehouse_type)
                    .root_tabs
                    .global
                    .where.not(icon_name: [nil, ''])
@@ -221,7 +239,8 @@ module Api
             usages[icon] ||= []
             usages[icon] << {
               area: "Entity Tabs",
-              scope: scope.humanize,
+              warehouse_type: warehouse_type.humanize,
+              scope: warehouse_type.humanize,  # Legacy backwards compat
               name: tab.display_name,
               id: tab.id,
               type: "entity_tab"
@@ -259,7 +278,8 @@ module Api
       def entity_tab_params
         # Accept both old and new param names for backwards compatibility
         permitted = params.require(:entity_tab).permit(
-          :scope,
+          :warehouse_type,
+          :scope,  # Legacy backwards compat
           :tab_key,
           :display_name,
           :display_code,
@@ -271,25 +291,36 @@ module Api
           :enabled,
           :icon_name,
           :component_name,
+          # New warehouse naming
+          :warehouse_enabled,
+          :warehouse_folder,  # Custom folder NAME (replaces display_name in SSoT template)
+          :warehouse_type_override,
+          # Legacy backwards compat
           :has_storage_folder,
-          :has_sharepoint_folder,  # Backwards compat
-          :storage_folder_path,
-          :sharepoint_folder_path,  # Backwards compat
-          :uses_custom_path,  # SSoT: Template inheritance flag
+          :has_sharepoint_folder,
+          # storage_folder_path/sharepoint_folder_path REMOVED - now derived from SSoT
           :storage_path_type,
-          :sharepoint_path_type,  # Backwards compat
+          :sharepoint_path_type,
+          :uses_custom_path,  # SSoT: Template inheritance flag
           :is_photo_category,  # SSoT: Explicit photo gallery flag
           :is_cad_category,  # SSoT: Explicit CAD/Revit file viewer flag
           :display_mode,  # SSoT: How tab renders (icon_only, text_only, both)
           :hidden_by_default,  # SSoT: Tab hidden in overflow menu by default
+          :xero_scope,  # SSoT: Which Xero account this tab uses (nil, "primary", or tenant_id)
+          :send_name_template,  # SSoT: Template for download/send filename
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )
 
-        # Map old param names to new ones
-        permitted[:has_storage_folder] ||= permitted.delete(:has_sharepoint_folder)
-        permitted[:storage_folder_path] ||= permitted.delete(:sharepoint_folder_path)
-        permitted[:storage_path_type] ||= permitted.delete(:sharepoint_path_type)
+        # Map old param names to new ones (only if present, to avoid overwriting existing values on PATCH)
+        scope_value = permitted.delete(:scope)
+        permitted[:warehouse_type] ||= scope_value if scope_value.present?
+
+        storage_enabled = permitted.delete(:has_storage_folder) || permitted.delete(:has_sharepoint_folder)
+        permitted[:warehouse_enabled] ||= storage_enabled unless storage_enabled.nil?
+
+        path_type = permitted.delete(:storage_path_type) || permitted.delete(:sharepoint_path_type)
+        permitted[:warehouse_type_override] ||= path_type if path_type.present?
 
         permitted
       end

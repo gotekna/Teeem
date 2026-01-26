@@ -97,7 +97,7 @@ export function ExportModal({
                   onChange={() => setExportFormat("csv")}
                   className="sr-only"
                 />
-                <FileSpreadsheet className="h-6 w-6 text-green-600" />
+                <FileSpreadsheet className="h-6 w-6 text-green-600 dark:text-green-400" />
                 <span className="text-sm font-medium">CSV</span>
               </label>
 
@@ -137,7 +137,7 @@ export function ExportModal({
                   onChange={() => setExportFormat("pdf")}
                   className="sr-only"
                 />
-                <FileSpreadsheet className="h-6 w-6 text-red-600" />
+                <FileSpreadsheet className="h-6 w-6 text-red-600 dark:text-red-400" />
                 <span className="text-sm font-medium">PDF</span>
               </label>
             </div>

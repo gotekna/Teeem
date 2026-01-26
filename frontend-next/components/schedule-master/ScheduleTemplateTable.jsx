@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import { useToast } from '@/components/ui/use-toast'
 import TeeemTableView from '@/components/table/TeeemTableView'
 import PredecessorEditor from './PredecessorEditor'
 import PriceBookItemsModal from './PriceBookItemsModal'
@@ -54,6 +55,7 @@ export default function ScheduleTemplateTable({
   onSelectAll,
   documentationCategories = []
 }) {
+  const { toast } = useToast()
   // SSoT: Fetch roles from backend
   const { roles: assignableRoles } = useAssignableRoles()
 
@@ -223,7 +225,7 @@ export default function ScheduleTemplateTable({
               checked={entry.create_po_on_job_start || false}
               onChange={(e) => {
                 if (e.target.checked && !entry.supplier_id) {
-                  alert('Please select a supplier first before enabling Auto PO')
+                  toast({ title: "Validation Error", description: "Please select a supplier first before enabling Auto PO", variant: "destructive" })
                   return
                 }
                 onUpdateRow(entry.id, { create_po_on_job_start: e.target.checked })

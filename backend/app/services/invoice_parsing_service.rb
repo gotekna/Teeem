@@ -8,14 +8,15 @@
 # - Bill-to company (for multi-tenant matching)
 #
 class InvoiceParsingService
-  CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+  include AnthropicClient
+  # SSoT: Use AnthropicClient constants for model names
 
   def initialize(bill_inbox)
     @bill = bill_inbox
   end
 
   def extract!
-    return {} unless @bill.sharepoint_file_id.present?
+    return {} unless @bill.storage_reference.present?
 
     Rails.logger.info "[InvoiceParsing] Starting extraction for BillInbox ##{@bill.id}"
 
@@ -103,7 +104,7 @@ class InvoiceParsingService
 
     response = client.messages(
       parameters: {
-        model: CLAUDE_MODEL,
+        model: CLAUDE_SONNET,
         max_tokens: 4000,
         messages: messages
       }

@@ -114,9 +114,9 @@ export function PendingXeroReviewPanel({ onReviewComplete }: PendingXeroReviewPa
 
   const getMatchTypeBadge = (matchType: string) => {
     const colors: Record<string, string> = {
-      fuzzy_name: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-      exact_abn: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-      exact_email: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+      fuzzy_name: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300",
+      exact_abn: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-300",
+      exact_email: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300",
       manual: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground",
     };
 

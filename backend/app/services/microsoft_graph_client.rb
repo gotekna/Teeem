@@ -52,12 +52,19 @@ class MicrosoftGraphClient
   # Returns the correct drive path prefix based on credential type
   # If organization credential with drive_id: "/drives/{drive_id}"
   # If user token (no drive_id): "/me/drive"
+  # SSoT: StorageConfiguration is THE source for drive_id (Jan 2026)
   def drive_path
-    if @credential.drive_id.present?
-      "/drives/#{@credential.drive_id}"
+    storage_drive_id = StorageConfiguration.instance&.drive_id
+    if storage_drive_id.present?
+      "/drives/#{storage_drive_id}"
     else
       "/me/drive"
     end
+  end
+
+  # SSoT: Helper to get StorageConfiguration instance (cached per request)
+  def storage_config
+    @storage_config ||= StorageConfiguration.instance
   end
 
   # OAuth Methods
@@ -275,13 +282,22 @@ class MicrosoftGraphClient
     folder_name ||= StorageConfiguration.instance.path_for(:jobs)
     # SSoT: Sanitize folder name - remove leading/trailing slashes (SharePoint doesn't allow "/" in names)
     folder_name = folder_name.to_s.gsub(%r{^/+|/+$}, "").presence || "Jobs"
-    # Get the drive if we don't have it
-    unless @credential.drive_id
+
+    # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
+    config = storage_config
+    current_drive_id = config&.drive_id
+
+    # Get the drive if we don't have it in StorageConfiguration
+    unless current_drive_id.present?
       drive = get_default_drive
-      @credential.update!(
-        drive_id: drive["id"],
-        drive_name: drive["name"]
-      )
+      # SSoT: Update StorageConfiguration with drive info (not credential)
+      if config
+        config.update_connection(
+          "drive_id" => drive["id"],
+          "drive_name" => drive["name"]
+        )
+        current_drive_id = drive["id"]
+      end
     end
 
     # First, check if the folder already exists in the drive root
@@ -293,13 +309,20 @@ class MicrosoftGraphClient
     else
       Rails.logger.info "[SharePoint] Creating new '#{folder_name}' folder"
       # Create root folder for all TEEEM jobs with "fail" conflict behavior to prevent duplicates
-      root_folder = create_folder_strict(folder_name, drive_id: @credential.drive_id)
+      root_folder = create_folder_strict(folder_name, drive_id: current_drive_id)
     end
 
-    # Update credential with root folder info
+    # SSoT: Save root folder info to StorageConfiguration (not credential)
+    # StorageConfiguration is THE ONE source for all storage config
+    config = StorageConfiguration.instance
+    if config
+      config.root_folder_id = root_folder["id"]
+      config.root_folder_path = folder_name
+      config.save!
+    end
+
+    # Store metadata in credential (non-config data like URLs, timestamps)
     @credential.update!(
-      root_folder_id: root_folder["id"],
-      root_folder_path: folder_name,
       metadata: @credential.metadata.merge({
         root_folder_name: folder_name,
         root_folder_web_url: root_folder["webUrl"],
@@ -339,21 +362,20 @@ class MicrosoftGraphClient
   # Create folder structure for a specific construction/job
   # SSoT: Uses EntityTab hierarchy for folder names (no longer uses FolderTemplate)
   def create_job_folder_structure(construction, _template = nil)
+    # SSoT: Get root_folder_id from StorageConfiguration (Jan 2026)
+    config = storage_config
+    root_folder_id = config&.root_folder_id
+
     # Ensure we have a root folder for all jobs
-    unless @credential.root_folder_id
+    unless root_folder_id.present?
       create_jobs_root_folder
+      root_folder_id = config&.reload&.root_folder_id
     end
 
-    # Prepare job data for variable resolution
-    job_data = {
-      job_code: construction.id.to_s.rjust(3, "0"),
-      project_name: construction.title,
-      site_supervisor: construction.site_supervisor_name
-    }
-
-    # Create job-specific root folder (e.g., "001 - Malbon Street")
-    job_folder_name = "#{job_data[:job_code]} - #{job_data[:project_name]}"
-    job_folder = create_folder(job_folder_name, parent_id: @credential.root_folder_id)
+    # SSoT: Use StorageConfiguration.job_path for consistent folder naming (job_code = "J" + id)
+    job_folder_path = config&.job_path(construction.job_code) || "/Jobs/#{construction.job_code}"
+    job_folder_name = File.basename(job_folder_path)
+    job_folder = create_folder(job_folder_name, parent_id: root_folder_id)
 
     # SSoT: Create subfolders from EntityTab hierarchy (replaces FolderTemplate)
     create_subfolders_from_entity_tabs(job_folder["id"])
@@ -401,8 +423,9 @@ class MicrosoftGraphClient
 
   # List items in a folder
   # include_thumbnails: if true, expands thumbnails for image files
+  # SSoT: Uses StorageConfiguration for root_folder_id (Jan 2026)
   def list_folder_items(folder_id = nil, include_thumbnails: false)
-    folder_id = folder_id || @credential.root_folder_id
+    folder_id = folder_id || storage_config&.root_folder_id
 
     unless folder_id
       raise APIError, "No folder ID provided and no root folder configured"
@@ -424,8 +447,13 @@ class MicrosoftGraphClient
 
   # Validate the root folder exists and check if it was renamed
   # Returns a hash with validation status and folder info
+  # SSoT: Uses StorageConfiguration for root_folder_id/path (Jan 2026)
   def validate_root_folder
-    unless @credential.root_folder_id.present?
+    config = storage_config
+    root_folder_id = config&.root_folder_id
+    stored_path = config&.root_folder_path
+
+    unless root_folder_id.present?
       return {
         valid: false,
         error: "No root folder configured",
@@ -434,7 +462,7 @@ class MicrosoftGraphClient
     end
 
     begin
-      folder = get("#{drive_path}/items/#{@credential.root_folder_id}")
+      folder = get("#{drive_path}/items/#{root_folder_id}")
 
       # Build the current path from parentReference
       parent_path = folder.dig("parentReference", "path") || ""
@@ -447,7 +475,6 @@ class MicrosoftGraphClient
       end
 
       stored_name = @credential.metadata&.dig("root_folder_name")
-      stored_path = @credential.root_folder_path
 
       {
         valid: true,
@@ -466,7 +493,7 @@ class MicrosoftGraphClient
           valid: false,
           error: "Folder not found - it may have been deleted or moved to a different drive",
           error_type: "not_found",
-          stored_path: @credential.root_folder_path,
+          stored_path: stored_path,
           stored_name: @credential.metadata&.dig("root_folder_name")
         }
       else
@@ -481,18 +508,22 @@ class MicrosoftGraphClient
 
   # Search for job folder by construction
   # Supports both exact match and fuzzy matching for legacy folder naming schemes
+  # SSoT: Uses StorageConfiguration for root_folder_id (Jan 2026)
   def find_job_folder(construction)
-    job_code = construction.id.to_s.rjust(3, "0")
-    expected_name = "#{job_code} - #{construction.title}"
+    config = storage_config
+
+    # SSoT: Use StorageConfiguration.job_path for consistent folder naming (job_code = "J" + id)
+    job_folder_path = config&.job_path(construction.job_code) || "/Jobs/#{construction.job_code}"
+    expected_name = File.basename(job_folder_path)
 
     # Normalize title for fuzzy matching (remove common prefixes like "Lot", lowercase, etc.)
     normalized_title = construction.title.to_s.downcase.gsub(/^lot\s+/i, "").strip
 
     # SSoT: Get jobs folder name from StorageConfiguration
-    jobs_folder_name = StorageConfiguration.instance.path_for(:jobs)
+    jobs_folder_name = config&.path_for(:jobs) || "Jobs"
 
-    # Determine where to search - use root_folder_id if set, otherwise find jobs folder
-    search_folder_id = @credential.root_folder_id
+    # SSoT: Determine where to search - use root_folder_id from StorageConfiguration
+    search_folder_id = config&.root_folder_id
 
     # If no root folder set, try to find the jobs folder in the drive root
     if search_folder_id.blank?

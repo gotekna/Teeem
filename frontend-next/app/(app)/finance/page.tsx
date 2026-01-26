@@ -117,7 +117,7 @@ export default function FinancePage() {
       {/* Xero Connection Status */}
       {xeroStatus?.connected ? (
         <Alert>
-          <CheckCircle className="h-4 w-4 text-green-600" />
+          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
           <AlertDescription className="flex items-center justify-between">
             <span>
               Connected to Xero: <strong>{xeroStatus.tenant_name}</strong>
@@ -129,7 +129,7 @@ export default function FinancePage() {
         </Alert>
       ) : (
         <Alert className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10">
-          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+          <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
           <AlertDescription className="flex items-center justify-between">
             <span>Xero not connected. Connect to sync invoices and payments.</span>
             <Button variant="outline" size="sm" onClick={handleConnect}>
@@ -150,7 +150,7 @@ export default function FinancePage() {
               Bill Inbox
             </CardTitle>
             <CardDescription>
-              Incoming invoices from Pay@tekna.com.au. AI-powered extraction and PO matching.
+              Incoming invoices from Pay@teeem.com.au. AI-powered extraction and PO matching.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -161,11 +161,11 @@ export default function FinancePage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">With Variance</span>
-                <span className="font-mono text-yellow-600">{billStats?.with_variance ?? 0}</span>
+                <span className="font-mono text-yellow-600 dark:text-yellow-400">{billStats?.with_variance ?? 0}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Errors</span>
-                <span className="font-mono text-red-600">{billStats?.errors ?? 0}</span>
+                <span className="font-mono text-red-600 dark:text-red-400">{billStats?.errors ?? 0}</span>
               </div>
               <Button className="w-full mt-4" asChild>
                 <Link href="/finance/bills">
@@ -223,7 +223,7 @@ export default function FinancePage() {
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Status</span>
-                <span className={xeroStatus?.connected ? "text-green-600" : "text-yellow-600"}>
+                <span className={xeroStatus?.connected ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400"}>
                   {xeroStatus?.connected ? "Connected" : "Not Connected"}
                 </span>
               </div>

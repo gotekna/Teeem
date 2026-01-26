@@ -111,7 +111,7 @@ export function ExcelViewer({
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30 shrink-0">
         <div className="flex items-center gap-2">
-          <FileSpreadsheet className="h-4 w-4 text-green-600" />
+          <FileSpreadsheet className="h-4 w-4 text-green-600 dark:text-green-400" />
           <span className="text-sm font-medium truncate max-w-[200px]">
             {filename || "Spreadsheet"}
           </span>
@@ -248,7 +248,7 @@ function formatCell(value: string | number | null | undefined): string {
 export function ExcelViewerLoading({ className }: { className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center h-full", className)}>
-      <Spinner size={32} className="mb-2 text-green-600" />
+      <Spinner size={32} className="mb-2 text-green-600 dark:text-green-400" />
       <p className="text-sm text-muted-foreground">Loading spreadsheet...</p>
     </div>
   );
@@ -265,7 +265,7 @@ export function ExcelViewerError({
   return (
     <div className={cn("flex flex-col items-center justify-center h-full", className)}>
       <FileSpreadsheet className="h-12 w-12 text-red-400 mb-2" />
-      <p className="text-sm text-red-600 font-medium">Failed to load spreadsheet</p>
+      <p className="text-sm text-red-600 dark:text-red-400 font-medium">Failed to load spreadsheet</p>
       <p className="text-xs text-muted-foreground mt-1">{error}</p>
     </div>
   );

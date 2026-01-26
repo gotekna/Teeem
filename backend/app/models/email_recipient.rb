@@ -1,7 +1,8 @@
 # Links email_warehouse records to users/contacts as from/to/cc/bcc recipients
 # Part of SSoT architecture - enables querying "all emails involving this contact"
 class EmailRecipient < ApplicationRecord
-  belongs_to :email_warehouse
+  # SSoT: Legacy column is email_warehouse_id, but actual model is SyncedEmail
+  belongs_to :email_warehouse, class_name: "SyncedEmail"
   belongs_to :user, optional: true  # Internal user (nullable)
   belongs_to :contact, optional: true  # External contact (nullable)
 

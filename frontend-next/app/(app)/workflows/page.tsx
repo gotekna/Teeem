@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { TabbedPage } from '@/components/ui/page-wrappers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -151,13 +152,10 @@ export default function WorkflowsDashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Workflows</h1>
-          <p className="text-muted-foreground">Monitor and manage workflow executions</p>
-        </div>
+    <TabbedPage
+      title="Workflows"
+      description="Monitor and manage workflow executions"
+      actions={
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={loadData}>
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -170,14 +168,14 @@ export default function WorkflowsDashboardPage() {
             </Button>
           </Link>
         </div>
-      </div>
-
+      }
+    >
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
-              <Play className="h-4 w-4 text-blue-500" />
+              <Play className="h-4 w-4 text-blue-500 dark:text-blue-400" />
               <span className="text-sm text-muted-foreground">Active Workflows</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats.active_instances}</p>
@@ -186,7 +184,7 @@ export default function WorkflowsDashboardPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
-              <ListTodo className="h-4 w-4 text-orange-500" />
+              <ListTodo className="h-4 w-4 text-orange-500 dark:text-orange-400" />
               <span className="text-sm text-muted-foreground">Pending Tasks</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats.pending_tasks}</p>
@@ -195,7 +193,7 @@ export default function WorkflowsDashboardPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-red-500" />
+              <AlertCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
               <span className="text-sm text-muted-foreground">Overdue</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats.overdue_tasks}</p>
@@ -204,7 +202,7 @@ export default function WorkflowsDashboardPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-500" />
+              <TrendingUp className="h-4 w-4 text-green-500 dark:text-green-400" />
               <span className="text-sm text-muted-foreground">Available Processes</span>
             </div>
             <p className="text-2xl font-bold mt-1">{processes.length}</p>
@@ -245,7 +243,7 @@ export default function WorkflowsDashboardPage() {
             <CardContent>
               {myTasks.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <CheckCircle className="h-12 w-12 text-green-500 mb-3" />
+                  <CheckCircle className="h-12 w-12 text-green-500 dark:text-green-400 mb-3" />
                   <p className="font-medium">All caught up!</p>
                   <p className="text-sm text-muted-foreground">No pending workflow tasks</p>
                 </div>
@@ -263,7 +261,7 @@ export default function WorkflowsDashboardPage() {
                           task.is_overdue ? 'bg-red-100' : 'bg-blue-100'
                         }`}>
                           <ListTodo className={`h-4 w-4 ${
-                            task.is_overdue ? 'text-red-600' : 'text-blue-600'
+                            task.is_overdue ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'
                           }`} />
                         </div>
                         <div>
@@ -332,7 +330,7 @@ export default function WorkflowsDashboardPage() {
                       >
                         <div className="flex items-center gap-4">
                           <div className="p-2 rounded-full bg-blue-100">
-                            <Workflow className="h-4 w-4 text-blue-600" />
+                            <Workflow className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                           </div>
                           <div>
                             <p className="font-medium">{instance.process_name}</p>
@@ -344,7 +342,7 @@ export default function WorkflowsDashboardPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           {instance.pending_tasks > 0 && (
-                            <Badge variant="outline" className="text-orange-600 border-orange-300">
+                            <Badge variant="outline" className="text-orange-600 dark:text-orange-400 border-orange-300">
                               {instance.pending_tasks} pending
                             </Badge>
                           )}
@@ -412,7 +410,7 @@ export default function WorkflowsDashboardPage() {
                           {process.description || 'No description'}
                         </p>
                         <div className="flex items-center justify-between">
-                          <Badge variant="outline" className="text-green-600 border-green-300">
+                          <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-300">
                             Published
                           </Badge>
                           <Link href={`/workflows/designer/${process.id}`}>
@@ -430,6 +428,6 @@ export default function WorkflowsDashboardPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </TabbedPage>
   );
 }

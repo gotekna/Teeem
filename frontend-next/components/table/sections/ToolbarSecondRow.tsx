@@ -185,7 +185,7 @@ export function ToolbarSecondRow({
           )}>
             Editing {editingRowCount} row{editingRowCount !== 1 ? "s" : ""}
             {validationErrorCount > 0 && (
-              <span className="ml-2 text-red-600">
+              <span className="ml-2 text-red-600 dark:text-red-400">
                 ({validationErrorCount} error{validationErrorCount !== 1 ? "s" : ""})
               </span>
             )}
@@ -258,7 +258,7 @@ export function ToolbarSecondRow({
           {effectiveSavedViews.map((view) => (
             <Button
               key={view.id}
-              variant={effectiveActiveViewId === view.id ? "default" : "outline"}
+              variant={String(effectiveActiveViewId) === String(view.id) ? "default" : "outline"}
               size="sm"
               onClick={() => handleLoadView?.(view)}
               title={view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}

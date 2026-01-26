@@ -4,7 +4,7 @@
 class PricebookPhotoSyncService
   # SSoT: Folder path from StorageConfiguration, fallback to default
   def self.folder_path
-    StorageConfiguration.instance&.path_for(:pricebook_photos) || "Warehousing/Pricebook Photos"
+    StorageConfiguration.instance.path_for(:pricebook_photos)
   end
 
   class SyncError < StandardError; end

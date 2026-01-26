@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   closestCenter,
@@ -19,6 +20,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SetupTable } from "@/components/ui/setup-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +42,9 @@ import {
   Layers,
   MapPin,
   Search,
+  GitBranch,
 } from "lucide-react";
+import { WorkflowConfigTab } from "./WorkflowConfigTab";
 
 // DnD Primitives - SSoT for drag and drop UI
 import { DragHandle, ItemBadge } from "@/components/ui/dnd";
@@ -56,6 +60,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import {
   Table,
   TableBody,
@@ -133,8 +138,29 @@ const SEQ_COUNCILS = [
 ];
 
 
-export function JobSetupTab() {
+const JOB_SETUP_SUB_TABS = [
+  { id: "lists", label: "Lists", icon: ListChecks },
+  { id: "workflow", label: "Workflow", icon: GitBranch },
+];
+
+const DEFAULT_JOB_SETUP_BASE_PATH = "/settings/company/job-setup";
+
+interface JobSetupTabProps {
+  subTab?: string;
+  basePath?: string;
+}
+
+export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: JobSetupTabProps) {
+  const router = useRouter();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
+
+  // Default to "lists" sub-tab
+  const activeSubTab = JOB_SETUP_SUB_TABS.some((t) => t.id === subTab) ? subTab : "lists";
+
+  const handleSubTabChange = (tabId: string) => {
+    router.push(`${basePath}/${tabId}`, { scroll: false });
+  };
   const [jobTypes, setJobTypes] = React.useState<JobType[]>([]);
   const [jobStatuses, setJobStatuses] = React.useState<JobStatus[]>([]);
   const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
@@ -398,7 +424,7 @@ export function JobSetupTab() {
   };
 
   const handleDelete = async (id: number, type: "type" | "status" | "stage") => {
-    if (!confirm("Are you sure you want to delete this item?")) return;
+    if (!(await confirm("Are you sure you want to delete this item?"))) return;
 
     const endpoints = {
       type: "/api/v1/job_types",
@@ -462,50 +488,67 @@ export function JobSetupTab() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-3">
-        <SetupTable
-          items={jobTypes}
-          title="Job Types"
-          icon={Briefcase}
-          getLabel={(item) => item.name}
-          getColor={(item) => item.color}
-          getIsActive={(item) => item.active}
-          onAdd={() => handleOpenAddDialog("type")}
-          onEdit={(item) => handleOpenEditDialog(item, "type")}
-          onDelete={(item) => handleDelete(item.id, "type")}
-          onReorder={(items) => handleReorder(items, "type")}
-          loading={loading}
-        />
-        <SetupTable
-          items={jobStatuses}
-          title="Job Statuses"
-          icon={ListChecks}
-          getLabel={(item) => item.name}
-          getColor={(item) => item.color}
-          getIsActive={(item) => item.active}
-          onAdd={() => handleOpenAddDialog("status")}
-          onEdit={(item) => handleOpenEditDialog(item, "status")}
-          onDelete={(item) => handleDelete(item.id, "status")}
-          onReorder={(items) => handleReorder(items, "status")}
-          loading={loading}
-        />
-        <SetupTable
-          items={jobStages}
-          title="Job Stages"
-          icon={Layers}
-          getLabel={(item) => item.name}
-          getColor={(item) => item.color}
-          getIsActive={(item) => item.active}
-          onAdd={() => handleOpenAddDialog("stage")}
-          onEdit={(item) => handleOpenEditDialog(item, "stage")}
-          onDelete={(item) => handleDelete(item.id, "stage")}
-          onReorder={(items) => handleReorder(items, "stage")}
-          loading={loading}
-        />
-      </div>
+      {/* Sub-tab Navigation */}
+      <Tabs value={activeSubTab} onValueChange={handleSubTabChange}>
+        <TabsList>
+          {JOB_SETUP_SUB_TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
 
-      {/* Suburbs Section */}
-      <Card>
+        <div className="mt-6">
+          {/* Lists Tab */}
+          <TabsContent value="lists" className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-3">
+              <SetupTable
+                items={jobTypes}
+                title="Job Types"
+                icon={Briefcase}
+                getLabel={(item) => item.name}
+                getColor={(item) => item.color}
+                getIsActive={(item) => item.active}
+                onAdd={() => handleOpenAddDialog("type")}
+                onEdit={(item) => handleOpenEditDialog(item, "type")}
+                onDelete={(item) => handleDelete(item.id, "type")}
+                onReorder={(items) => handleReorder(items, "type")}
+                loading={loading}
+              />
+              <SetupTable
+                items={jobStatuses}
+                title="Job Statuses"
+                icon={ListChecks}
+                getLabel={(item) => item.name}
+                getColor={(item) => item.color}
+                getIsActive={(item) => item.active}
+                onAdd={() => handleOpenAddDialog("status")}
+                onEdit={(item) => handleOpenEditDialog(item, "status")}
+                onDelete={(item) => handleDelete(item.id, "status")}
+                onReorder={(items) => handleReorder(items, "status")}
+                loading={loading}
+              />
+              <SetupTable
+                items={jobStages}
+                title="Job Stages"
+                icon={Layers}
+                getLabel={(item) => item.name}
+                getColor={(item) => item.color}
+                getIsActive={(item) => item.active}
+                onAdd={() => handleOpenAddDialog("stage")}
+                onEdit={(item) => handleOpenEditDialog(item, "stage")}
+                onDelete={(item) => handleDelete(item.id, "stage")}
+                onReorder={(items) => handleReorder(items, "stage")}
+                loading={loading}
+              />
+            </div>
+
+            {/* Suburbs Section */}
+            <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-2">
@@ -632,8 +675,16 @@ export function JobSetupTab() {
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
+            </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Workflow Tab */}
+          <TabsContent value="workflow">
+            <WorkflowConfigTab />
+          </TabsContent>
+        </div>
+      </Tabs>
 
       {/* SSoT: Claim stages are now managed via Schedule Master CLAIM tasks */}
       {/* Navigate to Admin > Schedule Master to configure claim stages */}

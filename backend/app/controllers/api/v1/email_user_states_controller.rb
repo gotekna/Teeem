@@ -17,7 +17,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
     when "archived"
       emails = EmailUserState.archived_emails_for(current_user)
     when "reminders"
-      states = current_user.email_user_states.with_reminders.includes(:email_warehouse)
+      states = current_user.email_user_states.with_reminders.includes(:synced_email)
       return render json: {
         success: true,
         data: {
@@ -25,7 +25,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
         }
       }
     else
-      emails = EmailWarehouse.none
+      emails = SyncedEmail.none
     end
 
     render json: {
@@ -41,6 +41,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
   # GET /api/v1/email_user_states/for_email/:email_id
   # Get state for a specific email
   def show
+    # SSoT: Use email_warehouse (actual association), not synced_email alias
     state = EmailUserState.find_by(email_warehouse: @email, user: current_user)
 
     render json: {
@@ -104,8 +105,9 @@ class Api::V1::EmailUserStatesController < ApplicationController
   def toggle_read
     state = EmailUserState.toggle_read!(@email, current_user)
 
-    # Sync read status to Office 365 (fire-and-forget, don't block on errors)
+    # Sync read status to email provider (fire-and-forget, don't block on errors)
     sync_read_status_to_office365(@email, state.is_read)
+    sync_read_status_to_imap(@email, state.is_read)
 
     render json: {
       success: true,
@@ -160,7 +162,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
 
     # Find all unread emails in this folder
     # SSoT: Column is mailbox_owner_email, not mailbox_email
-    emails = EmailWarehouse.where(mailbox_owner_email: mailbox_email)
+    emails = SyncedEmail.where(mailbox_owner_email: mailbox_email)
                            .where("folder_name ILIKE ?", folder_name)
 
     affected = 0
@@ -169,6 +171,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
       unless state.is_read
         state.update!(is_read: true)
         sync_read_status_to_office365(email, true)
+        sync_read_status_to_imap(email, true)
         affected += 1
       end
     end
@@ -199,7 +202,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
     affected = 0
 
     email_ids.each do |email_id|
-      email = EmailWarehouse.find_by(id: email_id)
+      email = SyncedEmail.find_by(id: email_id)
       next unless email
 
       state = EmailUserState.for(email, current_user)
@@ -220,9 +223,11 @@ class Api::V1::EmailUserStatesController < ApplicationController
       when "mark_read"
         state.update!(is_read: true)
         sync_read_status_to_office365(email, true)
+        sync_read_status_to_imap(email, true)
       when "mark_unread"
         state.update!(is_read: false)
         sync_read_status_to_office365(email, false)
+        sync_read_status_to_imap(email, false)
       end
 
       affected += 1
@@ -238,7 +243,21 @@ class Api::V1::EmailUserStatesController < ApplicationController
   private
 
   def set_email
-    @email = EmailWarehouse.find(params[:email_id])
+    @email = SyncedEmail.find(params[:email_id])
+  rescue ActiveRecord::RecordNotFound
+    # Check if email exists but is tenant-scoped out (NULL tenant_id from pre-fix emails)
+    email = SyncedEmail.unscoped.find_by(id: params[:email_id])
+
+    if email.nil?
+      render json: { success: false, error: "Email not found" }, status: :not_found
+    elsif email.tenant_id.nil? && current_tenant.present?
+      # Auto-fix legacy emails with NULL tenant_id
+      Rails.logger.info "[EmailUserStates] Auto-fixing NULL tenant_id on email #{email.id}"
+      email.update_column(:tenant_id, current_tenant.id)
+      @email = email
+    else
+      render json: { success: false, error: "Email not accessible" }, status: :not_found
+    end
   end
 
   def state_params
@@ -287,18 +306,18 @@ class Api::V1::EmailUserStatesController < ApplicationController
     {
       **state.as_json,
       email: {
-        id: state.email_warehouse.id,
-        subject: state.email_warehouse.subject,
-        from_email: state.email_warehouse.from_email,
-        from_name: state.email_warehouse.from_name,
-        received_at: state.email_warehouse.received_at,
-        snippet: state.email_warehouse.preview_body(length: 150)
+        id: state.synced_email.id,
+        subject: state.synced_email.subject,
+        from_email: state.synced_email.from_email,
+        from_name: state.synced_email.from_name,
+        received_at: state.synced_email.received_at,
+        snippet: state.synced_email.preview_body(length: 150)
       }
     }
   end
 
   # Sync read status back to Office 365 (fire-and-forget)
-  # @param email [EmailWarehouse] The email record
+  # @param email [SyncedEmail] The email record
   # @param is_read [Boolean] The read status to sync
   def sync_read_status_to_office365(email, is_read)
     return unless email.outlook_id.present? && email.mailbox_owner_email.present?
@@ -317,6 +336,34 @@ class Api::V1::EmailUserStatesController < ApplicationController
       rescue StandardError => e
         # Don't fail the request if Office 365 sync fails
         Rails.logger.warn "[EmailSync] Failed to sync read status to Office 365 for email #{email.id}: #{e.message}"
+      ensure
+        ActiveRecord::Base.connection_pool.release_connection
+      end
+    end
+  end
+
+  # Sync read status back to IMAP server (fire-and-forget)
+  # @param email [SyncedEmail] The email record
+  # @param is_read [Boolean] The read status to sync
+  def sync_read_status_to_imap(email, is_read)
+    return unless email.imap_credential_id.present?
+    return unless email.uid.present?
+
+    # Find the IMAP credential
+    credential = ImapCredential.find_by(id: email.imap_credential_id)
+    return unless credential&.is_active?
+
+    folder = email.folder_name || "INBOX"
+
+    # Fire-and-forget - don't block the response on IMAP call
+    Thread.new do
+      begin
+        service = ImapEmailService.new(credential)
+        service.mark_read(email.uid, is_read: is_read, folder: folder)
+        Rails.logger.info "[EmailSync] Synced read status to IMAP: #{email.id} -> #{is_read}"
+      rescue StandardError => e
+        # Don't fail the request if IMAP sync fails
+        Rails.logger.warn "[EmailSync] Failed to sync read status to IMAP for email #{email.id}: #{e.message}"
       ensure
         ActiveRecord::Base.connection_pool.release_connection
       end

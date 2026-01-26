@@ -74,7 +74,9 @@ module Api
           id: scan.id,
           job_id: scan.job_id,
           job_name: scan.job&.name,
-          sharepoint_file_id: scan.sharepoint_file_id,
+          # SSoT: Use storage_reference, keep key for backwards compat
+          sharepoint_file_id: scan.storage_reference,
+          storage_reference: scan.storage_reference,
           file_name: scan.file_name,
           file_modified_at: scan.file_modified_at,
           file_size: scan.file_size,

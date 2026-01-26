@@ -27,6 +27,8 @@ interface CompanyDocument {
   financial_years?: number[] | string;
   source?: string;
   company?: { id: number; name: string; code: string };
+  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
+  storage_item_id?: string;
   sharepoint_file_id?: string;
   // Confidence scores (0-100)
   ocr_confidence?: number;
@@ -55,10 +57,13 @@ export default function DocumentSidePanel({
   const [previewLoading, setPreviewLoading] = React.useState(false);
   const [previewError, setPreviewError] = React.useState<string | null>(null);
 
-  // Fetch embeddable preview URL for OneDrive files
+  // Fetch embeddable preview URL for cloud storage files
+  // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
+  const storageRef = document?.storage_item_id || document?.sharepoint_file_id;
+
   React.useEffect(() => {
     const fetchPreviewUrl = async () => {
-      if (!document?.sharepoint_file_id || !open) {
+      if (!storageRef || !open) {
         setPreviewUrl(null);
         return;
       }
@@ -93,7 +98,7 @@ export default function DocumentSidePanel({
     };
 
     fetchPreviewUrl();
-  }, [document?.id, document?.sharepoint_file_id, open]);
+  }, [document?.id, storageRef, open]);
 
   if (!document) return null;
 
@@ -139,10 +144,10 @@ export default function DocumentSidePanel({
                     variant="outline"
                     className={`text-xs font-medium ${
                       document.ocr_confidence >= 90
-                        ? "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700"
+                        ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700"
                         : document.ocr_confidence >= 70
-                        ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-600"
-                        : "bg-blue-50/50 text-blue-600 border-blue-200 dark:bg-blue-900/10 dark:text-blue-300 dark:border-blue-500"
+                        ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-600"
+                        : "bg-blue-50/50 text-blue-600 dark:text-blue-400 border-blue-200 dark:bg-blue-900/10 dark:text-blue-300 dark:border-blue-500"
                     }`}
                     title={`OCR text extraction confidence (${document.ocr_method || 'unknown'})`}
                   >
@@ -151,7 +156,7 @@ export default function DocumentSidePanel({
                 ) : document.ocr_method === "vision" ? (
                   <Badge
                     variant="outline"
-                    className="text-xs font-medium bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-700"
+                    className="text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-700"
                     title="Document processed using AI vision (no text extraction)"
                   >
                     OCR Vision
@@ -164,10 +169,10 @@ export default function DocumentSidePanel({
                     variant="outline"
                     className={`text-xs font-medium ${
                       document.ai_confidence_score >= 90
-                        ? "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700"
+                        ? "bg-status-success text-status-success-foreground border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700"
                         : document.ai_confidence_score >= 70
-                        ? "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
-                        : "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700"
+                        ? "bg-status-warning text-status-warning-foreground border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
+                        : "bg-status-error text-status-error-foreground border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700"
                     }`}
                     title="AI classification confidence score"
                   >
@@ -181,10 +186,10 @@ export default function DocumentSidePanel({
                     variant="outline"
                     className={`text-xs font-medium ${
                       document.human_confidence >= 90
-                        ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700"
+                        ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700"
                         : document.human_confidence >= 70
                         ? "bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-700"
-                        : "bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-700"
+                        : "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 border-cyan-300 dark:bg-cyan-900/30 dark:text-cyan-400 dark:border-cyan-700"
                     }`}
                     title="Human validation confidence score"
                   >
@@ -193,7 +198,7 @@ export default function DocumentSidePanel({
                 ) : document.user_validated_at ? (
                   <Badge
                     variant="outline"
-                    className="text-xs font-medium bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700"
+                    className="text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-700"
                     title="Validated by human"
                   >
                     Human ✓
@@ -246,7 +251,7 @@ export default function DocumentSidePanel({
                 title="Document Preview"
                 allow="fullscreen"
               />
-            ) : fileType === "pdf" && document.file_url && !document.sharepoint_file_id ? (
+            ) : fileType === "pdf" && document.file_url && !storageRef ? (
               <iframe
                 src={document.file_url}
                 className="w-full h-full border-0"
@@ -267,7 +272,7 @@ export default function DocumentSidePanel({
                   {previewError || "Preview not available"}
                 </p>
                 <p className="text-sm text-center mb-4">
-                  {document.sharepoint_file_id
+                  {storageRef
                     ? "Could not load cloud storage preview"
                     : "This file type cannot be previewed inline"}
                 </p>

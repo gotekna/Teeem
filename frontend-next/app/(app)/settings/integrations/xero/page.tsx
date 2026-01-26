@@ -193,7 +193,33 @@ export default function XeroIntegrationPage() {
       const response = await api.xero.getAuthUrl();
       const authUrl = response.auth_url || response.url; // Handle both response formats
       if (authUrl) {
-        window.location.href = authUrl;
+        // Open in popup to preserve session (prevents logout issue)
+        const popup = window.open(authUrl, "_blank", "width=600,height=700");
+
+        // Poll for popup close and refresh status
+        const pollInterval = setInterval(async () => {
+          if (popup?.closed) {
+            clearInterval(pollInterval);
+            setConnecting(false);
+
+            // Refresh connection status
+            try {
+              const statusResponse = await api.xero.getStatus();
+              setStatus(statusResponse.data || { connected: false });
+
+              if (statusResponse.data?.connected) {
+                const [tenantsResponse, connectionsResponse] = await Promise.all([
+                  api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
+                  api.get<{ success: boolean; companies: CompanyXeroConnection[] }>("/api/v1/company_xero_connections"),
+                ]);
+                setTenants(tenantsResponse.tenants || []);
+                setCompanyConnections(connectionsResponse.companies || []);
+              }
+            } catch (error) {
+              console.error("Failed to refresh status:", error);
+            }
+          }
+        }, 500);
       } else {
         throw new Error("No authorization URL received from server");
       }
@@ -371,12 +397,12 @@ export default function XeroIntegrationPage() {
                 </div>
                 {status?.connected ? (
                   status?.expired ? (
-                    <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">
+                    <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 hover:bg-orange-100">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Token Expired
                     </Badge>
                   ) : (
-                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                    <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       Connected
                     </Badge>
@@ -449,11 +475,11 @@ export default function XeroIntegrationPage() {
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   )}
                   <span className="font-medium">Connected Xero Organizations</span>
-                  <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
+                  <Badge className="bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 hover:bg-cyan-100 text-xs">
                     {tenants.length}
                   </Badge>
                   {hasExpiredTenants && (
-                    <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-xs">
+                    <Badge className="bg-status-error text-status-error-foreground hover:bg-red-100 text-xs">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Reconnection Required
                     </Badge>
@@ -495,14 +521,14 @@ export default function XeroIntegrationPage() {
                           {tenant.is_primary ? (
                             <Star className="h-4 w-4 text-cyan-600" />
                           ) : (
-                            <CreditCard className={`h-4 w-4 ${isExpired(tenant) ? "text-red-600" : "text-muted-foreground"}`} />
+                            <CreditCard className={`h-4 w-4 ${isExpired(tenant) ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} />
                           )}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="font-medium">{tenant.tenant_name}</p>
                             {tenant.is_primary && (
-                              <Badge className="bg-cyan-100 text-cyan-800 hover:bg-cyan-100 text-xs">
+                              <Badge className="bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 hover:bg-cyan-100 text-xs">
                                 Primary
                               </Badge>
                             )}
@@ -517,12 +543,12 @@ export default function XeroIntegrationPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {isExpired(tenant) ? (
-                          <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
+                          <Badge className="bg-status-error text-status-error-foreground hover:bg-red-100">
                             <XCircle className="h-3 w-3 mr-1" />
                             Expired
                           </Badge>
                         ) : (
-                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                          <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
                             <CheckCircle2 className="h-3 w-3 mr-1" />
                             Active
                           </Badge>
@@ -564,7 +590,7 @@ export default function XeroIntegrationPage() {
                       TEEEM companies linked to Xero organizations
                     </CardDescription>
                   </div>
-                  <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                  <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-100">
                     {companyConnections.length} {companyConnections.length === 1 ? 'Company' : 'Companies'}
                   </Badge>
                 </div>
@@ -587,7 +613,7 @@ export default function XeroIntegrationPage() {
                           </p>
                         </div>
                       </div>
-                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                      <Badge className="bg-status-success text-status-success-foreground hover:bg-green-100">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         {connection.connection_status}
                       </Badge>
@@ -646,8 +672,8 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded ${
                       (pdfSyncHealth?.stage1_percentage ?? 0) >= 95
-                        ? "bg-green-100 text-green-600"
-                        : "bg-purple-100 text-purple-600"
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                        : "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
                     }`}>
                       <Database className="h-4 w-4" />
                     </div>
@@ -661,7 +687,7 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <Progress value={pdfSyncHealth?.stage1_percentage ?? 0} className="w-24 h-2" />
                     <span className={`font-semibold text-sm w-12 text-right ${
-                      (pdfSyncHealth?.stage1_percentage ?? 0) >= 95 ? "text-green-600" : ""
+                      (pdfSyncHealth?.stage1_percentage ?? 0) >= 95 ? "text-green-600 dark:text-green-400" : ""
                     }`}>
                       {pdfSyncHealth?.stage1_percentage ?? 0}%
                     </span>
@@ -681,8 +707,8 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded ${
                       (pdfSyncHealth?.stage2_percentage ?? 0) >= 95
-                        ? "bg-green-100 text-green-600"
-                        : "bg-blue-100 text-blue-600"
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                        : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300"
                     }`}>
                       <Download className="h-4 w-4" />
                     </div>
@@ -696,7 +722,7 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <Progress value={pdfSyncHealth?.stage2_percentage ?? 0} className="w-24 h-2" />
                     <span className={`font-semibold text-sm w-12 text-right ${
-                      (pdfSyncHealth?.stage2_percentage ?? 0) >= 95 ? "text-green-600" : ""
+                      (pdfSyncHealth?.stage2_percentage ?? 0) >= 95 ? "text-green-600 dark:text-green-400" : ""
                     }`}>
                       {pdfSyncHealth?.stage2_percentage ?? 0}%
                     </span>
@@ -716,8 +742,8 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded ${
                       (pdfSyncHealth?.stage3_percentage ?? 0) >= 95
-                        ? "bg-green-100 text-green-600"
-                        : "bg-green-100 text-green-600"
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                        : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
                     }`}>
                       <Upload className="h-4 w-4" />
                     </div>
@@ -731,7 +757,7 @@ export default function XeroIntegrationPage() {
                   <div className="flex items-center gap-3">
                     <Progress value={pdfSyncHealth?.stage3_percentage ?? 0} className="w-24 h-2" />
                     <span className={`font-semibold text-sm w-12 text-right ${
-                      (pdfSyncHealth?.stage3_percentage ?? 0) >= 95 ? "text-green-600" : ""
+                      (pdfSyncHealth?.stage3_percentage ?? 0) >= 95 ? "text-green-600 dark:text-green-400" : ""
                     }`}>
                       {pdfSyncHealth?.stage3_percentage ?? 0}%
                     </span>
@@ -745,11 +771,11 @@ export default function XeroIntegrationPage() {
                   <span className="text-sm text-muted-foreground">Overall Status</span>
                   <Badge className={
                     pdfSyncHealth?.overall_status === "healthy"
-                      ? "bg-green-100 text-green-800"
+                      ? "bg-status-success text-status-success-foreground"
                       : pdfSyncHealth?.overall_status === "in_progress"
-                      ? "bg-blue-100 text-blue-800"
+                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                       : pdfSyncHealth?.overall_status === "warning"
-                      ? "bg-amber-100 text-amber-800"
+                      ? "bg-status-warning text-status-warning-foreground"
                       : "bg-muted text-foreground"
                   }>
                     {pdfSyncHealth?.overall_status === "healthy" && <CheckCircle2 className="h-3 w-3 mr-1" />}

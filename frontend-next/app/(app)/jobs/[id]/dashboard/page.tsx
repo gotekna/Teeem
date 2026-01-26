@@ -36,6 +36,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { useToast } from "@/components/ui/use-toast";
 import {
   StatCard,
   ProgressRing,
@@ -217,6 +219,7 @@ export default function SmDashboardPage() {
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { toast } = useToast();
   const constructionId = params.id as string;
 
   // URL is SSoT for tab state (path-based navigation)
@@ -345,7 +348,7 @@ export default function SmDashboardPage() {
   // Export handler
   const handleExport = async (type: string) => {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
 
       const params = new URLSearchParams({
         construction_id: constructionId,
@@ -371,7 +374,7 @@ export default function SmDashboardPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Export error:", err);
-      alert("Failed to export report");
+      toast({ title: "Error", description: "Failed to export report", variant: "destructive" });
     }
   };
 
@@ -731,11 +734,11 @@ export default function SmDashboardPage() {
                             variant="secondary"
                             className={
                               r.status === "over"
-                                ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                                ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-950 dark:text-red-400"
                                 : r.status === "high"
-                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
+                                  ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 dark:bg-amber-950 dark:text-amber-400"
                                   : r.status === "optimal"
-                                    ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
+                                    ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-950 dark:text-green-400"
                                     : ""
                             }
                           >

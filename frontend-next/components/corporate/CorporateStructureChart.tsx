@@ -189,7 +189,7 @@ function EntityNode({ data }: { data: EntityNodeData }) {
         if (isTrustee) {
           return <Briefcase className={cn(iconSize, "text-indigo-600")} />;
         }
-        return <Building2 className={cn(iconSize, "text-blue-600")} />;
+        return <Building2 className={cn(iconSize, "text-blue-600 dark:text-blue-400")} />;
     }
   };
 

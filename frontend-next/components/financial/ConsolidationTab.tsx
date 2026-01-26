@@ -33,6 +33,7 @@ import {
   PieChart,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 
 interface Entity {
   id: number;
@@ -92,15 +93,6 @@ interface ConsolidationData {
     }>;
     total_intercompany: number;
   };
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
 }
 
 export default function ConsolidationTab() {
@@ -225,7 +217,7 @@ export default function ConsolidationTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${(data.consolidated_profit_loss?.summary?.profit_attributable_to_group || 0) >= 0 ? "text-green-600" : "text-red-600"}`}>
+              <div className={`text-2xl font-bold ${(data.consolidated_profit_loss?.summary?.profit_attributable_to_group || 0) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                 {formatCurrency(data.consolidated_profit_loss?.summary?.profit_attributable_to_group || 0)}
               </div>
             </CardContent>
@@ -302,7 +294,7 @@ export default function ConsolidationTab() {
                         <TableCell className="text-right">{entity.ownership_percentage}%</TableCell>
                         <TableCell>{entity.currency}</TableCell>
                         <TableCell className="text-center">
-                          <Badge className={entity.status === "active" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : ""}>
+                          <Badge className={entity.status === "active" ? "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400" : ""}>
                             {entity.status}
                           </Badge>
                         </TableCell>
@@ -349,7 +341,7 @@ export default function ConsolidationTab() {
                           <TableCell className="font-medium">{entity.entity}</TableCell>
                           <TableCell className="text-right">{formatCurrency(entity.revenue)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(entity.expenses)}</TableCell>
-                          <TableCell className={`text-right font-medium ${entity.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          <TableCell className={`text-right font-medium ${entity.profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                             {formatCurrency(entity.profit)}
                           </TableCell>
                           <TableCell className="text-right">{percentage}%</TableCell>
@@ -386,13 +378,13 @@ export default function ConsolidationTab() {
                     </div>
                     <div className="p-4 rounded-lg bg-muted">
                       <div className="text-sm text-muted-foreground">Net Profit</div>
-                      <div className={`text-xl font-bold ${data.consolidated_profit_loss.summary.net_profit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      <div className={`text-xl font-bold ${data.consolidated_profit_loss.summary.net_profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                         {formatCurrency(data.consolidated_profit_loss.summary.net_profit)}
                       </div>
                     </div>
                     <div className="p-4 rounded-lg bg-muted">
                       <div className="text-sm text-muted-foreground">Attributable to Group</div>
-                      <div className={`text-xl font-bold ${data.consolidated_profit_loss.summary.profit_attributable_to_group >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      <div className={`text-xl font-bold ${data.consolidated_profit_loss.summary.profit_attributable_to_group >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                         {formatCurrency(data.consolidated_profit_loss.summary.profit_attributable_to_group)}
                       </div>
                     </div>

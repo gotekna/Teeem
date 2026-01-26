@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -279,12 +280,12 @@ function UsersManagementTab() {
                   {(user.integrations_count ?? 0) > 0 ? (
                     <div className="flex gap-1">
                       {user.integrations?.includes('microsoft') && (
-                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200">
                           MS
                         </Badge>
                       )}
                       {user.integrations?.includes('outlook') && (
-                        <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
+                        <Badge variant="outline" className="text-xs bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border-indigo-200">
                           Email
                         </Badge>
                       )}
@@ -402,6 +403,7 @@ function UsersManagementTab() {
 // Roles Management Tab
 function RolesManagementTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [roles, setRoles] = React.useState<Role[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showAddDialog, setShowAddDialog] = React.useState(false);
@@ -515,7 +517,7 @@ function RolesManagementTab() {
   };
 
   const handleDeleteRole = async (role: Role) => {
-    if (!confirm(`Are you sure you want to delete the role "${role.display_name || role.name}"?`)) {
+    if (!(await confirm(`Are you sure you want to delete the role "${role.display_name || role.name}"?`))) {
       return;
     }
     try {
@@ -907,26 +909,31 @@ function GroupsManagementTab() {
 }
 
 // Main Security Tab Component
+// Sub-tab definitions for security
+// SSoT: "Users" removed - use /settings/users instead (the SSoT for user management)
+const SECURITY_SUB_TABS = [
+  { id: "roles", label: "User Roles" },
+  { id: "groups", label: "Groups" },
+];
+
 interface SecurityTabProps {
-  innertab?: string;
+  subTab?: string;
 }
 
-export function SecurityTab({ innertab }: SecurityTabProps) {
+export function SecurityTab({ subTab }: SecurityTabProps) {
   const router = useRouter();
-  const securityTab = innertab || "users";
+
+  // Validate and default the sub-tab (default to "roles" since "users" is now at /settings/users)
+  const activeSubTab = SECURITY_SUB_TABS.some((t) => t.id === subTab) ? subTab : "roles";
 
   const handleTabChange = React.useCallback((tab: string) => {
-    router.push(`/admin/system/company/security/${tab}`, { scroll: false });
+    router.push(`/settings/company/security/${tab}`, { scroll: false });
   }, [router]);
 
   return (
     <div className="space-y-6">
-      <Tabs value={securityTab} onValueChange={handleTabChange}>
+      <Tabs value={activeSubTab} onValueChange={handleTabChange}>
         <TabsList>
-          <TabsTrigger value="users" className="gap-2">
-            <Users className="h-4 w-4" />
-            Users
-          </TabsTrigger>
           <TabsTrigger value="roles" className="gap-2">
             <Shield className="h-4 w-4" />
             User Roles
@@ -938,9 +945,6 @@ export function SecurityTab({ innertab }: SecurityTabProps) {
         </TabsList>
 
         <div className="mt-6">
-          <TabsContent value="users">
-            <UsersManagementTab />
-          </TabsContent>
           <TabsContent value="roles">
             <RolesManagementTab />
           </TabsContent>

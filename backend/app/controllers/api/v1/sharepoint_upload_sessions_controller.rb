@@ -1,8 +1,11 @@
 module Api
   module V1
-    # ULTRA MASTERPIECE: Direct Browser-to-SharePoint Uploads
+    # ULTRA MASTERPIECE: Direct Browser-to-Storage Uploads
     # This controller provides pre-authenticated upload URLs that browsers can use
-    # to upload files directly to SharePoint, bypassing the Heroku proxy entirely.
+    # to upload files directly to storage, bypassing the Heroku proxy entirely.
+    #
+    # NOTE: Currently SharePoint-only. For S3/Wasabi, use presigned URLs via a different endpoint.
+    # TODO: Add S3/Wasabi presigned URL support for provider-agnostic direct uploads.
     #
     # Benefits:
     # - 50% faster uploads (1 hop instead of 2)
@@ -12,13 +15,16 @@ module Api
     #
     # Flow:
     # 1. Browser calls POST /upload_session → gets pre-authenticated uploadUrl
-    # 2. Browser uploads directly to SharePoint (uploadUrl contains embedded token)
+    # 2. Browser uploads directly to storage (uploadUrl contains embedded token)
     # 3. Browser calls POST /upload_complete → logs activity + indexes in warehouse
     class SharepointUploadSessionsController < ApplicationController
+      include DocumentProviderAware
+
       # Authentication is handled by ApplicationController's authorize_request before_action
 
       # POST /api/v1/sharepoint/upload_session
       # Returns a pre-authenticated URL for direct browser upload to SharePoint
+      # NOTE: Currently SharePoint-only feature
       #
       # Params:
       #   - filename: (required) Name for the uploaded file
@@ -38,6 +44,19 @@ module Api
       #     file_size: 15728640
       #   }
       def create
+        # Check storage provider - this feature is SharePoint-only for now
+        begin
+          setup_default_provider!
+          unless current_provider_type == :sharepoint
+            return render json: {
+              success: false,
+              error: "Direct upload sessions are only available for SharePoint storage. Current provider: #{current_provider_type}. Use standard upload endpoints for #{current_provider_type}."
+            }, status: :unprocessable_entity
+          end
+        rescue DocumentProviders::NotConnectedError
+          # Fall through to SharePoint credential check below
+        end
+
         credential = MicrosoftCredential.sharepoint_credential
         unless credential&.valid_credential?
           return render json: {
@@ -189,10 +208,13 @@ module Api
 
       # Navigate to a folder path within a parent folder, creating folders if needed
       # Reuses logic from job_photos_controller
+      # SSoT: Uses StorageConfiguration for drive_id (Jan 2026)
       def navigate_to_folder(client, credential, parent_folder_id, path)
         return { "id" => parent_folder_id } if path.blank?
 
-        drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+        # SSoT: Get drive path from StorageConfiguration
+        storage_drive_id = StorageConfiguration.instance&.drive_id
+        drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
         current_folder_id = parent_folder_id
 
         path.split("/").each do |folder_name|

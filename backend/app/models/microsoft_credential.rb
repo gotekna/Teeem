@@ -36,9 +36,15 @@ class MicrosoftCredential < ApplicationRecord
   CREDENTIAL_TYPES = %w[app delegated].freeze
   STATUSES = %w[pending connected error dead disconnected].freeze
 
-  # Known Microsoft 365 tenant organization names (SSoT)
-  # These are the organizations that can have app credentials configured
-  KNOWN_ORG_NAMES = ["Tekna", "100xBestLife", "Homes of Hope", "Love Your World"].freeze
+  # SSoT: Get organization names dynamically from database (Jan 2026)
+  # No hardcoded org names - reads from configured app credentials
+  def self.known_org_names
+    app_credentials.distinct.pluck(:name).compact.reject(&:blank?)
+  end
+
+  # DEPRECATED: Use known_org_names method instead
+  # Kept for backwards compatibility during transition
+  KNOWN_ORG_NAMES = [].freeze
 
   # UNIFIED refresh buffer - 20 minutes (SSoT - same everywhere)
   # Microsoft access tokens typically expire after 60 minutes
@@ -76,7 +82,13 @@ class MicrosoftCredential < ApplicationRecord
 
   # Scopes
   scope :active, -> { where(is_active: true) }
-  scope :connected, -> { active.where(status: "connected") }
+  # SSoT: "configured" = has been connected (status field only)
+  # Use this when you just need to know if credential was ever set up
+  scope :configured, -> { active.where(status: "connected") }
+  # SSoT: "connected" = actually usable RIGHT NOW (status + valid token)
+  # This matches the connected? instance method - both check token expiry
+  # All code using .connected scope now correctly filters out expired tokens
+  scope :connected, -> { configured.where("token_expires_at > ?", Time.current) }
   scope :app_credentials, -> { where(credential_type: "app") }
   scope :delegated_credentials, -> { where(credential_type: "delegated") }
   scope :for_user, ->(user) { where(owner_type: "User", owner_id: user.id) }
@@ -368,9 +380,10 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   # SharePoint configuration helpers
-  # SSoT: Now uses StorageConfiguration for site_id/drive_id
+  # SSoT: Now uses StorageConfiguration for site_id/drive_id (Jan 2026)
   # MicrosoftCredential only provides the authentication credential
-  def self.teeem_sharepoint_config
+  # No hardcoded org names - configuration is tenant-specific
+  def self.sharepoint_config
     storage_config = StorageConfiguration.instance
     return nil unless storage_config&.connected?
 
@@ -382,18 +395,61 @@ class MicrosoftCredential < ApplicationRecord
     }
   end
 
+  # DEPRECATED: Use sharepoint_config instead (Jan 2026)
+  def self.teeem_sharepoint_config
+    sharepoint_config
+  end
+
   # Check if SharePoint is configured (SSoT: StorageConfiguration)
   def self.sharepoint_configured?
     StorageConfiguration.instance&.connected? && sharepoint_credential.present?
   end
 
-  # DEPRECATED: Instance method - use StorageConfiguration.instance.connected? instead
-  def sharepoint_configured?
-    Rails.deprecator.warn(
-      "MicrosoftCredential#sharepoint_configured? is deprecated. " \
-      "Use StorageConfiguration.instance.connected? instead."
+  # ╔════════════════════════════════════════════════════════════════════════╗
+  # ║  DEPRECATED: Storage Delegation Methods (Jan 2026)                      ║
+  # ║                                                                         ║
+  # ║  These methods delegate to StorageConfiguration for backward compat.   ║
+  # ║  NEW CODE SHOULD USE StorageConfiguration.instance.* DIRECTLY!          ║
+  # ║                                                                         ║
+  # ║  Example:                                                               ║
+  # ║    ❌ credential.drive_id                                               ║
+  # ║    ✅ StorageConfiguration.instance.drive_id                            ║
+  # ╚════════════════════════════════════════════════════════════════════════╝
+
+  # @deprecated Use StorageConfiguration.instance.drive_id instead
+  def drive_id
+    ActiveSupport::Deprecation.warn(
+      "MicrosoftCredential#drive_id is deprecated. Use StorageConfiguration.instance.drive_id instead.",
+      caller(1)
     )
-    StorageConfiguration.instance&.connected?
+    StorageConfiguration.instance&.drive_id
+  end
+
+  # @deprecated Use StorageConfiguration.instance.site_id instead
+  def site_id
+    ActiveSupport::Deprecation.warn(
+      "MicrosoftCredential#site_id is deprecated. Use StorageConfiguration.instance.site_id instead.",
+      caller(1)
+    )
+    StorageConfiguration.instance&.site_id
+  end
+
+  # @deprecated Use StorageConfiguration.instance.root_folder_id instead
+  def root_folder_id
+    ActiveSupport::Deprecation.warn(
+      "MicrosoftCredential#root_folder_id is deprecated. Use StorageConfiguration.instance.root_folder_id instead.",
+      caller(1)
+    )
+    StorageConfiguration.instance&.root_folder_id
+  end
+
+  # @deprecated Use StorageConfiguration.instance.root_folder_path instead
+  def root_folder_path
+    ActiveSupport::Deprecation.warn(
+      "MicrosoftCredential#root_folder_path is deprecated. Use StorageConfiguration.instance.root_folder_path instead.",
+      caller(1)
+    )
+    StorageConfiguration.instance&.root_folder_path
   end
 
   # Test the connection by making a simple API call

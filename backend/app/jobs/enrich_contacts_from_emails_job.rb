@@ -51,7 +51,7 @@ class EnrichContactsFromEmailsJob < ApplicationJob
       # 3. Have emails in the warehouse from them
       Contact.joins(:contact_emails)
              .where("(mobile_phone IS NULL OR mobile_phone = '') OR (office_phone IS NULL OR office_phone = '') OR (address IS NULL OR address = '')")
-             .where("EXISTS (SELECT 1 FROM email_warehouse WHERE LOWER(email_warehouse.from_email) = LOWER(contact_emails.email))")
+             .where("EXISTS (SELECT 1 FROM synced_email WHERE LOWER(synced_email.from_email) = LOWER(contact_emails.email))")
              .distinct
              .limit(limit)
     end
@@ -63,7 +63,7 @@ class EnrichContactsFromEmailsJob < ApplicationJob
     return :skipped if contact.email.blank?
 
     # Find most recent email FROM this contact (signature is in sent emails)
-    recent_email = EmailWarehouse
+    recent_email = SyncedEmail
       .where("LOWER(from_email) = ?", contact.email.downcase)
       .where.not(body_text: [ nil, "" ])
       .order(received_at: :desc)

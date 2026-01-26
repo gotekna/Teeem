@@ -60,7 +60,7 @@ export function QuickEmailActions({
     e.stopPropagation();
     setLoading("delete");
     try {
-      await api.delete(`/api/v1/email_warehouse/${emailId}/delete_from_outlook`);
+      await api.delete(`/api/v1/synced_emails/${emailId}/delete_from_outlook`);
       onAction?.();
     } catch (error) {
       console.error("Failed to delete:", error);
@@ -106,7 +106,7 @@ export function QuickEmailActions({
     e.stopPropagation();
     setLoading("spam");
     try {
-      await api.post(`/api/v1/email_warehouse/${emailId}/mark_as_spam`, { delete_from_outlook: true });
+      await api.post(`/api/v1/synced_emails/${emailId}/mark_as_spam`, { delete_from_outlook: true });
       onAction?.();
     } catch (error) {
       console.error("Failed to mark as spam:", error);
@@ -192,7 +192,7 @@ export function QuickEmailActions({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 hover:bg-red-500/10 hover:text-red-500"
+              className="h-6 w-6 hover:bg-red-500/10 hover:text-red-500 dark:text-red-400"
               onClick={handleDelete}
               disabled={loading !== null}
             >
@@ -274,7 +274,7 @@ export function QuickEmailActions({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 hover:bg-orange-500/10 hover:text-orange-500"
+              className="h-6 w-6 hover:bg-orange-500/10 hover:text-orange-500 dark:text-orange-400"
               onClick={handleSpam}
               disabled={loading !== null}
             >

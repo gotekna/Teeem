@@ -1,6 +1,7 @@
 "use client";
 
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 
 /**
  * SM Tasks Admin Tab
@@ -14,7 +15,7 @@ export function SMTasksTab() {
   return (
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
-        foundationId="sm_tasks"
+        foundationId={FOUNDATION_SLUGS.SM_TASKS}
         autoFetchRecords={true}
       />
     </div>

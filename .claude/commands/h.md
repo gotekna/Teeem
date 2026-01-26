@@ -1,27 +1,28 @@
 # Pull Heroku Database from Production
 
-Pull the production database (teeemlive) to local environment.
+Pull the production database (teeem-production) to local environment.
 
 ## Data Flow
 
 ```
 ┌─────────────────────┐
-│  teeemlive (PROD)   │
+│  teeem-production   │  All tenants: Tekna, Pilgrim, TEEEM
 │  Heroku PostgreSQL  │
 └──────────┬──────────┘
            │
-           │ Step 1: Capture fresh backup
+           │ Step 2: Capture fresh backup (all tenants)
            ▼
 ┌─────────────────────┐
 │   Heroku S3 Backup  │
 │   (~145MB)          │
 └──────────┬──────────┘
            │
-           │ Step 2: aria2c parallel download
+           │ Step 3: aria2c parallel download
            ▼
 ┌─────────────────────┐
 │       LOCAL         │
-│  teeem_development  │
+│  teeem_development  │  Step 6: Assign NULL data to Tekna
+│                     │  (multi-tenancy works like prod)
 └─────────────────────┘
 ```
 
@@ -43,8 +44,8 @@ psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHER
 # Step 2: Capture fresh backup and get URL
 cd /Users/robertharder/GitHub/teeem/backend
 echo "📸 Capturing fresh backup from production..."
-heroku pg:backups:capture --app teeemlive 2>&1 | tail -5
-BACKUP_URL=$(heroku pg:backups:url --app teeemlive)
+heroku pg:backups:capture --app teeem-production 2>&1 | tail -5
+BACKUP_URL=$(heroku pg:backups:url --app teeem-production)
 
 # Step 3: Download with aria2c (16 parallel connections, resume-capable)
 rm -f latest.dump
@@ -61,18 +62,22 @@ rm -f latest.dump
 bin/rails db:migrate
 bin/rails teeem:create_system_foundations 2>&1 | tail -5
 
-# Step 6: Clear encrypted credentials (can't decrypt with local keys)
+# Step 6: Assign NULL tenant data to Tekna (pre-multi-tenancy data fix)
+# This ensures local dev works like production with proper tenant isolation
+bin/rails tenant:assign_null_to_tekna
+
+# Step 7: Clear encrypted credentials (can't decrypt with local keys)
 bin/rails runner "
 deleted_ms = MicrosoftCredential.delete_all
-deleted_sp = OrganizationSharePointCredential.delete_all
-deleted_app = OrganizationMicrosoftAppCredential.delete_all
-puts '🔑 Cleared ' + (deleted_ms + deleted_sp + deleted_app).to_s + ' credentials (encrypted with prod keys)'
+deleted_app = OrganizationMicrosoftAppCredential.delete_all rescue 0
+deleted_s3 = S3Credential.delete_all rescue 0
+puts '🔑 Cleared ' + (deleted_ms + deleted_app + deleted_s3).to_s + ' credentials (encrypted with prod keys)'
 "
 
-# Step 7: Verify data pulled correctly
+# Step 8: Verify data pulled correctly
 bin/rails runner "puts '✅ Data verification:'; puts \"   Users: #{User.count}\"; puts \"   Foundations: #{Foundation.count}\"; puts \"   Jobs: #{Job.count}\"; puts \"   Contacts: #{Contact.count}\""
 
-# Step 8: Restart local servers using screen (persistent)
+# Step 9: Restart local servers using screen (persistent)
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 lsof -ti:3001 | xargs kill -9 2>/dev/null || true
 screen -X -S backend quit 2>/dev/null || true
@@ -83,13 +88,9 @@ screen -dmS frontend-next bash -c 'cd /Users/robertharder/GitHub/teeem/frontend-
 
 echo "✅ Database synced and servers restarted (screen sessions: backend, frontend-next)"
 
-# Step 9: Wait for servers to start, then open SharePoint connection page
 echo "⏳ Waiting for servers to start..."
-sleep 5
-echo "🔗 Opening SharePoint connection page..."
-open "http://localhost:3000/admin/system?tab=connections"
-echo ""
-echo "👆 Connect SharePoint in the browser to enable document features locally"
+sleep 3
+echo "🎉 Done! Local environment ready at http://localhost:3000"
 ```
 
 ## Summary
@@ -97,14 +98,14 @@ echo "👆 Connect SharePoint in the browser to enable document features locally
 | Step | From | To | Method |
 |------|------|-----|--------|
 | 1 | - | - | Kill local connections |
-| 2 | teeemlive | S3 | `pg:backups:capture` (fresh) |
+| 2 | teeem-production | S3 | `pg:backups:capture` (fresh) |
 | 3 | S3 | local file | `aria2c -x 16` (parallel, ~30s) |
 | 4 | local file | teeem_development | `pg_restore` |
 | 5 | - | - | `db:migrate` + `create_system_foundations` |
-| 6 | - | - | Clear encrypted credentials (prod keys don't work locally) |
-| 7 | - | - | Verify data counts |
-| 8 | - | localhost:3000 + 3001 | Restart servers (screen) |
-| 9 | - | browser | Open SharePoint connection page |
+| 6 | - | - | Assign NULL tenant data to Tekna (multi-tenancy fix) |
+| 7 | - | - | Clear encrypted credentials (prod keys don't work locally) |
+| 8 | - | - | Verify data counts |
+| 9 | - | localhost:3000 + 3001 | Restart servers (screen) |
 
 ## Notes
 

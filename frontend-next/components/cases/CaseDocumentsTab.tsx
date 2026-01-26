@@ -34,6 +34,7 @@ import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import { Spinner } from "@/components/ui/spinner";
+import { formatFileSize } from "@/utils/formatters";
 
 interface CaseDocument {
   id: number;
@@ -61,23 +62,16 @@ interface CaseDocumentsTabProps {
 function getRelevanceColor(relevance: string) {
   switch (relevance) {
     case "critical":
-      return "bg-red-100 text-red-800";
+      return "bg-status-error text-status-error-foreground";
     case "high":
-      return "bg-orange-100 text-orange-800";
+      return "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300";
     case "medium":
-      return "bg-yellow-100 text-yellow-800";
+      return "bg-status-warning text-status-warning-foreground";
     case "low":
-      return "bg-green-100 text-green-800";
+      return "bg-status-success text-status-success-foreground";
     default:
       return "bg-muted text-foreground";
   }
-}
-
-function formatFileSize(bytes: number | null) {
-  if (bytes === null) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) {
@@ -260,7 +254,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between py-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <FolderInput className="h-4 w-4 text-blue-500" />
+            <FolderInput className="h-4 w-4 text-blue-500 dark:text-blue-400" />
             Source Folders
           </CardTitle>
           <Button
@@ -373,7 +367,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
                   className="flex items-center justify-between p-2 bg-muted rounded-md"
                 >
                   <div className="flex items-center gap-2">
-                    <FolderOpen className="h-4 w-4 text-blue-500" />
+                    <FolderOpen className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                     <span className="text-sm font-medium">{path}</span>
                   </div>
                   <Button
@@ -381,7 +375,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
                     size="sm"
                     onClick={() => removeSourceFolder(path)}
                   >
-                    <Trash2 className="h-4 w-4 text-red-500" />
+                    <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                   </Button>
                 </div>
               ))}
@@ -433,7 +427,7 @@ export function CaseDocumentsTab({ caseId, caseNumber }: CaseDocumentsTabProps) 
               {documents.map((doc) => (
                 <div key={doc.id} className="py-3 flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
-                    <div className="p-2 bg-blue-100 rounded text-blue-600">
+                    <div className="p-2 bg-blue-100 rounded text-blue-600 dark:text-blue-400">
                       <FileText className="h-4 w-4" />
                     </div>
                     <div>

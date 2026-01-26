@@ -1,4 +1,11 @@
 class JobDocument < ApplicationRecord
+  include StorableDocument
+  include DocumentStorageConstants
+
+  # SSoT: Storage scope for this document type
+  # Determines path: /Jobs/{JobCode}/{TabName}/filename
+  storage_scope :job
+
   belongs_to :job
   belongs_to :document_type, optional: true
   belongs_to :ai_suggested_type, class_name: "DocumentType", optional: true
@@ -15,22 +22,15 @@ class JobDocument < ApplicationRecord
   # Version status constants
   VERSION_STATUSES = %w[draft signed superseded].freeze
 
-  # Active Storage for file upload (for migrated documents)
-  has_one_attached :file
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  # Same file = same StorageBlob, deduplication via content_hash
+  belongs_to :storage_blob, optional: true
 
-  # File upload validation (security: prevents storage DoS and malware upload)
-  ALLOWED_CONTENT_TYPES = %w[
-    application/pdf
-    image/jpeg image/png image/tiff image/heic
-    application/vnd.openxmlformats-officedocument.wordprocessingml.document
-    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-    application/vnd.ms-excel application/msword
-    text/plain text/csv
-    application/octet-stream
-  ].freeze
+  # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT by
+  # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
+  # which deduplicates via content_hash and uses StorageConfiguration for provider-agnostic paths.
 
-  validates :file, content_type: ALLOWED_CONTENT_TYPES,
-                   size: { less_than: 100.megabytes, message: "must be less than 100MB" }
+  # SSoT: ALLOWED_CONTENT_TYPES defined in DocumentStorageConstants concern
 
   # Activity log
   has_many :document_activities, as: :document, dependent: :destroy
@@ -51,6 +51,9 @@ class JobDocument < ApplicationRecord
            as: :new_document,
            dependent: :nullify
 
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
+
   # File type enum based on extension
   FILE_TYPE_MAP = {
     "rvt" => "revit_project",
@@ -69,25 +72,16 @@ class JobDocument < ApplicationRecord
     "doc" => "document"
   }.freeze
 
-  # Sync status enum
-  SYNC_STATUSES = %w[pending synced missing error].freeze
+  # SSoT: STORAGE_PROVIDERS, MIGRATION_STATUSES, SYNC_STATUSES, AI_VERIFICATION_STATUSES
+  # are defined in DocumentStorageConstants concern
 
-  # AI verification statuses
-  AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
-
-  # Storage providers (SSoT: Organization.document_provider)
-  STORAGE_PROVIDERS = %w[sharepoint s3_compatible].freeze
-
-  # Migration statuses for tracking provider-to-provider migration
-  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
-
-  validates :sharepoint_item_id, presence: true, uniqueness: true
+  validates :storage_item_id, presence: true, uniqueness: true
   validates :storage_provider, inclusion: { in: STORAGE_PROVIDERS }, allow_nil: true
   validates :migration_status, inclusion: { in: MIGRATION_STATUSES }, allow_nil: true
 
   # Provider-agnostic storage reference
   # This is the new SSoT for document storage references
-  # Backwards-compatible with sharepoint_item_id for existing documents
+  # Backwards-compatible with storage_item_id for existing documents
   validates :file_name, presence: true
   validates :sync_status, inclusion: { in: SYNC_STATUSES }
   validates :ai_verification_status, inclusion: { in: AI_VERIFICATION_STATUSES }, allow_blank: true
@@ -196,7 +190,7 @@ class JobDocument < ApplicationRecord
 
   # Check if this is SharePoint sourced
   def sharepoint_sourced?
-    !migrated? && sharepoint_item_id.present?
+    !migrated? && storage_item_id.present?
   end
 
   # Provider-agnostic storage helpers
@@ -222,24 +216,7 @@ class JobDocument < ApplicationRecord
     !migration_in_progress? && storage_reference.present?
   end
 
-  # Returns the provider-agnostic storage reference
-  # Falls back to sharepoint_item_id for backwards compatibility
-  def storage_reference
-    storage_item_id.presence || sharepoint_item_id
-  end
-
-  # Sets both provider-agnostic and SharePoint-specific fields
-  # for backwards compatibility during migration
-  def set_storage_reference(item_id, provider: 'sharepoint', path: nil)
-    self.storage_item_id = item_id
-    self.storage_provider = provider
-    self.storage_path = path
-
-    # Maintain backwards compatibility with SharePoint fields
-    if provider == 'sharepoint'
-      self.sharepoint_item_id = item_id
-    end
-  end
+  # SSoT: storage_reference is defined in StorableDocument concern
 
   # Version status helpers
   def draft?
@@ -308,7 +285,7 @@ class JobDocument < ApplicationRecord
       file_name: file_params[:file_name],
       file_extension: file_params[:file_extension],
       file_size: file_params[:file_size],
-      sharepoint_item_id: file_params[:sharepoint_item_id],
+      storage_item_id: file_params[:storage_item_id],
       folder_path: folder_path,
       sync_status: 'synced',
       contact: contact,
@@ -318,7 +295,81 @@ class JobDocument < ApplicationRecord
     signed_version
   end
 
+  # ========================================
+  # StorageBlob File Access (SSoT)
+  # ========================================
+
+  # has_file? is provided by StorableDocument concern (SSoT)
+
+  # file_url is provided by StorableDocument concern (SSoT)
+
+  # download_file is provided by StorableDocument concern (SSoT)
+
+  # Attach a file using StorageBlob (deduplication via content_hash)
+  # @param content [String] File content
+  # @param filename [String] Original filename
+  # @param content_type [String] MIME type (optional)
+  def attach_file(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    # Update reference counts
+    storage_blob&.decrement_reference! if storage_blob_id.present?
+    self.storage_blob = blob
+    blob.increment_reference!
+
+    # Update document metadata
+    self.file_name = filename
+    self.file_size = content.bytesize
+    self.mime_type = content_type || blob.content_type
+  end
+
+  # Phase 4: Virtual folder path for File Warehouse
+  # DEPRECATED: folder_path is legacy - use WarehouseDocument.folder instead (Phase 3 SSoT)
+  # SSoT: Reads template from StorageConfiguration.virtual_template_for(:job)
+  # No fallback - if template is nil, that's a config error that should be fixed
+  def virtual_folder_path
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(:job)
+    raise "StorageConfiguration missing :job template - run rails warehouse:init" unless template
+
+    tokens = storage_tokens_for_virtual_path
+    result = template.dup
+    result.gsub!("{{JobCode}}", tokens[:JobCode].to_s)
+    result.gsub!("{{JobName}}", job&.title.to_s)
+    result.gsub!("{{JobTitle}}", job&.title.to_s)
+    result.gsub!("{{JobAddress}}", job&.address.to_s)
+    result.gsub!("{{LotNumber}}", job&.lot_number.to_s)
+    result.gsub!("{{StreetName}}", job&.street_name.to_s)
+    result.gsub!("{{Suburb}}", job&.suburb.to_s)
+    result.gsub!("{{TabName}}", tokens[:TabName].to_s)
+    result.gsub!("{{Category}}", folder_path&.split("/")&.last.to_s)
+
+    # Clean up empty tokens
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    result.gsub!(%r{//+}, "/")
+    result.gsub!(%r{^/|/$}, "")
+    result
+  end
+
   private
+
+  # SSoT: Default tokens for storage path template
+  # Template: /Jobs/{JobCode}/{TabName}/filename
+  def default_storage_tokens
+    {
+      JobCode: job&.job_code || "UNKNOWN",
+      TabName: folder_path&.split("/")&.first || document_type&.name || "Documents"
+    }
+  end
+
+  # Tokens for virtual_folder_path (uses same logic as default_storage_tokens)
+  def storage_tokens_for_virtual_path
+    default_storage_tokens
+  end
 
   def set_file_extension
     return if file_extension.present? || file_name.blank?

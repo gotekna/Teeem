@@ -35,6 +35,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface BillingMilestone {
   id: number;
@@ -59,22 +60,6 @@ interface BillingMilestone {
   completion_notes: string | null;
   sort_order: number;
   created_at: string;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function BillingMilestonesTab() {
@@ -158,28 +143,28 @@ export default function BillingMilestonesTab() {
         );
       case "in_progress":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <Play className="h-3 w-3 mr-1" />
             In Progress
           </Badge>
         );
       case "completed":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Completed
           </Badge>
         );
       case "invoiced":
         return (
-          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <Badge className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400">
             <FileText className="h-3 w-3 mr-1" />
             Invoiced
           </Badge>
         );
       case "paid":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             <DollarSign className="h-3 w-3 mr-1" />
             Paid
           </Badge>
@@ -211,7 +196,7 @@ export default function BillingMilestonesTab() {
         );
       } else if (milestone.days_until_target <= 7) {
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
             <Clock className="h-3 w-3 mr-1" />
             Due Soon ({milestone.days_until_target}d)
           </Badge>
@@ -262,7 +247,7 @@ export default function BillingMilestonesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{completedMilestones.length}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{completedMilestones.length}</div>
             <p className="text-xs text-muted-foreground mt-1">ready for billing</p>
           </CardContent>
         </Card>
@@ -275,7 +260,7 @@ export default function BillingMilestonesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {formatCurrency(totalBillable)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -292,7 +277,7 @@ export default function BillingMilestonesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
               {milestones.filter((m) => m.days_until_target !== null && m.days_until_target < 0 && m.status !== "completed").length}
             </div>
             <p className="text-xs text-muted-foreground mt-1">past target date</p>

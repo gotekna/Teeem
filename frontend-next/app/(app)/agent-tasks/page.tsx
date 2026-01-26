@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import {
   PlayIcon,
   CheckCircleIcon,
@@ -15,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Types
 interface Agent {
@@ -88,6 +90,7 @@ const defaultInstructions: Record<string, string[]> = {
 };
 
 export default function AgentTasksPage() {
+  const { confirm } = useConfirm();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentTasks, setAgentTasks] = useState<AgentTasks>({});
   const [loading, setLoading] = useState(true);
@@ -109,10 +112,10 @@ export default function AgentTasksPage() {
         setAgents(agentsData);
 
         // Check localStorage first for saved tasks
-        const savedTasks = localStorage.getItem("agentTasks");
+        const savedTasks = getStorageItem<AgentTasks | null>(STORAGE_KEYS.AGENT_TASKS, null);
 
         if (savedTasks) {
-          setAgentTasks(JSON.parse(savedTasks));
+          setAgentTasks(savedTasks);
         } else {
           // Initialize with default instructions
           const initialTasks: AgentTasks = {};
@@ -125,7 +128,7 @@ export default function AgentTasksPage() {
             }));
           });
           setAgentTasks(initialTasks);
-          localStorage.setItem("agentTasks", JSON.stringify(initialTasks));
+          setStorageItem(STORAGE_KEYS.AGENT_TASKS, initialTasks);
         }
       }
     } catch (error) {
@@ -148,7 +151,7 @@ export default function AgentTasksPage() {
       ],
     };
     setAgentTasks(newTasks);
-    localStorage.setItem("agentTasks", JSON.stringify(newTasks));
+    setStorageItem(STORAGE_KEYS.AGENT_TASKS, newTasks);
   };
 
   const updateTask = (agentId: string, taskId: number, description: string) => {
@@ -159,7 +162,7 @@ export default function AgentTasksPage() {
       ),
     };
     setAgentTasks(newTasks);
-    localStorage.setItem("agentTasks", JSON.stringify(newTasks));
+    setStorageItem(STORAGE_KEYS.AGENT_TASKS, newTasks);
   };
 
   const toggleTask = (agentId: string, taskId: number) => {
@@ -170,7 +173,7 @@ export default function AgentTasksPage() {
       ),
     };
     setAgentTasks(newTasks);
-    localStorage.setItem("agentTasks", JSON.stringify(newTasks));
+    setStorageItem(STORAGE_KEYS.AGENT_TASKS, newTasks);
   };
 
   const deleteTask = (agentId: string, taskId: number) => {
@@ -179,11 +182,11 @@ export default function AgentTasksPage() {
       [agentId]: agentTasks[agentId].filter((task) => task.id !== taskId),
     };
     setAgentTasks(newTasks);
-    localStorage.setItem("agentTasks", JSON.stringify(newTasks));
+    setStorageItem(STORAGE_KEYS.AGENT_TASKS, newTasks);
   };
 
-  const resetToDefaults = () => {
-    if (!confirm("Reset all shortcuts to default values? This will delete your custom shortcuts.")) {
+  const resetToDefaults = async () => {
+    if (!(await confirm("Reset all shortcuts to default values? This will delete your custom shortcuts."))) {
       return;
     }
 
@@ -197,7 +200,7 @@ export default function AgentTasksPage() {
       }));
     });
     setAgentTasks(initialTasks);
-    localStorage.setItem("agentTasks", JSON.stringify(initialTasks));
+    setStorageItem(STORAGE_KEYS.AGENT_TASKS, initialTasks);
   };
 
   const runAgent = async (agentId: string) => {
@@ -353,10 +356,10 @@ export default function AgentTasksPage() {
         <div
           className={`mb-6 rounded-lg p-4 ${
             exportStatus.type === "success"
-              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200"
+              ? "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-200"
               : exportStatus.type === "error"
-              ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200"
-              : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
+              ? "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-200"
+              : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-200"
           }`}
         >
           {exportStatus.message}
@@ -400,8 +403,8 @@ export default function AgentTasksPage() {
 
                 <div className="mt-2 flex gap-4 text-sm text-muted-foreground">
                   <span>Total runs: {agent.total_runs}</span>
-                  <span className="text-green-600">Success rate: {Math.round(agent.success_rate)}%</span>
-                  <span className="text-blue-600">
+                  <span className="text-green-600 dark:text-green-400">Success rate: {Math.round(agent.success_rate)}%</span>
+                  <span className="text-blue-600 dark:text-blue-400">
                     Tasks: {completedCount}/{tasks.length}
                   </span>
                 </div>
@@ -416,7 +419,7 @@ export default function AgentTasksPage() {
                     >
                       <button onClick={() => toggleTask(agent.agent_id, task.id)} className="flex-shrink-0">
                         {task.completed ? (
-                          <CheckCircleIcon className="h-6 w-6 text-green-500" />
+                          <CheckCircleIcon className="h-6 w-6 text-green-500 dark:text-green-400" />
                         ) : (
                           <div className="h-6 w-6 rounded-full border-2 border-muted-foreground/30" />
                         )}

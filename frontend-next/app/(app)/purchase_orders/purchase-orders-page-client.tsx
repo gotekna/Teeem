@@ -5,13 +5,18 @@ import { useRouter } from "next/navigation";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { BackButton } from "@/components/ui/back-button";
-import type { TableRow, TableColumn } from "@/components/table/types";
+import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
+import type { ViewData } from "@/lib/server/foundation-api";
 
 interface PurchaseOrdersPageClientProps {
   // SSR data from server component
   initialColumns: TableColumn[];
   initialRecords: TableRow[];
   initialHasMore: boolean;
+  // SSR view config - eliminates flash when loading views
+  initialView?: ViewData | null;
+  // SSR all views - for immediate toolbar button rendering
+  initialViews?: ViewData[];
 }
 
 /**
@@ -24,6 +29,8 @@ export default function PurchaseOrdersPageClient({
   initialColumns,
   initialRecords,
   initialHasMore,
+  initialView,
+  initialViews,
 }: PurchaseOrdersPageClientProps) {
   const router = useRouter();
 
@@ -49,6 +56,10 @@ export default function PurchaseOrdersPageClient({
         initialColumns={initialColumns}
         initialRecords={initialRecords}
         initialHasMore={initialHasMore}
+        // SSR View - pre-fetched to eliminate flash on views
+        initialView={initialView}
+        // SSR All Views - for immediate toolbar button rendering (no flash)
+        preloadedViews={initialViews as unknown as SavedView[]}
         // After refresh, autoFetchRecords takes over
         autoFetchRecords
       />

@@ -25,7 +25,7 @@ export const EndEventNode = memo(({ data, selected }: NodeProps<Node<BpmnNodeDat
             : "border-red-500 dark:border-red-500"
         )}
       >
-        <Square className="h-3 w-3 fill-red-500 text-red-500" />
+        <Square className="h-3 w-3 fill-red-500 text-red-500 dark:text-red-400" />
       </div>
 
       {/* Label to the right */}

@@ -30,16 +30,45 @@ module DocumentProviders
     MULTIPART_THRESHOLD = 5 * 1024 * 1024  # 5MB
     MULTIPART_CHUNK_SIZE = 5 * 1024 * 1024  # 5MB
 
+    # SSoT: Factory method to create provider for a tenant (Jan 2026 fix)
+    # @param tenant [Tenant] The tenant
+    # @return [DocumentProviders::S3Compatible] The provider instance
+    def self.for_tenant(tenant)
+      credential = find_credential_for_tenant(tenant)
+      raise NotConnectedError, "S3 storage not configured. Please configure in Admin > System > Storage." unless credential
+      new(credential, tenant: tenant)
+    end
+
+    # DEPRECATED: Use for_tenant instead
     # Factory method to create a provider for an organization
     # @param organization [Organization] The organization
     # @return [DocumentProviders::S3Compatible] The provider instance
     def self.for_organization(organization)
+      Rails.logger.warn "[DEPRECATED] S3Compatible.for_organization - use for_tenant instead"
       credential = find_credential_for_organization(organization)
       raise NotConnectedError, "S3 storage not configured. Please configure in Admin > System > Storage." unless credential
-      new(credential)
+      new(credential, tenant: organization&.tenant)
     end
 
-    # Find credential for organization
+    # Find credential for tenant (SSoT: Jan 2026 fix)
+    def self.find_credential_for_tenant(tenant)
+      return nil unless defined?(S3CompatibleCredential)
+      return nil unless tenant
+
+      # Get all organizations in this tenant
+      org_ids = tenant.organizations.pluck(:id)
+
+      # Try tenant's org-specific credentials first
+      if org_ids.any?
+        cred = S3CompatibleCredential.active.connected.where(organization_id: org_ids).first
+        return cred if cred
+      end
+
+      # Fall back to global credential (no org)
+      S3CompatibleCredential.active.connected.where(organization_id: nil).first
+    end
+
+    # Find credential for organization (legacy)
     def self.find_credential_for_organization(organization)
       return nil unless defined?(S3CompatibleCredential)
 
@@ -53,11 +82,17 @@ module DocumentProviders
       S3CompatibleCredential.active.connected.where(organization_id: nil).first
     end
 
-    def initialize(credential)
+    def initialize(credential, tenant: nil)
       super(credential)
       @client = credential.build_client
-      @bucket = credential.bucket
-      @root_path = credential.root_path.to_s.sub(%r{^/+}, "").sub(%r{/+$}, "")
+      @tenant = tenant
+
+      # SSoT: StorageConfiguration.connection_config['bucket'] is THE ONE source (Jan 2026)
+      # No fallback to credential - fail fast if bucket not configured
+      config = tenant ? StorageConfiguration.for_tenant(tenant) : StorageConfiguration.instance
+      @bucket = config&.connection_config&.dig("bucket").presence
+      raise DocumentProviders::ConfigurationError, "Bucket not configured in StorageConfiguration (SSoT). Configure at /settings/company/connections" unless @bucket
+      @root_path = config&.root_path.to_s.sub(%r{^/+}, "").sub(%r{/+$}, "")
     end
 
     # ====================
@@ -220,17 +255,44 @@ module DocumentProviders
       raise NotFoundError, "File not found: #{path_or_id}"
     end
 
+    # Generate presigned download URL
+    # @param path_or_id [String] File path or S3 key
+    # @param options [Hash] Options
+    # @option options [Integer] :expires_in Expiry time in seconds (default: 3600)
+    # @option options [String] :filename Custom download filename (Send Name)
+    #   When provided, browser downloads will save with this name instead of S3 key
+    # @return [String] Presigned download URL
+    #
+    # ⚠️ Uses virtual-hosted style URLs to avoid 307 redirects that break browser CORS
     def download_url(path_or_id, options = {})
       key = resolve_key(path_or_id)
       expires_in = options.fetch(:expires_in, 3600)
+      filename = options[:filename]
+      disposition = options.fetch(:disposition, :attachment) # :attachment or :inline
 
-      signer = Aws::S3::Presigner.new(client: @client)
-      signer.presigned_url(
-        :get_object,
+      presign_params = {
         bucket: @bucket,
         key: key,
         expires_in: expires_in
-      )
+      }
+
+      # SSoT: Send Name - custom filename for downloads
+      # Uses Content-Disposition header to override browser download filename
+      # disposition: :attachment forces download, :inline allows browser to display
+      if filename.present?
+        # Sanitize and encode filename for Content-Disposition header
+        safe_filename = sanitize_download_filename(filename)
+        presign_params[:response_content_disposition] = "#{disposition}; filename=\"#{safe_filename}\""
+      elsif disposition == :inline
+        # For inline without filename, just set disposition
+        presign_params[:response_content_disposition] = "inline"
+      end
+
+      # Use browser-safe client with virtual-hosted style URLs
+      # CORS preflight cannot follow 307 redirects from path-style to virtual-hosted
+      browser_client = build_browser_safe_client
+      signer = Aws::S3::Presigner.new(client: browser_client)
+      signer.presigned_url(:get_object, presign_params)
     end
 
     def get_file(path_or_id)
@@ -305,6 +367,54 @@ module DocumentProviders
       result
     end
 
+    # Rename a folder (all objects with prefix) to new path
+    # S3 has no native folder rename - copies all objects then deletes originals
+    # @param old_path [String] Current folder path (e.g., "Emails/eml")
+    # @param new_path [String] New folder path (e.g., "Emails/Email Body")
+    # @return [Hash] { success: true, moved_count: N } or { success: false, error: "..." }
+    def rename_folder(old_path, new_path)
+      old_prefix = build_key(old_path)
+      old_prefix = old_prefix.end_with?("/") ? old_prefix : "#{old_prefix}/"
+      new_prefix = build_key(new_path)
+      new_prefix = new_prefix.end_with?("/") ? new_prefix : "#{new_prefix}/"
+
+      moved_count = 0
+      continuation_token = nil
+
+      loop do
+        # List all objects with old prefix
+        list_params = { bucket: @bucket, prefix: old_prefix }
+        list_params[:continuation_token] = continuation_token if continuation_token
+        response = @client.list_objects_v2(list_params)
+
+        (response.contents || []).each do |object|
+          old_key = object.key
+          new_key = old_key.sub(old_prefix, new_prefix)
+
+          # Copy to new location
+          @client.copy_object(
+            bucket: @bucket,
+            copy_source: "#{@bucket}/#{URI.encode_www_form_component(old_key)}",
+            key: new_key
+          )
+
+          # Delete old
+          @client.delete_object(bucket: @bucket, key: old_key)
+          moved_count += 1
+          Rails.logger.info "[S3Compatible] Moved: #{old_key} -> #{new_key}"
+        end
+
+        break unless response.is_truncated
+        continuation_token = response.next_continuation_token
+      end
+
+      Rails.logger.info "[S3Compatible] rename_folder complete: #{old_path} -> #{new_path} (#{moved_count} objects)"
+      { success: true, moved_count: moved_count }
+    rescue => e
+      Rails.logger.error "[S3Compatible] rename_folder failed: #{e.message}"
+      { success: false, error: e.message }
+    end
+
     # ====================
     # SEARCH
     # ====================
@@ -375,10 +485,8 @@ module DocumentProviders
     # @param _template [deprecated] No longer used, kept for API compatibility
     # @return [Hash] The created job folder
     def create_job_folder_structure(job, _template = nil)
-      job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_filename(job.title)}"
-      # SSoT: Get Jobs base path from StorageConfiguration
-      jobs_base = StorageConfiguration.instance&.path_for(:job) || "Jobs"
-      job_folder_path = "/#{jobs_base}/#{job_folder_name}"
+      # SSoT: Use StorageConfiguration.job_path for consistent folder naming (job_code = "J" + id)
+      job_folder_path = StorageConfiguration.instance&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
 
       # Create main job folder
       job_folder = create_folder(job_folder_path)
@@ -419,10 +527,8 @@ module DocumentProviders
     # @param job [Job] The job to find folder for
     # @return [Hash, nil] The folder info or nil if not found
     def find_job_folder(job)
-      job_folder_name = "#{job.id.to_s.rjust(3, '0')} - #{sanitize_filename(job.title)}"
-      # SSoT: Get Jobs base path from StorageConfiguration
-      jobs_base = StorageConfiguration.instance&.path_for(:job) || "Jobs"
-      job_folder_path = "/#{jobs_base}/#{job_folder_name}"
+      # SSoT: Use StorageConfiguration.job_path for consistent folder naming (job_code = "J" + id)
+      job_folder_path = StorageConfiguration.instance&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
 
       return nil unless folder_exists?(job_folder_path)
 
@@ -457,12 +563,20 @@ module DocumentProviders
     # ====================
 
     # Get presigned URL for direct upload (browser uploads)
+    # Uses virtual-hosted style URLs to avoid 307 redirects that break browser CORS
     def presigned_upload_url(folder_path, filename, options = {})
-      key = "#{build_key(folder_path)}/#{filename}".gsub(%r{/+}, "/")
+      # Build key and normalize: collapse multiple slashes, remove leading slash
+      # S3 keys should not start with "/" - ensures consistency with get_file/download_file
+      key = "#{build_key(folder_path)}/#{filename}".gsub(%r{/+}, "/").sub(%r{^/}, "")
       expires_in = options.fetch(:expires_in, 3600)
       content_type = options[:content_type] || detect_content_type(filename)
 
-      signer = Aws::S3::Presigner.new(client: @client)
+      # Create browser-safe client with virtual-hosted style URLs
+      # CORS preflight cannot follow 307 redirects, so we must generate URLs in the
+      # final format that S3-compatible services expect (virtual-hosted style)
+      browser_client = build_browser_safe_client
+
+      signer = Aws::S3::Presigner.new(client: browser_client)
       signer.presigned_url(
         :put_object,
         bucket: @bucket,
@@ -502,10 +616,11 @@ module DocumentProviders
       return true if objects.empty?
 
       # Delete in batches of 1000
+      # Use quiet: true to suppress XML response (avoids parsing errors with special chars)
       objects.each_slice(1000) do |batch|
         @client.delete_objects(
           bucket: @bucket,
-          delete: { objects: batch }
+          delete: { objects: batch, quiet: true }
         )
       end
 
@@ -514,12 +629,79 @@ module DocumentProviders
 
     private
 
+    # Build S3 client safe for browser presigned URLs (virtual-hosted style)
+    # ⚠️ DO NOT SIMPLIFY - CORS 307 redirect fix (Jan 2026)
+    # ════════════════════════════════════════════════════════════════════
+    # Why: Wasabi (and some other S3-compatible providers) redirect path-style URLs
+    #      to virtual-hosted style URLs with a 307 redirect. Browser CORS preflight
+    #      cannot follow redirects, causing upload failures.
+    # ❌ WRONG: Use @client (has force_path_style: true) → generates path-style URLs
+    #           → Wasabi 307 redirects → CORS fails → upload broken
+    # ✅ CORRECT: Create separate client with force_path_style: false for browser uploads
+    #            → AWS SDK auto-prepends bucket to endpoint → no redirect → works
+    # ════════════════════════════════════════════════════════════════════
+    def build_browser_safe_client
+      # Normalize endpoint to path-style (strip bucket if present)
+      # This handles the case where endpoint was saved in virtual-hosted format
+      # e.g., https://bucket.s3.region.wasabisys.com → https://s3.region.wasabisys.com
+      endpoint = normalize_endpoint_to_path_style(@credential.endpoint)
+
+      # With force_path_style: false, AWS SDK automatically converts endpoint to
+      # virtual-hosted style by prepending the bucket name to the host.
+      # e.g., s3.region.wasabisys.com → bucket.s3.region.wasabisys.com
+      Aws::S3::Client.new(
+        access_key_id: @credential.access_key_id,
+        secret_access_key: @credential.secret_access_key,
+        region: @credential.region,
+        endpoint: endpoint,
+        force_path_style: false  # SDK prepends bucket for virtual-hosted style
+      )
+    end
+
+    # Normalize endpoint to path-style by stripping bucket name prefix if present
+    # e.g., https://teeem-tekna.s3.ap-southeast-2.wasabisys.com → https://s3.ap-southeast-2.wasabisys.com
+    def normalize_endpoint_to_path_style(endpoint)
+      return endpoint if endpoint.blank?
+
+      uri = URI.parse(endpoint)
+      host = uri.host
+
+      # Check if host starts with bucket name (virtual-hosted style)
+      # Pattern: bucket.s3.region.provider.com
+      if host.start_with?("#{@bucket}.")
+        # Strip bucket prefix: teeem-tekna.s3.region.com → s3.region.com
+        uri.host = host.sub(/^#{Regexp.escape(@bucket)}\./, "")
+        uri.to_s
+      else
+        endpoint
+      end
+    end
+
     # NOTE: default_subfolders and create_template_folders removed
     # SSoT: EntityTab is now the source of truth for folder structure
 
     # Sanitize filename for S3 (remove special characters)
     def sanitize_filename(filename)
       filename.to_s.gsub(/[<>:"|?*\\]/, "_").strip
+    end
+
+    # Sanitize filename for HTTP Content-Disposition header
+    # Used for Send Name - the custom download filename
+    # More restrictive than S3 filename sanitization (no quotes, control chars)
+    def sanitize_download_filename(filename)
+      return "document" if filename.blank?
+
+      # Remove control characters and quotes (break Content-Disposition header)
+      safe = filename.to_s.gsub(/[\x00-\x1f\x7f"\\]/, " ")
+
+      # Replace invalid filesystem characters
+      safe = safe.gsub(/[<>:|?*\/]/, " ")
+
+      # Collapse multiple spaces and trim
+      safe = safe.gsub(/\s+/, " ").strip
+
+      # Ensure we have something left
+      safe.presence || "document"
     end
 
     # Build the full S3 key including root path
@@ -581,10 +763,9 @@ module DocumentProviders
       }
     end
 
-    # Detect content type from filename
+    # SSoT: ContentTypeDetector (lib/utils/content_type_detector.rb)
     def detect_content_type(filename)
-      extension = File.extname(filename).downcase
-      CONTENT_TYPES[extension] || "application/octet-stream"
+      ContentTypeDetector.detect(filename)
     end
 
     # Multipart upload for large files
@@ -635,39 +816,5 @@ module DocumentProviders
         raise e
       end
     end
-
-    # Common MIME types
-    CONTENT_TYPES = {
-      ".pdf" => "application/pdf",
-      ".doc" => "application/msword",
-      ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      ".xls" => "application/vnd.ms-excel",
-      ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      ".ppt" => "application/vnd.ms-powerpoint",
-      ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      ".txt" => "text/plain",
-      ".csv" => "text/csv",
-      ".json" => "application/json",
-      ".xml" => "application/xml",
-      ".html" => "text/html",
-      ".htm" => "text/html",
-      ".jpg" => "image/jpeg",
-      ".jpeg" => "image/jpeg",
-      ".png" => "image/png",
-      ".gif" => "image/gif",
-      ".bmp" => "image/bmp",
-      ".webp" => "image/webp",
-      ".svg" => "image/svg+xml",
-      ".mp3" => "audio/mpeg",
-      ".wav" => "audio/wav",
-      ".mp4" => "video/mp4",
-      ".avi" => "video/x-msvideo",
-      ".mov" => "video/quicktime",
-      ".zip" => "application/zip",
-      ".rar" => "application/x-rar-compressed",
-      ".7z" => "application/x-7z-compressed",
-      ".tar" => "application/x-tar",
-      ".gz" => "application/gzip"
-    }.freeze
   end
 end

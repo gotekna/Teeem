@@ -198,8 +198,8 @@ function formatValue(
           className={cn(
             "text-[10px] px-1.5",
             value
-              ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800"
-              : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800"
+              ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800"
+              : "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800"
           )}
         >
           {value ? "Yes" : "No"}
@@ -208,12 +208,12 @@ function formatValue(
 
     case "badge":
       const badgeColors: Record<string, string> = {
-        active: "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400",
-        pending: "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400",
-        completed: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400",
+        active: "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 border-green-200 dark:bg-green-900/30 dark:text-green-400",
+        pending: "bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400",
+        completed: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400",
         archived: "bg-muted text-foreground border-border dark:bg-card dark:text-muted-foreground",
-        error: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400",
-        failed: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400",
+        error: "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:bg-red-900/30 dark:text-red-400",
+        failed: "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:bg-red-900/30 dark:text-red-400",
       };
       const statusKey = String(value).toLowerCase();
       const colorClass = badgeColors[statusKey] || "bg-muted text-foreground border-border dark:bg-card dark:text-muted-foreground";
@@ -597,7 +597,7 @@ export function ViewTableView<T extends ViewTableRow>({
         {/* Right side: title + count + Filters button + Export */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold">{tableName}</h3>
+            <h3 className="text-sm font-semibold">{tableName}</h3>
             <span className="text-sm text-muted-foreground">
               {displayCount} {displayCount !== totalCount && `of ${totalCount}`} records
             </span>

@@ -1,7 +1,12 @@
 class ApplicationController < ActionController::API
+  include ActionController::Cookies
   include SsotAuthorization
 
+  # Multi-tenancy: Set up tenant scoping
+  set_current_tenant_through_filter
+
   before_action :authorize_request
+  before_action :set_tenant  # Must be after authorize_request to have current_user
   after_action :update_last_seen
 
   # Global exception handlers
@@ -10,11 +15,45 @@ class ApplicationController < ActionController::API
   rescue_from ActiveRecord::RecordInvalid, with: :handle_validation_error
   rescue_from ActionController::ParameterMissing, with: :handle_parameter_missing
   rescue_from ActiveRecord::DeleteRestrictionError, with: :handle_delete_restriction
-  rescue_from ActiveStorage::FileNotFoundError, with: :handle_file_not_found
+  # REMOVED (Jan 2026): rescue_from ActiveStorage::FileNotFoundError - SSoT is now StorageBlob
 
   private
 
+  # Multi-tenancy: Determine and set the current tenant
+  # Priority order:
+  # 1. Admin override (for TEEEM staff switching tenants via session)
+  # 2. Subdomain (pilgrim.teeem.com.au → Pilgrim tenant)
+  # 3. User's assigned tenant
+  def set_tenant
+    tenant = determine_tenant
+    set_current_tenant(tenant)
+  end
+
+  def determine_tenant
+    # Priority 1: Admin override (for TEEEM staff switching tenants)
+    # Using signed cookies since ActionController::API doesn't have sessions
+    if current_user&.teeem_staff? && cookies.signed[:admin_tenant_id]
+      tenant = Tenant.find_by(id: cookies.signed[:admin_tenant_id])
+      return tenant if tenant
+    end
+
+    # Priority 2: Subdomain
+    subdomain = request.subdomain
+    if subdomain.present? && !%w[www api staging beta].include?(subdomain)
+      tenant = Tenant.find_by(slug: subdomain)
+      return tenant if tenant
+    end
+
+    # Priority 3: User's assigned tenant (SSoT)
+    current_user&.tenant
+  end
+
+  def current_tenant
+    ActsAsTenant.current_tenant
+  end
+
   def authorize_request
+    # Try JWT token first (Authorization header)
     header = request.headers["Authorization"]
     header = header.split(" ").last if header
 
@@ -22,7 +61,20 @@ class ApplicationController < ActionController::API
       decoded = JsonWebToken.decode(header)
       @current_user = User.find(decoded[:user_id]) if decoded
     rescue ActiveRecord::RecordNotFound, JWT::DecodeError => e
-      # Authentication failed - will be handled below
+      # JWT auth failed - try session cookie fallback
+    end
+
+    # Fallback: Try auth_token cookie (for session-based auth)
+    unless @current_user
+      auth_token = cookies.signed[:auth_token] || cookies[:auth_token]
+      if auth_token.present?
+        begin
+          decoded = JsonWebToken.decode(auth_token)
+          @current_user = User.find(decoded[:user_id]) if decoded
+        rescue ActiveRecord::RecordNotFound, JWT::DecodeError
+          # Cookie auth also failed
+        end
+      end
     end
 
     # Require authentication - no default user fallback
@@ -39,9 +91,27 @@ class ApplicationController < ActionController::API
   end
 
   # Get the organization for the current request
+  # SSoT (Jan 2026): Derive from tenant, not Organization.first
   # TODO: Add proper multi-org support when users can belong to multiple orgs
   def current_organization
-    @current_organization ||= Organization.first
+    @current_organization ||= begin
+      if current_tenant
+        current_tenant.organizations.first
+      else
+        Rails.logger.warn "[ApplicationController] No tenant context - cannot determine organization"
+        nil
+      end
+    end
+  end
+
+  # SSoT (Jan 2026): Require tenant context for operations that need storage
+  def require_tenant!
+    return if current_tenant.present?
+
+    render json: {
+      success: false,
+      error: "Tenant context required for this operation"
+    }, status: :unprocessable_entity
   end
 
   def require_admin
@@ -115,11 +185,6 @@ class ApplicationController < ActionController::API
     }, status: :unprocessable_entity
   end
 
-  def handle_file_not_found(exception)
-    Rails.logger.warn("File not found in storage: #{exception.message}")
-    render json: {
-      success: false,
-      error: "File not found in storage"
-    }, status: :not_found
-  end
+  # REMOVED (Jan 2026): handle_file_not_found - ActiveStorage no longer used
+  # StorageBlob handles file-not-found via standard exception handling
 end

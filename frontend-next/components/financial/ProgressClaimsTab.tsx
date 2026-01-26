@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { safePercent } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface ProgressClaim {
   id: number;
@@ -87,22 +88,6 @@ interface RetainageSummary {
     retainage_released: number;
     retainage_outstanding: number;
   }>;
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function ProgressClaimsTab() {
@@ -189,28 +174,28 @@ export default function ProgressClaimsTab() {
         );
       case "submitted":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <Send className="h-3 w-3 mr-1" />
             Submitted
           </Badge>
         );
       case "approved":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Approved
           </Badge>
         );
       case "certified":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             <Shield className="h-3 w-3 mr-1" />
             Certified
           </Badge>
         );
       case "invoiced":
         return (
-          <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <Badge className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-400">
             <FileText className="h-3 w-3 mr-1" />
             Invoiced
           </Badge>
@@ -258,7 +243,7 @@ export default function ProgressClaimsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
+            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
               {formatCurrency(retainage?.total_held || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -275,7 +260,7 @@ export default function ProgressClaimsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
               {formatCurrency(retainage?.total_outstanding || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -384,7 +369,7 @@ export default function ProgressClaimsTab() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className="text-orange-600">
+                      <span className="text-orange-600 dark:text-orange-400">
                         {formatCurrency(claim.retainage_amount - claim.retainage_released)}
                       </span>
                     </TableCell>

@@ -68,6 +68,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { cn, safePercent } from "@/lib/utils";
+import { formatDate, formatPercentChange } from "@/utils/formatters";
 
 // ============================================================================
 // Types
@@ -338,18 +339,6 @@ function formatCurrency(amount: number, compact = false): string {
   }).format(amount);
 }
 
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatPercent(value: number): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
-}
-
 // ============================================================================
 // Sub-Components
 // ============================================================================
@@ -389,11 +378,11 @@ function StatCard({
             {change !== undefined && (
               <div className={cn(
                 "flex items-center gap-1 text-sm",
-                trend === "up" ? "text-green-600" : trend === "down" ? "text-red-600" : "text-muted-foreground"
+                trend === "up" ? "text-green-600 dark:text-green-400" : trend === "down" ? "text-red-600 dark:text-red-400" : "text-muted-foreground"
               )}>
                 {trend === "up" ? <ArrowUpRight className="h-4 w-4" /> :
                  trend === "down" ? <ArrowDownRight className="h-4 w-4" /> : null}
-                {formatPercent(change)} {changeLabel}
+                {formatPercentChange(change)} {changeLabel}
               </div>
             )}
             {subValue && (
@@ -444,20 +433,20 @@ function AgingBar({ aging, colorClass }: { aging: AgedBucket[]; colorClass: stri
 
 function FollowUpPriority({ days, amount }: { days: number; amount: number }) {
   let priority = "low";
-  let color = "bg-green-100 text-green-700";
+  let color = "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300";
   let action = "Friendly reminder";
 
   if (days > 90 || amount > 10000) {
     priority = "critical";
-    color = "bg-red-100 text-red-700";
+    color = "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
     action = "Urgent: Consider debt collection";
   } else if (days > 60 || amount > 5000) {
     priority = "high";
-    color = "bg-orange-100 text-orange-700";
+    color = "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300";
     action = "Send formal demand letter";
   } else if (days > 30) {
     priority = "medium";
-    color = "bg-yellow-100 text-yellow-700";
+    color = "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300";
     action = "Phone call follow-up";
   }
 
@@ -484,9 +473,9 @@ function XeroSyncStatusCard({
   };
 
   const statusIcon = {
-    connected: <CheckCircle2 className="h-5 w-5 text-green-600" />,
-    warning: <AlertTriangle className="h-5 w-5 text-yellow-600" />,
-    error: <AlertCircle className="h-5 w-5 text-red-600" />,
+    connected: <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />,
+    warning: <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />,
+    error: <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />,
     disconnected: <AlertCircle className="h-5 w-5 text-muted-foreground" />,
   };
 
@@ -602,7 +591,7 @@ function DashboardTab({
           changeLabel="vs last period"
           icon={TrendingUp}
           iconBg="bg-green-100 dark:bg-green-900/30"
-          iconColor="text-green-600"
+          iconColor="text-green-600 dark:text-green-400"
           trend={summary.revenue_change >= 0 ? "up" : "down"}
         />
         <StatCard
@@ -612,7 +601,7 @@ function DashboardTab({
           changeLabel="vs last period"
           icon={TrendingDown}
           iconBg="bg-red-100 dark:bg-red-900/30"
-          iconColor="text-red-600"
+          iconColor="text-red-600 dark:text-red-400"
           trend={summary.expenses_change <= 0 ? "up" : "down"}
         />
         <StatCard
@@ -629,7 +618,7 @@ function DashboardTab({
           value={formatCurrency(summary.cash_on_hand)}
           icon={Wallet}
           iconBg="bg-blue-100 dark:bg-blue-900/30"
-          iconColor="text-blue-600"
+          iconColor="text-blue-600 dark:text-blue-400"
           onClick={() => onNavigate("bank")}
         />
       </div>
@@ -714,14 +703,14 @@ function DashboardTab({
                   </TableCell>
                   <TableCell className="text-right font-mono">{formatCurrency(job.revenue)}</TableCell>
                   <TableCell className="text-right font-mono text-muted-foreground">{formatCurrency(job.cost)}</TableCell>
-                  <TableCell className="text-right font-mono text-green-600">{formatCurrency(job.profit)}</TableCell>
+                  <TableCell className="text-right font-mono text-green-600 dark:text-green-400">{formatCurrency(job.profit)}</TableCell>
                   <TableCell className="text-right">
                     <Badge variant={job.margin >= 25 ? "default" : job.margin >= 15 ? "secondary" : "destructive"}>
                       {safePercent(job.margin)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className={cn("font-mono text-sm", job.budget_variance >= 0 ? "text-green-600" : "text-red-600")}>
+                    <span className={cn("font-mono text-sm", job.budget_variance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
                       {job.budget_variance >= 0 ? "+" : ""}{formatCurrency(job.budget_variance)}
                     </span>
                   </TableCell>
@@ -735,10 +724,10 @@ function DashboardTab({
       {/* Quick Actions */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Reconcile Bank", icon: CreditCard, onClick: () => onNavigate("bank"), color: "text-blue-600" },
-          { label: "Prepare BAS", icon: Calculator, onClick: () => onNavigate("bas"), color: "text-purple-600" },
+          { label: "Reconcile Bank", icon: CreditCard, onClick: () => onNavigate("bank"), color: "text-blue-600 dark:text-blue-400" },
+          { label: "Prepare BAS", icon: Calculator, onClick: () => onNavigate("bas"), color: "text-purple-600 dark:text-purple-400" },
           { label: "Cash Flow Forecast", icon: TrendUp, onClick: () => onNavigate("cashflow"), color: "text-emerald-600" },
-          { label: "Download Reports", icon: Download, onClick: () => onNavigate("reports"), color: "text-orange-600" },
+          { label: "Download Reports", icon: Download, onClick: () => onNavigate("reports"), color: "text-orange-600 dark:text-orange-400" },
         ].map((action) => (
           <Card
             key={action.label}
@@ -796,12 +785,12 @@ function BankReconciliationTab({ accounts }: { accounts: BankAccount[] }) {
                 <p className="text-2xl font-bold font-mono">{formatCurrency(account.balance)}</p>
                 {account.unreconciled_count > 0 ? (
                   <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="outline" className="text-orange-600 border-orange-300">
+                    <Badge variant="outline" className="text-orange-600 dark:text-orange-400 border-orange-300">
                       {account.unreconciled_count} to reconcile
                     </Badge>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1 mt-2 text-sm text-green-600">
+                  <div className="flex items-center gap-1 mt-2 text-sm text-green-600 dark:text-green-400">
                     <CheckCircle2 className="h-4 w-4" />
                     Fully reconciled
                   </div>
@@ -978,14 +967,14 @@ function AgedReportsTab({
                   value={formatCurrency(receivables.total)}
                   icon={DollarSign}
                   iconBg="bg-blue-100 dark:bg-blue-900/30"
-                  iconColor="text-blue-600"
+                  iconColor="text-blue-600 dark:text-blue-400"
                 />
                 <StatCard
                   title="Overdue"
                   value={formatCurrency(receivables.overdue)}
                   icon={AlertTriangle}
                   iconBg="bg-red-100 dark:bg-red-900/30"
-                  iconColor="text-red-600"
+                  iconColor="text-red-600 dark:text-red-400"
                   subValue={safePercent(receivables.overdue_percent)}
                   subLabel="Of total"
                 />
@@ -994,14 +983,14 @@ function AgedReportsTab({
                   value={`${(receivables.average_days ?? 0).toFixed(0)} days`}
                   icon={Clock}
                   iconBg="bg-yellow-100 dark:bg-yellow-900/30"
-                  iconColor="text-yellow-600"
+                  iconColor="text-yellow-600 dark:text-yellow-400"
                 />
                 <StatCard
                   title="Current"
                   value={formatCurrency(receivables.total - receivables.overdue)}
                   icon={CheckCircle2}
                   iconBg="bg-green-100 dark:bg-green-900/30"
-                  iconColor="text-green-600"
+                  iconColor="text-green-600 dark:text-green-400"
                 />
               </div>
 
@@ -1069,8 +1058,8 @@ function AgedReportsTab({
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-mono">{formatCurrency(contact.total)}</TableCell>
-                          <TableCell className="text-right font-mono text-green-600">{formatCurrency(contact.current)}</TableCell>
-                          <TableCell className="text-right font-mono text-red-600">{formatCurrency(contact.overdue)}</TableCell>
+                          <TableCell className="text-right font-mono text-green-600 dark:text-green-400">{formatCurrency(contact.current)}</TableCell>
+                          <TableCell className="text-right font-mono text-red-600 dark:text-red-400">{formatCurrency(contact.overdue)}</TableCell>
                           <TableCell className="text-right">
                             <Badge variant={contact.oldest_days > 60 ? "destructive" : contact.oldest_days > 30 ? "outline" : "secondary"}>
                               {contact.oldest_days} days
@@ -1099,14 +1088,14 @@ function AgedReportsTab({
                   value={formatCurrency(payables.total)}
                   icon={Receipt}
                   iconBg="bg-purple-100 dark:bg-purple-900/30"
-                  iconColor="text-purple-600"
+                  iconColor="text-purple-600 dark:text-purple-400"
                 />
                 <StatCard
                   title="Overdue"
                   value={formatCurrency(payables.overdue)}
                   icon={AlertTriangle}
                   iconBg="bg-red-100 dark:bg-red-900/30"
-                  iconColor="text-red-600"
+                  iconColor="text-red-600 dark:text-red-400"
                   subValue={safePercent(payables.overdue_percent)}
                   subLabel="Of total"
                 />
@@ -1115,14 +1104,14 @@ function AgedReportsTab({
                   value={`${(payables.average_days ?? 0).toFixed(0)} days`}
                   icon={Clock}
                   iconBg="bg-yellow-100 dark:bg-yellow-900/30"
-                  iconColor="text-yellow-600"
+                  iconColor="text-yellow-600 dark:text-yellow-400"
                 />
                 <StatCard
                   title="Due This Week"
                   value={formatCurrency(payables.aging[1]?.amount || 0)}
                   icon={Calendar}
                   iconBg="bg-orange-100 dark:bg-orange-900/30"
-                  iconColor="text-orange-600"
+                  iconColor="text-orange-600 dark:text-orange-400"
                 />
               </div>
 
@@ -1230,7 +1219,7 @@ function AgedReportsTab({
                           </TableCell>
                           <TableCell className="text-right font-mono">{formatCurrency(contact.total)}</TableCell>
                           <TableCell className="text-right font-mono">{formatCurrency(contact.current)}</TableCell>
-                          <TableCell className="text-right font-mono text-red-600">{formatCurrency(contact.overdue)}</TableCell>
+                          <TableCell className="text-right font-mono text-red-600 dark:text-red-400">{formatCurrency(contact.overdue)}</TableCell>
                           <TableCell className="text-right">
                             <Badge variant={contact.oldest_days > 60 ? "destructive" : "secondary"}>
                               {contact.oldest_days} days
@@ -1277,10 +1266,10 @@ function CashFlowTab({ forecast }: { forecast: CashFlowWeek[] }) {
         <Card className="border-red-300 bg-red-50 dark:bg-red-900/20">
           <CardContent className="pt-6">
             <div className="flex items-start gap-4">
-              <AlertCircle className="h-6 w-6 text-red-600 flex-shrink-0" />
+              <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0" />
               <div>
                 <p className="font-semibold text-red-700">Cash Flow Warning</p>
-                <p className="text-sm text-red-600 mt-1">
+                <p className="text-sm text-red-600 dark:text-red-400 mt-1">
                   Your projected cash balance goes negative. Consider delaying payments or accelerating collections.
                 </p>
                 <Button variant="outline" size="sm" className="mt-3 border-red-300 text-red-700 hover:bg-red-100">
@@ -1316,18 +1305,18 @@ function CashFlowTab({ forecast }: { forecast: CashFlowWeek[] }) {
                       <p className="text-xs text-muted-foreground">to {formatDate(week.week_end)}</p>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-green-600">+{formatCurrency(week.inflows)}</TableCell>
-                  <TableCell className="text-right font-mono text-red-600">-{formatCurrency(week.outflows)}</TableCell>
+                  <TableCell className="text-right font-mono text-green-600 dark:text-green-400">+{formatCurrency(week.inflows)}</TableCell>
+                  <TableCell className="text-right font-mono text-red-600 dark:text-red-400">-{formatCurrency(week.outflows)}</TableCell>
                   <TableCell className="text-right">
-                    <span className={cn("font-mono", week.net >= 0 ? "text-green-600" : "text-red-600")}>
+                    <span className={cn("font-mono", week.net >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
                       {week.net >= 0 ? "+" : ""}{formatCurrency(week.net)}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className={cn("font-mono font-bold", week.running_balance >= 0 ? "text-foreground" : "text-red-600")}>
+                    <span className={cn("font-mono font-bold", week.running_balance >= 0 ? "text-foreground" : "text-red-600 dark:text-red-400")}>
                       {formatCurrency(week.running_balance)}
                     </span>
-                    {week.running_balance < 0 && <AlertTriangle className="h-4 w-4 text-red-500 inline ml-2" />}
+                    {week.running_balance < 0 && <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400 inline ml-2" />}
                   </TableCell>
                 </TableRow>
               ))}
@@ -1395,7 +1384,7 @@ function BasTaxTab({ periods, basData }: { periods: BasPeriod[]; basData: BasDat
                 </div>
                 <div className="flex justify-between py-2 bg-muted/50 px-3 rounded-lg">
                   <span className="font-semibold">Net GST Payable</span>
-                  <span className={cn("font-mono font-bold", basData.net_gst >= 0 ? "text-red-600" : "text-green-600")}>
+                  <span className={cn("font-mono font-bold", basData.net_gst >= 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400")}>
                     {basData.net_gst >= 0 ? "" : "-"}{formatCurrency(Math.abs(basData.net_gst))}
                   </span>
                 </div>
@@ -1427,7 +1416,7 @@ function BasTaxTab({ periods, basData }: { periods: BasPeriod[]; basData: BasDat
                 </div>
                 <div className="flex justify-between py-2 bg-muted/50 px-3 rounded-lg">
                   <span className="font-semibold">Total PAYG</span>
-                  <span className="font-mono font-bold text-red-600">
+                  <span className="font-mono font-bold text-red-600 dark:text-red-400">
                     {formatCurrency(basData.payg_withholding + basData.payg_instalment)}
                   </span>
                 </div>
@@ -1498,7 +1487,7 @@ function ReportsTab() {
                   <report.icon className="h-5 w-5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium">{report.title}</h3>
+                  <h3 className="text-sm font-medium">{report.title}</h3>
                   <p className="text-sm text-muted-foreground">{report.description}</p>
                   <Badge variant="outline" className="mt-2 text-xs">{report.category}</Badge>
                 </div>

@@ -53,6 +53,14 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
+import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
+import { EmailContactAutocomplete } from "@/components/emails/EmailContactAutocomplete";
+import type { EmailContact } from "@/lib/email-types";
+
+const CONTACT_SEARCH_MIN_CHARS = 2;
+const CONTACT_SEARCH_DEBOUNCE_MS = 300;
 
 interface RecurringInvoice {
   id: number;
@@ -140,6 +148,8 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function RecurringInvoicesTab() {
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [invoices, setInvoices] = useState<RecurringInvoice[]>([]);
@@ -149,6 +159,12 @@ export default function RecurringInvoicesTab() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filter, setFilter] = useState<"all" | "active" | "paused">("all");
+
+  // Email autocomplete state
+  const [emailContacts, setEmailContacts] = useState<EmailContact[]>([]);
+  const [emailContactsLoading, setEmailContactsLoading] = useState(false);
+  const [emailToSearch, setEmailToSearch] = useState("");
+  const [emailCcSearch, setEmailCcSearch] = useState("");
 
   // Form state
   const [formData, setFormData] = useState({
@@ -173,6 +189,41 @@ export default function RecurringInvoicesTab() {
       { description: "", quantity: 1, unit_price: 0, tax_rate: 10 },
     ] as LineItem[],
   });
+
+  // Search contacts for email autocomplete
+  const searchEmailContacts = async (search: string) => {
+    if (!search || search.length < CONTACT_SEARCH_MIN_CHARS) {
+      setEmailContacts([]);
+      return;
+    }
+    setEmailContactsLoading(true);
+    try {
+      const response = await api.get<{ contacts: EmailContact[] }>(
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&per_page=20`
+      );
+      const typedResponse = response as { contacts: EmailContact[] };
+      setEmailContacts((typedResponse.contacts || []).filter(c =>
+        c.email || (c.contact_emails && c.contact_emails.length > 0)
+      ));
+    } catch (err) {
+      console.error("Failed to search contacts:", err);
+    } finally {
+      setEmailContactsLoading(false);
+    }
+  };
+
+  // Debounced email contact search
+  useEffect(() => {
+    const activeSearch = emailToSearch || emailCcSearch;
+    const timer = setTimeout(() => {
+      if (activeSearch) {
+        searchEmailContacts(activeSearch);
+      } else {
+        setEmailContacts([]);
+      }
+    }, CONTACT_SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [emailToSearch, emailCcSearch]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -271,12 +322,13 @@ export default function RecurringInvoicesTab() {
         setShowCreateDialog(false);
         resetForm();
         await fetchData();
+        toast({ title: "Success", description: "Recurring invoice created successfully" });
       } else {
-        alert(res?.error || "Failed to create recurring invoice");
+        toast({ title: "Error", description: res?.error || "Failed to create recurring invoice", variant: "destructive" });
       }
     } catch (err) {
       console.error("Failed to create recurring invoice:", err);
-      alert("Failed to create recurring invoice");
+      toast({ title: "Error", description: "Failed to create recurring invoice", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -290,18 +342,25 @@ export default function RecurringInvoicesTab() {
 
       if (res?.success) {
         await fetchData();
+        toast({ title: "Success", description: `Recurring invoice ${action === "generate_now" ? "generated" : action + "d"} successfully` });
       } else {
-        alert(res?.error || `Failed to ${action} recurring invoice`);
+        toast({ title: "Error", description: res?.error || `Failed to ${action} recurring invoice`, variant: "destructive" });
       }
     } catch (err) {
       console.error(`Failed to ${action} recurring invoice:`, err);
+      toast({ title: "Error", description: `Failed to ${action} recurring invoice`, variant: "destructive" });
     }
   };
 
   const handleDelete = async (invoice: RecurringInvoice) => {
-    if (!confirm(`Are you sure you want to delete "${invoice.name}"?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Delete Recurring Invoice",
+      description: `Are you sure you want to delete "${invoice.name}"?`,
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
     try {
       const res = await api.delete<{ success: boolean; error?: string }>(
@@ -310,11 +369,13 @@ export default function RecurringInvoicesTab() {
 
       if (res?.success) {
         await fetchData();
+        toast({ title: "Success", description: "Recurring invoice deleted successfully" });
       } else {
-        alert(res?.error || "Failed to delete recurring invoice");
+        toast({ title: "Error", description: res?.error || "Failed to delete recurring invoice", variant: "destructive" });
       }
     } catch (err) {
       console.error("Failed to delete recurring invoice:", err);
+      toast({ title: "Error", description: "Failed to delete recurring invoice", variant: "destructive" });
     }
   };
 
@@ -348,21 +409,21 @@ export default function RecurringInvoicesTab() {
     switch (status) {
       case "active":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Active
           </Badge>
         );
       case "paused":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
             <Pause className="h-3 w-3 mr-1" />
             Paused
           </Badge>
         );
       case "cancelled":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400">
             <XCircle className="h-3 w-3 mr-1" />
             Cancelled
           </Badge>
@@ -377,22 +438,6 @@ export default function RecurringInvoicesTab() {
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
   };
 
   const filteredInvoices = invoices.filter((invoice) => {
@@ -422,7 +467,7 @@ export default function RecurringInvoicesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{summary.active_count}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.active_count}</div>
             </CardContent>
           </Card>
           <Card>
@@ -432,7 +477,7 @@ export default function RecurringInvoicesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{summary.paused_count}</div>
+              <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{summary.paused_count}</div>
             </CardContent>
           </Card>
           <Card>
@@ -442,7 +487,7 @@ export default function RecurringInvoicesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{summary.due_today}</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{summary.due_today}</div>
             </CardContent>
           </Card>
           <Card>
@@ -572,7 +617,7 @@ export default function RecurringInvoicesTab() {
                           {invoice.status !== "cancelled" && invoice.status !== "completed" && (
                             <DropdownMenuItem
                               onClick={() => handleAction(invoice, "cancel")}
-                              className="text-red-600"
+                              className="text-red-600 dark:text-red-400"
                             >
                               <XCircle className="h-4 w-4 mr-2" />
                               Cancel
@@ -580,7 +625,7 @@ export default function RecurringInvoicesTab() {
                           )}
                           <DropdownMenuItem
                             onClick={() => handleDelete(invoice)}
-                            className="text-red-600"
+                            className="text-red-600 dark:text-red-400"
                           >
                             <XCircle className="h-4 w-4 mr-2" />
                             Delete
@@ -677,7 +722,7 @@ export default function RecurringInvoicesTab() {
 
             {/* Schedule */}
             <div className="space-y-4">
-              <h4 className="font-medium">Schedule</h4>
+              <h4 className="text-sm font-medium text-muted-foreground">Schedule</h4>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="frequency">Frequency</Label>
@@ -769,7 +814,7 @@ export default function RecurringInvoicesTab() {
             {/* Line Items */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">Line Items</h4>
+                <h4 className="text-sm font-medium text-muted-foreground">Line Items</h4>
                 <Button variant="outline" size="sm" onClick={addLineItem}>
                   <Plus className="h-3 w-3 mr-1" />
                   Add Line
@@ -822,7 +867,7 @@ export default function RecurringInvoicesTab() {
                       onClick={() => removeLineItem(index)}
                       disabled={formData.line_items_template.length <= 1}
                     >
-                      <XCircle className="h-4 w-4 text-red-500" />
+                      <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
                     </Button>
                   </div>
                 </div>
@@ -831,7 +876,7 @@ export default function RecurringInvoicesTab() {
 
             {/* Options */}
             <div className="space-y-4">
-              <h4 className="font-medium">Options</h4>
+              <h4 className="text-sm font-medium text-muted-foreground">Options</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="payment_terms_days">Payment Terms (days)</Label>
@@ -871,22 +916,26 @@ export default function RecurringInvoicesTab() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email_to">Email To</Label>
-                    <Input
-                      id="email_to"
-                      type="email"
-                      placeholder="recipient@example.com"
+                    <EmailContactAutocomplete
                       value={formData.email_to}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, email_to: e.target.value }))}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, email_to: value }))}
+                      contacts={emailContacts}
+                      isLoading={emailContactsLoading}
+                      onSearch={setEmailToSearch}
+                      placeholder="Search contacts or enter email..."
+                      minSearchChars={CONTACT_SEARCH_MIN_CHARS}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email_cc">Email CC</Label>
-                    <Input
-                      id="email_cc"
-                      type="email"
-                      placeholder="cc@example.com"
+                    <EmailContactAutocomplete
                       value={formData.email_cc}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, email_cc: e.target.value }))}
+                      onChange={(value) => setFormData((prev) => ({ ...prev, email_cc: value }))}
+                      contacts={emailContacts}
+                      isLoading={emailContactsLoading}
+                      onSearch={setEmailCcSearch}
+                      placeholder="Search contacts or enter email..."
+                      minSearchChars={CONTACT_SEARCH_MIN_CHARS}
                     />
                   </div>
                 </div>

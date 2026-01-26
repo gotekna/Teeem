@@ -2,10 +2,9 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { TabbedPage } from "@/components/ui/page-wrappers";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { JobPipeline } from "@/components/leads/job-pipeline";
@@ -17,10 +16,7 @@ import { api } from "@/lib/api";
 import {
   Plus,
   TrendingUp,
-  Clock,
-  CheckCircle,
   Mail,
-  DollarSign,
 } from "lucide-react";
 
 // Email proposal type for pipeline display
@@ -87,7 +83,6 @@ interface PipelineResponse {
 }
 
 export default function LeadsPage() {
-  useSetLayoutMode("full-height");
   const router = useRouter();
   const pathname = usePathname();
 
@@ -174,20 +169,6 @@ export default function LeadsPage() {
     router.push("/jobs/new/status/enquiry");
   };
 
-  const formatCurrency = (value: number | string) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(Number(value) || 0);
-  };
-
-  // Calculate active count (all jobs in pipeline except won/lost)
-  const activeCount = Object.entries(jobsByStage)
-    .filter(([stage]) => !["won", "lost"].includes(stage))
-    .reduce((sum, [, jobs]) => sum + jobs.length, 0);
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -197,22 +178,16 @@ export default function LeadsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Leads & Proposals</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage your sales pipeline and convert enquiries to jobs
-          </p>
-        </div>
+    <TabbedPage
+      title="Leads & Proposals"
+      description="Manage your sales pipeline and convert enquiries to jobs"
+      actions={
         <Button onClick={handleNewEnquiry}>
           <Plus className="h-4 w-4 mr-2" />
           New Enquiry
         </Button>
-      </div>
-
-      {/* Tabs */}
+      }
+    >
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="leads">
@@ -248,6 +223,6 @@ export default function LeadsPage() {
           />
         </TabsContent>
       </Tabs>
-    </div>
+    </TabbedPage>
   );
 }

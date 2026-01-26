@@ -10,6 +10,9 @@
 # - Rows can belong to multiple templates (shared between templates)
 #
 class SmScheduleMasterTemplate < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   # Associations
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true

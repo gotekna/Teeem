@@ -194,7 +194,7 @@ export default function DesignerHome() {
                   {table.record_count > 0 ? (
                     <Badge
                       variant="outline"
-                      className="bg-green-50 text-green-700 dark:bg-green-900/10 dark:text-green-400"
+                      className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/10 dark:text-green-400"
                     >
                       {table.record_count} records
                     </Badge>

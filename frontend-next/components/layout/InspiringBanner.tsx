@@ -44,9 +44,6 @@ export function InspiringBanner() {
       <QuoteIcon className="h-3 w-3 flex-shrink-0 opacity-50" />
       <p className="text-xs italic truncate">
         {quote.quote}
-        {quote.author && (
-          <span className="font-medium not-italic ml-1">— {quote.author}</span>
-        )}
       </p>
     </div>
   );

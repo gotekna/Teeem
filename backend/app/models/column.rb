@@ -23,6 +23,7 @@ class Column < ApplicationRecord
   attr_writer :lookup_foundation_slug_input
 
   before_validation :resolve_lookup_foundation_from_slug
+  before_validation :sync_column_type_from_lookup_foundation
   before_save :sync_lookup_foundation_slug
 
   validates :name, presence: true
@@ -69,9 +70,13 @@ class Column < ApplicationRecord
   # Reserved column names that conflict with Rails auto-generated columns
   RESERVED_COLUMN_NAMES = %w[id created_at updated_at].freeze
 
+  # SSoT: Column type constants for validation
+  CHOICE_COLUMN_TYPES = %w[choice].freeze
+  LOOKUP_COLUMN_TYPES = %w[lookup multiple_lookups].freeze
+
   before_validation :generate_column_name, if: -> { column_name.blank? }
   before_validation :detect_cross_table_refs, if: -> { column_type == "computed" }
-  validate :lookup_configuration_valid, if: -> { column_type.in?([ "lookup", "multiple_lookups" ]) }
+  validate :lookup_configuration_valid, if: -> { column_type.in?(LOOKUP_COLUMN_TYPES) }
   validate :column_name_not_reserved
 
   # SSoT: Ensure critical properties are never NULL
@@ -345,6 +350,25 @@ class Column < ApplicationRecord
     elsif lookup_foundation_slug.present? && lookup_foundation_id.blank?
       # Clear slug if ID was cleared
       self.lookup_foundation_slug = nil
+    end
+  end
+
+  # ============================================
+  # SSoT: lookup_foundation_id determines lookup type
+  # ============================================
+  # If lookup_foundation_id is set, column_type MUST be lookup/multiple_lookups
+  # This prevents the common bug where lookup_foundation_id is set but
+  # column_type is wrong, causing frontend to render text input instead of dropdown
+  def sync_column_type_from_lookup_foundation
+    if lookup_foundation_id.present?
+      # If lookup foundation is set, column_type MUST be lookup or multiple_lookups
+      unless column_type.in?(%w[lookup multiple_lookups relation])
+        self.column_type = is_multiple ? "multiple_lookups" : "lookup"
+      end
+    elsif column_type.in?(LOOKUP_COLUMN_TYPES) && lookup_foundation_id.blank?
+      # If column_type is lookup but no foundation, revert to string
+      # This catches the case where lookup_foundation_id was cleared
+      self.column_type = "single_line_text"
     end
   end
 

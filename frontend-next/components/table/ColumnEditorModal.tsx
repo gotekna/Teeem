@@ -43,12 +43,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { getColumnTypeEmoji, getColumnTypes, getTypeDefinition } from "@/lib/column-type-registry";
 import type { TableColumn } from "./types";
 import { useSetAtom } from "jotai";
 import { invalidateColumnsCacheAtom } from "@/lib/column-state-atoms";
+import { isLookupColumn, isChoiceColumn } from "@/lib/constants/column-types";
 
 interface ColumnEditorModalProps {
   isOpen: boolean;
@@ -106,6 +108,7 @@ export function ColumnEditorModal({
   onUpdate,
 }: ColumnEditorModalProps) {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   // Get cache invalidation function
   const invalidateColumnsCache = useSetAtom(invalidateColumnsCacheAtom);
@@ -199,10 +202,15 @@ export function ColumnEditorModal({
       const newLookupTableId = column.lookup_foundation_id || null;
       console.log('[ColumnEditorModal] Setting lookup_table_id to:', newLookupTableId);
 
+      // SSoT: column_type should always be set - log error if missing (skip system columns)
+      const systemColumns = ['id', 'created_at', 'updated_at'];
+      if (!column.column_type && !systemColumns.includes(column.key)) {
+        console.error(`[SSoT] Column "${column.key}" missing column_type - defaulting to single_line_text`);
+      }
       setEditedColumn({
         name: column.label || "",
         column_name: column.key || "",
-        data_type: column.column_type || "text",
+        data_type: column.column_type || "single_line_text",
         header_align: (column as any).header_align || "left",
         data_align: (column as any).data_align || "left",
         column_group: (column as any).column_group || "",
@@ -211,7 +219,7 @@ export function ColumnEditorModal({
         lookup_table_id: newLookupTableId,
         lookup_display_column: column.lookup_display_column || "",
       });
-      setNewColumnType(column.column_type || "text");
+      setNewColumnType(column.column_type || "single_line_text");
     }
   }, [column]);
 
@@ -297,11 +305,13 @@ export function ColumnEditorModal({
       return;
     }
 
-    const confirmed = window.confirm(
-      `Warning: You are changing the type from "${editedColumn.data_type}" to "${newColumnType}".\n\n` +
-        "This will rebuild the database table and may result in data loss if the types are incompatible.\n\n" +
-        "Are you sure you want to continue?"
-    );
+    const confirmed = await confirm({
+      title: "Change Column Type",
+      description: `Warning: You are changing the type from "${editedColumn.data_type}" to "${newColumnType}". This will rebuild the database table and may result in data loss if the types are incompatible.`,
+      confirmLabel: "Change Type",
+      cancelLabel: "Cancel",
+      variant: "destructive",
+    });
 
     if (!confirmed) return;
 
@@ -381,15 +391,15 @@ export function ColumnEditorModal({
                   Formula
                 </TabsTrigger>
               )}
-              {/* Show Choices tab for choice/dropdown columns */}
-              {(editedColumn.data_type === "choice" || editedColumn.data_type === "dropdown") && (
+              {/* Show Choices tab for choice columns */}
+              {isChoiceColumn(editedColumn.data_type) && (
                 <TabsTrigger value="choices" className="gap-2">
                   <List className="h-4 w-4" />
                   Choices
                 </TabsTrigger>
               )}
               {/* Show Lookup tab for lookup/relationship columns */}
-              {(editedColumn.data_type === "lookup" || editedColumn.data_type === "multiple_lookups") && (
+              {isLookupColumn(editedColumn.data_type) && (
                 <TabsTrigger value="lookup" className="gap-2">
                   <Link2 className="h-4 w-4" />
                   Lookup
@@ -859,7 +869,7 @@ export function ColumnEditorModal({
                           <Label className="text-xs text-muted-foreground">Lookup columns in this table</Label>
                           <div className="flex flex-wrap gap-1">
                             {allColumns
-                              .filter(c => c.column_type === "lookup" || c.column_type === "multiple_lookups")
+                              .filter(c => isLookupColumn(c.column_type))
                               .map((col) => (
                                 <Badge
                                   key={col.key}
@@ -875,7 +885,7 @@ export function ColumnEditorModal({
                                   🔗 {col.label || col.key}
                                 </Badge>
                               ))}
-                            {allColumns.filter(c => c.column_type === "lookup" || c.column_type === "multiple_lookups").length === 0 && (
+                            {allColumns.filter(c => isLookupColumn(c.column_type)).length === 0 && (
                               <p className="text-xs text-muted-foreground">No lookup columns in this table</p>
                             )}
                           </div>
@@ -1195,7 +1205,7 @@ export function ColumnEditorModal({
                         [{col.key}]
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {col.column_type || "text"}
+                        {col.column_type || "single_line_text"}
                       </div>
                     </div>
                   ))}

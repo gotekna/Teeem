@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import {
   Save,
   FileText,
@@ -182,6 +183,7 @@ function SpecificationSection({
 export default function SpecificationBuilderPage() {
   const params = useParams();
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const jobId = params.id as string;
 
   const [job, setJob] = useState<Job | null>(null);
@@ -337,7 +339,7 @@ export default function SpecificationBuilderPage() {
 
   // Initialize from template
   const handleInitializeFromTemplate = async () => {
-    if (!confirm("This will initialize specifications from the template. Continue?")) return;
+    if (!(await confirm("This will initialize specifications from the template. Continue?"))) return;
 
     try {
       const response = await api.post<{

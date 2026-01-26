@@ -1,476 +1,378 @@
-# /p - Performance Visual Check + Fix
+# Deploy THIS Chat's Changes to Production
 
-Run browser-based performance checks AND backend performance analysis.
-**Automatically fix any slowness found.**
+**Shortcut:** `/p` (Production - This Chat Only)
 
----
+Commits only THIS chat session's changes and deploys through the entire pipeline: Staging → Beta → Production.
 
-## Step 0: Ensure Chrome DevTools is Running
+**Use `/pa` to commit ALL pending changes from ALL sessions instead.**
 
-**MCP manages its own Chrome instance.** Just try to use MCP tools - it auto-starts Chrome if needed.
+> **NOTE:** This file and `/pa.md` share the same deployment logic.
+> If you update one, update the other to stay in sync.
 
-### Check if MCP Chrome is ready:
-```javascript
-mcp__chrome-devtools__list_pages()
+## Pipeline Flow
+```
+[commit] ──► Staging ──► Beta ──► Production
+                │          │          │
+           Frontend   Frontend   Frontend
+           (Vercel)   (Vercel)   (Vercel)
+                │          │          │
+           Backend    Backend    Backend
+           (Heroku)   (Heroku)   (Heroku)
+                         └────┬────┘
+                         PARALLEL!
 ```
 
-If it works, proceed to Step 0.5 (Auto-Login).
+## Optimizations (Jan 2026)
 
-### If MCP fails with "browser already running" error:
+| Optimization | Savings |
+|--------------|---------|
+| Single temp directory (reused for all 3 deploys) | ~2s |
+| Parallel beta+production deploys | ~60-90s |
+| Smart migration check (only if db/migrate changed) | ~10-30s |
+| Vercel branch filtering (each project builds only its branch) | ~9 duplicate builds eliminated |
+
+## Vercel Branch Filtering
+
+Each Vercel project only builds its designated branch via `DEPLOY_BRANCH` env var:
+- `teeem-staging` → only builds `Staging` branch
+- `teeem-beta` → only builds `Beta` branch
+- `teeem-production` → only builds `Live` branch
+- Dev environments (jake/sam/rob) → only build their personal branches
+
+**Result:** `/p` triggers exactly 3 Vercel builds (Staging + Beta + Live), not 12+.
+
+## ⚠️ PRODUCTION DEPLOY - USE CAUTION
+
+This deploys to the live production environment. Ensure:
+- Changes have been tested locally
+- No known issues
+- You have approval to deploy to production
+
+## Instructions
+
+### Step 1 - Pre-Flight Checks
 ```bash
-pkill -f "chrome-devtools-mcp"
-rm -rf /Users/robertharder/.cache/chrome-devtools-mcp
-```
-Then try the MCP tool again.
-
-**Note:** MCP uses a dedicated profile at `~/.cache/chrome-devtools-mcp/chrome-profile`, separate from your regular Chrome profiles.
-
----
-
-## 🔴 CRITICAL REMINDERS (Don't Forget These!)
-
-### FRC - Find Root Cause
-**Before fixing ANY issue, STOP and ask: "WHY does this issue exist?"**
-- Don't just add a bandaid fix - find the root cause
-- Use the 5 Whys technique
-- Fix the gap, not just the symptom
-- Add guardrails to prevent recurrence
-
-### Ultra - Ultrathink Design Philosophy
-**Take a deep breath. Quality over speed.**
-- Question assumptions - is there a simpler solution?
-- Present 3 approaches before implementing
-- Remove code instead of adding when possible
-- Simplify ruthlessly - elegance is when there's nothing left to take away
-
-### SSoT - Single Source of Truth
-**Before adding/changing code, search for existing implementations:**
-- Is this logic defined elsewhere? Search first!
-- Check `lib/constants/`, `lib/table-atoms.ts`
-- If duplicates found: STOP, document all locations, ask user which is SSoT
-- Never create parallel implementations
-
-### Gold - Gold Standard UI
-**Use THE ONE component, not duplicates:**
-- Table: `TeeemTableView` (not data-table.tsx)
-- Spinner: `Spinner` from `@/components/ui/spinner`
-- Modal: `Dialog` (not drawer)
-- Check `lib/component-registry.ts` for approved components
-- Always use Tailwind config colors (not hex)
-- Always support dark mode (`dark:` classes)
-
----
-
-## What This Command Does
-
-1. **Automatic Login** - Logs in automatically (no user intervention needed)
-2. **Visual Browser Check** - Opens pages via Chrome DevTools MCP, measures CLS/LCP
-3. **Backend Performance Data** - Fetches slow queries, anomalies, endpoint stats
-4. **Fixes Issues** - Automatically implements fixes for any slowness detected
-5. **Tests Both Local AND Production** - Runs checks on both environments
-
-## Execution Steps
-
-### Step 0: Automatic Login (Chrome DevTools MCP)
-
-**For Local (localhost:3000):**
-1. Navigate to `http://localhost:3000/login`
-2. Take snapshot to find form elements
-3. Fill email field (uid for email input) with: `robert@tekna.com.au`
-4. Fill password field (uid for password input) with: `Wisdom50-50`
-5. Click "Sign in" button
-6. Wait for redirect to `/dashboard`
-7. Verify login successful by checking for dashboard content
-
-**For Production (teeemlive.vercel.app):**
-1. Navigate to `https://teeemlive.vercel.app/login`
-2. Same login flow as above
-3. Verify login successful
-
-### Step 1: Visual Browser Check (Chrome DevTools MCP)
-
-Navigate to each page and run performance traces:
-
-#### Jobs Flow
-- `http://localhost:3000/jobs` (list page)
-- Click first job, then check each tab:
-  - Overview
-  - Schedule (Gantt)
-  - Documents
-  - Financials
-  - Activity
-  - Settings
-
-#### Contacts Flow
-- `http://localhost:3000/contacts` (list page)
-- Click first contact, then check ALL tabs:
-  - Overview (main contact details)
-  - Corporate (with subtabs: Identity, Summary)
-  - Documents
-  - Financial (with subtabs: Bank, Xero, Bills, Jobs, POs)
-  - Coms (Communications)
-  - Cases
-  - Emails
-  - Invoices (if customer)
-  - Pricebook (if supplier)
-  - Portal Access
-  - Directorships (if person with directorships)
-
-#### Pricebook Flow
-- `http://localhost:3000/pricebook` (list page)
-- Click first item, verify all sections render:
-  - Pricing Information
-  - Item Details
-  - Price History table
-  - Data Quality Settings
-  - Images
-  - Supplier
-  - Risk Analysis
-
-#### Email Flow
-- `http://localhost:3000/email` (main email page)
-- Measure time to load email list
-- Click on a subfolder in the sidebar (e.g., "Sent", "Drafts", or any custom folder)
-- Measure time to load folder contents
-- Double-click on an email to open it
-- Measure time to open email detail view
-
-#### Tasks Flow
-- `http://localhost:3000/tasks` (tasks list page)
-- Measure time to load tasks list with groupings
-- Double-click on a task row to open fullscreen view
-- Measure time to open task in fullscreen mode
-- Verify task details load completely (description, subtasks, comments)
-
-### Detection Thresholds
-
-For each navigation:
-- Use `performance_start_trace` with `reload: false, autoStop: true`
-- **CLS > 0.1** = Layout shift issue (WARN)
-- **LCP > 2500ms** = Slow load (WARN)
-- **LCP > 4000ms** = Very slow (FAIL)
-- Take snapshot to verify content rendered (no persistent spinners >2s)
-
-### Step 1.5: Content Validation (CRITICAL)
-
-**CLS metrics don't catch functional bugs!** After each performance trace, take a snapshot and validate:
-
-#### Table Content Checks
-For any page with TeeemTableView:
-1. **Record count mismatch**: Header shows "0 records" but groups have counts = **FAIL**
-2. **Empty table with groups**: Groups visible with (N) counts but no records loaded = **FAIL**
-3. **Loading state stuck**: Spinner visible for >3 seconds = **FAIL**
-4. **SSR data ignored**: Page shows skeleton when SSR data was passed = **FAIL**
-
-#### How to Detect
-```
-After performance_start_trace completes:
-1. take_snapshot
-2. Search snapshot for:
-   - "0 records" text when groups show counts
-   - Spinner/loading indicators still present
-   - Empty table body with populated group headers
-3. If found: Mark as [FAIL - Content Bug] not just CLS warning
+git branch --show-current
+git status --short
 ```
 
-#### Example: The "0 Records" Bug (2025-01-09)
-```
-WRONG ASSESSMENT:
-  Pricebook: LCP 974ms, CLS 0.12 [WARN - borderline]
+**IMPORTANT: Note if ANY backend/ files are shown above. After commit, verify they were included.**
 
-CORRECT ASSESSMENT:
-  Pricebook: LCP 974ms, CLS 0.12 [FAIL - shows "0 records" but groups have 1000+ items]
+### Step 1.5 - Pull Latest (if needed)
+```bash
+git pull origin Staging
 ```
 
-**Root cause was:** Header used `filteredAndSortedEntries.length` (0 on SSR) instead of `serverTotalRecords` (correct count from SSR group data).
+### Step 2 - Pre-Commit Validation (BEFORE commit!)
 
-### Step 2: System Health Performance Dashboard
+**CRITICAL: Run these checks on working directory BEFORE committing to catch errors early.**
 
-Navigate to the Performance Observatory page and analyze:
+```bash
+echo "🔍 Pre-commit validation..."
 
-**URL:** `http://localhost:3000/system-health/performance`
+# Check TypeScript compiles (catches type errors BEFORE they hit Vercel)
+if git status --short | grep -E "frontend-next/.*\.(ts|tsx)$" > /dev/null; then
+  echo "Checking TypeScript..."
+  cd frontend-next && npx tsc --noEmit 2>&1 | head -30
+  TSC_EXIT=$?
+  cd ..
+  if [ $TSC_EXIT -ne 0 ]; then
+    echo "❌ TypeScript errors - fix before committing"
+    exit 1
+  fi
+  echo "✅ TypeScript OK"
+fi
 
-#### What to Check
+# Check Ruby syntax in changed backend files
+if git status --short | grep -E "backend/.*\.rb$" > /dev/null; then
+  echo "Checking Ruby syntax..."
+  git status --short | grep -E "backend/.*\.rb$" | awk '{print $2}' | while read file; do
+    if [ -f "$file" ]; then
+      ruby -c "$file" > /dev/null 2>&1 || {
+        echo "❌ Syntax error in $file"
+        ruby -c "$file"
+        exit 1
+      }
+    fi
+  done
+  echo "✅ Ruby syntax OK"
+fi
 
-1. **Summary Metrics**
-   - Total Requests & req/min rate
-   - Avg Response Time (target: <100ms)
-   - P95 Latency (target: <200ms)
-   - P99 Latency (target: <500ms)
-   - Error Rate (target: <1%)
+# Check Gemfile.lock updated if Gemfile changed
+if git status --short | grep -E "backend/Gemfile$" > /dev/null; then
+  if ! git status --short | grep -E "backend/Gemfile.lock" > /dev/null; then
+    echo "❌ Gemfile changed but Gemfile.lock not updated"
+    echo "   Run: cd backend && bundle install"
+    exit 1
+  fi
+  echo "✅ Gemfile.lock updated"
+fi
 
-2. **Active Anomalies** (CRITICAL)
-   - Any "Slow Query Surge" alerts = investigate immediately
-   - Check which table is affected and expected vs actual count
-   - Example: "email_warehouses had 75 slow queries (expected: 11)" = **FIX REQUIRED**
-
-3. **Performance Budget Compliance**
-   - Target: 100% Compliant
-   - Check "Top Budget Violations" section for specific endpoints
-   - Common violations:
-     - p99 exceeds target → Check for N+1 queries, missing indexes
-     - error_rate exceeds target → Check for unhandled exceptions
-
-4. **Slowest Endpoints (by P95)**
-   - Any endpoint >500ms P95 = investigate
-   - Any endpoint >1000ms P95 = **FIX REQUIRED**
-   - Look for patterns: Foundation endpoints, specific tables
-
-5. **Tables with Slow Queries**
-   - Tables with >100 slow queries = **FIX REQUIRED**
-   - Check avg duration - anything >500ms needs index optimization
-   - Common culprits: email_warehouses, jobs, contacts
-
-6. **Service Level Objectives (SLOs)**
-   - API P95 Latency: ≤500ms
-   - API Error Rate: ≤1%
-   - LCP: ≤2500ms
-   - CLS: ≤0.1
-   - INP: ≤200ms
-   - Any "Violated" status = **FIX REQUIRED**
-
-#### Detection Thresholds
-
-| Metric | Pass | Warn | Fail |
-|--------|------|------|------|
-| P95 Latency | <200ms | 200-500ms | >500ms |
-| P99 Latency | <500ms | 500-1000ms | >1000ms |
-| Error Rate | <0.5% | 0.5-1% | >1% |
-| Slow Queries (per table) | <50 | 50-100 | >100 |
-| Budget Compliance | >95% | 80-95% | <80% |
-
-### Step 2.5: Backend Performance API (Optional)
-
-If more detail needed, fetch from API directly:
-
-1. `GET http://localhost:3001/api/v1/performance` - Overview metrics
-2. `GET http://localhost:3001/api/v1/performance/slow_queries` - Slow DB queries
-3. `GET http://localhost:3001/api/v1/performance/anomalies?status=open` - Active anomalies
-4. `GET http://localhost:3001/api/v1/performance/endpoints` - Per-endpoint p95/p99
-
-### Step 3: Fix Issues Found
-
-**⚠️ BEFORE IMPLEMENTING ANY FIX, REMEMBER:**
-1. **FRC** - WHY does this issue exist? Find root cause, not just symptom
-2. **SSoT** - Is there existing code that should be used/extended?
-3. **Ultra** - Is there a simpler solution? Can we remove code instead of add?
-4. **Gold** - Use approved components from `lib/component-registry.ts`
-
-For each issue detected, implement the appropriate fix:
-
-| Issue Type | Fix |
-|------------|-----|
-| Slow query on table X | Check for missing index, add migration if needed |
-| N+1 pattern | Add `.includes()` to Rails query |
-| High CLS on page | Add SSR data pre-loading, skeleton, or proper loading state |
-| High LCP | Optimize lazy loading, add caching, or reduce component complexity |
-| Anomaly detected | Investigate and fix root cause |
-
-**After fixing, verify:**
-- Root cause addressed (not bandaid)
-- No duplicate implementations created
-- Uses SSoT components/patterns
-- Dark mode supported if UI change
-
-### Output Format
-
-Display summary table:
-
-```
-================================================================================
-                       PERFORMANCE CHECK RESULTS
-================================================================================
-Page                        LCP        CLS      Status
---------------------------------------------------------------------------------
-Jobs List                   800ms      0.02     [PASS]
-Jobs > Overview             600ms      0.00     [PASS]
-Jobs > Schedule            1200ms      0.15     [WARN] High CLS
-Jobs > Documents            500ms      0.00     [PASS]
-Jobs > Financials           700ms      0.00     [PASS]
-Jobs > Activity             450ms      0.00     [PASS]
-Jobs > Settings             400ms      0.00     [PASS]
-Contacts List               900ms      0.05     [PASS]
-Contacts > Overview         550ms      0.00     [PASS]
-Contacts > Corporate        600ms      0.00     [PASS]
-Contacts > Documents        500ms      0.00     [PASS]
-Contacts > Financial        650ms      0.00     [PASS]
-Contacts > Coms             400ms      0.00     [PASS]
-Contacts > Cases            500ms      0.00     [PASS]
-Contacts > Emails           700ms      0.00     [PASS]
-Pricebook List              600ms      0.00     [PASS]
-Pricebook > Item            550ms      0.00     [PASS]
-Email List                  750ms      0.03     [PASS]
-Email > Subfolder           400ms      0.00     [PASS]
-Email > Detail              500ms      0.02     [PASS]
-Tasks List                  650ms      0.01     [PASS]
-Tasks > Fullscreen          450ms      0.00     [PASS]
-================================================================================
-
-SYSTEM HEALTH PERFORMANCE DASHBOARD:
---------------------------------------------------------------------------------
-Metric                      Value      Target     Status
---------------------------------------------------------------------------------
-Avg Response Time           26ms       <100ms     [PASS]
-P95 Latency                 80ms       <200ms     [PASS]
-P99 Latency                 392ms      <500ms     [PASS]
-Error Rate                  1.17%      <1%        [FAIL]
-Budget Compliance           87%        >95%       [WARN]
-Active Anomalies            2          0          [FAIL]
-================================================================================
-
-SLO COMPLIANCE:
---------------------------------------------------------------------------------
-API P95 Latency             —          ≤500ms     [NO DATA]
-API Error Rate              0.30%      ≤1%        [VIOLATED] 99.7% compliance
-LCP                         2848ms     ≤2500ms    [VIOLATED] 68.6% compliance
-CLS                         0.090      ≤0.1       [VIOLATED] 80.6% compliance
-INP                         128ms      ≤200ms     [VIOLATED] 85.9% compliance
-================================================================================
-
-TOP ISSUES TO FIX:
-1. /api/v1/sm_tasks: p99 3362ms (target 1000ms), error_rate 7% (target 1%)
-2. email_warehouses: 839 slow queries, avg 276ms
-3. job_address_searches: 205 slow queries, avg 213ms
-================================================================================
-
-ISSUES FOUND & FIXED:
-1. Jobs > Schedule: High CLS (0.15) - Added SSR pre-loading for view config
-2. Slow query: contacts table - Added index on display_name column
-
-================================================================================
+echo "✅ Pre-commit validation passed"
 ```
 
-## Chrome DevTools MCP Tools Used
+**If any check fails, fix the errors before proceeding.**
 
-- `navigate_page` - Go to each URL
-- `performance_start_trace` - Start performance recording
-- `performance_stop_trace` - Get CLS/LCP results
-- `take_snapshot` - Check for loading states / content
-- `click` - Navigate to tabs/items
-- `wait_for` - Wait for content to appear
+### Step 3 - Commit This Chat's Changes
 
-## Environments to Test
+**Auto-generate commit message based on changes:**
 
-| Environment | Frontend URL | Backend API |
-|-------------|--------------|-------------|
-| Local | http://localhost:3000 | http://localhost:3001 |
-| Production | https://teeemlive.vercel.app | https://teeemlive-ce8e2660a615.herokuapp.com |
+Rules (in priority order):
+1. Only `package.json` version → `chore: Bump version to X.X.X`
+2. `.claude/commands/*` → `chore: Update slash commands`
+3. `db/migrate/*` → `feat: Add migration`
+4. Backend `.rb` → `feat: Update backend`
+5. Frontend `.tsx/.jsx` → `feat: Update frontend`
+6. Multiple types → Combine appropriately
+7. Default → `chore: Update project files`
 
-**Run checks on BOTH environments** and compare results.
+```bash
+git add -A
+git commit -m "[auto-generated message]
 
-## Login Credentials
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-- **Email:** robert@tekna.com.au
-- **Password:** Wisdom50-50
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+### Step 4 - Push to GitHub Staging
+```bash
+git push origin Staging
+```
+*Staging frontend auto-deploys from this push*
+
+### Step 4.5 - Merge Frontend Branches (Staging → Beta → Live)
+
+**This triggers Vercel auto-deploy for Beta and Production frontends.**
+
+```bash
+echo "🔀 Merging frontend branches..."
+
+# Save current branch
+CURRENT_BRANCH=$(git branch --show-current)
+
+# Merge Staging → Beta
+git checkout Beta
+git pull origin Beta
+git merge Staging -m "Merge Staging into Beta for deployment"
+git push origin Beta
+echo "✅ Beta frontend updated"
+
+# Merge Beta → Live (Production)
+git checkout Live
+git pull origin Live
+git merge Beta -m "Merge Beta into Live for deployment"
+git push origin Live
+echo "✅ Production frontend updated"
+
+# Return to original branch
+git checkout "$CURRENT_BRANCH"
+echo "✅ Frontend branches merged"
+```
+
+### Step 4.6 - Verify Backend Changes Were Committed
+**CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
+```bash
+git diff --name-only HEAD~1 HEAD | grep backend/
+```
+**If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
+
+### Step 5 - Deploy Backend (OPTIMIZED - Single Directory, Parallel Deploys)
+
+**Check if backend files were in the commit:**
+```bash
+git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
+```
+
+**If backend changed, use optimized deploy:**
+
+```bash
+echo "📦 Starting optimized backend deploy..."
+
+cd /Users/robertharder/GitHub/teeem
+
+# Ensure files are flushed to disk
+sync
+sleep 1
+
+# Create SINGLE temp directory (reused for all 3 environments)
+DEPLOY_DIR=$(mktemp -d)
+cp -R backend/* "$DEPLOY_DIR/"
+
+cd "$DEPLOY_DIR"
+git init
+git add -A
+git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+
+# Add all remotes upfront
+git remote add staging https://git.heroku.com/teeem-staging.git
+git remote add beta https://git.heroku.com/teeem-beta.git
+git remote add production https://git.heroku.com/teeem-production.git
+
+# STEP 1: Deploy to Staging first (safety check)
+echo "📦 Deploying → Staging..."
+git push staging HEAD:main --force
+STAGING_EXIT=$?
+
+if [ $STAGING_EXIT -ne 0 ]; then
+  echo "❌ Staging deploy failed - aborting pipeline"
+  cd /Users/robertharder/GitHub/teeem
+  rm -rf "$DEPLOY_DIR"
+  exit 1
+fi
+echo "✅ Staging backend deployed"
+
+# STEP 2: Deploy to Beta AND Production in PARALLEL
+echo "📦 Deploying → Beta + Production (parallel)..."
+git push beta HEAD:main --force &
+BETA_PID=$!
+git push production HEAD:main --force &
+PROD_PID=$!
+
+# Wait for both to complete
+wait $BETA_PID
+BETA_EXIT=$?
+wait $PROD_PID
+PROD_EXIT=$?
+
+# Cleanup
+cd /Users/robertharder/GitHub/teeem
+rm -rf "$DEPLOY_DIR"
+
+# Report results
+if [ $BETA_EXIT -eq 0 ]; then
+  echo "✅ Beta backend deployed"
+else
+  echo "❌ Beta deploy failed (exit: $BETA_EXIT)"
+fi
+
+if [ $PROD_EXIT -eq 0 ]; then
+  echo "✅ Production backend deployed"
+else
+  echo "❌ Production deploy failed (exit: $PROD_EXIT)"
+fi
+
+echo "✅ All backend deploys complete"
+```
+
+**If no backend changes, skip this step entirely.**
+
+### Step 6 - Smart Migration Verification (Only if migrations changed)
+
+**Only run migration check if commit includes db/migrate files:**
+
+```bash
+if git diff --name-only HEAD~1 HEAD | grep -q "^backend/db/migrate/"; then
+  echo "🔄 Migrations detected - verifying..."
+
+  # Check all 3 environments
+  echo "Checking Staging migrations..."
+  heroku run "rails db:migrate:status | tail -5" --app teeem-staging
+
+  echo "Checking Beta migrations..."
+  heroku run "rails db:migrate:status | tail -5" --app teeem-beta
+
+  echo "Checking Production migrations..."
+  heroku run "rails db:migrate:status | tail -5" --app teeem-production
+
+  echo "✅ Migration verification complete"
+else
+  echo "⏭️  No migrations in commit - skipping verification"
+fi
+```
+
+### Step 7 - Post-Deploy Verification
+
+```bash
+sleep 10
+
+# 1. Check recurring tasks
+heroku run rails runner "
+  tasks = SolidQueue::RecurringTask.pluck(:key)
+  critical = ['xero_health_monitor', 'refresh_integration_tokens', 'daily_health_check']
+  missing = critical - tasks
+  if missing.any?
+    puts '❌ MISSING RECURRING TASKS: ' + missing.join(', ')
+    exit 1
+  else
+    puts '✅ Recurring tasks OK (' + tasks.count.to_s + ' registered)'
+  end
+" --app teeem-production
+
+# 2. Check health monitor
+heroku run rails runner "
+  last = XeroSyncEvent.where(sync_type: 'health_check').order(created_at: :desc).first
+  if last.nil?
+    puts '⚠️  No health monitor runs found'
+  elsif last.event_type == 'completed'
+    puts '✅ Health monitor OK (last: ' + last.created_at.in_time_zone('Australia/Brisbane').strftime('%H:%M') + ')'
+  else
+    puts '❌ Health monitor failed: ' + (last.error_message || 'unknown')
+  end
+" --app teeem-production
+
+# 3. Check Xero credentials
+heroku run rails runner "
+  total = XeroCredential.count
+  expired = XeroCredential.all.count { |c| c.expired? }
+  if expired > 0
+    puts '⚠️  Xero: ' + expired.to_s + '/' + total.to_s + ' tokens expired (will auto-refresh)'
+  else
+    puts '✅ Xero: ' + total.to_s + ' credentials, all tokens valid'
+  end
+" --app teeem-production
+```
+
+### Step 8 - Report Status
+
+**Get version and show deploy status:**
+
+```bash
+BACKEND_VERSION=$(curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")
+BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
+COMMIT_HASH=$(git rev-parse --short HEAD)
+COMMIT_MSG=$(git log -1 --pretty=%s)
+BACKEND_DEPLOYED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "deployed" || echo "skipped")
+```
+
+**Output format:**
+```
+========================================
+FULL PIPELINE DEPLOYED: HH:MM DD/MM (Brisbane)
+Commit: [hash] - [message]
+----------------------------------------
+Frontend (Vercel - auto-deploy on branch merge):
+  ✅ Staging: Staging branch pushed
+  ✅ Beta: Staging → Beta merged
+  ✅ Production: Beta → Live merged
+
+Backend (Heroku - optimized parallel deploy):
+  ✅ Staging: [deployed/skipped] (safety check first)
+  ✅ Beta: [deployed/skipped] (parallel)
+  ✅ Production: v[XXX] - [deployed/skipped] (parallel)
+----------------------------------------
+Post-Deploy Verification:
+  [verification results]
+========================================
+```
+
+## Error Handling
+
+If any step fails:
+1. Report which step failed
+2. Do NOT proceed to next environment (staging failure stops everything)
+3. Provide recovery instructions
+
+**Staging acts as gate:** If staging deploy fails, beta and production are NOT attempted.
 
 ## Notes
 
-- Always login first before checking pages
-- If login fails, report error and stop
-- Compare local vs production performance to catch deployment regressions
-
----
-
-## 🔴 ANTI-PATTERNS: What NOT To Do When Fixing Performance
-
-**Lessons learned from past sessions. DO NOT repeat these mistakes.**
-
-### 1. DON'T Add Multiple Fetch Triggers (SSoT Violation)
-
-```typescript
-// ❌ BAD: Two places trigger data fetch
-if (condition1) setAutoFetchRefreshKey(prev => prev + 1);
-// ... later in code ...
-if (condition2) setAutoFetchRefreshKey(prev => prev + 1);
-
-// ✅ GOOD: Single SSoT for fetch trigger
-} finally {
-  if (!hasAppliedInitialRecordsRef.current) {
-    setAutoFetchRefreshKey(prev => prev + 1);
-  }
-}
-```
-
-**Why:** Multiple triggers = data reloads unexpectedly, defeating caching.
-
-### 2. DON'T Add Volatile Dependencies to useEffect
-
-```typescript
-// ❌ BAD: baseFiltersKey changes during initialization
-useEffect(() => {
-  fetchData();
-}, [foundationId, baseFiltersKey]); // baseFiltersKey changes = double fetch!
-
-// ✅ GOOD: Check if already loaded before fetching
-useEffect(() => {
-  if (hasAppliedInitialRecordsRef.current && records.length > 0) {
-    return; // Skip duplicate fetch
-  }
-  fetchData();
-}, [foundationId, baseFiltersKey]);
-```
-
-**Why:** Dependencies that change during initialization cause duplicate fetches.
-
-### 3. DON'T Use Path-Based Navigation for View Switching
-
-```typescript
-// ❌ BAD: Full page reload, wipes cached data
-router.push('/contacts/view/company_role');
-
-// ✅ GOOD: Query param navigation, keeps component mounted
-router.push('/contacts?view=company_role', { scroll: false });
-```
-
-**Why:** Path-based navigation unmounts component → SSR reload → cache wiped.
-
-### 4. DON'T Forget to Check if SSR Data Already Applied
-
-```typescript
-// ❌ BAD: Always fetches, ignores SSR data
-useEffect(() => {
-  fetchRecords();
-}, []);
-
-// ✅ GOOD: Skip fetch if SSR/cache data already applied
-useEffect(() => {
-  if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0) {
-    console.log('[TeeemTableView] SSR data already applied, skipping fetch');
-    return;
-  }
-  fetchRecords();
-}, []);
-```
-
-**Why:** SSR pre-loads data. Fetching again = slow + flash of loading state.
-
-### 5. DON'T Add Refs Without Understanding WHY
-
-Adding refs like `hasAppliedInitialRecordsRef` is often a bandaid. Ask:
-- Why is the effect running multiple times?
-- Is there a dependency that shouldn't be there?
-- Can we restructure to avoid needing the ref?
-
-### 6. DON'T Decrease Cache TTL "For Safety"
-
-```typescript
-// ❌ BAD: Short cache = frequent reloads
-export const CACHE_TTL_RECORDS = 5 * 60 * 1000; // 5 minutes
-
-// ✅ GOOD: Longer cache, rely on invalidation after mutations
-export const CACHE_TTL_RECORDS = 30 * 60 * 1000; // 30 minutes
-```
-
-**Why:** Mutations already call `clearCachedRecords()`. Short TTL = bad UX.
-
-### Summary: Performance Fix Checklist
-
-Before implementing ANY performance fix, verify:
-
-| Check | Question |
-|-------|----------|
-| SSoT | Is there already a mechanism for this? Search first! |
-| Dependencies | Will this change cause effects to re-run? |
-| Navigation | Will this cause a full page reload? |
-| Cache | Am I working WITH the cache or fighting it? |
-| Refs | Am I adding a ref as a bandaid for a design issue? |
+- Commits only THIS chat session's changes
+- Deploys to ALL THREE environments: Staging, Beta, Production
+- Frontend: Vercel auto-deploys on GitHub push/merge
+- Backend: Single temp directory, staging first, then beta+production in parallel
+- Migration verification only runs if db/migrate files changed
+- Post-deploy verification runs for Production only
+- Use `/pa` if you want to commit ALL pending changes
+- Use `/b` if you only want to deploy up to Beta
+- Use `/s` if you only want to deploy to Staging

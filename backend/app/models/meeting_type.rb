@@ -1,6 +1,9 @@
 class MeetingType < ApplicationRecord
+  # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
+  acts_as_tenant :tenant
+
   # Validations
-  validates :name, presence: true, uniqueness: true
+  validates :name, presence: true, uniqueness: { scope: :tenant_id }
   validates :default_duration_minutes, numericality: { greater_than: 0, allow_nil: true }
   validates :minimum_participants, numericality: { greater_than: 0, allow_nil: true }
   validates :maximum_participants, numericality: { greater_than: 0, allow_nil: true }

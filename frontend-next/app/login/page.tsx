@@ -15,12 +15,34 @@ import Link from "next/link";
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true); // Default to checked for convenience
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState("");
-  const { login, isAuthenticated, loading } = useAuth();
+  const { login, isAuthenticated, loading, handleTokenFromRedirect } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Check for token in URL (cross-domain redirect from another frontend deployment)
+  // This happens when user logs in on production frontend but their company
+  // is configured for staging/beta environment
+  useEffect(() => {
+    const tokenParam = searchParams.get('token');
+    if (tokenParam) {
+      const apiUrlParam = searchParams.get('api_url') || undefined;
+      const envParam = searchParams.get('environment') || undefined;
+      const redirectPath = searchParams.get('redirect') || '/dashboard';
+
+      // Use AuthContext to handle the token - this stores it, sets up API URL,
+      // and verifies with the backend before redirecting
+      handleTokenFromRedirect(tokenParam, apiUrlParam, envParam).then((success) => {
+        if (success) {
+          router.push(redirectPath);
+        }
+        // If failed, user stays on login page (logout was called by handleTokenFromRedirect)
+      });
+    }
+  }, [searchParams, router, handleTokenFromRedirect]);
 
   // Check for session expired redirect
   useEffect(() => {
@@ -45,7 +67,7 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const result = await login(email, password);
+      const result = await login(email, password, rememberMe);
       if (result.success) {
         router.push("/dashboard");
       } else {
@@ -130,9 +152,13 @@ function LoginForm() {
               />
             </div>
             <div className="flex items-center space-x-2">
-              <Checkbox id="remember" />
+              <Checkbox
+                id="remember"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+              />
               <Label htmlFor="remember" className="text-sm font-normal">
-                Remember me for 30 days
+                Remember me
               </Label>
             </div>
           </CardContent>
@@ -192,3 +218,4 @@ export default function LoginPage() {
     </Suspense>
   );
 }
+// Jake deploy Sun Jan 18 05:33:30 CET 2026

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { TabbedPage } from "@/components/ui/page-wrappers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +18,10 @@ import {
   Plus,
   ChevronRight,
 } from "lucide-react";
-import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { format, isToday, isTomorrow } from "date-fns";
+import { getInitials } from "@/utils/formatters";
 
 interface Meeting {
   id: number;
@@ -35,15 +35,6 @@ interface Meeting {
   job_title?: string;
   job_id?: number;
   attendees: { id: number; name: string; email: string }[];
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 function formatMeetingTime(start: string, end: string): string {
@@ -60,7 +51,6 @@ function getMeetingDateLabel(dateStr: string): string {
 }
 
 export default function MeetingsPage() {
-  useSetLayoutMode("full-height");
   const pathname = usePathname();
   const router = useRouter();
 
@@ -119,26 +109,19 @@ export default function MeetingsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <BackButton fallbackHref="/dashboard" />
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">Meetings</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Schedule and manage site meetings
-            </p>
-          </div>
-        </div>
+    <TabbedPage
+      title="Meetings"
+      description="Schedule and manage site meetings"
+      backHref="/dashboard"
+      actions={
         <Button asChild>
           <Link href="/meetings/new">
             <Plus className="h-4 w-4 mr-2" />
             Schedule Meeting
           </Link>
         </Button>
-      </div>
-
+      }
+    >
       <Tabs value={activeTab || "upcoming"} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
@@ -164,7 +147,7 @@ export default function MeetingsPage() {
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
-                                <h4 className="font-medium">{meeting.title}</h4>
+                                <h4 className="text-sm font-medium">{meeting.title}</h4>
                                 {meeting.is_virtual && (
                                   <Badge variant="secondary">
                                     <Video className="h-3 w-3 mr-1" />
@@ -202,7 +185,7 @@ export default function MeetingsPage() {
                                         className="h-6 w-6 border-2 border-background"
                                       >
                                         <AvatarFallback className="text-xs">
-                                          {getInitials(attendee.name)}
+                                          {getInitials(attendee.name) || "?"}
                                         </AvatarFallback>
                                       </Avatar>
                                     ))}
@@ -262,6 +245,6 @@ export default function MeetingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </TabbedPage>
   );
 }

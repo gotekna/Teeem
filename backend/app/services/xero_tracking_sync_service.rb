@@ -96,9 +96,9 @@ class XeroTrackingSyncService
   end
 
   # Build a tracking option name from the job
-  # Uses the job code format (e.g., "J201") as the tracking option name
+  # SSoT: Uses the job_code from database column
   def build_tracking_option_name(job)
-    "J#{job.id}"
+    job.job_code
   end
 
   # Find or create the "Job" tracking category in Xero

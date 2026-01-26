@@ -158,14 +158,9 @@ export function BrandColorsTab() {
 
   return (
     <div className="space-y-8 pb-32">
-      <div>
-        <h2 className="text-lg font-semibold">Brand Colors</h2>
-        <p className="text-sm text-muted-foreground">
-          Configure your company brand colors. These colors are applied across the entire UI.
-        </p>
-      </div>
-
-      <Separator />
+      <p className="text-sm text-muted-foreground">
+        Configure your company brand colors. These colors are applied across the entire UI.
+      </p>
 
       {/* Message */}
       {message && (
@@ -343,7 +338,7 @@ export function BrandColorsTab() {
                     Choose File
                   </Button>
                   {brand?.logo_url && (
-                    <Button type="button" variant="ghost" size="sm" className="text-red-600" onClick={() => setBrand(prev => prev ? { ...prev, logo_url: null } : null)}>
+                    <Button type="button" variant="ghost" size="sm" className="text-red-600 dark:text-red-400" onClick={() => setBrand(prev => prev ? { ...prev, logo_url: null } : null)}>
                       Remove
                     </Button>
                   )}
@@ -390,7 +385,7 @@ export function BrandColorsTab() {
                     Choose File
                   </Button>
                   {brand?.logo_mobile && (
-                    <Button type="button" variant="ghost" size="sm" className="text-red-600" onClick={() => setBrand(prev => prev ? { ...prev, logo_mobile: null } : null)}>
+                    <Button type="button" variant="ghost" size="sm" className="text-red-600 dark:text-red-400" onClick={() => setBrand(prev => prev ? { ...prev, logo_mobile: null } : null)}>
                       Remove
                     </Button>
                   )}
@@ -437,7 +432,7 @@ export function BrandColorsTab() {
                     Choose File
                   </Button>
                   {brand?.logo_dark && (
-                    <Button type="button" variant="ghost" size="sm" className="text-red-600" onClick={() => setBrand(prev => prev ? { ...prev, logo_dark: null } : null)}>
+                    <Button type="button" variant="ghost" size="sm" className="text-red-600 dark:text-red-400" onClick={() => setBrand(prev => prev ? { ...prev, logo_dark: null } : null)}>
                       Remove
                     </Button>
                   )}

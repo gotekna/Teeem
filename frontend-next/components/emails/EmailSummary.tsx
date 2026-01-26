@@ -67,10 +67,10 @@ interface EmailSummaryProps {
 }
 
 const SENTIMENT_CONFIG = {
-  positive: { color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", label: "Positive" },
-  negative: { color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", label: "Negative" },
+  positive: { color: "bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400", label: "Positive" },
+  negative: { color: "bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400", label: "Negative" },
   neutral: { color: "bg-muted text-foreground dark:bg-card dark:text-muted-foreground", label: "Neutral" },
-  urgent: { color: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400", label: "Urgent" },
+  urgent: { color: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400", label: "Urgent" },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -97,7 +97,7 @@ export function EmailSummary({ emailId, existingSummary, className }: EmailSumma
 
     try {
       const response = await api.post<{ success: boolean; data: SummaryData; error?: string }>(
-        `/api/v1/email_warehouse/${emailId}/summarize`,
+        `/api/v1/synced_emails/${emailId}/summarize`,
         { refresh }
       );
 

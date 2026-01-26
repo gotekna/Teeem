@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Settings, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 // Overdue gradient colors - 10 shades from light (1 day) to dark (10+ days)
 // Each entry: [lightModeBg, darkModeBg, borderClass]
@@ -80,27 +81,15 @@ const DEFAULT_SETTINGS: TaskColorSettings = {
   withPO: 'none',
 };
 
-const STORAGE_KEY = 'teeem-task-color-settings';
-
-// Get settings from localStorage
+// Get settings from localStorage (SSoT: storage-utils.ts)
 export function getTaskColorSettings(): TaskColorSettings {
-  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
-
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return DEFAULT_SETTINGS;
+  const stored = getStorageItem<Partial<TaskColorSettings>>(STORAGE_KEYS.TASK_COLOR_SETTINGS, {});
+  return { ...DEFAULT_SETTINGS, ...stored };
 }
 
-// Save settings to localStorage
+// Save settings to localStorage (SSoT: storage-utils.ts)
 function saveTaskColorSettings(settings: TaskColorSettings): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  setStorageItem(STORAGE_KEYS.TASK_COLOR_SETTINGS, settings);
 }
 
 // Get the color classes for a specific task type

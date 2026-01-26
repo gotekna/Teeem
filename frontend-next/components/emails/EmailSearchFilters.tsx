@@ -311,7 +311,7 @@ export function EmailSearchFilters({
                     <SelectItem value="__all__">All importance</SelectItem>
                     <SelectItem value="high">
                       <span className="flex items-center gap-1.5">
-                        <AlertCircle className="h-3 w-3 text-red-500" />
+                        <AlertCircle className="h-3 w-3 text-red-500 dark:text-red-400" />
                         High
                       </span>
                     </SelectItem>

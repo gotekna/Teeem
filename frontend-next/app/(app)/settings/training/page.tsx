@@ -109,7 +109,7 @@ export default function TrainingSettingsPage() {
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <CheckCircle2 className="h-4 w-4 text-green-500 dark:text-green-400" />
               <span className="text-sm text-muted-foreground">Completed</span>
             </div>
             <p className="text-2xl font-bold mt-1">{trainingStats?.completed_modules || 0}</p>
@@ -118,7 +118,7 @@ export default function TrainingSettingsPage() {
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2">
-              <Play className="h-4 w-4 text-blue-500" />
+              <Play className="h-4 w-4 text-blue-500 dark:text-blue-400" />
               <span className="text-sm text-muted-foreground">In Progress</span>
             </div>
             <p className="text-2xl font-bold mt-1">{trainingStats?.in_progress || 0}</p>
@@ -136,7 +136,7 @@ export default function TrainingSettingsPage() {
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2">
-              <Award className="h-4 w-4 text-yellow-500" />
+              <Award className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
               <span className="text-sm text-muted-foreground">Certificates</span>
             </div>
             <p className="text-2xl font-bold mt-1">{trainingStats?.certificates_earned || 0}</p>
@@ -177,7 +177,7 @@ export default function TrainingSettingsPage() {
                   {module.is_required && <Badge variant="secondary">Required</Badge>}
                 </div>
 
-                <h3 className="font-medium mb-1">{module.title}</h3>
+                <h3 className="text-sm font-medium mb-1">{module.title}</h3>
                 <p className="text-sm text-muted-foreground mb-4">{module.description}</p>
 
                 <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">

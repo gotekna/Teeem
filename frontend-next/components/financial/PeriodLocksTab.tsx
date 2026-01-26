@@ -30,6 +30,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate, formatDateTime } from "@/utils/formatters";
 
 interface PeriodLock {
   id: number;
@@ -59,34 +60,6 @@ interface LockStatus {
   locked_until: string | null;
   recent_locks: PeriodLock[];
   periods_available_to_lock: AvailablePeriod[];
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(dateString: string | null): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export default function PeriodLocksTab() {
@@ -164,14 +137,14 @@ export default function PeriodLocksTab() {
     switch (lock.status) {
       case "locked":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900/30 dark:text-red-400">
             <Lock className="h-3 w-3 mr-1" />
             Locked
           </Badge>
         );
       case "soft_locked":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
             <ShieldCheck className="h-3 w-3 mr-1" />
             Soft Lock
           </Badge>
@@ -227,7 +200,7 @@ export default function PeriodLocksTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{lockedCount}</div>
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{lockedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">fully locked</p>
           </CardContent>
         </Card>
@@ -239,7 +212,7 @@ export default function PeriodLocksTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{softLockedCount}</div>
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{softLockedCount}</div>
             <p className="text-xs text-muted-foreground mt-1">adjustments allowed</p>
           </CardContent>
         </Card>
@@ -251,7 +224,7 @@ export default function PeriodLocksTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {status?.periods_available_to_lock?.length || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">periods ready</p>

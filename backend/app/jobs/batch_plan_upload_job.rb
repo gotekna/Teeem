@@ -3,10 +3,15 @@
 # =============================================================================
 # BatchPlanUploadJob - Background processing of plan set uploads
 # =============================================================================
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 # Uses BatchOperation for progress tracking (SSoT for all batch operations).
 #
 # This job handles the complete plan upload workflow:
-# 1. Downloads staged PDF from SharePoint
+# 1. Downloads staged PDF from storage
 # 2. Splits PDF into individual pages
 # 3. Uploads each page to job's Plans folder
 # 4. Creates JobPlan records for each page
@@ -19,6 +24,8 @@
 # - items_completed: plan names created
 # =============================================================================
 class BatchPlanUploadJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   def perform(operation_id)
@@ -31,14 +38,13 @@ class BatchPlanUploadJob < ApplicationJob
 
     Rails.logger.info "[BatchPlanUploadJob] Starting upload for job #{@job.id}"
 
-    # Get SharePoint credential
-    @credential = MicrosoftCredential.sharepoint_credential
-    unless @credential
-      @operation.mark_failed!("No active SharePoint credential")
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      @operation.mark_failed!("No storage provider configured: #{e.message}")
       return
     end
-
-    @client = MicrosoftGraphClient.new(@credential)
 
     begin
       process_upload!
@@ -66,15 +72,15 @@ class BatchPlanUploadJob < ApplicationJob
 
   def download_staging_file!
     Rails.logger.info "[BatchPlanUploadJob] Downloading staging file..."
-    @operation.update!(current_step: "Downloading from SharePoint...")
+    @operation.update!(current_step: "Downloading from storage...")
 
     staging_file_id = @operation.staging_file_id
     raise "No staging file ID" unless staging_file_id.present?
 
-    @file_content = @client.download_file(staging_file_id)
+    @file_content = download_from_provider(staging_file_id)
     raise "Failed to download staging file" unless @file_content
 
-    Rails.logger.info "[BatchPlanUploadJob] Downloaded #{@file_content.bytesize} bytes"
+    Rails.logger.info "[BatchPlanUploadJob] Downloaded #{@file_content.bytesize} bytes (provider: #{current_provider_type})"
   end
 
   def split_pdf!
@@ -115,8 +121,13 @@ class BatchPlanUploadJob < ApplicationJob
     filename = determine_filename(index)
     @used_filenames.add(filename)
 
-    # Upload to SharePoint
-    result = @client.upload_file_content(@plans_folder_id, filename, page_content)
+    # Upload to storage
+    result = upload_to_provider(
+      @plans_folder_id,
+      filename,
+      page_content,
+      content_type: "application/pdf"
+    )
 
     # Create JobPlan record
     display_name = filename.sub(/\.pdf$/i, "")
@@ -139,7 +150,12 @@ class BatchPlanUploadJob < ApplicationJob
     Rails.logger.info "[BatchPlanUploadJob] Creating All Plans entry..."
     @operation.update!(current_step: "Creating All Plans entry...")
 
-    result = @client.upload_file_content(@plans_folder_id, "All Plans.pdf", @file_content)
+    result = upload_to_provider(
+      @plans_folder_id,
+      "All Plans.pdf",
+      @file_content,
+      content_type: "application/pdf"
+    )
 
     plan = @job.job_plans.create!(
       job_plan_tab_id: job_plan_tab_id,
@@ -149,8 +165,8 @@ class BatchPlanUploadJob < ApplicationJob
     )
 
     plan.add_revision!(
-      sharepoint_file_id: result[:id],
-      sharepoint_web_url: result[:webUrl] || result[:web_url],
+      storage_file_id: result[:id],
+      storage_web_url: result[:webUrl] || result[:web_url],
       file_name: "All Plans.pdf",
       file_size: @file_content.bytesize,
       revision_date: Date.today
@@ -169,10 +185,12 @@ class BatchPlanUploadJob < ApplicationJob
     return unless staging_file_id.present?
 
     begin
-      @client.delete("/drives/#{@credential.drive_id}/items/#{staging_file_id}")
+      delete_from_provider(staging_file_id)
       @operation.staging_file_id = nil
       @operation.save!
       Rails.logger.info "[BatchPlanUploadJob] Deleted staging file"
+    rescue DocumentProviders::Error => e
+      Rails.logger.warn "[BatchPlanUploadJob] Failed to delete staging file: #{e.message}"
     rescue => e
       Rails.logger.warn "[BatchPlanUploadJob] Failed to delete staging file: #{e.message}"
     end
@@ -187,14 +205,14 @@ class BatchPlanUploadJob < ApplicationJob
 
       PlanAiAnalysisJob.set(wait: (index * 3).seconds).perform_later(plan.id)
 
-      if plan.current_revision&.sharepoint_file_id.present?
+      if plan.current_revision&.storage_reference.present?
         GeneratePlanThumbnailJob.set(wait: (index * 2).seconds).perform_later(plan.current_revision.id)
       end
     end
 
     # Also generate thumbnail for "All Plans"
     all_plans = @job.job_plans.find_by(display_name: "All Plans")
-    if all_plans&.current_revision&.sharepoint_file_id.present?
+    if all_plans&.current_revision&.storage_reference.present?
       GeneratePlanThumbnailJob.perform_later(all_plans.current_revision.id)
     end
 
@@ -211,21 +229,27 @@ class BatchPlanUploadJob < ApplicationJob
   end
 
   def get_or_create_plans_folder!
-    job_folder = @client.find_job_folder(@job)
-    raise "Job folder not found in SharePoint" unless job_folder
+    # SSoT: Use DocumentProviderAware to get/create job folder path
+    job_folder_path = get_or_create_folder_path(:job, @job)
+    raise "Job folder not found in storage" unless job_folder_path
 
     # SSoT: Get plans folder name from EntityTab
     plans_folder_name = EntityTab.folder_name_for("job", "plans", "04 Plans")
 
-    response = @client.list_folder_items(job_folder["id"])
-    items = response["value"] || []
-    plans_folder = items.find { |item| item["name"] == plans_folder_name && item["folder"].present? }
+    # Get or create plans subfolder
+    plans_folder_path = "#{job_folder_path}/#{plans_folder_name}"
 
-    if plans_folder
-      plans_folder["id"]
-    else
-      result = @client.create_folder(plans_folder_name, parent_id: job_folder["id"])
-      result["id"]
+    begin
+      # Check if plans folder exists
+      unless folder_exists_in_provider?(plans_folder_path)
+        create_folder_in_provider(plans_folder_path)
+      end
+
+      # Return the path/id for uploads
+      plans_folder_path
+    rescue DocumentProviders::Error => e
+      Rails.logger.error "[BatchPlanUploadJob] Error with plans folder: #{e.message}"
+      raise "Failed to access plans folder: #{e.message}"
     end
   end
 
@@ -286,7 +310,7 @@ class BatchPlanUploadJob < ApplicationJob
     SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
-  def create_job_plan!(display_name, sharepoint_result, file_size)
+  def create_job_plan!(display_name, storage_result, file_size)
     existing = @job.job_plans.find_by(display_name: display_name)
     if existing
       Rails.logger.info "[BatchPlanUploadJob] Plan '#{display_name}' already exists, skipping"
@@ -300,8 +324,8 @@ class BatchPlanUploadJob < ApplicationJob
     )
 
     plan.add_revision!(
-      sharepoint_file_id: sharepoint_result[:id],
-      sharepoint_web_url: sharepoint_result[:webUrl] || sharepoint_result[:web_url],
+      storage_file_id: storage_result[:id],
+      storage_web_url: storage_result[:webUrl] || storage_result[:web_url],
       file_name: "#{display_name}.pdf",
       file_size: file_size,
       revision_date: Date.today

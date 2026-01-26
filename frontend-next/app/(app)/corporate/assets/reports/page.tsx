@@ -25,7 +25,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  ArrowLeft,
   FileSpreadsheet,
   TrendingDown,
   Shield,
@@ -43,7 +42,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 import { format } from "date-fns";
+import { formatCurrencyWhole } from "@/utils/formatters";
 
 // Tab definitions
 const TABS = [
@@ -325,16 +326,6 @@ export default function AssetReportsPage() {
     }
   };
 
-  const formatCurrency = (value?: number) => {
-    if (value === undefined || value === null) return "-";
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
   const formatDate = (dateString?: string) => {
     if (!dateString) return "-";
     try {
@@ -360,11 +351,11 @@ export default function AssetReportsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Active</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">Active</Badge>;
       case "disposed":
         return <Badge className="bg-muted text-foreground dark:bg-card dark:text-muted-foreground">Disposed</Badge>;
       case "under_repair":
-        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Under Repair</Badge>;
+        return <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-300">Under Repair</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -375,9 +366,9 @@ export default function AssetReportsPage() {
       return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" />Expired</Badge>;
     }
     if (insurance.expiring_soon) {
-      return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"><Clock className="h-3 w-3 mr-1" />Expiring Soon</Badge>;
+      return <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900 dark:text-yellow-300"><Clock className="h-3 w-3 mr-1" />Expiring Soon</Badge>;
     }
-    return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"><CheckCircle className="h-3 w-3 mr-1" />Active</Badge>;
+    return <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300"><CheckCircle className="h-3 w-3 mr-1" />Active</Badge>;
   };
 
   const handleExportCSV = () => {
@@ -390,9 +381,7 @@ export default function AssetReportsPage() {
       {/* Header */}
       <div className="flex items-center justify-between border-b pb-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/corporate/assets")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton fallbackHref="/corporate/assets" />
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">Asset Reports</h1>
             <p className="text-sm text-muted-foreground">
@@ -555,7 +544,7 @@ export default function AssetReportsPage() {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Purchase Value</span>
                 </div>
-                <p className="text-3xl font-bold mt-2">{formatCurrency(summary.financials.total_purchase_value)}</p>
+                <p className="text-3xl font-bold mt-2">{formatCurrencyWhole(summary.financials.total_purchase_value)}</p>
               </CardContent>
             </Card>
             <Card>
@@ -564,16 +553,16 @@ export default function AssetReportsPage() {
                   <TrendingDown className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-muted-foreground">Current Book Value</span>
                 </div>
-                <p className="text-3xl font-bold mt-2">{formatCurrency(summary.financials.total_book_value)}</p>
+                <p className="text-3xl font-bold mt-2">{formatCurrencyWhole(summary.financials.total_book_value)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
-                  <TrendingDown className="h-4 w-4 text-red-500" />
+                  <TrendingDown className="h-4 w-4 text-red-500 dark:text-red-400" />
                   <span className="text-sm text-muted-foreground">Total Depreciation</span>
                 </div>
-                <p className="text-3xl font-bold mt-2 text-red-600">{formatCurrency(summary.financials.total_depreciation)}</p>
+                <p className="text-3xl font-bold mt-2 text-red-600 dark:text-red-400">{formatCurrencyWhole(summary.financials.total_depreciation)}</p>
               </CardContent>
             </Card>
           </div>
@@ -634,14 +623,14 @@ export default function AssetReportsPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Book Depreciation</span>
-                    <span className="font-bold text-red-600">
-                      {formatCurrency(summary.current_fy_depreciation.book_depreciation)}
+                    <span className="font-bold text-red-600 dark:text-red-400">
+                      {formatCurrencyWhole(summary.current_fy_depreciation.book_depreciation)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Tax Depreciation</span>
-                    <span className="font-bold text-red-600">
-                      {formatCurrency(summary.current_fy_depreciation.tax_depreciation)}
+                    <span className="font-bold text-red-600 dark:text-red-400">
+                      {formatCurrencyWhole(summary.current_fy_depreciation.tax_depreciation)}
                     </span>
                   </div>
                 </div>
@@ -657,7 +646,7 @@ export default function AssetReportsPage() {
             <CardContent>
               <div className="grid gap-4 md:grid-cols-5">
                 <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold text-green-600">{summary.insurance.insured_count}</p>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">{summary.insurance.insured_count}</p>
                   <p className="text-sm text-muted-foreground">Insured</p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
@@ -665,15 +654,15 @@ export default function AssetReportsPage() {
                   <p className="text-sm text-muted-foreground">Uninsured</p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold text-red-600">{summary.insurance.expired_count}</p>
+                  <p className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.insurance.expired_count}</p>
                   <p className="text-sm text-muted-foreground">Expired</p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold text-yellow-600">{summary.insurance.expiring_soon_count}</p>
+                  <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{summary.insurance.expiring_soon_count}</p>
                   <p className="text-sm text-muted-foreground">Expiring Soon</p>
                 </div>
                 <div className="text-center p-4 bg-muted rounded-lg">
-                  <p className="text-2xl font-bold">{formatCurrency(summary.insurance.total_annual_premium)}</p>
+                  <p className="text-2xl font-bold">{formatCurrencyWhole(summary.insurance.total_annual_premium)}</p>
                   <p className="text-sm text-muted-foreground">Annual Premium</p>
                 </div>
               </div>
@@ -728,8 +717,8 @@ export default function AssetReportsPage() {
                         <TableCell>{asset.location || "-"}</TableCell>
                         <TableCell>{asset.assigned_to || "-"}</TableCell>
                         <TableCell>{formatDate(asset.purchase_date)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(asset.purchase_price)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(asset.current_book_value)}</TableCell>
+                        <TableCell className="text-right">{formatCurrencyWhole(asset.purchase_price)}</TableCell>
+                        <TableCell className="text-right">{formatCurrencyWhole(asset.current_book_value)}</TableCell>
                         <TableCell>{getStatusBadge(asset.status)}</TableCell>
                       </TableRow>
                     ))}
@@ -762,19 +751,19 @@ export default function AssetReportsPage() {
                 <div className="grid grid-cols-4 gap-4 text-sm">
                   <div>
                     <p className="text-muted-foreground">Total Book Depreciation</p>
-                    <p className="text-lg font-bold text-red-600">{formatCurrency(depreciationSummary.total_book_depreciation)}</p>
+                    <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrencyWhole(depreciationSummary.total_book_depreciation)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Total Tax Depreciation</p>
-                    <p className="text-lg font-bold text-red-600">{formatCurrency(depreciationSummary.total_tax_depreciation)}</p>
+                    <p className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrencyWhole(depreciationSummary.total_tax_depreciation)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Total Book WDV</p>
-                    <p className="text-lg font-bold">{formatCurrency(depreciationSummary.total_book_wdv)}</p>
+                    <p className="text-lg font-bold">{formatCurrencyWhole(depreciationSummary.total_book_wdv)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Total Tax WDV</p>
-                    <p className="text-lg font-bold">{formatCurrency(depreciationSummary.total_tax_wdv)}</p>
+                    <p className="text-lg font-bold">{formatCurrencyWhole(depreciationSummary.total_tax_wdv)}</p>
                   </div>
                 </div>
               </div>
@@ -810,18 +799,18 @@ export default function AssetReportsPage() {
                           <div className="text-xs">
                             <p>Book: {asset.book_method?.replace(/_/g, " ")}</p>
                             <p>Tax: {asset.tax_method?.replace(/_/g, " ")}</p>
-                            {asset.is_division_43 && <Badge className="bg-blue-100 text-blue-800 text-xs">Div 43</Badge>}
-                            {asset.in_low_value_pool && <Badge className="bg-purple-100 text-purple-800 text-xs">LVP</Badge>}
+                            {asset.is_division_43 && <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">Div 43</Badge>}
+                            {asset.in_low_value_pool && <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 text-xs">LVP</Badge>}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(asset.depreciable_cost)}</TableCell>
+                        <TableCell className="text-right">{formatCurrencyWhole(asset.depreciable_cost)}</TableCell>
                         <TableCell className="text-right">{asset.effective_life_years || "-"}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(asset.schedule?.book_opening_wdv)}</TableCell>
-                        <TableCell className="text-right text-red-600">{formatCurrency(asset.schedule?.book_depreciation)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(asset.schedule?.book_closing_wdv)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(asset.schedule?.tax_opening_wdv)}</TableCell>
-                        <TableCell className="text-right text-red-600">{formatCurrency(asset.schedule?.tax_depreciation)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(asset.schedule?.tax_closing_wdv)}</TableCell>
+                        <TableCell className="text-right">{formatCurrencyWhole(asset.schedule?.book_opening_wdv)}</TableCell>
+                        <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrencyWhole(asset.schedule?.book_depreciation)}</TableCell>
+                        <TableCell className="text-right">{formatCurrencyWhole(asset.schedule?.book_closing_wdv)}</TableCell>
+                        <TableCell className="text-right">{formatCurrencyWhole(asset.schedule?.tax_opening_wdv)}</TableCell>
+                        <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrencyWhole(asset.schedule?.tax_depreciation)}</TableCell>
+                        <TableCell className="text-right">{formatCurrencyWhole(asset.schedule?.tax_closing_wdv)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -883,9 +872,9 @@ export default function AssetReportsPage() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(asset.insurance.premium_amount)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(asset.insurance.coverage_amount)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(asset.insurance.excess_amount)}</TableCell>
+                        <TableCell className="text-right">{formatCurrencyWhole(asset.insurance.premium_amount)}</TableCell>
+                        <TableCell className="text-right">{formatCurrencyWhole(asset.insurance.coverage_amount)}</TableCell>
+                        <TableCell className="text-right">{formatCurrencyWhole(asset.insurance.excess_amount)}</TableCell>
                         <TableCell>{getInsuranceStatusBadge(asset.insurance)}</TableCell>
                       </TableRow>
                     ))}

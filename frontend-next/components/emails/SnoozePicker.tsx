@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Clock,
   Sun,
@@ -202,6 +203,7 @@ interface CustomTimePickerProps {
 }
 
 function CustomTimePicker({ onSelect, onCancel }: CustomTimePickerProps) {
+  const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(addDays(new Date(), 1));
   const [hour, setHour] = useState("9");
   const [minute, setMinute] = useState("00");
@@ -217,7 +219,7 @@ function CustomTimePicker({ onSelect, onCancel }: CustomTimePickerProps) {
     const finalDate = setMinutes(setHours(selectedDate, h), parseInt(minute));
 
     if (isBefore(finalDate, new Date())) {
-      alert("Please select a future time");
+      toast({ title: "Invalid Time", description: "Please select a future time", variant: "destructive" });
       return;
     }
 
@@ -293,6 +295,7 @@ interface SnoozePickerProps {
 }
 
 export function SnoozePicker({ emailId, onSnooze, onCancel, trigger }: SnoozePickerProps) {
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [presets, setPresets] = useState<SnoozePreset[]>([]);

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ShareIcon, XMarkIcon, CheckIcon, ClipboardIcon } from "@heroicons/react/24/outline";
+import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
 import { Input } from "@/components/ui/input";
@@ -106,14 +107,14 @@ export default function TrainingSessionPage() {
   }, [jitsiLoaded, sessionId, displayName, router]);
 
   const copyInviteLink = () => {
-    navigator.clipboard.writeText(inviteLink);
+    copyToClipboard(inviteLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const copySessionId = () => {
     if (sessionId) {
-      navigator.clipboard.writeText(sessionId);
+      copyToClipboard(sessionId);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -175,7 +176,7 @@ export default function TrainingSessionPage() {
                 <Input value={sessionId} readOnly className="font-mono" />
                 <Button variant="secondary" size="icon" onClick={copySessionId} title="Copy Session ID">
                   {copied ? (
-                    <CheckIcon className="h-5 w-5 text-green-600" />
+                    <CheckIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
                   ) : (
                     <ClipboardIcon className="h-5 w-5" />
                   )}

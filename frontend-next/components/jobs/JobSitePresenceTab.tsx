@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow, format } from "date-fns";
+import { formatCurrency } from "@/utils/formatters";
 
 interface WorkerProfile {
   id: number;
@@ -130,13 +131,6 @@ export function JobSitePresenceTab({ jobId, onUpdate }: JobSitePresenceTabProps)
     fetchData();
   }, [fetchData]);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(value);
-  };
-
   const formatHours = (hours: number) => {
     const h = Math.floor(hours);
     const m = Math.round((hours - h) * 60);
@@ -145,16 +139,16 @@ export function JobSitePresenceTab({ jobId, onUpdate }: JobSitePresenceTabProps)
 
   const getStatusBadge = (session: SitePresenceSession) => {
     if (session.status === "active") {
-      return <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Active</Badge>;
+      return <Badge className="bg-green-500/10 text-green-500 dark:text-green-400 border-green-500/20">Active</Badge>;
     }
     if (session.approval_status === "pending") {
-      return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Pending Approval</Badge>;
+      return <Badge className="bg-yellow-500/10 text-yellow-500 dark:text-yellow-400 border-yellow-500/20">Pending Approval</Badge>;
     }
     if (session.approval_status === "approved") {
-      return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20">Approved</Badge>;
+      return <Badge className="bg-blue-500/10 text-blue-500 dark:text-blue-400 border-blue-500/20">Approved</Badge>;
     }
     if (session.approval_status === "rejected") {
-      return <Badge className="bg-red-500/10 text-red-500 border-red-500/20">Rejected</Badge>;
+      return <Badge className="bg-red-500/10 text-red-500 dark:text-red-400 border-red-500/20">Rejected</Badge>;
     }
     return <Badge variant="outline">Completed</Badge>;
   };
@@ -164,11 +158,11 @@ export function JobSitePresenceTab({ jobId, onUpdate }: JobSitePresenceTabProps)
       case "unbilled":
         return <Badge variant="outline">Unbilled</Badge>;
       case "pending_invoice":
-        return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Pending Invoice</Badge>;
+        return <Badge className="bg-yellow-500/10 text-yellow-500 dark:text-yellow-400 border-yellow-500/20">Pending Invoice</Badge>;
       case "invoiced":
-        return <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Invoiced</Badge>;
+        return <Badge className="bg-green-500/10 text-green-500 dark:text-green-400 border-green-500/20">Invoiced</Badge>;
       case "written_off":
-        return <Badge className="bg-red-500/10 text-red-500 border-red-500/20">Written Off</Badge>;
+        return <Badge className="bg-red-500/10 text-red-500 dark:text-red-400 border-red-500/20">Written Off</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -219,20 +213,20 @@ export function JobSitePresenceTab({ jobId, onUpdate }: JobSitePresenceTabProps)
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-green-500" />
+              <Clock className="h-4 w-4 text-green-500 dark:text-green-400" />
               <span className="text-sm text-muted-foreground">Active Now</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-green-500">{summary.activeSessions}</p>
+            <p className="text-2xl font-bold mt-1 text-green-500 dark:text-green-400">{summary.activeSessions}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+              <AlertTriangle className="h-4 w-4 text-yellow-500 dark:text-yellow-400" />
               <span className="text-sm text-muted-foreground">Pending</span>
             </div>
-            <p className="text-2xl font-bold mt-1 text-yellow-500">{summary.pendingApproval}</p>
+            <p className="text-2xl font-bold mt-1 text-yellow-500 dark:text-yellow-400">{summary.pendingApproval}</p>
           </CardContent>
         </Card>
       </div>
@@ -296,7 +290,7 @@ export function JobSitePresenceTab({ jobId, onUpdate }: JobSitePresenceTabProps)
                           <p className="text-lg font-semibold">{formatHours(session.total_hours)}</p>
                         )}
                         {session.status === "active" && (
-                          <p className="text-sm text-green-500">
+                          <p className="text-sm text-green-500 dark:text-green-400">
                             {formatDistanceToNow(new Date(session.checkin_at), { addSuffix: false })}
                           </p>
                         )}
@@ -306,8 +300,8 @@ export function JobSitePresenceTab({ jobId, onUpdate }: JobSitePresenceTabProps)
                     {/* Verification badges */}
                     <div className="flex items-center gap-3 mt-3 pt-3 border-t">
                       <div className="flex items-center gap-1 text-sm">
-                        <MapPin className={`h-4 w-4 ${session.gps_verified_checkin ? "text-green-500" : "text-yellow-500"}`} />
-                        <span className={session.gps_verified_checkin ? "text-green-500" : "text-yellow-500"}>
+                        <MapPin className={`h-4 w-4 ${session.gps_verified_checkin ? "text-green-500 dark:text-green-400" : "text-yellow-500 dark:text-yellow-400"}`} />
+                        <span className={session.gps_verified_checkin ? "text-green-500 dark:text-green-400" : "text-yellow-500 dark:text-yellow-400"}>
                           {session.gps_verified_checkin ? "GPS Verified" : "GPS Pending"}
                         </span>
                         {session.distance_from_site_checkin !== undefined && (
@@ -319,8 +313,8 @@ export function JobSitePresenceTab({ jobId, onUpdate }: JobSitePresenceTabProps)
                       <div className="flex items-center gap-1 text-sm">
                         {session.face_verified_checkin ? (
                           <>
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                            <span className="text-green-500">
+                            <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
+                            <span className="text-green-500 dark:text-green-400">
                               Face Verified
                               {session.face_confidence_checkin && ` (${Math.round(session.face_confidence_checkin * 100)}%)`}
                             </span>
@@ -392,13 +386,13 @@ export function JobSitePresenceTab({ jobId, onUpdate }: JobSitePresenceTabProps)
                       {entry.overtime_1_5x_hours > 0 && (
                         <div>
                           <p className="text-muted-foreground">OT 1.5x</p>
-                          <p className="font-medium text-yellow-500">{formatHours(entry.overtime_1_5x_hours)}</p>
+                          <p className="font-medium text-yellow-500 dark:text-yellow-400">{formatHours(entry.overtime_1_5x_hours)}</p>
                         </div>
                       )}
                       {entry.overtime_2x_hours > 0 && (
                         <div>
                           <p className="text-muted-foreground">OT 2x</p>
-                          <p className="font-medium text-orange-500">{formatHours(entry.overtime_2x_hours)}</p>
+                          <p className="font-medium text-orange-500 dark:text-orange-400">{formatHours(entry.overtime_2x_hours)}</p>
                         </div>
                       )}
                     </div>

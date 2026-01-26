@@ -1,11 +1,15 @@
 # frozen_string_literal: true
 
-# Join table between EmailLabel and EmailWarehouse
+# Join table between EmailLabel and SyncedEmail
 # Allows multiple labels per email (Gmail-style)
 #
 class EmailLabelAssignment < ApplicationRecord
-  belongs_to :email_warehouse
+  # SSoT: Legacy column is email_warehouse_id, but actual model is SyncedEmail
+  belongs_to :email_warehouse, class_name: "SyncedEmail"
   belongs_to :email_label
+
+  # Alias for backwards compatibility (EmailWarehouse renamed to SyncedEmail Jan 2026)
+  alias_attribute :synced_email_id, :email_warehouse_id
 
   # Validations
   validates :email_warehouse_id, uniqueness: { scope: :email_label_id }

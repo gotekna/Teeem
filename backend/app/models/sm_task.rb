@@ -7,6 +7,8 @@
 #
 class SmTask < ApplicationRecord
   include Searchable
+  acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
+  belongs_to :tenant, optional: true
 
   # Searchable columns for full-text search (GIN index)
   searchable_columns :name, :description
@@ -16,13 +18,16 @@ class SmTask < ApplicationRecord
   # Virtual attribute for delegation response (set in controller, used in callback)
   attr_accessor :delegation_response
 
-  # ActiveStorage attachments (for email attachments, uploads, etc.)
-  has_many_attached :files
+  # SSoT: Task attachments use SmTaskAttachment → SyncedEmail → email_attachments chain
+  # ActiveStorage has_many_attached :files was REMOVED (Jan 2026) - it violated SSoT by
+  # duplicating email attachments instead of linking to existing EmailAttachment records.
 
   # Status enum
   enum :status, {
     not_started: "not_started",
     started: "started",
+    waiting_for_response: "waiting_for_response",
+    waiting_for_info: "waiting_for_info",
     completed: "completed"
   }, prefix: true
 
@@ -37,6 +42,7 @@ class SmTask < ApplicationRecord
   def progress_percentage
     case status
     when "completed" then 100
+    when "waiting_for_response", "waiting_for_info" then 75
     when "started" then 50
     else 0
     end
@@ -183,7 +189,7 @@ class SmTask < ApplicationRecord
 
   # Task Attachments (emails, documents, uploads)
   has_many :sm_task_attachments, dependent: :destroy
-  has_many :attached_emails, through: :sm_task_attachments, source: :attachable, source_type: "EmailWarehouse"
+  has_many :attached_emails, through: :sm_task_attachments, source: :attachable, source_type: "SyncedEmail"
   has_many :attached_documents, through: :sm_task_attachments, source: :attachable, source_type: "CorporateCompanyDocument"
 
   # Task Followers (for notifications)
@@ -211,6 +217,9 @@ class SmTask < ApplicationRecord
   # SaaS Customer association (for tickets and customer-linked tasks)
   belongs_to :saas_customer, class_name: "Contact", optional: true
 
+  # Case relationship - task can belong to a case for investigation tracking
+  belongs_to :case_record, class_name: "CaseRecord", foreign_key: :case_id, optional: true
+
   # Follow/unfollow helper methods
   def follow_by(user)
     task_followers.find_or_create_by(user: user)
@@ -221,7 +230,9 @@ class SmTask < ApplicationRecord
   end
 
   def followed_by?(user)
-    task_followers.exists?(user: user)
+    # Use .any? with block to leverage preloaded task_followers (avoids N+1)
+    # When task_followers is eager-loaded via includes, this uses cached data
+    task_followers.any? { |tf| tf.user_id == user.id }
   end
 
   # Task Contact helper methods
@@ -479,7 +490,7 @@ class SmTask < ApplicationRecord
 
   # Complete task
   def complete!(passed: nil)
-    return false unless status_started? || status_not_started?
+    return false unless status_started? || status_not_started? || status_waiting_for_response? || status_waiting_for_info?
     update!(
       status: "completed",
       completed_at: Time.current,
@@ -503,7 +514,7 @@ class SmTask < ApplicationRecord
 
   # Check if task can be completed (used by cascade completion)
   def can_complete?
-    (status_started? || status_not_started?) && !on_hold
+    (status_started? || status_not_started? || status_waiting_for_response? || status_waiting_for_info?) && !on_hold
   end
 
   # ============================================

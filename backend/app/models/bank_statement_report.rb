@@ -7,6 +7,7 @@
 # PDFs can be regenerated on demand from the underlying bank transaction data.
 class BankStatementReport < ApplicationRecord
   include DocumentTemplatable
+  include StorageUploadable
 
   belongs_to :corporate_company, foreign_key: "company_id", optional: true
   belongs_to :bank_account, primary_key: "xero_account_id", foreign_key: "bank_account_id", optional: true
@@ -120,8 +121,8 @@ class BankStatementReport < ApplicationRecord
       # SSoT: Use DocumentType template if available, fallback to hardcoded format
       standard_filename = generate_file_name || generate_standard_filename
 
-      # Upload PDF to SharePoint
-      sharepoint_result = upload_to_sharepoint(result[:pdf], standard_filename)
+      # Upload PDF to storage
+      sharepoint_result = upload_to_storage(result[:pdf], standard_filename)
 
       update!(
         status: "completed",
@@ -325,7 +326,7 @@ class BankStatementReport < ApplicationRecord
   end
 
   # Calculate fiscal year for a given date (Australian FY: July-June)
-  # Returns short format (FY24) to match WarehouseBankTransaction.financial_year
+  # Returns short format (FY24) to match XeroBankTransaction.financial_year
   def self.fiscal_year_for_date(date)
     year = date.month >= 7 ? date.year + 1 : date.year
     "FY#{year.to_s[-2..]}"
@@ -337,7 +338,7 @@ class BankStatementReport < ApplicationRecord
     return true if generated_at.nil?
 
     # Check if any transactions were updated after generation
-    latest_transaction = WarehouseBankTransaction
+    latest_transaction = XeroBankTransaction
       .where(bank_account_id: bank_account_id)
       .where(financial_year: financial_year)
       .where(month.present? ? { transaction_month: month } : {})
@@ -361,19 +362,10 @@ class BankStatementReport < ApplicationRecord
     self[:display_name] = computed_display_name
   end
 
-  # Upload file content to SharePoint using SSoT folder structure from DocumentType system
+  # Upload file content to storage using SSoT folder structure from DocumentType system
   # Path: /Shared Documents/00 TEEEM PRIVATE/{CompanyGroup}/{CompanyCode}/BANK/{filename}
   # SSoT: Uses EntityTab.storage_folder_path for path resolution (StorageConfiguration for base)
-  def upload_to_sharepoint(content, filename)
-    # SSoT: Use MicrosoftCredential
-    credential = MicrosoftCredential.sharepoint_credential
-    unless credential.present?
-      Rails.logger.warn("[BankStatementReport] No SharePoint credentials found - skipping upload")
-      return nil
-    end
-
-    graph_client = MicrosoftGraphClient.new(credential)
-
+  def upload_to_storage(content, filename)
     # SSoT: EntityTab (xero-bank-statement) → storage_folder_path is THE ONE source
     # Path defined in Admin > Entity Tabs > Bank Statement tab
     entity_tab = EntityTab.find_by(tab_key: 'xero-bank-statement')
@@ -392,59 +384,36 @@ class BankStatementReport < ApplicationRecord
 
     Rails.logger.info("[BankStatementReport] SSoT path from EntityTab: #{resolved_path}/#{filename}")
 
-    # Navigate to or create each folder in the path
-    path_parts = resolved_path.split("/").reject(&:blank?)
+    # Use StorageUploadable for provider-agnostic upload
+    result = upload_to_storage_path(resolved_path, content, filename, content_type: "application/pdf")
 
-    # Start from drive root with first folder
-    current_folder = graph_client.find_folder_in_drive_root(path_parts.first)
-    unless current_folder
-      current_folder = graph_client.create_folder(path_parts.first)
-      Rails.logger.info("[BankStatementReport] Created folder: #{path_parts.first}")
+    unless result[:success]
+      Rails.logger.error("[BankStatementReport] Storage upload failed: #{result[:error]}")
+      return nil
     end
 
-    # Create remaining folders in the path
-    path_parts[1..].each do |folder_name|
-      current_folder = graph_client.get_or_create_subfolder(
-        current_folder["id"] || current_folder[:id],
-        folder_name
-      )
-    end
-
-    # Upload the file
-    upload_result = graph_client.upload_file_content(
-      current_folder[:id] || current_folder["id"],
-      filename,
-      content
-    )
-
-    Rails.logger.info("[BankStatementReport] Uploaded to SharePoint: #{resolved_path}/#{filename}")
+    Rails.logger.info("[BankStatementReport] Uploaded to storage: #{resolved_path}/#{filename}")
 
     # SSoT: Create CorporateCompanyDocument so it appears in document warehouse
-    if upload_result && corporate_company.present?
+    if corporate_company.present?
       create_document_record(
         filename: filename,
-        sharepoint_path: resolved_path,
-        sharepoint_file_id: upload_result[:id] || upload_result["id"],
-        sharepoint_url: upload_result[:web_url] || upload_result["webUrl"],
+        storage_path: result[:path] || resolved_path,
+        storage_file_id: result[:id],
+        storage_url: result[:url],
         file_size: content.bytesize
       )
     end
 
-    upload_result
-  rescue MicrosoftGraphClient::AuthenticationError => e
-    Rails.logger.error("[BankStatementReport] SharePoint auth error: #{e.message}")
-    nil
-  rescue MicrosoftGraphClient::APIError => e
-    Rails.logger.error("[BankStatementReport] SharePoint API error: #{e.message}")
-    nil
+    result[:raw] || { id: result[:id], web_url: result[:url], path: result[:path] }
   rescue StandardError => e
-    Rails.logger.error("[BankStatementReport] SharePoint upload error: #{e.message}")
+    Rails.logger.error("[BankStatementReport] Storage error: #{e.message}")
     nil
   end
 
   # Create a CorporateCompanyDocument record for the warehouse
   # SSoT: Links the PDF to the company's document system so it appears in tabs
-  def create_document_record(filename:, sharepoint_path:, sharepoint_file_id:, sharepoint_url:, file_size:)
+  def create_document_record(filename:, storage_path:, storage_file_id:, storage_url:, file_size:)
     # Use unique external_id to prevent duplicates
     external_id = "bank_statement_report:#{id}"
 
@@ -462,9 +431,9 @@ class BankStatementReport < ApplicationRecord
       mime_type: "application/pdf",
       folder: "XERO",  # Shows in XERO tab
       document_date: period_end,
-      expected_sharepoint_path: "#{sharepoint_path}/#{filename}",
-      sharepoint_file_id: sharepoint_file_id,
-      sharepoint_download_url: sharepoint_url,
+      expected_storage_path: "#{storage_path}/#{filename}",
+      storage_file_id: storage_file_id,
+      storage_download_url: storage_url,
       storage_type: "electronic",
       ai_verification_status: "verified",  # System-generated, no AI needed
       documentable: self  # Link back to BankStatementReport
@@ -484,7 +453,7 @@ class BankStatementReport < ApplicationRecord
 
   def calculate_totals(result)
     # Get totals from transactions
-    transactions = WarehouseBankTransaction
+    transactions = XeroBankTransaction
       .where(bank_account_id: bank_account_id)
       .where(financial_year: financial_year)
 

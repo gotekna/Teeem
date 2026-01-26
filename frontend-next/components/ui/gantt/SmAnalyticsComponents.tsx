@@ -18,7 +18,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 
-import { api, getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
+import { uploadFile } from "@/lib/upload-utils";
+import { useToast } from "@/components/ui/use-toast";
 
 // ============================================
 // Types & Interfaces
@@ -199,7 +201,7 @@ export function CriticalPathView({ constructionId }: CriticalPathViewProps) {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <ChartBarIcon className="h-5 w-5 text-red-500" />
+          <ChartBarIcon className="h-5 w-5 text-red-500 dark:text-red-400" />
           Critical Path
         </CardTitle>
       </CardHeader>
@@ -297,7 +299,7 @@ export function EvmDashboard({ constructionId }: EvmDashboardProps) {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <CurrencyDollarIcon className="h-5 w-5 text-blue-500" />
+          <CurrencyDollarIcon className="h-5 w-5 text-blue-500 dark:text-blue-400" />
           Earned Value Management
         </CardTitle>
       </CardHeader>
@@ -370,17 +372,17 @@ export function EvmDashboard({ constructionId }: EvmDashboardProps) {
         <div className="grid grid-cols-2 gap-4 border-t pt-4 text-sm">
           <div className="flex items-center gap-2">
             {data.variances?.sv >= 0 ? (
-              <ArrowTrendingUpIcon className="h-4 w-4 text-green-500" />
+              <ArrowTrendingUpIcon className="h-4 w-4 text-green-500 dark:text-green-400" />
             ) : (
-              <ArrowTrendingDownIcon className="h-4 w-4 text-red-500" />
+              <ArrowTrendingDownIcon className="h-4 w-4 text-red-500 dark:text-red-400" />
             )}
             <span>Schedule Variance: ${data.variances?.sv?.toLocaleString() || 0}</span>
           </div>
           <div className="flex items-center gap-2">
             {data.variances?.cv >= 0 ? (
-              <ArrowTrendingUpIcon className="h-4 w-4 text-green-500" />
+              <ArrowTrendingUpIcon className="h-4 w-4 text-green-500 dark:text-green-400" />
             ) : (
-              <ArrowTrendingDownIcon className="h-4 w-4 text-red-500" />
+              <ArrowTrendingDownIcon className="h-4 w-4 text-red-500 dark:text-red-400" />
             )}
             <span>Cost Variance: ${data.variances?.cv?.toLocaleString() || 0}</span>
           </div>
@@ -430,19 +432,19 @@ export function AiSuggestionsPanel({ constructionId }: AiSuggestionsPanelProps) 
   }
 
   const getPriorityVariant = (priority: number) => {
-    if (priority >= 8) return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400";
-    if (priority >= 5) return "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400";
+    if (priority >= 8) return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-950 dark:text-red-400";
+    if (priority >= 5) return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950 dark:text-yellow-400";
     return "bg-muted text-muted-foreground";
   };
 
   const getRiskVariant = (level: string) => {
     switch (level) {
       case "critical":
-        return "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400";
+        return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-950 dark:text-red-400";
       case "high":
-        return "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400";
+        return "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 dark:bg-orange-950 dark:text-orange-400";
       case "medium":
-        return "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400";
+        return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950 dark:text-yellow-400";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -452,7 +454,7 @@ export function AiSuggestionsPanel({ constructionId }: AiSuggestionsPanelProps) 
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <LightBulbIcon className="h-5 w-5 text-yellow-500" />
+          <LightBulbIcon className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
           AI Insights
         </CardTitle>
       </CardHeader>
@@ -690,6 +692,7 @@ export function BaselineComparisonComponent({ constructionId }: BaselineComparis
 // ============================================
 
 export function ImportExportPanel({ constructionId, constructionName }: ImportExportPanelProps) {
+  const { toast } = useToast();
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -698,21 +701,32 @@ export function ImportExportPanel({ constructionId, constructionName }: ImportEx
     if (!file) return;
 
     setImporting(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("construction_id", String(constructionId));
 
     try {
-      const res = await api.postFormData<ImportResponse>(
+      // SSoT: Use presigned URL upload (bypasses Heroku 30s timeout)
+      const uploadResult = await uploadFile(file, 'imports');
+
+      if (!uploadResult.success || !uploadResult.key) {
+        throw new Error(uploadResult.error || "Failed to upload file");
+      }
+
+      // Import using storage_key
+      const res = await api.post<ImportResponse>(
         "/api/v1/sm_integrations/import_ms_project",
-        formData
+        {
+          storage_key: uploadResult.key,
+          job_id: constructionId,
+        }
       );
-      alert(`Imported ${res.tasks_imported} tasks successfully!`);
+      if (!res) {
+        throw new Error("No response from server");
+      }
+      toast({ title: "Success", description: `Imported ${res.tasks_imported} tasks successfully!` });
       window.location.reload();
     } catch (err) {
       console.error("Import failed:", err);
       const error = err as { response?: { data?: { error?: string } }; message?: string };
-      alert("Import failed: " + (error.response?.data?.error || error.message));
+      toast({ title: "Import Failed", description: error.response?.data?.error || error.message || "Unknown error", variant: "destructive" });
     } finally {
       setImporting(false);
     }
@@ -721,22 +735,11 @@ export function ImportExportPanel({ constructionId, constructionName }: ImportEx
   const handleExport = async () => {
     setExporting(true);
     try {
-      // For blob response, we need to use fetch directly
-      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
-      const response = await fetch(
-        `${getApiBaseUrl()}/api/v1/sm_integrations/export_ms_project?construction_id=${constructionId}`,
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          credentials: "include",
-        }
+      const blob = await api.getBlob(
+        `/api/v1/sm_integrations/export_ms_project`,
+        { params: { construction_id: String(constructionId) } }
       );
 
-      if (!response.ok) {
-        throw new Error("Export failed");
-      }
-
-      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -745,7 +748,7 @@ export function ImportExportPanel({ constructionId, constructionName }: ImportEx
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Export failed:", err);
-      alert("Export failed");
+      toast({ title: "Error", description: "Export failed", variant: "destructive" });
     } finally {
       setExporting(false);
     }

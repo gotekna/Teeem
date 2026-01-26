@@ -67,6 +67,8 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import { formatCurrency, formatDate } from "@/utils/formatters";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Tab definitions - base tabs always shown
 const BASE_TABS = [
@@ -287,16 +289,9 @@ export default function AssetDetailPage() {
 
   // Load custom asset types from localStorage on mount
   React.useEffect(() => {
-    const stored = localStorage.getItem("asset_types");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setAssetTypes(parsed);
-        }
-      } catch {
-        // Ignore parse errors
-      }
+    const stored = getStorageItem<string[]>(STORAGE_KEYS.ASSET_TYPES, []);
+    if (Array.isArray(stored) && stored.length > 0) {
+      setAssetTypes(stored);
     }
   }, []);
 
@@ -307,7 +302,7 @@ export default function AssetDetailPage() {
 
     const updated = [...assetTypes, normalized];
     setAssetTypes(updated);
-    localStorage.setItem("asset_types", JSON.stringify(updated));
+    setStorageItem(STORAGE_KEYS.ASSET_TYPES, updated);
     setNewTypeName("");
   };
 
@@ -317,7 +312,7 @@ export default function AssetDetailPage() {
 
     const updated = assetTypes.filter(t => t !== typeToRemove);
     setAssetTypes(updated);
-    localStorage.setItem("asset_types", JSON.stringify(updated));
+    setStorageItem(STORAGE_KEYS.ASSET_TYPES, updated);
   };
 
   // Compute tabs based on asset type
@@ -468,15 +463,9 @@ export default function AssetDetailPage() {
     setIsEditing(false);
   };
 
-  const formatCurrency = (value?: number) => {
-    if (value === undefined || value === null) return "-";
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(value);
-  };
-
-  const formatDate = (dateString?: string) => {
+  // Using SSoT formatters from @/utils/formatters
+  // formatDate wrapper kept for error handling with format preference
+  const formatDateLocal = (dateString?: string) => {
     if (!dateString) return "-";
     try {
       return format(new Date(dateString), "dd MMM yyyy");
@@ -488,11 +477,11 @@ export default function AssetDetailPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground">Active</Badge>;
       case "disposed":
         return <Badge className="bg-muted text-foreground">Disposed</Badge>;
       case "under_repair":
-        return <Badge className="bg-yellow-100 text-yellow-800">Under Repair</Badge>;
+        return <Badge className="bg-status-warning text-status-warning-foreground">Under Repair</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -765,7 +754,7 @@ export default function AssetDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Purchase Date</Label>
-                  <p className="text-sm">{formatDate(asset.purchase_date)}</p>
+                  <p className="text-sm">{formatDateLocal(asset.purchase_date)}</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Age</Label>
@@ -778,7 +767,7 @@ export default function AssetDetailPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Depreciation</Label>
-                  <p className="text-sm text-red-600">
+                  <p className="text-sm text-red-600 dark:text-red-400">
                     {formatCurrency(asset.depreciation_amount)}
                   </p>
                 </div>
@@ -793,7 +782,7 @@ export default function AssetDetailPage() {
               {asset.sale_date && (
                 <div className="space-y-2">
                   <Label>Sale Date</Label>
-                  <p className="text-sm">{formatDate(asset.sale_date)}</p>
+                  <p className="text-sm">{formatDateLocal(asset.sale_date)}</p>
                 </div>
               )}
             </CardContent>
@@ -813,9 +802,9 @@ export default function AssetDetailPage() {
                   {asset.asset_insurance.expired ? (
                     <Badge variant="destructive">Expired</Badge>
                   ) : asset.asset_insurance.expiring_soon ? (
-                    <Badge className="bg-yellow-100 text-yellow-800">Expiring Soon</Badge>
+                    <Badge className="bg-status-warning text-status-warning-foreground">Expiring Soon</Badge>
                   ) : (
-                    <Badge className="bg-green-100 text-green-800">Active</Badge>
+                    <Badge className="bg-status-success text-status-success-foreground">Active</Badge>
                   )}
                 </div>
 
@@ -833,7 +822,7 @@ export default function AssetDetailPage() {
                   <div className="space-y-2">
                     <Label>Renewal Date</Label>
                     <p className="text-sm">
-                      {formatDate(asset.asset_insurance.renewal_date)}
+                      {formatDateLocal(asset.asset_insurance.renewal_date)}
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -874,7 +863,7 @@ export default function AssetDetailPage() {
                     <div>
                       <p className="font-medium">{service.service_type}</p>
                       <p className="text-sm text-muted-foreground">
-                        {formatDate(service.service_date)}
+                        {formatDateLocal(service.service_date)}
                         {service.provider && ` • ${service.provider}`}
                       </p>
                       {service.notes && (
@@ -885,7 +874,7 @@ export default function AssetDetailPage() {
                       <p className="font-medium">{formatCurrency(service.cost)}</p>
                       {service.next_service_date && (
                         <p className="text-sm text-muted-foreground">
-                          Next: {formatDate(service.next_service_date)}
+                          Next: {formatDateLocal(service.next_service_date)}
                         </p>
                       )}
                     </div>
@@ -1044,10 +1033,10 @@ export default function AssetDetailPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
-                  <TrendingDown className="h-4 w-4 text-red-500" />
+                  <TrendingDown className="h-4 w-4 text-red-500 dark:text-red-400" />
                   <span className="text-sm text-muted-foreground">Accumulated</span>
                 </div>
-                <p className="text-2xl font-bold mt-2 text-red-600">
+                <p className="text-2xl font-bold mt-2 text-red-600 dark:text-red-400">
                   {formatCurrency(depreciationSchedule.length > 0
                     ? depreciationSchedule[depreciationSchedule.length - 1]?.book_accumulated
                     : 0)}
@@ -1119,7 +1108,7 @@ export default function AssetDetailPage() {
                   <div className="space-y-2">
                     <Label>Depreciation Start</Label>
                     <p className="text-sm font-medium">
-                      {formatDate(depreciationProfile.depreciation_start_date)}
+                      {formatDateLocal(depreciationProfile.depreciation_start_date)}
                     </p>
                   </div>
                   {depreciationProfile.is_division_43 && (
@@ -1133,13 +1122,13 @@ export default function AssetDetailPage() {
                   {depreciationProfile.in_low_value_pool && (
                     <div className="space-y-2">
                       <Label>Low Value Pool</Label>
-                      <Badge className="bg-blue-100 text-blue-800">Active</Badge>
+                      <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">Active</Badge>
                     </div>
                   )}
                   {depreciationProfile.instant_writeoff_applied && (
                     <div className="space-y-2">
                       <Label>Instant Write-off</Label>
-                      <Badge className="bg-green-100 text-green-800">Applied</Badge>
+                      <Badge className="bg-status-success text-status-success-foreground">Applied</Badge>
                     </div>
                   )}
                 </div>
@@ -1183,14 +1172,14 @@ export default function AssetDetailPage() {
                           <TableCell className="font-medium">{schedule.financial_year}</TableCell>
                           <TableCell className="text-right">{schedule.days_held}</TableCell>
                           <TableCell className="text-right">{formatCurrency(schedule.book_opening_wdv)}</TableCell>
-                          <TableCell className="text-right text-red-600">{formatCurrency(schedule.book_depreciation)}</TableCell>
+                          <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(schedule.book_depreciation)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(schedule.book_closing_wdv)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(schedule.tax_opening_wdv)}</TableCell>
-                          <TableCell className="text-right text-red-600">{formatCurrency(schedule.tax_depreciation)}</TableCell>
+                          <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(schedule.tax_depreciation)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(schedule.tax_closing_wdv)}</TableCell>
                           <TableCell>
                             {schedule.status === "finalized" ? (
-                              <Badge className="bg-green-100 text-green-800">
+                              <Badge className="bg-status-success text-status-success-foreground">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Finalized
                               </Badge>
@@ -1256,10 +1245,10 @@ export default function AssetDetailPage() {
                       {depreciationForecast.map((forecast) => (
                         <TableRow key={forecast.financial_year}>
                           <TableCell className="font-medium">{forecast.financial_year}</TableCell>
-                          <TableCell className="text-right text-red-600">{formatCurrency(forecast.book_depreciation)}</TableCell>
+                          <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(forecast.book_depreciation)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(forecast.book_closing_wdv)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(forecast.book_accumulated)}</TableCell>
-                          <TableCell className="text-right text-red-600">{formatCurrency(forecast.tax_depreciation)}</TableCell>
+                          <TableCell className="text-right text-red-600 dark:text-red-400">{formatCurrency(forecast.tax_depreciation)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(forecast.tax_closing_wdv)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(forecast.tax_accumulated)}</TableCell>
                         </TableRow>
@@ -1331,7 +1320,7 @@ export default function AssetDetailPage() {
                             {reading.display_value || `${reading.odometer_km?.toLocaleString()} km`}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {formatDate(reading.reading_date)}
+                            {formatDateLocal(reading.reading_date)}
                             {reading.user && ` • ${reading.user.full_name}`}
                           </p>
                         </div>
@@ -1412,7 +1401,7 @@ export default function AssetDetailPage() {
                     <TableBody>
                       {expenses.map((expense) => (
                         <TableRow key={expense.id}>
-                          <TableCell>{formatDate(expense.expense_date)}</TableCell>
+                          <TableCell>{formatDateLocal(expense.expense_date)}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="capitalize">
                               {expense.expense_type}

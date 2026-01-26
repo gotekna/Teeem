@@ -1,7 +1,10 @@
 class ExternalInvoice < ApplicationRecord
+  include ExternalSyncConstants
+
   belongs_to :contact, optional: true
   belongs_to :job, optional: true
-  belongs_to :warehouse_contact, optional: true
+  # LIM (Jan 2026): xero_contact association removed - ContactExternalLink is THE ONE SSoT
+  # XeroContact table had 0 records, ContactExternalLink has 1,018 records
 
   # Documents attached to this invoice (PDF attachments from Xero, etc.)
   has_many :corporate_company_documents, as: :documentable, dependent: :nullify
@@ -15,8 +18,7 @@ class ExternalInvoice < ApplicationRecord
   after_commit :refresh_supplier_cached_flag, on: [:create, :destroy], if: :bill?
   after_commit :refresh_supplier_cached_flag_on_contact_change, on: :update, if: :should_refresh_supplier_flag?
 
-  # Sources
-  SOURCES = %w[xero myob quickbooks].freeze
+  # SSoT: ACCOUNTING_SYSTEMS, RECORD_SYNC_DIRECTIONS defined in ExternalSyncConstants concern
 
   # Normalized invoice types (across all systems)
   # - sales_invoice: Customer-facing invoice (Xero ACCREC)
@@ -29,17 +31,11 @@ class ExternalInvoice < ApplicationRecord
   # Note: quotes have their own status set: draft, sent, accepted, declined, invoiced
   STATUSES = %w[draft submitted approved paid voided deleted sent accepted declined invoiced].freeze
 
-  # Sync directions
-  SYNC_DIRECTIONS = %w[import_only export_only bidirectional].freeze
-
-  validates :source, presence: true, inclusion: { in: SOURCES }
+  validates :source, presence: true, inclusion: { in: ACCOUNTING_SYSTEMS }
   validates :invoice_type, presence: true, inclusion: { in: INVOICE_TYPES }
-  validates :sync_direction, inclusion: { in: SYNC_DIRECTIONS }
+  validates :sync_direction, inclusion: { in: RECORD_SYNC_DIRECTIONS }
 
-  # Scopes by source
-  scope :xero, -> { where(source: "xero") }
-  scope :myob, -> { where(source: "myob") }
-  scope :quickbooks, -> { where(source: "quickbooks") }
+  # SSoT: source scopes (xero, myob, quickbooks, for_source) defined in ExternalSyncConstants
 
   # Scopes by type
   scope :sales_invoices, -> { where(invoice_type: "sales_invoice") }

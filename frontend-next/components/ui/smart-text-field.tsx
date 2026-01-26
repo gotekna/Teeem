@@ -1,13 +1,22 @@
 "use client";
 
+// SSoT: TipTap warning suppression - must be first import
+import "@/lib/tiptap-utils";
+
 import * as React from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { cn } from "@/lib/utils";
-import { WritingChecker, useWritingCheckerState } from "./tiptap-writing-checker";
+import { WritingChecker, useWritingCheckerState, WritingIssue } from "./tiptap-writing-checker";
 import { WritingContext } from "@/hooks/useWritingAssistant";
-import { Loader2, SpellCheck } from "lucide-react";
+import { Loader2, SpellCheck, Check, Sparkles } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 
 interface SmartTextFieldProps {
   /** Current value (plain text or HTML) */
@@ -64,6 +73,8 @@ export function SmartTextField({
   minHeight = 60,
   disabled = false,
 }: SmartTextFieldProps) {
+  const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
+
   const extensions = React.useMemo(
     () => [
       StarterKit.configure({
@@ -139,6 +150,37 @@ export function SmartTextField({
   // Get writing checker state for status display
   const { issues, isChecking } = useWritingCheckerState(editor);
 
+  // Apply a single fix
+  const applyFix = React.useCallback((issue: WritingIssue) => {
+    if (!editor) return;
+
+    const tr = editor.state.tr.replaceWith(
+      issue.from,
+      issue.to,
+      editor.state.schema.text(issue.suggestion)
+    );
+    editor.view.dispatch(tr);
+  }, [editor]);
+
+  // Apply all fixes (in reverse order to preserve positions)
+  const applyAllFixes = React.useCallback(() => {
+    if (!editor || issues.length === 0) return;
+
+    // Sort by position descending so we fix from end to start
+    const sortedIssues = [...issues].sort((a, b) => b.from - a.from);
+
+    let tr = editor.state.tr;
+    for (const issue of sortedIssues) {
+      tr = tr.replaceWith(
+        issue.from,
+        issue.to,
+        editor.state.schema.text(issue.suggestion)
+      );
+    }
+    editor.view.dispatch(tr);
+    setIsPopoverOpen(false);
+  }, [editor, issues]);
+
   // Update content when value changes externally
   React.useEffect(() => {
     if (!editor) return;
@@ -194,7 +236,7 @@ export function SmartTextField({
         style={!singleLine ? { minHeight } : undefined}
       />
 
-      {/* Status indicator */}
+      {/* Status indicator with popover */}
       <div className={cn(
         "flex items-center gap-1 pr-2",
         singleLine ? "" : "absolute right-0 top-2"
@@ -202,13 +244,93 @@ export function SmartTextField({
         {isChecking ? (
           <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
         ) : issues.length > 0 ? (
-          <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-500">
-            <SpellCheck className="h-3.5 w-3.5" />
-            <span className="text-xs">{issues.length}</span>
-          </div>
+          <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-1 text-amber-600 dark:text-amber-500 hover:text-amber-700 dark:hover:text-amber-400 transition-colors p-1 -m-1 rounded"
+                title={`${issues.length} suggestion${issues.length > 1 ? 's' : ''}`}
+              >
+                <SpellCheck className="h-3.5 w-3.5" />
+                <span className="text-xs font-medium">{issues.length}</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-96 p-0"
+              align="end"
+              side="bottom"
+              sideOffset={8}
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-500" />
+                  <span className="font-medium text-sm">Writing Suggestions</span>
+                </div>
+                <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  {issues.length} found
+                </span>
+              </div>
+
+              {/* Issues list */}
+              <div className="max-h-80 overflow-y-auto divide-y divide-border/50">
+                {issues.map((issue, index) => (
+                  <IssueRow
+                    key={`${issue.from}-${issue.to}-${index}`}
+                    issue={issue}
+                    onApply={() => applyFix(issue)}
+                  />
+                ))}
+              </div>
+
+              {/* Footer with Fix All */}
+              {issues.length > 1 && (
+                <div className="px-3 py-2 border-t bg-muted/30">
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={applyAllFixes}
+                  >
+                    <Check className="h-3.5 w-3.5 mr-1.5" />
+                    Fix All {issues.length} Issues
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
         ) : null}
       </div>
     </div>
+  );
+}
+
+// Individual issue row component
+function IssueRow({
+  issue,
+  onApply
+}: {
+  issue: WritingIssue;
+  onApply: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onApply}
+      className="w-full px-3 py-3 hover:bg-primary/5 transition-colors text-left group border-l-2 border-transparent hover:border-primary"
+    >
+      {/* Suggested text - clean and readable */}
+      <p className="text-sm leading-relaxed text-foreground">
+        {issue.suggestion}
+      </p>
+
+      {/* Explanation if available */}
+      {issue.explanation && (
+        <p className="text-xs text-muted-foreground mt-1">
+          {issue.explanation}
+        </p>
+      )}
+    </button>
   );
 }
 

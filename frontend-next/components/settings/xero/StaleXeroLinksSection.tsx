@@ -22,26 +22,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 import { useToast } from "@/components/ui/use-toast";
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-AU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 function StaleXeroLinkCard({ link }: { link: StaleXeroLink }) {
   const [expanded, setExpanded] = useState(true);
@@ -79,7 +61,7 @@ function StaleXeroLinkCard({ link }: { link: StaleXeroLink }) {
             ) : (
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             )}
-            <Ghost className="h-5 w-5 text-red-500" />
+            <Ghost className="h-5 w-5 text-red-500 dark:text-red-400" />
             <CardTitle className="text-base">
               {link.xero_contact_name}
             </CardTitle>
@@ -89,7 +71,7 @@ function StaleXeroLinkCard({ link }: { link: StaleXeroLink }) {
           </button>
           <div className="flex items-center gap-2">
             {link.tenant_name && (
-              <Badge className="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200">
+              <Badge className="bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-300 dark:bg-cyan-900 dark:text-cyan-200">
                 {link.tenant_name}
               </Badge>
             )}
@@ -160,7 +142,7 @@ function StaleXeroLinkCard({ link }: { link: StaleXeroLink }) {
           )}
 
           <Alert className="mt-4 border-red-300 bg-red-100/50 dark:bg-red-900/20">
-            <AlertTriangle className="h-4 w-4 text-red-600" />
+            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
             <AlertDescription className="text-red-800 dark:text-red-200">
               <strong>Action Required:</strong> Open these invoices in Xero and change the contact to the merged contact.
               Once done, click "Delete Link" to remove this stale reference from TEEEM.
@@ -214,7 +196,7 @@ export function StaleXeroLinksSection() {
   if (staleLinks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center border rounded-lg bg-muted/30">
-        <CheckCircle className="h-10 w-10 text-green-500 mb-3" />
+        <CheckCircle className="h-10 w-10 text-green-500 dark:text-green-400 mb-3" />
         <h3 className="text-base font-semibold">No Stale Links Found</h3>
         <p className="text-sm text-muted-foreground mt-1">
           All Xero contact links are valid and active.
@@ -242,7 +224,7 @@ export function StaleXeroLinksSection() {
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-muted/50 rounded-lg p-3">
-          <div className="text-xl font-bold text-red-600">{staleLinks.length}</div>
+          <div className="text-xl font-bold text-red-600 dark:text-red-400">{staleLinks.length}</div>
           <div className="text-xs text-muted-foreground">Stale Links</div>
         </div>
         <div className="bg-muted/50 rounded-lg p-3">

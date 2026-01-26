@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface InspiringQuote {
   id: number;
@@ -50,8 +52,6 @@ interface InspiringQuote {
   updated_at?: string;
 }
 
-const CATEGORIES = ["Motivation", "Leadership", "Success", "Perseverance", "Teamwork", "Construction"];
-
 const DEFAULT_QUOTES: InspiringQuote[] = [
   { id: 1, quote: "The only way to do great work is to love what you do.", author: "Steve Jobs", category: "Motivation", is_active: true, created_at: new Date().toISOString() },
   { id: 2, quote: "Quality is not an act, it is a habit.", author: "Aristotle", category: "Success", is_active: true, created_at: new Date().toISOString() },
@@ -65,6 +65,7 @@ const DEFAULT_QUOTES: InspiringQuote[] = [
 
 export function InspiringQuotesTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [quotes, setQuotes] = React.useState<InspiringQuote[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [showDialog, setShowDialog] = React.useState(false);
@@ -102,8 +103,8 @@ export function InspiringQuotesTab() {
     } catch (error) {
       console.error("Failed to load quotes:", error);
       // Use localStorage or defaults
-      const saved = localStorage.getItem("inspiringQuotes");
-      setQuotes(saved ? JSON.parse(saved) : DEFAULT_QUOTES);
+      const saved = getStorageItem<InspiringQuote[] | null>(STORAGE_KEYS.INSPIRING_QUOTES, null);
+      setQuotes(saved || DEFAULT_QUOTES);
     } finally {
       setLoading(false);
     }
@@ -173,7 +174,7 @@ export function InspiringQuotesTab() {
       }
 
       setQuotes(updatedQuotes);
-      localStorage.setItem("inspiringQuotes", JSON.stringify(updatedQuotes));
+      setStorageItem(STORAGE_KEYS.INSPIRING_QUOTES, updatedQuotes);
 
       // Try to save to API
       try {
@@ -193,11 +194,11 @@ export function InspiringQuotesTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this quote?")) return;
+    if (!(await confirm("Are you sure you want to delete this quote?"))) return;
 
     const updatedQuotes = quotes.filter((q) => q.id !== id);
     setQuotes(updatedQuotes);
-    localStorage.setItem("inspiringQuotes", JSON.stringify(updatedQuotes));
+    setStorageItem(STORAGE_KEYS.INSPIRING_QUOTES, updatedQuotes);
 
     try {
       await api.delete(`/api/v1/inspiring_quotes/${id}`);
@@ -213,7 +214,7 @@ export function InspiringQuotesTab() {
       q.id === id ? { ...q, is_active: !q.is_active } : q
     );
     setQuotes(updatedQuotes);
-    localStorage.setItem("inspiringQuotes", JSON.stringify(updatedQuotes));
+    setStorageItem(STORAGE_KEYS.INSPIRING_QUOTES, updatedQuotes);
 
     try {
       const quote = quotes.find((q) => q.id === id);
@@ -227,12 +228,18 @@ export function InspiringQuotesTab() {
     }
   };
 
-  const handleResetToDefaults = () => {
-    if (!confirm("Reset all quotes to default values? This will remove any custom quotes.")) return;
+  const handleResetToDefaults = async () => {
+    if (!(await confirm("Reset all quotes to default values? This will remove any custom quotes."))) return;
     setQuotes(DEFAULT_QUOTES);
-    localStorage.setItem("inspiringQuotes", JSON.stringify(DEFAULT_QUOTES));
+    setStorageItem(STORAGE_KEYS.INSPIRING_QUOTES, DEFAULT_QUOTES);
     toast({ title: "Success", description: "Quotes reset to defaults" });
   };
+
+  // Derive unique categories from loaded quotes (dynamic, not hardcoded)
+  const categories = React.useMemo(() => {
+    const cats = [...new Set(quotes.map(q => q.category).filter(Boolean))];
+    return cats.sort();
+  }, [quotes]);
 
   const filteredQuotes = filterCategory
     ? quotes.filter((q) => q.category === filterCategory)
@@ -272,7 +279,7 @@ export function InspiringQuotesTab() {
         <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-purple-200 dark:border-purple-800">
           <CardContent className="pt-6">
             <div className="flex items-start gap-4">
-              <Quote className="h-8 w-8 text-purple-500 flex-shrink-0 mt-1" />
+              <Quote className="h-8 w-8 text-purple-500 dark:text-purple-400 flex-shrink-0 mt-1" />
               <div className="flex-1">
                 <p className="text-lg font-medium text-purple-900 dark:text-purple-200 italic">
                   &ldquo;{randomQuote.quote}&rdquo;
@@ -300,7 +307,7 @@ export function InspiringQuotesTab() {
           >
             All
           </Button>
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <Button
               key={cat}
               variant={filterCategory === cat ? "default" : "outline"}
@@ -425,7 +432,7 @@ export function InspiringQuotesTab() {
             <div className="space-y-2">
               <Label>Category</Label>
               <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <Button
                     key={cat}
                     type="button"

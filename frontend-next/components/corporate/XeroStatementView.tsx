@@ -22,13 +22,15 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { api, getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
+import { formatCurrency } from "@/utils/formatters";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { FileText, ExternalLink } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 // Types
 interface BankTransaction {
@@ -112,6 +114,7 @@ const MONTHS = [
 ];
 
 export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Props) {
+  const { toast } = useToast();
   // State
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -225,9 +228,9 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
 
       // Load warehouse bank accounts, financial years, and sync status in parallel
       const [accountsRes, yearsRes, statusRes] = await Promise.all([
-        api.get<{ success: boolean; data: BankAccount[] }>("/api/v1/warehouse_bank_transactions/bank_accounts"),
-        api.get<{ success: boolean; data: string[] }>("/api/v1/warehouse_bank_transactions/financial_years"),
-        api.get<{ success: boolean; data: SyncStatus }>("/api/v1/warehouse_bank_transactions/sync_status"),
+        api.get<{ success: boolean; data: BankAccount[] }>("/api/v1/xero_bank_transactions/bank_accounts"),
+        api.get<{ success: boolean; data: string[] }>("/api/v1/xero_bank_transactions/financial_years"),
+        api.get<{ success: boolean; data: SyncStatus }>("/api/v1/xero_bank_transactions/sync_status"),
       ]);
 
       if (accountsRes?.success) {
@@ -303,7 +306,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
           per_page: number;
           total_pages: number;
         };
-      }>(`/api/v1/warehouse_bank_transactions?${params.toString()}`);
+      }>(`/api/v1/xero_bank_transactions?${params.toString()}`);
 
       if (response?.success) {
         setTransactions(response.data);
@@ -328,7 +331,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
       }
 
       const response = await api.get<{ success: boolean; data: MonthlySummaryItem[] }>(
-        `/api/v1/warehouse_bank_transactions/monthly_summary?${params.toString()}`
+        `/api/v1/xero_bank_transactions/monthly_summary?${params.toString()}`
       );
 
       if (response?.success) {
@@ -348,7 +351,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
   const handleSync = async () => {
     try {
       setSyncing(true);
-      await api.post("/api/v1/warehouse_bank_transactions/trigger_sync");
+      await api.post("/api/v1/xero_bank_transactions/trigger_sync");
       await Promise.all([loadInitialData(), loadTransactions()]);
     } catch (error) {
       console.error("Failed to sync:", error);
@@ -362,68 +365,38 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
       setDownloading(true);
 
       // Build query params for the report
-      const params = new URLSearchParams();
+      const queryParams: Record<string, string> = {};
       if (selectedAccount !== "all") {
-        params.set("bank_account_id", selectedAccount);
+        queryParams.bank_account_id = selectedAccount;
       }
       if (selectedFY !== "all") {
-        params.set("financial_year", selectedFY);
+        queryParams.financial_year = selectedFY;
       }
       if (selectedMonth !== "all") {
-        params.set("month", selectedMonth);
+        queryParams.month = selectedMonth;
       }
 
-      // Create a link to download the PDF
-      const baseUrl = getApiBaseUrl();
-      const url = `${baseUrl}/api/v1/warehouse_bank_transactions/download_report?${params.toString()}`;
+      // Get the blob using api.getBlob (SSoT for authenticated requests)
+      const blob = await api.getBlob(
+        "/api/v1/xero_bank_transactions/download_report",
+        { params: queryParams }
+      );
 
-      // Fetch with auth token
-      const token = localStorage.getItem("token");
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to download report");
-      }
-
-      // Get the blob and trigger download
-      const blob = await response.blob();
+      // Trigger download
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;
-
-      // Get filename from Content-Disposition header or generate one
-      const contentDisposition = response.headers.get("Content-Disposition");
-      let filename = "Xero_Transaction_Report.pdf";
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/);
-        if (filenameMatch) {
-          filename = filenameMatch[1];
-        }
-      }
-
-      link.download = filename;
+      link.download = "Xero_Transaction_Report.pdf";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
     } catch (error) {
       console.error("Failed to download report:", error);
-      alert(error instanceof Error ? error.message : "Failed to download report");
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to download report", variant: "destructive" });
     } finally {
       setDownloading(false);
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(amount);
   };
 
   const formatDate = (dateStr: string) => {
@@ -479,7 +452,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
       <Card>
         <CardContent className="p-8 text-center">
           <div className="text-muted-foreground">
-            <p className="font-medium mb-2">No Bank Accounts Linked to Xero</p>
+            <p className="text-sm font-medium mb-2">No Bank Accounts Linked to Xero</p>
             <p className="text-sm">
               To view Xero transactions, link a bank account to Xero in the Bank Accounts tab.
             </p>
@@ -610,20 +583,20 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
         <div className="grid grid-cols-4 gap-4 mb-4">
           <div className="p-3 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ArrowDownLeft className="h-3 w-3 text-green-600" />
+              <ArrowDownLeft className="h-3 w-3 text-green-600 dark:text-green-400" />
               Money In
             </div>
-            <div className="text-lg font-semibold text-green-600">
+            <div className="text-lg font-semibold text-green-600 dark:text-green-400">
               {formatCurrency(totals.receives)}
             </div>
             <div className="text-xs text-muted-foreground">{totals.receivesCount} transactions</div>
           </div>
           <div className="p-3 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ArrowUpRight className="h-3 w-3 text-red-600" />
+              <ArrowUpRight className="h-3 w-3 text-red-600 dark:text-red-400" />
               Money Out
             </div>
-            <div className="text-lg font-semibold text-red-600">
+            <div className="text-lg font-semibold text-red-600 dark:text-red-400">
               {formatCurrency(totals.spends)}
             </div>
             <div className="text-xs text-muted-foreground">{totals.spendsCount} transactions</div>
@@ -632,7 +605,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
             <div className="text-xs text-muted-foreground">Net Change</div>
             <div className={cn(
               "text-lg font-semibold",
-              totals.receives - totals.spends >= 0 ? "text-green-600" : "text-red-600"
+              totals.receives - totals.spends >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
             )}>
               {formatCurrency(totals.receives - totals.spends)}
             </div>
@@ -755,9 +728,9 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
                 {selectedTransaction?.transaction_type === "RECEIVE" ? (
-                  <ArrowDownLeft className="h-5 w-5 text-green-600" />
+                  <ArrowDownLeft className="h-5 w-5 text-green-600 dark:text-green-400" />
                 ) : (
-                  <ArrowUpRight className="h-5 w-5 text-red-600" />
+                  <ArrowUpRight className="h-5 w-5 text-red-600 dark:text-red-400" />
                 )}
                 Transaction Details
               </SheetTitle>
@@ -768,7 +741,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
                 {/* Amount */}
                 <div className="text-center py-4 bg-muted/50 rounded-lg">
                   <div className="text-3xl font-bold">
-                    <span className={selectedTransaction.transaction_type === "RECEIVE" ? "text-green-600" : "text-red-600"}>
+                    <span className={selectedTransaction.transaction_type === "RECEIVE" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                       {selectedTransaction.transaction_type === "RECEIVE" ? "+" : "-"}
                       {formatCurrency(selectedTransaction.total)}
                     </span>
@@ -832,7 +805,7 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
 
                   {selectedTransaction.has_attachments && (
                     <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <FileText className="h-4 w-4 text-blue-600" />
+                      <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                       <span className="text-sm text-blue-600 dark:text-blue-400">Has attachments in Xero</span>
                     </div>
                   )}

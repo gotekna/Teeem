@@ -90,6 +90,7 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
   renderCard,
   renderColumnHeader,
   renderEmptyColumn,
+  renderColumnContent,
   onCardMove,
   onCardReorder,
   onColumnReorder,
@@ -208,28 +209,33 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
 
       const activeColumnId = getItemColumn(activeItemData);
 
-      // Determine target column
+      // Determine target column and index
       let targetColumnId: string;
       let targetIndex: number;
 
-      const overData = over.data.current;
-      if (overData?.type === "column") {
-        // Dropped directly on a column
-        targetColumnId = overData.columnId as string;
-        const columnItems = items.filter(
-          (item) => getItemColumn(item) === targetColumnId
-        );
-        targetIndex = columnItems.length; // Add to end
-      } else {
-        // Dropped on another item
-        const overItem = items.find((item) => item.id === over.id);
-        if (!overItem) return;
+      // First check if we dropped on another item (higher priority than column)
+      const overItem = items.find((item) => item.id === over.id);
 
+      if (overItem) {
+        // Dropped on another item - use its position
         targetColumnId = getItemColumn(overItem);
         const columnItems = items.filter(
           (item) => getItemColumn(item) === targetColumnId
         );
         targetIndex = columnItems.findIndex((item) => item.id === over.id);
+      } else {
+        // Check if dropped on a column container
+        const overData = over.data.current;
+        if (overData?.type === "column") {
+          targetColumnId = overData.columnId as string;
+          const columnItems = items.filter(
+            (item) => getItemColumn(item) === targetColumnId
+          );
+          targetIndex = columnItems.length; // Add to end
+        } else {
+          // Unknown drop target
+          return;
+        }
       }
 
       // Same column - reorder
@@ -241,16 +247,40 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
           (item) => item.id === active.id
         );
 
-        if (fromIndex !== targetIndex && fromIndex !== -1) {
+        // Calculate effective target index (adjust if dragging down)
+        // When dragging down, the visual position shown by dnd-kit is one less
+        // than what we calculate because the dragged item temporarily disappears
+        let effectiveTargetIndex = targetIndex;
+        if (fromIndex < targetIndex) {
+          // Dragging down - the item will insert AFTER the target
+          effectiveTargetIndex = targetIndex;
+        }
+
+        console.log('[KanbanBoard] Same column reorder:', {
+          activeColumnId,
+          fromIndex,
+          targetIndex,
+          effectiveTargetIndex,
+          activeId: active.id,
+          overId: over.id,
+        });
+
+        if (fromIndex !== effectiveTargetIndex && fromIndex !== -1) {
+          console.log('[KanbanBoard] Calling onCardReorder');
           onCardReorder?.({
             item: activeItemData,
             columnId: activeColumnId,
             fromIndex,
-            toIndex: targetIndex,
+            toIndex: effectiveTargetIndex,
           });
         }
       } else {
         // Different column - move
+        console.log('[KanbanBoard] Cross-column move:', {
+          fromColumnId: activeColumnId,
+          toColumnId: targetColumnId,
+          toIndex: targetIndex,
+        });
         onCardMove?.({
           item: activeItemData,
           fromColumnId: activeColumnId,
@@ -283,11 +313,14 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
           (item) => getItemColumn(item) === column.id
         );
 
+        // Collapsed columns should be thin, expanded columns should flex to fill space
+        const isCollapsed = column.collapsed;
+
         return (
           <div
             key={column.id}
-            className="flex-1"
-            style={{ minWidth: minColumnWidth }}
+            className={isCollapsed ? "shrink-0" : "flex-1"}
+            style={isCollapsed ? undefined : { minWidth: minColumnWidth }}
           >
             <KanbanColumn
               column={column}
@@ -295,6 +328,7 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
               isOver={overColumnId === column.id}
               renderCard={renderCard}
               renderHeader={renderColumnHeader}
+              renderContent={renderColumnContent ? (items, rc) => renderColumnContent(column, items, rc) : undefined}
               renderEmpty={renderEmptyColumn}
               onCollapse={
                 columnsCollapsible

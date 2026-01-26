@@ -1,13 +1,102 @@
 /**
  * API Client for Teeem
  * Fetch-based API client with authentication headers, timeouts, retry logic, and request deduplication
+ *
+ * SSoT: API URL Selection
+ * - Production backend is the "router" - it stores all companies' environment preferences
+ * - On login, production backend returns api_url for the company's chosen environment
+ * - Frontend stores this in localStorage and uses it for all subsequent requests
+ * - LOGIN ALWAYS uses PRODUCTION_API_URL (to get the routing info)
  */
 
 import { API_TIMEOUT_DEFAULT, API_RETRY_DELAY_BASE } from './constants/timeout-constants';
+import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from './storage-utils';
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://teeemlive-ce8e2660a615.herokuapp.com').trim();
+// Production backend is always the "router" for login (except in dev mode)
+const PRODUCTION_API_URL = 'https://teeem-production-121159e1ff9d.herokuapp.com';
 
-export const getApiBaseUrl = () => API_URL;
+// Default API URL (production) - used if no stored api_url
+const DEFAULT_API_URL = (process.env.NEXT_PUBLIC_API_URL || PRODUCTION_API_URL).trim();
+
+// Check if running in dev mode (localhost or dev backends with "-dev" in URL)
+// Dev frontends skip the production router and login directly to their own backend
+const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev') || DEFAULT_API_URL.includes('localhost');
+
+/**
+ * Get the current API base URL
+ * - Returns stored api_url from localStorage if available (set during login)
+ * - Falls back to DEFAULT_API_URL
+ */
+export const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const storedUrl = getStorageItem<string | null>(STORAGE_KEYS.API_URL, null, false);
+    if (storedUrl) {
+      // Trim to prevent %20 (encoded space) in URL causing DNS failures
+      return storedUrl.trim();
+    }
+  }
+  return DEFAULT_API_URL;
+};
+
+/**
+ * Get the API URL to use for the current request
+ * This is computed fresh for each request to support environment switching
+ */
+const getApiUrl = () => getApiBaseUrl();
+
+/**
+ * Get the production API URL (used for login only)
+ * Production backend is the "router" - it stores all companies' env preferences
+ */
+export const getProductionApiUrl = () => PRODUCTION_API_URL;
+
+/**
+ * Store the API URL returned from login
+ * Called by AuthContext after successful login
+ */
+export const setApiUrl = (url: string) => {
+  if (typeof window !== 'undefined') {
+    // Trim to prevent whitespace in stored URL
+    setStorageItem(STORAGE_KEYS.API_URL, url.trim(), false);
+  }
+};
+
+/**
+ * Clear the stored API URL (called on logout)
+ */
+export const clearApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    removeStorageItem(STORAGE_KEYS.API_URL, false);
+  }
+};
+
+/**
+ * Get the current environment name from localStorage
+ */
+export const getCurrentEnvironment = (): string => {
+  if (typeof window !== 'undefined') {
+    return getStorageItem(STORAGE_KEYS.API_ENVIRONMENT, 'production', false);
+  }
+  return 'production';
+};
+
+/**
+ * Store the environment name returned from login
+ */
+export const setEnvironment = (env: string) => {
+  if (typeof window !== 'undefined') {
+    setStorageItem(STORAGE_KEYS.API_ENVIRONMENT, env, false);
+  }
+};
+
+/**
+ * Clear the stored environment (called on logout)
+ */
+export const clearEnvironment = () => {
+  if (typeof window !== 'undefined') {
+    removeStorageItem(STORAGE_KEYS.API_ENVIRONMENT, false);
+  }
+};
 
 // Configuration
 // SSoT: Timeout constants from timeout-constants.ts
@@ -61,7 +150,7 @@ const getAuthHeaders = (includeContentType = true): HeadersInit => {
 
   // Add JWT token if available (client-side only)
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('token');
+    const token = getStorageItem(STORAGE_KEYS.TOKEN, null);
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
@@ -73,7 +162,7 @@ const getAuthHeaders = (includeContentType = true): HeadersInit => {
 // Helper to clear auth token (mirrors AuthContext's clearAuthToken)
 const clearAuthToken = () => {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('token');
+    removeStorageItem(STORAGE_KEYS.TOKEN);
     document.cookie = 'auth_token=; path=/; max-age=0';
   }
 };
@@ -238,7 +327,7 @@ export const api = {
   async get<T = unknown>(endpoint: string, options: GetOptions = {}): Promise<T> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, dedupe = true, signal, skipAuthRedirect = false, ...restOptions } = options;
 
-    let url = `${API_URL}${endpoint}`;
+    let url = `${getApiUrl()}${endpoint}`;
 
     if (restOptions.params) {
       const queryString = new URLSearchParams(
@@ -325,7 +414,7 @@ export const api = {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, skipAuthRedirect = false } = options;
 
     const response = await withRetry(
-      () => fetchWithTimeout(`${API_URL}${endpoint}`, {
+      () => fetchWithTimeout(`${getApiUrl()}${endpoint}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         credentials: 'include',
@@ -352,14 +441,14 @@ export const api = {
     const headers: Record<string, string> = {};
 
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('token');
+      const token = getStorageItem(STORAGE_KEYS.TOKEN, null);
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
     }
 
     const response = await withRetry(
-      () => fetchWithTimeout(`${API_URL}${endpoint}`, {
+      () => fetchWithTimeout(`${getApiUrl()}${endpoint}`, {
         method: 'POST',
         headers,
         credentials: 'include',
@@ -379,7 +468,7 @@ export const api = {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES } = options;
 
     const response = await withRetry(
-      () => fetchWithTimeout(`${API_URL}${endpoint}`, {
+      () => fetchWithTimeout(`${getApiUrl()}${endpoint}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         credentials: 'include',
@@ -400,13 +489,13 @@ export const api = {
 
     const headers: Record<string, string> = {};
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('token');
+      const token = getStorageItem(STORAGE_KEYS.TOKEN, null);
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
     }
     const response = await withRetry(
-      () => fetchWithTimeout(`${API_URL}${endpoint}`, {
+      () => fetchWithTimeout(`${getApiUrl()}${endpoint}`, {
         method: 'PUT',
         headers,
         credentials: 'include',
@@ -425,7 +514,7 @@ export const api = {
     const isFormData = data instanceof FormData;
 
     const response = await withRetry(
-      () => fetchWithTimeout(`${API_URL}${endpoint}`, {
+      () => fetchWithTimeout(`${getApiUrl()}${endpoint}`, {
         method: 'PATCH',
         headers: getAuthHeaders(!isFormData), // Don't set Content-Type for FormData
         credentials: 'include',
@@ -445,7 +534,7 @@ export const api = {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES } = options;
 
     const response = await withRetry(
-      () => fetchWithTimeout(`${API_URL}${endpoint}`, {
+      () => fetchWithTimeout(`${getApiUrl()}${endpoint}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         credentials: 'include',
@@ -467,7 +556,7 @@ export const api = {
   async getBlob(endpoint: string, options: GetOptions = {}): Promise<Blob> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, dedupe = false, signal, skipAuthRedirect = false, ...restOptions } = options;
 
-    let url = `${API_URL}${endpoint}`;
+    let url = `${getApiUrl()}${endpoint}`;
 
     if (restOptions.params) {
       const queryString = new URLSearchParams(
@@ -505,7 +594,7 @@ export const api = {
   async getText(endpoint: string, options: GetOptions = {}): Promise<string> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, dedupe = true, signal, skipAuthRedirect = false, ...restOptions } = options;
 
-    let url = `${API_URL}${endpoint}`;
+    let url = `${getApiUrl()}${endpoint}`;
 
     if (restOptions.params) {
       const queryString = new URLSearchParams(
@@ -548,7 +637,7 @@ export const api = {
   async getRaw(endpoint: string, options: GetOptions = {}): Promise<Response> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, signal, skipAuthRedirect = false, ...restOptions } = options;
 
-    let url = `${API_URL}${endpoint}`;
+    let url = `${getApiUrl()}${endpoint}`;
 
     if (restOptions.params) {
       const queryString = new URLSearchParams(
@@ -578,7 +667,7 @@ export const api = {
   async delete<T = unknown>(endpoint: string, options: DeleteOptions = {}): Promise<T | null> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, ...restOptions } = options;
 
-    let url = `${API_URL}${endpoint}`;
+    let url = `${getApiUrl()}${endpoint}`;
 
     if (restOptions.params) {
       const queryString = new URLSearchParams(
@@ -621,6 +710,44 @@ export const api = {
     disconnect: () => api.delete('/api/v1/xero/disconnect'),
   },
 
+  /**
+   * Login endpoint that ALWAYS uses production backend
+   * Production backend is the "router" - it returns api_url for the company's chosen environment
+   *
+   * Response includes:
+   * - token: JWT token
+   * - api_url: The API URL to use for this company's chosen environment
+   * - environment: The environment name ('production', 'beta', 'staging')
+   * - user: User data
+   */
+  async loginToProduction<T = unknown>(data: { user: { email: string; password: string; remember_me?: boolean } }): Promise<T | null> {
+    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES } = {};
+
+    // In dev mode: login directly to dev backend (skip production router)
+    // In production mode: use production URL as the "router" for environment switching
+    const loginUrl = IS_DEV_MODE ? DEFAULT_API_URL : PRODUCTION_API_URL;
+    const response = await withRetry(
+      () => fetchWithTimeout(`${loginUrl}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(data),
+      }, timeout),
+      retries
+    );
+
+    if (!response.ok) {
+      await handleErrorResponse(response, false);
+    }
+
+    // Handle 204 No Content responses
+    if (response.status === 204) {
+      return null;
+    }
+
+    return response.json() as Promise<T>;
+  },
+
   // Utility to clear pending requests (useful for testing or cleanup)
   clearPendingRequests: () => {
     pendingRequests.clear();
@@ -628,3 +755,4 @@ export const api = {
 };
 
 export default api;
+// Trigger redeploy Sun Jan 18 03:12:09 CET 2026

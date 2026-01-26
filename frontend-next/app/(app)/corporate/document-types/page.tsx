@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,36 +15,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import type { TableColumn, TableRow } from "@/components/table/types";
+import type { TableRow } from "@/components/table/types";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { Spinner } from "@/components/ui/spinner";
-import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+
+/**
+ * Document Types Page - Corporate Document Type Management
+ *
+ * SSoT: Uses Foundation API via autoFetchRecords (Jan 2026 refactor)
+ * Foundation: "document_types"
+ *
+ * Previous pattern used manual loadData() with entries prop.
+ * Refactored to use autoFetchRecords for SSR hydration, caching, infinite scroll.
+ * Custom cell renderer preserved for badges and formatted display.
+ */
 
 // Re-export for local use (SSoT: @/lib/constants/document-types.ts)
 const FOLDER_OPTIONS = DOCUMENT_FOLDER_OPTIONS;
-const SCOPE_OPTIONS = DOCUMENT_TYPE_SCOPES;
-
-// Build column definitions for document types table
-const buildDocumentTypeColumns = (): TableColumn[] => [
-  { key: "id", label: "ID", column_type: "whole_number", resizable: true, sortable: true, filterable: true, width: 60 },
-  { key: "scope", label: "Scope", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 90, choices: SCOPE_OPTIONS.map(s => s.value) },
-  { key: "abbreviation", label: "Code", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, width: 80 },
-  { key: "name", label: "Document Type", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, width: 280 },
-  { key: "naming_format", label: "Naming Format", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, width: 280 },
-  { key: "title_preview", label: "Title Preview", column_type: "single_line_text", resizable: true, sortable: false, filterable: false, width: 280 },
-  { key: "file_extensions_display", label: "Extensions", column_type: "single_line_text", resizable: true, sortable: false, filterable: false, width: 120 },
-  { key: "target_folder", label: "Target Folder", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, width: 140 },
-  { key: "primary_tab", label: "Primary Tab", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 120, choices: [...DOCUMENT_FOLDER_OPTIONS] },
-  { key: "folder", label: "Folder", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 120, choices: [...DOCUMENT_FOLDER_OPTIONS] },
-  { key: "tabs_display", label: "All Tabs", column_type: "single_line_text", resizable: true, sortable: false, filterable: false, width: 200 },
-  { key: "active", label: "Active", column_type: "boolean", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 70 },
-  { key: "documents_count", label: "Docs", column_type: "whole_number", resizable: true, sortable: true, filterable: false, width: 60 }
-];
 
 interface DocumentType extends TableRow {
   abbreviation?: string;
@@ -53,30 +47,17 @@ interface DocumentType extends TableRow {
   primary_tab?: string;
   folder?: string;
   tabs?: string[];
-  tabs_display?: string;
   active?: boolean;
   documents_count?: number;
   scope?: string;
   file_extensions?: string[];
-  file_extensions_display?: string;
   target_folder?: string;
 }
 
 export default function DocumentTypesPage() {
   const router = useRouter();
-  const [loading, setLoading] = React.useState(true);
-
-  // Handle row click - navigate to detail page
-  const handleRowClick = React.useCallback((row: DocumentType) => {
-    router.push(`/admin/system/document-types/${row.id}`);
-  }, [router]);
-
-  // Handle row double-click
-  const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
-    router.push(`/admin/system/document-types/${row.id}`);
-  }, [router]);
-  const [documentTypes, setDocumentTypes] = React.useState<DocumentType[]>([]);
-  const [columns] = React.useState(buildDocumentTypeColumns());
+  const { confirm } = useConfirm();
+  const [refreshKey, setRefreshKey] = React.useState(0);
   const [showAddForm, setShowAddForm] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [newDocType, setNewDocType] = React.useState({
@@ -88,80 +69,28 @@ export default function DocumentTypesPage() {
     active: true
   });
 
-  React.useEffect(() => {
-    loadData();
-  }, []);
+  // Handle row click - navigate to detail page
+  const handleRowClick = React.useCallback((row: DocumentType) => {
+    router.push(`/admin/system/document-types/${row.id}`);
+  }, [router]);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get<{ data: DocumentType[] }>("/api/v1/document_types", {
-        params: { include_inactive: "true" }
-      });
-      const types = response.data || [];
-      // Transform for table display
-      const transformed = types.map(dt => ({
-        ...dt,
-        tabs_display: dt.tabs?.join(", ") || "",
-        file_extensions_display: dt.file_extensions?.join(", ") || ""
-      }));
-      setDocumentTypes(transformed);
-    } catch (error) {
-      console.error("Failed to load document types:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEdit = async (entry: DocumentType) => {
-    try {
-      await api.patch(`/api/v1/document_types/${entry.id}`, {
-        document_type: entry
-      });
-      await loadData();
-    } catch (error) {
-      console.error("Failed to update document type:", error);
-    }
-  };
-
-  // Standard inline cell editing - required for TeeemTableView inline edit
-  const handleRowUpdate = async (rowId: number | string, columnKey: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/document_types/${rowId}`, {
-        document_type: { [columnKey]: value }
-      });
-      // Update local state immediately for responsiveness
-      setDocumentTypes(prev => prev.map(dt =>
-        dt.id === rowId ? { ...dt, [columnKey]: value } : dt
-      ));
-    } catch (error) {
-      console.error("Failed to update document type:", error);
-      throw error; // Re-throw so TeeemTableView can show error
-    }
-  };
+  // Handle row double-click
+  const handleRowDoubleClick = React.useCallback((row: DocumentType) => {
+    router.push(`/admin/system/document-types/${row.id}`);
+  }, [router]);
 
   const handleDelete = async (entry: DocumentType) => {
-    if (!confirm(`Delete document type "${entry.name}"? This cannot be undone.`)) {
-      return;
+    if (!(await confirm(`Delete document type "${entry.name}"? This cannot be undone.`))) {
+      throw new Error("Cancelled");
     }
-    try {
-      await api.delete(`/api/v1/document_types/${entry.id}`);
-      await loadData();
-    } catch (error) {
-      console.error("Failed to delete document type:", error);
-    }
+    // TeeemTableView handles the actual delete via Foundation API
   };
 
   const handleBulkDelete = async (ids: (number | string)[]) => {
-    if (!confirm(`Delete ${ids.length} document types? This cannot be undone.`)) {
-      return;
+    if (!(await confirm(`Delete ${ids.length} document types? This cannot be undone.`))) {
+      throw new Error("Cancelled");
     }
-    try {
-      await Promise.all(ids.map(id => api.delete(`/api/v1/document_types/${id}`)));
-      await loadData();
-    } catch (error) {
-      console.error("Failed to bulk delete document types:", error);
-    }
+    // TeeemTableView handles the actual delete via Foundation API
   };
 
   const handleAddDocType = async (e: React.FormEvent) => {
@@ -183,7 +112,8 @@ export default function DocumentTypesPage() {
         primary_tab: "GENERAL",
         active: true
       });
-      await loadData();
+      // Trigger refresh to show new record
+      setRefreshKey(k => k + 1);
     } catch (error) {
       console.error("Failed to create document type:", error);
     } finally {
@@ -196,9 +126,9 @@ export default function DocumentTypesPage() {
     if (columnKey === "scope") {
       const value = entry.scope || "company";
       const scopeConfig = {
-        company: { label: "Company", className: "bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
-        job: { label: "Job", className: "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
-        both: { label: "Both", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" }
+        company: { label: "Company", className: "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300" },
+        job: { label: "Job", className: "bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-300" },
+        both: { label: "Both", className: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300" }
       };
       const config = scopeConfig[value as keyof typeof scopeConfig] || scopeConfig.company;
       return (
@@ -251,7 +181,7 @@ export default function DocumentTypesPage() {
       const value = entry[columnKey as keyof DocumentType] as string | undefined;
       if (!value) return <span className="text-muted-foreground">-</span>;
       return (
-        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300">
           {value}
         </Badge>
       );
@@ -279,14 +209,6 @@ export default function DocumentTypesPage() {
     }
     return null;
   };
-
-  if (loading && documentTypes.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Spinner size={32} className="text-muted-foreground" />
-      </div>
-    );
-  }
 
   // Left actions - Back button + Add button
   const leftActionsWithBack = (
@@ -366,14 +288,12 @@ export default function DocumentTypesPage() {
         </Card>
       )}
 
-      {/* Table - document_types Foundation */}
+      {/* Table - document_types Foundation (SSoT: autoFetchRecords) */}
       <TeeemTableView
         foundationId="document_types"
+        autoFetchRecords={true}
+        refreshTrigger={refreshKey}
         tableName="Document Types"
-        entries={documentTypes}
-        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
-        onEdit={handleEdit}
-        onRowUpdate={handleRowUpdate}
         onRowClick={handleRowClick}
         onRowDoubleClick={handleRowDoubleClick}
         onDelete={handleDelete}

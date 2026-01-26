@@ -220,11 +220,11 @@ export function XeroHealthTab() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "connected":
-        return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+        return <CheckCircle2 className="h-5 w-5 text-green-500 dark:text-green-400" />;
       case "warning":
-        return <AlertTriangle className="h-5 w-5 text-orange-500" />;
+        return <AlertTriangle className="h-5 w-5 text-orange-500 dark:text-orange-400" />;
       case "error":
-        return <XCircle className="h-5 w-5 text-red-500" />;
+        return <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
       case "disconnected":
         return <XCircle className="h-5 w-5 text-muted-foreground" />;
       default:
@@ -241,8 +241,8 @@ export function XeroHealthTab() {
     };
     return (
       <Badge variant={variants[status] || "outline"} className={cn(
-        status === "connected" && "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
-        status === "warning" && "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
+        status === "connected" && "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-100",
+        status === "warning" && "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900 dark:text-orange-100"
       )}>
         {status}
       </Badge>
@@ -302,9 +302,9 @@ export function XeroHealthTab() {
               </div>
               <Shield className={cn(
                 "h-10 w-10",
-                dashboard?.overall_status === "connected" && "text-green-500",
-                dashboard?.overall_status === "warning" && "text-orange-500",
-                dashboard?.overall_status === "error" && "text-red-500",
+                dashboard?.overall_status === "connected" && "text-green-500 dark:text-green-400",
+                dashboard?.overall_status === "warning" && "text-orange-500 dark:text-orange-400",
+                dashboard?.overall_status === "error" && "text-red-500 dark:text-red-400",
                 dashboard?.overall_status === "disconnected" && "text-muted-foreground"
               )} />
             </div>
@@ -318,7 +318,7 @@ export function XeroHealthTab() {
                 <p className="text-sm text-muted-foreground">Connected</p>
                 <p className="text-2xl font-bold">{dashboard?.connected_count} / {dashboard?.total_credentials}</p>
               </div>
-              <CheckCircle2 className="h-10 w-10 text-green-500" />
+              <CheckCircle2 className="h-10 w-10 text-green-500 dark:text-green-400" />
             </div>
           </CardContent>
         </Card>
@@ -332,7 +332,7 @@ export function XeroHealthTab() {
               </div>
               <AlertTriangle className={cn(
                 "h-10 w-10",
-                (dashboard?.needs_attention_count || 0) > 0 ? "text-orange-500" : "text-muted-foreground"
+                (dashboard?.needs_attention_count || 0) > 0 ? "text-orange-500 dark:text-orange-400" : "text-muted-foreground"
               )} />
             </div>
           </CardContent>
@@ -346,9 +346,9 @@ export function XeroHealthTab() {
                 <p className="text-2xl font-bold">{((analytics?.failure_rate_24h || 0) * 100).toFixed(1)}%</p>
               </div>
               {(analytics?.failure_rate_24h || 0) > 0.1 ? (
-                <TrendingDown className="h-10 w-10 text-red-500" />
+                <TrendingDown className="h-10 w-10 text-red-500 dark:text-red-400" />
               ) : (
-                <TrendingUp className="h-10 w-10 text-green-500" />
+                <TrendingUp className="h-10 w-10 text-green-500 dark:text-green-400" />
               )}
             </div>
           </CardContent>
@@ -360,7 +360,7 @@ export function XeroHealthTab() {
         <Card className="border-orange-200 dark:border-orange-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-500" />
+              <AlertCircle className="h-5 w-5 text-orange-500 dark:text-orange-400" />
               Early Warnings ({warnings.length})
             </CardTitle>
             <CardDescription>Potential issues that need attention</CardDescription>
@@ -377,9 +377,9 @@ export function XeroHealthTab() {
                 >
                   <div className="flex items-center gap-3">
                     {warning.severity === "critical" ? (
-                      <XCircle className="h-5 w-5 text-red-500" />
+                      <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />
                     ) : (
-                      <AlertTriangle className="h-5 w-5 text-orange-500" />
+                      <AlertTriangle className="h-5 w-5 text-orange-500 dark:text-orange-400" />
                     )}
                     <div>
                       <p className="font-medium">{warning.tenant_name}</p>
@@ -483,28 +483,31 @@ export function XeroHealthTab() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {dashboard?.credentials.map((cred) => (
-              <div
-                key={cred.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  {getStatusIcon(cred.health.display_status)}
-                  <div>
-                    <p className="font-medium">{cred.health.xero_tenant_name || `Credential ${cred.id}`}</p>
-                    <p className="text-sm text-muted-foreground">{cred.health.message}</p>
+            {dashboard?.credentials.map((cred) => {
+              const health = cred.health || { display_status: 'unknown', message: 'Health data unavailable' };
+              return (
+                <div
+                  key={cred.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-4">
+                    {getStatusIcon(health.display_status)}
+                    <div>
+                      <p className="font-medium">{health.xero_tenant_name || `Credential ${cred.id}`}</p>
+                      <p className="text-sm text-muted-foreground">{health.message}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {getStatusBadge(health.display_status)}
+                    {health.expires_at && (
+                      <span className="text-sm text-muted-foreground">
+                        Expires: {new Date(health.expires_at).toLocaleString()}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  {getStatusBadge(cred.health.display_status)}
-                  {cred.health.expires_at && (
-                    <span className="text-sm text-muted-foreground">
-                      Expires: {new Date(cred.health.expires_at).toLocaleString()}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {(!dashboard?.credentials || dashboard.credentials.length === 0) && (
               <p className="text-muted-foreground text-center py-8">No Xero credentials configured</p>
             )}
@@ -550,7 +553,7 @@ export function XeroHealthTab() {
       <Card className="border-blue-200 dark:border-blue-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-blue-500" />
+            <FileText className="h-5 w-5 text-blue-500 dark:text-blue-400" />
             Bank Statement Document Generation
           </CardTitle>
           <CardDescription>
@@ -669,7 +672,7 @@ export function XeroHealthTab() {
           {/* No pending work message */}
           {bankStatementProgress?.overall.pending === 0 && (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <CheckCircle2 className="h-5 w-5 mr-2 text-green-500" />
+              <CheckCircle2 className="h-5 w-5 mr-2 text-green-500 dark:text-green-400" />
               <span>All bank statement documents are up to date!</span>
             </div>
           )}

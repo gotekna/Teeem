@@ -1,10 +1,10 @@
-# DEPRECATED: This controller now proxies to EmailWarehouse
-# The legacy Email model has been removed. Use EmailWarehouseController instead.
+# DEPRECATED: This controller now proxies to SyncedEmail
+# The legacy Email model has been removed. Use SyncedEmailController instead.
 class Api::V1::EmailsController < ApplicationController
   # GET /api/v1/emails
   # Get all emails, optionally filtered by job
   def index
-    emails = EmailWarehouse.order(received_at: :desc)
+    emails = SyncedEmail.order(received_at: :desc)
 
     if params[:job_id].present?
       emails = emails.where(job_id: params[:job_id])
@@ -19,7 +19,7 @@ class Api::V1::EmailsController < ApplicationController
 
   # GET /api/v1/emails/:id
   def show
-    @email = EmailWarehouse.find(params[:id])
+    @email = SyncedEmail.find(params[:id])
     render json: { success: true, email: @email.as_json }
   end
 
@@ -29,7 +29,7 @@ class Api::V1::EmailsController < ApplicationController
     parser = EmailParserService.new(email_params_from_request)
     parsed_data = parser.parse
 
-    @email = EmailWarehouse.new(
+    @email = SyncedEmail.new(
       internet_message_id: parsed_data[:message_id] || SecureRandom.uuid,
       source_type: "webhook",
       from_email: parsed_data[:from_email] || parsed_data[:from],
@@ -43,7 +43,9 @@ class Api::V1::EmailsController < ApplicationController
       has_attachments: false,
       synced_by_user: current_user,
       first_synced_at: Time.current,
-      last_synced_at: Time.current
+      last_synced_at: Time.current,
+      # SSoT: Multi-tenancy - always set tenant_id for proper scoping
+      tenant_id: current_tenant&.id
     )
 
     # Try to auto-match to a job
@@ -62,7 +64,7 @@ class Api::V1::EmailsController < ApplicationController
   # PATCH /api/v1/emails/:id
   # Update email (mainly for assigning to job)
   def update
-    @email = EmailWarehouse.find(params[:id])
+    @email = SyncedEmail.find(params[:id])
 
     if @email.update(update_params)
       render json: { success: true, email: @email.as_json }
@@ -73,7 +75,7 @@ class Api::V1::EmailsController < ApplicationController
 
   # DELETE /api/v1/emails/:id
   def destroy
-    @email = EmailWarehouse.find(params[:id])
+    @email = SyncedEmail.find(params[:id])
     @email.destroy
     head :no_content
   end
@@ -81,7 +83,7 @@ class Api::V1::EmailsController < ApplicationController
   # POST /api/v1/emails/:id/assign_to_job
   # Assign an email to a specific job
   def assign_to_job
-    @email = EmailWarehouse.find(params[:id])
+    @email = SyncedEmail.find(params[:id])
     job_id = params[:job_id]
 
     if job_id.blank?
@@ -102,7 +104,7 @@ class Api::V1::EmailsController < ApplicationController
     parser = EmailParserService.new(params)
     parsed_data = parser.parse
 
-    @email = EmailWarehouse.new(
+    @email = SyncedEmail.new(
       internet_message_id: parsed_data[:message_id] || SecureRandom.uuid,
       source_type: "webhook",
       from_email: parsed_data[:from_email] || parsed_data[:from],
@@ -115,7 +117,9 @@ class Api::V1::EmailsController < ApplicationController
       received_at: parsed_data[:received_at] || parsed_data[:date] || Time.current,
       has_attachments: false,
       first_synced_at: Time.current,
-      last_synced_at: Time.current
+      last_synced_at: Time.current,
+      # SSoT: Multi-tenancy - always set tenant_id for proper scoping
+      tenant_id: current_tenant&.id
     )
 
     # Try to auto-match to a job

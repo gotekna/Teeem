@@ -81,14 +81,14 @@ const CATEGORIES: {
     label: "Team",
     icon: Users,
     shortcut: "2",
-    color: "text-blue-500",
+    color: "text-blue-500 dark:text-blue-400",
   },
   {
     key: "newsletters",
     label: "Newsletters",
     icon: Newspaper,
     shortcut: "3",
-    color: "text-purple-500",
+    color: "text-purple-500 dark:text-purple-400",
   },
   {
     key: "other",
@@ -125,7 +125,7 @@ async function fetchSplitInbox(): Promise<SplitInboxData> {
   // If network is slow, we'll show cached/empty state rather than waiting 30s
   // SSoT: Uses API_TIMEOUT_EMAIL_OFFLINE from timeout-constants.ts
   const response = await api.get<SplitInboxResponse>(
-    "/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true",
+    "/api/v1/synced_emails?split_inbox=true&my_emails=true&latest_only=true",
     { timeout: API_TIMEOUT_EMAIL_OFFLINE }
   );
   return (response as SplitInboxResponse).data;
@@ -147,7 +147,7 @@ async function fetchCategoryEmails(
   // Use shorter timeout for category emails
   // SSoT: Uses API_TIMEOUT_EMAIL_OFFLINE from timeout-constants.ts
   const response = await api.get<CategoryEmailsResponse>(
-    `/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true&category=${category}&page=${page}&per_page=${perPage}`,
+    `/api/v1/synced_emails?split_inbox=true&my_emails=true&latest_only=true&category=${category}&page=${page}&per_page=${perPage}`,
     { timeout: API_TIMEOUT_EMAIL_OFFLINE }
   );
   return (response as CategoryEmailsResponse).data;
@@ -353,6 +353,9 @@ export function useSplitInbox(options?: { accountId?: string; enabled?: boolean 
     isOffline: offlineEmails.isOffline,
     lastFetched: offlineEmails.lastFetched,
     isCacheAvailable: offlineEmails.isCacheAvailable,
+
+    // Update single email (for mark read, star, etc.)
+    updateEmail: offlineEmails.updateEmail,
   };
 }
 

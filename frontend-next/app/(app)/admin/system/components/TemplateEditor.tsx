@@ -239,7 +239,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
           {saveMessage && (
             <div className={cn(
               "flex items-center gap-1 text-sm",
-              saveMessage.type === "success" ? "text-green-600" : "text-destructive"
+              saveMessage.type === "success" ? "text-green-600 dark:text-green-400" : "text-destructive"
             )}>
               {saveMessage.type === "success" ? (
                 <CheckCircle2 className="h-4 w-4" />

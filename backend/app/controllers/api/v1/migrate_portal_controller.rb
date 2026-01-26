@@ -82,7 +82,7 @@ module Api
         stripe_service = StripeSubscriptionService.new
 
         # Determine return URLs
-        frontend_url = ENV.fetch("FRONTEND_URL", "https://teeemlive.vercel.app")
+        frontend_url = ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
         success_url = "#{frontend_url}/migrate/#{@invite.token}?payment=success"
         cancel_url = "#{frontend_url}/migrate/#{@invite.token}?payment=cancelled"
 

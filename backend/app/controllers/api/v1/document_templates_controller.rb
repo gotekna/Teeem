@@ -371,7 +371,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     site_id = params[:site_id]
     drive_id = params[:drive_id]
     item_id = params[:item_id]
-    sharepoint_path = params[:sharepoint_path]
+    storage_path_param = params[:sharepoint_path] || params[:storage_path]
 
     if [ site_id, drive_id, item_id ].any?(&:blank?)
       render json: {
@@ -395,10 +395,10 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       end
 
       @document_template.update!(
-        sharepoint_site_id: site_id,
-        sharepoint_drive_id: drive_id,
-        sharepoint_item_id: item_id,
-        sharepoint_path: sharepoint_path || item[:name]
+        storage_site_id: site_id,
+        storage_drive_id: drive_id,
+        storage_item_id: item_id,
+        storage_path: storage_path_param || item[:name]
       )
 
       render json: {
@@ -512,9 +512,15 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         return
       end
 
-      # Get the document drive
+      # Get the document drive - SSoT: Use configured drive name from StorageConfiguration
       drives = client.get_site_drives(teeem_site[:id])
-      documents_drive = drives.find { |d| d[:name] == "Shared Documents" || d[:name] == "Documents" }
+      # SSoT: drive_name comes from StorageConfiguration - try configured name first, then common defaults
+      configured_drive_name = StorageConfiguration.instance&.drive_name
+      documents_drive = drives.find do |d|
+        (configured_drive_name.present? && d[:name] == configured_drive_name) ||
+        d[:name] == "Documents" ||
+        d[:name] == "Shared Documents"
+      end
 
       unless documents_drive
         render json: {
@@ -678,8 +684,10 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       output_naming_pattern: template.output_naming_pattern,
       is_active: template.is_active,
       sort_order: template.sort_order,
-      sharepoint_linked: template.sharepoint_linked?,
-      sharepoint_path: template.sharepoint_path,
+      sharepoint_linked: template.storage_linked?,
+      storage_path: template.storage_path,
+      # Legacy key for backwards compatibility
+      sharepoint_path: template.storage_path,
       # New unified template fields
       template_type: template.template_type,
       local_template_path: template.local_template_path,
@@ -693,9 +701,13 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     if include_fields
       json[:available_fields] = template.available_fields
       json[:data_schema] = template.data_schema
-      json[:sharepoint_site_id] = template.sharepoint_site_id
-      json[:sharepoint_drive_id] = template.sharepoint_drive_id
-      json[:sharepoint_item_id] = template.sharepoint_item_id
+      json[:storage_site_id] = template.storage_site_id
+      json[:storage_drive_id] = template.storage_drive_id
+      json[:storage_item_id] = template.storage_item_id
+      # Legacy keys for backwards compatibility
+      json[:sharepoint_site_id] = template.storage_site_id
+      json[:sharepoint_drive_id] = template.storage_drive_id
+      json[:sharepoint_item_id] = template.storage_item_id
     end
 
     json

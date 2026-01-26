@@ -1,6 +1,8 @@
 module Api
   module V1
     class CorporateCompanyDocumentsController < ApplicationController
+      include DocumentProviderAware
+
       skip_before_action :authorize_request, only: [ :content ]
       before_action :set_document, only: [ :show, :update, :destroy, :download, :content, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback, :upload_edited, :split, :restore ]
 
@@ -74,10 +76,42 @@ module Api
 
         # Handle file upload via Active Storage
         if params[:file].present?
-          @document.file.attach(params[:file])
-          @document.file_name = params[:file].original_filename
-          @document.file_size = params[:file].size
-          @document.mime_type = params[:file].content_type
+          original_file = params[:file]
+          file_content = original_file.read
+          original_file.rewind
+
+          # Auto-convert Word to PDF for official document types
+          if should_auto_convert_to_pdf?(original_file.original_filename, @document.folder)
+            conversion_result = convert_word_to_pdf(file_content, original_file.original_filename)
+
+            if conversion_result[:success]
+              # SSoT: Attach the converted PDF via StorageBlob (Jan 2026)
+              @document.attach_file(
+                conversion_result[:pdf],
+                filename: conversion_result[:filename],
+                content_type: "application/pdf"
+              )
+              @document.mime_type = "application/pdf"
+              @document.notes = "Auto-converted from Word document"
+            else
+              # Conversion failed - attach original via StorageBlob
+              Rails.logger.warn "[CorporateCompanyDocuments] Word→PDF conversion failed: #{conversion_result[:error]}"
+              @document.attach_file(
+                file_content,
+                filename: original_file.original_filename,
+                content_type: original_file.content_type
+              )
+              @document.mime_type = original_file.content_type
+            end
+          else
+            # SSoT: No conversion needed - attach original via StorageBlob (Jan 2026)
+            @document.attach_file(
+              file_content,
+              filename: original_file.original_filename,
+              content_type: original_file.content_type
+            )
+            @document.mime_type = original_file.content_type
+          end
         end
 
         if @document.save
@@ -120,119 +154,63 @@ module Api
       end
 
       # GET /api/v1/company_documents/:id/download
-      # Downloads file from SharePoint via sharepoint_file_id (SSoT)
+      # SSoT: Delegates to DocumentStorageService for all storage providers
       def download
-        unless @document.sharepoint_file_id.present?
-          return render json: {
-            success: false,
-            error: "No SharePoint file ID - document not synced to SharePoint"
-          }, status: :not_found
-        end
+        service = DocumentStorageService.new
+        result = service.download(@document)
 
-        begin
-          credential = MicrosoftCredential.sharepoint_credential
-          unless credential
-            return render json: {
-              success: false,
-              error: "OneDrive credentials not available"
-            }, status: :service_unavailable
-          end
-
-          client = MicrosoftGraphClient.new(credential)
-          file_content = client.download_file(@document.sharepoint_file_id)
-
-          send_data file_content,
-            type: @document.mime_type || "application/octet-stream",
+        if result[:success]
+          send_data result[:content],
+            type: result[:content_type] || @document.mime_type || "application/octet-stream",
             disposition: "attachment",
-            filename: @document.file_name || "document"
-        rescue MicrosoftGraphClient::APIError => e
-          render json: {
-            success: false,
-            error: "SharePoint download failed: #{e.message}"
-          }, status: :bad_gateway
+            filename: result[:filename] || @document.file_name || "document"
+        else
+          render json: { success: false, error: result[:error] },
+            status: result[:status] || :internal_server_error
         end
       end
 
       # GET /api/v1/company_documents/:id/content
-      # Serves document content from SharePoint (primary) or Active Storage (fallback)
-      # SSoT self-healing: verifies SharePoint filename matches before serving
+      # SSoT: Delegates to DocumentStorageService for all storage providers
       def content
         # Set CORS headers for frontend access
         response.headers["Access-Control-Allow-Origin"] = request.headers["Origin"] || "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
 
-        # Priority 1: SharePoint file (SSoT for synced documents)
-        if @document.sharepoint_file_id.present?
-          serve_from_sharepoint
+        # SSoT: DocumentStorageService handles S3, SharePoint, and ActiveStorage
+        service = DocumentStorageService.new
+        result = service.download(@document)
 
-        # Priority 2: Active Storage blob (for manual uploads)
-        elsif @document.file.attached?
-          serve_from_active_storage
-
-        # No file available
+        if result[:success]
+          send_data result[:content],
+            type: result[:content_type],
+            disposition: "inline",
+            filename: result[:filename]
         else
-          render json: {
-            success: false,
-            error: "No file available - document has no SharePoint ID and no uploaded file"
-          }, status: :not_found
+          render json: { success: false, error: result[:error] },
+            status: result[:status] || :internal_server_error
         end
       end
 
       # GET /api/v1/company_documents/:id/preview
-      # Returns an embeddable preview URL for OneDrive files
-      # No fallback - fail fast if SharePoint doesn't work
+      # SSoT: Returns a preview/download URL from the configured storage provider
       def preview
-        unless @document.sharepoint_file_id.present?
-          return render json: {
-            success: false,
-            error: "No SharePoint file ID - document not synced"
-          }, status: :not_found
-        end
+        service = DocumentStorageService.new
+        result = service.download_url(@document, expires_in: 3600)
 
-        begin
-          credential = MicrosoftCredential.sharepoint_credential
-          unless credential
-            return render json: {
-              success: false,
-              error: "OneDrive credentials not available"
-            }, status: :service_unavailable
-          end
-
-          client = MicrosoftGraphClient.new(credential)
-          preview_url = client.get_preview_url(@document.sharepoint_file_id)
-
-          if preview_url
-            render json: {
-              success: true,
-              preview_url: preview_url,
-              file_name: @document.file_name,
-              file_type: @document.file_name&.split(".")&.last&.downcase
-            }
-          else
-            render json: {
-              success: false,
-              error: "Preview not available for this file type"
-            }, status: :unprocessable_entity
-          end
-        rescue MicrosoftGraphClient::AuthenticationError => e
-          Rails.logger.error "OneDrive auth error getting preview: #{e.message}"
+        if result[:success]
+          render json: {
+            success: true,
+            preview_url: result[:url],
+            file_name: @document.file_name,
+            file_type: @document.file_name&.split(".")&.last&.downcase
+          }
+        else
           render json: {
             success: false,
-            error: "OneDrive authentication error: #{e.message}"
-          }, status: :unauthorized
-        rescue MicrosoftGraphClient::APIError => e
-          Rails.logger.error "OneDrive API error getting preview: #{e.message}"
-          render json: {
-            success: false,
-            error: "SharePoint API error: #{e.message}"
-          }, status: :bad_gateway
-        rescue ActiveRecord::Encryption::Errors::Decryption => e
-          Rails.logger.error "OneDrive credential decryption error: #{e.message}"
-          render json: {
-            success: false,
-            error: "OneDrive credentials not available in this environment"
-          }, status: :service_unavailable
+            error: result[:error]
+          }, status: result[:status] || :internal_server_error
         end
       end
 
@@ -263,7 +241,7 @@ module Api
       # Triggers AI analysis of document naming
       def ai_verify
         # Check if OneDrive file exists
-        unless @document.sharepoint_file_id.present?
+        unless @document.storage_reference.present?
           return render json: {
             success: false,
             error: "No OneDrive file available for this document"
@@ -495,11 +473,6 @@ module Api
         create_new = params[:create_new] == "true" || params[:create_new] == true
 
         begin
-          credential = MicrosoftCredential.sharepoint_credential
-          raise "No active OneDrive credential" unless credential
-
-          client = MicrosoftGraphClient.new(credential)
-
           # Get content from either file upload or base64 data
           content = if params[:file].present?
             params[:file].read
@@ -507,38 +480,58 @@ module Api
             Base64.decode64(params[:file_data])
           end
 
+          service = DocumentStorageService.new
+
           if create_new
-            # Create a new document in the same folder
-            file_info = client.get_item(@document.sharepoint_file_id)
-            parent_folder_id = file_info.dig("parentReference", "id")
-
-            result = client.upload_file_content(parent_folder_id, new_filename, content)
-
-            # Create new document record
+            # Create a new document record first
             new_document = CorporateCompanyDocument.create!(
               company_id: @document.company_id,
               file_name: new_filename,
+              mime_type: @document.mime_type || Marcel::MimeType.for(name: new_filename),
               folder: @document.folder,
               document_type: params[:document_type] || @document.document_type,
               source: "edited",
-              sharepoint_file_id: result[:id],
               file_size: content.bytesize,
               financial_years: @document.financial_years,
               ai_verification_status: "pending",
               ai_analysis_notes: "Created from edited version of #{@document.file_name}"
             )
 
+            # Upload to storage using DocumentStorageService
+            result = service.upload(
+              scope: :corporate,
+              record: new_document,
+              file: content,
+              filename: new_filename,
+              tokens: { CompanyName: @document.corporate_company&.name }
+            )
+
+            unless result[:success]
+              new_document.destroy
+              raise result[:error]
+            end
+
             render json: {
               success: true,
               message: "New document created successfully",
-              document: new_document.as_json(
+              document: new_document.reload.as_json(
                 include: { company: {} },
                 methods: [ :formatted_document_type, :file_size_mb ]
               )
             }
           else
-            # Replace existing file
-            client.update_file_content(@document.sharepoint_file_id, content)
+            # Replace existing file using DocumentStorageService
+            result = service.upload(
+              scope: :corporate,
+              record: @document,
+              file: content,
+              filename: new_filename,
+              tokens: { CompanyName: @document.corporate_company&.name }
+            )
+
+            unless result[:success]
+              raise result[:error]
+            end
 
             # Update document record
             @document.update!(
@@ -765,85 +758,25 @@ module Api
         end
       end
 
-      # Serve document content from SharePoint with SSoT self-healing
-      def serve_from_sharepoint
-        credential = MicrosoftCredential.sharepoint_credential
-        unless credential
-          return render json: {
-            success: false,
-            error: "OneDrive credentials not available in this environment"
-          }, status: :service_unavailable
-        end
+      # Check if file should be auto-converted from Word to PDF
+      # Applies to: ASIC, Company folders (official documents)
+      def should_auto_convert_to_pdf?(filename, folder)
+        return false unless WordToPdfConverter.convertible?(filename)
 
-        client = MicrosoftGraphClient.new(credential)
-
-        # === SSoT SELF-HEALING ===
-        # Verify SharePoint file matches before serving content
-        begin
-          sp_file = client.get_file(@document.sharepoint_file_id)
-          sp_filename = sp_file["name"]
-
-          if sp_filename != @document.file_name
-            Rails.logger.warn "[SSoT SELF-HEAL] Document #{@document.id} mismatch: " \
-              "DB='#{@document.file_name}', SharePoint='#{sp_filename}'"
-
-            # Search for correct file in company's SharePoint folder
-            correct_file_id = find_correct_sharepoint_file(client, @document)
-
-            if correct_file_id && correct_file_id != @document.sharepoint_file_id
-              old_id = @document.sharepoint_file_id
-              @document.update!(sharepoint_file_id: correct_file_id)
-              Rails.logger.info "[SSoT SELF-HEAL] Fixed document #{@document.id}: " \
-                "#{old_id} -> #{correct_file_id}"
-            end
-          end
-        rescue MicrosoftGraphClient::APIError => e
-          # File may not exist - log and continue, download will fail gracefully
-          Rails.logger.warn "[SSoT SELF-HEAL] Cannot verify #{@document.id}: #{e.message}"
-        end
-        # === END SELF-HEALING ===
-
-        file_content = client.download_file(@document.sharepoint_file_id)
-        content_type = determine_content_type(@document.file_name)
-
-        send_data file_content,
-          type: content_type,
-          disposition: "inline",
-          filename: @document.file_name
-      rescue MicrosoftGraphClient::APIError => e
-        render json: {
-          success: false,
-          error: "Failed to fetch file from SharePoint: #{e.message}"
-        }, status: :bad_gateway
-      rescue StandardError => e
-        Rails.logger.error "Document content fetch error: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to fetch document content"
-        }, status: :internal_server_error
+        # Folders that should always have PDFs (official documents)
+        pdf_required_folders = %w[asic company registry]
+        folder&.downcase.in?(pdf_required_folders)
       end
 
-      # Serve document content from Active Storage (for manual uploads)
-      def serve_from_active_storage
-        content_type = @document.file.content_type || determine_content_type(@document.file_name)
-
-        send_data @document.file.download,
-          type: content_type,
-          disposition: "inline",
-          filename: @document.file_name
-      rescue ActiveStorage::FileNotFoundError => e
-        Rails.logger.error "Active Storage file not found for document #{@document.id}: #{e.message}"
-        render json: {
-          success: false,
-          error: "File not found in storage"
-        }, status: :not_found
-      rescue StandardError => e
-        Rails.logger.error "Active Storage download error for document #{@document.id}: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to download file"
-        }, status: :internal_server_error
+      # Convert Word document to PDF using WordToPdfConverter
+      # Checks for signature and adds one if missing
+      def convert_word_to_pdf(content, filename)
+        converter = WordToPdfConverter.new(add_signature_if_missing: true)
+        converter.convert(content, filename: filename)
       end
+
+      # NOTE: serve_from_sharepoint, serve_from_active_storage, serve_from_s3_compatible
+      # have been consolidated into DocumentStorageService.download (SSoT)
     end
   end
 end

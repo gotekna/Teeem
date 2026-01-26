@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils/formatters";
 import { format, isValid } from "date-fns";
 
 // Safe date formatter
@@ -136,15 +137,6 @@ function XeroPdfReportsCard({
   // Financial years list
   const financialYears = ["FY2025", "FY2024", "FY2023", "FY2022"];
 
-  // Format currency for display
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
   React.useEffect(() => {
     loadReports();
   }, [companyId, reportType]);
@@ -206,11 +198,11 @@ function XeroPdfReportsCard({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
-        return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
+        return <Badge className="bg-status-success text-status-success-foreground">Completed</Badge>;
       case "generating":
-        return <Badge className="bg-yellow-100 text-yellow-800">Generating...</Badge>;
+        return <Badge className="bg-status-warning text-status-warning-foreground">Generating...</Badge>;
       case "failed":
-        return <Badge className="bg-red-100 text-red-800">Failed</Badge>;
+        return <Badge className="bg-status-error text-status-error-foreground">Failed</Badge>;
       default:
         return <Badge className="bg-muted text-foreground">Pending</Badge>;
     }
@@ -307,15 +299,15 @@ function XeroPdfReportsCard({
                     <td className="py-2 px-3">{getStatusBadge(report.status)}</td>
                     {reportType === "profit_loss" && (
                       <>
-                        <td className="py-2 px-3 text-right font-mono text-green-600">
+                        <td className="py-2 px-3 text-right font-mono text-green-600 dark:text-green-400">
                           {report.total_revenue ? formatCurrency(report.total_revenue) : "—"}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono text-red-600">
+                        <td className="py-2 px-3 text-right font-mono text-red-600 dark:text-red-400">
                           {report.total_expenses ? formatCurrency(report.total_expenses) : "—"}
                         </td>
                         <td className="py-2 px-3 text-right font-mono font-semibold">
                           {report.net_profit !== undefined ? (
-                            <span className={report.net_profit >= 0 ? "text-green-600" : "text-red-600"}>
+                            <span className={report.net_profit >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                               {formatCurrency(report.net_profit)}
                             </span>
                           ) : "—"}
@@ -324,13 +316,13 @@ function XeroPdfReportsCard({
                     )}
                     {reportType === "balance_sheet" && (
                       <>
-                        <td className="py-2 px-3 text-right font-mono text-green-600">
+                        <td className="py-2 px-3 text-right font-mono text-green-600 dark:text-green-400">
                           {report.total_assets ? formatCurrency(report.total_assets) : "—"}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono text-red-600">
+                        <td className="py-2 px-3 text-right font-mono text-red-600 dark:text-red-400">
                           {report.total_liabilities ? formatCurrency(report.total_liabilities) : "—"}
                         </td>
-                        <td className="py-2 px-3 text-right font-mono font-semibold text-blue-600">
+                        <td className="py-2 px-3 text-right font-mono font-semibold text-blue-600 dark:text-blue-400">
                           {report.net_assets !== undefined ? formatCurrency(report.net_assets) : "—"}
                         </td>
                       </>

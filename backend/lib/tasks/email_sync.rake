@@ -1,4 +1,4 @@
-namespace :email_warehouse do
+namespace :synced_email do
   # DEPRECATED: Per-user Outlook credentials have been removed
   # Email sync now uses org-wide credentials via OrgEmailSyncJob
   desc "DEPRECATED - Run full sync (use OrgEmailSyncJob instead)"
@@ -9,9 +9,9 @@ namespace :email_warehouse do
     puts "To manually trigger org sync, run:"
     puts "  OrgEmailSyncJob.perform_now('full')"
     puts ""
-    puts "Total emails in warehouse: #{EmailWarehouse.count}"
-    puts "Assigned to jobs: #{EmailWarehouse.assigned.count}"
-    puts "Unassigned: #{EmailWarehouse.unassigned.count}"
+    puts "Total emails in warehouse: #{SyncedEmail.count}"
+    puts "Assigned to jobs: #{SyncedEmail.assigned.count}"
+    puts "Unassigned: #{SyncedEmail.unassigned.count}"
   end
 
   # DEPRECATED: Per-user Outlook credentials have been removed
@@ -25,12 +25,12 @@ namespace :email_warehouse do
   task stats: :environment do
     puts "Email Warehouse Stats"
     puts "====================="
-    puts "Total emails: #{EmailWarehouse.count}"
-    puts "Assigned to jobs: #{EmailWarehouse.assigned.count}"
-    puts "Unassigned: #{EmailWarehouse.unassigned.count}"
-    puts "Unique conversations: #{EmailWarehouse.distinct.count(:conversation_id)}"
-    puts "Oldest email: #{EmailWarehouse.minimum(:received_at)}"
-    puts "Newest email: #{EmailWarehouse.maximum(:received_at)}"
+    puts "Total emails: #{SyncedEmail.count}"
+    puts "Assigned to jobs: #{SyncedEmail.assigned.count}"
+    puts "Unassigned: #{SyncedEmail.unassigned.count}"
+    puts "Unique conversations: #{SyncedEmail.distinct.count(:conversation_id)}"
+    puts "Oldest email: #{SyncedEmail.minimum(:received_at)}"
+    puts "Newest email: #{SyncedEmail.maximum(:received_at)}"
   end
 
   desc "Clear stuck sync status"
@@ -39,11 +39,11 @@ namespace :email_warehouse do
       status.update(
         status: "completed",
         last_sync_at: Time.current,
-        total_emails_synced: EmailWarehouse.count
+        total_emails_synced: SyncedEmail.count
       )
       puts "Cleared status for user #{status.user_id}"
     end
-    puts "Done. Total emails in warehouse: #{EmailWarehouse.count}"
+    puts "Done. Total emails in warehouse: #{SyncedEmail.count}"
   end
 
   desc "Backfill body_text from body_html for existing emails"
@@ -51,7 +51,7 @@ namespace :email_warehouse do
     require "cgi"
 
     # Find emails with HTML body but no text body
-    emails_to_fix = EmailWarehouse.where(body_text: [ nil, "" ]).where.not(body_html: [ nil, "" ])
+    emails_to_fix = SyncedEmail.where(body_text: [ nil, "" ]).where.not(body_html: [ nil, "" ])
     total = emails_to_fix.count
 
     puts "Found #{total} emails with HTML body but no text body"
@@ -98,8 +98,8 @@ namespace :email_warehouse do
     puts "  Errors: #{errors}"
 
     # Show new stats
-    with_body = EmailWarehouse.where.not(body_text: [ nil, "" ]).count
-    total_emails = EmailWarehouse.count
+    with_body = SyncedEmail.where.not(body_text: [ nil, "" ]).count
+    total_emails = SyncedEmail.count
     puts ""
     puts "New stats:"
     puts "  Emails with body_text: #{with_body}/#{total_emails} (#{(with_body.to_f / total_emails * 100).round(1)}%)"
@@ -111,9 +111,9 @@ namespace :email_warehouse do
     # Unlike OrgEmailSyncJob, this runs sequentially without timeout to handle large folders
     #
     # Usage:
-    #   rails email_warehouse:sync_subfolders
-    #   YEARS=5 rails email_warehouse:sync_subfolders  # 5 year lookback
-    #   USER=robert@tekna.com.au rails email_warehouse:sync_subfolders  # Single user
+    #   rails synced_email:sync_subfolders
+    #   YEARS=5 rails synced_email:sync_subfolders  # 5 year lookback
+    #   USER=robert@tekna.com.au rails synced_email:sync_subfolders  # Single user
 
     years = (ENV["YEARS"] || 3).to_i
     target_user = ENV["USER"]
@@ -169,7 +169,7 @@ namespace :email_warehouse do
         next if total_items == 0
 
         # Check how many are already in warehouse
-        existing = EmailWarehouse.where(folder_name: folder_name, mailbox_owner_email: user_email).count
+        existing = SyncedEmail.where(folder_name: folder_name, mailbox_owner_email: user_email).count
         puts "    Already in warehouse: #{existing}"
 
         # Sync folder (no timeout, sequential)
@@ -238,7 +238,7 @@ namespace :email_warehouse do
       end
     end
 
-    email = EmailWarehouse.find_or_initialize_by(internet_message_id: internet_message_id)
+    email = SyncedEmail.find_or_initialize_by(internet_message_id: internet_message_id)
 
     to_emails = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
     cc_emails = (email_data["ccRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
@@ -291,7 +291,7 @@ namespace :email_warehouse do
 
   desc "Auto-match all unassigned emails to jobs"
   task auto_match: :environment do
-    unassigned = EmailWarehouse.unassigned
+    unassigned = SyncedEmail.unassigned
     total = unassigned.count
     matched = 0
 
@@ -314,6 +314,6 @@ namespace :email_warehouse do
     puts "Auto-matching complete!"
     puts "  Total processed: #{total}"
     puts "  Matched to jobs: #{matched}"
-    puts "  Still unassigned: #{EmailWarehouse.unassigned.count}"
+    puts "  Still unassigned: #{SyncedEmail.unassigned.count}"
   end
 end

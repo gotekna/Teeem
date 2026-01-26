@@ -33,7 +33,6 @@ import {
   RefreshCw,
   BookOpen,
   TrendingUp,
-  ArrowLeft,
   CheckCircle,
   XCircle,
   Clock,
@@ -64,6 +63,7 @@ import {
   BarChart3,
   Send,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import RecurringInvoicesTab from "@/components/financial/RecurringInvoicesTab";
 import PaymentLinksTab from "@/components/financial/PaymentLinksTab";
 import DuplicateBillsTab from "@/components/financial/DuplicateBillsTab";
@@ -110,7 +110,6 @@ import CurrenciesTab from "@/components/financial/CurrenciesTab";
 import BudgetScenariosTab from "@/components/financial/BudgetScenariosTab";
 import ReportsTab from "@/components/financial/ReportsTab";
 import AITab from "@/components/financial/AITab";
-import Link from "next/link";
 import { api } from "@/lib/api";
 
 interface Provider {
@@ -462,11 +461,11 @@ export default function GlPage() {
   const getSyncStepIcon = (status: SyncStepStatus) => {
     switch (status) {
       case "completed":
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
+        return <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />;
       case "failed":
-        return <XCircle className="h-5 w-5 text-red-500" />;
+        return <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
       case "running":
-        return <RefreshCw className="h-5 w-5 text-blue-500 animate-spin" />;
+        return <RefreshCw className="h-5 w-5 text-blue-500 dark:text-blue-400 animate-spin" />;
       case "skipped":
         return <Clock className="h-5 w-5 text-muted-foreground" />;
       default:
@@ -494,11 +493,11 @@ export default function GlPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />;
       case "failed":
-        return <XCircle className="h-4 w-4 text-red-500" />;
+        return <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />;
       case "running":
-        return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
+        return <RefreshCw className="h-4 w-4 text-blue-500 dark:text-blue-400 animate-spin" />;
       default:
         return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
@@ -506,11 +505,11 @@ export default function GlPage() {
 
   const getAccountTypeBadge = (type: string) => {
     const colors: Record<string, string> = {
-      asset: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-      liability: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
-      equity: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-      revenue: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
-      expense: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300",
+      asset: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300",
+      liability: "bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300",
+      equity: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900 dark:text-purple-300",
+      revenue: "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300",
+      expense: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900 dark:text-orange-300",
     };
     return colors[type] || "bg-muted text-foreground dark:bg-card dark:text-muted-foreground";
   };
@@ -532,11 +531,7 @@ export default function GlPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/financial">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
+<BackButton fallbackHref="/financial" />
           {/* T.A.S. Logo Badge */}
           <div className="w-10 h-10 bg-foreground text-background flex items-center justify-center shrink-0">
             <span className="text-xl font-bold">$</span>
@@ -629,9 +624,9 @@ export default function GlPage() {
                   <SelectItem key={p.tenant_id} value={p.tenant_id}>
                     <div className="flex items-center gap-2">
                       {p.connected ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
                       ) : (
-                        <XCircle className="h-4 w-4 text-red-500" />
+                        <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
                       )}
                       {p.tenant_name}
                       {p.account_count ? ` (${p.account_count})` : ""}
@@ -890,12 +885,12 @@ export default function GlPage() {
                     >
                       <TableCell>
                         {provider.connected ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                          <Badge variant="outline" className="bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
                             <CheckCircle className="h-3 w-3 mr-1" />
                             Connected
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                          <Badge variant="outline" className="bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300">
                             <XCircle className="h-3 w-3 mr-1" />
                             Disconnected
                           </Badge>
@@ -915,12 +910,12 @@ export default function GlPage() {
                               {formatTimeAgo(provider.last_sync_at)}
                             </span>
                             {provider.last_sync_status === "healthy" ? (
-                              <Badge variant="outline" className="w-fit text-xs bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                              <Badge variant="outline" className="w-fit text-xs bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400">
                                 <CheckCircle className="h-2.5 w-2.5 mr-1" />
                                 OK
                               </Badge>
                             ) : provider.last_sync_status === "failed" ? (
-                              <Badge variant="outline" className="w-fit text-xs bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" title={provider.last_sync_error || "Sync failed"}>
+                              <Badge variant="outline" className="w-fit text-xs bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300" title={provider.last_sync_error || "Sync failed"}>
                                 <XCircle className="h-2.5 w-2.5 mr-1" />
                                 Failed
                               </Badge>
@@ -1033,7 +1028,7 @@ export default function GlPage() {
                         </TableCell>
                         <TableCell>
                           {account.active ? (
-                            <Badge variant="outline" className="text-green-600">Active</Badge>
+                            <Badge variant="outline" className="text-green-600 dark:text-green-400">Active</Badge>
                           ) : (
                             <Badge variant="outline" className="text-muted-foreground">Inactive</Badge>
                           )}
@@ -1072,7 +1067,7 @@ export default function GlPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-blue-600">
+                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                         {chartOfAccounts.assets?.length || 0}
                       </div>
                     </CardContent>
@@ -1084,7 +1079,7 @@ export default function GlPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-red-600">
+                      <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                         {chartOfAccounts.liabilities?.length || 0}
                       </div>
                     </CardContent>
@@ -1096,7 +1091,7 @@ export default function GlPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-purple-600">
+                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                         {chartOfAccounts.equity?.length || 0}
                       </div>
                     </CardContent>
@@ -1108,7 +1103,7 @@ export default function GlPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-green-600">
+                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                         {chartOfAccounts.revenue?.length || 0}
                       </div>
                     </CardContent>
@@ -1120,7 +1115,7 @@ export default function GlPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold text-orange-600">
+                      <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                         {chartOfAccounts.expenses?.length || 0}
                       </div>
                     </CardContent>
@@ -1534,12 +1529,12 @@ export default function GlPage() {
               {/* Counts */}
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-4">
-                  <span className="flex items-center gap-1 text-green-600">
+                  <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
                     <CheckCircle className="h-4 w-4" />
                     {syncSteps.filter((s) => s.status === "completed").length} completed
                   </span>
                   {syncSteps.filter((s) => s.status === "failed").length > 0 && (
-                    <span className="flex items-center gap-1 text-red-600">
+                    <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
                       <XCircle className="h-4 w-4" />
                       {syncSteps.filter((s) => s.status === "failed").length} failed
                     </span>

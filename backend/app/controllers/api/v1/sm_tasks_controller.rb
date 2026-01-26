@@ -9,11 +9,14 @@ module Api
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category,
-        :attachments, :add_attachment, :remove_attachment, :upload_attachment,
-        :download_attachment_for_email, :create_attachment_share_link,
+        :attachments, :add_attachment, :remove_attachment, :update_attachment, :upload_attachment,
+        :presign_attachment, :confirm_attachment,
+        :download_attachment_for_email, :create_attachment_share_link, :download_all_response_files,
         :follow, :unfollow, :followers, :add_follower, :remove_follower,
         :history,
-        :compare_to_template, :sync_from_template
+        :compare_to_template, :sync_from_template,
+        :email_supplier, :create_case,
+        :email_link_options, :bulk_link_emails, :search_contacts, :match_keywords, :clear_matched_emails, :link_email_thread
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)
@@ -22,9 +25,17 @@ module Api
       def index
         @tasks = SmTask.ordered.includes(
           :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
-          :action_items, :start_workflow, :complete_workflow, :completion_document_type,
-          sm_task_attachments: :attachable
+          :start_workflow, :complete_workflow, :completion_document_type,
+          :created_by, :task_followers, :source_action_item, :parent_task, :case_record,
+          # N+1 fix: action_items needs checked_by, responded_by, and delegated_task with children/counts for action_item_to_json
+          action_items: [:checked_by, :responded_by, { delegated_task: [:action_items, :sm_task_attachments, { children: :assigned_user }] }],
+          # N+1 fix: sm_task_attachments needs added_by for attachment_to_json
+          sm_task_attachments: [:added_by, :attachable],
+          # N+1 fix: children (subtasks) with assigned_user for SubtaskList display
+          children: [:assigned_user]
         )
+        # Note: :last_assigner is a method (queries activity_logs), not an association - cannot be eager loaded
+        # Note: For SyncedEmail attachables, email_attachments + storage_blob are loaded separately below
 
         # Privacy filter - only show tasks visible to current user
         @tasks = @tasks.visible_to(current_user)
@@ -56,9 +67,34 @@ module Api
           @tasks = @tasks.for_user_roles(user) if user
         end
 
+        # Apply limit before preloading nested email_attachments
+        tasks_to_render = @tasks.limit(500).to_a
+
+        # N+1 fix: Preload email_attachments + storage_blob for SyncedEmail attachables
+        # This is a separate preload because polymorphic associations don't support nested includes
+        synced_email_ids = tasks_to_render.flat_map do |task|
+          task.sm_task_attachments
+              .select { |a| a.attachable_type == "SyncedEmail" }
+              .map(&:attachable_id)
+        end.uniq
+        if synced_email_ids.any?
+          # Preload in batch, then the attachment_to_json will use cached data
+          preloaded_emails = SyncedEmail.where(id: synced_email_ids)
+                                           .includes(email_attachments: :storage_blob)
+                                           .index_by(&:id)
+          # Inject preloaded emails into attachables to avoid re-query
+          tasks_to_render.each do |task|
+            task.sm_task_attachments.each do |att|
+              if att.attachable_type == "SyncedEmail" && preloaded_emails[att.attachable_id]
+                att.attachable = preloaded_emails[att.attachable_id]
+              end
+            end
+          end
+        end
+
         render json: {
           success: true,
-          tasks: @tasks.limit(500).map { |task| task_to_json_with_job(task) },
+          tasks: tasks_to_render.map { |task| task_to_json_with_job(task) },
           meta: {
             total_count: @tasks.count,
             active_count: SmTask.active.count,
@@ -169,6 +205,13 @@ module Api
         @task.created_by = current_user
 
         if @task.save
+          # Recalculate dates if task was created with dependencies
+          # SSoT: Uses same logic as update (recalculate_task_dates_from_predecessors)
+          # Fix: Dependencies should determine start_date, not user input
+          if @task.predecessor_ids.present? && !@task.locked?
+            recalculate_task_dates_from_predecessors(@task)
+          end
+
           # Add followers if provided
           if params[:follower_ids].present?
             Array(params[:follower_ids]).each do |user_id|
@@ -356,6 +399,19 @@ module Api
         # Track if predecessor_ids is changing (for date recalculation)
         predecessor_ids_changing = params[:sm_task]&.key?(:predecessor_ids)
 
+        # Auto-backup predecessors when breaking dependencies
+        # SSoT: When dependency_broken is set to true, backup current predecessors
+        # Use ActiveModel cast to handle string "true" vs boolean true
+        breaking_deps = ActiveModel::Type::Boolean.new.cast(params[:sm_task]&.dig(:dependency_broken))
+        if breaking_deps && !@task.dependency_broken
+          # Backup current predecessors before they're cleared
+          if @task.predecessor_ids.present?
+            @task.predecessor_ids_backup = @task.predecessor_ids
+          end
+          @task.dependency_broken_at = Time.current
+          @task.dependency_broken_by_id = current_user&.id
+        end
+
         if @task.update(sm_task_params)
           # Create notification if task was assigned to a new user
           notify_task_assignment(@task)
@@ -384,6 +440,39 @@ module Api
         render json: {
           success: true,
           message: "Task deleted successfully"
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/recalculate_dates
+      # Force recalculation of task dates from dependencies
+      # Useful for fixing tasks where dependency dates weren't applied correctly
+      def recalculate_dates
+        if @task.locked?
+          return render json: {
+            success: false,
+            error: "Cannot recalculate dates for locked task"
+          }, status: :unprocessable_entity
+        end
+
+        if @task.predecessor_ids.empty?
+          return render json: {
+            success: false,
+            error: "Task has no dependencies to calculate from"
+          }, status: :unprocessable_entity
+        end
+
+        old_start = @task.start_date
+        old_end = @task.end_date
+
+        recalculate_task_dates_from_predecessors(@task)
+        @task.reload
+
+        render json: {
+          success: true,
+          message: "Dates recalculated from dependencies",
+          old_dates: { start_date: old_start, end_date: old_end },
+          new_dates: { start_date: @task.start_date, end_date: @task.end_date },
+          sm_task: task_to_json(@task)
         }
       end
 
@@ -460,10 +549,11 @@ module Api
         if result[:success]
           render json: {
             success: true,
-            message: "Task completed",
+            message: result[:already_completed] ? "Task was already completed" : "Task completed",
             sm_task: task_to_json(result[:task]),
             spawned_tasks: result[:spawned_tasks].map { |t| task_to_json(t) },
-            cascade_completed_tasks: (result[:cascade_completed_tasks] || []).map { |t| task_to_json(t) }
+            cascade_completed_tasks: (result[:cascade_completed_tasks] || []).map { |t| task_to_json(t) },
+            already_completed: result[:already_completed] || false
           }
         else
           render json: {
@@ -657,6 +747,95 @@ module Api
         }
       end
 
+      # POST /api/v1/sm_tasks/:id/email_supplier
+      # Send email notification to supplier
+      def email_supplier
+        message = params[:message] || params[:reason]
+        supplier_email = params[:supplier_email]
+
+        # Try to get supplier email from task if not provided
+        if supplier_email.blank?
+          supplier_email = @task.supplier&.email
+        end
+
+        if supplier_email.blank?
+          return render json: {
+            success: false,
+            error: "No supplier email available for this task"
+          }, status: :unprocessable_entity
+        end
+
+        begin
+          SmNotificationMailer.supplier_notification(
+            to: supplier_email,
+            task: @task,
+            message: message,
+            sender: current_user
+          ).deliver_later
+
+          render json: {
+            success: true,
+            message: "Email sent to #{supplier_email}"
+          }
+        rescue => e
+          Rails.logger.error "[SmTasksController] Email supplier failed: #{e.message}"
+          render json: {
+            success: false,
+            error: "Failed to send email: #{e.message}"
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/sm_tasks/:id/create_case
+      # Creates a new case linked to this task
+      def create_case
+        if @task.case_id.present?
+          return render json: {
+            success: false,
+            error: "Task already linked to a case"
+          }, status: :unprocessable_entity
+        end
+
+        case_attrs = {
+          title: "Case: #{@task.name}",
+          case_type: "other",
+          description: build_case_description(@task),
+          priority: "normal",
+          status: "open",
+          assigned_to: current_user,
+          created_by: current_user
+        }
+
+        # Add job context
+        if @task.job.present?
+          case_attrs[:contact_id] = @task.job.client_id
+          case_attrs[:company_id] = @task.job.corporate_company_id
+        end
+
+        @case = CaseRecord.new(case_attrs)
+
+        if @case.save
+          @task.update!(case_id: @case.id)
+
+          # Link job to case if available
+          @case.add_job(@task.job, relevance: "direct") if @task.job.present?
+
+          render json: {
+            success: true,
+            case: {
+              id: @case.id,
+              case_number: @case.case_number,
+              title: @case.title
+            }
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: @case.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
       # GET /api/v1/sm_tasks/:id/working_drawings
       # Get working drawings page categorization for a task
       def working_drawings
@@ -753,22 +932,33 @@ module Api
       end
 
       # POST /api/v1/sm_tasks/:id/attachments
+      # Supports multiple document sources:
+      #   - email → SyncedEmail
+      #   - document → CorporateCompanyDocument (legacy/default)
+      #   - user_document → UserDocument (My Docs)
+      #   - warehouse_document → WarehouseDocument (job, contact, task docs)
       def add_attachment
         attachment_type = params[:attachment_type]
         attachable_id = params[:attachable_id]
+        action_item_id = params[:action_item_id]  # Optional: link to specific question
 
         attachable = case attachment_type
         when "email"
-          EmailWarehouse.find(attachable_id)
+          SyncedEmail.find(attachable_id)
         when "document"
           CorporateCompanyDocument.find(attachable_id)
+        when "user_document"
+          UserDocument.find(attachable_id)
+        when "warehouse_document"
+          WarehouseDocument.find(attachable_id)
         else
-          return render json: { success: false, error: "Invalid attachment type" }, status: :unprocessable_entity
+          return render json: { success: false, error: "Invalid attachment type: #{attachment_type}" }, status: :unprocessable_entity
         end
 
         attachment = @task.sm_task_attachments.create!(
           attachable: attachable,
           attachment_type: attachment_type,
+          action_item_id: action_item_id,
           notes: params[:notes],
           added_by: current_user
         )
@@ -793,16 +983,113 @@ module Api
         render json: { success: false, error: "Attachment not found" }, status: :not_found
       end
 
+      # GET /api/v1/sm_tasks/:id/suggested_emails
+      # Returns related emails that could be attached to this task, grouped by category.
+      # Categories: thread (same conversation), sender (same external party), subject (similar subject)
+      #
+      # Jan 2026: Changed from auto-attach to suggest-and-add pattern because the "same external party"
+      # criterion was too broad - it was attaching unrelated emails from the same sender.
+      def suggested_emails
+        # Find the source email (the email this task was created from)
+        source_attachment = @task.sm_task_attachments.emails
+                                 .where("notes LIKE ?", "Source email%")
+                                 .includes(:attachable)
+                                 .first
+        source_email = source_attachment&.attachable
+
+        unless source_email
+          return render json: {
+            success: true,
+            categories: {
+              thread: { emails: [], label: "Same Thread", description: "Emails from the same conversation" },
+              sender: { emails: [], label: "Same Sender", description: "Other emails from/to this person" },
+              subject: { emails: [], label: "Similar Subject", description: "Emails with similar subject line" }
+            },
+            already_attached_ids: [],
+            message: "No source email found for this task"
+          }
+        end
+
+        # Get already attached email IDs to filter them out
+        already_attached_ids = @task.sm_task_attachments.emails
+                                    .where(attachable_type: "SyncedEmail")
+                                    .pluck(:attachable_id)
+
+        # Find related emails grouped by category
+        grouped = find_related_emails_grouped(source_email, already_attached_ids)
+
+        render json: {
+          success: true,
+          categories: {
+            thread: {
+              emails: grouped[:thread].map { |e| email_to_suggestion_json(e) },
+              label: "Same Thread",
+              description: "Emails from the same conversation"
+            },
+            sender: {
+              emails: grouped[:sender].map { |e| email_to_suggestion_json(e) },
+              label: "Same Sender",
+              description: "Other emails from/to #{find_external_party_email(source_email) || 'this person'}"
+            },
+            subject: {
+              emails: grouped[:subject].map { |e| email_to_suggestion_json(e) },
+              label: "Similar Subject",
+              description: "Emails with similar subject line"
+            }
+          },
+          already_attached_ids: already_attached_ids,
+          source_email_id: source_email.id
+        }
+      end
+
+      # PATCH /api/v1/sm_tasks/:id/attachments/:attachment_id
+      # Update attachment properties (e.g., link to a question via action_item_id)
+      #
+      # Renaming SSoT:
+      #   - If warehouse_document exists: Update warehouse_document.display_name (Phase 3 SSoT)
+      #   - Fallback: Update attachment.display_name (for emails or legacy attachments)
+      def update_attachment
+        attachment = @task.sm_task_attachments.find(params[:attachment_id])
+
+        # Handle display_name update - SSoT is warehouse_document.display_name
+        if params[:display_name].present?
+          if attachment.warehouse_document.present?
+            # Phase 3 SSoT: Update warehouse_document directly
+            attachment.warehouse_document.update!(display_name: params[:display_name])
+            # Clear association cache so attachment.display_name sees updated value
+            attachment.reload
+          else
+            # Fallback for attachments without warehouse_document (emails, legacy)
+            attachment.update!(display_name: params[:display_name])
+          end
+        end
+
+        # Update other permitted fields
+        permitted = params.permit(:action_item_id, :category, :notes)
+        attachment.update!(permitted) if permitted.present?
+
+        render json: {
+          success: true,
+          attachment: attachment_to_json(attachment.reload).merge(
+            action_item_id: attachment.action_item_id
+          )
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Attachment not found" }, status: :not_found
+      rescue => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
       # POST /api/v1/sm_tasks/:id/attachments/upload
       # Upload a file and attach it to the task
       # Params:
       #   - file: The file to upload (required)
       #   - category: "info" or "response" (default: "info")
       #   - notes: Optional notes
-      # ALL files upload to SharePoint (enables sharing links for email):
-      #   - Tasks with job → /Jobs/{code}/{category}/{filename}
-      #   - Standalone tasks → /Tasks/Task-{id}/{category}/{filename}
-      # Falls back to ActiveStorage only if SharePoint is not configured.
+      #
+      # SSoT: ALL uploads use StorageBlob for deduplication and consistent storage
+      # Files stored at Blobs/{hash}.ext - provider-agnostic path
+      # Virtual folder paths handled by SmTaskAttachment.virtual_folder_path
       def upload_attachment
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :bad_request
@@ -812,61 +1099,46 @@ module Api
         category = params[:category] || "info"
 
         begin
-          # Always upload to SharePoint (enables sharing links for email)
-          # Falls back to ActiveStorage only if SharePoint isn't configured
-          if StorageConfiguration.instance&.connected?
-            upload_to_sharepoint(file, category)
-          else
-            upload_standard_file(file, category)
-          end
-        rescue TaskResponseUploader::UploadError => e
-          Rails.logger.error "[SmTasksController#upload_attachment] Response upload failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          # SSoT: Always use StorageBlob (Jan 2026 - removed TaskResponseUploader path)
+          # StorageBlob handles: deduplication, content_hash, provider-agnostic storage
+          upload_standard_file(file, category)
         rescue => e
           Rails.logger.error "[SmTasksController#upload_attachment] Failed: #{e.message}"
           render json: { success: false, error: "Upload failed: #{e.message}" }, status: :unprocessable_entity
         end
       end
 
-      # Upload file to SharePoint and create SmTaskAttachment
-      # Uses TaskResponseUploader which handles folder paths:
-      #   - Tasks with job → /Jobs/{code}/{category}/{filename}
-      #   - Standalone tasks → /Tasks/Task-{id}/{category}/{filename}
-      # Category determines subfolder: "response" → Responses, other → Task Attachments
-      def upload_to_sharepoint(file, category)
-        uploader = TaskResponseUploader.new(job: @task.job, task: @task, category: category)
-        result = uploader.upload(file)
-        doc = uploader.create_document_record(result, file)
+      # REMOVED (Jan 2026): upload_to_storage method
+      # Was SSoT violation - used TaskResponseUploader which bypassed StorageBlob
+      # All uploads now go through upload_standard_file which uses StorageBlob
 
-        attachment = @task.sm_task_attachments.create!(
-          attachable: doc,
-          attachment_type: "document",
-          category: category,
-          notes: params[:notes],
-          added_by: current_user,
-          action_item_id: params[:action_item_id]
-        )
-
-        render json: {
-          success: true,
-          attachment: attachment_to_json(attachment).merge(
-            sharepoint_url: result[:sharepoint_url],
-            action_item_id: attachment.action_item_id
-          )
-        }
-      end
-
-      # Standard file upload using ActiveStorage
+      # Standard file upload using StorageBlob (SSoT for file storage)
       # Creates a CorporateCompanyDocument record to track the file
+      # ActiveStorage was REMOVED (Jan 2026) - use StorageBlob for deduplication
       def upload_standard_file(file, category)
+        # Read file content for StorageBlob
+        content = file.read
+        file.rewind if file.respond_to?(:rewind)
+
+        # SSoT: StorageBlob handles deduplication via content_hash
+        blob = StorageBlob.find_or_create_for_content!(
+          content,
+          filename: file.original_filename,
+          content_type: file.content_type
+        )
+        blob.increment_reference!
+
         # Create a document record for the uploaded file
         # Document ownership: job_id OR contact_id (for personal tasks)
         doc_attrs = {
           file_name: file.original_filename,
           display_name: file.original_filename,
+          mime_type: file.content_type,  # Required for PDF/image preview
           document_type: "other",
           filed_by: current_user&.name,
-          uploaded_at: Time.current
+          uploaded_at: Time.current,
+          storage_blob: blob,  # SSoT: Link to StorageBlob (replaces ActiveStorage)
+          content_hash: blob.content_hash
         }
 
         # SSoT: Task is the primary owner for task attachments
@@ -882,9 +1154,6 @@ module Api
         end
 
         doc = CorporateCompanyDocument.create!(doc_attrs)
-
-        # Attach the file to the document
-        doc.file.attach(file)
 
         # Create the task attachment linking to the document
         attachment = @task.sm_task_attachments.create!(
@@ -904,6 +1173,136 @@ module Api
         }
       end
 
+      # POST /api/v1/sm_tasks/:id/attachments/presign
+      # Get presigned URL for direct S3 upload (bypasses Heroku timeout)
+      # Returns: { success: true, upload_url: "...", key: "...", content_type: "..." }
+      def presign_attachment
+        filename = params[:filename]
+        content_type = params[:content_type] || "application/octet-stream"
+        category = params[:category] || "info"
+
+        unless filename.present?
+          return render json: { success: false, error: "Filename required" }, status: :bad_request
+        end
+
+        begin
+          # Get S3 provider
+          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+
+          # Generate unique key in Blobs folder (will be moved after upload)
+          # Use timestamp + random to avoid collisions
+          safe_filename = filename.gsub(/[^a-zA-Z0-9._-]/, "_")
+          temp_key = "TaskUploads/#{@task.id}/#{Time.current.to_i}_#{SecureRandom.hex(4)}_#{safe_filename}"
+
+          # Get presigned upload URL (1 hour expiry)
+          upload_url = provider.presigned_upload_url(
+            "",  # Folder path (temp_key already includes full path)
+            temp_key,
+            expires_in: 3600,
+            content_type: content_type
+          )
+
+          render json: {
+            success: true,
+            upload_url: upload_url,
+            key: temp_key,
+            filename: filename,
+            content_type: content_type,
+            category: category,
+            expires_in: 3600
+          }
+        rescue DocumentProviders::NotConnectedError => e
+          render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
+        rescue => e
+          Rails.logger.error "[SmTasksController#presign_attachment] Failed: #{e.message}"
+          render json: { success: false, error: "Failed to generate upload URL" }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/sm_tasks/:id/attachments/confirm
+      # Confirm upload after direct S3 upload, create attachment record
+      # Params: key (S3 key), filename, content_type, category, action_item_id (optional)
+      def confirm_attachment
+        key = params[:key]
+        filename = params[:filename]
+        content_type = params[:content_type] || "application/octet-stream"
+        category = params[:category] || "info"
+        file_size = params[:file_size].to_i
+
+        unless key.present? && filename.present?
+          return render json: { success: false, error: "Key and filename required" }, status: :bad_request
+        end
+
+        begin
+          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+
+          # Verify the file exists in S3
+          file_info = provider.get_file(key)
+
+          # Download content to calculate hash and create StorageBlob
+          content = provider.download_file(key)
+
+          # Create StorageBlob with content hash for deduplication
+          blob = StorageBlob.find_or_create_for_content!(
+            content,
+            filename: filename,
+            content_type: content_type
+          )
+          blob.increment_reference!
+
+          # Delete the temp file (StorageBlob now has it in Blobs/ folder)
+          provider.delete_file(key) rescue nil
+
+          # Create document record
+          doc_attrs = {
+            file_name: filename,
+            display_name: filename,
+            mime_type: content_type,
+            document_type: "other",
+            filed_by: current_user&.name,
+            uploaded_at: Time.current,
+            storage_blob: blob,
+            content_hash: blob.content_hash,
+            sm_task_id: @task.id
+          }
+
+          # Secondary owner for cross-referencing
+          if @task.job_id.present?
+            doc_attrs[:job_id] = @task.job_id
+          elsif @task.supplier_id.present?
+            doc_attrs[:contact_id] = @task.supplier_id
+          elsif current_user&.contact_id.present?
+            doc_attrs[:contact_id] = current_user.contact_id
+          end
+
+          doc = CorporateCompanyDocument.create!(doc_attrs)
+
+          # Create task attachment
+          attachment = @task.sm_task_attachments.create!(
+            attachable: doc,
+            attachment_type: "document",
+            category: category,
+            notes: params[:notes],
+            added_by: current_user,
+            action_item_id: params[:action_item_id]
+          )
+
+          render json: {
+            success: true,
+            attachment: attachment_to_json(attachment).merge(
+              action_item_id: attachment.action_item_id
+            )
+          }
+        rescue DocumentProviders::NotFoundError
+          render json: { success: false, error: "File not found in storage. Upload may have failed." }, status: :not_found
+        rescue DocumentProviders::NotConnectedError => e
+          render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
+        rescue => e
+          Rails.logger.error "[SmTasksController#confirm_attachment] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+          render json: { success: false, error: "Failed to confirm upload: #{e.message}" }, status: :unprocessable_entity
+        end
+      end
+
       # GET /api/v1/sm_tasks/:id/attachments/:attachment_id/download
       # Download file content for email attachment (returns base64)
       def download_attachment_for_email
@@ -914,18 +1313,11 @@ module Api
           return render json: { success: false, error: "Attachment is not a document" }, status: :unprocessable_entity
         end
 
-        # Get file content from ActiveStorage or SharePoint
-        content = if document.file.attached?
-          document.file.download
-        elsif document.file_url.present?
-          begin
-            response = HTTParty.get(document.file_url, timeout: 30)
-            response.success? ? response.body : nil
-          rescue => e
-            Rails.logger.warn "[SmTasksController#download_attachment] Download failed: #{e.message}"
-            nil
-          end
-        end
+        # SSoT: Use DocumentStorageService for all document downloads
+        # Handles S3/Wasabi, SharePoint, and ActiveStorage uniformly
+        service = DocumentStorageService.new
+        result = service.download(document)
+        content = result[:success] ? result[:content] : nil
 
         unless content
           return render json: { success: false, error: "Could not download file content" }, status: :unprocessable_entity
@@ -942,44 +1334,489 @@ module Api
       end
 
       # POST /api/v1/sm_tasks/:id/attachments/:attachment_id/share_link
-      # Create anonymous SharePoint sharing link ("Anyone with the link")
+      # Create anonymous sharing link ("Anyone with the link")
+      # SSoT: Uses DocumentStorageService.create_share_link (provider-agnostic)
+      # @param open [Boolean] If true, returns inline disposition (browser displays file)
+      #   If false/missing, returns attachment disposition (browser downloads file)
       def create_attachment_share_link
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
-        document = attachment.attachable
+        attachable = attachment.attachable
 
-        unless document.is_a?(CorporateCompanyDocument) && document.sharepoint_file_id.present?
-          return render json: { success: false, error: "File not on SharePoint" }, status: :unprocessable_entity
+        # Validate attachment type
+        unless attachable.is_a?(CorporateCompanyDocument) || attachable.is_a?(SyncedEmail)
+          return render json: { success: false, error: "Attachment type not supported for sharing" }, status: :unprocessable_entity
         end
 
-        # Get SharePoint client
-        credential = MicrosoftCredential.active_for_org(current_organization)
-        unless credential
-          return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
-        end
+        # Disposition: inline (open in browser) vs attachment (download)
+        disposition = params[:open].to_s == "true" ? :inline : :attachment
 
-        # Create anonymous sharing link using public method
-        client = MicrosoftAppGraphClient.new(credential)
-        result = client.create_share_link(
-          drive_id: credential.drive_id,
-          item_id: document.sharepoint_file_id,
-          type: "view",
-          scope: "anonymous"  # "Anyone with the link" - no login required
-        )
+        # SSoT: Use DocumentStorageService for provider-agnostic share link creation
+        # Handles both S3 (presigned URLs) and SharePoint (share links)
+        service = DocumentStorageService.new
+        result = service.create_share_link(attachable, type: "view", scope: "anonymous", disposition: disposition)
 
-        share_url = result[:url]
-
-        if share_url.present?
-          render json: { success: true, share_url: share_url }
+        if result[:success]
+          render json: { success: true, share_url: result[:share_url] }
         else
-          render json: { success: false, error: "Failed to create sharing link" }, status: :unprocessable_entity
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
         end
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Attachment not found" }, status: :not_found
-      rescue MicrosoftAppGraphClient::NotConnectedError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
       rescue => e
         Rails.logger.error "[SmTasksController#create_attachment_share_link] Error: #{e.message}"
         render json: { success: false, error: "Failed to create sharing link" }, status: :internal_server_error
+      end
+
+      # GET /api/v1/sm_tasks/:id/download_all_response_files
+      # Creates a zip file containing all response document attachments and returns a download URL
+      # For external email recipients to download all files with one click
+      def download_all_response_files
+        require "zip"
+
+        # Get all response document attachments (category: 'response' or linked to action_items)
+        response_attachments = @task.sm_task_attachments.includes(:attachable).select do |att|
+          att.category == "response" || att.action_item_id.present?
+        end
+
+        # Filter to only documents (not emails)
+        document_attachments = response_attachments.select { |att| att.attachable.is_a?(CorporateCompanyDocument) }
+
+        if document_attachments.empty?
+          return render json: { success: false, error: "No files to download" }, status: :unprocessable_entity
+        end
+
+        # Create zip file in memory
+        zip_data = Zip::OutputStream.write_buffer do |zip|
+          document_attachments.each do |att|
+            document = att.attachable
+            next unless document
+
+            # Download file content
+            service = DocumentStorageService.new
+            result = service.download(document)
+            next unless result[:success] && result[:content]
+
+            filename = document.file_name || document.display_name || "document_#{att.id}"
+            # Ensure unique filenames in zip
+            zip.put_next_entry(filename)
+            zip.write(result[:content])
+          end
+        end
+        zip_data.rewind
+
+        # Generate a unique filename for the zip
+        safe_name = @task.name.to_s.gsub(/[^a-zA-Z0-9\s-]/, "").strip.gsub(/\s+/, "_")[0..50]
+        zip_filename = "#{safe_name}_response_files.zip"
+
+        # Option 1: Return as direct download (for API calls)
+        if params[:direct] == "true"
+          send_data zip_data.read,
+            filename: zip_filename,
+            type: "application/zip",
+            disposition: "attachment"
+          return
+        end
+
+        # Option 2: Upload to storage and return presigned download URL
+        # SSoT: Use DocumentProviders (auto-selects Wasabi/S3/SharePoint based on StorageConfiguration)
+        begin
+          provider = DocumentProviders.for_organization(current_organization)
+
+          unless provider
+            # Fallback to base64 encoded data if no storage provider
+            return render json: {
+              success: true,
+              download_method: "base64",
+              filename: zip_filename,
+              content: Base64.strict_encode64(zip_data.read),
+              content_type: "application/zip"
+            }
+          end
+
+          # Upload to Temp folder with timestamped filename
+          temp_folder_path = "Temp/TaskResponseZips"
+          timestamped_filename = "#{Time.current.strftime('%Y%m%d_%H%M%S')}_#{zip_filename}"
+
+          upload_result = provider.upload_file(temp_folder_path, zip_data.read, timestamped_filename, content_type: "application/zip")
+
+          if upload_result[:path]
+            # Get presigned download URL (expiry from company settings - SSoT)
+            download_url = provider.download_url(upload_result[:path], expires_in: CorporateCompanySetting.link_expiry_seconds)
+
+            render json: {
+              success: true,
+              download_method: "presigned_url",
+              share_url: download_url,
+              filename: zip_filename,
+              file_count: document_attachments.size,
+              expiry_days: CorporateCompanySetting.link_expiry_days
+            }
+          else
+            render json: { success: false, error: "Failed to upload zip file" }, status: :unprocessable_entity
+          end
+        rescue DocumentProviders::NotConnectedError, ActiveRecord::Encryption::Errors::Decryption => e
+          # NotConnectedError: No storage configured
+          # Decryption: Local dev can't decrypt production-encrypted credentials
+          Rails.logger.warn "[SmTasksController#download_all_response_files] Storage unavailable (#{e.class.name}): #{e.message}"
+          # Fallback to base64
+          zip_data.rewind
+          render json: {
+            success: true,
+            download_method: "base64",
+            filename: zip_filename,
+            content: Base64.strict_encode64(zip_data.read),
+            content_type: "application/zip"
+          }
+        rescue => e
+          Rails.logger.error "[SmTasksController#download_all_response_files] Upload error: #{e.message}"
+          render json: { success: false, error: "Failed to create download link" }, status: :internal_server_error
+        end
+      rescue => e
+        Rails.logger.error "[SmTasksController#download_all_response_files] Error: #{e.message}"
+        render json: { success: false, error: "Failed to create zip file" }, status: :internal_server_error
+      end
+
+      # ===== Bulk Email Linking =====
+
+      # GET /api/v1/sm_tasks/:id/email_link_options
+      # Returns available options for bulk email linking:
+      # - Task's supplier contact (if present)
+      # - Task's assigned user (if present)
+      # - If task has a job, returns job contacts with email counts
+      # - Always available: manual email input option
+      def email_link_options
+        options = []
+
+        # Add task's supplier contact (e.g., "Carly Tan" on a dispute task)
+        if @task.supplier.present?
+          emails = @task.supplier.all_emails
+          if emails.any?
+            email_count = SyncedEmail.involving_email(emails).count
+            options << {
+              type: "contact",
+              contact_id: @task.supplier.id,
+              role: "supplier",
+              name: @task.supplier.name,
+              label: "Supplier (#{@task.supplier.name})",
+              emails: emails,
+              email_count: email_count
+            }
+          end
+        end
+
+        # Add task's assigned user
+        if @task.assigned_user.present? && @task.assigned_user.email.present?
+          emails = [ @task.assigned_user.email ]
+          email_count = SyncedEmail.involving_email(emails).count
+          options << {
+            type: "user",
+            user_id: @task.assigned_user.id,
+            role: "assigned",
+            name: @task.assigned_user.name,
+            label: "Assigned (#{@task.assigned_user.name})",
+            emails: emails,
+            email_count: email_count
+          }
+        end
+
+        # If task has a job, get job contacts with their email counts
+        # Note: Check job.present? not job_id.present? - job may have been deleted (orphaned FK)
+        if (job = @task.job).present?
+          job.job_contacts.includes(contact: :contact_emails, user: []).each do |jc|
+            # Skip if already added as supplier
+            next if jc.contact_id.present? && jc.contact_id == @task.supplier_id
+
+            # Get email addresses for this contact
+            emails = if jc.contact.present?
+              jc.contact.all_emails
+            elsif jc.user.present?
+              [ jc.user.email ].compact
+            else
+              []
+            end
+
+            next if emails.empty?
+
+            # Count emails in warehouse involving these addresses
+            email_count = SyncedEmail.involving_email(emails).count
+
+            # Get display name
+            name = jc.contact&.name || jc.user&.name || "Unknown"
+            role_label = jc.role.to_s.titleize
+
+            options << {
+              type: "job_contact",
+              job_contact_id: jc.id,
+              role: jc.role,
+              name: name,
+              label: "#{role_label} (#{name})",
+              emails: emails,
+              email_count: email_count
+            }
+          end
+        end
+
+        render json: {
+          success: true,
+          has_job: @task.job.present?,  # Check actual job, not just job_id (job may be deleted)
+          job_code: @task.job&.job_code,
+          options: options.sort_by { |o| -o[:email_count] }  # Most emails first
+        }
+      end
+
+      # GET /api/v1/sm_tasks/:id/search_contacts?q=searchterm
+      # Search contacts by name and return email counts
+      def search_contacts
+        query = params[:q].to_s.strip
+        return render json: { success: true, contacts: [] } if query.length < 2
+
+        # Search contacts by name (case-insensitive)
+        # SSoT: Column is 'display_name', not 'name' (alias only works in Ruby, not SQL)
+        contacts = Contact.where("display_name ILIKE ?", "%#{query}%")
+                         .includes(:contact_emails)
+                         .limit(10)
+
+        results = contacts.map do |contact|
+          emails = contact.all_emails
+
+          # Count emails in warehouse (0 if contact has no emails)
+          email_count = emails.any? ? SyncedEmail.involving_email(emails).count : 0
+
+          {
+            id: contact.id,
+            name: contact.name,
+            company: contact.company_name,
+            emails: emails,
+            email_count: email_count
+          }
+        end
+
+        # Sort by email count (most emails first), then by name
+        render json: {
+          success: true,
+          contacts: results.sort_by { |c| [ -c[:email_count], c[:name].to_s.downcase ] }
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/bulk_link_emails
+      # Links all emails from/to a given email address to this task
+      # Params:
+      #   - email_address: Email address to search for
+      #   - OR job_contact_id: ID of job_contact to use (gets emails from contact)
+      #   - OR contact_id: ID of contact to use (gets emails from contact)
+      #   - OR user_id: ID of user to use (gets emails from user)
+      def bulk_link_emails
+        # Determine which emails to find
+        emails_to_search = if params[:job_contact_ids].present?
+          # Multiple job contacts (e.g., "All Clients" button)
+          ids = Array(params[:job_contact_ids]).map(&:to_i)
+          job_contacts = @task.job&.job_contacts&.where(id: ids).includes(contact: :contact_emails, user: [])
+          return render json: { success: false, error: "Job contacts not found" }, status: :not_found if job_contacts.blank?
+
+          job_contacts.flat_map do |jc|
+            if jc.contact.present?
+              jc.contact.all_emails
+            elsif jc.user.present?
+              [ jc.user.email ].compact
+            else
+              []
+            end
+          end.uniq
+        elsif params[:job_contact_id].present?
+          jc = @task.job&.job_contacts&.find_by(id: params[:job_contact_id])
+          return render json: { success: false, error: "Job contact not found" }, status: :not_found unless jc
+
+          if jc.contact.present?
+            jc.contact.all_emails
+          elsif jc.user.present?
+            [ jc.user.email ].compact
+          else
+            []
+          end
+        elsif params[:contact_id].present?
+          # Link emails from a contact (from search or supplier)
+          contact = Contact.find_by(id: params[:contact_id])
+          return render json: { success: false, error: "Contact not found" }, status: :not_found unless contact
+          contact.all_emails
+        elsif params[:user_id].present?
+          # Link emails from a user (assigned user)
+          user = User.find_by(id: params[:user_id])
+          return render json: { success: false, error: "User not found" }, status: :not_found unless user
+          [ user.email ].compact
+        elsif params[:email_address].present?
+          [ params[:email_address].downcase.strip ]
+        else
+          return render json: { success: false, error: "email_address, job_contact_id, contact_id, or user_id required" }, status: :bad_request
+        end
+
+        return render json: { success: false, error: "No email addresses found" }, status: :unprocessable_entity if emails_to_search.empty?
+
+        # Find all matching emails
+        matching_emails = SyncedEmail.involving_email(emails_to_search)
+
+        # Get already attached email IDs
+        existing_email_ids = @task.sm_task_attachments
+          .where(attachable_type: "SyncedEmail")
+          .pluck(:attachable_id)
+
+        # Filter to only new emails
+        new_emails = matching_emails.where.not(id: existing_email_ids)
+
+        # Create attachments for each new email
+        created_attachments = []
+        new_emails.find_each do |email|
+          attachment = @task.sm_task_attachments.create!(
+            attachable: email,
+            attachment_type: "email",
+            added_by: current_user,
+            notes: "Bulk linked from #{emails_to_search.first}"
+          )
+          created_attachments << attachment
+        end
+
+        render json: {
+          success: true,
+          linked_count: created_attachments.size,
+          skipped_count: existing_email_ids.size,
+          total_found: matching_emails.count,
+          attachments: created_attachments.map { |a| attachment_to_json(a) }
+        }
+      rescue => e
+        Rails.logger.error "[SmTasksController#bulk_link_emails] Error: #{e.message}"
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/sm_tasks/:id/match_keywords
+      # Search emails by task's email_keywords and link matching ones
+      # Params:
+      #   search_type: 'full' (default), 'subject', 'body', 'exact'
+      #   preview: true/false - if true, just return count without linking
+      def match_keywords
+        keywords = @task.email_keywords.to_s.strip
+        return render json: { success: false, error: "No keywords set" }, status: :bad_request if keywords.blank?
+
+        search_type = params[:search_type] || 'full'
+        preview_only = params[:preview] == 'true' || params[:preview] == true
+
+        # Search emails based on search type
+        matching_emails = case search_type
+        when 'subject'
+          # Subject only - case insensitive LIKE
+          SyncedEmail.where("subject ILIKE ?", "%#{keywords}%")
+        when 'body'
+          # Body only - case insensitive LIKE
+          SyncedEmail.where("body_text ILIKE ?", "%#{keywords}%")
+        when 'exact'
+          # Exact phrase in subject - case insensitive
+          SyncedEmail.where("subject ILIKE ?", "%#{keywords}%")
+        else
+          # Full text search (default)
+          SyncedEmail.search_text(keywords)
+        end
+
+        # Get already attached email IDs
+        existing_email_ids = @task.sm_task_attachments
+          .where(attachable_type: "SyncedEmail")
+          .pluck(:attachable_id)
+
+        # Filter to only new emails
+        new_emails = matching_emails.where.not(id: existing_email_ids)
+        new_count = new_emails.count
+
+        # Preview mode - just return counts
+        if preview_only
+          return render json: {
+            success: true,
+            preview: true,
+            total_found: matching_emails.count,
+            new_count: new_count,
+            already_linked: existing_email_ids.size
+          }
+        end
+
+        # Create attachments for each new email
+        created_attachments = []
+        new_emails.find_each do |email|
+          attachment = @task.sm_task_attachments.create!(
+            attachable: email,
+            attachment_type: "email",
+            added_by: current_user,
+            notes: "Matched [#{search_type}]: #{keywords}"
+          )
+          created_attachments << attachment
+        end
+
+        render json: {
+          success: true,
+          linked_count: created_attachments.size,
+          skipped_count: existing_email_ids.size,
+          total_found: matching_emails.count,
+          search_type: search_type,
+          attachments: created_attachments.map { |a| attachment_to_json(a) }
+        }
+      rescue => e
+        Rails.logger.error "[SmTasksController#match_keywords] Error: #{e.message}"
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/clear_matched_emails
+      # Remove all emails that were added via keyword matching
+      def clear_matched_emails
+        # Find attachments that have "Matched" in their notes (added by match_keywords)
+        matched_attachments = @task.sm_task_attachments
+          .where(attachable_type: "SyncedEmail")
+          .where("notes LIKE ?", "Matched %")
+
+        count = matched_attachments.count
+        matched_attachments.destroy_all
+
+        render json: {
+          success: true,
+          removed_count: count
+        }
+      rescue => e
+        Rails.logger.error "[SmTasksController#clear_matched_emails] Error: #{e.message}"
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # POST /api/v1/sm_tasks/:id/link_email_thread
+      # Link all emails in a conversation thread to this task
+      def link_email_thread
+        email_id = params[:email_id]
+        return render json: { success: false, error: "email_id required" }, status: :bad_request if email_id.blank?
+
+        email = SyncedEmail.find_by(id: email_id)
+        return render json: { success: false, error: "Email not found" }, status: :not_found unless email
+
+        # Get all emails in the conversation thread
+        thread_emails = email.conversation_thread
+
+        # Get already linked email IDs
+        existing_ids = @task.sm_task_attachments
+          .where(attachable_type: "SyncedEmail")
+          .pluck(:attachable_id)
+
+        # Link emails that aren't already linked
+        linked_count = 0
+        thread_emails.each do |thread_email|
+          next if existing_ids.include?(thread_email.id)
+
+          @task.sm_task_attachments.create!(
+            attachable: thread_email,
+            notes: "Thread: #{email.subject&.truncate(50)}"
+          )
+          linked_count += 1
+        end
+
+        render json: {
+          success: true,
+          linked_count: linked_count,
+          thread_size: thread_emails.count,
+          message: linked_count > 0 ? "Linked #{linked_count} emails from thread" : "All thread emails already linked"
+        }
+      rescue => e
+        Rails.logger.error "[SmTasksController#link_email_thread] Error: #{e.message}"
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
       # ===== Task Followers =====
@@ -1277,13 +2114,22 @@ module Api
 
       # POST /api/v1/sm_tasks/:id/action_items/:item_id/delegate
       # Delegate a question to another user by creating a sub-task
+      # Params:
+      #   user_id: required - the user to assign the task to
+      #   instructions: optional - custom instructions/context for the assignee
+      #   due_date: optional - due date for the task (defaults to parent task's end_date)
       def delegate_action_item
         @task = SmTask.find(params[:id])
         item = @task.action_items.find(params[:item_id])
 
         user = User.find(params[:user_id])
 
-        result = item.delegate_to!(user, created_by: current_user)
+        result = item.delegate_to!(
+          user,
+          created_by: current_user,
+          instructions: params[:instructions],
+          due_date: params[:due_date]
+        )
 
         if result[:success]
           render json: {
@@ -1294,6 +2140,64 @@ module Api
         else
           render json: { success: false, error: result[:error] }, status: :unprocessable_entity
         end
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/:item_id/undelegate
+      # Unlink a delegated task from an action item (optionally delete the task)
+      def undelegate_action_item
+        @task = SmTask.find(params[:id])
+        item = @task.action_items.find(params[:item_id])
+
+        unless item.delegated_task_id.present?
+          return render json: { success: false, error: "No task linked to this item" }, status: :unprocessable_entity
+        end
+
+        delegated_task = SmTask.find_by(id: item.delegated_task_id)
+
+        # First unlink the task from the action item (must happen before delete due to FK constraint)
+        item.update!(delegated_task_id: nil)
+
+        # Then optionally delete the spawned task
+        if params[:delete_task] && delegated_task
+          delegated_task.destroy
+        end
+
+        render json: {
+          success: true,
+          action_item: action_item_to_json(item.reload)
+        }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: "Not found" }, status: :not_found
+      end
+
+      # POST /api/v1/sm_tasks/:id/action_items/:item_id/move_delegated_task
+      # Move a delegated task from one action item to another
+      def move_delegated_task
+        @task = SmTask.find(params[:id])
+        source_item = @task.action_items.find(params[:item_id])
+        target_item = @task.action_items.find(params[:target_item_id])
+
+        unless source_item.delegated_task_id.present?
+          return render json: { success: false, error: "No task linked to source item" }, status: :unprocessable_entity
+        end
+
+        if target_item.delegated_task_id.present?
+          return render json: { success: false, error: "Target item already has a delegated task" }, status: :unprocessable_entity
+        end
+
+        delegated_task_id = source_item.delegated_task_id
+
+        # Move the delegation from source to target
+        source_item.update!(delegated_task_id: nil)
+        target_item.update!(delegated_task_id: delegated_task_id)
+
+        render json: {
+          success: true,
+          source_item: action_item_to_json(source_item.reload),
+          target_item: action_item_to_json(target_item.reload)
+        }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: "Not found" }, status: :not_found
       end
 
       # POST /api/v1/sm_tasks/:id/action_items/reorder
@@ -1420,7 +2324,7 @@ module Api
       # Creates a standalone task from an email (same as forwarding to newtask@tekna.com.au)
       # Uses EmailToTaskService for consistent behavior
       def create_from_email
-        email = EmailWarehouse.find_by(id: params[:email_id])
+        email = SyncedEmail.find_by(id: params[:email_id])
 
         unless email
           return render json: {
@@ -1594,12 +2498,26 @@ module Api
       end
 
       def set_sm_task
-        @task = SmTask.find(params[:id])
+        # Eager load associations needed for task_to_json and action_item_to_json
+        # SSoT: sm_task_attachments needs warehouse_document for display_name (Phase 3)
+        @task = SmTask.includes(
+          :job, :assigned_user, :children,
+          sm_task_attachments: [:warehouse_document, :attachable, :added_by],
+          action_items: [:checked_by, :responded_by, { delegated_task: [:action_items, { sm_task_attachments: [:warehouse_document, :attachable] }, { children: :assigned_user }] }]
+        ).find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
           error: "Task not found"
         }, status: :not_found
+      end
+
+      # Build case description from task context
+      def build_case_description(task)
+        parts = ["Created from task: #{task.name}"]
+        parts << "Task description: #{task.description}" if task.description.present?
+        parts << "Job: #{task.job.job_number} - #{task.job.title}" if task.job.present?
+        parts.join("\n\n")
       end
 
       def sm_task_params
@@ -1709,10 +2627,19 @@ module Api
           # Completion document requirement
           :requires_document_to_complete, :completion_document_type_id,
 
+          # Dependency broken tracking
+          :dependency_broken, :dependency_broken_at, :dependency_broken_by_id,
+
           # Arrays
           linked_task_ids: [],
           # predecessor_ids is JSONB array of {id, type, lag} objects
-          predecessor_ids: [:id, :type, :lag]
+          predecessor_ids: [:id, :type, :lag],
+          # predecessor_ids_backup is JSONB array of backed up {id, type, lag} objects
+          predecessor_ids_backup: [:id, :type, :lag],
+
+          # Board priority for Task Hub BoardView drag-and-drop ordering
+          # Format: { "status": priority } where priority is a number
+          board_priority: {}
         )
       end
 
@@ -1722,13 +2649,17 @@ module Api
           attachment_type: attachment.attachment_type,
           category: attachment.category || "info",
           notes: attachment.notes,
+          display_name: attachment.display_name, # Custom display name (overrides document/email name)
           added_by: attachment.added_by&.name,
-          created_at: attachment.created_at
+          created_at: attachment.created_at,
+          action_item_id: attachment.action_item_id
         }
 
         case attachment.attachable_type
-        when "EmailWarehouse"
+        when "SyncedEmail"
           email = attachment.attachable
+          # Defensive: attachable may be nil if email was deleted
+          return base unless email
           base.merge(
             email: {
               id: email.id,
@@ -1736,26 +2667,50 @@ module Api
               from_email: email.from_email,
               from_name: email.from_name,
               to_emails: email.to_emails,
+              cc_emails: email.cc_emails,
               received_at: email.received_at,
               has_attachments: email.document_attachments_count > 0,
               document_attachments_count: email.document_attachments_count,
               conversation_id: email.conversation_id,
               thread_count: email.thread_count,
               body_preview: email.body_preview || email.body_text&.truncate(200),
-              attachment_content_hashes: email.email_attachments.pluck(:content_hash).compact
+              body_text: email.body_text, # Full plain text body
+              body_html: email.body_html, # Full HTML body for quoted replies (preserves formatting)
+              # SSoT: Download entire email as .eml file
+              # Endpoint: GET /api/v1/synced_emails/:id/download_eml
+              download_eml_url: "/api/v1/synced_emails/#{email.id}/download_eml",
+              # SSoT: Return attachment metadata for display
+              # Download URL: /api/v1/synced_email/:email_id/attachments/:attachment_id/download
+              # Frontend constructs download URL from email_id + attachment.id (never expose storage_path)
+              email_id: email.id,
+              email_attachments: email.email_attachments.map do |ea|
+                {
+                  id: ea.id,
+                  filename: ea.filename,
+                  # content_type and file_size are on storage_blob (Jan 2026 refactor)
+                  content_type: ea.storage_blob&.content_type,
+                  file_size: ea.storage_blob&.file_size
+                }
+              end
             }
           )
         when "CorporateCompanyDocument"
           doc = attachment.attachable
+          # Defensive: attachable may be nil if document was deleted
+          return base unless doc
           base.merge(
             document: {
               id: doc.id,
               file_name: doc.file_name,
-              display_name: doc.display_name,
+              # SSoT: Use attachment.display_name which checks warehouse_document first
+              display_name: attachment.display_name,
               document_type: doc.document_type,
-              sharepoint_file_id: doc.sharepoint_file_id,
-              sharepoint_download_url: doc.sharepoint_download_url,
-              file_url: doc.file.attached? ? Rails.application.routes.url_helpers.rails_blob_url(doc.file, only_path: true) : nil,
+              # SSoT: Use StorableDocument#storage_url for provider-agnostic download URL
+              # ActiveStorage has_one_attached :file was REMOVED (Jan 2026)
+              storage_url: doc.storage_url,
+              # SSoT: has_storage = can create share links (storage_blob, storage_path, or storage_reference)
+              # Used by frontend to show Link option even if storage_url is nil (legacy SharePoint docs)
+              has_storage: doc.storage_blob.present? || doc.storage_path.present? || doc.has_storage_reference?,
               created_at: doc.created_at,
               content_hash: doc.content_hash
             }
@@ -1791,13 +2746,27 @@ module Api
         }
 
         # Include delegated task details if present
-        if item.delegated_task.present?
+        # Defensive: use local var to avoid race condition between .present? and access
+        if (delegated = item.delegated_task)
           result[:delegated_task] = {
-            id: item.delegated_task.id,
-            name: item.delegated_task.name,
-            status: item.delegated_task.status,
-            assigned_user_id: item.delegated_task.assigned_user_id,
-            assigned_user_name: item.delegated_task.assigned_user&.name
+            id: delegated.id,
+            name: delegated.name,
+            status: delegated.status,
+            assigned_user_id: delegated.assigned_user_id,
+            assigned_user_name: delegated.assigned_user&.name,
+            # Counts for delete confirmation dialog - show what will be deleted
+            action_items_count: delegated.action_items.size,
+            attachments_count: delegated.sm_task_attachments.size,
+            # Include children (subtasks) for display under questions
+            children: delegated.children.map do |child|
+              {
+                id: child.id,
+                name: child.name,
+                status: child.status,
+                assigned_user_id: child.assigned_user_id,
+                assigned_user_name: child.assigned_user&.name
+              }
+            end
           }
         end
 
@@ -1823,6 +2792,130 @@ module Api
             url: Rails.application.routes.url_helpers.rails_blob_path(file, only_path: true)
           }
         }
+      end
+
+      # Helper to serialize SyncedEmail for suggested emails response
+      # Returns a lighter payload than full attachment_to_json
+      def email_to_suggestion_json(email)
+        {
+          id: email.id,
+          subject: email.subject,
+          from_email: email.from_email,
+          from_name: email.from_name,
+          to_emails: email.to_emails,
+          received_at: email.received_at,
+          has_attachments: email.document_attachments_count > 0,
+          document_attachments_count: email.document_attachments_count,
+          body_preview: email.body_preview || email.body_text&.truncate(200),
+          # Include match reason for UI to show why this email was suggested
+          match_reason: determine_match_reason(email)
+        }
+      end
+
+      # Determine why an email was suggested as related
+      def determine_match_reason(email)
+        # This is called in context where @source_email_for_matching is set
+        return nil unless @source_email_for_matching
+
+        # Check conversation match first (most reliable)
+        if email.conversation_id.present? && email.conversation_id == @source_email_for_matching.conversation_id
+          return "same_thread"
+        end
+
+        # Check subject similarity
+        base_subject = normalize_email_subject(@source_email_for_matching.subject)
+        email_subject = normalize_email_subject(email.subject)
+        if base_subject.present? && email_subject.present? && email_subject.include?(base_subject)
+          return "similar_subject"
+        end
+
+        # Fallback - same external party
+        "same_contact"
+      end
+
+      # Find related emails grouped by category
+      # Returns hash with :thread, :sender, :subject keys
+      def find_related_emails_grouped(source_email, already_attached_ids)
+        result = { thread: [], sender: [], subject: [] }
+        all_found_ids = [source_email.id] + already_attached_ids
+
+        # 1. Same conversation thread (email chain history)
+        if source_email.conversation_id.present?
+          result[:thread] = SyncedEmail
+            .where(conversation_id: source_email.conversation_id)
+            .where.not(id: all_found_ids)
+            .order(received_at: :desc)
+            .limit(20)
+            .to_a
+          all_found_ids += result[:thread].map(&:id)
+        end
+
+        # 2. Emails with same external party (not internal domains)
+        external_email = find_external_party_email(source_email)
+        if external_email.present?
+          result[:sender] = SyncedEmail
+            .involving_email(external_email)
+            .where("received_at > ?", 90.days.ago)
+            .where.not(id: all_found_ids)
+            .order(received_at: :desc)
+            .limit(20)
+            .to_a
+          all_found_ids += result[:sender].map(&:id)
+        end
+
+        # 3. Similar subject line (catches broken threads and forwards)
+        base_subject = normalize_email_subject(source_email.subject)
+        if base_subject.present?
+          result[:subject] = SyncedEmail
+            .where("subject ILIKE ?", "%#{base_subject}%")
+            .where("received_at > ?", 90.days.ago)
+            .where.not(id: all_found_ids)
+            .order(received_at: :desc)
+            .limit(20)
+            .to_a
+        end
+
+        result
+      end
+
+      # Normalize email subject for comparison
+      def normalize_email_subject(subject)
+        return nil if subject.blank?
+
+        subject
+          .gsub(/^(RE:|FW:|FWD:)\s*/i, "")
+          .gsub(/\[SEC=[^\]]+\]/i, "")
+          .gsub(/\s+/, " ")
+          .strip
+          .first(50)
+      end
+
+      # Find the first non-internal email address involved in an email
+      def find_external_party_email(email)
+        internal_domain_patterns = CorporateCompanySetting.internal_domain_patterns
+        newtask_address = CorporateCompanySetting.monitored_mailbox_newtask&.downcase
+
+        # Check from
+        if email.from_email.present?
+          return email.from_email unless internal_domain_patterns.any? { |d| email.from_email.downcase.include?(d) }
+        end
+
+        # Check to recipients
+        email.to_emails&.each do |email_addr|
+          next if email_addr.blank?
+          next if newtask_address && email_addr.downcase == newtask_address
+          next if internal_domain_patterns.any? { |d| email_addr.downcase.include?(d) }
+          return email_addr
+        end
+
+        # Check cc recipients
+        email.cc_emails&.each do |email_addr|
+          next if email_addr.blank?
+          next if internal_domain_patterns.any? { |d| email_addr.downcase.include?(d) }
+          return email_addr
+        end
+
+        nil
       end
 
       def save_temp_file(uploaded_file)
@@ -2000,6 +3093,18 @@ module Api
         # Include predecessor_ids for Gantt dependency rendering
         json[:predecessor_ids] = task.predecessor_ids || []
 
+        # Children (subtasks) for expandable SubtaskList in TaskHub
+        # Uses preloaded children association with assigned_user to avoid N+1
+        json[:children] = task.children.map do |child|
+          {
+            id: child.id,
+            name: child.name,
+            status: child.status,
+            assigned_user_id: child.assigned_user_id,
+            assigned_user_name: child.assigned_user&.name
+          }
+        end
+
         json
       end
 
@@ -2007,6 +3112,7 @@ module Api
         json = {
           id: task.id,
           construction_id: task.construction_id,
+          job_name: task.job&.name || "Unknown Job",
           task_number: task.task_number,
           name: task.name,
           status: task.status,
@@ -2036,6 +3142,7 @@ module Api
           supplier_id: task.supplier_id,
           parent_task_id: task.parent_task_id,
           sequence_order: task.sequence_order,
+          board_priority: task.board_priority,
           sm_schedule_master_id: task.sm_schedule_master_id,
           # Workflow triggers
           start_workflow_enabled: task.start_workflow_enabled,
@@ -2057,11 +3164,10 @@ module Api
           # Required by date (independent of schedule)
           required_by: task.required_by,
           # Use .size instead of .count to use preloaded data (avoids N+1)
-          attachments_count: task.sm_task_attachments.size + (task.files.attached? ? task.files.size : 0),
+          attachments_count: task.sm_task_attachments.size,
           # Include full attachments for task detail view (uses preloaded association)
-          # Combines SmTaskAttachment records AND ActiveStorage files
-          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) } +
-            (task.files.attached? ? task.files.map { |f| file_attachment_to_json(f) } : []),
+          # Note: has_many_attached :files was removed (Jan 2026) - all files now via SmTaskAttachment
+          attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) },
           # Privacy
           is_private: task.is_private,
           created_by_id: task.created_by_id,
@@ -2069,8 +3175,8 @@ module Api
           # Last assigner (who assigned this task to current assignee)
           last_assigner_id: task.last_assigner&.id,
           last_assigner_name: task.last_assigner&.name,
-          # Following status (for current user)
-          is_following: task.followed_by?(current_user),
+          # Following status (for current user) - defensive nil check
+          is_following: current_user ? task.followed_by?(current_user) : false,
           # Action items (checkable checklist items)
           action_items: task.action_items.map { |item| action_item_to_json(item) },
           # Email keywords for auto-matching
@@ -2078,11 +3184,16 @@ module Api
           # Delegation fields
           is_delegated_question: task.is_delegated_question,
           source_action_item_id: task.source_action_item&.id,
-          parent_task_name: task.parent_task&.name
+          parent_task_name: task.parent_task&.name,
+          # Case relationship
+          case_id: task.case_id,
+          case_number: task.case_record&.case_number
         }
 
         if include_dependencies
-          json[:predecessor_dependencies] = task.active_predecessor_dependencies.map do |dep|
+          json[:predecessor_dependencies] = task.active_predecessor_dependencies.filter_map do |dep|
+            # Defensive: skip if predecessor_task is nil (deleted task)
+            next unless dep.predecessor_task
             {
               id: dep.id,
               predecessor_task_id: dep.predecessor_task_id,
@@ -2093,7 +3204,9 @@ module Api
             }
           end
 
-          json[:successor_dependencies] = task.active_successor_dependencies.map do |dep|
+          json[:successor_dependencies] = task.active_successor_dependencies.filter_map do |dep|
+            # Defensive: skip if successor_task is nil (deleted task)
+            next unless dep.successor_task
             {
               id: dep.id,
               successor_task_id: dep.successor_task_id,
@@ -2138,7 +3251,12 @@ module Api
           po_required: po_required,
           is_visible: is_visible,
           # SSoT: Include predecessor_ids for frontend dependency display
-          predecessor_ids: task.predecessor_ids || []
+          predecessor_ids: task.predecessor_ids || [],
+          # Broken dependency tracking - for restore in dependency editor
+          predecessor_ids_backup: task.predecessor_ids_backup || [],
+          dependency_broken: task.dependency_broken || false,
+          dependency_broken_at: task.dependency_broken_at,
+          dependency_broken_by: task.dependency_broken_by_id ? User.find_by(id: task.dependency_broken_by_id)&.name : nil
         }
 
         # Include PO details when linked (One Entity concept)

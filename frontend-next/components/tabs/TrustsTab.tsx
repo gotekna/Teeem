@@ -15,6 +15,13 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Plus, X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
 import type { CorporateCompany } from "@/lib/types/corporate";
 
@@ -179,19 +186,23 @@ export function TrustsTab({ company, onUpdate }: TrustsTabProps) {
         <CardContent className="p-4">
           <div className="flex items-center gap-4">
             <Label className="whitespace-nowrap">Company Group:</Label>
-            <select
-              value={selectedGroupId}
-              onChange={(e) => handleGroupChange(e.target.value)}
+            <Select
+              value={selectedGroupId || "__none__"}
+              onValueChange={(v) => handleGroupChange(v === "__none__" ? "" : v)}
               disabled={savingGroup}
-              className="block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
             >
-              <option value="">Select a group...</option>
-              {companyGroups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue placeholder="Select a group..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Select a group...</SelectItem>
+                {companyGroups.map((group) => (
+                  <SelectItem key={group.id} value={String(group.id)}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {savingGroup && <span className="text-sm text-muted-foreground">Saving...</span>}
           </div>
         </CardContent>
@@ -221,18 +232,22 @@ export function TrustsTab({ company, onUpdate }: TrustsTabProps) {
           <CardContent className="p-4">
             <h4 className="text-sm font-medium mb-3">Select Trust to Link</h4>
             <div className="space-y-4">
-              <select
-                value={selectedTrustId}
-                onChange={(e) => setSelectedTrustId(e.target.value)}
-                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              <Select
+                value={selectedTrustId || "__none__"}
+                onValueChange={(v) => setSelectedTrustId(v === "__none__" ? "" : v)}
               >
-                <option value="">Select a trust...</option>
-                {availableTrusts.map((trust) => (
-                  <option key={trust.id} value={trust.id}>
-                    {trust.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a trust..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Select a trust...</SelectItem>
+                  {availableTrusts.map((trust) => (
+                    <SelectItem key={trust.id} value={String(trust.id)}>
+                      {trust.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={() => { setShowAddForm(false); setSelectedTrustId(""); }}>
                   Cancel
@@ -276,7 +291,7 @@ export function TrustsTab({ company, onUpdate }: TrustsTabProps) {
                       </button>
                       <div className="flex items-center gap-3 text-sm text-muted-foreground">
                         {trust.abn && <span>ABN: {trust.abn}</span>}
-                        <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                        <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300">
                           Trust
                         </Badge>
                       </div>

@@ -44,8 +44,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
-import { API_TIMEOUT_FILE_UPLOAD } from "@/lib/constants/timeout-constants";
-import { uploadToSharePointDirect } from "@/lib/sharepoint-upload";
+import { cachePdf, getCachedPdf } from "@/lib/pdf-cache";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { uploadPhoto } from "@/lib/storage-upload";
+import { uploadFile } from "@/lib/upload-utils";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
@@ -84,6 +86,8 @@ interface Revision {
   issued_date: string | null;
   is_on_issue: boolean;
   has_file: boolean;
+  // SSoT: storage_item_id is provider-agnostic, sharepoint_file_id is legacy
+  storage_item_id?: string | null;
   sharepoint_file_id: string | null;
   sharepoint_web_url: string | null;
   file_name: string | null;
@@ -313,10 +317,112 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     !plans.some(p => p.job_plan_tab_id === t.id)
   );
 
+  // Preload ALL PDFs in background for instant navigation
+  // When first plan is selected, start preloading entire plan set
+  useEffect(() => {
+    if (!selectedPlan || filteredPlans.length === 0) return;
+
+    // Get all plans except the currently selected one (it's already loading)
+    const plansToPreload = filteredPlans.filter(p => p.id !== selectedPlan.id);
+    if (plansToPreload.length === 0) return;
+
+    let cancelled = false;
+
+    // Preload function for a single plan
+    const preloadPlan = async (plan: JobPlan): Promise<boolean> => {
+      if (cancelled) return false;
+
+      const revision = plan.current_revision;
+      const fileId = revision?.storage_item_id || revision?.sharepoint_file_id;
+      if (!fileId || !revision) return false;
+
+      // Must match getPdfPreviewUrl format (includes rev= for cache-busting)
+      const pdfUrl = `${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}&preview=true&rev=${revision.id}`;
+
+      // Skip if already cached
+      const cached = await getCachedPdf(pdfUrl);
+      if (cached) return true;
+
+      try {
+        // Get presigned URL for faster download
+        const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+        if (!token) return false;
+
+        const presignedResponse = await fetch(
+          `${getApiBaseUrl()}/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
+            mode: "cors",
+          }
+        );
+
+        if (!presignedResponse.ok) return false;
+        const data = await presignedResponse.json();
+        if (!data.success || !data.url) return false;
+
+        // Fetch PDF from presigned URL (direct from S3 - fast)
+        const pdfResponse = await fetch(data.url, {
+          credentials: "omit",
+          mode: "cors",
+        });
+
+        if (!pdfResponse.ok) return false;
+
+        const blob = await pdfResponse.blob();
+        // Cache under the original URL so PDFViewerImpl finds it
+        await cachePdf(pdfUrl, blob);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    // Preload in batches of 2 to avoid overwhelming the network
+    // Prioritize adjacent plans first, then load rest
+    const preloadAll = async () => {
+      const currentIndex = filteredPlans.findIndex(p => p.id === selectedPlan.id);
+
+      // Sort plans by distance from current selection (adjacent first)
+      const sortedPlans = [...plansToPreload].sort((a, b) => {
+        const aIndex = filteredPlans.findIndex(p => p.id === a.id);
+        const bIndex = filteredPlans.findIndex(p => p.id === b.id);
+        return Math.abs(aIndex - currentIndex) - Math.abs(bIndex - currentIndex);
+      });
+
+      let loaded = 0;
+      const batchSize = 2;
+
+      for (let i = 0; i < sortedPlans.length; i += batchSize) {
+        if (cancelled) break;
+
+        const batch = sortedPlans.slice(i, i + batchSize);
+        const results = await Promise.all(batch.map(preloadPlan));
+        loaded += results.filter(Boolean).length;
+      }
+
+      if (!cancelled && loaded > 0) {
+        console.log(`[Plans] Preloaded ${loaded}/${plansToPreload.length} plans`);
+      }
+    };
+
+    // Start preloading after a short delay to let the selected plan load first
+    const timeoutId = setTimeout(preloadAll, 500);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [selectedPlan?.id, filteredPlans]);
+
   // Get PDF preview URL
+  // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
+  // Cache-busting: revision.id changes when file is updated, invalidating old cache
   const getPdfPreviewUrl = (revision: Revision | null) => {
-    if (!revision?.sharepoint_file_id) return null;
-    return `${getApiBaseUrl()}/api/v1/documents/download?file_id=${revision.sharepoint_file_id}&preview=true`;
+    const fileId = revision?.storage_item_id || revision?.sharepoint_file_id;
+    if (!fileId) return null;
+    // Include revision.id as cache-buster - new revision = new URL = fresh cache
+    return `${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}&preview=true&rev=${revision.id}`;
   };
 
   // Get thumbnail URL for instant preview (if available)
@@ -361,23 +467,31 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      // SSoT: Use presigned URL upload (bypasses Heroku 30s timeout)
+      const uploadResult = await uploadFile(file, 'imports', {
+        metadata: { job_id: jobId }
+      });
 
-      const result = await api.postFormData<{
+      if (!uploadResult.success || !uploadResult.key) {
+        throw new Error(uploadResult.error || "Failed to upload file");
+      }
+
+      // Create plan upload record with S3 key
+      const result = await api.post<{
         success: boolean;
         data?: { id: number };
         error?: string;
-      // SSoT: Uses API_TIMEOUT_FILE_UPLOAD from timeout-constants.ts
-      }>(`/api/v1/jobs/${jobId}/plan_uploads`, formData, { timeout: API_TIMEOUT_FILE_UPLOAD });
+      }>(`/api/v1/jobs/${jobId}/plan_uploads`, {
+        storage_key: uploadResult.key,
+      });
 
-      if (result.success && result.data?.id) {
+      if (result?.success && result.data?.id) {
         // Show progress modal
         setOperationType("plan_upload");
         setOperationId(result.data.id);
         setShowProcessingModal(true);
       } else {
-        throw new Error(result.error || "Failed to start upload");
+        throw new Error(result?.error || "Failed to start upload");
       }
     } catch (err) {
       console.error("Error processing plan set:", err);
@@ -550,7 +664,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
   // Handle re-extract single plan from PDF (uses PdfTextExtractionService SSoT)
   const handleReprocess = async (plan: JobPlan) => {
-    if (!plan.current_revision?.sharepoint_file_id) {
+    const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.sharepoint_file_id;
+    if (!fileId) {
       toast({
         title: "Error",
         description: "Plan has no file to extract from",
@@ -653,8 +768,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           type: selectedFile.type,
         });
 
-        // ULTRA MASTERPIECE: Direct browser-to-SharePoint upload (50% faster)
-        const uploadResult = await uploadToSharePointDirect(renamedFile, {
+        // SSoT: Provider-agnostic upload (SharePoint direct or S3 multipart)
+        const uploadResult = await uploadPhoto(renamedFile, {
           jobId,
           folderPath: "Plans", // Relative to job folder
           filename: renamedFileName,
@@ -834,27 +949,26 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   <FolderOpen className="h-4 w-4 mr-2" />
                   Scan Folder for New Plans
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {
-                  // Open SharePoint folder for this job's plans
-                  window.open(`https://teeemptyltd.sharepoint.com/sites/TEEEM/Shared%20Documents/TEEEM%20Jobs/${jobCode}/Plans`, "_blank");
-                }}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open Storage Folder
-                </DropdownMenuItem>
-                {(selectedPlan?.current_revision?.sharepoint_file_id || selectedPlanIds.length > 0) && (
+{/* Storage folder button removed - S3/Wasabi doesn't have web UI */}
+                {((selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.sharepoint_file_id) || selectedPlanIds.length > 0) && (
                   <DropdownMenuItem onClick={() => {
                     // Download selected plans' PDFs
+                    // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
                     if (selectedPlanIds.length > 0) {
                       // Download all checkbox-selected plans
                       const selectedPlansData = plans.filter(p => selectedPlanIds.includes(p.id));
                       selectedPlansData.forEach(plan => {
-                        if (plan.current_revision?.sharepoint_file_id) {
-                          window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${plan.current_revision.sharepoint_file_id}`, "_blank");
+                        const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.sharepoint_file_id;
+                        if (fileId) {
+                          window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}`, "_blank");
                         }
                       });
-                    } else if (selectedPlan?.current_revision?.sharepoint_file_id) {
+                    } else {
                       // Download single-selected plan
-                      window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${selectedPlan.current_revision.sharepoint_file_id}`, "_blank");
+                      const fileId = selectedPlan?.current_revision?.storage_item_id || selectedPlan?.current_revision?.sharepoint_file_id;
+                      if (fileId) {
+                        window.open(`${getApiBaseUrl()}/api/v1/documents/download?file_id=${fileId}`, "_blank");
+                      }
                     }
                   }}>
                     <Download className="h-4 w-4 mr-2" />
@@ -917,6 +1031,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           actionLabels={{ approve: "Set On Issue", openExternal: "Open in Storage" }}
           loading={loading}
           emptyMessage="Drop a PDF here or click Add Plan to get started"
+          autoSelectFirst
           // MASTERPIECE: Infinite scroll props
           onLoadMore={loadMorePlans}
           hasMore={hasMore}
@@ -1021,7 +1136,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               />
               {selectedFile ? (
                 <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30">
-                  <FileText className="h-8 w-8 text-red-600" />
+                  <FileText className="h-8 w-8 text-red-600 dark:text-red-400" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{selectedFile.name}</p>
                     <p className="text-xs text-muted-foreground">

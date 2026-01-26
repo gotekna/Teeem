@@ -1,4 +1,7 @@
 class PurchaseOrder < ApplicationRecord
+  # Multi-tenancy: DISABLED until tenant_id column added via migration
+  acts_as_tenant :tenant
+
   include Searchable
 
   # Searchable columns for full-text search (GIN index)
@@ -21,6 +24,10 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :estimate, optional: true
   belongs_to :quote_response, optional: true
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
+
+  # Budget Lockdown associations
+  belongs_to :budget_locked_by, class_name: "User", optional: true
+  belongs_to :budget_unlocked_by, class_name: "User", optional: true
 
   # SSoT: PO-Task Link (Option B - Single Column)
   # THE ONE: PurchaseOrder.sm_task_id points to the linked task
@@ -93,7 +100,7 @@ class PurchaseOrder < ApplicationRecord
 
   # Validations
   # purchase_order_number is generated from ID after create, so only validate on update
-  validates :purchase_order_number, presence: true, uniqueness: true, on: :update
+  validates :purchase_order_number, presence: true, uniqueness: { scope: :tenant_id }, on: :update
   validates :job_id, presence: true
   validates :status, presence: true, inclusion: {
     in: %w[draft pending approved sent received invoiced paid cancelled]
@@ -145,6 +152,10 @@ class PurchaseOrder < ApplicationRecord
   scope :for_schedule, -> { where(creates_schedule_tasks: true) }
   scope :visible_to_suppliers, -> { where(visible_to_supplier: true) }
   scope :by_supplier, ->(supplier_id) { where(supplier_id: supplier_id) if supplier_id.present? }
+
+  # Budget lockdown scopes
+  scope :budget_locked, -> { where.not(budget_locked_at: nil) }
+  scope :budget_unlocked, -> { where(budget_locked_at: nil) }
 
   # Class methods
   def self.find_by_slug(slug)
@@ -240,6 +251,41 @@ class PurchaseOrder < ApplicationRecord
 
   def can_cancel?
     !%w[paid cancelled].include?(status)
+  end
+
+  # =============================================================================
+  # Budget Lockdown
+  # =============================================================================
+
+  def budget_locked?
+    budget_locked_at.present?
+  end
+
+  # Lock budget from PO total - prevents changes without unlock permission
+  def lock_budget!(user)
+    return false if budget_locked?
+
+    update!(
+      budget: total,  # Set budget from current PO total
+      budget_locked_at: Time.current,
+      budget_locked_by: user,
+      budget_unlocked_at: nil,
+      budget_unlocked_by: nil,
+      budget_unlock_reason: nil
+    )
+  end
+
+  # Unlock budget - requires special permission (checked in controller)
+  def unlock_budget!(user, reason: nil)
+    return false unless budget_locked?
+
+    update!(
+      budget_locked_at: nil,
+      budget_locked_by: nil,
+      budget_unlocked_at: Time.current,
+      budget_unlocked_by: user,
+      budget_unlock_reason: reason
+    )
   end
 
   # Calculate payment percentage relative to PO total
@@ -459,7 +505,11 @@ class PurchaseOrder < ApplicationRecord
       'sm_schedule_master_name' => sm_schedule_master_name,
       'sm_schedule_master_id_via_task' => sm_schedule_master_id_via_task,
       'stage_from_task' => stage_from_task,
-      'trade_from_task' => trade_from_task
+      'trade_from_task' => trade_from_task,
+      # Budget lockdown info
+      'budget_locked' => budget_locked?,
+      'budget_locked_by_name' => budget_locked_by&.name,
+      'budget_locked_at' => budget_locked_at&.iso8601
     )
     # Include labour summary if this is a labour PO
     result['labour_summary'] = labour_summary if labour_po?

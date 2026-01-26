@@ -66,7 +66,7 @@ export function TrusteeTab({ company }: TrusteeTabProps) {
                 {trustee.acn && (
                   <div className="text-sm text-muted-foreground">ACN: {trustee.acn}</div>
                 )}
-                <Badge variant="outline" className="mt-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                <Badge variant="outline" className="mt-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-300">
                   Corporate Trustee
                 </Badge>
               </div>

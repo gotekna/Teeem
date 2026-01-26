@@ -88,7 +88,7 @@ class ESignatureMailer < ApplicationMailer
 
   def signing_url_for(signer)
     token = signer.generate_access_token!
-    frontend_url = ENV.fetch("FRONTEND_URL", "https://teeemlive.vercel.app")
+    frontend_url = ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
     "#{frontend_url}/sign/#{token}"
   end
 end

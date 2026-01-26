@@ -91,25 +91,30 @@ class UnifiedDocumentGenerator
   def upload_result(result, destination_folder:)
     return result unless result[:pdf_content]
 
-    # SSoT: Use StorageConfiguration for site/drive IDs
-    storage_config = StorageConfiguration.instance
-    graph_client = MicrosoftAppGraphClient.new
-    site_id = storage_config.site_id
-    drive_id = storage_config.drive_id
+    # SSoT: Use tenant for provider (Jan 2026 fix)
+    tenant = template&.respond_to?(:tenant) ? template.tenant : nil
+    tenant ||= ActsAsTenant.current_tenant
 
-    uploaded_file = graph_client.upload_file_content(
-      site_id,
-      drive_id,
+    unless tenant
+      Rails.logger.error "[UnifiedDocumentGenerator] No tenant found for upload"
+      raise ::TenantNotFoundError, "Tenant required for UnifiedDocumentGenerator upload"
+    end
+
+    provider = DocumentProviders.for_tenant(tenant)
+    filename = result[:filename] || result[:pdf_filename]
+
+    uploaded_file = provider.upload_file(
       destination_folder,
-      result[:filename] || result[:pdf_filename],
-      result[:pdf_content]
+      result[:pdf_content],
+      filename,
+      content_type: "application/pdf"
     )
 
     result.merge(
       uploaded_files: [uploaded_file.merge(type: "pdf")]
     )
   rescue ActiveRecord::Encryption::Errors::Decryption => e
-    Rails.logger.error("Microsoft credential decryption failed during upload: #{e.message}")
-    raise CredentialError, "Microsoft credentials expired. Please reconnect OneDrive."
+    Rails.logger.error("Credential decryption failed during upload: #{e.message}")
+    raise CredentialError, "Storage credentials expired. Please reconnect storage provider."
   end
 end

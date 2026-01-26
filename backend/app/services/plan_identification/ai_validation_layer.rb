@@ -10,7 +10,8 @@ module PlanIdentification
   # Only invoked when pattern matching confidence < threshold
   #
   class AiValidationLayer
-    CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+    include AnthropicClient
+    # SSoT: Use AnthropicClient constants for model names
 
     class ExtractionResult
       attr_accessor :sheet_number, :sheet_name, :sheet_date, :sheet_issue,
@@ -114,7 +115,7 @@ module PlanIdentification
 
       response = client.messages(
         parameters: {
-          model: CLAUDE_MODEL,
+          model: CLAUDE_SONNET,
           max_tokens: 500,
           messages: [
             {
@@ -147,7 +148,7 @@ module PlanIdentification
 
       response = client.messages(
         parameters: {
-          model: CLAUDE_MODEL,
+          model: CLAUDE_SONNET,
           max_tokens: 500,
           messages: [
             {

@@ -88,6 +88,9 @@ export interface TeeemDocumentViewProps<T extends DocumentItem> {
   // Styling
   className?: string;
 
+  // Auto-select first document when loading completes (improves UX)
+  autoSelectFirst?: boolean;
+
   // MASTERPIECE: Infinite scroll props
   onLoadMore?: () => void;
   hasMore?: boolean;
@@ -159,6 +162,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
   statusLabels: statusLabelsInput,
   actionLabels: actionLabelsInput,
   className,
+  autoSelectFirst = false,
   // MASTERPIECE: Infinite scroll
   onLoadMore,
   hasMore = false,
@@ -223,6 +227,13 @@ export function TeeemDocumentView<T extends DocumentItem>({
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
   }, [handleScroll, onLoadMore]);
+
+  // Auto-select first document when loading completes (if enabled and no selection)
+  useEffect(() => {
+    if (autoSelectFirst && !loading && documents.length > 0 && selectedDocument === null) {
+      setSelectedDocument(documents[0]);
+    }
+  }, [autoSelectFirst, loading, documents, selectedDocument]);
 
   // Reset to thumbnail view only when switching between documents (not on initial selection)
   useEffect(() => {
@@ -492,7 +503,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
   const StatusBadge = ({ status }: { status: "draft" | "approved" }) => {
     if (status === "approved") {
       return (
-        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 whitespace-nowrap">
+        <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400 whitespace-nowrap">
           <CheckCircle className="h-3 w-3 mr-1" />
           {statusLabels.approved}
         </Badge>

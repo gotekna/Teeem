@@ -28,6 +28,7 @@ Type `/` followed by the command name in Claude Code. For example:
 | `/commit` | Create git commit with conventional format | Ready to commit your changes |
 | `/status` | Get comprehensive project status report | Want overview of git, servers, deployments |
 | `/export-lexicon` | Export Lexicon database to markdown | Updated Lexicon entries and want to export to file |
+| `/pr` | Test EVERY page in the app using Chrome DevTools | Comprehensive UI testing before deployment |
 
 ## Agent Shortcuts
 
@@ -49,6 +50,27 @@ These commands map to the 6 specialized agents. **Each shortcut automatically sa
 3. **Auto-saves to Lexicon** - Creates entry in `documentation_entries` table (Chapter 20)
 4. **Exports to markdown** - Updates `/TEEEM_DOCS/TEEEM_LEXICON.md`
 5. **Claude learns** - Future sessions can reference this execution history
+
+## Deployment Commands
+
+| Command | What It Does | When to Use |
+|---------|-------------|-------------|
+| `/s` | Commit THIS chat + deploy to Staging | Quick staging deploy of current work |
+| `/sa` | Commit ALL changes + deploy to Staging | Deploy all uncommitted work to staging |
+| `/b` | Commit THIS chat + deploy to Beta | Push current work to beta |
+| `/ba` | Commit ALL changes + deploy to Beta | Deploy all uncommitted work to beta |
+| `/p` | Commit THIS chat + full pipeline to Production | Push current work all the way to production |
+| `/pa` | Commit ALL changes + full pipeline to Production | Deploy everything to production |
+| `/live` | **True sync** - merge ALL branches together | Branches diverged, make all identical |
+| `/ma` | Back-merge Live → Beta → Staging | After hotfixes, sync changes back |
+| `/mp` | Deploy Staging backend to Beta + Production | Backend-only deployment |
+
+### Branch Pipeline
+```
+Staging ──► Beta ──► Live (Production)
+   │          │          │
+   └──────────┴──────────┘
+```
 
 ## Common Workflows
 

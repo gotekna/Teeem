@@ -36,6 +36,7 @@ import {
   Percent,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface Quote {
   id: number;
@@ -67,22 +68,6 @@ interface QuoteSummary {
     win_rate: number;
   };
   recent: Quote[];
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }
 
 export default function QuotesTab() {
@@ -158,21 +143,21 @@ export default function QuotesTab() {
         );
       case "sent":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400">
             <Send className="h-3 w-3 mr-1" />
             Sent
           </Badge>
         );
       case "pending":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-yellow-900/30 dark:text-yellow-400">
             <Clock className="h-3 w-3 mr-1" />
             Pending
           </Badge>
         );
       case "accepted":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400">
             <CheckCircle className="h-3 w-3 mr-1" />
             Accepted
           </Badge>
@@ -186,7 +171,7 @@ export default function QuotesTab() {
         );
       case "converted":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+          <Badge className="bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 dark:bg-purple-900/30 dark:text-purple-400">
             <ArrowRight className="h-3 w-3 mr-1" />
             Converted
           </Badge>
@@ -241,7 +226,7 @@ export default function QuotesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {(summary?.by_status?.sent || 0) + (summary?.by_status?.pending || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">awaiting response</p>
@@ -267,7 +252,7 @@ export default function QuotesTab() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {formatCurrency(summary?.totals?.accepted_value || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">won quotes</p>
@@ -357,11 +342,11 @@ export default function QuotesTab() {
                     <TableCell>{quote.reference || "-"}</TableCell>
                     <TableCell>{formatDate(quote.quote_date)}</TableCell>
                     <TableCell>
-                      <span className={isExpiringSoon(quote.expiry_date) ? "text-orange-600 font-medium" : ""}>
+                      <span className={isExpiringSoon(quote.expiry_date) ? "text-orange-600 dark:text-orange-400 font-medium" : ""}>
                         {formatDate(quote.expiry_date)}
                       </span>
                       {isExpiringSoon(quote.expiry_date) && (
-                        <Badge variant="outline" className="ml-2 text-orange-600 border-orange-300">
+                        <Badge variant="outline" className="ml-2 text-orange-600 dark:text-orange-400 border-orange-300">
                           Soon
                         </Badge>
                       )}

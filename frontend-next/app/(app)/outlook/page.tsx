@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getParentRoute } from "@/components/ui/back-button";
 
 import { Spinner } from "@/components/ui/spinner";
 
@@ -47,8 +48,9 @@ export default function OutlookPage() {
       outlookWindow.focus();
     }
 
-    // Navigate back to the previous page
-    router.back();
+    // SSoT: Use BackButton's getParentRoute helper for consistent navigation
+    // Always use getParentRoute for predictable navigation (router.back() deprecated for navigation)
+    router.push(getParentRoute(window.location.pathname));
   }, [router]);
 
   return (

@@ -1,12 +1,19 @@
 # frozen_string_literal: true
 
-# Scans SharePoint job folders for new/updated plan files
+# Scans storage job folders for new/updated plan files
 # Creates PlanFolderScan records for files that need processing
+#
+# ╔═══════════════════════════════════════════════════════════════════╗
+# ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
+# ║  Scans Wasabi, SharePoint, or S3 based on StorageConfiguration    ║
+# ╚═══════════════════════════════════════════════════════════════════╝
+#
 class PlanFolderScanJob < ApplicationJob
+  include DocumentProviderAware
+
   queue_as :default
 
   # SSoT: Use EntityTab.folder_name_for instead of constant
-  # Fallback provided for backwards compatibility
   PLANS_FOLDER_NAME_FALLBACK = "Plan Documents"
   SKIP_FILES = ["All Plans.pdf", "Thumbs.db", ".DS_Store"].freeze
 
@@ -16,13 +23,13 @@ class PlanFolderScanJob < ApplicationJob
   end
 
   def perform(job_id: nil)
-    credential = MicrosoftCredential.sharepoint_credential
-    unless credential
-      Rails.logger.warn "[PlanFolderScanJob] No active SharePoint credential"
+    # SSoT: Setup document provider using StorageConfiguration
+    begin
+      setup_default_provider!
+    rescue DocumentProviders::NotConnectedError => e
+      Rails.logger.warn "[PlanFolderScanJob] No storage provider configured: #{e.message}"
       return
     end
-
-    client = MicrosoftGraphClient.new(credential)
 
     jobs_to_scan = if job_id
       Job.where(id: job_id)
@@ -36,7 +43,7 @@ class PlanFolderScanJob < ApplicationJob
 
     jobs_to_scan.find_each do |job|
       begin
-        found, new_count = scan_job_folder(client, job)
+        found, new_count = scan_job_folder(job)
         total_found += found
         total_new += new_count
       rescue StandardError => e
@@ -44,49 +51,49 @@ class PlanFolderScanJob < ApplicationJob
       end
     end
 
-    Rails.logger.info "[PlanFolderScanJob] Complete: scanned #{jobs_to_scan.count} jobs, found #{total_found} files, #{total_new} new"
+    Rails.logger.info "[PlanFolderScanJob] Complete (provider: #{current_provider_type}): scanned #{jobs_to_scan.count} jobs, found #{total_found} files, #{total_new} new"
   end
 
   private
 
-  def scan_job_folder(client, job)
-    # Find the job's folder in SharePoint
-    job_folder = client.find_job_folder(job)
-    return [0, 0] unless job_folder
+  def scan_job_folder(job)
+    # Build job folder path
+    job_folder_path = build_job_folder_path(job)
 
-    # SSoT: Get plans folder name from EntityTab
-    folder_name = plans_folder_name
+    # Check if job folder exists
+    unless folder_exists_in_provider?(job_folder_path)
+      return [0, 0]
+    end
 
     # Look for plans subfolder
-    response = client.list_folder_items(job_folder["id"])
-    items = response["value"] || []
-    plans_folder = items.find { |item| item["name"] == folder_name && item["folder"].present? }
-    return [0, 0] unless plans_folder
+    plans_folder_path = "#{job_folder_path}/#{plans_folder_name}"
+    unless folder_exists_in_provider?(plans_folder_path)
+      return [0, 0]
+    end
 
     # List files in the plans folder
-    plan_files_response = client.list_folder_items(plans_folder["id"])
-    plan_files = plan_files_response["value"] || []
+    plan_files = list_folder_in_provider(plans_folder_path)
 
     found_count = 0
     new_count = 0
 
     plan_files.each do |file|
-      next unless file["file"].present?  # Skip folders
-      next if SKIP_FILES.include?(file["name"])
-      next unless file["name"].to_s.downcase.end_with?(".pdf")
+      next unless file[:type] == :file  # Skip folders
+      next if SKIP_FILES.include?(file[:name])
+      next unless file[:name].to_s.downcase.end_with?(".pdf")
 
       found_count += 1
-      file_id = file["id"]
-      file_name = file["name"]
-      file_modified = file.dig("lastModifiedDateTime")
-      file_size = file.dig("size")
+      file_id = file[:id]
+      file_name = file[:name]
+      file_modified = file[:modified_at]
+      file_size = file[:size]
 
       # Check if we already have this file
-      existing = PlanFolderScan.find_by(sharepoint_file_id: file_id)
+      existing = PlanFolderScan.find_by(storage_file_id: file_id)
 
       if existing
         # Check if file was modified
-        if existing.needs_update?(Time.parse(file_modified))
+        if existing.needs_update?(file_modified)
           existing.update!(
             file_modified_at: file_modified,
             file_size: file_size,
@@ -100,7 +107,7 @@ class PlanFolderScanJob < ApplicationJob
         # New file - create scan record
         PlanFolderScan.create!(
           job: job,
-          sharepoint_file_id: file_id,
+          storage_file_id: file_id,
           file_name: file_name,
           file_modified_at: file_modified,
           file_size: file_size,
@@ -112,5 +119,10 @@ class PlanFolderScanJob < ApplicationJob
     end
 
     [found_count, new_count]
+  end
+
+  # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+  def build_job_folder_path(job)
+    storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
   end
 end

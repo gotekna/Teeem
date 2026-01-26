@@ -1,4 +1,7 @@
 class TeeemSpreadsheet < ApplicationRecord
+  include WarehouseSyncable
+  warehouse_type :xlsx
+
   belongs_to :user
   belongs_to :job, optional: true
 
@@ -20,7 +23,28 @@ class TeeemSpreadsheet < ApplicationRecord
   scope :for_job, ->(job_id) { where(job_id: job_id) }
   scope :unattached, -> { where(job_id: nil) }
 
+  # ========================================
+  # Warehouse Path (SSoT: StorageConfiguration)
+  # ========================================
+
+  # SSoT: Full warehouse path including filename
+  # Include ID to prevent collisions when multiple spreadsheets have the same name
+  def warehouse_path
+    "#{warehouse_folder_path}/#{safe_filename}_#{id}.xlsx".gsub(%r{/+}, "/")
+  end
+
+  # SSoT: Folder path computed by StorageConfiguration
+  def warehouse_folder_path
+    StorageConfiguration.instance.resolve_warehouse_path(self, scope: :excel_documents)
+  end
+
+  # Safe filename (remove special characters)
+  def safe_filename
+    name.gsub(/[^a-zA-Z0-9\s\-_]/, "").strip.presence || "Untitled"
+  end
+
   private
+
 
   def set_default_data
     self.data ||= default_spreadsheet_data

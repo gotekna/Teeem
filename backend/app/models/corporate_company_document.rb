@@ -1,6 +1,36 @@
 class CorporateCompanyDocument < ApplicationRecord
   include DocumentTemplatable
   include Searchable
+  include StorableDocument
+  include DocumentStorageConstants
+
+  # SSoT: Storage scope for this document type
+  # Determines path: /Corporate/{GroupName}/{CompanyCode}/{TabName}/filename
+  storage_scope :corporate
+
+  # SSoT: Get EntityTab from DocumentType.primary_entity_tab
+  # This is THE ONE way to get folder structure for a document
+  def effective_entity_tab
+    document_type_record&.primary_entity_tab
+  end
+
+  # SSoT: Get storage folder template from EntityTab
+  # Returns the inherited_template (e.g., "{{CompanyGroup}}/{{CompanyCode}}/ASIC")
+  def storage_folder_template
+    effective_entity_tab&.inherited_template
+  end
+
+  # Compatibility with BulkDocumentCategorizationService (which uses folder_path)
+  # Returns the folder field value (e.g., "ASIC", "ATO", "LOANS")
+  def folder_path
+    folder
+  end
+
+  # Extract file extension from file_name (for compatibility with JobDocument interface)
+  def file_extension
+    return nil if file_name.blank?
+    File.extname(file_name.to_s).delete('.').downcase.presence
+  end
 
   # Searchable columns for full-text search (GIN index)
   searchable_columns :file_name, :display_name, :description, :folder
@@ -21,6 +51,10 @@ class CorporateCompanyDocument < ApplicationRecord
 
   # Polymorphic association - link to PurchaseOrder, ExternalInvoice, Job, etc.
   belongs_to :documentable, polymorphic: true, optional: true
+
+  # SSoT: Link to deduplicated file storage (Jan 2026)
+  # Same file = same StorageBlob, deduplication via content_hash
+  belongs_to :storage_blob, optional: true
 
   # Activity log for tracking changes
   # Note: foreign_key is :company_document_id (legacy name from before table rename)
@@ -43,33 +77,20 @@ class CorporateCompanyDocument < ApplicationRecord
   has_many :sm_task_attachments, as: :attachable, dependent: :destroy
   has_many :attached_tasks, through: :sm_task_attachments, source: :sm_task
 
-  # Active Storage for file upload
-  has_one_attached :file
+  # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
 
-  # File upload validation (security: prevents storage DoS and malware upload)
-  ALLOWED_CONTENT_TYPES = %w[
-    application/pdf
-    image/jpeg image/png image/tiff image/heic
-    application/vnd.openxmlformats-officedocument.wordprocessingml.document
-    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-    application/vnd.ms-excel application/msword
-    text/plain text/csv
-  ].freeze
+  # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT by
+  # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
+  # which deduplicates via content_hash and uses StorageConfiguration for provider-agnostic paths.
 
-  validates :file, content_type: ALLOWED_CONTENT_TYPES,
-                   size: { less_than: 50.megabytes, message: "must be less than 50MB" }
+  # SSoT: ALLOWED_CONTENT_TYPES defined in DocumentStorageConstants concern
 
   # Storage types for Company Register tracking
   STORAGE_TYPES = %w[manual electronic both].freeze
 
-  # AI verification statuses
-  AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
-
-  # Storage providers (SSoT: Organization.document_provider)
-  STORAGE_PROVIDERS = %w[sharepoint s3_compatible].freeze
-
-  # Migration statuses for tracking provider-to-provider migration
-  MIGRATION_STATUSES = %w[pending in_progress completed failed].freeze
+  # SSoT: STORAGE_PROVIDERS, MIGRATION_STATUSES, AI_VERIFICATION_STATUSES
+  # defined in DocumentStorageConstants concern
 
   # Focus types - three main categories for organizing documents
   FOCUS_TYPES = %w[company people job].freeze
@@ -147,13 +168,13 @@ class CorporateCompanyDocument < ApplicationRecord
   scope :by_tab, ->(tab) {
     # Match documents by any of:
     # 1. folder field matching the tab name (SharePoint synced documents)
-    # 2. document_type (string) matching a DocumentType whose tabs array contains this tab (legacy)
-    # 3. document_type_id (FK) matching a DocumentType whose tabs array contains this tab (SSoT)
+    # 2. document_type (string) matching a DocumentType whose folder matches this tab (legacy)
+    # 3. document_type_id (FK) matching a DocumentType whose folder matches this tab (SSoT)
     joins("LEFT JOIN document_types dt_legacy ON dt_legacy.name = corporate_company_documents.document_type")
       .joins("LEFT JOIN document_types dt_fk ON dt_fk.id = corporate_company_documents.document_type_id")
       .where(
-        "UPPER(corporate_company_documents.folder) = ? OR dt_legacy.tabs @> ? OR dt_fk.tabs @> ?",
-        tab.upcase, [ tab ].to_json, [ tab ].to_json
+        "UPPER(corporate_company_documents.folder) = ? OR UPPER(dt_legacy.folder) = ? OR UPPER(dt_fk.folder) = ?",
+        tab.upcase, tab.upcase, tab.upcase
       )
   }
   scope :by_source, ->(source) { where(source: source) }
@@ -181,6 +202,7 @@ class CorporateCompanyDocument < ApplicationRecord
 
   # Callbacks
   after_create :create_activity
+  after_create :create_warehouse_entry
   before_validation :set_focus
   before_save :extract_financial_years_from_file_name  # SSoT: file_name is THE filename
   before_save :generate_display_name                    # SSoT: display_name is THE display
@@ -240,26 +262,82 @@ class CorporateCompanyDocument < ApplicationRecord
     !migration_in_progress? && storage_reference.present?
   end
 
-  # Returns the provider-agnostic storage reference
-  # Falls back to sharepoint_file_id for backwards compatibility
-  def storage_reference
-    storage_item_id.presence || sharepoint_file_id
+  # SSoT: storage_reference is now defined in StorableDocument concern
+
+  # ========================================
+  # StorageBlob File Access (SSoT - Jan 2026)
+  # ========================================
+
+  # has_file? is provided by StorableDocument concern (SSoT)
+
+  # file_url is provided by StorableDocument concern (SSoT)
+
+  # download_file is provided by StorableDocument concern (SSoT)
+
+  def attach_file(content, filename:, content_type: nil)
+    blob = StorageBlob.find_or_create_for_content!(
+      content,
+      filename: filename,
+      content_type: content_type
+    )
+
+    storage_blob&.decrement_reference! if storage_blob_id.present?
+    self.storage_blob = blob
+    blob.increment_reference!
+
+    # Update document metadata
+    self.file_name = filename
+    self.file_size = content.bytesize
+    self.content_type = content_type || blob.content_type
+    self.content_hash = blob.content_hash
   end
 
-  # Sets both provider-agnostic and SharePoint-specific fields
-  # for backwards compatibility during migration
-  def set_storage_reference(item_id, provider: 'sharepoint', path: nil)
-    self.storage_item_id = item_id
-    self.storage_provider = provider
-    self.storage_path = path
+  # download_file is provided by StorableDocument concern (SSoT)
 
-    # Maintain backwards compatibility with SharePoint fields
-    if provider == 'sharepoint'
-      self.sharepoint_file_id = item_id
-    end
+  # Phase 4: Virtual folder path for File Warehouse
+  # DEPRECATED: folder is legacy - use WarehouseDocument.folder instead (Phase 3 SSoT)
+  # SSoT: Reads template from StorageConfiguration.virtual_template_for(:corporate)
+  # No fallback - if template is nil, that's a config error that should be fixed
+  def virtual_folder_path
+    config = StorageConfiguration.instance
+    template = config&.virtual_template_for(:corporate)
+    raise "StorageConfiguration missing :corporate template - run rails warehouse:init" unless template
+
+    tokens = storage_tokens_for_virtual_path
+    result = template.dup
+    result.gsub!("{{CompanyGroup}}", tokens[:CompanyGroup].to_s)
+    result.gsub!("{{GroupName}}", tokens[:GroupName].to_s)
+    result.gsub!("{{CompanyCode}}", tokens[:CompanyCode].to_s)
+    result.gsub!("{{CompanyName}}", tokens[:CompanyName].to_s)
+    result.gsub!("{{TabName}}", tokens[:TabName].to_s)
+    result.gsub!("{{Category}}", folder.to_s)
+
+    # Clean up empty tokens
+    result.gsub!(/\{\{[^}]+\}\}/, "")
+    result.gsub!(%r{//+}, "/")
+    result.gsub!(%r{^/|/$}, "")
+    result
   end
 
   private
+
+  # SSoT: Default tokens for storage path template
+  # Template: /Corporate/{GroupName}/{CompanyCode}/{TabName}/filename
+  # Priority: EntityTab.display_name > folder > document_type
+  def default_storage_tokens
+    entity_tab = effective_entity_tab
+    {
+      CompanyGroup: corporate_company&.corporate_group&.name || "No Group",
+      GroupName: corporate_company&.corporate_group&.name || "No Group",
+      CompanyCode: corporate_company&.code || corporate_company&.name&.first(3)&.upcase || "UNK",
+      CompanyName: corporate_company&.name || "Unknown",
+      # SSoT: TabName comes from EntityTab (THE ONE source of folder names)
+      TabName: entity_tab&.display_name || folder || document_type&.titleize || "Documents"
+    }
+  end
+
+  # Tokens for virtual_folder_path (uses same logic as default_storage_tokens)
+  alias_method :storage_tokens_for_virtual_path, :default_storage_tokens
 
   # Automatically set focus based on associations
   # Priority: people > job > company
@@ -403,5 +481,30 @@ class CorporateCompanyDocument < ApplicationRecord
     end
     Rails.logger.info "[CorporateCompanyDocument] Updated #{count} documents with display names"
     count
+  end
+
+  # Create WarehouseDocument entry for File Warehouse
+  def create_warehouse_entry
+    return unless storage_blob
+
+    # Use display_name if present, otherwise file_name, otherwise generic fallback
+    name = display_name.presence || file_name.presence || "Document #{id}"
+
+    create_warehouse_document!(
+      source_type: "corporate",
+      folder: virtual_folder_path,
+      display_name: name,
+      original_filename: file_name,
+      storage_blob: storage_blob,
+      metadata: {
+        corporate_company_document_id: id,
+        company_id: company_id,
+        document_type: document_type,
+        document_type_id: document_type_id,
+        folder: folder
+      }
+    )
+  rescue StandardError => e
+    Rails.logger.error("[CorporateCompanyDocument] Failed to create warehouse entry for #{id}: #{e.message}")
   end
 end

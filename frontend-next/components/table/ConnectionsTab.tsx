@@ -16,6 +16,7 @@ import {
 import { ArrowRight, ArrowLeft, Link2, ExternalLink, Database } from "lucide-react";
 import NextLink from "next/link";
 import { urls } from "@/lib/url-utils";
+import { isLookupColumn } from "@/lib/constants/column-types";
 import { TableColumn } from "./types";
 
 interface Foundation {
@@ -129,7 +130,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
 
       if (lookupFoundationId) {
         const targetFoundation = foundations.find((f) => f.id === lookupFoundationId);
-        const isMultiple = details?.is_multiple || column.column_type === "multiple_lookups";
+        const isMultiple = details?.is_multiple || column.column_type === 'multiple_lookups'; // Note: This is an explicit check for the specific type, not a general lookup check
 
         result.push({
           type: "outgoing",
@@ -154,7 +155,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
           targetFoundationId: foundationId,
           targetFoundationName: tableName,
           targetColumnName: column.lookup_display_column,
-          isMultiple: column.is_multiple || column.column_type === "multiple_lookups",
+          isMultiple: column.is_multiple || column.column_type === 'multiple_lookups',
           sourceFoundationId: column.foundation_id,
           sourceFoundationName: sourceFoundation?.name || `Table #${column.foundation_id}`,
         });
@@ -209,7 +210,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <ArrowRight className="h-4 w-4 text-blue-500" />
+                <ArrowRight className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                 Outgoing Connections
               </CardTitle>
               <CardDescription>
@@ -239,7 +240,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
                         <TableCell>
                           <NextLink
                             href={urls.table(conn.targetFoundationId, conn.targetFoundationName.toLowerCase().replace(/\s+/g, "-"))}
-                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline"
+                            className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
                           >
                             {conn.targetFoundationName}
                             <ExternalLink className="h-3 w-3" />
@@ -267,7 +268,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <ArrowLeft className="h-4 w-4 text-green-500" />
+                <ArrowLeft className="h-4 w-4 text-green-500 dark:text-green-400" />
                 Incoming Connections
               </CardTitle>
               <CardDescription>
@@ -294,7 +295,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
                         <TableCell>
                           <NextLink
                             href={urls.table(conn.sourceFoundationId!, conn.sourceFoundationName!.toLowerCase().replace(/\s+/g, "-"))}
-                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline"
+                            className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
                           >
                             {conn.sourceFoundationName}
                             <ExternalLink className="h-3 w-3" />
@@ -349,7 +350,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
               {/* Arrows in */}
               {incomingConnections.length > 0 && (
                 <div className="flex flex-col items-center">
-                  <ArrowRight className="h-6 w-6 text-green-500" />
+                  <ArrowRight className="h-6 w-6 text-green-500 dark:text-green-400" />
                 </div>
               )}
 
@@ -361,7 +362,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
               {/* Arrows out */}
               {outgoingConnections.length > 0 && (
                 <div className="flex flex-col items-center">
-                  <ArrowRight className="h-6 w-6 text-blue-500" />
+                  <ArrowRight className="h-6 w-6 text-blue-500 dark:text-blue-400" />
                 </div>
               )}
 

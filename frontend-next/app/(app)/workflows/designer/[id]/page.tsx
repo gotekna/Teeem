@@ -4,10 +4,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import BpmnJsDesigner from "@/components/workflows/designer/BpmnJsDesigner";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import Link from "next/link";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function WorkflowDesignerPage() {
   const params = useParams();
@@ -86,13 +84,8 @@ export default function WorkflowDesignerPage() {
   if (error && !isNew) {
     return (
       <div className="flex h-screen flex-col items-center justify-center">
-        <p className="mb-4 text-red-500">Failed to load workflow</p>
-        <Button asChild variant="outline">
-          <Link href="/workflows/processes">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Workflows
-          </Link>
-        </Button>
+        <p className="mb-4 text-red-500 dark:text-red-400">Failed to load workflow</p>
+        <BackButton fallbackHref="/workflows/processes" />
       </div>
     );
   }
@@ -101,12 +94,7 @@ export default function WorkflowDesignerPage() {
     <div className="flex h-screen flex-col">
       {/* Back button */}
       <div className="flex items-center border-b bg-white px-4 py-2 dark:bg-slate-900">
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/workflows/processes">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Workflows
-          </Link>
-        </Button>
+        <BackButton fallbackHref="/workflows/processes" />
       </div>
 
       {/* Designer */}

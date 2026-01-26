@@ -942,7 +942,7 @@ export default function BpmnJsDesigner({
             <div className="space-y-6 mt-6">
               {/* E-Signature Configuration */}
               <div className="space-y-4">
-                <h4 className="font-medium flex items-center gap-2">
+                <h4 className="text-sm font-medium flex items-center gap-2">
                   <PenTool className="h-4 w-4" />
                   E-Signature Settings
                 </h4>
@@ -987,7 +987,7 @@ export default function BpmnJsDesigner({
               {/* Signers List */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium flex items-center gap-2">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
                     <Users className="h-4 w-4" />
                     Default Signers
                   </h4>
@@ -1041,12 +1041,12 @@ export default function BpmnJsDesigner({
                             </span>
                             {/* Show actual contact details if job is selected */}
                             {signer.contact_key && getContactDetails(signer.contact_key) && (
-                              <span className="text-xs text-green-600">
+                              <span className="text-xs text-green-600 dark:text-green-400">
                                 {getContactDetails(signer.contact_key)?.display_name} - {getContactDetails(signer.contact_key)?.email}
                               </span>
                             )}
                             {signer.contact_key && !getContactDetails(signer.contact_key) && selectedJobId && !loadingJobContacts && (
-                              <span className="text-xs text-orange-500">
+                              <span className="text-xs text-orange-500 dark:text-orange-400">
                                 Not set on selected job
                               </span>
                             )}
@@ -1172,7 +1172,7 @@ export default function BpmnJsDesigner({
               {/* Additional Documents Section */}
               <div className="space-y-4 pt-6 border-t">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium flex items-center gap-2">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
                     <FileText className="h-4 w-4" />
                     Document Package
                   </h4>
@@ -1290,7 +1290,7 @@ export default function BpmnJsDesigner({
         {/* Properties Panel */}
         <div className="w-80 border-l bg-background overflow-auto">
           <div className="p-4">
-            <h3 className="font-semibold mb-4">Properties</h3>
+            <h3 className="text-sm font-semibold mb-4">Properties</h3>
 
             {!isLoaded ? (
               <div className="text-sm text-muted-foreground">Loading...</div>
@@ -1390,7 +1390,7 @@ export default function BpmnJsDesigner({
                           <div className="mt-2 space-y-2">
                             <p className="text-xs text-muted-foreground">
                               <FileText className="h-3 w-3 inline mr-1" />
-                              {selectedTemplate.category} • {selectedTemplate.layout === "tekna" ? "Tekna Branded" : "QBCC Official"}
+                              {selectedTemplate.category} • {selectedTemplate.layout === "tekna" ? "Teeem Branded" : "QBCC Official"}
                             </p>
                             <Button
                               variant="outline"

@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  ArrowLeft,
   Users,
   Search,
   Building2,
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { BackButton } from "@/components/ui/back-button";
 
 // Calculate director compliance score
 const calculateDirectorCompliance = (director: Director) => {
@@ -128,9 +128,7 @@ export default function DirectorsPage() {
     <div className="flex flex-col gap-6">
       {/* Header */}
       <div className="flex items-start gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <BackButton fallbackHref="/corporate" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Directors Registry</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -196,7 +194,7 @@ export default function DirectorsPage() {
                         )}
                       >
                         {compliance.isFullyCompliant ? (
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                         ) : (
                           <AlertCircle className="h-4 w-4 text-amber-600" />
                         )}
@@ -213,7 +211,7 @@ export default function DirectorsPage() {
                   {/* Compliance Status Bar */}
                   <div className="mt-3">
                     <div className="flex items-center justify-between text-xs mb-1">
-                      <span className={cn("font-medium", compliance.isFullyCompliant ? "text-green-600" : "text-amber-600")}>
+                      <span className={cn("font-medium", compliance.isFullyCompliant ? "text-green-600 dark:text-green-400" : "text-amber-600")}>
                         {compliance.isFullyCompliant
                           ? "Fully Compliant"
                           : `${compliance.filledRequired}/${compliance.totalRequired} Required`}
@@ -277,7 +275,7 @@ export default function DirectorsPage() {
 
                   {director.is_beneficial_owner && (
                     <div className="mt-3">
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                      <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-300">
                         Beneficial Owner
                       </Badge>
                     </div>

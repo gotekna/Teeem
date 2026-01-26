@@ -34,6 +34,13 @@ export interface BreadcrumbItem {
 export const MAX_TRAIL_LENGTH = 10;
 
 /**
+ * Custom event dispatched when view changes via history.replaceState()
+ * BreadcrumbContext listens for this to rebuild trail from current URL
+ * This decouples URL updates from React navigation (no re-renders/flash)
+ */
+export const VIEW_CHANGE_EVENT = "view-change";
+
+/**
  * The navigation trail - session only (not persisted)
  * Starts empty, builds as user navigates
  */

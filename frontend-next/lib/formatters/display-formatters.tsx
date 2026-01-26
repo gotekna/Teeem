@@ -20,7 +20,7 @@ import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { getTypeDefinition, type ColumnTypeDefinition } from "../column-type-registry";
 
 // Consistent link styling
-const LINK_CLASSES = "text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]";
+const LINK_CLASSES = "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]";
 
 /**
  * Format empty/null values consistently - returns em-dash
@@ -206,7 +206,7 @@ const FORMATTERS: Record<string, FormatterFn> = {
     return (
       <span className="flex items-center gap-1">
         {boolValue ? (
-          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+          <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
         ) : (
           <Circle className="h-3.5 w-3.5 text-muted-foreground dark:text-muted-foreground" />
         )}

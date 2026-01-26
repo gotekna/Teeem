@@ -51,7 +51,6 @@ import {
   Building2,
   ImageIcon,
   DollarSign,
-  FolderTree,
   Copy,
   X,
   LayoutList,
@@ -84,11 +83,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
 import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
 import { ColumnTypeDefinitionsTab } from "./ColumnTypeDefinitionsTab";
 import { SortableList, SortableItem, DragHandle, ItemBadge } from "@/components/ui/dnd";
 import { Spinner } from "@/components/ui/spinner";
+import { useConfirm } from "@/contexts/ConfirmationContext";
 
 interface ColumnType {
   columnName: string;
@@ -203,6 +202,7 @@ function SortableFieldItem({
 // Gold Standard Data Tab - shows actual table records using TeeemTableView
 function GoldStandardDataTab() {
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [entries, setEntries] = React.useState<TableRowType[]>([]);
   const [columns, setColumns] = React.useState<TableColumn[]>([]);
   const [rawColumns, setRawColumns] = React.useState<Array<{
@@ -216,6 +216,7 @@ function GoldStandardDataTab() {
     available_choices?: string[];
   }>>([]);
   const [loading, setLoading] = React.useState(true);
+  const [foundationNotFound, setFoundationNotFound] = React.useState(false);
   const [showAddDialog, setShowAddDialog] = React.useState(false);
   const [showEditDialog, setShowEditDialog] = React.useState(false);
   const [editingEntry, setEditingEntry] = React.useState<TableRowType | null>(null);
@@ -229,6 +230,9 @@ function GoldStandardDataTab() {
   // Server search state
   const [serverSearchLoading, setServerSearchLoading] = React.useState(false);
 
+  // Foundation ID for view URL sync
+  const [foundationNumericId, setFoundationNumericId] = React.useState<number | null>(null);
+
   // Preloaded views state
   const [preloadedViews, setPreloadedViews] = React.useState<SavedView[] | null>(null);
 
@@ -241,7 +245,7 @@ function GoldStandardDataTab() {
   React.useEffect(() => {
     if (rawColumns.length > 0 && visibleFields.size === 0) {
       // Default: show common field types INCLUDING system columns
-      const defaultVisibleTypes = ['short_text', 'long_text', 'number', 'whole_number', 'currency', 'date', 'boolean', 'email', 'dropdown', 'percentage'];
+      const defaultVisibleTypes = ['single_line_text', 'multiple_lines_text', 'number', 'whole_number', 'currency', 'date', 'boolean', 'email', 'choice', 'percentage'];
       const systemColumns = ['id', 'created_at', 'updated_at'];
 
       // Include ALL columns (system columns are visible but not editable)
@@ -469,6 +473,9 @@ function GoldStandardDataTab() {
       }>("/api/v1/gold_standard_table");
 
       if (foundationData?.foundation?.columns) {
+        // Store foundation ID for view URL sync
+        setFoundationNumericId(foundationData.foundation.id);
+
         // Build columns from API response, sorted by position
         const sortedCols = [...foundationData.foundation.columns].sort(
           (a, b) => (a.position || 0) - (b.position || 0)
@@ -521,12 +528,19 @@ function GoldStandardDataTab() {
         // Don't fail the whole load if views fail
       }
     } catch (error) {
-      console.error("Failed to load gold standard data:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load gold standard data",
-        variant: "destructive",
-      });
+      // Check if it's a "Foundation not found" error - this is expected if the demo table doesn't exist
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('Foundation not found')) {
+        setFoundationNotFound(true);
+        // Silent - no console output for expected missing demo foundation
+      } else {
+        console.error("Failed to load gold standard data:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load gold standard data",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -534,7 +548,7 @@ function GoldStandardDataTab() {
 
 
   const handleDelete = async (entry: TableRowType) => {
-    if (!confirm("Are you sure you want to delete this item?")) return;
+    if (!(await confirm("Are you sure you want to delete this item?"))) return;
 
     try {
       await api.delete(`/api/v1/gold_standard_table/${entry.id}`);
@@ -677,7 +691,7 @@ function GoldStandardDataTab() {
 
   const handleBulkDelete = async (ids: (number | string)[]) => {
     console.log("[GoldStandardTab] handleBulkDelete called with ids:", ids);
-    if (!confirm(`Are you sure you want to delete ${ids.length} item(s)?`)) {
+    if (!(await confirm(`Are you sure you want to delete ${ids.length} item(s)?`))) {
       console.log("[GoldStandardTab] Delete cancelled by user");
       return;
     }
@@ -837,6 +851,23 @@ function GoldStandardDataTab() {
     );
   }
 
+  if (foundationNotFound) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <Database className="h-12 w-12 text-muted-foreground" />
+        <div className="text-center">
+          <h3 className="font-medium text-lg">Demo Foundation Not Found</h3>
+          <p className="text-muted-foreground text-sm mt-1">
+            The <code className="bg-muted px-1 rounded">gold_standard_table</code> foundation doesn&apos;t exist.
+          </p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Create it in the database to demo table features here.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col">
       <TeeemTableView
@@ -844,6 +875,7 @@ function GoldStandardDataTab() {
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         totalCount={entries.length}
         foundationId="gold_standard_table"
+        foundationIdNumeric={foundationNumericId || undefined}  // Enables view URL sync
         tableName="Gold Standard Table"
         // SSoT: onView, onEdit, onDelete (Add/Edit/View/Delete buttons) are now auto-enabled
         // by TeeemTableView when foundationIdNumeric is set. No need to pass custom handlers.
@@ -879,7 +911,7 @@ function GoldStandardDataTab() {
             variant="outline"
             size="sm"
             onClick={() => {
-              alert(`customBulkActions prop - runs on ${selectedIds.length} selected rows`);
+              console.log(`customBulkActions prop - runs on ${selectedIds.length} selected rows`);
             }}
             title="customBulkActions prop - bulk operations for selected rows"
           >
@@ -1030,7 +1062,7 @@ function GoldStandardTableTab() {
           </p>
           <Badge
             variant={error ? "secondary" : "default"}
-            className={cn("mt-2", error ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800")}
+            className={cn("mt-2", error ? "bg-status-warning text-status-warning-foreground" : "bg-status-success text-status-success-foreground")}
           >
             {dataSource}
           </Badge>
@@ -1081,7 +1113,7 @@ function GoldStandardTableTab() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
+            <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
             Column Types ({columns.length})
           </CardTitle>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1130,7 +1162,7 @@ function GoldStandardTableTab() {
                         variant="secondary"
                         className={cn(
                           "font-mono text-xs",
-                          isSystemColumn(col.columnName) && "bg-red-100 text-red-700 dark:bg-red-900/30"
+                          isSystemColumn(col.columnName) && "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 dark:bg-red-900/30"
                         )}
                       >
                         {col.sqlType}
@@ -1245,39 +1277,6 @@ function GoldStandardBillsInvoiceTab() {
   );
 }
 
-// Gold SharePoint Path Viewer Tab - Uses the SSoT SharePointPathConfigurator component
-function GoldSharePointPathViewerTab() {
-  return (
-    <div className="space-y-4">
-      {/* SSoT Component - loads/saves from backend API */}
-      <SharePointPathConfigurator
-        defaultScope="job"
-        showAllScopes={true}
-        showBrowser={true}
-        showSaveButton={true}
-      />
-
-      {/* Info Box */}
-      <Card className="bg-muted/50">
-        <CardContent className="flex gap-3 pt-6">
-          <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-muted-foreground">
-            <p className="font-medium text-foreground mb-1">SSoT Architecture:</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>This is THE ONE component for SharePoint path configuration</li>
-              <li>Data stored in <code className="text-xs bg-muted px-1 rounded">CorporateCompanySetting</code> (SSoT)</li>
-              <li>API: <code className="text-xs bg-muted px-1 rounded">GET/PATCH /api/v1/corporate_company_settings/sharepoint</code></li>
-              <li>Backend methods: <code className="text-xs bg-muted px-1 rounded">CorporateCompanySetting.job_path</code>, <code className="text-xs bg-muted px-1 rounded">.company_path</code>, etc.</li>
-              <li>Component: <code className="text-xs bg-muted px-1 rounded">components/ui/sharepoint-path-configurator.tsx</code></li>
-              <li>Admin Config: <code className="text-xs bg-muted px-1 rounded">Admin &gt; System &gt; Company &gt; SharePoint tab</code></li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 // Gold Document Types Tab - Shows the document type editor component
 function GoldDocumentTypesTab() {
   return <GoldDocumentTypeEditor />;
@@ -1312,8 +1311,8 @@ function GoldDocumentTypeEditor() {
   // Placeholder definitions
   const BASE_PLACEHOLDERS = {
     company: [
-      { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Tekna Homes", color: "purple" },
-      { code: "{CompanyGroup}", example: "Tekna Group", color: "purple" },
+      { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Teeem Homes", color: "purple" },
+      { code: "{CompanyGroup}", example: "Teeem Group", color: "purple" },
       { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
       { code: "{AssetCode}", example: "PROP1", longCode: "{AssetName}", longExample: "123 Main Street", color: "purple" },
       { code: "{FY}", label: "FY{FY}", example: "FY25", color: "purple" },
@@ -1375,10 +1374,10 @@ function GoldDocumentTypeEditor() {
         const corporateLinkedCompanies = companiesData.filter((c: any) => c.company_group_id != null);
         setCompanies(corporateLinkedCompanies);
         if (corporateLinkedCompanies.length > 0) {
-          const teknaHomes = corporateLinkedCompanies.find((c: any) =>
-            c.code === "TH" || c.name?.toLowerCase().includes("tekna")
+          const teeemHomes = corporateLinkedCompanies.find((c: any) =>
+            c.code === "TH" || c.name?.toLowerCase().includes("teeem")
           );
-          setPreviewCompanyId(teknaHomes ? teknaHomes.id : corporateLinkedCompanies[0].id);
+          setPreviewCompanyId(teeemHomes ? teeemHomes.id : corporateLinkedCompanies[0].id);
         }
       }
     } catch (error) {
@@ -1508,7 +1507,7 @@ function GoldDocumentTypeEditor() {
     preview = preview.replace(/\{DocTypeCode\}/g, documentType?.abbreviation || "");
     preview = preview.replace(/\{DocTypeName\}/g, documentType?.name?.replace(/^[A-Z0-9]+\s*-\s*/, "").trim() || "");
     preview = preview.replace(/\{CompanyCode\}/g, selectedCompany?.code || "TH");
-    preview = preview.replace(/\{CompanyName\}/g, selectedCompany?.name || "Tekna Homes");
+    preview = preview.replace(/\{CompanyName\}/g, selectedCompany?.name || "Teeem Homes");
     preview = preview.replace(/\{Date\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{Description\}/g, "Example");
     return preview.trim();
@@ -1623,11 +1622,11 @@ function GoldDocumentTypeEditor() {
             </div>
 
             <div className="flex gap-4">
-              {/* File Name / Display Name builders */}
+              {/* Send Name / Display Name builders */}
               <div className="flex-1 space-y-4">
-                {/* File Name */}
+                {/* Send Name */}
                 <div className="space-y-2">
-                  <Label>File Name</Label>
+                  <Label>Send Name</Label>
                   <div
                     className={cn(
                       "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
@@ -1643,10 +1642,10 @@ function GoldDocumentTypeEditor() {
                           "font-mono text-xs px-3 py-1.5",
                           token.type === "placeholder"
                             ? getPlaceholderColor(token.value) === "blue"
-                              ? "bg-blue-100 text-blue-700 border-blue-300"
+                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300"
                               : getPlaceholderColor(token.value) === "orange"
-                                ? "bg-orange-100 text-orange-700 border-orange-300"
-                                : "bg-purple-100 text-purple-700 border-purple-300"
+                                ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300"
+                                : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300"
                             : "bg-muted text-foreground border-border"
                         )}
                       >
@@ -1680,7 +1679,7 @@ function GoldDocumentTypeEditor() {
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <Checkbox checked={displayNameSameAsFileName} onCheckedChange={(c) => setDisplayNameSameAsFileName(!!c)} />
-                        <span className="text-muted-foreground">Same as File Name</span>
+                        <span className="text-muted-foreground">Same as Send Name</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <Checkbox checked={showFullDescription} onCheckedChange={(c) => setShowFullDescription(!!c)} />
@@ -1704,10 +1703,10 @@ function GoldDocumentTypeEditor() {
                           "font-mono text-xs px-3 py-1.5",
                           token.type === "placeholder"
                             ? getPlaceholderColor(token.value) === "blue"
-                              ? "bg-blue-100 text-blue-700 border-blue-300"
+                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300"
                               : getPlaceholderColor(token.value) === "orange"
-                                ? "bg-orange-100 text-orange-700 border-orange-300"
-                                : "bg-purple-100 text-purple-700 border-purple-300"
+                                ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300"
+                                : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300"
                             : "bg-muted text-foreground border-border"
                         )}
                       >
@@ -1986,9 +1985,9 @@ function SyncCheckTab() {
                       <Badge
                         variant="secondary"
                         className={cn(
-                          col.status === "system" && "bg-red-100 text-red-800",
-                          col.status === "match" && "bg-green-100 text-green-800",
-                          col.status === "mismatch" && "bg-yellow-100 text-yellow-800"
+                          col.status === "system" && "bg-status-error text-status-error-foreground",
+                          col.status === "match" && "bg-status-success text-status-success-foreground",
+                          col.status === "mismatch" && "bg-status-warning text-status-warning-foreground"
                         )}
                       >
                         {col.status}
@@ -2159,7 +2158,7 @@ function SetupTableDemo() {
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Briefcase className="h-5 w-5 text-muted-foreground" />
-              <h3 className="font-semibold">Job Types</h3>
+              <h3 className="text-sm font-semibold">Job Types</h3>
             </div>
             <Button size="sm" onClick={() => setShowAddDialog(true)}>
               <Plus className="h-4 w-4 mr-1" />
@@ -2313,21 +2312,26 @@ function SetupTableDemo() {
   );
 }
 
+const DEFAULT_GOLD_STANDARD_BASE_PATH = "/admin/system/components";
+
 interface GoldStandardTabProps {
   subtab?: string;
+  basePath?: string;
 }
 
-export function GoldStandardTab({ subtab }: GoldStandardTabProps) {
+export function GoldStandardTab({ subtab, basePath = DEFAULT_GOLD_STANDARD_BASE_PATH }: GoldStandardTabProps) {
   const router = useRouter();
+  // Default to "table" tab if no subtab specified - no redirect needed
+  // This allows breadcrumb navigation to /settings/developer/components to work
   const activeTab = subtab || "table";
 
   const setActiveTab = React.useCallback((tab: string) => {
-    router.push(`/admin/system/components/${tab}`, { scroll: false });
-  }, [router]);
+    router.push(`${basePath}/${tab}`, { scroll: false });
+  }, [router, basePath]);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-      <TabsList className="flex-wrap h-auto gap-1">
+      <TabsList className="flex-wrap h-auto gap-1 justify-start">
         <TabsTrigger value="table" className="flex items-center gap-2">
           <Database className="h-4 w-4" />
           Gold Standard Table
@@ -2339,10 +2343,6 @@ export function GoldStandardTab({ subtab }: GoldStandardTabProps) {
         <TabsTrigger value="invoice" className="flex items-center gap-2">
           <Receipt className="h-4 w-4" />
           Gold Bills/Invoice Viewer
-        </TabsTrigger>
-        <TabsTrigger value="sharepoint-paths" className="flex items-center gap-2">
-          <FolderTree className="h-4 w-4" />
-          Gold SharePoint Path Viewer
         </TabsTrigger>
         <TabsTrigger value="column-info" className="flex items-center gap-2">
           <FileText className="h-4 w-4" />
@@ -2380,10 +2380,6 @@ export function GoldStandardTab({ subtab }: GoldStandardTabProps) {
 
       <TabsContent value="invoice" className="mt-0">
         <GoldStandardBillsInvoiceTab />
-      </TabsContent>
-
-      <TabsContent value="sharepoint-paths" className="mt-0">
-        <GoldSharePointPathViewerTab />
       </TabsContent>
 
       <TabsContent value="column-info" className="mt-0">

@@ -11,6 +11,10 @@ import {
   XCircleIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
+import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/contexts/ConfirmationContext";
+import { Spinner } from "@/components/ui/spinner";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface PortalUser {
   contact_name?: string;
@@ -30,6 +34,8 @@ interface AccountingIntegration {
 }
 
 export default function PortalSettings() {
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState("profile");
   const [accountingIntegrations, setAccountingIntegrations] = useState<
@@ -43,12 +49,11 @@ export default function PortalSettings() {
 
   const loadSettings = async () => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       // Load user from localStorage
-      const userStr = localStorage.getItem("portal_user");
-      const user = userStr ? JSON.parse(userStr) : null;
+      const user = getStorageItem<PortalUser | null>(STORAGE_KEYS.PORTAL_USER, null);
       setPortalUser(user);
 
       // Load accounting integrations
@@ -66,7 +71,7 @@ export default function PortalSettings() {
 
   const handleConnectAccounting = async (systemType: string) => {
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.get(
@@ -82,22 +87,23 @@ export default function PortalSettings() {
       }
     } catch (error: any) {
       console.error("Failed to get OAuth URL:", error);
-      alert(
-        "Failed to connect: " +
-          (error.response?.data?.error || error.message)
-      );
+      toast({
+        title: "Error",
+        description: "Failed to connect: " + (error.response?.data?.error || error.message),
+        variant: "destructive",
+      });
     }
   };
 
   const handleDisconnect = async (integrationId: number) => {
     if (
-      !confirm("Are you sure you want to disconnect this accounting integration?")
+      !(await confirm("Are you sure you want to disconnect this accounting integration?"))
     ) {
       return;
     }
 
     try {
-      const token = localStorage.getItem("portal_token");
+      const token = getStorageItem(STORAGE_KEYS.PORTAL_TOKEN, "");
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const response = await axios.delete(
@@ -109,10 +115,11 @@ export default function PortalSettings() {
       }
     } catch (error: any) {
       console.error("Failed to disconnect:", error);
-      alert(
-        "Failed to disconnect: " +
-          (error.response?.data?.error || error.message)
-      );
+      toast({
+        title: "Error",
+        description: "Failed to disconnect: " + (error.response?.data?.error || error.message),
+        variant: "destructive",
+      });
     }
   };
 
@@ -153,7 +160,7 @@ export default function PortalSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <Spinner className="h-12 w-12" />
       </div>
     );
   }

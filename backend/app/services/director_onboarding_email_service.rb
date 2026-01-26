@@ -8,7 +8,7 @@ class DirectorOnboardingEmailService
   def send_invitation(request)
     onboarding_url = build_onboarding_url(request.access_token)
 
-    subject = "Director ID Verification Required - Tekna Homes"
+    subject = "Director ID Verification Required - #{company_name}"
     body = invitation_email_body(request, onboarding_url)
 
     result = @email_service.send_email(
@@ -33,7 +33,7 @@ class DirectorOnboardingEmailService
   def send_reminder(request)
     onboarding_url = build_onboarding_url(request.access_token)
 
-    subject = "Reminder: Director ID Verification Required - Tekna Homes"
+    subject = "Reminder: Director ID Verification Required - #{company_name}"
     body = reminder_email_body(request, onboarding_url)
 
     @email_service.send_email(
@@ -47,7 +47,7 @@ class DirectorOnboardingEmailService
 
   # Send confirmation email after submission
   def send_submission_confirmation(request)
-    subject = "Director ID Verification Received - Tekna Homes"
+    subject = "Director ID Verification Received - #{company_name}"
     body = submission_confirmation_body(request)
 
     @email_service.send_email(
@@ -61,7 +61,7 @@ class DirectorOnboardingEmailService
 
   # Send approval notification
   def send_approval_notification(request)
-    subject = "Director ID Verification Approved - Tekna Homes"
+    subject = "Director ID Verification Approved - #{company_name}"
     body = approval_notification_body(request)
 
     @email_service.send_email(
@@ -75,10 +75,15 @@ class DirectorOnboardingEmailService
 
   private
 
+  # SSoT: Get company name from CorporateCompanySetting
+  def company_name
+    @company_name ||= CorporateCompanySetting.instance.company_name
+  end
+
   # Build sender display name (e.g., "Robert Harder via Tekna Homes")
   def sender_display_name
     return nil unless @sender
-    "#{@sender.name} via Tekna Homes"
+    "#{@sender.name} via #{company_name}"
   end
 
   # Return sender's email for reply-to header
@@ -112,7 +117,7 @@ class DirectorOnboardingEmailService
       <body>
         <div class="container">
           <div class="header">
-            <h1>Tekna Homes</h1>
+            <h1>#{company_name}</h1>
             <p>Director ID Verification</p>
           </div>
           <div class="content">
@@ -143,10 +148,10 @@ class DirectorOnboardingEmailService
 
             <p>If you have any questions, please don't hesitate to contact us.</p>
 
-            <p>Best regards,<br>Tekna Homes Administration</p>
+            <p>Best regards,<br>#{company_name} Administration</p>
           </div>
           <div class="footer">
-            <p>This is an automated message from Tekna Homes.</p>
+            <p>This is an automated message from #{company_name}.</p>
             <p>If you did not expect this email, please contact us immediately.</p>
           </div>
         </div>
@@ -172,7 +177,7 @@ class DirectorOnboardingEmailService
       <body>
         <div class="container">
           <div class="header">
-            <h1>Tekna Homes</h1>
+            <h1>#{company_name}</h1>
             <p>Reminder: Director ID Verification</p>
           </div>
           <div class="content">
@@ -189,10 +194,10 @@ class DirectorOnboardingEmailService
 
             <p>If you've already completed this or have any questions, please contact us.</p>
 
-            <p>Best regards,<br>Tekna Homes Administration</p>
+            <p>Best regards,<br>#{company_name} Administration</p>
           </div>
           <div class="footer">
-            <p>This is an automated reminder from Tekna Homes.</p>
+            <p>This is an automated reminder from #{company_name}.</p>
           </div>
         </div>
       </body>
@@ -216,7 +221,7 @@ class DirectorOnboardingEmailService
       <body>
         <div class="container">
           <div class="header">
-            <h1>Tekna Homes</h1>
+            <h1>#{company_name}</h1>
             <p>Verification Received</p>
           </div>
           <div class="content">
@@ -230,10 +235,10 @@ class DirectorOnboardingEmailService
 
             <p>If you have any questions, please don't hesitate to contact us.</p>
 
-            <p>Best regards,<br>Tekna Homes Administration</p>
+            <p>Best regards,<br>#{company_name} Administration</p>
           </div>
           <div class="footer">
-            <p>This is an automated message from Tekna Homes.</p>
+            <p>This is an automated message from #{company_name}.</p>
           </div>
         </div>
       </body>
@@ -257,7 +262,7 @@ class DirectorOnboardingEmailService
       <body>
         <div class="container">
           <div class="header">
-            <h1>Tekna Homes</h1>
+            <h1>#{company_name}</h1>
             <p>Verification Approved</p>
           </div>
           <div class="content">
@@ -269,10 +274,10 @@ class DirectorOnboardingEmailService
 
             <p>Thank you for your cooperation.</p>
 
-            <p>Best regards,<br>Tekna Homes Administration</p>
+            <p>Best regards,<br>#{company_name} Administration</p>
           </div>
           <div class="footer">
-            <p>This is an automated message from Tekna Homes.</p>
+            <p>This is an automated message from #{company_name}.</p>
           </div>
         </div>
       </body>

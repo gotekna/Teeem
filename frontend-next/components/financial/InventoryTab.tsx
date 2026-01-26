@@ -56,6 +56,7 @@ import {
   History,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface InventoryItem {
   id: number;
@@ -338,21 +339,21 @@ export default function InventoryTab() {
     switch (status) {
       case "in_stock":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             In Stock
           </Badge>
         );
       case "low_stock":
         return (
-          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-300">
             <AlertTriangle className="h-3 w-3 mr-1" />
             Low Stock
           </Badge>
         );
       case "out_of_stock":
         return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+          <Badge className="bg-status-error text-status-error-foreground dark:bg-red-900 dark:text-red-300">
             <XCircle className="h-3 w-3 mr-1" />
             Out of Stock
           </Badge>
@@ -373,21 +374,21 @@ export default function InventoryTab() {
         );
       case "in_progress":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900 dark:text-blue-300">
             <RefreshCw className="h-3 w-3 mr-1" />
             In Progress
           </Badge>
         );
       case "completed":
         return (
-          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300">
+          <Badge className="bg-status-warning text-status-warning-foreground dark:bg-amber-900 dark:text-amber-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             Pending Approval
           </Badge>
         );
       case "approved":
         return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+          <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300">
             <CheckCircle className="h-3 w-3 mr-1" />
             Approved
           </Badge>
@@ -395,16 +396,6 @@ export default function InventoryTab() {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
-  };
-
-  const formatCurrency = (value: number | null) => {
-    if (value === null || value === undefined) return "-";
-    return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(value);
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString();
   };
 
   // Get unique categories for filter
@@ -470,11 +461,11 @@ export default function InventoryTab() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Out of Stock</p>
-                    <p className="text-2xl font-bold text-red-600">
+                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">
                       {items.filter((i) => i.stock_status === "out_of_stock").length}
                     </p>
                   </div>
-                  <PackageX className="h-8 w-8 text-red-500" />
+                  <PackageX className="h-8 w-8 text-red-500 dark:text-red-400" />
                 </div>
               </CardContent>
             </Card>
@@ -487,7 +478,7 @@ export default function InventoryTab() {
                       {formatCurrency(items.reduce((sum, i) => sum + (i.inventory_value || 0), 0))}
                     </p>
                   </div>
-                  <DollarSign className="h-8 w-8 text-green-500" />
+                  <DollarSign className="h-8 w-8 text-green-500 dark:text-green-400" />
                 </div>
               </CardContent>
             </Card>
@@ -684,11 +675,11 @@ export default function InventoryTab() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-muted-foreground">Total Inventory Value</p>
-                        <p className="text-3xl font-bold text-green-600">
+                        <p className="text-3xl font-bold text-green-600 dark:text-green-400">
                           {formatCurrency(valuation.total_value)}
                         </p>
                       </div>
-                      <DollarSign className="h-10 w-10 text-green-500" />
+                      <DollarSign className="h-10 w-10 text-green-500 dark:text-green-400" />
                     </div>
                   </CardContent>
                 </Card>
@@ -859,7 +850,7 @@ export default function InventoryTab() {
                           {count.total_variance_value !== 0 ? (
                             <span
                               className={
-                                count.total_variance_value < 0 ? "text-red-600" : "text-green-600"
+                                count.total_variance_value < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
                               }
                             >
                               {formatCurrency(count.total_variance_value)}
@@ -981,7 +972,7 @@ export default function InventoryTab() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-red-500" />
+              <Trash2 className="h-5 w-5 text-red-500 dark:text-red-400" />
               Write Off Stock
             </DialogTitle>
             <DialogDescription>
@@ -1063,8 +1054,8 @@ export default function InventoryTab() {
                         variant="outline"
                         className={
                           txn.direction === "in"
-                            ? "text-green-600 border-green-600"
-                            : "text-red-600 border-red-600"
+                            ? "text-green-600 dark:text-green-400 border-green-600"
+                            : "text-red-600 dark:text-red-400 border-red-600"
                         }
                       >
                         {txn.direction === "in" ? (
@@ -1077,7 +1068,7 @@ export default function InventoryTab() {
                     </TableCell>
                     <TableCell
                       className={`text-right font-medium ${
-                        txn.quantity > 0 ? "text-green-600" : "text-red-600"
+                        txn.quantity > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                       }`}
                     >
                       {txn.quantity > 0 ? "+" : ""}

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { copyToClipboard } from "@/utils/formatters";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -211,7 +212,7 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
 
   const handleCopyLink = useCallback(() => {
     if (shareLink) {
-      navigator.clipboard.writeText(shareLink);
+      copyToClipboard(shareLink);
       setShareLinkCopied(true);
       setTimeout(() => setShareLinkCopied(false), 2000);
     }
@@ -558,7 +559,7 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
                   className="h-8 px-3"
                 >
                   {shareLinkCopied ? (
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
                   ) : (
                     <Copy className="h-4 w-4" />
                   )}
@@ -594,7 +595,7 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
       {showAttachments && attachments.length > 0 && (
         <div className="border-b bg-muted/30 p-3">
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-medium">Attachments ({attachments.length})</h4>
+            <h4 className="text-sm font-medium text-muted-foreground">Attachments ({attachments.length})</h4>
             <Button
               variant="ghost"
               size="sm"
@@ -703,7 +704,7 @@ function SaveStatus({ isSaving, hasUnsavedChanges, lastSaved }: SaveStatusProps)
 
   if (lastSaved) {
     return (
-      <div className="flex items-center gap-1.5 text-xs text-green-500">
+      <div className="flex items-center gap-1.5 text-xs text-green-500 dark:text-green-400">
         <Check className="h-3.5 w-3.5" />
         <span>Saved</span>
       </div>
