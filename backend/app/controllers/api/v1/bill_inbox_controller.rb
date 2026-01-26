@@ -92,15 +92,15 @@ module Api
       end
 
       # GET /api/v1/bill_inbox/:id/download
-      # Downloads from SharePoint (SSoT) - no Active Storage fallback
+      # SSoT: Downloads from StorageBlob (S3/Wasabi) with legacy SharePoint fallback
       def download
-        unless @bill.storage_reference.present?
-          return render json: { error: "No SharePoint file ID - file not uploaded yet" }, status: :not_found
+        unless @bill.has_invoice_file?
+          return render json: { error: "No invoice file attached" }, status: :not_found
         end
 
         content = @bill.download_invoice_file
         unless content
-          return render json: { error: "Failed to download from SharePoint" }, status: :service_unavailable
+          return render json: { error: "Failed to download invoice file from storage" }, status: :service_unavailable
         end
 
         disposition = params[:disposition] == "attachment" ? "attachment" : "inline"
@@ -116,8 +116,8 @@ module Api
         @bill.source = "upload"
 
         if @bill.save
-          # SharePoint upload happens via after_commit callback
-          # Extraction will be queued after SharePoint upload completes (in the job)
+          # Storage upload happens via after_commit callback
+          # Extraction will be queued after upload completes (in the job)
           render json: @bill, status: :created
         else
           render json: { errors: @bill.errors.full_messages }, status: :unprocessable_entity
@@ -145,8 +145,8 @@ module Api
 
       # POST /api/v1/bill_inbox/:id/extract
       def extract
-        unless @bill.storage_reference.present?
-          return render json: { error: "No SharePoint file - upload not complete" }, status: :unprocessable_entity
+        unless @bill.has_invoice_file?
+          return render json: { error: "No invoice file - upload not complete" }, status: :unprocessable_entity
         end
 
         InvoiceExtractionJob.perform_later(@bill.id)
