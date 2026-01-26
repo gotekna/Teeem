@@ -630,6 +630,73 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "green",
     description: "Time email was received (HH-MM)",
   },
+  // Case tokens
+  {
+    code: "{{CaseId}}",
+    example: "C-001",
+    color: "purple",
+    description: "Case identifier",
+  },
+  {
+    code: "{{CaseName}}",
+    example: "Insurance Claim",
+    color: "purple",
+    description: "Case name/title",
+  },
+  // Asset tokens
+  {
+    code: "{{AssetName}}",
+    example: "Forklift-01",
+    color: "purple",
+    description: "Asset name/identifier",
+  },
+  {
+    code: "{{AssetId}}",
+    example: "A-001",
+    color: "purple",
+    description: "Asset ID",
+  },
+  // Template tokens
+  {
+    code: "{{TemplateType}}",
+    example: "Contract",
+    color: "blue",
+    description: "Template type/category",
+  },
+  {
+    code: "{{TemplateName}}",
+    example: "Standard Agreement",
+    color: "blue",
+    description: "Template name",
+  },
+  // Chat/Context tokens
+  {
+    code: "{{Context}}",
+    example: "Job-123",
+    color: "gray",
+    description: "Chat context reference",
+  },
+  // Bill/Invoice tokens
+  {
+    code: "{{Status}}",
+    example: "Pending",
+    color: "gray",
+    description: "Status (Pending, Approved, etc.)",
+  },
+  // Notebook tokens
+  {
+    code: "{{NotebookName}}",
+    example: "Work Notes",
+    color: "blue",
+    description: "Notebook name",
+  },
+  // Folder token (generic)
+  {
+    code: "{{Folder}}",
+    example: "Documents",
+    color: "blue",
+    description: "Folder/category name",
+  },
 ];
 
 // Backwards compatibility alias
