@@ -476,6 +476,19 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "orange",
     description: "Task status",
   },
+  // Task folder suffix tokens (literal text for folder naming)
+  {
+    code: "{{Attachments}}",
+    example: "Attachments",
+    color: "orange",
+    description: "Literal 'Attachments' folder name",
+  },
+  {
+    code: "{{Responses}}",
+    example: "Responses",
+    color: "orange",
+    description: "Literal 'Responses' folder name",
+  },
   // Task Attachments tokens
   {
     code: "{{AttachmentName}}",
