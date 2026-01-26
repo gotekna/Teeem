@@ -87,7 +87,7 @@ export function CalendarEventBar({
                     : "bg-muted-foreground"
                 )}
               >
-                {event.status.replace("_", " ")}
+                {(event.status || 'not_started').replace("_", " ")}
               </span>
               <span>{event.progress_percentage}%</span>
             </div>

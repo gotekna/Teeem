@@ -393,7 +393,7 @@ export default function PaymentBatchesPage() {
                   </TableCell>
                   <TableCell>
                     <Badge className={statusColors[batch.status] || statusColors.draft}>
-                      {batch.status.replace("_", " ")}
+                      {(batch.status || 'draft').replace("_", " ")}
                     </Badge>
                   </TableCell>
                   <TableCell>

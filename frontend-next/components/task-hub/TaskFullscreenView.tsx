@@ -904,7 +904,7 @@ function SortableQuestionItem({
                     subtask.status === 'in_progress' && "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
                     subtask.status === 'not_started' && "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
                   )}>
-                    {subtask.status.replace('_', ' ')}
+                    {(subtask.status || 'pending').replace('_', ' ')}
                   </span>
                 </div>
               ))}

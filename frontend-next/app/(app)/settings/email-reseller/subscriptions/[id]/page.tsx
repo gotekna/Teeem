@@ -405,7 +405,7 @@ export default function SubscriptionDetailPage() {
                           variant={migration.status === "completed" ? "default" : "secondary"}
                           className="capitalize"
                         >
-                          {migration.status.replace("_", " ")}
+                          {(migration.status || 'pending').replace("_", " ")}
                         </Badge>
                       </TableCell>
                       <TableCell>
