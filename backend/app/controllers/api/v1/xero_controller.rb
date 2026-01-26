@@ -1462,8 +1462,13 @@ module Api
             .count
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
+          # Jan 2026: Always check BOTH tenant-specific AND global (nil) records
+          # Webhooks update global record; old scheduled jobs updated per-tenant records
           invoice_sync_status_query = XeroSyncStatus.where(sync_type: "invoices")
-          invoice_sync_status_query = invoice_sync_status_query.where(tenant_id: tenant_id) if tenant_id.present?
+          if tenant_id.present?
+            # Check both tenant-specific and global, take most recent
+            invoice_sync_status_query = invoice_sync_status_query.where(tenant_id: [tenant_id, nil])
+          end
           invoice_sync_status = invoice_sync_status_query.order(last_synced_at: :desc).first
           last_invoice_sync = invoice_sync_status&.last_synced_at || base_scope.maximum(:last_synced_at)
 
@@ -1504,11 +1509,14 @@ module Api
           pdf_eligible_invoices = invoices_with_contacts.where.not(status: "draft")
           total_pdf_eligible = pdf_eligible_invoices.count
 
-          # SSoT: Count by storage_blob_id (the ONLY way to know PDF is actually saved)
+          # SSoT: Count PDFs that have been synced to storage
+          # storage_blob_id is THE ONE source of truth (Jan 2026 migration complete)
           # Must use EXACT same filters as total_pdf_eligible
+          # CRITICAL: Check content_hash to verify blob has actual file content (not placeholder)
           pdf_query = CorporateCompanyDocument.where(source: "xero")
                                               .where(document_type: ["Xero Bill", "Xero Invoice", "Xero Credit Note"])
-                                              .where.not(storage_blob_id: nil)  # SSoT: StorageBlob = synced
+                                              .where.not(storage_blob_id: nil)
+                                              .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                               .where(documentable_type: "ExternalInvoice")
                                               .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                               .where.not(external_invoices: { contact_id: nil })
@@ -1525,12 +1533,16 @@ module Api
           pdf_progress = total_pdf_eligible.zero? ? 100 : [((invoices_with_pdfs.to_f / total_pdf_eligible) * 100).round(1), 100].min
 
           # SSoT: Use XeroSyncStatus for last sync time
+          # Jan 2026: Check both tenant-specific AND global records, use most recent
           pdf_sync_status_query = XeroSyncStatus.where(sync_type: "pdfs")
-          pdf_sync_status_query = pdf_sync_status_query.where(tenant_id: tenant_id) if tenant_id.present?
+          if tenant_id.present?
+            pdf_sync_status_query = pdf_sync_status_query.where(tenant_id: [tenant_id, nil])
+          end
           pdf_sync_status = pdf_sync_status_query.order(last_synced_at: :desc).first
 
           pdf_docs_query = CorporateCompanyDocument.where(source: "xero")
                                                    .where.not(storage_blob_id: nil)
+                                                   .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                                    .where(documentable_type: "ExternalInvoice")
           if tenant_id.present?
             pdf_docs_query = pdf_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
@@ -1541,6 +1553,7 @@ module Api
           # Recent PDF activity (last 24 hours)
           pdfs_last_24h_query = CorporateCompanyDocument.where(source: "xero")
                                          .where.not(storage_blob_id: nil)
+                                         .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                          .where(documentable_type: "ExternalInvoice")
                                          .where("corporate_company_documents.created_at > ?", 24.hours.ago)
           if tenant_id.present?
@@ -1557,8 +1570,11 @@ module Api
           storage_progress = [storage_progress, 100].min # Cap at 100%
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
+          # Jan 2026: Check both tenant-specific AND global records, use most recent
           sharepoint_sync_status_query = XeroSyncStatus.where(sync_type: "sharepoint")
-          sharepoint_sync_status_query = sharepoint_sync_status_query.where(tenant_id: tenant_id) if tenant_id.present?
+          if tenant_id.present?
+            sharepoint_sync_status_query = sharepoint_sync_status_query.where(tenant_id: [tenant_id, nil])
+          end
           sharepoint_sync_status = sharepoint_sync_status_query.order(last_synced_at: :desc).first
 
           sharepoint_docs_query = CorporateCompanyDocument.where(source: "xero")
@@ -1573,12 +1589,14 @@ module Api
           # ============================================
           # Breakdown by invoice type (for PDF stage)
           # ============================================
-          # SSoT: Breakdown by type using document_type (matches XeroAttachmentSyncService)
-          # SSoT FIX: Must use same filters as pdf_eligible_invoices (non-draft, non-voided/deleted)
-          # to ensure breakdown totals match the aggregate counts
+          # SSoT: storage_blob_id is THE ONE (Jan 2026 migration complete)
+          # CRITICAL: Check content_hash to verify blob has actual file content (not placeholder)
           bills_total = pdf_eligible_invoices.bills.count
           bills_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                           .joins(:storage_blob)
                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Bill" })
+                                           .where.not(corporate_company_documents: { storage_blob_id: nil })
+                                           .where.not(storage_blobs: { content_hash: nil })
                                            .where(external_invoices: { invoice_type: "bill" })
                                            .where.not(external_invoices: { status: "draft" })
                                            .where.not(external_invoices: { status: %w[voided deleted] })
@@ -1587,7 +1605,10 @@ module Api
 
           sales_total = pdf_eligible_invoices.sales_invoices.count
           sales_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                           .joins(:storage_blob)
                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Invoice" })
+                                           .where.not(corporate_company_documents: { storage_blob_id: nil })
+                                           .where.not(storage_blobs: { content_hash: nil })
                                            .where(external_invoices: { invoice_type: "sales_invoice" })
                                            .where.not(external_invoices: { status: "draft" })
                                            .where.not(external_invoices: { status: %w[voided deleted] })
@@ -1596,7 +1617,10 @@ module Api
 
           quotes_total = pdf_eligible_invoices.quotes.count
           quotes_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                            .joins(:storage_blob)
                                             .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Invoice" })
+                                            .where.not(corporate_company_documents: { storage_blob_id: nil })
+                                            .where.not(storage_blobs: { content_hash: nil })
                                             .where(external_invoices: { invoice_type: "quote" })
                                             .where.not(external_invoices: { status: "draft" })
                                             .where.not(external_invoices: { status: %w[voided deleted] })
@@ -1606,7 +1630,10 @@ module Api
           # Credit notes breakdown
           credit_notes_total = pdf_eligible_invoices.where(invoice_type: "credit_note").count
           credit_notes_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                                  .joins(:storage_blob)
                                                   .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Credit Note" })
+                                                  .where.not(corporate_company_documents: { storage_blob_id: nil })
+                                                  .where.not(storage_blobs: { content_hash: nil })
                                                   .where(external_invoices: { invoice_type: "credit_note" })
                                                   .where.not(external_invoices: { status: "draft" })
                                                   .where.not(external_invoices: { status: %w[voided deleted] })
