@@ -48,6 +48,8 @@ class StorageBlob < ApplicationRecord
   scope :with_references, -> { where("reference_count > 0") }
   scope :verified, -> { where.not(verified_at: nil) }
   scope :unverified, -> { where(verified_at: nil) }
+  scope :with_content, -> { where.not(content_hash: nil) }  # Has actual file content
+  scope :empty_placeholder, -> { where(content_hash: nil) }  # Placeholder blobs without actual files
 
   # Migration status scopes (Phase 0 file recovery)
   scope :needing_migration, -> { where(needs_migration: true) }

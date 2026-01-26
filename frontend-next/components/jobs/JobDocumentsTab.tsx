@@ -217,6 +217,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadFolderId, setUploadFolderId] = useState<string | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [storageBucket, setStorageBucket] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<FolderPath[]>([]);
   const [folderContents, setFolderContents] = useState<SharePointItem[]>([]);
   const [loadingContents, setLoadingContents] = useState(false);
@@ -855,7 +856,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         // Default to sharepoint if fetch fails
       }
 
-      const response = await api.get<{ connected: boolean; root_folder_path?: string }>(
+      const response = await api.get<{ connected: boolean; root_folder_path?: string; bucket?: string }>(
         "/api/v1/documents/status"
       );
 
@@ -864,6 +865,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         connected: response?.connected || false,
         rootFolderPath: response?.root_folder_path,
       });
+      setStorageBucket(response?.bucket || null);
 
       if (response?.connected) {
         await checkJobFolderStatus();
@@ -2441,7 +2443,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                               </TableCell>
                               <TableCell>
                                 {item.storage_provider === "s3_compatible" && item.storage_path ? (
-                                  <span className="text-xs font-mono text-muted-foreground" title={`teeem-documents/${item.storage_path}`}>
+                                  <span className="text-xs font-mono text-muted-foreground" title={storageBucket ? `${storageBucket}/${item.storage_path}` : item.storage_path}>
                                     {item.storage_path.split('/').map((part, i, arr) => (
                                       <span key={i}>
                                         {i > 0 && <span className="text-muted-foreground/50"> / </span>}

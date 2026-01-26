@@ -235,7 +235,7 @@ export function TokenBuilder({
   const isFolderPathMode = separator === "/";
 
   const tokens: TokenItem[] = React.useMemo(() => {
-    const parsed = parseTemplate(value);
+    const parsed = parseTemplate(value ?? "");
 
     // In folder path mode, filter out separator-only text tokens
     const filtered = isFolderPathMode
@@ -258,14 +258,14 @@ export function TokenBuilder({
   const preview = React.useMemo(() => {
     if (!showPreview) return "";
     if (previewData) {
-      let result = value;
+      let result = value ?? "";  // Handle null value
       Object.entries(previewData).forEach(([key, val]) => {
         // Support both {Key} and {{Key}} formats
         result = result.replace(new RegExp(`\\{\\{?${key}\\}\\}?`, "g"), val);
       });
       return result;
     }
-    return resolveWithExamples(value, previewUseLong);
+    return resolveWithExamples(value ?? "", previewUseLong);  // Handle null value
   }, [value, showPreview, previewData, previewUseLong]);
 
   // Insert a token at the end (auto-add separator if needed)
