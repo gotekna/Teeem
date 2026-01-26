@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * EntityTabsTable - Tree view for Entity Tabs & Folders Configuration
+ * EntityTabsTable - Tree view for Storage Locations (Folder Configuration)
  *
  * Shows the complete hierarchy:
  * - Tab Groups (Overview, Documents, Special)
@@ -387,9 +387,9 @@ export function EntityTabsTable() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium">Entity Tabs & Folders</h3>
+          <h3 className="text-lg font-medium">Storage Locations</h3>
           <p className="text-sm text-muted-foreground">
-            Configure tabs and their SharePoint folder connections for company pages
+            Configure folder paths and storage locations
           </p>
         </div>
         <Badge variant="outline" className="text-xs">

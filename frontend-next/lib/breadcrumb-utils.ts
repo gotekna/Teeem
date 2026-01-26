@@ -200,7 +200,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   // Settings > Company > Corporate sub-tabs
   "groups": "Groups",
   "companies": "Companies",
-  "company-tabs": "Entity Tabs",
+  "company-tabs": "Storage Locations",
 
   // Settings > Operations tabs
   "job-types": "Job Types",

@@ -34,7 +34,7 @@ import { OfflineTab } from "@/app/(app)/admin/system/components/OfflineTab";
 // SSoT: Brand Guidelines moved to /settings/developer (developer tool)
 // SSoT: Workflow Config moved under Job Setup as sub-tab
 // SSoT: Documents consolidated here (was separate Organization tab)
-// SSoT: Entity Config moved here from Developer
+// SSoT: Folder Config (was Entity Config) moved here from Developer
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
   { id: "brand-colors", label: "Brand Colors" },
@@ -43,7 +43,7 @@ const COMPANY_TABS = [
   { id: "workflows", label: "Workflows" },
   { id: "connections", label: "Connections" },
   { id: "job-setup", label: "Job Setup" },
-  { id: "entity-config", label: "Entity Config" },
+  { id: "entity-config", label: "Folder Config" },
   { id: "offline", label: "Offline" },
 ];
 
