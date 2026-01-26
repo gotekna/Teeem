@@ -318,11 +318,26 @@ namespace :blob do
         puts "  Unlinking email attachments..."
         EmailAttachment.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
 
-        # Bulk unlink from other associations
+        # Bulk unlink from ALL associations with storage_blob_id foreign key
         puts "  Unlinking other associations..."
-        CorporateCompanyDocument.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
-        ChatMessage.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
-        BillInbox.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
+        [
+          CorporateCompanyDocument,
+          ChatMessage,
+          BillInbox,
+          ContactDocument,
+          JobDocument,
+          TaskDocument,
+          SyncedEmail
+        ].each do |model|
+          begin
+            if model.column_names.include?("storage_blob_id")
+              count = model.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil)
+              puts "    #{model.name}: #{count}" if count > 0
+            end
+          rescue => e
+            puts "    #{model.name}: skipped (#{e.message[0..50]})"
+          end
+        end
 
         # Bulk delete orphan blobs in batches (bypass tenant scope)
         puts "  Deleting orphan blobs in batches..."
