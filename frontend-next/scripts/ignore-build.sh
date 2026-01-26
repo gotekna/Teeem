@@ -36,13 +36,14 @@ echo "✅ Branch matches ($DEPLOY_BRANCH)"
 
 # STEP 2: Check if ONLY non-critical files changed (skip build)
 # Skip if changes are only in: docs, .claude, tests, README, etc.
+# NOTE: Empty commits (no changes) SHOULD build - used for forced deploys
 echo "Checking what changed..."
 
 CHANGES=$(git diff --name-only HEAD^ HEAD -- . 2>/dev/null)
 
 if [ -z "$CHANGES" ]; then
-  echo "⏭️  No changes detected - skipping build"
-  exit 0
+  echo "📦 No file changes (empty commit) - proceeding with build"
+  exit 1
 fi
 
 # Check if ALL changes are skip-able
