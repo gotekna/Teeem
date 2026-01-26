@@ -303,25 +303,57 @@ namespace :blob do
       puts ""
 
       if mode == "execute"
-        puts "DELETING ORPHAN BLOBS..."
-        stats = { unlinked: 0, deleted: 0 }
+        puts "DELETING ORPHAN BLOBS (bulk mode)..."
 
-        orphans.find_each.with_index do |blob, i|
-          print "\r  Processing #{i + 1}/#{total}..."
+        # Get all orphan IDs upfront
+        orphan_ids = orphans.pluck(:id)
+        puts "  Collected #{orphan_ids.size} orphan IDs"
 
-          # Unlink from WarehouseDocuments
-          unlinked = WarehouseDocument.where(storage_blob_id: blob.id).update_all(storage_blob_id: nil)
-          stats[:unlinked] += unlinked
+        # Bulk unlink from WarehouseDocuments
+        puts "  Unlinking warehouse documents..."
+        unlinked = WarehouseDocument.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil)
+        puts "  Unlinked: #{unlinked} warehouse documents"
 
-          # Delete the orphan blob record
-          blob.destroy
-          stats[:deleted] += 1
+        # Bulk unlink from EmailAttachments
+        puts "  Unlinking email attachments..."
+        EmailAttachment.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
+
+        # Bulk unlink from ALL associations with storage_blob_id foreign key
+        puts "  Unlinking other associations..."
+        %w[
+          CorporateCompanyDocument
+          ChatMessage
+          BillInbox
+          ContactDocument
+          JobDocument
+          CaseDocument
+          SyncedEmail
+        ].each do |model_name|
+          begin
+            model = model_name.constantize
+            if model.column_names.include?("storage_blob_id")
+              count = model.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil)
+              puts "    #{model_name}: #{count}" if count > 0
+            end
+          rescue NameError
+            # Model doesn't exist, skip
+          rescue => e
+            puts "    #{model_name}: skipped (#{e.message[0..50]})"
+          end
+        end
+
+        # Bulk delete orphan blobs in batches (bypass tenant scope)
+        puts "  Deleting orphan blobs in batches..."
+        deleted = 0
+        orphan_ids.each_slice(1000) do |batch_ids|
+          deleted += StorageBlob.unscoped.where(id: batch_ids).delete_all
+          print "\r  Deleted: #{deleted}/#{orphan_ids.size}..."
         end
 
         puts ""
         puts ""
-        puts "Unlinked: #{stats[:unlinked]} warehouse documents"
-        puts "Deleted:  #{stats[:deleted]} storage blobs"
+        puts "Unlinked: #{unlinked} warehouse documents"
+        puts "Deleted:  #{deleted} storage blobs"
       else
         puts "To delete orphan blobs, run:"
         puts "  rails blob:cleanup_orphans[execute]"
@@ -461,6 +493,177 @@ namespace :blob do
       else
         puts "To migrate legacy paths, run:"
         puts "  rails blob:cleanup_legacy[execute]"
+      end
+    end
+  end
+
+  desc "Migrate VALID emails (exclude corrupted /eml/ paths) to Blobs/ format"
+  task :migrate_valid_emails, [:limit, :dry_run] => :environment do |_t, args|
+    limit = (args[:limit] || 100).to_i
+    dry_run = args[:dry_run] != "false"
+
+    puts "=" * 70
+    puts "MIGRATE VALID EMAILS TO BLOBS/"
+    puts "=" * 70
+    puts "Mode: #{dry_run ? 'DRY RUN (use false for execute)' : 'EXECUTE'}"
+    puts "Limit: #{limit}"
+    puts ""
+
+    tenant = Tenant.find_by(name: "Tekna") || Tenant.first
+    unless tenant
+      puts "ERROR: No tenant found"
+      exit 1
+    end
+
+    ActsAsTenant.with_tenant(tenant) do
+      provider = DocumentProviders.for_tenant(tenant)
+
+      # Find emails with VALID paths (not corrupted /eml/ paths)
+      # Valid: /Emails/aaron/2023/... or /Emails/rob/2024/...
+      # Invalid: /Emails/eml/2021/... (these are corrupted)
+      valid_emails = StorageBlob.where("storage_path LIKE '%Emails/%'")
+                                .where("storage_path NOT LIKE '%/eml/%'")
+                                .where(file_missing: false)
+                                .limit(limit)
+
+      total_valid = StorageBlob.where("storage_path LIKE '%Emails/%'")
+                               .where("storage_path NOT LIKE '%/eml/%'")
+                               .where(file_missing: false)
+                               .count
+      corrupted = StorageBlob.where("storage_path LIKE '%/eml/%'").count
+
+      puts "Valid email paths:    #{total_valid}"
+      puts "Corrupted /eml/ paths: #{corrupted} (SKIPPED - files don't exist)"
+      puts ""
+
+      if total_valid == 0
+        puts "No valid emails to migrate!"
+        exit 0
+      end
+
+      batch = valid_emails.to_a
+      puts "Processing batch of #{batch.size} emails..."
+      puts ""
+
+      stats = { migrated: 0, deduplicated: 0, errors: 0, not_found: 0 }
+      error_samples = []
+
+      batch.each_with_index do |blob, i|
+        old_path = blob.storage_path.to_s.sub(%r{^/+}, "")
+        print "  [#{i + 1}/#{batch.size}] #{old_path[0..50]}..."
+
+        if dry_run
+          puts " [DRY RUN]"
+          stats[:migrated] += 1
+          next
+        end
+
+        begin
+          # Download file
+          content = provider.download_file(old_path)
+          unless content.present?
+            puts " SKIP (no content)"
+            next
+          end
+
+          # Compute hash
+          hash = Digest::SHA256.hexdigest(content)
+          ext = File.extname(blob.original_filename || old_path)
+          ext = ".eml" if ext.blank?
+          new_path = "Blobs/#{hash[0..1]}/#{hash}#{ext}"
+
+          # Check for existing blob with same hash (deduplication)
+          existing = StorageBlob.find_by(content_hash: hash)
+          if existing && existing.id != blob.id
+            # Deduplicate: point references to existing blob
+            WarehouseDocument.where(storage_blob_id: blob.id)
+                             .update_all(storage_blob_id: existing.id)
+            existing.increment!(:reference_count)
+            blob.destroy
+            provider.delete_file(old_path) rescue nil
+            stats[:deduplicated] += 1
+            puts " DEDUP → blob #{existing.id}"
+          else
+            # Upload to new location
+            provider.upload_file(
+              "Blobs/#{hash[0..1]}",
+              content,
+              "#{hash}#{ext}",
+              content_type: blob.content_type || "message/rfc822"
+            )
+
+            # Update blob record
+            blob.update!(
+              storage_path: new_path,
+              content_hash: hash
+            )
+
+            # Delete old file
+            provider.delete_file(old_path) rescue nil
+            stats[:migrated] += 1
+            puts " OK → #{new_path[0..40]}"
+          end
+        rescue DocumentProviders::NotFoundError
+          blob.update_columns(file_missing: true)
+          stats[:not_found] += 1
+          puts " NOT FOUND"
+        rescue StandardError => e
+          stats[:errors] += 1
+          error_samples << { id: blob.id, path: old_path, error: e.message } if error_samples.size < 10
+          puts " ERROR: #{e.message[0..40]}"
+        end
+      end
+
+      puts ""
+      puts "=" * 70
+      puts "MIGRATION COMPLETE"
+      puts "=" * 70
+      puts "Migrated:     #{stats[:migrated]}"
+      puts "Deduplicated: #{stats[:deduplicated]}"
+      puts "Not found:    #{stats[:not_found]}"
+      puts "Errors:       #{stats[:errors]}"
+
+      if error_samples.any?
+        puts ""
+        puts "Sample errors:"
+        error_samples.each do |err|
+          puts "  Blob #{err[:id]}: #{err[:error]}"
+        end
+      end
+
+      remaining = total_valid - batch.size
+      if remaining > 0
+        puts ""
+        puts "Remaining: #{remaining} valid emails still need migration"
+        puts "Run again: rails blob:migrate_valid_emails[#{[remaining, 1000].min},false]"
+      end
+    end
+  end
+
+  desc "Mark corrupted email blobs (/eml/ paths) as file_missing"
+  task mark_corrupted_emails: :environment do
+    puts "=" * 70
+    puts "MARK CORRUPTED EMAIL BLOBS"
+    puts "=" * 70
+    puts ""
+
+    tenant = Tenant.find_by(name: "Tekna") || Tenant.first
+    unless tenant
+      puts "ERROR: No tenant found"
+      exit 1
+    end
+
+    ActsAsTenant.with_tenant(tenant) do
+      corrupted = StorageBlob.where("storage_path LIKE '%/eml/%'")
+                             .where(file_missing: false)
+
+      count = corrupted.count
+      puts "Found #{count} corrupted email blobs with /eml/ paths"
+
+      if count > 0
+        puts "Marking as file_missing..."
+        updated = corrupted.update_all(file_missing: true)
+        puts "Marked #{updated} blobs as file_missing"
       end
     end
   end
