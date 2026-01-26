@@ -114,7 +114,9 @@ class EntityTabQueryService
         people: config.root_folder_for(:people),
         company: config.root_folder_for(:corporate),
         contacts: config.root_folder_for(:contacts)
-      }
+      },
+      # SSoT: Store full warehouse_folders for path derivation
+      warehouse_folders: config.effective_warehouse_folders
     }
   end
 
@@ -133,6 +135,22 @@ class EntityTabQueryService
     end
   end
 
+  # SSoT: Derive warehouse_folder from StorageConfiguration.warehouse_folders
+  # This replaces reading from EntityTab.warehouse_folder (now deprecated)
+  def derive_warehouse_folder(tab)
+    return nil unless tab.warehouse_enabled
+
+    # Get template from SSoT warehouse_folders
+    warehouse_type = tab.warehouse_type || 'corporate'
+    # SSoT: Normalize aliased keys (e.g., 'corporate_entity' → 'corporate')
+    warehouse_type = StorageConfiguration::WAREHOUSE_KEY_ALIASES[warehouse_type] || warehouse_type
+    template = @storage_config.dig(:warehouse_folders, warehouse_type)
+    return nil unless template.present?
+
+    # Substitute {{TabName}} with the tab's display name
+    template.gsub('{{TabName}}', tab.display_name.to_s)
+  end
+
   # Build JSON for a single tab (recursively includes children)
   def build_tab_json(tab)
     # Compute children first (recursive)
@@ -141,8 +159,12 @@ class EntityTabQueryService
     # Compute document count from pre-loaded data
     doc_count = compute_document_count(tab)
 
+    # SSoT: Derive warehouse_folder from StorageConfiguration.warehouse_folders
+    # This replaces reading from EntityTab.warehouse_folder (now deprecated/cleared)
+    derived_folder = derive_warehouse_folder(tab)
+
     # Compute warehouse paths without additional queries
-    warehouse_data = compute_warehouse_data(tab)
+    warehouse_data = compute_warehouse_data(tab, derived_folder)
 
     # Build the JSON structure matching EntityTab#as_nested_json exactly
     {
@@ -170,7 +192,7 @@ class EntityTabQueryService
       visibility_rule: tab.visibility_rule,
       # New warehouse naming
       warehouse_enabled: tab.warehouse_enabled,
-      warehouse_folder: tab.warehouse_folder,
+      warehouse_folder: derived_folder,
       full_warehouse_path: warehouse_data[:full_path],
       uses_custom_path: tab.uses_custom_path,
       warehouse_type_override: tab.warehouse_type_override || 'corporate',
@@ -180,18 +202,18 @@ class EntityTabQueryService
       inherited_template: warehouse_data[:inherited_template],
       # Legacy backwards compatibility aliases
       has_storage_folder: tab.warehouse_enabled,
-      storage_folder_path: tab.warehouse_folder,
+      storage_folder_path: derived_folder,
       full_storage_path: warehouse_data[:full_path],
       storage_path_type: tab.warehouse_type_override || 'corporate',
       storage_base_path: warehouse_data[:base_path],
       effective_storage_path: warehouse_data[:effective_path],
       has_sharepoint_folder: tab.warehouse_enabled,
-      sharepoint_folder_path: tab.warehouse_folder,
+      sharepoint_folder_path: derived_folder,
       full_sharepoint_path: warehouse_data[:full_path],
       sharepoint_path_type: tab.warehouse_type_override || 'corporate',
       sharepoint_base_path: warehouse_data[:base_path],
       effective_sharepoint_path: warehouse_data[:effective_path],
-      hierarchy_path: compute_hierarchy_path(tab),
+      hierarchy_path: compute_hierarchy_path(tab, derived_folder),
       document_count: doc_count,
       is_photo_category: tab.is_photo_category,
       is_cad_category: tab.is_cad_category,
@@ -237,13 +259,14 @@ class EntityTabQueryService
   end
 
   # Compute all warehouse-related paths
-  def compute_warehouse_data(tab)
+  # SSoT: derived_folder comes from StorageConfiguration.warehouse_folders (not EntityTab.warehouse_folder)
+  def compute_warehouse_data(tab, derived_folder)
     return {} unless tab.warehouse_enabled
 
     warehouse_type_key = warehouse_type_for_template(tab)
     base_path = compute_base_path(warehouse_type_key)
-    inherited_template = @storage_config.dig(:templates, warehouse_type_key)
-    effective_path = compute_effective_path(tab, inherited_template)
+    inherited_template = @storage_config.dig(:warehouse_folders, tab.warehouse_type)
+    effective_path = compute_effective_path(tab, inherited_template, derived_folder)
     upload_path = compute_upload_path(tab, effective_path)
 
     {
@@ -251,7 +274,7 @@ class EntityTabQueryService
       inherited_template: inherited_template,
       effective_path: effective_path,
       upload_path: upload_path,
-      full_path: tab.warehouse_folder.present? ? "#{@storage_config[:root_path]}/#{tab.warehouse_folder}" : nil
+      full_path: derived_folder.present? ? "#{@storage_config[:root_path]}/#{derived_folder}" : nil
     }
   end
 
@@ -259,7 +282,7 @@ class EntityTabQueryService
   def warehouse_type_for_template(tab)
     case tab.warehouse_type
     when 'job' then :job
-    when 'corporate_entity' then :company
+    when 'corporate', 'corporate_entity' then :company  # SSoT: 'corporate' is THE ONE (Jan 2026)
     when 'people', 'contact'
       tab.warehouse_type_override == 'contacts' ? :contacts : :people
     else :job
@@ -275,25 +298,28 @@ class EntityTabQueryService
   end
 
   # Compute effective warehouse path (handles parent inheritance)
-  def compute_effective_path(tab, template)
+  # SSoT: derived_folder comes from StorageConfiguration.warehouse_folders
+  def compute_effective_path(tab, template, derived_folder = nil)
     return nil unless tab.warehouse_enabled
 
-    if tab.uses_custom_path && tab.warehouse_folder.present?
-      # Custom path - use exactly what's set
-      tab.warehouse_folder
+    if tab.uses_custom_path && derived_folder.present?
+      # Custom path - use exactly what's derived from SSoT
+      derived_folder
     elsif tab.parent_id.present?
       # SSoT: Child tabs inherit from parent path
       parent = @tabs_by_id[tab.parent_id]
       if parent&.warehouse_enabled
-        parent_template = @storage_config.dig(:templates, warehouse_type_for_template(parent))
-        parent_path = compute_effective_path(parent, parent_template)
+        parent_derived = derive_warehouse_folder(parent)
+        parent_template = @storage_config.dig(:warehouse_folders, parent.warehouse_type)
+        parent_path = compute_effective_path(parent, parent_template, parent_derived)
         return nil unless parent_path.present?
         "#{parent_path}/#{tab.display_name}"
       else
         nil
       end
     else
-      # Root tab - use template from config
+      # Root tab - use derived folder or template from config
+      return derived_folder if derived_folder.present?
       return nil unless template.present?
       resolve_template(template, {
         "Category" => tab.display_name,
@@ -321,16 +347,17 @@ class EntityTabQueryService
   end
 
   # Compute hierarchy path
-  def compute_hierarchy_path(tab)
-    return tab.warehouse_folder if tab.warehouse_folder.present?
+  # SSoT: derived_folder comes from StorageConfiguration.warehouse_folders
+  def compute_hierarchy_path(tab, derived_folder = nil)
+    return derived_folder if derived_folder.present?
 
     warehouse_type_prefix = case tab.warehouse_type
-                            when 'corporate_entity' then 'Corporate'
+                            when 'corporate', 'corporate_entity' then 'Corporate'  # SSoT: 'corporate' is THE ONE
                             when 'people' then 'People'
                             when 'job' then 'Jobs'
                             when 'document' then 'Documents'
                             when 'xero' then 'Corporate'
-                            else tab.warehouse_type.titleize
+                            else tab.warehouse_type.to_s.titleize
                             end
 
     # Build tab hierarchy (root to leaf) using pre-loaded data
