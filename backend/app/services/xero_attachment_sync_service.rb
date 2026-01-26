@@ -338,8 +338,8 @@ class XeroAttachmentSyncService
       "CompanyGroup" => company&.company_group.presence || "Default",
       "CompanyCode" => company&.company_code.presence || "Unknown",
       "CompanyName" => company&.name,
-      "Year" => (external_invoice.date || Date.current).year,
-      "Month" => format("%02d", (external_invoice.date || Date.current).month)
+      "Year" => (external_invoice.invoice_date || Date.current).year,
+      "Month" => format("%02d", (external_invoice.invoice_date || Date.current).month)
     }
 
     result = template.dup
