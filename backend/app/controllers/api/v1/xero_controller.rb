@@ -1574,11 +1574,11 @@ module Api
           # Breakdown by invoice type (for PDF stage)
           # ============================================
           # SSoT: Breakdown by type using document_type (matches XeroAttachmentSyncService)
-          # SSoT FIX: Must use same filters as pdf_eligible_invoices (non-draft, non-voided/deleted)
-          # to ensure breakdown totals match the aggregate counts
+          # Jan 2026: Added storage_blob_id filter to match Stage 2 SSoT counting
           bills_total = pdf_eligible_invoices.bills.count
           bills_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Bill" })
+                                           .where.not(corporate_company_documents: { storage_blob_id: nil })  # SSoT: StorageBlob = synced
                                            .where(external_invoices: { invoice_type: "bill" })
                                            .where.not(external_invoices: { status: "draft" })
                                            .where.not(external_invoices: { status: %w[voided deleted] })
@@ -1588,6 +1588,7 @@ module Api
           sales_total = pdf_eligible_invoices.sales_invoices.count
           sales_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                            .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Invoice" })
+                                           .where.not(corporate_company_documents: { storage_blob_id: nil })  # SSoT: StorageBlob = synced
                                            .where(external_invoices: { invoice_type: "sales_invoice" })
                                            .where.not(external_invoices: { status: "draft" })
                                            .where.not(external_invoices: { status: %w[voided deleted] })
@@ -1597,6 +1598,7 @@ module Api
           quotes_total = pdf_eligible_invoices.quotes.count
           quotes_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                             .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Invoice" })
+                                            .where.not(corporate_company_documents: { storage_blob_id: nil })  # SSoT: StorageBlob = synced
                                             .where(external_invoices: { invoice_type: "quote" })
                                             .where.not(external_invoices: { status: "draft" })
                                             .where.not(external_invoices: { status: %w[voided deleted] })
@@ -1607,6 +1609,7 @@ module Api
           credit_notes_total = pdf_eligible_invoices.where(invoice_type: "credit_note").count
           credit_notes_query = CorporateCompanyDocument.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                                   .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", document_type: "Xero Credit Note" })
+                                                  .where.not(corporate_company_documents: { storage_blob_id: nil })  # SSoT: StorageBlob = synced
                                                   .where(external_invoices: { invoice_type: "credit_note" })
                                                   .where.not(external_invoices: { status: "draft" })
                                                   .where.not(external_invoices: { status: %w[voided deleted] })
