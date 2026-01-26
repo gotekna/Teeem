@@ -170,6 +170,38 @@ git checkout "$CURRENT_BRANCH"
 echo "✅ Frontend branches merged"
 ```
 
+### Step 4.55 - Force Vercel Deploys (Webhook Reliability Fix)
+
+**GitHub → Vercel webhooks sometimes fail silently. Push empty commits to guarantee all 3 frontends deploy.**
+
+```bash
+echo "🔄 Forcing Vercel deploys (webhook reliability fix)..."
+
+CURRENT_BRANCH=$(git branch --show-current)
+
+# Force Staging deploy
+git checkout Staging
+git commit --allow-empty -m "chore: Trigger Vercel deploy"
+git push origin Staging
+echo "✅ Staging frontend deploy triggered"
+
+# Force Beta deploy
+git checkout Beta
+git commit --allow-empty -m "chore: Trigger Vercel deploy"
+git push origin Beta
+echo "✅ Beta frontend deploy triggered"
+
+# Force Production deploy
+git checkout Live
+git commit --allow-empty -m "chore: Trigger Vercel deploy"
+git push origin Live
+echo "✅ Production frontend deploy triggered"
+
+# Return to original branch
+git checkout "$CURRENT_BRANCH"
+echo "✅ All Vercel deploys triggered"
+```
+
 ### Step 4.6 - Verify Backend Changes Were Committed
 **CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
 ```bash
