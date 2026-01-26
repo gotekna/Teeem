@@ -771,9 +771,11 @@ module Api
                  .count
           }
 
-          # Email bodies (SyncedEmail)
+          # Email bodies (SyncedEmail) - SSoT: Total from SyncedEmail, not WarehouseDocument
+          # This shows the REAL total of emails in the system that need to be synced
+          email_body_total = SyncedEmail.count
           email_body_scope = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail")
-          email_body_total = email_body_scope.count
+          email_body_linked = email_body_scope.count
           email_body_with_blob = email_body_scope.where.not(storage_blob_id: nil).count
           email_body_with_file = count_with_file.call(email_body_scope)
           if email_body_total > 0
@@ -781,17 +783,18 @@ module Api
               source_type: "email_body",
               label: "Email Bodies",
               total: email_body_total,
-              with_blob: email_body_with_blob,
+              with_blob: email_body_linked,  # "LINKED" = has WarehouseDocument
               with_file: email_body_with_file,
-              without_blob: email_body_total - email_body_with_blob,
-              storage_rate: ((email_body_with_blob.to_f / email_body_total) * 100).round(1),
+              without_blob: email_body_total - email_body_linked,
+              storage_rate: ((email_body_linked.to_f / email_body_total) * 100).round(1),
               file_rate: ((email_body_with_file.to_f / email_body_total) * 100).round(1)
             }
           end
 
-          # Email attachments
+          # Email attachments - SSoT: Total from EmailAttachment, not WarehouseDocument
+          email_attach_total = EmailAttachment.count
           email_attach_scope = WarehouseDocument.where(source_type: "email", documentable_type: "EmailAttachment")
-          email_attach_total = email_attach_scope.count
+          email_attach_linked = email_attach_scope.count
           email_attach_with_blob = email_attach_scope.where.not(storage_blob_id: nil).count
           email_attach_with_file = count_with_file.call(email_attach_scope)
           if email_attach_total > 0
@@ -799,10 +802,10 @@ module Api
               source_type: "email_attachment",
               label: "Email Attachments",
               total: email_attach_total,
-              with_blob: email_attach_with_blob,
+              with_blob: email_attach_linked,  # "LINKED" = has WarehouseDocument
               with_file: email_attach_with_file,
-              without_blob: email_attach_total - email_attach_with_blob,
-              storage_rate: ((email_attach_with_blob.to_f / email_attach_total) * 100).round(1),
+              without_blob: email_attach_total - email_attach_linked,
+              storage_rate: ((email_attach_linked.to_f / email_attach_total) * 100).round(1),
               file_rate: ((email_attach_with_file.to_f / email_attach_total) * 100).round(1)
             }
           end
