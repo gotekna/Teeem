@@ -17,7 +17,7 @@
 #     provider_type: "backblaze_b2",
 #     endpoint: "https://s3.us-west-004.backblazeb2.com",
 #     region: "us-west-004",
-#     bucket: "teeem-documents",  # For connection testing only
+#     bucket: "teeem-tekna",  # For connection testing only
 #     access_key_id: "...",
 #     secret_access_key: "..."
 #   )

@@ -659,7 +659,7 @@ module DocumentProviders
     end
 
     # Normalize endpoint to path-style by stripping bucket name prefix if present
-    # e.g., https://teeem-documents.s3.ap-southeast-2.wasabisys.com → https://s3.ap-southeast-2.wasabisys.com
+    # e.g., https://teeem-tekna.s3.ap-southeast-2.wasabisys.com → https://s3.ap-southeast-2.wasabisys.com
     def normalize_endpoint_to_path_style(endpoint)
       return endpoint if endpoint.blank?
 
@@ -669,7 +669,7 @@ module DocumentProviders
       # Check if host starts with bucket name (virtual-hosted style)
       # Pattern: bucket.s3.region.provider.com
       if host.start_with?("#{@bucket}.")
-        # Strip bucket prefix: teeem-documents.s3.region.com → s3.region.com
+        # Strip bucket prefix: teeem-tekna.s3.region.com → s3.region.com
         uri.host = host.sub(/^#{Regexp.escape(@bucket)}\./, "")
         uri.to_s
       else

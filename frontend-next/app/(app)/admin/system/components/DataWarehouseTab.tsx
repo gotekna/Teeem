@@ -466,7 +466,7 @@ export function DataWarehouseTab() {
           status: "connected",
           connection_info: {
             endpoint: "s3.ap-southeast-2.wasabisys.com",
-            bucket: "teeem-documents",
+            bucket: "teeem-tekna",
             region: "ap-southeast-2",
           },
           root_path: "/documents",
