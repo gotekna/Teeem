@@ -15,12 +15,28 @@ class XeroApiClient
   class AuthenticationError < StandardError; end
   class RateLimitError < StandardError; end
 
-  def initialize
+  # Allowed origins for dynamic redirect_uri
+  # Must match exactly what's registered in Xero Developer Portal
+  ALLOWED_ORIGINS = [
+    "https://teeem.vercel.app",
+    "https://teeem-staging.vercel.app",
+    "https://teeem-beta.vercel.app",
+    "https://teeemrob.vercel.app"
+  ].freeze
+
+  def initialize(redirect_uri: nil)
     @client_id = ENV["XERO_CLIENT_ID"]
     @client_secret = ENV["XERO_CLIENT_SECRET"]
-    @redirect_uri = ENV["XERO_REDIRECT_URI"]
+    @redirect_uri = redirect_uri || ENV["XERO_REDIRECT_URI"]
 
     raise AuthenticationError, "Missing Xero credentials in environment" unless credentials_present?
+  end
+
+  # Build redirect_uri from origin if origin is whitelisted
+  def self.redirect_uri_for_origin(origin)
+    return nil unless origin.present?
+    return nil unless ALLOWED_ORIGINS.include?(origin)
+    "#{origin}/xero/callback"
   end
 
   # OAuth scopes for Xero API access
