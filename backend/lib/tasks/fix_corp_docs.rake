@@ -26,19 +26,24 @@ namespace :fix do
 
   desc "Queue email upload job"
   task emails: :environment do
-    can_migrate = SyncedEmail
-      .where(storage_path: [nil, ''])
-      .where.not(outlook_id: [nil, ''])
-      .where.not(mailbox_owner_email: [nil, ''])
-      .count
+    tenant = Tenant.first
+    raise "No tenant found" unless tenant
 
-    puts "Emails that can be migrated: #{can_migrate}"
+    ActsAsTenant.with_tenant(tenant) do
+      can_migrate = SyncedEmail
+        .where(storage_path: [nil, ''])
+        .where.not(outlook_id: [nil, ''])
+        .where.not(mailbox_owner_email: [nil, ''])
+        .count
 
-    if can_migrate > 0
-      UploadEmailsToStorageJob.perform_later(batch_size: 500)
-      puts 'Job queued! Check BackgroundJobProgress for status.'
-    else
-      puts 'No emails to migrate.'
+      puts "Emails that can be migrated: #{can_migrate}"
+
+      if can_migrate > 0
+        UploadEmailsToStorageJob.perform_later(batch_size: 2000, tenant_id: tenant.id)
+        puts "Job queued for tenant #{tenant.id}! Check BackgroundJobProgress for status."
+      else
+        puts 'No emails to migrate.'
+      end
     end
   end
 end

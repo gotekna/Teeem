@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_26_133708) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_26_160918) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9202,6 +9202,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_133708) do
     t.jsonb "warehouse_root_folders", default: {}, null: false
     t.boolean "exclude_sm_tasks", default: false, null: false
     t.bigint "tenant_id", null: false
+    t.jsonb "display_name_templates", default: {}
     t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
     t.index ["organization_id"], name: "index_storage_configurations_on_organization_id", unique: true
     t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id"

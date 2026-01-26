@@ -56,15 +56,12 @@ class StorageConfiguration < ApplicationRecord
   # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
   # SSoT: 'user' is for personal user documents (My Docs feature - Jan 2026)
   # SSoT: All valid warehouse types for File Warehouse
-  # Added case, asset, financial scopes (Jan 2026)
   WAREHOUSE_TYPES = %w[
-    corporate_entity job document contact email warehouse
+    corporate_entity job document contact email email_body email_attachments warehouse
     task task_attachments task_responses
     case case_documents case_emails
     asset asset_expenses asset_service asset_readings
-    financial financial_transactions
-    compliance payment payment_invoices payment_proof
-    bank_statement template
+    compliance bank_statement template
     esignature esignature_pending esignature_completed
     plan
     xero user
@@ -219,47 +216,39 @@ class StorageConfiguration < ApplicationRecord
     'case' => 'Cases/{{CaseId}}',
     'case_documents' => 'Cases/{{CaseId}}/Documents',
     'case_emails' => 'Cases/{{CaseId}}/Emails',
-    # Asset documents (Jan 2026)
+    # Asset documents (Jan 2026) - under Corporate since assets belong to corporate entities
     # For: asset_expense, asset_odometer_reading, asset_service_history
-    'asset' => 'Assets/{{AssetName}}',
-    'asset_expenses' => 'Assets/{{AssetName}}/Expenses',
-    'asset_service' => 'Assets/{{AssetName}}/Service',
-    'asset_readings' => 'Assets/{{AssetName}}/Readings',
-    # Financial documents (Jan 2026)
-    # For: financial_transaction receipts
-    'financial' => 'Financials/{{Year}}',
-    'financial_transactions' => 'Financials/{{Year}}/{{Month}}',
+    'asset' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}',
+    'asset_expenses' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Expenses',
+    'asset_service' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Service',
+    'asset_readings' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Readings',
     # Compliance documents (Jan 2026)
     # For: document_task (job compliance - permits, approvals, certifications)
     'compliance' => 'Jobs/{{JobCode}}/Compliance',
-    # Payment documents (Jan 2026)
-    # For: pay_now_request (subcontractor invoices, proof photos)
-    'payment' => 'Payments/{{Year}}/{{Month}}',
-    'payment_invoices' => 'Payments/{{Year}}/{{Month}}/Invoices',
-    'payment_proof' => 'Payments/{{Year}}/{{Month}}/Proof',
     # Bank statement documents (Jan 2026)
     # For: bank_statement_report (ATO compliance PDFs)
     'bank_statement' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/XERO/Bank',
-    # Document templates (Jan 2026)
+    # Document templates (Jan 2026) - internal system files under Warehousing
     # For: document_template (HTML templates, PDF overlays)
-    'template' => 'Templates/{{TemplateType}}',
-    # E-signature documents (Jan 2026)
+    'template' => 'Warehousing/Templates/{{TemplateType}}',
+    # E-signature documents (Jan 2026) - internal system files under Warehousing
     # For: e_signature_request (DocuSign envelopes)
-    'esignature' => 'ESignatures/{{Year}}/{{Month}}',
-    'esignature_pending' => 'ESignatures/Pending',
-    'esignature_completed' => 'ESignatures/Completed',
+    'esignature' => 'Warehousing/E-Signatures/{{Year}}/{{Month}}',
+    'esignature_pending' => 'Warehousing/E-Signatures/Pending',
+    'esignature_completed' => 'Warehousing/E-Signatures/Completed',
     # Construction plans (Jan 2026)
     # For: job_plan_revision, plan_folder_scan
     'plan' => 'Jobs/{{JobCode}}/Plans',
     # Email documents
-    # SSoT: email_attachments uses SAME path as email (appear together in File Warehouse)
+    # SSoT: Consistent with Tasks pattern (task/task_responses/task_attachments)
     'email' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
-    'email_attachments' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
+    'email_body' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}/Body',
+    'email_attachments' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}/Attachments',
     # Warehousing sub-types (all under Warehousing/ root)
     'warehouse' => 'Warehousing',
-    'chat' => 'Warehousing/Chat/{{Context}}/{{Year}}/{{Month}}',
-    'bill_inbox' => 'Warehousing/BillInbox/{{Status}}/{{Year}}/{{Month}}',
-    'notebook' => 'Warehousing/Notes/{{UserName}}/{{NotebookName}}/{{Year}}'
+    'chat' => 'Warehousing/Conversations/{{Context}}/{{Year}}/{{Month}}',
+    'bill_inbox' => 'Warehousing/Bill Inbox/{{Status}}/{{Year}}/{{Month}}',
+    'notebook' => 'Warehousing/Notebooks/{{UserName}}/{{NotebookName}}/{{Year}}'
   }.freeze
 
   # Legacy alias for backward compatibility
@@ -279,7 +268,6 @@ class StorageConfiguration < ApplicationRecord
     'plans' => 'plan',              # Plural alias
     'cases' => 'case',              # Plural alias
     'payments' => 'payment',        # Plural alias
-    'corporate' => 'corporate_entity',  # SSoT: 'corporate_entity' is THE ONE (Jan 2026)
     'corporate_companies' => 'corporate_entity',  # Model name alias
   }.freeze
 
@@ -972,6 +960,8 @@ class StorageConfiguration < ApplicationRecord
       warehouse_root_folders: effective_warehouse_root_folders,
       # File name templates for document downloads
       file_name_templates: file_name_templates || {},
+      # Display name templates for document display in UI
+      display_name_templates: display_name_templates || {},
       # Config links for warehouse folders (URL to external config page)
       config_links: config_links || {},
       # Document routing configuration (SSoT for model selection)

@@ -165,6 +165,7 @@ interface StorageConfig {
   // SSoT: Templates for folder paths and filenames per warehouse type
   warehouse_folder_templates: Record<string, string>;
   file_name_templates: Record<string, string>;
+  display_name_templates: Record<string, string>;
   // SSoT: Config links for warehouse folders (URL to external config page)
   config_links: Record<string, string>;
   // Phase 4: Virtual warehouses (render from DB instead of S3)
@@ -363,8 +364,9 @@ interface TreeNodeProps {
   // SSoT: Templates for auto-save
   scopeTemplates: Record<string, string>;
   fileNameTemplates: Record<string, string>;
+  displayNameTemplates: Record<string, string>;
   configLinks: Record<string, string>;
-  onSaveTemplates: (scopeKey: string, baseFolder: string, folderTemplate: string, filenameTemplate: string, configLink: string | null) => Promise<void>;
+  onSaveTemplates: (scopeKey: string, baseFolder: string, folderTemplate: string, filenameTemplate: string, displayNameTemplate: string, configLink: string | null) => Promise<void>;
   // Phase 4: Virtual scopes
   virtualScopes: Record<string, boolean>;
   onToggleVirtual: (scopeKey: string, isVirtual: boolean) => Promise<void>;
@@ -390,6 +392,7 @@ function TreeNode({
   parentScopeKey,
   scopeTemplates,
   fileNameTemplates,
+  displayNameTemplates,
   configLinks,
   onSaveTemplates,
   virtualScopes,
@@ -413,6 +416,9 @@ function TreeNode({
   );
   const [filenameTemplate, setFilenameTemplate] = React.useState(
     activeScopeKey ? fileNameTemplates[activeScopeKey] || '{{OriginalFileName}}' : '{{OriginalFileName}}'
+  );
+  const [displayNameTemplate, setDisplayNameTemplate] = React.useState(
+    activeScopeKey ? displayNameTemplates[activeScopeKey] || '{{OriginalFileName}}' : '{{OriginalFileName}}'
   );
   // Config link: checkbox + URL for linking to external config page
   // SSoT: Initialize from configLinks prop (loaded from backend)
@@ -439,27 +445,28 @@ function TreeNode({
     baseFolder: string;
     folder: string;
     filename: string;
+    displayName: string;
     configLink: string | null;
   } | null>(null);
   // Track the last scope we initialized for (to avoid re-initializing on prop changes)
   const initializedScopeRef = React.useRef<string | null>(null);
 
   // Immediate save function (no debounce) - for switching scopes
-  const saveImmediate = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, filename: string, configLink: string | null) => {
+  const saveImmediate = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, filename: string, displayName: string, configLink: string | null) => {
     if (!scopeKey) return;
     try {
-      await onSaveTemplates(scopeKey, baseFolder, folder, filename, configLink);
+      await onSaveTemplates(scopeKey, baseFolder, folder, filename, displayName, configLink);
     } catch (error) {
       console.error('Failed to save templates:', error);
     }
   }, [onSaveTemplates]);
 
   // Auto-save function with debounce - calls actual API
-  const autoSave = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, filename: string, configLink: string | null) => {
+  const autoSave = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, filename: string, displayName: string, configLink: string | null) => {
     if (!scopeKey || !hasModified.current) return;
 
     // Update the ref so we can save when switching
-    prevScopeRef.current = { scopeKey, baseFolder, folder, filename, configLink };
+    prevScopeRef.current = { scopeKey, baseFolder, folder, filename, displayName, configLink };
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -467,7 +474,7 @@ function TreeNode({
     saveTimeoutRef.current = setTimeout(async () => {
       setIsSaving(true);
       try {
-        await onSaveTemplates(scopeKey, baseFolder, folder, filename, configLink);
+        await onSaveTemplates(scopeKey, baseFolder, folder, filename, displayName, configLink);
         setLastSaved(new Date());
         hasModified.current = false;
         prevScopeRef.current = null; // Clear after successful save
@@ -486,21 +493,21 @@ function TreeNode({
     if (currentEditingScopeKey && hasModified.current && initializedScopeRef.current === currentEditingScopeKey) {
       // Pass null for configLink if checkbox is unchecked (to remove it)
       const linkToSave = hasConfigLink ? configLinkUrl : null;
-      autoSave(currentEditingScopeKey, editValue, folderTemplate, filenameTemplate, linkToSave);
+      autoSave(currentEditingScopeKey, editValue, folderTemplate, filenameTemplate, displayNameTemplate, linkToSave);
     }
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [editValue, folderTemplate, filenameTemplate, hasConfigLink, configLinkUrl, currentEditingScopeKey, autoSave]);
+  }, [editValue, folderTemplate, filenameTemplate, displayNameTemplate, hasConfigLink, configLinkUrl, currentEditingScopeKey, autoSave]);
 
   // Save previous scope immediately when switching to a different scope
   React.useEffect(() => {
     // If we have pending changes from a previous scope, save them immediately
     if (prevScopeRef.current && prevScopeRef.current.scopeKey !== currentEditingScopeKey) {
       const prev = prevScopeRef.current;
-      saveImmediate(prev.scopeKey, prev.baseFolder, prev.folder, prev.filename, prev.configLink);
+      saveImmediate(prev.scopeKey, prev.baseFolder, prev.folder, prev.filename, prev.displayName, prev.configLink);
       prevScopeRef.current = null;
       // Clear any pending debounced save
       if (saveTimeoutRef.current) {
@@ -519,6 +526,11 @@ function TreeNode({
   const handleFilenameTemplateChange = (value: string) => {
     hasModified.current = true;
     setFilenameTemplate(value);
+  };
+
+  const handleDisplayNameTemplateChange = (value: string) => {
+    hasModified.current = true;
+    setDisplayNameTemplate(value);
   };
 
   // Determine if this node is in a simple scope context (for inline editing)
@@ -540,6 +552,9 @@ function TreeNode({
         setFilenameTemplate(
           fileNameTemplates[currentEditingScopeKey] || '{{OriginalFileName}}'
         );
+        setDisplayNameTemplate(
+          displayNameTemplates[currentEditingScopeKey] || '{{OriginalFileName}}'
+        );
         const linkValue = configLinks[currentEditingScopeKey] || '';
         setConfigLinkUrl(linkValue);
         setHasConfigLink(!!linkValue);
@@ -551,7 +566,7 @@ function TreeNode({
       // Editing stopped - reset the initialized scope tracker
       initializedScopeRef.current = null;
     }
-  }, [currentEditingScopeKey, currentPath, node.path, scopeTemplates, fileNameTemplates, configLinks]);
+  }, [currentEditingScopeKey, currentPath, node.path, scopeTemplates, fileNameTemplates, displayNameTemplates, configLinks]);
 
   const fullPath = rootPath
     ? `${rootPath}/${node.path}`.replace(/\/+/g, '/')
@@ -792,7 +807,18 @@ function TreeNode({
               </div>
             )}
 
-            {/* Send Name Template */}
+            {/* Display Name Template (what user sees in UI) */}
+            <TokenBuilder
+              label={<span className="text-xs font-medium">Display Name</span>}
+              value={displayNameTemplate}
+              onChange={handleDisplayNameTemplateChange}
+              scope="storage"
+              showPreview={true}
+              placeholder="Click tokens to build display name..."
+              defaultExpanded={false}
+            />
+
+            {/* Send Name Template (download filename) */}
             <TokenBuilder
               label={<span className="text-xs font-medium">Send Name</span>}
               value={filenameTemplate}
@@ -1000,8 +1026,6 @@ function TreeNode({
           )}
           {/* For scopes with tabs: show tabs */}
           {/* SSoT: Entity identifier (e.g., {{JobCode}}) comes from warehouse_root_folders, not extracted from template */}
-          {/* Debug render check */}
-          {(node.scopeKey === 'job' || node.scopeKey === 'contact') && console.log(`[DEBUG RENDER] ${node.name}: hasTabs=${hasTabs}, scopeKey=${node.scopeKey}, tabs=${node.tabs?.length}`)}
           {hasTabs && node.scopeKey ? (
             <div className="ml-1">
               {node.tabs!.map((tab) => (
@@ -1041,6 +1065,7 @@ function TreeNode({
                 parentScopeKey={node.scopeKey || parentScopeKey}
                 scopeTemplates={scopeTemplates}
                 fileNameTemplates={fileNameTemplates}
+                displayNameTemplates={displayNameTemplates}
                 configLinks={configLinks}
                 onSaveTemplates={onSaveTemplates}
                 virtualScopes={virtualScopes}
@@ -1221,11 +1246,6 @@ function TabNode({
   const hasDocTypes = tab.document_types && tab.document_types.length > 0;
   const folderPath = tab.storage_folder_path || tab.warehouse_folder;
 
-  // Debug: log what's being rendered for job/contact tabs
-  if (scope === 'job' || scope === 'contact') {
-    console.log(`[DEBUG TabNode] ${scope}/${tab.tab_key}: display_name=${tab.display_name}, warehouse_folder=${tab.warehouse_folder}, hasDocTypes=${hasDocTypes}`);
-  }
-
   return (
     <div>
       <div
@@ -1311,6 +1331,7 @@ export function StorageConfigTab() {
     // SSoT: Templates for folder paths and filenames per warehouse type
     warehouse_folder_templates: {} as Record<string, string>,
     file_name_templates: {} as Record<string, string>,
+    display_name_templates: {} as Record<string, string>,
     // SSoT: Config links for warehouse folders
     config_links: {} as Record<string, string>,
     // Phase 4: Virtual warehouses (render from DB instead of S3)
@@ -1385,15 +1406,6 @@ export function StorageConfigTab() {
       results.forEach(({ scopeKey, tabs }) => {
         // Include all tabs (no parent_id filter - warehouse tabs may have parent)
         tabsByScope[scopeKey] = tabs;
-        // Debug: log raw API response for job/contact tabs
-        if (scopeKey === 'job' || scopeKey === 'contact') {
-          console.log(`[DEBUG API] ${scopeKey} tabs from API (${tabs.length} total):`, tabs.slice(0, 3).map(t => ({
-            tab_key: t.tab_key,
-            has_storage_folder: t.has_storage_folder,
-            document_types_count: t.document_types?.length || 0,
-            children_count: t.children?.length || 0
-          })));
-        }
       });
 
       setEntityTabs(tabsByScope);
@@ -1465,13 +1477,6 @@ export function StorageConfigTab() {
             node.tabs = filterWarehouseEnabledTabs(allTabs);
           } else {
             node.tabs = filterTabsWithDocTypes(allTabs);
-            // Debug: log filtering results for job/contact
-            if (node.scopeKey === 'job' || node.scopeKey === 'contact') {
-              console.log(`[DEBUG FILTER] ${node.scopeKey}: ${allTabs.length} tabs → ${node.tabs.length} after filterTabsWithDocTypes`);
-              if (node.tabs.length === 0 && allTabs.length > 0) {
-                console.log('[DEBUG FILTER] All tabs filtered out! Sample tab:', allTabs[0]);
-              }
-            }
           }
         }
         if (node.children.length > 0) {
@@ -1563,6 +1568,7 @@ export function StorageConfigTab() {
     baseFolder: string,
     folderTemplate: string,
     filenameTemplate: string,
+    displayNameTemplate: string,
     configLink: string | null
   ) => {
     try {
@@ -1580,6 +1586,7 @@ export function StorageConfigTab() {
             warehouse_root_folders: { [scopeKey]: fullPath },
             warehouse_folder_templates: { [scopeKey]: folderTemplate },
             file_name_templates: { [scopeKey]: filenameTemplate },
+            display_name_templates: { [scopeKey]: displayNameTemplate },
             config_links: { [scopeKey]: configLink }, // null removes the link
           }
         }
@@ -1598,6 +1605,7 @@ export function StorageConfigTab() {
             warehouse_root_folders: { ...prev.warehouse_root_folders, [scopeKey]: fullPath },
             warehouse_folder_templates: { ...prev.warehouse_folder_templates, [scopeKey]: folderTemplate },
             file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
+            display_name_templates: { ...prev.display_name_templates, [scopeKey]: displayNameTemplate },
             config_links: newConfigLinks,
           };
         });
@@ -1708,6 +1716,7 @@ export function StorageConfigTab() {
           // SSoT: Templates from StorageConfiguration
           warehouse_folder_templates: response.data.warehouse_folder_templates || {},
           file_name_templates: response.data.file_name_templates || {},
+          display_name_templates: response.data.display_name_templates || {},
           // SSoT: Config links from StorageConfiguration
           config_links: response.data.config_links || {},
           // Phase 4: Virtual warehouses from StorageConfiguration
@@ -1744,6 +1753,7 @@ export function StorageConfigTab() {
             warehouse_root_folders: config?.warehouse_root_folders,
             warehouse_folder_templates: formData.warehouse_folder_templates,
             file_name_templates: formData.file_name_templates,
+            display_name_templates: formData.display_name_templates,
             config_links: formData.config_links,
             virtual_warehouses: formData.virtual_warehouses,  // Phase 4: Virtual File Warehouse
             exclude_sm_tasks: formData.exclude_sm_tasks,      // SM task exclusion setting
@@ -2258,6 +2268,7 @@ export function StorageConfigTab() {
                     onCancelTabEdit={() => setEditingTabId(null)}
                     scopeTemplates={formData.warehouse_folder_templates}
                     fileNameTemplates={formData.file_name_templates}
+                    displayNameTemplates={formData.display_name_templates}
                     configLinks={formData.config_links}
                     onSaveTemplates={saveScopeTemplates}
                     virtualScopes={formData.virtual_warehouses}
