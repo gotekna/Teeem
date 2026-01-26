@@ -188,13 +188,12 @@ module Api
       end
 
       # POST /api/v1/entity_tabs/reset_paths
-      # Reset all tabs to use inherited SSoT paths (sets uses_custom_path = false)
-      # SSoT: warehouse_folder column removed (Jan 2026) - paths now derived from StorageConfiguration.warehouse_folders
+      # Reset all tabs to use inherited SSoT paths (clears warehouse_folder, sets uses_custom_path = false)
       def reset_paths
         updated_count = EntityTab
           .where(warehouse_enabled: true)
-          .where(uses_custom_path: true)
-          .update_all(uses_custom_path: false)
+          .where("uses_custom_path = true OR warehouse_folder IS NOT NULL")
+          .update_all(uses_custom_path: false, warehouse_folder: nil)
 
         render json: {
           success: true,
@@ -294,7 +293,7 @@ module Api
           :component_name,
           # New warehouse naming
           :warehouse_enabled,
-          # warehouse_folder REMOVED (Jan 2026) - now derived from StorageConfiguration.warehouse_folders
+          :warehouse_folder,  # Custom folder NAME (replaces display_name in SSoT template)
           :warehouse_type_override,
           # Legacy backwards compat
           :has_storage_folder,
@@ -319,8 +318,6 @@ module Api
 
         storage_enabled = permitted.delete(:has_storage_folder) || permitted.delete(:has_sharepoint_folder)
         permitted[:warehouse_enabled] ||= storage_enabled unless storage_enabled.nil?
-
-        # warehouse_folder no longer stored - paths derived from StorageConfiguration.warehouse_folders at runtime
 
         path_type = permitted.delete(:storage_path_type) || permitted.delete(:sharepoint_path_type)
         permitted[:warehouse_type_override] ||= path_type if path_type.present?

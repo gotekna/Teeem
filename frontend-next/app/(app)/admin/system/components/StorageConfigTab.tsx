@@ -1111,19 +1111,39 @@ function TabNode({
 }: TabNodeProps) {
   const isEditing = editingTabId === tab.id;
   const isSimpleScope = SIMPLE_SCOPES.includes(scope);
-  const [editPath, setEditPath] = React.useState(tab.storage_folder_path || '');
+
+  // Extract just the folder name from stored path (strip base path if present)
+  const extractFolderName = (storedPath: string | null | undefined, base: string): string => {
+    if (!storedPath) return '';
+    // If path starts with basePath, strip it to get just the folder name
+    if (base && storedPath.startsWith(base + '/')) {
+      return storedPath.slice(base.length + 1);
+    }
+    // If path contains /, take the last segment (the actual folder name)
+    if (storedPath.includes('/')) {
+      return storedPath.split('/').pop() || storedPath;
+    }
+    return storedPath;
+  };
+
+  // Folder name: extract from stored path, or default to display_name
+  const storedPath = tab.warehouse_folder || tab.storage_folder_path;
+  const defaultFolderName = storedPath ? extractFolderName(storedPath, basePath) : (tab.display_name || '');
+  const [editPath, setEditPath] = React.useState(defaultFolderName);
   const [editDisplayName, setEditDisplayName] = React.useState(tab.display_name || '');
   const [editSendName, setEditSendName] = React.useState(tab.send_name_template || '');
 
   React.useEffect(() => {
     if (isEditing) {
-      setEditPath(tab.storage_folder_path || '');
+      const stored = tab.warehouse_folder || tab.storage_folder_path;
+      const folderName = stored ? extractFolderName(stored, basePath) : (tab.display_name || '');
+      setEditPath(folderName);
       setEditDisplayName(tab.display_name || '');
       setEditSendName(tab.send_name_template || '');
     }
-  }, [isEditing, tab.storage_folder_path, tab.display_name, tab.send_name_template]);
+  }, [isEditing, tab.warehouse_folder, tab.storage_folder_path, tab.display_name, tab.send_name_template, basePath]);
 
-  // Build full path preview
+  // Build full path preview: rootPath + basePath + folderName
   const fullPathPreview = [rootPath, basePath, editPath]
     .filter(Boolean)
     .join('/')
@@ -1157,27 +1177,21 @@ function TabNode({
 
         {isEditing ? (
           <div className="space-y-3 ml-4 border-l-2 border-blue-200 dark:border-blue-800 pl-3">
-            {/* Folder name - this becomes the folder in storage */}
+            {/* Display Name - what users see in UI */}
             <div className="space-y-1">
               <TokenBuilder
-                label={<span className="text-[11px] font-medium text-muted-foreground">Folder Name</span>}
+                label={<span className="text-[11px] font-medium text-muted-foreground">Display Name</span>}
                 value={editDisplayName}
                 onChange={setEditDisplayName}
                 scope="storage"
                 showPreview={true}
                 separator=" "
-                placeholder="Folder name..."
-                defaultExpanded={false}
+                placeholder="Name shown in UI..."
+                defaultExpanded={true}
               />
             </div>
 
-            {/* Base path context at top */}
-            <div className="text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded">
-              <span className="font-medium">Base: </span>
-              <span className="font-mono">{[rootPath, basePath].filter(Boolean).join('/').replace(/\/+/g, '/') || '/'}</span>
-            </div>
-
-            {/* Folder path with TokenBuilder for placeholders */}
+            {/* Folder Path - the folder name in storage */}
             <div className="space-y-1">
               <TokenBuilder
                 label={<span className="text-[11px] font-medium text-muted-foreground">Folder Path</span>}
@@ -1186,17 +1200,22 @@ function TabNode({
                 scope="storage"
                 showPreview={false}
                 separator="/"
-                placeholder="Click tokens or type path..."
-                defaultExpanded={false}
+                placeholder="e.g. TeeemXL"
+                defaultExpanded={true}
               />
-              {/* Full path preview - shown directly under tokens (defaultExpanded=false keeps this visible) */}
+              {/* Full path preview - basePath is the SSoT template with {{TeeemXL}} replaced by folder name */}
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-2 py-1">
                 <span className="text-[10px] text-muted-foreground font-medium">Full Path: </span>
-                <span className="font-mono text-xs text-green-700 dark:text-green-400">{fullPathPreview || '/'}</span>
+                <span className="font-mono text-xs text-green-700 dark:text-green-400">
+                  {[rootPath, basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/g, editPath || '...')]
+                    .filter(Boolean)
+                    .join('/')
+                    .replace(/\/+/g, '/') || '/'}
+                </span>
               </div>
             </div>
 
-            {/* Send name template */}
+            {/* Download filename template */}
             <div className="space-y-1">
               <TokenBuilder
                 label={<span className="text-[11px] font-medium text-muted-foreground">Download Filename</span>}
@@ -1206,7 +1225,7 @@ function TabNode({
                 showPreview={true}
                 separator=" "
                 placeholder="e.g. {{OriginalFileName}}"
-                defaultExpanded={false}
+                defaultExpanded={true}
               />
             </div>
 
@@ -1230,11 +1249,20 @@ function TabNode({
             </div>
           </div>
         ) : (
-          // Show folder name and download filename when not editing
+          // Show display name, folder path, and download filename when not editing
           <div className="ml-4 text-[11px] text-muted-foreground space-y-0.5">
             <div>
-              <span className="font-medium">Folder: </span>
+              <span className="font-medium">Display Name: </span>
               <span>{tab.display_name}</span>
+            </div>
+            <div>
+              <span className="font-medium">Folder Path: </span>
+              <span className="font-mono">
+                {[rootPath, basePath.replace(/\{\{TeeemXL\}\}|\{\{TabName\}\}/g, defaultFolderName)]
+                  .filter(Boolean)
+                  .join('/')
+                  .replace(/\/+/g, '/')}
+              </span>
             </div>
             <div>
               <span className="font-medium">Download As: </span>
@@ -1249,7 +1277,7 @@ function TabNode({
   // For complex scopes - show tab with folder path, document types, and children
   const hasChildren = tab.children && tab.children.length > 0;
   const hasDocTypes = tab.document_types && tab.document_types.length > 0;
-  const folderPath = tab.storage_folder_path || tab.warehouse_folder;
+  const folderPath = tab.warehouse_folder || tab.storage_folder_path;
 
   return (
     <div>
@@ -1520,10 +1548,9 @@ export function StorageConfigTab() {
   };
 
   // Save tab settings via API
-  // SSoT: storage_folder_path removed (Jan 2026) - now derived from StorageConfiguration.warehouse_folders
   const saveTabFolderPath = async (
     tabId: number,
-    _folderPath: string,  // No longer saved - derived from SSoT
+    folderPath: string,
     displayName: string,
     sendNameTemplate: string
   ) => {
@@ -1533,6 +1560,7 @@ export function StorageConfigTab() {
         {
           entity_tab: {
             display_name: displayName,
+            warehouse_folder: folderPath,
             send_name_template: sendNameTemplate,
           }
         }
@@ -1544,7 +1572,13 @@ export function StorageConfigTab() {
           Object.keys(newTabs).forEach(scope => {
             newTabs[scope] = newTabs[scope].map(tab =>
               tab.id === tabId
-                ? { ...tab, display_name: displayName, send_name_template: sendNameTemplate }
+                ? {
+                    ...tab,
+                    display_name: displayName,
+                    warehouse_folder: folderPath,
+                    storage_folder_path: folderPath,  // Legacy alias
+                    send_name_template: sendNameTemplate
+                  }
                 : tab
             );
           });
