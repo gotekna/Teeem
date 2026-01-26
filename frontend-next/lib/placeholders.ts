@@ -476,6 +476,38 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "orange",
     description: "Task status",
   },
+  // Task Attachments tokens
+  {
+    code: "{{AttachmentName}}",
+    example: "site-photo.jpg",
+    color: "orange",
+    description: "Original attachment filename",
+  },
+  {
+    code: "{{AttachmentType}}",
+    example: "Photo",
+    color: "orange",
+    description: "Attachment type (Photo, Document, etc.)",
+  },
+  // Task Responses tokens
+  {
+    code: "{{ResponseBy}}",
+    example: "John Smith",
+    color: "orange",
+    description: "Who submitted the response",
+  },
+  {
+    code: "{{ResponseDate}}",
+    example: "2026-01-26",
+    color: "green",
+    description: "Response submission date",
+  },
+  {
+    code: "{{ResponseText}}",
+    example: "Approved with notes",
+    color: "blue",
+    description: "Response text/comment",
+  },
   {
     code: "{{Category}}",
     example: "Plans",
