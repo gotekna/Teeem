@@ -1550,31 +1550,29 @@ module Api
           pdfs_last_24h = pdfs_last_24h_query.count
 
           # ============================================
-          # STAGE 3: SharePoint Upload (Active Storage -> SharePoint)
+          # STAGE 3: Cloud Storage (StorageBlob SSoT - Jan 2026)
           # ============================================
-          # SSoT: Count PDFs ACTUALLY uploaded to SharePoint (have sharepoint_file_id set)
-          # sharepoint_file_id is set by SharePoint after successful upload - this is the SSoT
-          # expected_storage_path is just the PLAN, not the reality
-          # Only count PDFs (not attachments) to match Stage 2's count
+          # SSoT: Count PDFs with StorageBlob link (deduplicated, verified storage)
+          # storage_blob_id is THE ONE source of truth for "actually saved"
+          # Old storage_file_id/storage_path are legacy - not reliable
           # SSoT FIX: Must use same filters as total_pdf_eligible (contacts + non-draft)
-          # SSoT: Count by document_type (matches XeroAttachmentSyncService.document_type_for_invoice)
-          sharepoint_query = CorporateCompanyDocument.where(source: "xero")
-                                                    .where(document_type: ["Xero Bill", "Xero Invoice", "Xero Credit Note"])
-                                                    .where.not(storage_file_id: nil)  # SSoT: Actually uploaded
-                                                    .where(documentable_type: "ExternalInvoice")
-                                                    .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                                    .where.not(external_invoices: { contact_id: nil })  # SSoT: Match pdf_eligible_invoices
-                                                    .where.not(external_invoices: { status: "draft" })  # SSoT: Match pdf_eligible_invoices
-                                                    .where.not(external_invoices: { status: %w[voided deleted] })  # SSoT: Match ExternalInvoice.active scope
+          cloud_storage_query = CorporateCompanyDocument.where(source: "xero")
+                                                        .where(document_type: ["Xero Bill", "Xero Invoice", "Xero Credit Note"])
+                                                        .where.not(storage_blob_id: nil)  # SSoT: StorageBlob = saved
+                                                        .where(documentable_type: "ExternalInvoice")
+                                                        .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                                        .where.not(external_invoices: { contact_id: nil })
+                                                        .where.not(external_invoices: { status: "draft" })
+                                                        .where.not(external_invoices: { status: %w[voided deleted] })
           if tenant_id.present?
-            sharepoint_query = sharepoint_query.where(external_invoices: { tenant_id: tenant_id })
+            cloud_storage_query = cloud_storage_query.where(external_invoices: { tenant_id: tenant_id })
           end
-          sharepoint_pdfs_uploaded = sharepoint_query.count
+          pdfs_stored = cloud_storage_query.count
 
-          # PDFs downloaded but not yet on SharePoint
-          sharepoint_pending = [ invoices_with_pdfs - sharepoint_pdfs_uploaded, 0 ].max
-          sharepoint_progress = invoices_with_pdfs.zero? ? 0 : ((sharepoint_pdfs_uploaded.to_f / invoices_with_pdfs) * 100).round(1)
-          sharepoint_progress = [ sharepoint_progress, 100 ].min # Cap at 100%
+          # PDFs downloaded but not yet saved to StorageBlob
+          storage_pending = [invoices_with_pdfs - pdfs_stored, 0].max
+          storage_progress = invoices_with_pdfs.zero? ? 0 : ((pdfs_stored.to_f / invoices_with_pdfs) * 100).round(1)
+          storage_progress = [storage_progress, 100].min # Cap at 100%
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
           sharepoint_sync_status_query = XeroSyncStatus.where(sync_type: "sharepoint")
@@ -1716,11 +1714,11 @@ module Api
                                   when "local" then "Local Storage"
                                   else "Cloud Storage"
                                   end
-          stage3_blocker = if sharepoint_pending > 0
+          stage3_blocker = if storage_pending > 0
             {
               reason: "Uploading to #{storage_provider_name}",
-              detail: "#{sharepoint_pending} PDFs queued for upload",
-              pending_count: sharepoint_pending
+              detail: "#{storage_pending} PDFs queued for upload",
+              pending_count: storage_pending
             }
           else
             nil
@@ -1760,7 +1758,7 @@ module Api
             }
           end
 
-          if pdfs_missing_storage_path > 0 && sharepoint_pdfs_uploaded > 0
+          if pdfs_missing_storage_path > 0 && pdfs_stored > 0
             # Only flag as violation if we have uploads (meaning system is working)
             stage3_violations << {
               type: "missing_storage_path",
@@ -1836,9 +1834,9 @@ module Api
               # Stage 3: SharePoint Upload (Active Storage -> OneDrive)
               stage3_sharepoint: {
                 total_to_upload: invoices_with_pdfs,
-                uploaded: sharepoint_pdfs_uploaded,
-                pending: sharepoint_pending,
-                progress_percentage: sharepoint_progress,
+                uploaded: pdfs_stored,
+                pending: storage_pending,
+                progress_percentage: storage_progress,
                 last_synced_at: last_sharepoint_sync,
                 schedule: "Uploads with PDF sync",
                 blocker: stage3_blocker,
@@ -1851,7 +1849,7 @@ module Api
               pdfs_synced: invoices_with_pdfs,
               pending: pdfs_pending,
               progress_percentage: pdf_progress,
-              sharepoint_uploads: sharepoint_pdfs_uploaded,
+              sharepoint_uploads: pdfs_stored,
               synced_last_24h: pdfs_last_24h,
               last_synced_at: last_pdf_sync,              # SSoT: Use last_synced_at consistently
               last_sync_at: last_pdf_sync,                # Deprecated: kept for backwards compatibility

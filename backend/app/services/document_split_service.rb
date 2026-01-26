@@ -1,8 +1,7 @@
 require "hexapdf"
 
-# SSoT: Uses DocumentProviderAware for provider-agnostic storage operations
+# SSoT: Uses StorageBlob for deduplicated file storage (Jan 2026 fix)
 class DocumentSplitService
-  include DocumentProviderAware
 
   class SplitError < StandardError; end
   class FileNotFoundError < SplitError; end
@@ -37,11 +36,16 @@ class DocumentSplitService
       # Create new PDF with extracted pages
       new_pdf_content = extract_pages(source_pdf, page_range)
 
-      # Upload to storage
-      new_file_id = upload_to_storage(new_pdf_content, split_config[:title])
+      # SSoT: Create StorageBlob for deduplicated storage (Jan 2026 fix)
+      storage_blob = StorageBlob.find_or_create_for_content!(
+        new_pdf_content,
+        filename: split_config[:title],
+        content_type: "application/pdf"
+      )
+      storage_blob.increment_reference!
 
       # Create new document record
-      new_document = create_document_record(split_config, new_file_id, new_pdf_content.bytesize)
+      new_document = create_document_record(split_config, storage_blob)
 
       created_documents << new_document
     end
@@ -133,49 +137,7 @@ class DocumentSplitService
     output.string
   end
 
-  def upload_to_storage(content, filename)
-    # SSoT: Use DocumentProviderAware for provider-agnostic upload
-    begin
-      setup_default_provider!
-    rescue DocumentProviders::NotConnectedError => e
-      raise FileNotFoundError, "Storage not connected: #{e.message}"
-    end
-
-    # Get parent folder path from original document
-    parent_folder_path = get_parent_folder_path
-
-    # Upload new file
-    result = upload_to_provider(
-      parent_folder_path,
-      content,
-      filename,
-      content_type: "application/pdf"
-    )
-
-    result[:id]
-  rescue DocumentProviders::Error => e
-    raise FileNotFoundError, "Storage API error: #{e.message}"
-  end
-
-  def get_parent_folder_path
-    # Get the folder path from the original document
-    # Try storage_path first, then expected_storage_path, then folder
-    if @document.respond_to?(:storage_path) && @document.storage_path.present?
-      File.dirname(@document.storage_path)
-    elsif @document.respond_to?(:expected_storage_path) && @document.expected_storage_path.present?
-      File.dirname(@document.expected_storage_path)
-    elsif @document.respond_to?(:folder) && @document.folder.present?
-      # Build path from company folder structure
-      storage_config = StorageConfiguration.instance
-      base_path = storage_config.path_for(:corporate)
-      company_folder = @company&.document_folder_name || @company&.name
-      "/#{base_path}/#{company_folder}/#{@document.folder}"
-    else
-      raise FileNotFoundError, "Cannot determine parent folder path for document"
-    end
-  end
-
-  def create_document_record(split_config, sharepoint_file_id, file_size)
+  def create_document_record(split_config, storage_blob)
     CorporateCompanyDocument.create!(
       company_id: @document.company_id,
       file_name: split_config[:title],  # Input still called :title, maps to file_name
@@ -183,8 +145,10 @@ class DocumentSplitService
       document_type: split_config[:document_type],
       mime_type: "application/pdf",  # Split service only processes PDFs
       source: "split",
-      sharepoint_file_id: sharepoint_file_id,
-      file_size: file_size,
+      # SSoT: Link to StorageBlob (Jan 2026 fix)
+      storage_blob_id: storage_blob.id,
+      storage_path: storage_blob.storage_path,
+      file_size: storage_blob.file_size,
       financial_years: split_config[:financial_years] || @document.financial_years,
       ref_date: split_config[:ref_date],
       ai_verification_status: "verified", # Auto-verified since user defined the split
