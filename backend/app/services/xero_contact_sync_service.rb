@@ -1390,8 +1390,9 @@ class XeroContactSyncService
 
     person_contact = nil
 
+    # SSoT: emails are now in contact_emails table, not contacts.email column
     if email.present?
-      person_contact = Contact.find_by("LOWER(email) = ?", email)
+      person_contact = Contact.find_by_email(email)
     end
 
     if person_contact.nil?
@@ -1407,7 +1408,6 @@ class XeroContactSyncService
         first_name: first_name,
         last_name: last_name,
         display_name: display_name,
-        email: email.presence,
         primary_company_id: company_contact.id,
         entity_type: "person"
       )
@@ -1418,7 +1418,6 @@ class XeroContactSyncService
         first_name: first_name,
         last_name: last_name,
         display_name: display_name,
-        email: email.presence,
         primary_company_id: company_contact.id,
         entity_type: "person",
         sync_with_xero: false,
@@ -1426,6 +1425,16 @@ class XeroContactSyncService
       )
       Rails.logger.info("Created person contact: #{display_name} (linked to #{company_contact.display_name})")
       @stats[:created_in_teeem] += 1
+    end
+
+    # SSoT: Add email to contact_emails table if not already present
+    if email.present? && !person_contact.contact_emails.exists?(["LOWER(email) = ?", email.downcase])
+      person_contact.contact_emails.create!(
+        email: email,
+        label: "xero",
+        is_primary: person_contact.contact_emails.empty?,
+        position: person_contact.contact_emails.count
+      )
     end
 
     # director_id column was removed - primary person is tracked via primary_company_id on the person contact
