@@ -76,14 +76,6 @@ all_orgs_email_sync:
   queue: low
   schedule: every 15 minutes
 
-# Generate .eml files for newly synced emails
-# Uses EmlGeneratorService to reconstruct from DB (NO Outlook needed)
-# Runs 10 mins after email sync to process new emails
-generate_email_eml:
-  class: GenerateEmailEmlJob
-  queue: low
-  schedule: every 30 minutes at minute 10
-
 # ============================================
 # XERO INTEGRATION
 # ============================================

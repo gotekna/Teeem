@@ -237,26 +237,19 @@ class DocumentStorageService
     # Priority: warehouse_document.storage_blob (Blobs/) > record.storage_blob (legacy)
     if record.respond_to?(:warehouse_document) && record.warehouse_document&.storage_blob.present?
       # Phase 3 SSoT: Use Blobs/ path from warehouse_document
-      result = download_from_storage_blob_via_warehouse(record)
-      # Ultra: Lazy self-heal if file not found
-      if !result[:success] && result[:status] == :not_found && record.is_a?(SyncedEmail)
-        return lazy_load_and_download(record)
-      end
-      result
+      download_from_storage_blob_via_warehouse(record)
     elsif record.respond_to?(:storage_blob) && record.storage_blob.present?
       # Legacy fallback: direct storage_blob on record
-      result = download_from_storage_blob(record)
-      # Ultra: Lazy self-heal if file not found
-      if !result[:success] && result[:status] == :not_found && record.is_a?(SyncedEmail)
-        return lazy_load_and_download(record)
-      end
-      result
+      download_from_storage_blob(record)
     else
-      # Ultra: Lazy self-heal for SyncedEmail with no storage
-      if record.is_a?(SyncedEmail)
-        return lazy_load_and_download(record)
-      end
+      # No storage - document needs to be synced
       Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage_blob - needs migration"
+
+      # For SyncedEmail without storage: run UploadEmailsToStorageJob to sync
+      if record.is_a?(SyncedEmail)
+        Rails.logger.info "[DocumentStorage] Email #{record.id} has no storage - run UploadEmailsToStorageJob to sync"
+      end
+
       error_result("Document not in storage (missing storage_blob)", status: :not_found)
     end
   end
@@ -301,30 +294,21 @@ class DocumentStorageService
         begin
           provider.get_file(s3_key)
         rescue DocumentProviders::NotFoundError
-          # Ultra: Lazy self-heal for SyncedEmail
-          # Instead of failing, generate .eml from database and upload
-          if record.is_a?(SyncedEmail)
-            Rails.logger.info "[DocumentStorage] Lazy-loading email #{record.id}: generating .eml from database"
-            new_path = EmlGeneratorService.generate_and_upload(record)
-            if new_path.present?
-              s3_key = new_path.to_s.gsub(%r{^/+}, "")
-              Rails.logger.info "[DocumentStorage] Email #{record.id} lazy-loaded to: #{s3_key}"
-            else
-              Rails.logger.warn "[DocumentStorage] Failed to lazy-load email #{record.id}"
-              return error_result("Could not generate email file", status: :not_found)
-            end
-          else
-            # File is missing from S3 - log details for debugging but show user-friendly message
-            Rails.logger.warn "[DocumentStorage] File not found in S3: #{s3_key} (record: #{record.class.name}##{record.id})"
+          # File is missing from S3 - log details for debugging but show user-friendly message
+          Rails.logger.warn "[DocumentStorage] File not found in S3: #{s3_key} (record: #{record.class.name}##{record.id})"
 
-            # Mark document as having missing file (for tracking/cleanup) if it supports this
-            if record.respond_to?(:update_column) && record.respond_to?(:file_missing)
-              record.update_column(:file_missing, true) rescue nil
-            end
-
-            # User-friendly error - don't expose internal paths
-            return error_result("Document file is unavailable - the file may have been moved or deleted", status: :not_found)
+          # Mark document as having missing file (for tracking/cleanup) if it supports this
+          if record.respond_to?(:update_column) && record.respond_to?(:file_missing)
+            record.update_column(:file_missing, true) rescue nil
           end
+
+          # For SyncedEmail without storage: queue re-sync via UploadEmailsToStorageJob
+          if record.is_a?(SyncedEmail)
+            Rails.logger.info "[DocumentStorage] Email #{record.id} missing from storage - run UploadEmailsToStorageJob to sync"
+          end
+
+          # User-friendly error - don't expose internal paths
+          return error_result("Document file is unavailable - the file may have been moved or deleted", status: :not_found)
         end
 
         # SSoT: Get Send Name from warehouse_document (Phase 3)
@@ -344,21 +328,14 @@ class DocumentStorageService
         error_result("Failed to generate S3 URL: #{e.message}", status: :internal_server_error)
       end
     else
-      # Ultra: Lazy self-heal for SyncedEmail with no storage_path
-      if record.is_a?(SyncedEmail)
-        Rails.logger.info "[DocumentStorage] Lazy-loading email #{record.id} (no storage_path): generating .eml from database"
-        new_path = EmlGeneratorService.generate_and_upload(record)
-        if new_path.present?
-          # Recursively call download_url now that the file exists
-          return download_url(record, expires_in: expires_in, disposition: disposition)
-        else
-          Rails.logger.warn "[DocumentStorage] Failed to lazy-load email #{record.id}"
-          return error_result("Could not generate email file", status: :not_found)
-        end
-      end
-
       # No storage = document not properly configured
       Rails.logger.warn "[DocumentStorage] Document #{record.class.name}##{record.id} has no storage - needs migration"
+
+      # For SyncedEmail without storage: run UploadEmailsToStorageJob to sync
+      if record.is_a?(SyncedEmail)
+        Rails.logger.info "[DocumentStorage] Email #{record.id} has no storage - run UploadEmailsToStorageJob to sync"
+      end
+
       error_result("Document not in storage (missing storage_blob and storage_path)", status: :not_found)
     end
   end
@@ -513,38 +490,6 @@ class DocumentStorageService
       credential = S3CompatibleCredential.active.connected.first
       DocumentProviders::S3Compatible.new(credential) if credential
     end
-  end
-
-  # ============================================================================
-  # LAZY SELF-HEALING (Ultra Pattern - Jan 2026)
-  # ============================================================================
-
-  # Ultra: Generate .eml from database and download
-  # Used when file doesn't exist in S3 but we have the email data
-  def lazy_load_and_download(email)
-    Rails.logger.info "[DocumentStorage] Lazy-loading email #{email.id}: generating .eml from database"
-
-    # Generate .eml content from database fields
-    content = EmlGeneratorService.generate(email)
-    unless content
-      Rails.logger.warn "[DocumentStorage] Failed to generate .eml for email #{email.id}"
-      return error_result("Could not generate email file", status: :internal_server_error)
-    end
-
-    # Upload to S3 for caching (so next access is fast)
-    new_path = EmlGeneratorService.generate_and_upload(email)
-    Rails.logger.info "[DocumentStorage] Email #{email.id} lazy-loaded to: #{new_path}" if new_path
-
-    # Return the generated content directly
-    {
-      success: true,
-      content: content,
-      content_type: "message/rfc822",
-      filename: "#{email.subject.presence || 'Email'}.eml"
-    }
-  rescue StandardError => e
-    Rails.logger.error "[DocumentStorage] Lazy-load failed for email #{email.id}: #{e.message}"
-    error_result("Failed to generate email file: #{e.message}", status: :internal_server_error)
   end
 
   # ============================================================================

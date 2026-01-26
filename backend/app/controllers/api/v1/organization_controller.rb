@@ -837,7 +837,8 @@ module Api
           # This shows the TRUE count of invoices/bills that should have PDFs
           if defined?(ExternalInvoice)
             # Total invoices/bills that can have PDFs (exclude drafts - Xero doesn't generate PDFs for drafts)
-            xero_total = ExternalInvoice.where.not(status: "draft").count
+            # SSoT: Match Xero Sync page - only count invoices with contacts (PDF-eligible)
+            xero_total = ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count
             # How many have PDFs synced (WarehouseDocument with storage_blob)
             xero_with_blob = WarehouseDocument.where(source_type: "xero").where.not(storage_blob_id: nil).count
             xero_with_file = WarehouseDocument.where(source_type: "xero")
@@ -853,8 +854,8 @@ module Api
                 tenant_id = cred.tenant_id
                 tenant_name = cred.tenant_name || "Unknown"
 
-                # Count from external_invoices (SSoT)
-                tenant_total = ExternalInvoice.where(tenant_id: tenant_id).where.not(status: "draft").count
+                # Count from external_invoices (SSoT) - match Xero Sync page (only with contacts)
+                tenant_total = ExternalInvoice.where(tenant_id: tenant_id).where.not(status: "draft").where.not(contact_id: nil).count
                 next if tenant_total == 0
 
                 # Count PDFs synced for this tenant
