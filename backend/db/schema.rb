@@ -3094,7 +3094,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_181038) do
     t.string "component_name"
     t.boolean "is_system_tab", default: false
     t.boolean "warehouse_enabled", default: false
-    t.string "warehouse_folder"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "display_code", limit: 3
@@ -3109,6 +3108,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_181038) do
     t.string "visibility_rule"
     t.bigint "tenant_id"
     t.string "send_name_template"
+    t.string "warehouse_folder"
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"

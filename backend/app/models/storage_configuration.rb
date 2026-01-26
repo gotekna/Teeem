@@ -380,30 +380,15 @@ class StorageConfiguration < ApplicationRecord
   # Falls back to root_folder_for since templates are stored in warehouse_folders
   alias_method :virtual_template_for, :root_folder_for
 
-  # Get all warehouse root folders
-  # SSoT: warehouse_folders column is THE ONE source (no merging)
+  # Get all warehouse folders
+  # SSoT: warehouse_folders column is THE ONE source (no merging with EntityTab)
+  # EntityTab.warehouse_folder is DEPRECATED - all paths derived from warehouse_folders
   def effective_warehouse_folders
     warehouse_folders || {}
   end
 
-  # Legacy alias
+  # Legacy aliases
   alias_method :effective_scope_root_folders, :effective_warehouse_folders
-
-  # Get all warehouse folders (includes roots + tab paths for backward compatibility)
-  # Returns warehouse roots plus all EntityTab warehouse paths
-  def effective_warehouse_folders
-    # Start with warehouse root folders
-    result = effective_warehouse_folders.dup
-
-    # Add EntityTab paths for backward compatibility with existing UI
-    EntityTab.warehouse_base_folders.each do |key, path|
-      result[key] ||= path
-    end
-
-    result
-  end
-
-  # Legacy alias
   alias_method :effective_scope_folders, :effective_warehouse_folders
 
   # ========================================

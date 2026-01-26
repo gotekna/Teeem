@@ -482,45 +482,12 @@ class StorageLocation < ApplicationRecord
   # This method adds both underscore and hyphen versions for backward compatibility.
   #
   def self.warehouse_base_folders
-    result = {}
-
-    # Get all tabs with warehouse_folder set (exclude nil AND empty strings)
-    warehouse_tabs = where(warehouse_enabled: true)
-                     .where.not(warehouse_folder: [nil, ''])
-
-    warehouse_tabs.each do |tab|
-      # Add tab_key => path for all warehouse tabs
-      # This enables lookup by storage key (e.g., "user-photos")
-      result[tab.tab_key] = tab.warehouse_folder
-
-      # Also add underscore version for backward compatibility with legacy scope_folders
-      # Legacy used user_photos, StorageLocation uses user-photos
-      underscore_key = tab.tab_key.gsub('-', '_')
-      result[underscore_key] = tab.warehouse_folder if underscore_key != tab.tab_key
-
-      # For overview/root tabs, also add warehouse_type => path
-      # This enables lookup by warehouse_type (e.g., "email", "warehouse")
-      if tab.tab_key.in?(%w[overview root])
-        result[tab.warehouse_type] = tab.warehouse_folder
-      end
-    end
-
-    # Legacy alias mappings (backward compatibility)
-    # These map old scope_folders keys to their actual paths
-    # SSoT: The aliases exist only for backward compatibility with existing code
-    legacy_aliases = {
-      'corporate' => 'corporate_entity',       # corporate was the old key, corporate_entity is the warehouse_type
-      'emails' => 'email',                     # emails (plural) was the old key, email is the warehouse_type
-      'custom' => 'custom_documents',          # custom was the old key, custom_documents is the tab_key
-      'my_docs' => 'my_documents'              # my_docs was the old key, my_documents is the tab_key (underscore form)
-    }
-
-    legacy_aliases.each do |old_key, new_key|
-      # Only add alias if the new key exists and old key doesn't
-      result[old_key] = result[new_key] if result[new_key] && !result[old_key]
-    end
-
-    result
+    # SSoT: Delegate to StorageConfiguration.warehouse_folders
+    # EntityTab.warehouse_folder is DEPRECATED - all paths now derived from SSoT
+    StorageConfiguration.instance.effective_warehouse_folders
+  rescue StandardError => e
+    Rails.logger.warn "[StorageLocation.warehouse_base_folders] Error fetching from SSoT: #{e.message}"
+    {}
   end
 
   # Legacy alias

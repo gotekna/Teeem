@@ -313,13 +313,20 @@ class XeroAttachmentSyncService
   # ========================================
 
   # Compute folder path from DocumentType's primary EntityTab
-  # No hardcoded paths - all from database configuration
+  # SSoT: Derives folder from StorageConfiguration.warehouse_folders (not EntityTab.warehouse_folder)
   def compute_folder_from_document_type(document_type)
     entity_tab = document_type.primary_entity_tab
     return nil unless entity_tab
 
-    template = entity_tab.warehouse_folder
+    # SSoT: Derive template from StorageConfiguration.warehouse_folders
+    # root_folder_for already handles alias normalization (e.g., 'corporate_entity' → 'corporate')
+    warehouse_type = entity_tab.warehouse_type || 'corporate'
+    config = StorageConfiguration.instance
+    template = config.root_folder_for(warehouse_type)
     return nil unless template.present?
+
+    # Substitute {{TabName}} with the tab's display name
+    template = template.gsub('{{TabName}}', entity_tab.display_name.to_s)
 
     # Expand template with context from invoice/contact
     expand_folder_template(template)
