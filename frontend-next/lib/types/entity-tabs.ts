@@ -1,5 +1,7 @@
-// EntityTab types - SSoT for unified tab configuration
-// Matches backend EntityTab model exactly
+// StorageLocation types - SSoT for folder/storage configuration
+// Renamed from EntityTab → StorageLocation (Jan 2026)
+// "StorageLocation" is clearer - it's a folder configuration, not a UI tab
+// Legacy name "EntityTab" kept as alias for backward compatibility
 
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
 export type EntityTabScope = 'corporate_entity' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
@@ -158,3 +160,16 @@ export const GROUP_LABELS: Record<TabGroup, string> = {
 
 // Entity type options are now fetched from API (SSoT: CorporateCompanySetting)
 // See: GET /api/v1/entity_tabs/entity_types
+
+// ============================================================================
+// SSoT Rename (Jan 2026): EntityTab → StorageLocation
+// "StorageLocation" is clearer - it's a folder configuration, not a UI tab
+// These aliases allow gradual migration to new naming while maintaining compatibility
+// ============================================================================
+export type StorageLocationScope = EntityTabScope;
+export type StorageLocation = EntityTab;
+export type StorageLocationDocumentType = EntityTabDocumentType;
+export type StorageLocationsResponse = EntityTabsResponse;
+export type StorageLocationResponse = EntityTabResponse;
+export type StorageLocationCreateParams = EntityTabCreateParams;
+export type StorageLocationUpdateParams = EntityTabUpdateParams;
