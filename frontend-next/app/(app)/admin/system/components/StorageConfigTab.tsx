@@ -230,7 +230,19 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   // SSoT: 'compliance' added for job compliance docs (Jan 2026)
   // SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
   // SSoT: 'bank_statement', 'template', 'esignature', 'plan' added (Jan 2026)
-  const mainScopeKeys = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user', 'case', 'asset', 'financial', 'compliance', 'payment', 'bank_statement', 'template', 'esignature', 'plan'];
+  // SSoT: All scope keys that should show as badges in the tree view
+  // Includes sub-scopes like task_attachments, task_responses that need separate configuration
+  const mainScopeKeys = [
+    'email', 'warehouse', 'job', 'contact', 'task', 'corporate_entity', 'corporate', 'user',
+    'case', 'case_documents', 'case_emails',
+    'asset', 'asset_expenses', 'asset_service', 'asset_readings',
+    'financial', 'financial_transactions',
+    'compliance', 'payment', 'payment_invoices', 'payment_proof',
+    'bank_statement', 'template',
+    'esignature', 'esignature_pending', 'esignature_completed',
+    'plan',
+    'task_attachments', 'task_responses'  // Task sub-scopes for attachments and responses
+  ];
 
   filteredEntries.forEach(([key, path]) => {
     if (!path) return;
