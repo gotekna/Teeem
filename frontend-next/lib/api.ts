@@ -29,9 +29,10 @@ const IS_DEV_MODE = DEFAULT_API_URL.includes('-dev') || DEFAULT_API_URL.includes
  */
 export const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
-    const storedUrl = getStorageItem(STORAGE_KEYS.API_URL, null, false);
+    const storedUrl = getStorageItem<string | null>(STORAGE_KEYS.API_URL, null, false);
     if (storedUrl) {
-      return storedUrl;
+      // Trim to prevent %20 (encoded space) in URL causing DNS failures
+      return storedUrl.trim();
     }
   }
   return DEFAULT_API_URL;
@@ -55,7 +56,8 @@ export const getProductionApiUrl = () => PRODUCTION_API_URL;
  */
 export const setApiUrl = (url: string) => {
   if (typeof window !== 'undefined') {
-    setStorageItem(STORAGE_KEYS.API_URL, url, false);
+    // Trim to prevent whitespace in stored URL
+    setStorageItem(STORAGE_KEYS.API_URL, url.trim(), false);
   }
 };
 

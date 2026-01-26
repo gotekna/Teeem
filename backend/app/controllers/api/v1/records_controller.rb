@@ -62,9 +62,10 @@ module Api
           is_company_role_view = @foundation.slug == "contacts" && group_by_column == "primary_company_id"
 
           searchable_columns = if is_company_role_view
-            # Company/Role panel view: ONLY search display_name and email
+            # Company/Role panel view: Search name-related columns only
             # This prevents matching irrelevant contacts via city, place_of_birth, abn_entity_name, etc.
-            %w[display_name email]
+            # Note: Contacts table has no 'email' column - emails are in contact_emails table
+            %w[display_name first_name last_name company_name_or_trust]
           elsif search_all
             # Search ALL text columns (comprehensive but slower)
             if @foundation.table_type == "system"

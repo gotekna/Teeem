@@ -200,10 +200,20 @@ class BillInbox < ApplicationRecord
   end
 
   # Download invoice file from storage (SSoT)
+  # Priority: storage_blob (S3/Wasabi) > warehouse_document.storage_blob > legacy storage_file_id
   def download_invoice_file
+    # SSoT: Use DocumentStorageService with self to leverage storage_blob
+    if storage_blob.present? || warehouse_document&.storage_blob.present?
+      service = DocumentStorageService.new
+      result = service.download(self)
+      return result[:success] ? result[:content] : nil
+    end
+
+    # Legacy fallback: storage_file_id (SharePoint) - should be migrated
     file_ref = storage_path.presence || storage_file_id
     return nil unless file_ref.present?
 
+    Rails.logger.warn("[BillInbox] #{id} using legacy storage_file_id - needs migration to storage_blob")
     result = download_from_storage(file_ref)
     result[:success] ? result[:content] : nil
   rescue StandardError => e
