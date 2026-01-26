@@ -454,8 +454,8 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* 3-Stage Progress */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* 2-Stage Progress (Jan 2026: Merged Stage 2+3 into "PDF Sync") */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Stage 1: Xero Data Sync (Bills, Invoices, Quotes) */}
           <StageProgress
             stage={1}
@@ -479,11 +479,11 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
             blocker={data.stage1_data_sync?.blocker}
           />
 
-          {/* Stage 2: PDF Download */}
+          {/* Stage 2: PDF Sync (Jan 2026: Merged download+storage into one stage) */}
           <StageProgress
             stage={2}
-            title="PDF Download"
-            icon={Download}
+            title="PDF Sync"
+            icon={Cloud}
             completed={data.stage2_pdf_download?.downloaded || data.pdfs_synced}
             total={data.stage2_pdf_download?.total_to_sync || data.total_invoices}
             percentage={data.stage2_pdf_download?.progress_percentage || data.progress_percentage}
@@ -494,85 +494,35 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
             blocker={data.stage2_pdf_download?.blocker}
           />
 
-          {/* Stage 3: SharePoint Upload */}
-          <div className="space-y-2">
-            {data.stage3_sharepoint?.sharepoint_url && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => window.open(data.stage3_sharepoint?.sharepoint_url!, '_blank')}
-              >
-                <ExternalLink className="h-3.5 w-3.5 mr-2" />
-                Open in Storage
-              </Button>
-            )}
-            <StageProgress
-              stage={3}
-              title="Cloud Storage"
-              icon={Upload}
-              completed={data.stage3_sharepoint?.uploaded || data.sharepoint_uploads}
-              total={data.stage3_sharepoint?.total_to_upload || data.pdfs_synced}
-              percentage={data.stage3_sharepoint?.progress_percentage || 0}
-              lastSync={data.stage3_sharepoint?.last_synced_at || null}
-              schedule="Uploads with PDF sync"
-              color="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
-              blocker={data.stage3_sharepoint?.blocker}
-            />
-            {/* SSoT Violations Display */}
-            {data.stage3_sharepoint?.violations && data.stage3_sharepoint.violations.length > 0 && (
-              <div className="p-2 border rounded-lg space-y-1">
-                <div className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  Data Quality ({data.stage3_sharepoint.violations.length})
-                </div>
-                {data.stage3_sharepoint.violations.map((violation, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-2 rounded text-xs ${
-                      violation.severity === "error"
-                        ? "bg-red-50 border border-red-200"
-                        : violation.severity === "warning"
-                        ? "bg-amber-50 border border-amber-200"
-                        : "bg-blue-50 border border-blue-200"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <div
-                          className={`font-medium ${
-                            violation.severity === "error"
-                              ? "text-red-800"
-                              : violation.severity === "warning"
-                              ? "text-amber-800"
-                              : "text-blue-800"
-                          }`}
-                        >
-                          {violation.count.toLocaleString()} {violation.description}
-                        </div>
-                        {violation.action_required && (
-                          <div className="text-muted-foreground mt-0.5 font-mono text-[10px]">
-                            {violation.action_required}
-                          </div>
-                        )}
-                      </div>
-                      <Badge
-                        className={`text-[10px] ${
-                          violation.severity === "error"
-                            ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                            : violation.severity === "warning"
-                            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                            : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                        }`}
-                      >
-                        {violation.severity}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Stage 3: DEPRECATED (Jan 2026) - Merged into Stage 2 */}
+          {/* Only show if backend hasn't marked it as deprecated (backwards compat) */}
+          {!(data.stage3_sharepoint as any)?.deprecated && (
+            <div className="space-y-2">
+              {data.stage3_sharepoint?.sharepoint_url && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => window.open(data.stage3_sharepoint?.sharepoint_url!, '_blank')}
+                >
+                  <ExternalLink className="h-3.5 w-3.5 mr-2" />
+                  Open in Storage
+                </Button>
+              )}
+              <StageProgress
+                stage={3}
+                title="Cloud Storage"
+                icon={Upload}
+                completed={data.stage3_sharepoint?.uploaded || data.sharepoint_uploads}
+                total={data.stage3_sharepoint?.total_to_upload || data.pdfs_synced}
+                percentage={data.stage3_sharepoint?.progress_percentage || 0}
+                lastSync={data.stage3_sharepoint?.last_synced_at || null}
+                schedule="Uploads with PDF sync"
+                color="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                blocker={data.stage3_sharepoint?.blocker}
+              />
+            </div>
+          )}
         </div>
 
         {/* Summary Stats */}
