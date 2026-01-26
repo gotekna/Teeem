@@ -35,11 +35,22 @@ namespace :storage_blob do
     puts "=" * 70
     puts ""
 
+    # SSoT: Run within Tekna tenant context (required for acts_as_tenant)
+    tenant = Tenant.find_by(name: "Tekna")
+    unless tenant
+      puts "ERROR: Tekna tenant not found!"
+      next
+    end
+    organization = tenant.organizations.find_by(slug: "tekna")
+    puts "Running in tenant context: #{tenant.name} (org: #{organization&.name || 'none'})"
+    puts ""
+
     total_migrated = 0
     total_deduplicated = 0
     total_errors = 0
     total_skipped = 0
 
+    ActsAsTenant.with_tenant(tenant) do
     # Process CorporateCompanyDocument
     # Strategy: Use storage_path (already in S3) - content_hash was never computed for these
     puts "-" * 70
@@ -82,7 +93,8 @@ namespace :storage_blob do
                 file_size: doc.file_size,
                 original_filename: doc.file_name,
                 content_type: doc.mime_type,
-                reference_count: 1
+                reference_count: 1,
+                organization_id: organization&.id  # SSoT: Set org from tenant context
               )
               doc.update_column(:storage_blob_id, blob.id)
               total_migrated += 1
@@ -199,6 +211,7 @@ namespace :storage_blob do
       puts "Or start with a small batch:"
       puts "  rails storage_blob:backfill[execute,100]"
     end
+    end  # ActsAsTenant.with_tenant
   end
 
   desc "Check StorageBlob migration status"
