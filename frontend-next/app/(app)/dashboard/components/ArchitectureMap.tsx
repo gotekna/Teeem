@@ -1363,7 +1363,7 @@ export default function JobsPage() {
               <div className="mt-4 p-3 rounded-lg bg-muted">
                 <p className="text-xs text-muted-foreground">
                   <strong>SSoT:</strong> Scope paths are configured in{" "}
-                  <code className="bg-background px-1 rounded">StorageConfiguration.warehouse_root_folders</code>.
+                  <code className="bg-background px-1 rounded">StorageConfiguration.warehouse_folders</code>.
                   Configure at: Settings → Company → Entity Config → Storage Config
                 </p>
               </div>

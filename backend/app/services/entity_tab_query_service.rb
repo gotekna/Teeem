@@ -107,7 +107,7 @@ class EntityTabQueryService
     config = StorageConfiguration.instance
     {
       root_path: config.root_path.presence || "",
-      # SSoT: warehouse_root_folders contains full path patterns including identifier
+      # SSoT: warehouse_folders contains full path patterns including identifier
       paths: {
         job: config.root_folder_for(:job),
         task: config.root_folder_for(:task),

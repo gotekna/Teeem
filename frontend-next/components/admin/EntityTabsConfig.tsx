@@ -288,7 +288,7 @@ export function EntityTabsConfig({
   // SSoT: Fetch storage configuration for scope folder paths
   const [storageConfig, setStorageConfig] = React.useState<{
     root_path?: string;
-    warehouse_root_folders?: Record<string, string>;
+    warehouse_folders?: Record<string, string>;
     scope_templates?: Record<string, string>;
     file_name_templates?: Record<string, string>;
   } | null>(null);
@@ -300,7 +300,7 @@ export function EntityTabsConfig({
           success: boolean;
           data: {
             root_path?: string;
-            warehouse_root_folders?: Record<string, string>;
+            warehouse_folders?: Record<string, string>;
             scope_templates?: Record<string, string>;
             file_name_templates?: Record<string, string>;
           };
@@ -316,11 +316,11 @@ export function EntityTabsConfig({
   }, []);
 
   // SSoT: Get base path for a scope from StorageConfiguration
-  // warehouse_root_folders contains full template like "Jobs/{{JobCode}}/{{TabName}}"
+  // warehouse_folders contains full template like "Jobs/{{JobCode}}/{{TabName}}"
   const getBasePath = React.useCallback((scopeKey: string): string => {
     const rootPath = storageConfig?.root_path || "";
-    // SSoT: warehouse_root_folders is THE ONE source for scope root paths
-    const scopePath = storageConfig?.warehouse_root_folders?.[scopeKey] || "";
+    // SSoT: warehouse_folders is THE ONE source for scope root paths
+    const scopePath = storageConfig?.warehouse_folders?.[scopeKey] || "";
     if (!scopePath) return rootPath || "";
     // Combine root and scope path, normalize slashes
     const fullPath = [rootPath, scopePath].filter(Boolean).join('/');

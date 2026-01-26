@@ -3,7 +3,7 @@
 # MigrateContactDocumentsToBlobJob - Migrate orphaned ContactDocuments to StorageBlob
 #
 # Root Cause (Jan 2026):
-#   XeroAttachmentSyncService used path_for(:contacts) but warehouse_root_folders
+#   XeroAttachmentSyncService used path_for(:contacts) but warehouse_folders
 #   only had 'contact' (singular). This returned nil, so 11,462 files went to
 #   'corporate/unassigned/' fallback instead of proper 'Contacts/...' paths.
 #

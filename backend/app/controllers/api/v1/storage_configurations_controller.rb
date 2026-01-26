@@ -78,14 +78,14 @@ module Api
         }
         update_attrs[:root_path] = sp[:root_path] if sp.key?(:root_path)
         # NOTE: scope_folders column was removed - EntityTab is now SSoT for tab paths
-        # Only warehouse_root_folders is stored on StorageConfiguration
+        # Only warehouse_folders is stored on StorageConfiguration
 
-        # SSoT: warehouse_root_folders column is THE ONE source (no merging, just replace)
+        # SSoT: warehouse_folders column is THE ONE source (no merging, just replace)
         # Accept both old and new param names for backwards compatibility
-        if sp.key?(:warehouse_root_folders)
-          update_attrs[:warehouse_root_folders] = sp[:warehouse_root_folders].to_h
+        if sp.key?(:warehouse_folders)
+          update_attrs[:warehouse_folders] = sp[:warehouse_folders].to_h
         elsif sp.key?(:scope_root_folders)
-          update_attrs[:warehouse_root_folders] = sp[:scope_root_folders].to_h
+          update_attrs[:warehouse_folders] = sp[:scope_root_folders].to_h
         end
 
         # File name templates (for document downloads)
@@ -195,8 +195,8 @@ module Api
           :root_path,
           :exclude_sm_tasks,  # SM task exclusion setting (replaces scope_options)
           :link_expiry_days,  # Link expiry for presigned URLs (saved to CorporateCompanySetting)
-          # SSoT: warehouse_root_folders is THE ONE place for warehouse type roots (includes identifier patterns)
-          warehouse_root_folders: {},
+          # SSoT: warehouse_folders is THE ONE place for warehouse type roots (includes identifier patterns)
+          warehouse_folders: {},
           scope_root_folders: {},  # Legacy backwards compat
           file_name_templates: {},
           display_name_templates: {},

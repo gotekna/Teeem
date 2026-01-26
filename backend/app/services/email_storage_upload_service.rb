@@ -133,9 +133,12 @@ class EmailStorageUploadService
         next if cancelled.true?
 
         begin
-          # Each thread gets its own DB connection
+          # Each thread gets its own DB connection AND tenant context
+          # ActsAsTenant is thread-local, so we must set it in each worker thread
           ActiveRecord::Base.connection_pool.with_connection do
-            upload_single_email(email_id)
+            ActsAsTenant.with_tenant(@tenant) do
+              upload_single_email(email_id)
+            end
 
             count = processed.increment
 

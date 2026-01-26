@@ -292,10 +292,10 @@ class StorageLocation < ApplicationRecord
   alias_method :scope_for_template, :effective_warehouse_type
 
   # Get the folder name for this tab
-  # SSoT: warehouse_root_folders has full path pattern, tab just provides folder name
+  # SSoT: warehouse_folders has full path pattern, tab just provides folder name
   def inherited_template
     return nil unless warehouse_enabled
-    # Simply return the display_name - this is appended to warehouse_root_folders path
+    # Simply return the display_name - this is appended to warehouse_folders path
     display_name
   end
 
@@ -316,7 +316,7 @@ class StorageLocation < ApplicationRecord
 
   # Get the EFFECTIVE warehouse path for this tab (for UI display)
   # SSoT: StorageLocation owns folder paths. Child tabs INHERIT from parent.
-  # Note: This returns ONLY the tab's folder - identifier pattern is in warehouse_root_folders
+  # Note: This returns ONLY the tab's folder - identifier pattern is in warehouse_folders
   #
   # Inheritance chain:
   #   Photo (root tab) → "Photo"
@@ -333,7 +333,7 @@ class StorageLocation < ApplicationRecord
       return nil unless parent_path.present?
       "#{parent_path}/#{display_name}"
     else
-      # Root tab - just the display_name (identifier pattern is in warehouse_root_folders)
+      # Root tab - just the display_name (identifier pattern is in warehouse_folders)
       display_name
     end
   end
@@ -344,7 +344,7 @@ class StorageLocation < ApplicationRecord
 
   # Get the folder path for actual uploads
   # SSoT: effective_warehouse_path now returns just the tab's folder (e.g., "Plans")
-  # The identifier pattern ({{JobCode}}) is in warehouse_root_folders, handled by resolve_path
+  # The identifier pattern ({{JobCode}}) is in warehouse_folders, handled by resolve_path
   def upload_folder_path
     effective_warehouse_path
   end
@@ -740,12 +740,12 @@ class StorageLocation < ApplicationRecord
 
   # Task document folder tabs
   # SSoT: Defines the folder structure for task-related documents
-  # Base folder: "Tasks" (defined in StorageConfiguration.warehouse_root_folders)
+  # Base folder: "Tasks" (defined in StorageConfiguration.warehouse_folders)
   # Template: "Tasks/{{TaskId}}/{{Category}}"
   private_class_method def self.seed_task_tabs!
     # NOTE: Overview tab NOT created for tasks (Jan 2026)
     # - Tasks only need Attachments and Responses tabs
-    # - Base folder "Tasks" is defined in StorageConfiguration.warehouse_root_folders['task']
+    # - Base folder "Tasks" is defined in StorageConfiguration.warehouse_folders['task']
     # - Overview tabs were redundant and cluttered the Entity Config UI
 
     # Document folder tabs for task attachments

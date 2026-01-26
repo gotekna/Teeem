@@ -8,10 +8,10 @@ namespace :warehouse do
     puts "=" * 60
 
     config = StorageConfiguration.instance
-    current = config.warehouse_root_folders || {}
+    current = config.warehouse_folders || {}
     defaults = StorageConfiguration::WAREHOUSE_ROOT_DEFAULTS
 
-    puts "\nCurrent warehouse_root_folders:"
+    puts "\nCurrent warehouse_folders:"
     current.each { |k, v| puts "  #{k}: #{v}" }
 
     puts "\nMissing keys:"
@@ -24,10 +24,10 @@ namespace :warehouse do
 
     # Merge in missing keys
     updated = current.merge(defaults) { |_key, old_val, _new_val| old_val } # Keep existing values
-    config.update!(warehouse_root_folders: updated)
+    config.update!(warehouse_folders: updated)
 
-    puts "\nUpdated warehouse_root_folders:"
-    config.reload.warehouse_root_folders.each { |k, v| puts "  #{k}: #{v}" }
+    puts "\nUpdated warehouse_folders:"
+    config.reload.warehouse_folders.each { |k, v| puts "  #{k}: #{v}" }
 
     puts "\n" + "=" * 60
     puts "INIT COMPLETE"

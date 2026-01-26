@@ -57,11 +57,12 @@ class StorageConfiguration < ApplicationRecord
   # SSoT: 'user' is for personal user documents (My Docs feature - Jan 2026)
   # SSoT: All valid warehouse types for File Warehouse
   WAREHOUSE_TYPES = %w[
-    corporate_entity job document contact email email_body email_attachments warehouse
+    corporate job document contact email email_body email_attachments warehouse
     task task_attachments task_responses
     case case_documents case_emails
     asset asset_expenses asset_service asset_readings
     compliance bank_statement template
+    template_documents template_bank_statements template_invoices template_email_signatures template_pdf_fields
     esignature esignature_pending esignature_completed
     plan
     xero user
@@ -69,7 +70,7 @@ class StorageConfiguration < ApplicationRecord
 
   # Legacy column aliases for backward compatibility
   # These allow code referencing old column names to continue working
-  alias_attribute :scope_root_folders, :warehouse_root_folders
+  alias_attribute :scope_root_folders, :warehouse_folders
   alias_attribute :virtual_scopes, :virtual_warehouses
   # Note: scope_options was deleted and replaced with exclude_sm_tasks boolean
 
@@ -96,7 +97,7 @@ class StorageConfiguration < ApplicationRecord
 
   # Clear warehouse folder tree cache when templates change
   # This ensures File Warehouse instantly reflects template changes
-  after_save :invalidate_warehouse_folder_cache, if: :warehouse_root_folders_changed?
+  after_save :invalidate_warehouse_folder_cache, if: :warehouse_folders_changed?
 
   def invalidate_warehouse_folder_cache
     Rails.cache.delete("warehouse_folder_tree_v2")
@@ -187,11 +188,11 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # ========================================
-  # Warehouse Root Folders (SSoT: warehouse_root_folders column ONLY)
+  # Warehouse Root Folders (SSoT: warehouse_folders column ONLY)
   # ========================================
 
   # Default warehouse root folders - used ONLY for initialization
-  # After init, warehouse_root_folders column is THE ONE SSoT (no merging)
+  # After init, warehouse_folders column is THE ONE SSoT (no merging)
   #
   # SSoT: These MUST include the root folder prefix (Jobs/, Corporate/, Emails/, etc.)
   # Code uses these keys directly - if a key is missing, you get an error (no fallbacks!)
@@ -203,8 +204,8 @@ class StorageConfiguration < ApplicationRecord
     'job' => 'Jobs/{{JobCode}}/{{TabName}}',
     # Contact documents (SSoT for all individuals - Jan 2026 'people' merged into 'contact')
     'contact' => 'Contacts/{{ContactName}}/{{TabName}}',
-    # Corporate documents (SSoT: 'corporate_entity' is THE ONE, 'corporate' alias in WAREHOUSE_KEY_ALIASES)
-    'corporate_entity' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
+    # Corporate documents (SSoT: 'corporate' is THE ONE - Jan 2026 consolidation)
+    'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
     # Task documents
     # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
     # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
@@ -231,6 +232,12 @@ class StorageConfiguration < ApplicationRecord
     # Document templates (Jan 2026) - internal system files under Warehousing
     # For: document_template (HTML templates, PDF overlays)
     'template' => 'Warehousing/Templates/{{TemplateType}}',
+    # Template sub-scopes (Jan 2026) - organized by template type
+    'template_documents' => 'Templates/Documents',
+    'template_bank_statements' => 'Templates/Bank Statements',
+    'template_invoices' => 'Templates/Invoices',
+    'template_email_signatures' => 'Templates/Email Signatures',
+    'template_pdf_fields' => 'Templates/PDF Fields',
     # E-signature documents (Jan 2026) - internal system files under Warehousing
     # For: e_signature_request (DocuSign envelopes)
     'esignature' => 'Warehousing/E-Signatures/{{Year}}/{{Month}}',
@@ -268,21 +275,54 @@ class StorageConfiguration < ApplicationRecord
     'plans' => 'plan',              # Plural alias
     'cases' => 'case',              # Plural alias
     'payments' => 'payment',        # Plural alias
-    'corporate_companies' => 'corporate_entity',  # Model name alias
+    'corporate_companies' => 'corporate',  # Model name alias
+    'corporate_entity' => 'corporate',     # Legacy alias (Jan 2026 consolidation)
   }.freeze
 
-  # SSoT: Merge warehouse_root_folders with defaults (adds missing keys)
-  # This ensures new warehouse types get added while preserving customizations
-  after_initialize :ensure_warehouse_root_folders
+  # SSoT: Display labels for warehouse types (used in Data Warehouse, File Warehouse UI)
+  WAREHOUSE_LABELS = {
+    'email_body' => 'Email Bodies',
+    'email_attachment' => 'Email Attachments',
+    'email' => 'Emails',
+    'corporate' => 'Corporate',
+    'contact' => 'Contacts',
+    'job' => 'Jobs',
+    'task' => 'Tasks',
+    'warehouse' => 'Warehouse',
+    'user' => 'User (Teeem Docs)',
+    'xero' => 'Xero',
+    'template' => 'Templates',
+    'template_documents' => 'Document Templates',
+    'template_bank_statements' => 'Bank Statements',
+    'template_invoices' => 'Invoice Templates',
+    'template_email_signatures' => 'Email Signatures',
+    'template_pdf_fields' => 'PDF Fields',
+    'asset' => 'Assets',
+    'case' => 'Cases',
+    'esignature' => 'E-Signatures',
+    'plan' => 'Plans',
+    'compliance' => 'Compliance',
+    'bank_statement' => 'Bank Statements',
+  }.freeze
 
-  def ensure_warehouse_root_folders
+  # Get display label for a warehouse type (SSoT)
+  def self.label_for(warehouse_type)
+    type = warehouse_type.to_s
+    WAREHOUSE_LABELS[type] || type.titleize
+  end
+
+  # SSoT: Merge warehouse_folders with defaults (adds missing keys)
+  # This ensures new warehouse types get added while preserving customizations
+  after_initialize :ensure_warehouse_folders
+
+  def ensure_warehouse_folders
     # Merge: defaults first, then existing values override
     # New types from WAREHOUSE_ROOT_DEFAULTS get added automatically
-    self.warehouse_root_folders = WAREHOUSE_ROOT_DEFAULTS.merge(warehouse_root_folders || {})
+    self.warehouse_folders = WAREHOUSE_ROOT_DEFAULTS.merge(warehouse_folders || {})
   end
 
   # Legacy alias
-  alias_method :ensure_scope_root_folders, :ensure_warehouse_root_folders
+  alias_method :ensure_scope_root_folders, :ensure_warehouse_folders
 
   # Get root folder for a warehouse type
   # Check if a warehouse type is enabled (not "DISABLED")
@@ -304,7 +344,7 @@ class StorageConfiguration < ApplicationRecord
     exclude_sm_tasks == true
   end
 
-  # SSoT: warehouse_root_folders column is THE ONE source for warehouse roots
+  # SSoT: warehouse_folders column is THE ONE source for warehouse roots
   #
   # @param warehouse_type [String, Symbol] The warehouse type name (job, contact, task, etc.)
   # @return [String, nil] The root folder name for that warehouse type, or nil if disabled
@@ -323,7 +363,7 @@ class StorageConfiguration < ApplicationRecord
     # SSoT: Normalize aliased keys (e.g., 'contacts' → 'contact')
     type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
     # SSoT: Check database first, fall back to defaults for new warehouse types
-    path = warehouse_root_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
+    path = warehouse_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
     return nil if path.blank? || path == "DISABLED"
     path
   end
@@ -332,28 +372,28 @@ class StorageConfiguration < ApplicationRecord
   alias_method :path_for, :root_folder_for
 
   # SSoT: template_for returns the folder template pattern with tokens (e.g., "Jobs/{{JobCode}}")
-  # This is an alias for root_folder_for since warehouse_root_folders stores the full template
+  # This is an alias for root_folder_for since warehouse_folders stores the full template
   alias_method :template_for, :root_folder_for
 
   # SSoT: virtual_template_for returns folder template for virtual warehouse paths
   # Used by Phase 4 Virtual File Warehouse for organizing documents by virtual folder
-  # Falls back to root_folder_for since templates are stored in warehouse_root_folders
+  # Falls back to root_folder_for since templates are stored in warehouse_folders
   alias_method :virtual_template_for, :root_folder_for
 
   # Get all warehouse root folders
-  # SSoT: warehouse_root_folders column is THE ONE source (no merging)
-  def effective_warehouse_root_folders
-    warehouse_root_folders || {}
+  # SSoT: warehouse_folders column is THE ONE source (no merging)
+  def effective_warehouse_folders
+    warehouse_folders || {}
   end
 
   # Legacy alias
-  alias_method :effective_scope_root_folders, :effective_warehouse_root_folders
+  alias_method :effective_scope_root_folders, :effective_warehouse_folders
 
   # Get all warehouse folders (includes roots + tab paths for backward compatibility)
   # Returns warehouse roots plus all EntityTab warehouse paths
   def effective_warehouse_folders
     # Start with warehouse root folders
-    result = effective_warehouse_root_folders.dup
+    result = effective_warehouse_folders.dup
 
     # Add EntityTab paths for backward compatibility with existing UI
     EntityTab.warehouse_base_folders.each do |key, path|
@@ -371,7 +411,7 @@ class StorageConfiguration < ApplicationRecord
   # ========================================
 
   # Build full path for a job folder
-  # SSoT: warehouse_root_folders has full pattern like "Jobs/{{JobCode}}"
+  # SSoT: warehouse_folders has full pattern like "Jobs/{{JobCode}}"
   # @param job_code [String] The job code (e.g., "JOB-001")
   # @param subfolder [String] Optional subfolder within job (e.g., "Plans", "Site")
   # @return [String] Full path like "/Jobs/JOB-001/Plans"
@@ -388,7 +428,7 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # Build full path for any warehouse type with template substitution
-  # SSoT: warehouse_root_folders contains the full path pattern
+  # SSoT: warehouse_folders contains the full path pattern
   #
   # @param warehouse_type [String, Symbol] The warehouse type name (job, task, contact, etc.)
   # @param substitutions [Hash] Values to substitute in path (e.g., { JobCode: "JOB-001" })
@@ -822,7 +862,7 @@ class StorageConfiguration < ApplicationRecord
       job_path(job.job_code, effective_tab_name)
     else
       # Standalone: Use warehousing folder structure
-      # SSoT: StorageConfiguration.resolve_path with warehouse_root_folders
+      # SSoT: StorageConfiguration.resolve_path with warehouse_folders
       resolve_path(warehouse_type, {
         UserName: effective_user&.name || "Unknown",
         Year: created_at&.year&.to_s || Time.current.year.to_s,
@@ -955,9 +995,9 @@ class StorageConfiguration < ApplicationRecord
       region: region,
       # Root path and warehouse folders
       root_path: root_path,
-      # SSoT: warehouse_root_folders is THE ONE place for warehouse roots (includes identifier patterns)
-      # warehouse_folders REMOVED (Jan 2026 SSoT fix) - use warehouse_root_folders only
-      warehouse_root_folders: effective_warehouse_root_folders,
+      # SSoT: warehouse_folders is THE ONE place for warehouse roots (includes identifier patterns)
+      # warehouse_folders REMOVED (Jan 2026 SSoT fix) - use warehouse_folders only
+      warehouse_folders: effective_warehouse_folders,
       # File name templates for document downloads
       file_name_templates: file_name_templates || {},
       # Display name templates for document display in UI
@@ -975,7 +1015,7 @@ class StorageConfiguration < ApplicationRecord
       link_expiry_days: CorporateCompanySetting.link_expiry_days,
 
       # SSoT: Legacy aliases REMOVED (Jan 2026 cleanup)
-      # Use warehouse_root_folders, warehouse_folders, virtual_warehouses, exclude_sm_tasks
+      # Use warehouse_folders, warehouse_folders, virtual_warehouses, exclude_sm_tasks
     }
   end
 end
