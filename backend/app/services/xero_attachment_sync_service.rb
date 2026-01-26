@@ -328,7 +328,8 @@ class XeroAttachmentSyncService
   # Expand folder template with invoice/contact context
   def expand_folder_template(template)
     contact = external_invoice.contact
-    company = contact&.corporate_company
+    # Get company from tenant's billing_company (not contact)
+    company = @tenant&.billing_company
 
     # Build substitution hash from actual data
     substitutions = {

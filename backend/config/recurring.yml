@@ -250,20 +250,15 @@ warehouse_daily_snapshot:
   schedule: at 2am every day
 
 # Sync Xero invoice attachments (PDFs) - runs after invoice sync
+# Syncs invoices to WarehouseDocument (SSoT for all documents)
 warehouse_xero_attachments:
   class: XeroAttachmentSyncJob
   queue: low
-  args: [null, { limit: 50 }]
+  args: [null, { limit: 200 }]
   schedule: every 2 hours at minute 45
 
-# Upload Xero PDFs to storage - catches any that failed instant upload
-# SSoT: Instant upload happens in XeroAttachmentSyncService.upload_to_storage
-# This backfill catches failures and runs frequently to stay near-live
-warehouse_storage_upload:
-  class: XeroStorageUploadBackfillJob
-  queue: low
-  args: [{ limit: 50, dry_run: false }]
-  schedule: every 30 minutes
+# NOTE: XeroStorageUploadBackfillJob was removed in Jan 2026 refactor
+# Storage upload now happens inline in XeroAttachmentSyncService
 
 # SSoT Health Monitor - DISABLED (job removed, depends on unmigrated table)
 # xero_sync_health_monitor:
