@@ -102,7 +102,8 @@ class StorageBlob < ApplicationRecord
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
     # Race condition: another thread created the blob first
     # Retry the find (it should now exist)
-    if e.message.include?("content_hash") || e.message.include?("storage_path")
+    # Note: Rails validation messages use "Content hash" (space) not "content_hash" (underscore)
+    if e.message.downcase.include?("content hash") || e.message.downcase.include?("storage path")
       Rails.logger.info "[StorageBlob] Race condition on hash #{hash[0..7]}..., retrying find"
       retry_blob = find_by(content_hash: hash)
       return retry_blob if retry_blob
