@@ -195,8 +195,14 @@ class DocumentStorageService
     elsif has_sharepoint_storage?(record)
       create_sharepoint_share_link(record, type: type, scope: scope)
     elsif record.is_a?(SyncedEmail)
-      # Ultra: Lazy self-heal - generate .eml and create share link
-      create_s3_share_link(record, expires_in: expires_in, disposition: disposition)
+      # Lazy self-heal: Upload email to storage on-demand, then create share link
+      upload_result = upload_email_on_demand(record)
+      if upload_result[:success]
+        # Now that it's uploaded, create the share link
+        create_s3_share_link(record.reload, expires_in: expires_in, disposition: disposition)
+      else
+        error_result("Document not in storage (missing storage_blob and storage_path)")
+      end
     else
       error_result("Document not in storage (missing storage_path and storage_reference)")
     end
@@ -644,5 +650,122 @@ class DocumentStorageService
       drive_id = StorageConfiguration.instance&.drive_id
       [credential, drive_id]
     end
+  end
+
+  # ============================================================================
+  # LAZY SELF-HEAL: Upload email on-demand (FRC fix Jan 2026)
+  # ============================================================================
+
+  # Upload a SyncedEmail to storage on-demand
+  #
+  # This is called when creating a share link for an email that hasn't been
+  # uploaded yet. Fetches .eml content from Graph API and uploads to S3.
+  #
+  # @param email [SyncedEmail] The email to upload
+  # @return [Hash] { success: true } or { success: false, error: "..." }
+  def upload_email_on_demand(email)
+    Rails.logger.info "[DocumentStorage] Lazy self-heal: Uploading email #{email.id} on-demand"
+
+    # Skip if already uploaded (race condition check)
+    # Check storage_path (direct) and warehouse_document.storage_blob (Phase 3 SSoT)
+    if email.storage_path.present? || email.warehouse_document&.storage_blob.present?
+      Rails.logger.info "[DocumentStorage] Email #{email.id} already has storage, skipping upload"
+      return { success: true }
+    end
+
+    # Need outlook_id and mailbox to fetch from Graph API
+    unless email.outlook_id.present? && email.mailbox_owner_email.present?
+      Rails.logger.warn "[DocumentStorage] Email #{email.id} missing outlook_id or mailbox_owner_email"
+      return { success: false, error: "Email metadata incomplete" }
+    end
+
+    # Get credential to fetch from Graph API
+    credential = get_credential_for_email(email)
+    unless credential&.connected?
+      Rails.logger.warn "[DocumentStorage] No valid credential for email #{email.id}"
+      return { success: false, error: "No Graph API credential available" }
+    end
+
+    # Fetch .eml content from Graph API
+    Rails.logger.info "[DocumentStorage] Fetching email #{email.id} from #{email.mailbox_owner_email}"
+    client = MicrosoftAppGraphClient.new(credential)
+    mime_content = client.get_email_mime_content(email.mailbox_owner_email, email.outlook_id)
+
+    unless mime_content.present?
+      Rails.logger.warn "[DocumentStorage] Could not fetch email #{email.id} content"
+      return { success: false, error: "Could not fetch email content from Outlook" }
+    end
+
+    Rails.logger.info "[DocumentStorage] Got #{mime_content.bytesize} bytes for email #{email.id}, uploading..."
+
+    # Create StorageBlob (content-addressed storage)
+    blob = StorageBlob.find_or_create_for_content!(
+      mime_content,
+      filename: "#{email.id}.eml",
+      content_type: "message/rfc822"
+    )
+
+    # Update email record with storage path
+    email.update_columns(
+      storage_path: blob.storage_path,
+      storage_file_id: blob.id.to_s,
+      storage_email_path: blob.storage_path,
+      storage_email_file_id: blob.id.to_s
+    )
+
+    # Create WarehouseDocument for file warehouse (if not exists)
+    create_warehouse_document_for_email(email, blob)
+
+    Rails.logger.info "[DocumentStorage] Lazy self-heal SUCCESS: Email #{email.id} uploaded to #{blob.storage_path}"
+    { success: true, path: blob.storage_path }
+  rescue MicrosoftAppGraphClient::NotConnectedError => e
+    Rails.logger.error "[DocumentStorage] Graph API not connected for email #{email.id}: #{e.message}"
+    { success: false, error: "Outlook connection required" }
+  rescue MicrosoftAppGraphClient::APIError => e
+    Rails.logger.error "[DocumentStorage] Graph API error for email #{email.id}: #{e.message}"
+    { success: false, error: "Could not fetch email: #{e.message}" }
+  rescue StandardError => e
+    Rails.logger.error "[DocumentStorage] Failed to upload email #{email.id}: #{e.class} - #{e.message}"
+    Rails.logger.error e.backtrace.first(3).join("\n")
+    { success: false, error: e.message }
+  end
+
+  # Get a credential that can fetch this email
+  # Priority: credential that synced this email > any connected credential
+  def get_credential_for_email(email)
+    # Try the credential that synced this email first
+    if email.microsoft_credential_id.present?
+      cred = MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+      return cred if cred&.connected?
+    end
+
+    # Fall back to any connected app credential
+    MicrosoftCredential.active_credential
+  end
+
+  # Create WarehouseDocument for email (copied from EmailStorageUploadService for consistency)
+  def create_warehouse_document_for_email(email, blob)
+    return if email.warehouse_document.present?
+
+    WarehouseDocument.create!(
+      documentable: email,
+      storage_blob: blob,
+      source_type: "email",
+      folder: email.virtual_folder_path,
+      display_name: email.subject.presence || "No Subject",
+      original_filename: "#{email.id}.eml",
+      tenant_id: @tenant.id,
+      metadata: {
+        subject: email.subject,
+        from_email: email.from_email,
+        received_at: email.received_at&.iso8601,
+        mailbox: email.mailbox_owner_email
+      }
+    )
+
+    blob.increment!(:reference_count)
+    Rails.logger.debug "[DocumentStorage] Created WarehouseDocument for email #{email.id}"
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.error "[DocumentStorage] Failed to create WarehouseDocument for email #{email.id}: #{e.message}"
   end
 end
