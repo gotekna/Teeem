@@ -27,6 +27,18 @@ class OrgEmailSyncJob < ApplicationJob
   PARALLEL_FOLDER_THREADS = 3  # Number of folders to sync concurrently
   SYNC_TIMEOUT_SECONDS = 300   # 5 minute timeout per folder
 
+  # ⚠️ ULTRA FIX (Jan 2026): Never lose emails due to timing issues
+  # ════════════════════════════════════════════════════════════════
+  # Problem: If last_sync_at=22:20 but an email arrived at 21:43 and wasn't
+  # saved (error/timeout/filter), subsequent syncs using since=22:20 would
+  # NEVER find that email again.
+  #
+  # Solution: Always add overlap buffer and enforce minimum lookback.
+  # Overlap is SAFE (upsert handles duplicates). Missing emails is NOT.
+  # ════════════════════════════════════════════════════════════════
+  SYNC_OVERLAP_BUFFER = 2.hours   # Always look back this much before last_sync_at
+  SYNC_MINIMUM_LOOKBACK = 24.hours # Never sync less than this window
+
   # SSoT: Supports multi-org via organization_id (preferred)
   # Falls back to credential_id or org_name for legacy compatibility (with warning)
   def perform(sync_type = "incremental", organization_id: nil, credential_id: nil, org_name: nil)
@@ -117,8 +129,16 @@ class OrgEmailSyncJob < ApplicationJob
     when "full"
               lookback_time
     else
-              # Incremental - use last_sync_at or fallback to configured lookback
-              @credential.last_sync_at || lookback_time
+              # ⚠️ ULTRA FIX: Never trust last_sync_at exactly - always add overlap
+              # This ensures emails aren't lost due to timing issues or transient failures
+              if @credential.last_sync_at
+                # Use last_sync_at minus overlap buffer, but never less than minimum lookback
+                buffered_time = @credential.last_sync_at - SYNC_OVERLAP_BUFFER
+                minimum_time = SYNC_MINIMUM_LOOKBACK.ago
+                [buffered_time, minimum_time].min  # Use the OLDER of the two (larger window)
+              else
+                lookback_time
+              end
     end
 
     # Get all mail folders
