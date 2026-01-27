@@ -111,6 +111,7 @@ import { DocumentViewerModal, getFileType } from '@/components/ui/document-viewe
 import { RichTextEditorModal } from '@/components/ui/rich-text-editor-modal';
 import { AttachmentCategoryDialog } from './AttachmentCategoryDialog';
 import { ComposeEmailModal } from '@/components/emails/ComposeEmailModal';
+import type { PreUploadedAttachment } from '@/lib/email-types';
 import { EmailAttachmentLink } from '@/components/emails/EmailAttachmentLink';
 import { getOverdueColorClasses } from './TaskColorSettings';
 import { TASK_STATUS } from '@/lib/constants/task-status';
@@ -1236,6 +1237,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // SSoT: Existing storage keys (pass directly to backend, no re-upload needed)
   // Ultra fix (Jan 2026): Documents already in S3 don't need download/re-upload
   const [emailExistingStorageKeys, setEmailExistingStorageKeys] = useState<string[]>([]);
+  // Pre-uploaded attachments with display names (show in UI, no re-upload on send)
+  const [emailPreUploadedAttachments, setEmailPreUploadedAttachments] = useState<PreUploadedAttachment[]>([]);
   const [prepareEmailLoading, setPrepareEmailLoading] = useState(false);
   const [prepareEmailStatus, setPrepareEmailStatus] = useState('');
   // Track how each attachment should be included: 'attach' (file), 'link' (URL), 'both' (attach + link), 'none' (exclude)
@@ -4200,17 +4203,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       // Separate documents and emails for processing
       // 'both' option includes item in BOTH attach AND link lists
-      console.log('[prepareEmailResponse] attachmentEmailOptions:', JSON.stringify(attachmentEmailOptions));
-      console.log('[prepareEmailResponse] responseAttachments:', responseAttachments.map(a => ({
-        id: a.id,
-        name: a.document?.display_name || a.email?.subject || 'unknown',
-        option: attachmentEmailOptions[a.id] || 'link (default)'
-      })));
       const documentsToAttach = responseAttachments.filter(a => {
         const opt = attachmentEmailOptions[a.id] || 'link';  // Default to 'link'
         return (opt === 'attach' || opt === 'both') && a.document;
       });
-      console.log('[prepareEmailResponse] documentsToAttach:', documentsToAttach.length, documentsToAttach.map(a => a.document?.display_name));
       const emailsToAttach = responseAttachments.filter(a => {
         const opt = attachmentEmailOptions[a.id] || 'link';  // Default to 'link'
         return (opt === 'attach' || opt === 'both') && a.email;
@@ -4230,11 +4226,27 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         documentsToLink.length + emailsToLink.length + questionAttachmentsToLink.length + questionEmailsToLink.length;
       let processed = 0;
 
-      // Process documents to attach - download so they show in the compose modal attachment bar
-      // Note: storage_key optimization removed for UX - users expect to see attachments before sending
-      const existingKeys: string[] = [];
+      // Process documents to attach
+      // Ultra fix (Jan 2026): Use PreUploadedAttachment for docs with storage_key (no re-upload needed)
+      // This shows in attachment bar AND avoids presigned URL upload failures
+      const preUploadedAttachments: PreUploadedAttachment[] = [];
       for (const att of documentsToAttach) {
         const fileName = att.document?.display_name || att.document?.file_name || 'file';
+
+        // If document has storage_key, use it directly (no download/re-upload needed)
+        if (att.document?.storage_key) {
+          console.log(`[prepareEmailResponse] Using storage_key for ${fileName}`);
+          preUploadedAttachments.push({
+            filename: fileName,
+            storageKey: att.document.storage_key,
+            fileSize: att.document.file_size,
+            contentType: att.document.content_type,
+          });
+          processed++;
+          continue;
+        }
+
+        // Fallback: Download for documents without storage_key
         setPrepareEmailStatus(`Downloading ${fileName}... (${processed + 1}/${totalToProcess})`);
         try {
           const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
@@ -4444,8 +4456,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       // Store the share links and file attachments
       setShareLinksMap(shareLinks);
       setEmailFileAttachments(filesToAttach);
-      // SSoT: Store existing storage keys (no re-upload needed for these)
-      setEmailExistingStorageKeys(existingKeys);
+      // SSoT: Store pre-uploaded attachments (show in UI, no re-upload on send)
+      setEmailPreUploadedAttachments(preUploadedAttachments);
+      // Clear legacy storage keys (now using preUploadedAttachments)
+      setEmailExistingStorageKeys([]);
 
       // Store viewer context server-side (avoids URL length limits)
       // Build context with all Q&A and all files (documents AND emails)
@@ -7296,10 +7310,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               type="radio"
                               name={`att-${att.id}`}
                               checked={emailOption === 'attach'}
-                              onChange={() => {
-                                console.log('[Attachment Option] Setting', att.id, 'to ATTACH');
-                                setAttachmentEmailOptions(prev => ({ ...prev, [att.id]: 'attach' }));
-                              }}
+                              onChange={() => setAttachmentEmailOptions(prev => ({ ...prev, [att.id]: 'attach' }))}
                               className="w-3 h-3"
                             />
                             <span>Attach</span>
@@ -7910,6 +7921,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           defaultBody={generateResponseBody()}
           initialAttachments={emailFileAttachments}
           initialExistingStorageKeys={emailExistingStorageKeys}
+          initialPreUploadedAttachments={emailPreUploadedAttachments}
           smTaskId={task.id}
           skipSignature={true}
           onSent={() => {

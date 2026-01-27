@@ -47,7 +47,7 @@ import {
   MAX_TOTAL_ATTACHMENTS_SIZE_BYTES,
 } from "@/lib/email-constants";
 import { formatFileSize } from "@/utils/formatters";
-import type { EmailDraft, EmailAccount, EmailContact } from "@/lib/email-types";
+import type { EmailDraft, EmailAccount, EmailContact, PreUploadedAttachment } from "@/lib/email-types";
 import { LayoutTemplate } from "lucide-react";
 import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
 import { format, setHours, setMinutes } from "date-fns";
@@ -71,6 +71,9 @@ interface ComposeEmailModalProps {
   /** SSoT: Existing storage keys for files already in S3 (Ultra fix Jan 2026)
    * Pass these directly to backend - avoids re-downloading and re-uploading */
   initialExistingStorageKeys?: string[];
+  /** Pre-uploaded attachments with display names (Ultra fix Jan 2026)
+   * These show in attachment bar but use storage_key on send (no re-upload) */
+  initialPreUploadedAttachments?: PreUploadedAttachment[];
   /** SM Task ID to link sent email to task */
   smTaskId?: number;
   /** Skip signature generation (when body already includes signature) */
@@ -90,6 +93,7 @@ export function ComposeEmailModal({
   draft,
   initialAttachments,
   initialExistingStorageKeys,
+  initialPreUploadedAttachments,
   smTaskId,
   skipSignature = false,
   onSent,
@@ -116,6 +120,8 @@ export function ComposeEmailModal({
   const [attachments, setAttachments] = useState<File[]>([]);
   // SSoT: Existing storage keys (pass directly to backend, no re-upload)
   const [existingStorageKeys, setExistingStorageKeys] = useState<string[]>([]);
+  // Pre-uploaded attachments with display names (show in UI, no re-upload on send)
+  const [preUploadedAttachments, setPreUploadedAttachments] = useState<PreUploadedAttachment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -345,6 +351,8 @@ export function ComposeEmailModal({
       setAttachments(initialAttachments || []);
       // SSoT: Set existing storage keys (pass directly to backend, no re-upload)
       setExistingStorageKeys(initialExistingStorageKeys || []);
+      // Pre-uploaded attachments with display names
+      setPreUploadedAttachments(initialPreUploadedAttachments || []);
       setError(null);
       setSignatureHtml(""); // Reset signature (will be regenerated when account selected)
       // Reset schedule state
@@ -352,7 +360,7 @@ export function ComposeEmailModal({
       setScheduledDate(undefined);
       setScheduledTime("09:00");
     }
-  }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments, initialExistingStorageKeys]);
+  }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments, initialExistingStorageKeys, initialPreUploadedAttachments]);
 
 
   // Generate signature when account is selected and user/company data is available
@@ -526,6 +534,11 @@ export function ComposeEmailModal({
         await api.post("/api/v1/imap_credentials/schedule_email", payload);
       } else {
         // Queue with undo capability (see UNDO_DELAY_SECONDS in email-constants.ts)
+        // Combine existing storage keys with pre-uploaded attachment keys
+        const allStorageKeys = [
+          ...existingStorageKeys,
+          ...preUploadedAttachments.map(att => att.storageKey),
+        ];
         queueSend({
           credential_id: formData.credential_id,
           from_address: formData.from_address || undefined,
@@ -537,7 +550,7 @@ export function ComposeEmailModal({
           reply_to_message_id: replyToMessageId,
           attachments: attachments,
           // SSoT: Pass existing storage keys directly (no re-upload needed)
-          existingStorageKeys: existingStorageKeys.length > 0 ? existingStorageKeys : undefined,
+          existingStorageKeys: allStorageKeys.length > 0 ? allStorageKeys : undefined,
           sm_task_id: smTaskId,  // Link sent email to SM task
         });
       }
@@ -858,12 +871,13 @@ export function ComposeEmailModal({
               />
             </div>
 
-            {/* Attachments bar */}
-            {attachments.length > 0 && (
+            {/* Attachments bar - shows both regular and pre-uploaded attachments */}
+            {(attachments.length > 0 || preUploadedAttachments.length > 0) && (
               <div className="flex flex-wrap gap-2 px-4 py-2 border-b bg-muted/30">
+                {/* Regular file attachments */}
                 {attachments.map((file, index) => (
                   <Badge
-                    key={index}
+                    key={`file-${index}`}
                     variant="secondary"
                     className="flex items-center gap-1"
                   >
@@ -874,6 +888,31 @@ export function ComposeEmailModal({
                     <button
                       type="button"
                       onClick={() => removeAttachment(index)}
+                      className="ml-1 hover:text-red-500 dark:text-red-400"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                {/* Pre-uploaded attachments (already in storage, no re-upload needed) */}
+                {preUploadedAttachments.map((att, index) => (
+                  <Badge
+                    key={`pre-${index}`}
+                    variant="secondary"
+                    className="flex items-center gap-1"
+                    title="Already in storage (no upload needed)"
+                  >
+                    {att.filename}
+                    {att.fileSize && (
+                      <span className="text-xs text-muted-foreground ml-1">
+                        ({formatFileSize(att.fileSize)})
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreUploadedAttachments(prev => prev.filter((_, i) => i !== index));
+                      }}
                       className="ml-1 hover:text-red-500 dark:text-red-400"
                     >
                       <X className="h-3 w-3" />
