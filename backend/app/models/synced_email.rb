@@ -310,15 +310,18 @@ class SyncedEmail < ApplicationRecord
   end
 
   # Get or create mailbox appearance (used during sync)
-  def ensure_mailbox_appearance(mailbox_email:, outlook_id: nil, folder_name: nil, is_read: false, microsoft_credential_id: nil)
+  # Supports both MS365 (outlook_id, microsoft_credential_id) and IMAP (uid, imap_credential_id)
+  def ensure_mailbox_appearance(mailbox_email:, outlook_id: nil, uid: nil, folder_name: nil, is_read: false, microsoft_credential_id: nil, imap_credential_id: nil)
     appearance = mailbox_appearances.find_or_initialize_by(
       mailbox_owner_email: mailbox_email.downcase
     )
     appearance.assign_attributes(
       outlook_id: outlook_id,
+      uid: uid,
       folder_name: folder_name,
       is_read: is_read,
-      microsoft_credential_id: microsoft_credential_id
+      microsoft_credential_id: microsoft_credential_id,
+      imap_credential_id: imap_credential_id
     )
     appearance.save!
     appearance

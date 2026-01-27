@@ -36,6 +36,7 @@
 class SyncedEmailMailbox < ApplicationRecord
   belongs_to :synced_email
   belongs_to :microsoft_credential, optional: true
+  belongs_to :imap_credential, optional: true
 
   validates :mailbox_owner_email, presence: true
   validates :synced_email_id, uniqueness: {
