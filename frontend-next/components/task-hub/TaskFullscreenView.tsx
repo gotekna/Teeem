@@ -4105,17 +4105,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
     body += '<td style="vertical-align: middle; padding-right: 8px;">';
     // Teeem logos - actual file sizes match display sizes (TipTap ignores CSS sizing)
-    // Main: 28px (matches app header), Inline: 12px (matches 10px text)
+    // Main: 28px (matches app header), Inline: 10px (matches 10px text exactly)
     const teeemLogoUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-28.png';
-    const teeemLogoSmallUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-dark-small.png';
+    const teeemLogoSmallUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-10.png';
     body += `<img src="${teeemLogoUrl}" alt="t" style="vertical-align:middle;">`;
-    // "teeem" text proportional to 28px logo (matches app header ratio)
-    body += `<span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;color:#18181b;margin-left:6px;vertical-align:middle;">teeem</span>`;
+    // "teeem" text: Georgia serif (closest to Hedvig), normal weight, proportional to 28px logo
+    body += `<span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:normal;color:#18181b;margin-left:6px;vertical-align:middle;">teeem</span>`;
     body += '</td>';
     body += '<td style="vertical-align: middle; padding-left: 12px;">';
     body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
     body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
-    body += `<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <img src="${teeemLogoSmallUrl}" alt="t" style="vertical-align:middle;margin-right:2px;"><span style="font-family:Georgia,'Times New Roman',serif;font-size:10px;color:#18181b;vertical-align:middle;">teeem</span> <a href="https://www.teeem.com.au" style="font-size:10px;color:#666;margin-left:4px;">teeem.com.au</a></p>`;
+    body += `<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <img src="${teeemLogoSmallUrl}" alt="t" style="vertical-align:middle;margin-right:2px;"><span style="font-family:Georgia,'Times New Roman',serif;font-size:10px;font-weight:normal;color:#18181b;vertical-align:middle;">teeem</span> <a href="https://www.teeem.com.au" style="font-size:10px;color:#666;margin-left:4px;">teeem.com.au</a></p>`;
     body += '</td>';
     body += '</tr></table>\n';
 
@@ -6479,7 +6479,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               className={cn(
                                                 "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
                                                 selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
-                                                att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
+                                                // Sent emails: green styling; Unread received: blue styling
+                                                isSentEmail(att.email, ourMailboxes) && "bg-green-50/50 dark:bg-green-950/20 border-l-2 border-green-500",
+                                                !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                               )}
                                               onClick={() => {
                                                 if (att.email) {
@@ -6495,11 +6497,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               }}
                                               title="Click to view, double-click to open in new tab"
                                             >
-                                              <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                              {isSentEmail(att.email, ourMailboxes) ? (
+                                                <Send className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400" />
+                                              ) : (
+                                                <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                              )}
                                               <div className="flex-1 min-w-0">
-                                                <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
+                                                <div className={cn("truncate", !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                                 <div className="text-muted-foreground truncate flex items-center gap-2">
-                                                  <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
+                                                  {isSentEmail(att.email, ourMailboxes) ? (
+                                                    <span className="truncate text-green-600 dark:text-green-400">To: {att.email?.to_emails?.[0] || 'Unknown'}</span>
+                                                  ) : (
+                                                    <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
+                                                  )}
                                                   {att.email?.received_at && (
                                                     <span className="shrink-0 text-[10px]">
                                                       {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
@@ -6707,7 +6717,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         className={cn(
                                           "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
                                           selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
-                                          att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
+                                          // Sent emails: green styling; Unread received: blue styling
+                                          isSentEmail(att.email, ourMailboxes) && "bg-green-50/50 dark:bg-green-950/20 border-l-2 border-green-500",
+                                          !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                         )}
                                         onClick={() => {
                                           if (att.email) {
@@ -6723,11 +6735,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         title="Click to view, double-click to open in new tab"
                                       >
-                                        <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                        {isSentEmail(att.email, ourMailboxes) ? (
+                                          <Send className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400" />
+                                        ) : (
+                                          <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                        )}
                                         <div className="flex-1 min-w-0">
-                                          <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
+                                          <div className={cn("truncate", !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                           <div className="text-muted-foreground truncate flex items-center gap-2">
-                                            <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
+                                            {isSentEmail(att.email, ourMailboxes) ? (
+                                              <span className="truncate text-green-600 dark:text-green-400">To: {att.email?.to_emails?.[0] || 'Unknown'}</span>
+                                            ) : (
+                                              <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
+                                            )}
                                             {att.email?.received_at && (
                                               <span className="shrink-0 text-[10px]">
                                                 {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
@@ -6848,7 +6868,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         className={cn(
                                           "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
                                           selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
-                                          att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
+                                          // Sent emails: green styling; Unread received: blue styling
+                                          isSentEmail(att.email, ourMailboxes) && "bg-green-50/50 dark:bg-green-950/20 border-l-2 border-green-500",
+                                          !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                         )}
                                         onClick={() => {
                                           if (att.email) {
@@ -6864,11 +6886,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         title="Click to view, double-click to open in new tab"
                                       >
-                                        <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                        {isSentEmail(att.email, ourMailboxes) ? (
+                                          <Send className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400" />
+                                        ) : (
+                                          <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                        )}
                                         <div className="flex-1 min-w-0">
-                                          <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
+                                          <div className={cn("truncate", !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                           <div className="text-muted-foreground truncate flex items-center gap-2">
-                                            <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
+                                            {isSentEmail(att.email, ourMailboxes) ? (
+                                              <span className="truncate text-green-600 dark:text-green-400">To: {att.email?.to_emails?.[0] || 'Unknown'}</span>
+                                            ) : (
+                                              <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
+                                            )}
                                             {att.email?.received_at && (
                                               <span className="shrink-0 text-[10px]">
                                                 {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
