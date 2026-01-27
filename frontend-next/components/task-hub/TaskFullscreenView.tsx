@@ -1328,6 +1328,29 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setEmailKeywords(task.email_keywords || '');
   }, [task]);
 
+  // Mark email as read when viewed in task detail (SSoT: syncs with inbox)
+  useEffect(() => {
+    if (!selectedEmailId) return;
+
+    // Find the attachment with this email
+    const attachment = localAttachments.find(a => a.email?.id === selectedEmailId);
+    if (!attachment?.email || attachment.email.is_read) return; // Already read or not found
+
+    // Mark as read via API
+    api.post(`/api/v1/synced_emails/${selectedEmailId}/mark_read`)
+      .then(() => {
+        // Update local state to reflect read status
+        setLocalAttachments(prev => prev.map(a =>
+          a.email?.id === selectedEmailId
+            ? { ...a, email: { ...a.email!, is_read: true } }
+            : a
+        ));
+      })
+      .catch(err => {
+        console.error('Failed to mark email as read:', err);
+      });
+  }, [selectedEmailId]);
+
   // Filter attachments - emails sorted by date (latest first)
   const allEmailAttachments = localAttachments
     .filter(a => a.email)
@@ -1368,6 +1391,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   };
 
   const matchedEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Matched')).length;
+  const unreadEmailCount = allEmailAttachments.filter(att => att.email?.is_read === false).length;
   const threadEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Thread:')).length;
 
   // Calculate unique senders from attached emails with counts
@@ -5793,6 +5817,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   <Badge variant="secondary" className="text-xs">
                     {emailSourceFilter.type !== 'all' ? `${emailAttachments.length}/${allEmailAttachments.length}` : allEmailAttachments.length}
                   </Badge>
+                  {unreadEmailCount > 0 && (
+                    <Badge className="text-xs bg-blue-600 hover:bg-blue-600 text-white">
+                      {unreadEmailCount} unread
+                    </Badge>
+                  )}
                 </div>
                 {/* Quick filter chips - outside clickable area */}
                 {!emailsCollapsed && matchedEmailCount > 0 && (
@@ -6384,7 +6413,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               }}
                                               className={cn(
                                                 "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
-                                                selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                                                selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
+                                                att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                               )}
                                               onClick={() => {
                                                 if (att.email) {
@@ -6400,9 +6430,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               }}
                                               title="Click to view, double-click to open in new tab"
                                             >
-                                              <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                                              <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
                                               <div className="flex-1 min-w-0">
-                                                <div className="font-medium truncate">{att.email?.subject}</div>
+                                                <div className={cn("truncate", att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                                 <div className="text-muted-foreground truncate flex items-center gap-2">
                                                   <span className="truncate">{att.email?.from_email}</span>
                                                   {att.email?.received_at && (
@@ -6603,7 +6633,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         className={cn(
                                           "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
-                                          selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                                          selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
+                                          att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                         )}
                                         onClick={() => {
                                           if (att.email) {
@@ -6619,9 +6650,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         title="Click to view, double-click to open in new tab"
                                       >
-                                        <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                                        <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
                                         <div className="flex-1 min-w-0">
-                                          <div className="font-medium truncate">{att.email?.subject}</div>
+                                          <div className={cn("truncate", att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                           <div className="text-muted-foreground truncate flex items-center gap-2">
                                             <span className="truncate">{att.email?.from_email}</span>
                                             {att.email?.received_at && (
@@ -6735,7 +6766,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         className={cn(
                                           "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
-                                          selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                                          selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
+                                          att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                         )}
                                         onClick={() => {
                                           if (att.email) {
@@ -6751,9 +6783,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         title="Click to view, double-click to open in new tab"
                                       >
-                                        <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                                        <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
                                         <div className="flex-1 min-w-0">
-                                          <div className="font-medium truncate">{att.email?.subject}</div>
+                                          <div className={cn("truncate", att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                           <div className="text-muted-foreground truncate flex items-center gap-2">
                                             <span className="truncate">{att.email?.from_email}</span>
                                             {att.email?.received_at && (

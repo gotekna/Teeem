@@ -17,6 +17,7 @@ export interface TaskAttachmentEmail {
   to_emails?: string[];
   cc_emails?: string[];
   received_at: string;
+  is_read?: boolean; // SSoT: Read status synced with inbox
   has_attachments: boolean;
   document_attachments_count?: number; // Count of real documents (excludes signature images)
   conversation_id?: string;
@@ -171,6 +172,7 @@ export interface SmTask {
 
   // Attachments
   attachments_count?: number;
+  unread_email_count?: number; // SSoT: Count of unread emails for task card indicator
   attachments?: TaskAttachment[];
 
   // Privacy

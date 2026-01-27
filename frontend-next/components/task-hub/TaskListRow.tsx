@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Eye,
   Lock,
+  Mail,
   MoreHorizontal,
   Pause,
   Pencil,
@@ -68,6 +69,9 @@ export function TaskListRow({
   // Show subtasks if user owns parent OR follows parent
   const showSubtasks = task.children && task.children.length > 0 &&
     (task.is_following || task.assigned_user_id === user?.id);
+
+  // Unread email count for task card indicator (SSoT from backend)
+  const unreadEmailCount = task.unread_email_count || 0;
 
   const handleRowClick = () => {
     toggleTaskExpansion(task.id);
@@ -151,6 +155,13 @@ export function TaskListRow({
               >
                 <Pencil className="h-3 w-3" />
               </button>
+            </div>
+          )}
+          {/* Unread email indicator - show when task has unread emails */}
+          {unreadEmailCount > 0 && (
+            <div className="flex items-center gap-0.5 text-blue-600 dark:text-blue-400 shrink-0" title={`${unreadEmailCount} unread email${unreadEmailCount > 1 ? 's' : ''}`}>
+              <Mail className="h-3 w-3 fill-current" />
+              <span className="text-[9px] font-bold">{unreadEmailCount}</span>
             </div>
           )}
           {task.is_overdue && task.status !== 'completed' && (

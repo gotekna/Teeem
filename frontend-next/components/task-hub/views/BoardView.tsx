@@ -35,7 +35,7 @@ import {
   type CardMoveEvent,
   type CardReorderEvent,
 } from '@/components/ui/kanban';
-import { Lock, AlertTriangle, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
+import { Lock, AlertTriangle, ExternalLink, ChevronDown, ChevronRight, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getOverdueColorClasses } from '../TaskColorSettings';
 
@@ -91,6 +91,9 @@ function TaskCardContent({ task, currentUserId, waitingStyles, overdueColors }: 
   const isWaitingStatus = task.status === TASK_STATUS.WAITING_FOR_RESPONSE ||
     task.status === TASK_STATUS.WAITING_FOR_INFO;
 
+  // Unread email count for task card indicator (SSoT from backend)
+  const unreadEmailCount = task.unread_email_count || 0;
+
   return (
     <div className={cn('px-2 py-1.5 text-xs', overdueColors?.bg)}>
       <div className="flex items-center gap-1.5">
@@ -103,6 +106,13 @@ function TaskCardContent({ task, currentUserId, waitingStyles, overdueColors }: 
           {task.name}
         </span>
 
+        {/* Unread email indicator - show when task has unread emails */}
+        {unreadEmailCount > 0 && (
+          <div className="flex items-center gap-0.5 text-blue-600 dark:text-blue-400 shrink-0" title={`${unreadEmailCount} unread email${unreadEmailCount > 1 ? 's' : ''}`}>
+            <Mail className="h-3 w-3 fill-current" />
+            <span className="text-[9px] font-bold">{unreadEmailCount}</span>
+          </div>
+        )}
         {/* Only show overdue badge if not in waiting status */}
         {task.is_overdue && task.status !== TASK_STATUS.COMPLETED && !isWaitingStatus && (
           <Badge variant="destructive" className="h-3.5 px-1 text-[9px] gap-0.5 shrink-0">
