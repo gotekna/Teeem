@@ -4104,16 +4104,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     body += '\n<br><br>\n';
     body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
     body += '<td style="vertical-align: middle; padding-right: 8px;">';
-    // Teeem logo - dark square with "t" matching app header (image must be OUTSIDE anchor for TipTap)
-    const teeemLogoUrl = 'https://teeem.vercel.app/icons/teeem-logo-dark.png';
-    body += `<img src="${teeemLogoUrl}" alt="t" style="width: 28px; height: 28px; vertical-align: middle;">`;
-    // "teeem" text matches app header: serif font, bold weight
-    body += `<a href="https://www.teeem.com.au" style="text-decoration: none; font-family: Georgia, serif; font-size: 18px; font-weight: bold; color: #18181b; margin-left: 6px; vertical-align: middle;">teeem</a>`;
+    // Teeem logo - small dark square with "t" matching app header size
+    const teeemLogoUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-dark.png';
+    body += `<img src="${teeemLogoUrl}" alt="t" width="20" height="20" style="width: 20px; height: 20px; vertical-align: middle;">`;
+    // "teeem" text matches app header: serif font, normal weight, dark color (not a link here - just styled text)
+    body += `<span style="font-family: Georgia, 'Times New Roman', serif; font-size: 16px; font-weight: normal; color: #18181b; margin-left: 4px; vertical-align: middle;">teeem</span>`;
+    // Website link after logo
+    body += `<a href="https://www.teeem.com.au" style="font-size: 12px; color: #666; margin-left: 8px; vertical-align: middle;">teeem.com.au</a>`;
     body += '</td>';
     body += '<td style="vertical-align: middle; padding-left: 12px;">';
     body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
     body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
-    body += `<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <img src="${teeemLogoUrl}" alt="t" style="width: 14px; height: 14px; vertical-align: middle;"><a href="https://www.teeem.com.au" style="text-decoration: none; font-family: Georgia, serif; font-weight: bold; color: #18181b; margin-left: 2px; vertical-align: middle;">teeem</a></p>`;
+    body += `<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <img src="${teeemLogoUrl}" alt="t" width="12" height="12" style="width: 12px; height: 12px; vertical-align: middle; margin-right: 2px;"><a href="https://www.teeem.com.au" style="text-decoration: none; font-family: Georgia, 'Times New Roman', serif; font-size: 10px; color: #18181b;">teeem</a></p>`;
     body += '</td>';
     body += '</tr></table>\n';
 
