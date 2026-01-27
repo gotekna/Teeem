@@ -47,6 +47,8 @@ interface MailboxStats {
   email: string;
   email_count: number;
   unread_count: number;
+  attachment_count: number;
+  has_blob: boolean;
   last_email_received_at: string | null;
   last_synced_at: string | null;
 }
@@ -412,6 +414,18 @@ export function EmailSyncDashboardTab() {
                           </TableHead>
                           <TableHead className="text-right py-2 font-medium text-muted-foreground">
                             <div className="flex items-center justify-end gap-1">
+                              <Paperclip className="h-4 w-4" />
+                              Attachments
+                            </div>
+                          </TableHead>
+                          <TableHead className="text-center py-2 font-medium text-muted-foreground">
+                            <div className="flex items-center justify-center gap-1">
+                              <HardDrive className="h-4 w-4" />
+                              Blob
+                            </div>
+                          </TableHead>
+                          <TableHead className="text-right py-2 font-medium text-muted-foreground">
+                            <div className="flex items-center justify-end gap-1">
                               <Clock className="h-4 w-4" />
                               Last Email
                             </div>
@@ -442,6 +456,20 @@ export function EmailSyncDashboardTab() {
                                 </Badge>
                               ) : (
                                 <span className="text-muted-foreground">0</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-3 text-right">
+                              {mailbox.attachment_count > 0 ? (
+                                <span className="font-mono">{formatNumber(mailbox.attachment_count)}</span>
+                              ) : (
+                                <span className="text-muted-foreground">0</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-3 text-center">
+                              {mailbox.has_blob ? (
+                                <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
                             <TableCell className="py-3 text-right">

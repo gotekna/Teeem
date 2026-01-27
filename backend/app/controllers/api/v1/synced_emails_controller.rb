@@ -1556,10 +1556,17 @@ class Api::V1::SyncedEmailsController < ApplicationController
     last_received = emails_for_stats.maximum(:received_at)
     last_synced = emails_for_stats.maximum(:updated_at)
 
+    # Attachment stats for this mailbox
+    attachments = EmailAttachment.where(email_warehouse_id: email_ids)
+    attachment_count = attachments.count
+    has_blob = attachments.where.not(storage_blob_id: nil).exists?
+
     {
       email: email,
       email_count: email_ids.count,
       unread_count: appearances.unread.count,
+      attachment_count: attachment_count,
+      has_blob: has_blob,
       last_email_received_at: last_received,
       last_synced_at: last_synced
     }
