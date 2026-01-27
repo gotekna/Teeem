@@ -38,6 +38,9 @@ class ImapSyncJob < ApplicationJob
     Rails.logger.info "[ImapSyncJob] Sync complete for #{credential.email_address}: " \
                       "#{results[:synced]} synced, #{results[:skipped]} skipped, #{results[:errors]} errors"
 
+    # Mark sync as successful
+    credential.mark_sync_success!
+
     # Process new emails for job matching
     if results[:new_emails].any?
       results[:new_emails].each do |email|
