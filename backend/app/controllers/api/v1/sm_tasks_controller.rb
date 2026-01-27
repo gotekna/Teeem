@@ -1405,8 +1405,9 @@ module Api
         zip_data.rewind
 
         # Generate a unique filename for the zip
-        safe_name = @task.name.to_s.gsub(/[^a-zA-Z0-9\s-]/, "").strip.gsub(/\s+/, "_")[0..50]
-        zip_filename = "#{safe_name}_response_files.zip"
+        # SSoT: Include task ID in filename for reliable matching during cleanup
+        safe_name = @task.name.to_s.gsub(/[^a-zA-Z0-9\s-]/, "").strip.gsub(/\s+/, "_")[0..40]
+        zip_filename = "task_#{@task.id}_#{safe_name}_response.zip"
 
         # Option 1: Return as direct download (for API calls)
         if params[:direct] == "true"
@@ -1436,6 +1437,10 @@ module Api
           # Upload to Temp folder with timestamped filename
           temp_folder_path = "Temp/TaskResponseZips"
           timestamped_filename = "#{Time.current.strftime('%Y%m%d_%H%M%S')}_#{zip_filename}"
+
+          # SSoT: Delete previous zips for this same task before creating new one
+          # This ensures only the latest response zip is valid (old links become 404)
+          cleanup_previous_task_zips(provider, temp_folder_path, zip_filename)
 
           upload_result = provider.upload_file(temp_folder_path, zip_data.read, timestamped_filename, content_type: "application/zip")
 
@@ -2349,6 +2354,34 @@ module Api
       end
 
       private
+
+      # SSoT: Delete previous response zips for the same task
+      # When user sends a new response, old zips should be invalidated (links become 404)
+      # This ensures only the latest response is accessible
+      def cleanup_previous_task_zips(provider, folder_path, zip_filename)
+        files = provider.list_files(folder_path) rescue []
+        return if files.empty?
+
+        # zip_filename is like "TaskName_response_files.zip"
+        # Find files ending with this suffix (different timestamps, same task)
+        deleted = 0
+        files.each do |file|
+          next unless file[:name]&.end_with?(zip_filename)
+
+          begin
+            provider.delete_file(file[:id] || "#{folder_path}/#{file[:name]}")
+            deleted += 1
+            Rails.logger.info "[SmTasksController] Deleted previous task zip: #{file[:name]}"
+          rescue => e
+            Rails.logger.warn "[SmTasksController] Failed to delete old zip #{file[:name]}: #{e.message}"
+          end
+        end
+
+        Rails.logger.info "[SmTasksController] Cleaned up #{deleted} previous zip(s) for task" if deleted > 0
+      rescue => e
+        # Don't fail the upload if cleanup fails - just log
+        Rails.logger.warn "[SmTasksController] cleanup_previous_task_zips error: #{e.message}"
+      end
 
       # Parse user counts from SQL result, ensuring valid integer IDs
       # Handles edge cases where raw SQL might return unexpected values
