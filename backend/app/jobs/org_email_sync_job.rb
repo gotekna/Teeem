@@ -24,7 +24,12 @@ class OrgEmailSyncJob < ApplicationJob
   attr_reader :user_cache, :blacklist_cache
 
   # Performance: Parallel folder sync configuration
-  PARALLEL_FOLDER_THREADS = 3  # Number of folders to sync concurrently
+  # ⚠️ FRC (Jan 2026): Reduced from 3 to 2 threads to prevent connection pool exhaustion
+  # Root cause: One-off dynos and worker processes have limited pool sizes (5-10 connections).
+  # With 3 threads per folder batch + main thread, we exceed pool capacity.
+  # Each user syncs multiple folders, causing cascading connection failures.
+  # Fix: 2 threads is safer while still providing parallelism benefit.
+  PARALLEL_FOLDER_THREADS = 2  # Number of folders to sync concurrently
   SYNC_TIMEOUT_SECONDS = 300   # 5 minute timeout per folder
 
   # ⚠️ ULTRA FIX (Jan 2026): Never lose emails due to timing issues
@@ -155,12 +160,14 @@ class OrgEmailSyncJob < ApplicationJob
   end
 
   # Performance: Sync folders in parallel batches
-  # Impact: ~3x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
+  # Impact: ~2x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
+  # ⚠️ FRC (Jan 2026): Added retry logic for database connection errors
   def sync_folders_parallel(client, user_email, folders, since)
     return 0 if folders.empty?
 
     # Thread-safe counter for total synced emails
     total_synced = Concurrent::AtomicFixnum.new(0)
+    failed_folders = Concurrent::Array.new
 
     # Process folders in parallel batches
     folders.each_slice(PARALLEL_FOLDER_THREADS) do |folder_batch|
@@ -173,6 +180,10 @@ class OrgEmailSyncJob < ApplicationJob
               thread_client = MicrosoftAppGraphClient.new(@credential)
               synced = sync_folder(thread_client, user_email, folder, since)
               total_synced.increment(synced)
+            rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::StatementInvalid => e
+              # Database connection error - mark for retry
+              Rails.logger.warn "[OrgEmailSync] DB connection error for folder #{folder[:name]}, will retry: #{e.message}"
+              failed_folders << folder
             rescue StandardError => e
               Rails.logger.error "[OrgEmailSync] Parallel sync error for folder #{folder[:name]}: #{e.message}"
             end
@@ -184,6 +195,19 @@ class OrgEmailSyncJob < ApplicationJob
       threads.each do |thread|
         thread.join(SYNC_TIMEOUT_SECONDS)
         thread.kill if thread.alive?  # Kill timed-out threads
+      end
+    end
+
+    # Retry failed folders sequentially (connection pool should have connections now)
+    if failed_folders.any?
+      Rails.logger.info "[OrgEmailSync] Retrying #{failed_folders.count} failed folders sequentially"
+      failed_folders.each do |folder|
+        begin
+          synced = sync_folder(client, user_email, folder, since)
+          total_synced.increment(synced)
+        rescue StandardError => e
+          Rails.logger.error "[OrgEmailSync] Retry failed for folder #{folder[:name]}: #{e.message}"
+        end
       end
     end
 
@@ -229,8 +253,16 @@ class OrgEmailSyncJob < ApplicationJob
     # Extract sender info first (needed for filtering)
     from_data = email_data["from"]&.dig("emailAddress") || {}
     from_email = from_data["address"]
+    from_name = from_data["name"]
     subject = email_data["subject"] || ""
     has_attachments = email_data["hasAttachments"] || false
+
+    # FRC (Jan 2026): For Sent/Draft emails, MS Graph API may not include 'from' field
+    # since the sender is implicit (the mailbox owner). Use owner_email as fallback.
+    if from_email.blank? && %w[Sent\ Items Drafts].include?(folder_name)
+      from_email = owner_email
+      Rails.logger.debug "[OrgEmailSync] Using owner_email as from_email for #{folder_name}: #{from_email}"
+    end
 
     # NOTE: Drafts are now synced (to match Office 365 exactly)
     # They will appear with folder_name="Drafts" and can be filtered in frontend
@@ -335,7 +367,8 @@ class OrgEmailSyncJob < ApplicationJob
       outlook_id: email.outlook_id || email_data["id"],
       # folder_name is per-mailbox, but keep for backward compat
       folder_name: email.folder_name || folder_name,
-      is_read: email.is_read.nil? ? (email_data["isRead"] || false) : email.is_read
+      # FRC (Jan 2026): Sent emails are always "read" - you wrote them!
+      is_read: folder_name == "Sent Items" ? true : (email.is_read.nil? ? (email_data["isRead"] || false) : email.is_read)
     )
 
     # Set first_synced_at if new record
@@ -357,7 +390,8 @@ class OrgEmailSyncJob < ApplicationJob
       mailbox_email: owner_email,
       outlook_id: email_data["id"],
       folder_name: folder_name,
-      is_read: email_data["isRead"] || false,
+      # FRC (Jan 2026): Sent emails are always "read" - you wrote them!
+      is_read: folder_name == "Sent Items" ? true : (email_data["isRead"] || false),
       microsoft_credential_id: @credential&.id
     )
 

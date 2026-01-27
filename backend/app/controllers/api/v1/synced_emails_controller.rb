@@ -678,9 +678,9 @@ class Api::V1::SyncedEmailsController < ApplicationController
   def mark_read
     @email.update!(is_read: true)
 
-    # Also update mailbox appearance if exists (for per-mailbox read tracking)
-    if @email.synced_email_mailboxes.any?
-      @email.synced_email_mailboxes.update_all(is_read: true)
+    # Also update mailbox appearances if exist (for per-mailbox read tracking)
+    if @email.mailbox_appearances.any?
+      @email.mailbox_appearances.update_all(is_read: true)
     end
 
     render json: {
