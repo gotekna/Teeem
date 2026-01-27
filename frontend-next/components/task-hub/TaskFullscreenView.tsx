@@ -1567,6 +1567,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments, currentUser]);
 
   // Find the original email data for quoted reply
+  // SSoT: Must use same filtering as originalEmailSender to ensure TO address and greeting match
   const originalEmailData = useMemo(() => {
     // If we have forwarded email info, try to find the actual email record
     if (forwardedEmailInfo?.from_name) {
@@ -1594,9 +1595,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       };
     }
 
-    const findOldestEmail = (emails: typeof allEmailAttachments) => {
+    // SSoT: Filter to external senders only (same logic as originalEmailSender)
+    // This ensures the greeting name matches the TO address
+    const currentUserEmail = currentUser?.email?.toLowerCase() || '';
+    const isExternalSender = (email: { from_email?: string } | null | undefined): boolean => {
+      const fromEmail = email?.from_email?.toLowerCase() || '';
+      return fromEmail &&
+             fromEmail !== currentUserEmail &&
+             !fromEmail.includes('@teeem.') &&
+             !fromEmail.includes('@tekna.');
+    };
+
+    const findOldestExternalEmail = (emails: typeof allEmailAttachments) => {
       if (emails.length === 0) return null;
-      const sorted = [...emails].sort((a, b) => {
+      // Filter to external senders first
+      const externalEmails = emails.filter(att => isExternalSender(att.email));
+      if (externalEmails.length === 0) return null;
+      // Sort by received_at ascending (oldest first)
+      const sorted = [...externalEmails].sort((a, b) => {
         const dateA = a.email?.received_at ? new Date(a.email.received_at).getTime() : 0;
         const dateB = b.email?.received_at ? new Date(b.email.received_at).getTime() : 0;
         return dateA - dateB;
@@ -1604,17 +1620,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return sorted[0]?.email || null;
     };
 
-    // Try thread emails first
-    const threadEmail = findOldestEmail(categorizedEmails.thread);
+    // Try thread emails first (external senders only)
+    const threadEmail = findOldestExternalEmail(categorizedEmails.thread);
     if (threadEmail) return threadEmail;
 
-    // Then matched
-    const matchedEmail = findOldestEmail(categorizedEmails.matched);
+    // Then matched (external senders only)
+    const matchedEmail = findOldestExternalEmail(categorizedEmails.matched);
     if (matchedEmail) return matchedEmail;
 
-    // Finally linked
-    return findOldestEmail(categorizedEmails.linked);
-  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments]);
+    // Finally linked (external senders only)
+    return findOldestExternalEmail(categorizedEmails.linked);
+  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments, currentUser]);
 
   // Collect CC recipients from the original email's To and CC fields
   // Excludes the sender (goes in To) and current user's email
