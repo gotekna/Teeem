@@ -4103,15 +4103,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     body += '\n<br><br>\n';
     body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
     body += '<td style="vertical-align: middle; padding-right: 8px;">';
-    // Teeem logo - use hosted PNG (email clients block SVG data URIs)
-    // NOTE: Image MUST be outside anchor tag - TipTap strips img inside anchor when parsing HTML
-    const teeemLogoUrl = 'https://teeem.vercel.app/icons/icon-72x72.png';
-    body += `<img src="${teeemLogoUrl}" alt="Teeem" style="width: 32px; height: 32px; border-radius: 6px; vertical-align: middle;">`;
+    // Teeem logo - inline HTML styled to match app header (dark box with lowercase "t")
+    // Using inline styles for email client compatibility
+    body += '<span style="display: inline-block; width: 28px; height: 28px; background-color: #18181b; color: white; font-size: 16px; font-weight: bold; text-align: center; line-height: 28px; border-radius: 4px; vertical-align: middle;">t</span>';
     body += `<a href="https://www.teeem.com.au" style="text-decoration: none;"><span style="font-family: Georgia, serif; font-size: 18px; color: #333; margin-left: 6px; vertical-align: middle;">teeem</span></a>`;
     body += '</td>';
     body += '<td style="vertical-align: middle; padding-left: 12px;">';
     body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
     body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
+    body += '<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <a href="https://www.teeem.com.au" style="text-decoration: none;"><span style="display: inline-block; width: 14px; height: 14px; background-color: #18181b; color: white; font-size: 9px; font-weight: bold; text-align: center; line-height: 14px; border-radius: 2px; vertical-align: middle;">t</span><span style="font-family: Georgia, serif; color: #333; margin-left: 2px; vertical-align: middle;">teeem</span></a></p>';
     body += '</td>';
     body += '</tr></table>\n';
 
