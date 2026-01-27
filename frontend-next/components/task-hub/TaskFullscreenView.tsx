@@ -4020,7 +4020,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     body += '<a href="https://www.teeem.com.au"><img src="https://teeem.vercel.app/icons/icon-72x72.png" alt="Teeem" style="width: 40px; height: 40px; border-radius: 8px;"></a>';
     body += '</td>';
     body += '<td style="vertical-align: top;">';
-    body += '<p style="font-size: 11px; color: #999; margin: 0;">Sent using <a href="https://www.teeem.com.au" style="color: #666;">Teeem</a> - Project Management Made Simple</p>';
+    body += '<p style="font-size: 11px; color: #999; margin: 0;">Sent using <a href="https://www.teeem.com.au" style="color: #666;">Teeem</a> - Complete Business Solution</p>';
     body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
     body += '</td>';
     body += '</tr></table>\n';
