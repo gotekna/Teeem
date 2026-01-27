@@ -1563,12 +1563,19 @@ class Api::V1::SyncedEmailsController < ApplicationController
     attachment_count = attachments.count
     blob_count = attachments.where.not(storage_blob_id: nil).count
 
+    # Email body blob stats - count emails that have their .eml file uploaded to S3
+    email_blob_count = WarehouseDocument.where(
+      documentable_type: "SyncedEmail",
+      documentable_id: email_ids
+    ).count
+
     {
       email: email,
       email_count: email_ids.count,
       unread_count: appearances.unread.count,
       attachment_count: attachment_count,
       blob_count: blob_count,
+      email_blob_count: email_blob_count,
       last_email_received_at: last_received,
       last_synced_at: credential_last_synced_at  # Use credential's sync time, not email's updated_at
     }
