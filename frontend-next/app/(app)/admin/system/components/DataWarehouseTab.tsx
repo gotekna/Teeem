@@ -218,6 +218,7 @@ interface OrgDataStats {
     with_blob: number;
     with_file: number;
     without_blob: number;
+    unfetchable?: number;  // Emails from deleted mailboxes (will never have file)
     storage_rate: number;
     file_rate: number;
     linked?: number;  // For Xero: WarehouseDocument records created
@@ -1429,6 +1430,7 @@ export function DataWarehouseTab() {
                   <TableHead className="text-right">Linked</TableHead>
                   <TableHead className="text-right">Has File</TableHead>
                   <TableHead className="text-right">Missing</TableHead>
+                  <TableHead className="text-right">Unfetchable</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1474,6 +1476,13 @@ export function DataWarehouseTab() {
                             <span className="text-green-600 dark:text-green-400">-</span>
                           )}
                         </TableCell>
+                        <TableCell className="text-right">
+                          {row.unfetchable && row.unfetchable > 0 ? (
+                            <span className="text-orange-600 dark:text-orange-400">{row.unfetchable.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
                       </TableRow>
                       {/* Per-tenant breakdown for Xero */}
                       {row.source_type === "xero" && row.tenant_breakdown && row.tenant_breakdown.map((tenant) => (
@@ -1499,6 +1508,7 @@ export function DataWarehouseTab() {
                               <span className="text-green-600/80 dark:text-green-400/80">-</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-right text-muted-foreground">-</TableCell>
                         </TableRow>
                       ))}
                     </React.Fragment>

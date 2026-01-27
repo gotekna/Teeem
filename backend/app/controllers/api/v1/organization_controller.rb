@@ -774,6 +774,7 @@ module Api
           # Email bodies (SyncedEmail) - SSoT: Total from SyncedEmail, not WarehouseDocument
           # This shows the REAL total of emails in the system that need to be synced
           email_body_total = SyncedEmail.count
+          email_body_unfetchable = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%").count
           email_body_scope = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail")
           email_body_linked = email_body_scope.count
           email_body_with_blob = email_body_scope.where.not(storage_blob_id: nil).count
@@ -785,7 +786,8 @@ module Api
               total: email_body_total,
               with_blob: email_body_linked,  # "LINKED" = has WarehouseDocument
               with_file: email_body_with_file,
-              without_blob: email_body_total - email_body_linked,
+              without_blob: email_body_total - email_body_linked - email_body_unfetchable,
+              unfetchable: email_body_unfetchable,  # Emails from deleted mailboxes
               storage_rate: ((email_body_linked.to_f / email_body_total) * 100).round(1),
               file_rate: ((email_body_with_file.to_f / email_body_total) * 100).round(1)
             }
