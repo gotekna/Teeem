@@ -240,6 +240,10 @@ interface OrgDataStats {
     blobs_format: number;
     legacy_format: number;
     migration_rate: number;
+    // Deduplication stats
+    total_references?: number;
+    duplicates_avoided?: number;
+    bytes_saved?: number;
   };
   last_updated: string;
 }
@@ -1527,12 +1531,22 @@ export function DataWarehouseTab() {
                   <span className="font-medium text-foreground">{formatFileSize(stats.blob_stats.total_bytes)}</span>{" "}
                   total storage
                 </div>
-                <div>
-                  <span className="font-medium text-green-600 dark:text-green-400">
-                    {stats.blob_stats.blobs_format.toLocaleString()}
-                  </span>{" "}
-                  content-addressed
-                </div>
+                {stats.blob_stats.duplicates_avoided && stats.blob_stats.duplicates_avoided > 0 && (
+                  <>
+                    <div>
+                      <span className="font-medium text-blue-600 dark:text-blue-400">
+                        {stats.blob_stats.duplicates_avoided.toLocaleString()}
+                      </span>{" "}
+                      duplicates avoided
+                    </div>
+                    <div>
+                      <span className="font-medium text-green-600 dark:text-green-400">
+                        {formatFileSize(stats.blob_stats.bytes_saved || 0)}
+                      </span>{" "}
+                      saved via dedup
+                    </div>
+                  </>
+                )}
                 {stats.blob_stats.legacy_format > 0 && (
                   <div>
                     <span className="font-medium text-amber-600 dark:text-amber-400">
