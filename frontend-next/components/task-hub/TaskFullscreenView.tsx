@@ -1473,10 +1473,21 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       if (foundEmail) return foundEmail;
     }
 
-    const findOldestEmailSender = (emails: typeof allEmailAttachments): string | null => {
+    const findOldestExternalSender = (emails: typeof allEmailAttachments): string | null => {
       if (emails.length === 0) return null;
+      // Filter to only external senders (not current user, not @teeem internal)
+      const currentUserEmail = currentUser?.email?.toLowerCase() || '';
+      const externalEmails = emails.filter(att => {
+        const fromEmail = att.email?.from_email?.toLowerCase() || '';
+        // Exclude: current user, @teeem internal addresses, @tekna internal
+        return fromEmail &&
+               fromEmail !== currentUserEmail &&
+               !fromEmail.includes('@teeem.') &&
+               !fromEmail.includes('@tekna.');
+      });
+      if (externalEmails.length === 0) return null;
       // Sort by received_at ascending (oldest first)
-      const sorted = [...emails].sort((a, b) => {
+      const sorted = [...externalEmails].sort((a, b) => {
         const dateA = a.email?.received_at ? new Date(a.email.received_at).getTime() : 0;
         const dateB = b.email?.received_at ? new Date(b.email.received_at).getTime() : 0;
         return dateA - dateB;
@@ -1485,16 +1496,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     };
 
     // Try thread emails first (most likely the original conversation)
-    const threadSender = findOldestEmailSender(categorizedEmails.thread);
+    const threadSender = findOldestExternalSender(categorizedEmails.thread);
     if (threadSender) return threadSender;
 
     // Then try matched emails
-    const matchedSender = findOldestEmailSender(categorizedEmails.matched);
+    const matchedSender = findOldestExternalSender(categorizedEmails.matched);
     if (matchedSender) return matchedSender;
 
     // Finally try linked emails
-    return findOldestEmailSender(categorizedEmails.linked);
-  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments]);
+    return findOldestExternalSender(categorizedEmails.linked);
+  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments, currentUser]);
 
   // Find the original email data for quoted reply
   const originalEmailData = useMemo(() => {
@@ -4016,11 +4027,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     // Add Teeem marketing footer with spacing, logo, and TEEEM meaning
     body += '\n<br><br>\n';
     body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
-    body += '<td style="vertical-align: top; padding-right: 12px;">';
-    body += '<a href="https://www.teeem.com.au"><img src="https://teeem.vercel.app/icons/icon-72x72.png" alt="Teeem" style="width: 40px; height: 40px; border-radius: 8px;"></a>';
+    body += '<td style="vertical-align: middle; padding-right: 8px;">';
+    // Teeem logo as inline SVG data URI (black background, white serif "t")
+    const teeemLogoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72"><rect width="72" height="72" rx="10" fill="%23000000"/><text x="50%25" y="55%25" dominant-baseline="middle" text-anchor="middle" font-family="Georgia,serif" font-weight="bold" font-size="36" fill="%23ffffff">t</text></svg>`;
+    body += `<a href="https://www.teeem.com.au" style="text-decoration: none; display: flex; align-items: center;"><img src="data:image/svg+xml,${teeemLogoSvg}" alt="Teeem" style="width: 32px; height: 32px; border-radius: 6px; vertical-align: middle;"><span style="font-family: Georgia, serif; font-size: 18px; color: #333; margin-left: 6px;">teeem</span></a>`;
     body += '</td>';
-    body += '<td style="vertical-align: top;">';
-    body += '<p style="font-size: 11px; color: #999; margin: 0;">Sent using <a href="https://www.teeem.com.au" style="color: #666;">Teeem</a> - Complete Business Solution</p>';
+    body += '<td style="vertical-align: middle; padding-left: 12px;">';
+    body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
     body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
     body += '</td>';
     body += '</tr></table>\n';
