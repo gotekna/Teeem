@@ -24,7 +24,12 @@ class OrgEmailSyncJob < ApplicationJob
   attr_reader :user_cache, :blacklist_cache
 
   # Performance: Parallel folder sync configuration
-  PARALLEL_FOLDER_THREADS = 3  # Number of folders to sync concurrently
+  # ⚠️ FRC (Jan 2026): Reduced from 3 to 2 threads to prevent connection pool exhaustion
+  # Root cause: One-off dynos and worker processes have limited pool sizes (5-10 connections).
+  # With 3 threads per folder batch + main thread, we exceed pool capacity.
+  # Each user syncs multiple folders, causing cascading connection failures.
+  # Fix: 2 threads is safer while still providing parallelism benefit.
+  PARALLEL_FOLDER_THREADS = 2  # Number of folders to sync concurrently
   SYNC_TIMEOUT_SECONDS = 300   # 5 minute timeout per folder
 
   # ⚠️ ULTRA FIX (Jan 2026): Never lose emails due to timing issues
@@ -155,12 +160,14 @@ class OrgEmailSyncJob < ApplicationJob
   end
 
   # Performance: Sync folders in parallel batches
-  # Impact: ~3x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
+  # Impact: ~2x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
+  # ⚠️ FRC (Jan 2026): Added retry logic for database connection errors
   def sync_folders_parallel(client, user_email, folders, since)
     return 0 if folders.empty?
 
     # Thread-safe counter for total synced emails
     total_synced = Concurrent::AtomicFixnum.new(0)
+    failed_folders = Concurrent::Array.new
 
     # Process folders in parallel batches
     folders.each_slice(PARALLEL_FOLDER_THREADS) do |folder_batch|
@@ -173,6 +180,10 @@ class OrgEmailSyncJob < ApplicationJob
               thread_client = MicrosoftAppGraphClient.new(@credential)
               synced = sync_folder(thread_client, user_email, folder, since)
               total_synced.increment(synced)
+            rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::StatementInvalid => e
+              # Database connection error - mark for retry
+              Rails.logger.warn "[OrgEmailSync] DB connection error for folder #{folder[:name]}, will retry: #{e.message}"
+              failed_folders << folder
             rescue StandardError => e
               Rails.logger.error "[OrgEmailSync] Parallel sync error for folder #{folder[:name]}: #{e.message}"
             end
@@ -184,6 +195,19 @@ class OrgEmailSyncJob < ApplicationJob
       threads.each do |thread|
         thread.join(SYNC_TIMEOUT_SECONDS)
         thread.kill if thread.alive?  # Kill timed-out threads
+      end
+    end
+
+    # Retry failed folders sequentially (connection pool should have connections now)
+    if failed_folders.any?
+      Rails.logger.info "[OrgEmailSync] Retrying #{failed_folders.count} failed folders sequentially"
+      failed_folders.each do |folder|
+        begin
+          synced = sync_folder(client, user_email, folder, since)
+          total_synced.increment(synced)
+        rescue StandardError => e
+          Rails.logger.error "[OrgEmailSync] Retry failed for folder #{folder[:name]}: #{e.message}"
+        end
       end
     end
 

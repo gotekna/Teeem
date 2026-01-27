@@ -224,6 +224,16 @@ interface SortableQuestionItemProps {
   onDownloadAttachment?: (att: TaskAttachment) => void;
 }
 
+// Helper to display email sender with fallback for sent emails (no from_email)
+function getEmailSenderDisplay(email: TaskAttachmentEmail | undefined): string {
+  if (!email) return 'Unknown';
+  if (email.from_email) return email.from_email;
+  if (email.to_emails && email.to_emails.length > 0) {
+    return `To: ${email.to_emails[0]}`;
+  }
+  return 'Unknown sender';
+}
+
 function SortableQuestionItem({
   item,
   task,
@@ -6396,7 +6406,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         {isMonthCollapsed ? <ChevronRight className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                                         <CalendarIcon className="h-2.5 w-2.5" />
                                         <span>{monthLabel}</span>
-                                        <span className="ml-auto">{monthEmails.length}</span>
+                                        <span className="ml-auto flex items-center gap-1.5">
+                                          {(() => {
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false).length;
+                                            return unreadInMonth > 0 ? (
+                                              <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
+                                            ) : null;
+                                          })()}
+                                          <span>{monthEmails.length}</span>
+                                        </span>
                                       </div>
 
                                       {/* Emails for this month */}
@@ -6618,7 +6636,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         {isMonthCollapsed ? <ChevronRight className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                                         <CalendarIcon className="h-2.5 w-2.5" />
                                         <span>{monthLabel}</span>
-                                        <span className="ml-auto">{monthEmails.length}</span>
+                                        <span className="ml-auto flex items-center gap-1.5">
+                                          {(() => {
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false).length;
+                                            return unreadInMonth > 0 ? (
+                                              <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
+                                            ) : null;
+                                          })()}
+                                          <span>{monthEmails.length}</span>
+                                        </span>
                                       </div>
                                       {!isMonthCollapsed && (
                                         <div className="divide-y">
@@ -6751,7 +6777,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         {isMonthCollapsed ? <ChevronRight className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                                         <CalendarIcon className="h-2.5 w-2.5" />
                                         <span>{monthLabel}</span>
-                                        <span className="ml-auto">{monthEmails.length}</span>
+                                        <span className="ml-auto flex items-center gap-1.5">
+                                          {(() => {
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false).length;
+                                            return unreadInMonth > 0 ? (
+                                              <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
+                                            ) : null;
+                                          })()}
+                                          <span>{monthEmails.length}</span>
+                                        </span>
                                       </div>
                                       {!isMonthCollapsed && (
                                         <div className="divide-y">
