@@ -130,9 +130,12 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Filter by mailbox_owner_email (for Warehouse links to historical mailboxes)
     # This allows filtering by mailbox even if it's not a connected account
-    # FRC (Jan 2026): Must use table prefix - synced_email_mailboxes also has this column
-    # and we join to it later when microsoft_credential_id is present
-    if params[:mailbox_owner_email].present?
+    # ⚠️ FRC (Jan 2026): When microsoft_credential_id is present, SKIP this filter!
+    # Ultra Email Architecture stores emails once with the FIRST mailbox's owner.
+    # If James and Robert both receive the same email, it has mailbox_owner_email=robert
+    # but James's mailbox appearance exists in the join table. Filtering here would exclude it.
+    # The MS365 block below will handle mailbox filtering via the join table instead.
+    if params[:mailbox_owner_email].present? && params[:microsoft_credential_id].blank?
       emails = emails.where("LOWER(synced_emails.mailbox_owner_email) = LOWER(?)", params[:mailbox_owner_email])
     end
 
@@ -192,13 +195,17 @@ class Api::V1::SyncedEmailsController < ApplicationController
         if user_mailboxes.any?
           # Ultra Email Architecture: Filter via mailbox_appearances join table
           # This allows emails sent to multiple recipients to be seen by all of them
-          # NOTE: Filter credential on synced_emails (always populated), not join table
-          # (join table microsoft_credential_id may be NULL from migration LEFT JOIN)
-          if params[:mailbox].present? && user_mailboxes.map(&:downcase).include?(params[:mailbox].downcase)
-            # Specific mailbox requested - use join table for mailbox, main table for credential
+          # ⚠️ FRC (Jan 2026): Do NOT filter on synced_emails.microsoft_credential_id!
+          # An email may be synced by Org A (cred 9) but have a mailbox appearance for Org B (cred 11).
+          # Example: Derick sends to robert@tekna AND james@hoh - synced once via Tekna, but visible in both.
+          # We filter on the JOIN TABLE's credential, not the main table's.
+          # Accept both :mailbox and :mailbox_owner_email params (frontend sends mailbox_owner_email)
+          specific_mailbox = params[:mailbox].presence || params[:mailbox_owner_email].presence
+          if specific_mailbox.present? && user_mailboxes.map(&:downcase).include?(specific_mailbox.downcase)
+            # Specific mailbox requested - filter by mailbox and credential on JOIN table
             emails = emails.joins(:mailbox_appearances)
-              .where(synced_emails: { microsoft_credential_id: params[:microsoft_credential_id] })
-              .where("LOWER(synced_email_mailboxes.mailbox_owner_email) = LOWER(?)", params[:mailbox])
+              .where("synced_email_mailboxes.microsoft_credential_id = ?", params[:microsoft_credential_id])
+              .where("LOWER(synced_email_mailboxes.mailbox_owner_email) = LOWER(?)", specific_mailbox)
               .distinct
 
             # Ultra Email Architecture: folder_name is now per-mailbox in join table
@@ -214,9 +221,9 @@ class Api::V1::SyncedEmailsController < ApplicationController
               end
             end
           else
-            # All user's mailboxes - use join table for mailbox, main table for credential
+            # All user's mailboxes - filter by mailboxes and credential on JOIN table
             emails = emails.joins(:mailbox_appearances)
-              .where(synced_emails: { microsoft_credential_id: params[:microsoft_credential_id] })
+              .where("synced_email_mailboxes.microsoft_credential_id = ?", params[:microsoft_credential_id])
               .where("LOWER(synced_email_mailboxes.mailbox_owner_email) IN (?)", user_mailboxes.map(&:downcase))
               .distinct
 
