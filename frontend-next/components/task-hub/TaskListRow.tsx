@@ -157,11 +157,13 @@ export function TaskListRow({
               </button>
             </div>
           )}
-          {/* Unread email indicator - show when task has unread emails */}
+          {/* Unread email indicator - iOS-style mail icon with badge */}
           {unreadEmailCount > 0 && (
-            <div className="flex items-center gap-0.5 text-blue-600 dark:text-blue-400 shrink-0" title={`${unreadEmailCount} unread email${unreadEmailCount > 1 ? 's' : ''}`}>
-              <Mail className="h-3 w-3 fill-current" />
-              <span className="text-[9px] font-bold">{unreadEmailCount}</span>
+            <div className="relative shrink-0" title={`${unreadEmailCount} unread email${unreadEmailCount > 1 ? 's' : ''}`}>
+              <Mail className="h-4 w-4 text-blue-500 fill-blue-500" />
+              <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full px-0.5">
+                {unreadEmailCount > 99 ? '99+' : unreadEmailCount}
+              </span>
             </div>
           )}
           {task.is_overdue && task.status !== 'completed' && (
