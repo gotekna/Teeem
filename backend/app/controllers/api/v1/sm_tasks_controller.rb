@@ -2749,6 +2749,9 @@ module Api
               # SSoT: Download entire email as .eml file
               # Endpoint: GET /api/v1/synced_emails/:id/download_eml
               download_eml_url: "/api/v1/synced_emails/#{email.id}/download_eml",
+              # SSoT: eml_storage_key for emails already stored - pass directly to send_email API
+              # Ultra fix (Jan 2026): Avoids re-download and re-upload of .eml files
+              eml_storage_key: email.eml_stored? ? email.email_storage_path : nil,
               # SSoT: Return attachment metadata for display
               # Download URL: /api/v1/synced_email/:email_id/attachments/:attachment_id/download
               # Frontend constructs download URL from email_id + attachment.id (never expose storage_path)

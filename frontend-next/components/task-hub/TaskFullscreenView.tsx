@@ -4269,9 +4269,25 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // Process emails to attach - download as .eml
+      // Process emails to attach - use storage key if available, otherwise download as .eml
+      // Ultra fix (Jan 2026): Use eml_storage_key for emails already stored (no re-upload needed)
       for (const att of emailsToAttach) {
         const subject = att.email?.subject || '(No subject)';
+        const fileName = `${subject.replace(/[/\\?%*:|"<>]/g, '-')}.eml`;
+
+        // If email has eml_storage_key, use it directly (no download/re-upload needed)
+        if (att.email?.eml_storage_key) {
+          console.log(`[prepareEmailResponse] Using eml_storage_key for ${fileName}`);
+          preUploadedAttachments.push({
+            filename: fileName,
+            storageKey: att.email.eml_storage_key,
+            contentType: 'message/rfc822',
+          });
+          processed++;
+          continue;
+        }
+
+        // Fallback: Download for emails without eml_storage_key
         setPrepareEmailStatus(`Downloading email "${subject}"... (${processed + 1}/${totalToProcess})`);
         try {
           const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
@@ -4285,7 +4301,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             }
             const byteArray = new Uint8Array(byteNumbers);
             const blob = new Blob([byteArray], { type: response.content_type || 'message/rfc822' });
-            const file = new File([blob], response.filename || `${subject}.eml`, { type: 'message/rfc822' });
+            const file = new File([blob], response.filename || fileName, { type: 'message/rfc822' });
             filesToAttach.push(file);
           }
         } catch (err) {

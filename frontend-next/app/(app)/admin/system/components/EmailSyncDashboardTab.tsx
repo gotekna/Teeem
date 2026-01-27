@@ -40,6 +40,7 @@ import {
   Paperclip,
   XCircle,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -60,6 +61,7 @@ interface MailboxStats {
   attachment_count: number;
   blob_count: number;
   email_blob_count: number;
+  content_unavailable_count: number;
   last_email_received_at: string | null;
   last_synced_at: string | null;
 }
@@ -547,6 +549,22 @@ export function EmailSyncDashboardTab() {
                             </TooltipProvider>
                           </TableHead>
                           <TableHead className="text-right py-2 font-medium text-muted-foreground">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center justify-end gap-1 cursor-help">
+                                    <AlertCircle className="h-4 w-4" />
+                                    Unavailable
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Emails with content no longer available in O365</p>
+                                  <p className="text-xs text-muted-foreground">Deleted from mailbox or account removed</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableHead>
+                          <TableHead className="text-right py-2 font-medium text-muted-foreground">
                             <div className="flex items-center justify-end gap-1">
                               <Clock className="h-4 w-4" />
                               Last Email
@@ -598,8 +616,17 @@ export function EmailSyncDashboardTab() {
                             </TableCell>
                             <TableCell className="py-3 text-right">
                               {mailbox.email_blob_count > 0 ? (
-                                <span className={`font-mono ${mailbox.email_blob_count < mailbox.email_count ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400"}`}>
+                                <span className={`font-mono ${mailbox.email_blob_count < mailbox.email_count - (mailbox.content_unavailable_count || 0) ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400"}`}>
                                   {formatNumber(mailbox.email_blob_count)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">0</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-3 text-right">
+                              {(mailbox.content_unavailable_count || 0) > 0 ? (
+                                <span className="font-mono text-orange-600 dark:text-orange-400">
+                                  {formatNumber(mailbox.content_unavailable_count || 0)}
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground">0</span>
