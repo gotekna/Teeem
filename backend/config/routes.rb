@@ -1508,6 +1508,7 @@ Rails.application.routes.draw do
         end
         member do
           post :sync
+          put :toggle_sync_all  # Toggle sync_all setting (Jan 2026: sync all historical emails)
           get :reveal_password
           post :create_folder
           delete :delete_folder

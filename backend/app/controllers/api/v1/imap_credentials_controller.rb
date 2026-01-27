@@ -1,7 +1,7 @@
 class Api::V1::ImapCredentialsController < ApplicationController
   include PresignedUploadHandler
 
-  before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
+  before_action :set_credential, only: [:show, :update, :destroy, :sync, :toggle_sync_all, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
 
   # GET /api/v1/imap_credentials
   # List user's IMAP accounts (owned + shared)
@@ -119,6 +119,27 @@ class Api::V1::ImapCredentialsController < ApplicationController
     render json: {
       success: true,
       message: "Sync started. New emails will appear shortly."
+    }
+  end
+
+  # PUT /api/v1/imap_credentials/:id/toggle_sync_all
+  # Toggle sync_all setting for an IMAP account (Jan 2026: sync all historical emails)
+  def toggle_sync_all
+    sync_all = ActiveModel::Type::Boolean.new.cast(params[:sync_all])
+
+    @credential.update!(sync_all: sync_all)
+
+    # If enabling sync_all, trigger a sync immediately
+    if sync_all
+      ImapSyncJob.perform_later(@credential.id, full_sync: true)
+    end
+
+    render json: {
+      success: true,
+      sync_all: sync_all,
+      message: sync_all ?
+        "Sync All enabled for #{@credential.display_name}. All historical emails will be synced." :
+        "Sync All disabled for #{@credential.display_name}. Only recent emails will be synced."
     }
   end
 
@@ -815,6 +836,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       smtp_port: credential.smtp_port,
       sync_interval_minutes: credential.sync_interval_minutes,
       is_active: credential.is_active,
+      sync_all: credential.respond_to?(:sync_all) ? credential.sync_all : false,  # Jan 2026: Sync all historical emails
       last_synced_at: credential.last_synced_at,
       last_sync_status: credential.last_sync_status,
       last_sync_error: credential.last_sync_error,
