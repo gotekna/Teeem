@@ -984,8 +984,20 @@ function DocumentStorageProvider() {
       const response = await api.get<{ success: boolean; data: OrgDocumentProvider }>("/api/v1/organization/document_provider");
       if (response.data) {
         setOrgConfig(response.data);
-        setSelectedProvider(response.data.document_provider || "sharepoint");
         setSelectedCredentialId(response.data.document_provider_credential_id);
+
+        // SSoT Fix (Jan 2026): Map "s3_compatible" to actual provider type from credential
+        // Backend returns generic "s3_compatible", but dropdown needs specific provider (wasabi, backblaze_b2, etc.)
+        let provider = response.data.document_provider || "sharepoint";
+        if (provider === "s3_compatible" && response.data.document_provider_credential_id) {
+          const activeCredential = response.data.s3_credentials?.find(
+            (c) => c.id === response.data.document_provider_credential_id
+          );
+          if (activeCredential?.provider_type) {
+            provider = activeCredential.provider_type;
+          }
+        }
+        setSelectedProvider(provider);
       }
     } catch (error) {
       console.error("Failed to load organization document provider:", error);
