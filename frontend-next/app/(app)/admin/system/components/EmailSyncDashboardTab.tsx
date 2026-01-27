@@ -53,7 +53,7 @@ interface MailboxStats {
 
 interface OrganizationStats {
   id: number;
-  type: "microsoft" | "imap";
+  type: "microsoft" | "imap" | "orphaned";
   name: string;
   status: string;
   last_sync_at: string | null;
@@ -119,7 +119,15 @@ export function EmailSyncDashboardTab() {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  const handleSyncOrg = async (orgId: number, orgType: "microsoft" | "imap") => {
+  const handleSyncOrg = async (orgId: number, orgType: "microsoft" | "imap" | "orphaned") => {
+    if (orgType === "orphaned") {
+      toast({
+        title: "Cannot Sync",
+        description: "Orphaned mailboxes have no credential. Link them to an account first.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSyncingOrgId(orgId);
     try {
       if (orgType === "imap") {
@@ -305,11 +313,15 @@ export function EmailSyncDashboardTab() {
                       <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     )}
                     <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                      org.type === "imap"
+                      org.type === "orphaned"
+                        ? "bg-yellow-100 dark:bg-yellow-900"
+                        : org.type === "imap"
                         ? "bg-green-100 dark:bg-green-900"
                         : "bg-blue-100 dark:bg-blue-900"
                     }`}>
-                      {org.type === "imap" ? (
+                      {org.type === "orphaned" ? (
+                        <Mail className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                      ) : org.type === "imap" ? (
                         <Mail className="h-5 w-5 text-green-600 dark:text-green-400" />
                       ) : (
                         <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -324,10 +336,10 @@ export function EmailSyncDashboardTab() {
                   </button>
                 </CollapsibleTrigger>
                 <div className="flex items-center gap-3">
-                  <Badge variant="outline" className="text-xs">
-                    {org.type === "imap" ? "IMAP" : "MS365"}
+                  <Badge variant={org.type === "orphaned" ? "destructive" : "outline"} className="text-xs">
+                    {org.type === "orphaned" ? "⚠ Orphaned" : org.type === "imap" ? "IMAP" : "MS365"}
                   </Badge>
-                  <Badge variant={org.status === "connected" ? "default" : "secondary"}>
+                  <Badge variant={org.status === "connected" ? "default" : org.status === "warning" ? "secondary" : "secondary"}>
                     {org.status === "connected" ? (
                       <>
                         <CheckCircle className="h-3 w-3 mr-1" />
@@ -342,30 +354,32 @@ export function EmailSyncDashboardTab() {
                       Sync All
                     </Badge>
                   )}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSyncOrg(org.id, org.type);
-                          }}
-                          disabled={syncingOrgId === org.id}
-                        >
-                          <RefreshCw
-                            className={`h-4 w-4 mr-1 ${syncingOrgId === org.id ? "animate-spin" : ""}`}
-                          />
-                          Sync
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Trigger a full sync of all mailboxes</p>
-                        <p className="text-xs text-muted-foreground">This may take several minutes</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  {org.type !== "orphaned" && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSyncOrg(org.id, org.type);
+                            }}
+                            disabled={syncingOrgId === org.id}
+                          >
+                            <RefreshCw
+                              className={`h-4 w-4 mr-1 ${syncingOrgId === org.id ? "animate-spin" : ""}`}
+                            />
+                            Sync
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Trigger a full sync of all mailboxes</p>
+                          <p className="text-xs text-muted-foreground">This may take several minutes</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
               </div>
             </CardHeader>
