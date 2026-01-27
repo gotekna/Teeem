@@ -66,11 +66,15 @@ export function useUndoSend() {
 
     try {
       // SSoT: Upload attachments via presigned URL first
+      // Use 'chat' scope for email attachments - no record needed, just the S3 key
       const attachmentStorageKeys: string[] = [];
       for (const file of email.attachments) {
-        const uploadResult = await uploadFile(file, 'documents');
+        const uploadResult = await uploadFile(file, 'chat');
         if (uploadResult.success && uploadResult.key) {
           attachmentStorageKeys.push(uploadResult.key);
+        } else {
+          console.error('[useUndoSend] Failed to upload attachment:', file.name, uploadResult.error);
+          throw new Error(`Failed to upload attachment: ${file.name}`);
         }
       }
 
