@@ -533,20 +533,21 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # GET /api/v1/synced_emails/sync_dashboard
   # Admin dashboard showing mailboxes grouped by organization with sync stats
   def sync_dashboard
-    credentials = MicrosoftCredential.app_credentials.connected.includes(:organization)
+    # MS365 Organizations
+    ms_credentials = MicrosoftCredential.app_credentials.connected.includes(:organization)
 
-    organizations = credentials.map do |cred|
-      # Get distinct mailboxes for this credential
+    ms365_orgs = ms_credentials.map do |cred|
       mailboxes = SyncedEmailMailbox
         .where(microsoft_credential_id: cred.id)
         .select("LOWER(mailbox_owner_email) as email")
         .distinct
         .pluck("LOWER(mailbox_owner_email)")
-        .map { |email| mailbox_stats_for_dashboard(cred.id, email) }
+        .map { |email| mailbox_stats_for_dashboard(cred.id, email, :microsoft) }
         .sort_by { |m| -m[:email_count] }
 
       {
         id: cred.id,
+        type: "microsoft",
         name: cred.name || cred.organization&.name || "Unknown",
         status: cred.status,
         last_sync_at: cred.updated_at,
@@ -558,6 +559,35 @@ class Api::V1::SyncedEmailsController < ApplicationController
         }
       }
     end
+
+    # IMAP Accounts
+    imap_credentials = ImapCredential.where(is_active: true)
+
+    imap_accounts = imap_credentials.map do |cred|
+      mailboxes = SyncedEmailMailbox
+        .where(imap_credential_id: cred.id)
+        .select("LOWER(mailbox_owner_email) as email")
+        .distinct
+        .pluck("LOWER(mailbox_owner_email)")
+        .map { |email| mailbox_stats_for_dashboard(cred.id, email, :imap) }
+        .sort_by { |m| -m[:email_count] }
+
+      {
+        id: cred.id,
+        type: "imap",
+        name: cred.name.presence || cred.email_address,
+        status: cred.is_active ? "connected" : "disconnected",
+        last_sync_at: cred.last_synced_at,
+        total_emails: mailboxes.sum { |m| m[:email_count] },
+        mailboxes: mailboxes,
+        sync_config: {
+          sync_all: cred.sync_all || false
+        }
+      }
+    end
+
+    # Combine both types
+    all_organizations = ms365_orgs + imap_accounts
 
     # Get storage/blob stats
     blob_stats = {
@@ -571,7 +601,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       data: {
         total_emails: SyncedEmail.count,
         total_mailboxes: SyncedEmailMailbox.select(:mailbox_owner_email).distinct.count,
-        organizations: organizations,
+        organizations: all_organizations,
         storage: blob_stats
       }
     }
@@ -1487,10 +1517,14 @@ class Api::V1::SyncedEmailsController < ApplicationController
   end
 
   # Helper for sync_dashboard - get stats for a single mailbox
-  def mailbox_stats_for_dashboard(credential_id, email)
-    appearances = SyncedEmailMailbox
-      .where(microsoft_credential_id: credential_id)
-      .where("LOWER(mailbox_owner_email) = ?", email.downcase)
+  def mailbox_stats_for_dashboard(credential_id, email, credential_type = :microsoft)
+    appearances = SyncedEmailMailbox.where("LOWER(mailbox_owner_email) = ?", email.downcase)
+
+    if credential_type == :imap
+      appearances = appearances.where(imap_credential_id: credential_id)
+    else
+      appearances = appearances.where(microsoft_credential_id: credential_id)
+    end
 
     email_ids = appearances.pluck(:synced_email_id)
     emails_for_stats = SyncedEmail.where(id: email_ids)

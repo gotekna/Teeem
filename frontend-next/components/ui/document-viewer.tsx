@@ -477,9 +477,10 @@ export function DocumentViewer({
   const [downloadingAll, setDownloadingAll] = useState(false);
 
   const fileType = getFileType(fileName);
+  const hasFiles = files && files.length > 0;
   const hasMultipleFiles = files && files.length > 1;
   const hasQA = qaContext && qaContext.length > 0;
-  const hasSidebar = showSidebar ?? (hasQA || hasMultipleFiles);
+  const hasSidebar = showSidebar ?? (hasQA || hasFiles);
   const effectiveDownloadUrl = downloadUrl || url;
 
   // Download all files sequentially with small delays to avoid browser blocking
@@ -704,10 +705,10 @@ export function DocumentViewer({
             )}
 
             {/* File Navigation - Vertical list */}
-            {hasMultipleFiles && (
+            {hasFiles && (
               <div className="flex-1 overflow-y-auto p-2">
                 <div className={cn("text-xs uppercase tracking-wide px-2 py-1 mb-2", isDark ? "text-gray-500" : "text-gray-400")}>
-                  Files ({files!.length})
+                  {files!.length === 1 ? 'File' : 'Files'} ({files!.length})
                 </div>
                 <div className="space-y-1">
                   {files!.map((file, index) => (

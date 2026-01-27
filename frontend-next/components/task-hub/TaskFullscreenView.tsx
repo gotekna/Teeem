@@ -1600,7 +1600,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     const currentUserEmail = currentUser?.email?.toLowerCase() || '';
     const isExternalSender = (email: { from_email?: string } | null | undefined): boolean => {
       const fromEmail = email?.from_email?.toLowerCase() || '';
-      return fromEmail &&
+      return !!fromEmail &&
              fromEmail !== currentUserEmail &&
              !fromEmail.includes('@teeem.') &&
              !fromEmail.includes('@tekna.');
