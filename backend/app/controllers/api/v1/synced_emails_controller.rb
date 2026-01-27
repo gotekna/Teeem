@@ -1,6 +1,6 @@
 # Renamed from EmailWarehouseController (Jan 2026)
 class Api::V1::SyncedEmailsController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :download_attachment, :download_eml, :attachment_presigned_url ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :mark_read, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :download_attachment, :download_eml, :attachment_presigned_url ]
   before_action :require_admin, only: [ :bulk_delete_spam ]
 
   # GET /api/v1/synced_emails
@@ -668,6 +668,24 @@ class Api::V1::SyncedEmailsController < ApplicationController
     render json: {
       success: true,
       message: delete_from_outlook ? "Email marked as spam and deleted from Outlook" : "Email marked as spam",
+      email: email_json(@email)
+    }
+  end
+
+  # POST /api/v1/synced_emails/:id/mark_read
+  # Mark an email as read (SSoT: syncs with inbox read status)
+  # Used when user views email in task detail view
+  def mark_read
+    @email.update!(is_read: true)
+
+    # Also update mailbox appearance if exists (for per-mailbox read tracking)
+    if @email.synced_email_mailboxes.any?
+      @email.synced_email_mailboxes.update_all(is_read: true)
+    end
+
+    render json: {
+      success: true,
+      message: "Email marked as read",
       email: email_json(@email)
     }
   end

@@ -2702,6 +2702,7 @@ module Api
               to_emails: email.to_emails,
               cc_emails: email.cc_emails,
               received_at: email.received_at,
+              is_read: email.is_read, # SSoT: Read status synced with inbox
               has_attachments: email.document_attachments_count > 0,
               document_attachments_count: email.document_attachments_count,
               conversation_id: email.conversation_id,
@@ -3198,6 +3199,10 @@ module Api
           required_by: task.required_by,
           # Use .size instead of .count to use preloaded data (avoids N+1)
           attachments_count: task.sm_task_attachments.size,
+          # Unread email count for task card indicator (SSoT: synced with inbox read status)
+          unread_email_count: task.sm_task_attachments.count { |a|
+            a.attachable_type == "SyncedEmail" && a.attachable&.is_read == false
+          },
           # Include full attachments for task detail view (uses preloaded association)
           # Note: has_many_attached :files was removed (Jan 2026) - all files now via SmTaskAttachment
           attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) },

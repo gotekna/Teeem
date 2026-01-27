@@ -1349,6 +1349,7 @@ Rails.application.routes.draw do
           post :unassign
           post :dismiss_suggestion
           post :mark_as_spam
+          post :mark_read
           delete :delete_from_outlook
           post :move_to_folder
           post :summarize
