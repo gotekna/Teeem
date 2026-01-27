@@ -4013,8 +4013,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       }
     }
 
-    // Add Teeem marketing footer
-    body += '\n<p style="font-size: 11px; color: #999; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;">Sent using <a href="https://www.teeem.com.au" style="color: #666;">Teeem</a> - Project Management Made Simple</p>\n';
+    // Add Teeem marketing footer with spacing, logo, and TEEEM meaning
+    body += '\n<br><br>\n';
+    body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
+    body += '<td style="vertical-align: top; padding-right: 12px;">';
+    body += '<a href="https://www.teeem.com.au"><img src="https://teeem.vercel.app/icons/icon-72x72.png" alt="Teeem" style="width: 40px; height: 40px; border-radius: 8px;"></a>';
+    body += '</td>';
+    body += '<td style="vertical-align: top;">';
+    body += '<p style="font-size: 11px; color: #999; margin: 0;">Sent using <a href="https://www.teeem.com.au" style="color: #666;">Teeem</a> - Project Management Made Simple</p>';
+    body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
+    body += '</td>';
+    body += '</tr></table>\n';
 
     // Include original email as quoted reply if enabled
     if (includeOriginalEmail && originalEmailData) {
