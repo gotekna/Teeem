@@ -48,15 +48,28 @@ class OrgEmailSyncJob < ApplicationJob
     sync_days = sync_config["sync_days"] # Optional: sync by days instead of years
 
     # Determine which users to sync
+    # Priority: 1) sync_all → all tenant mailboxes
+    #           2) user_emails configured → use those
+    #           3) Auto-detect: TEEEM users whose email matches a tenant mailbox
     if sync_all
       # Get all users from tenant
       client = MicrosoftAppGraphClient.new(@credential)
       tenant_users = client.list_users(select: "id,mail,userPrincipalName")
       user_emails = tenant_users.map { |u| u["mail"] || u["userPrincipalName"] }.compact
+    elsif user_emails.empty?
+      # FRC (Jan 2026): Auto-detect mailboxes from user_mailbox_access config
+      # If Sync All is OFF, only sync mailboxes that are visible to at least one user
+      # user_mailbox_access format: { "user_id" => ["mailbox1@...", "mailbox2@..."], ... }
+      user_mailbox_access = sync_config["user_mailbox_access"] || {}
+
+      # Collect all unique mailboxes that have at least one user with access
+      user_emails = user_mailbox_access.values.flatten.compact.uniq
+
+      Rails.logger.info "[OrgEmailSync] Auto-detected #{user_emails.count} mailboxes from user_mailbox_access"
     end
 
     if user_emails.empty?
-      Rails.logger.info "[OrgEmailSync] No users configured for sync"
+      Rails.logger.info "[OrgEmailSync] No users configured for sync (enable Sync All or add TEEEM users with matching emails)"
       return
     end
 
