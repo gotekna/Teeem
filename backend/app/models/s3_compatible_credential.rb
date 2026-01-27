@@ -17,14 +17,13 @@
 #     provider_type: "backblaze_b2",
 #     endpoint: "https://s3.us-west-004.backblazeb2.com",
 #     region: "us-west-004",
-#     bucket: "teeem-tekna",  # For connection testing only
 #     access_key_id: "...",
 #     secret_access_key: "..."
 #   )
 #
 # SSoT (Jan 2026): This model stores AUTH credentials only.
-# The BUCKET to use is determined by StorageConfiguration.connection_config['bucket']
-# The credential.bucket is used ONLY for test_connection! validation.
+# Bucket is NO LONGER stored here - StorageConfiguration.bucket is THE ONE SSoT.
+# test_connection! reads bucket from StorageConfiguration or accepts a test bucket param.
 # DocumentProviders should NEVER read bucket from credential.
 #
 class S3CompatibleCredential < ApplicationRecord
@@ -45,7 +44,8 @@ class S3CompatibleCredential < ApplicationRecord
   validates :name, presence: true
   validates :provider_type, presence: true, inclusion: { in: PROVIDER_TYPES }
   validates :region, presence: true
-  validates :bucket, presence: true
+  # NOTE: bucket validation REMOVED (Jan 2026) - StorageConfiguration.bucket is SSoT
+  # The bucket column is kept for backward compatibility but is no longer required
   validates :access_key_id, presence: true
   validates :secret_access_key, presence: true
   validates :status, inclusion: { in: STATUSES }, allow_nil: true
@@ -70,15 +70,26 @@ class S3CompatibleCredential < ApplicationRecord
   end
 
   # Get the full bucket URL for display
+  # SSoT (Jan 2026): Uses StorageConfiguration.bucket, not credential.bucket
   def bucket_url
+    ssot_bucket = StorageConfiguration.instance&.bucket
+    return nil unless ssot_bucket.present?
+
     case provider_type
     when "aws_s3"
-      "https://#{bucket}.s3.#{region}.amazonaws.com"
+      "https://#{ssot_bucket}.s3.#{region}.amazonaws.com"
     when "backblaze_b2"
-      "https://#{bucket}.s3.#{region}.backblazeb2.com"
+      "https://#{ssot_bucket}.s3.#{region}.backblazeb2.com"
     else
-      "#{endpoint}/#{bucket}"
+      "#{endpoint}/#{ssot_bucket}"
     end
+  end
+
+  # DEPRECATED: bucket now lives in StorageConfiguration (SSoT)
+  # This method is kept for backward compatibility but will be removed
+  def bucket
+    Rails.logger.warn "[DEPRECATED] S3CompatibleCredential#bucket is deprecated. Use StorageConfiguration.instance.bucket instead."
+    StorageConfiguration.instance&.bucket || read_attribute(:bucket)
   end
 
   # Build an AWS S3 client for this credential
@@ -106,10 +117,17 @@ class S3CompatibleCredential < ApplicationRecord
   end
 
   # Test the connection
+  # @param test_bucket [String, nil] Optional bucket to test (for form validation before StorageConfig exists)
   # @return [Boolean] True if connection successful
-  def test_connection!
+  # SSoT (Jan 2026): Bucket comes from StorageConfiguration, not credential
+  def test_connection!(test_bucket = nil)
     client = build_client
-    client.head_bucket(bucket: bucket)
+
+    # Use provided bucket, or fall back to StorageConfiguration SSoT
+    bucket_to_test = test_bucket.presence || StorageConfiguration.instance&.bucket
+    raise "No bucket configured. Set bucket in Storage Configuration first." unless bucket_to_test.present?
+
+    client.head_bucket(bucket: bucket_to_test)
     update!(status: "connected")
     true
   rescue Aws::S3::Errors::ServiceError => e

@@ -588,6 +588,7 @@ interface S3Provider {
   help_url: string | null;
 }
 
+// SSoT (Jan 2026): bucket removed - StorageConfiguration.bucket is SSoT
 interface S3Credential {
   id: number;
   name: string;
@@ -595,8 +596,7 @@ interface S3Credential {
   provider_display_name: string;
   endpoint: string | null;
   region: string;
-  bucket: string;
-  bucket_url: string;
+  // bucket removed - StorageConfiguration.bucket is SSoT
   root_path: string;
   is_active: boolean;
   status: string;
@@ -655,11 +655,12 @@ function S3StorageConnection() {
   const [showForm, setShowForm] = React.useState(false);
   const [testResult, setTestResult] = React.useState<{ success: boolean; message: string } | null>(null);
 
+  // SSoT (Jan 2026): bucket removed - StorageConfiguration.bucket is SSoT
   const [formData, setFormData] = React.useState({
     name: "",
     endpoint: "",
     region: "",
-    bucket: "",
+    // bucket removed - set in Storage Configuration instead
     access_key_id: "",
     secret_access_key: "",
   });
@@ -687,11 +688,12 @@ function S3StorageConnection() {
     setSelectedProvider(providerId);
     const preset = PROVIDER_PRESETS[providerId];
     if (preset) {
+      // SSoT (Jan 2026): bucket removed - set in Storage Configuration instead
       setFormData({
         name: `${preset.name} Storage`,
         endpoint: preset.endpoint,
         region: preset.regionHint,
-        bucket: "",
+        // bucket removed - set in Storage Configuration instead
         access_key_id: "",
         secret_access_key: "",
       });
@@ -789,7 +791,8 @@ function S3StorageConnection() {
                   </Badge>
                   <div>
                     <p className="font-medium text-sm">{cred.name}</p>
-                    <p className="text-xs text-muted-foreground">{cred.bucket} • {cred.region}</p>
+                    {/* bucket removed - StorageConfiguration.bucket is SSoT */}
+                    <p className="text-xs text-muted-foreground">{cred.region}</p>
                   </div>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="text-red-600 dark:text-red-400">
@@ -852,25 +855,15 @@ function S3StorageConnection() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="region" className="text-xs">Region</Label>
-                  <Input
-                    id="region"
-                    value={formData.region}
-                    onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-                    placeholder={preset.regionHint}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="bucket" className="text-xs">Bucket Name</Label>
-                  <Input
-                    id="bucket"
-                    value={formData.bucket}
-                    onChange={(e) => setFormData({ ...formData, bucket: e.target.value })}
-                    placeholder="my-bucket"
-                  />
-                </div>
+              {/* SSoT (Jan 2026): bucket removed - set in Storage Configuration instead */}
+              <div>
+                <Label htmlFor="region" className="text-xs">Region</Label>
+                <Input
+                  id="region"
+                  value={formData.region}
+                  onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                  placeholder={preset.regionHint}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -911,12 +904,13 @@ function S3StorageConnection() {
             </a>
 
             {/* Actions */}
+            {/* SSoT (Jan 2026): bucket validation removed - bucket is set in Storage Configuration */}
             <div className="flex gap-2 pt-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleTest}
-                disabled={testing || !formData.bucket || !formData.access_key_id}
+                disabled={testing || !formData.access_key_id}
               >
                 {testing ? <Spinner size={16} /> : <TestTube className="h-4 w-4 mr-1" />}
                 Test
@@ -924,7 +918,7 @@ function S3StorageConnection() {
               <Button
                 size="sm"
                 onClick={handleSave}
-                disabled={saving || !formData.name || !formData.bucket || !formData.access_key_id}
+                disabled={saving || !formData.name || !formData.access_key_id}
               >
                 {saving ? <Spinner size={16} /> : "Save"}
               </Button>
@@ -937,6 +931,7 @@ function S3StorageConnection() {
 }
 
 // Organization document provider config type
+// SSoT (Jan 2026): bucket removed - StorageConfiguration.bucket is SSoT
 interface OrgDocumentProvider {
   document_provider: string;
   document_provider_credential_id: number | null;
@@ -945,7 +940,7 @@ interface OrgDocumentProvider {
     id: number;
     name: string;
     provider_type: string;
-    bucket: string;
+    // bucket removed - StorageConfiguration.bucket is SSoT
     status: string;
     connected: boolean;
   }>;
@@ -966,11 +961,12 @@ function DocumentStorageProvider() {
   const [savingProvider, setSavingProvider] = React.useState(false);
 
   // S3 form state
+  // SSoT (Jan 2026): bucket removed - set in Storage Configuration instead
   const [s3Form, setS3Form] = React.useState({
     name: "",
     endpoint: "",
     region: "",
-    bucket: "",
+    // bucket removed - set in Storage Configuration instead
     access_key_id: "",
     secret_access_key: "",
   });
@@ -1041,6 +1037,7 @@ function DocumentStorageProvider() {
     setTestResult(null);
 
     // Pre-fill S3 form based on provider
+    // SSoT (Jan 2026): bucket removed - set in Storage Configuration instead
     if (provider !== "sharepoint") {
       const preset = PROVIDER_PRESETS[provider];
       if (preset) {
@@ -1048,7 +1045,7 @@ function DocumentStorageProvider() {
           name: `${preset.name} Storage`,
           endpoint: preset.endpoint,
           region: preset.regionHint,
-          bucket: "",
+          // bucket removed - set in Storage Configuration instead
           access_key_id: "",
           secret_access_key: "",
         });
@@ -1176,6 +1173,7 @@ function DocumentStorageProvider() {
                 <SelectValue placeholder="Select a saved credential..." />
               </SelectTrigger>
               <SelectContent>
+                {/* SSoT (Jan 2026): bucket removed from display */}
                 {s3Credentials.map((cred) => (
                   <SelectItem key={cred.id} value={cred.id.toString()}>
                     <div className="flex items-center gap-2">
@@ -1184,7 +1182,7 @@ function DocumentStorageProvider() {
                       ) : (
                         <X className="h-3 w-3 text-red-600 dark:text-red-400" />
                       )}
-                      {cred.name} ({cred.bucket})
+                      {cred.name}
                     </div>
                   </SelectItem>
                 ))}
@@ -1218,6 +1216,7 @@ function DocumentStorageProvider() {
         )}
 
         {/* Existing S3 credentials */}
+        {/* SSoT (Jan 2026): bucket removed from display */}
         {s3Credentials.length > 0 && selectedProvider !== "sharepoint" && (
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground">Saved Credentials</Label>
@@ -1228,7 +1227,7 @@ function DocumentStorageProvider() {
                     {cred.status}
                   </Badge>
                   <span className="text-sm">{cred.name}</span>
-                  <span className="text-xs text-muted-foreground">{cred.bucket}</span>
+                  {/* bucket removed - StorageConfiguration.bucket is SSoT */}
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="h-6 w-6 p-0 text-red-600 dark:text-red-400">
                   <Trash2 className="h-3 w-3" />
@@ -1281,25 +1280,15 @@ function DocumentStorageProvider() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs">Region</Label>
-                  <Input
-                    value={s3Form.region}
-                    onChange={(e) => setS3Form({ ...s3Form, region: e.target.value })}
-                    placeholder={preset.regionHint}
-                    className="h-8"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Bucket</Label>
-                  <Input
-                    value={s3Form.bucket}
-                    onChange={(e) => setS3Form({ ...s3Form, bucket: e.target.value })}
-                    placeholder="my-bucket"
-                    className="h-8"
-                  />
-                </div>
+              {/* SSoT (Jan 2026): bucket removed - set in Storage Configuration instead */}
+              <div>
+                <Label className="text-xs">Region</Label>
+                <Input
+                  value={s3Form.region}
+                  onChange={(e) => setS3Form({ ...s3Form, region: e.target.value })}
+                  placeholder={preset.regionHint}
+                  className="h-8"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -1333,15 +1322,16 @@ function DocumentStorageProvider() {
               </div>
             )}
 
+            {/* SSoT (Jan 2026): bucket validation removed - bucket is set in Storage Configuration */}
             <div className="flex items-center justify-between pt-2">
               <a href={preset.helpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
                 Setup Guide <ExternalLink className="h-3 w-3 inline" />
               </a>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleS3Test} disabled={testing || !s3Form.bucket}>
+                <Button variant="outline" size="sm" onClick={handleS3Test} disabled={testing || !s3Form.access_key_id}>
                   {testing ? <Spinner size={12} /> : "Test"}
                 </Button>
-                <Button size="sm" onClick={handleS3Save} disabled={saving || !s3Form.name || !s3Form.bucket}>
+                <Button size="sm" onClick={handleS3Save} disabled={saving || !s3Form.name || !s3Form.access_key_id}>
                   {saving ? <Spinner size={12} /> : "Save"}
                 </Button>
               </div>
