@@ -7296,7 +7296,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               type="radio"
                               name={`att-${att.id}`}
                               checked={emailOption === 'attach'}
-                              onChange={() => setAttachmentEmailOptions(prev => ({ ...prev, [att.id]: 'attach' }))}
+                              onChange={() => {
+                                console.log('[Attachment Option] Setting', att.id, 'to ATTACH');
+                                setAttachmentEmailOptions(prev => ({ ...prev, [att.id]: 'attach' }));
+                              }}
                               className="w-3 h-3"
                             />
                             <span>Attach</span>
