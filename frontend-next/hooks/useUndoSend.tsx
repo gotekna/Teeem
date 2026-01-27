@@ -65,9 +65,12 @@ export function useUndoSend() {
     });
 
     try {
-      // SSoT: Upload attachments via presigned URL first
+      // SSoT: Start with existing storage keys (files already in S3 - no upload needed)
+      // Ultra fix (Jan 2026): Documents from task attachments already have storage_key
+      const attachmentStorageKeys: string[] = [...email.existingStorageKeys];
+
+      // Upload new attachments via presigned URL (only for files not already in storage)
       // Use 'chat' scope for email attachments - no record needed, just the S3 key
-      const attachmentStorageKeys: string[] = [];
       for (const file of email.attachments) {
         const uploadResult = await uploadFile(file, 'chat');
         if (uploadResult.success && uploadResult.key) {
@@ -115,6 +118,8 @@ export function useUndoSend() {
       id: emailId,
       ...params,
       attachments: params.attachments || [],
+      // SSoT: Existing storage keys (pass directly to backend, no re-upload)
+      existingStorageKeys: params.existingStorageKeys || [],
       countdown,
       timeoutId: null as unknown as NodeJS.Timeout,
       intervalId: null as unknown as NodeJS.Timeout,

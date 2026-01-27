@@ -1233,6 +1233,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Email compose for responses
   const [showComposeEmail, setShowComposeEmail] = useState(false);
   const [emailFileAttachments, setEmailFileAttachments] = useState<File[]>([]);
+  // SSoT: Existing storage keys (pass directly to backend, no re-upload needed)
+  // Ultra fix (Jan 2026): Documents already in S3 don't need download/re-upload
+  const [emailExistingStorageKeys, setEmailExistingStorageKeys] = useState<string[]>([]);
   const [prepareEmailLoading, setPrepareEmailLoading] = useState(false);
   const [prepareEmailStatus, setPrepareEmailStatus] = useState('');
   // Track how each attachment should be included: 'attach' (file), 'link' (URL), 'both' (attach + link), 'none' (exclude)
@@ -4220,27 +4223,38 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         documentsToLink.length + emailsToLink.length + questionAttachmentsToLink.length + questionEmailsToLink.length;
       let processed = 0;
 
-      // Process documents to attach
+      // Process documents to attach - SSoT: Use storage_key if available (no re-upload needed)
+      // Ultra fix (Jan 2026): Documents already in S3 pass key directly, avoid download + re-upload
+      const existingKeys: string[] = [];
       for (const att of documentsToAttach) {
         const fileName = att.document?.display_name || att.document?.file_name || 'file';
-        setPrepareEmailStatus(`Downloading ${fileName}... (${processed + 1}/${totalToProcess})`);
-        try {
-          const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
-            `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/download`
-          );
-          if (response.success) {
-            const byteCharacters = atob(response.content);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
+        const storageKey = att.document?.storage_key;
+
+        if (storageKey) {
+          // SSoT: File already in S3 - use existing key directly (no download/re-upload)
+          setPrepareEmailStatus(`Using existing file "${fileName}"... (${processed + 1}/${totalToProcess})`);
+          existingKeys.push(storageKey);
+        } else {
+          // Fallback: Download if no storage_key (shouldn't happen for documents)
+          setPrepareEmailStatus(`Downloading ${fileName}... (${processed + 1}/${totalToProcess})`);
+          try {
+            const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
+              `/api/v1/sm_tasks/${task.id}/attachments/${att.id}/download`
+            );
+            if (response.success) {
+              const byteCharacters = atob(response.content);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const byteArray = new Uint8Array(byteNumbers);
+              const blob = new Blob([byteArray], { type: response.content_type });
+              const file = new File([blob], response.filename, { type: response.content_type });
+              filesToAttach.push(file);
             }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: response.content_type });
-            const file = new File([blob], response.filename, { type: response.content_type });
-            filesToAttach.push(file);
+          } catch (err) {
+            console.error(`Failed to download attachment ${att.id}:`, err);
           }
-        } catch (err) {
-          console.error(`Failed to download attachment ${att.id}:`, err);
         }
         processed++;
       }
@@ -4432,6 +4446,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       // Store the share links and file attachments
       setShareLinksMap(shareLinks);
       setEmailFileAttachments(filesToAttach);
+      // SSoT: Store existing storage keys (no re-upload needed for these)
+      setEmailExistingStorageKeys(existingKeys);
 
       // Store viewer context server-side (avoids URL length limits)
       // Build context with all Q&A and all files (documents AND emails)
@@ -7892,6 +7908,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             : `Re: Task #${task.task_number}  |  ${task.name}`}
           defaultBody={generateResponseBody()}
           initialAttachments={emailFileAttachments}
+          initialExistingStorageKeys={emailExistingStorageKeys}
           smTaskId={task.id}
           skipSignature={true}
           onSent={() => {

@@ -68,6 +68,9 @@ interface ComposeEmailModalProps {
   draft?: EmailDraft;
   /** Pre-loaded file attachments (e.g., from Task response) */
   initialAttachments?: File[];
+  /** SSoT: Existing storage keys for files already in S3 (Ultra fix Jan 2026)
+   * Pass these directly to backend - avoids re-downloading and re-uploading */
+  initialExistingStorageKeys?: string[];
   /** SM Task ID to link sent email to task */
   smTaskId?: number;
   /** Skip signature generation (when body already includes signature) */
@@ -86,6 +89,7 @@ export function ComposeEmailModal({
   defaultFromAccountId,
   draft,
   initialAttachments,
+  initialExistingStorageKeys,
   smTaskId,
   skipSignature = false,
   onSent,
@@ -110,6 +114,8 @@ export function ComposeEmailModal({
   const { deleteDraft } = useEmailDrafts();
 
   const [attachments, setAttachments] = useState<File[]>([]);
+  // SSoT: Existing storage keys (pass directly to backend, no re-upload)
+  const [existingStorageKeys, setExistingStorageKeys] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -337,6 +343,8 @@ export function ComposeEmailModal({
       }
 
       setAttachments(initialAttachments || []);
+      // SSoT: Set existing storage keys (pass directly to backend, no re-upload)
+      setExistingStorageKeys(initialExistingStorageKeys || []);
       setError(null);
       setSignatureHtml(""); // Reset signature (will be regenerated when account selected)
       // Reset schedule state
@@ -528,6 +536,8 @@ export function ComposeEmailModal({
           body: fullBody,
           reply_to_message_id: replyToMessageId,
           attachments: attachments,
+          // SSoT: Pass existing storage keys directly (no re-upload needed)
+          existingStorageKeys: existingStorageKeys.length > 0 ? existingStorageKeys : undefined,
           sm_task_id: smTaskId,  // Link sent email to SM task
         });
       }
