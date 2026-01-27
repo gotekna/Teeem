@@ -4200,10 +4200,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       // Separate documents and emails for processing
       // 'both' option includes item in BOTH attach AND link lists
+      console.log('[prepareEmailResponse] attachmentEmailOptions:', JSON.stringify(attachmentEmailOptions));
+      console.log('[prepareEmailResponse] responseAttachments:', responseAttachments.map(a => ({
+        id: a.id,
+        name: a.document?.display_name || a.email?.subject || 'unknown',
+        option: attachmentEmailOptions[a.id] || 'link (default)'
+      })));
       const documentsToAttach = responseAttachments.filter(a => {
         const opt = attachmentEmailOptions[a.id] || 'link';  // Default to 'link'
         return (opt === 'attach' || opt === 'both') && a.document;
       });
+      console.log('[prepareEmailResponse] documentsToAttach:', documentsToAttach.length, documentsToAttach.map(a => a.document?.display_name));
       const emailsToAttach = responseAttachments.filter(a => {
         const opt = attachmentEmailOptions[a.id] || 'link';  // Default to 'link'
         return (opt === 'attach' || opt === 'both') && a.email;
