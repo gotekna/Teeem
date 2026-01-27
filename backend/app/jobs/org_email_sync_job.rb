@@ -253,8 +253,16 @@ class OrgEmailSyncJob < ApplicationJob
     # Extract sender info first (needed for filtering)
     from_data = email_data["from"]&.dig("emailAddress") || {}
     from_email = from_data["address"]
+    from_name = from_data["name"]
     subject = email_data["subject"] || ""
     has_attachments = email_data["hasAttachments"] || false
+
+    # FRC (Jan 2026): For Sent/Draft emails, MS Graph API may not include 'from' field
+    # since the sender is implicit (the mailbox owner). Use owner_email as fallback.
+    if from_email.blank? && %w[Sent\ Items Drafts].include?(folder_name)
+      from_email = owner_email
+      Rails.logger.debug "[OrgEmailSync] Using owner_email as from_email for #{folder_name}: #{from_email}"
+    end
 
     # NOTE: Drafts are now synced (to match Office 365 exactly)
     # They will appear with folder_name="Drafts" and can be filtered in frontend
@@ -359,7 +367,8 @@ class OrgEmailSyncJob < ApplicationJob
       outlook_id: email.outlook_id || email_data["id"],
       # folder_name is per-mailbox, but keep for backward compat
       folder_name: email.folder_name || folder_name,
-      is_read: email.is_read.nil? ? (email_data["isRead"] || false) : email.is_read
+      # FRC (Jan 2026): Sent emails are always "read" - you wrote them!
+      is_read: folder_name == "Sent Items" ? true : (email.is_read.nil? ? (email_data["isRead"] || false) : email.is_read)
     )
 
     # Set first_synced_at if new record
@@ -381,7 +390,8 @@ class OrgEmailSyncJob < ApplicationJob
       mailbox_email: owner_email,
       outlook_id: email_data["id"],
       folder_name: folder_name,
-      is_read: email_data["isRead"] || false,
+      # FRC (Jan 2026): Sent emails are always "read" - you wrote them!
+      is_read: folder_name == "Sent Items" ? true : (email_data["isRead"] || false),
       microsoft_credential_id: @credential&.id
     )
 

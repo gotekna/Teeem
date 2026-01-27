@@ -234,6 +234,13 @@ function getEmailSenderDisplay(email: TaskAttachmentEmail | undefined): string {
   return 'Unknown sender';
 }
 
+// Helper to check if email is a sent email (no from_email = you sent it)
+// Sent emails should never show as "unread" since you wrote them
+function isSentEmail(email: TaskAttachmentEmail | undefined): boolean {
+  if (!email) return false;
+  return !email.from_email && !!email.to_emails && email.to_emails.length > 0;
+}
+
 function SortableQuestionItem({
   item,
   task,
@@ -1401,7 +1408,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   };
 
   const matchedEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Matched')).length;
-  const unreadEmailCount = allEmailAttachments.filter(att => att.email?.is_read === false).length;
+  // FRC: Sent emails (no from_email) should never count as "unread" - you wrote them
+  const unreadEmailCount = allEmailAttachments.filter(att => att.email?.is_read === false && !isSentEmail(att.email)).length;
   const threadEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Thread:')).length;
 
   // Calculate unique senders from attached emails with counts
@@ -6408,7 +6416,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         <span>{monthLabel}</span>
                                         <span className="ml-auto flex items-center gap-1.5">
                                           {(() => {
-                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false).length;
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email)).length;
                                             return unreadInMonth > 0 ? (
                                               <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
                                             ) : null;
@@ -6432,7 +6440,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               className={cn(
                                                 "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
                                                 selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
-                                                att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
+                                                att.email?.is_read === false && !isSentEmail(att.email) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                               )}
                                               onClick={() => {
                                                 if (att.email) {
@@ -6448,11 +6456,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               }}
                                               title="Click to view, double-click to open in new tab"
                                             >
-                                              <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                              <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
                                               <div className="flex-1 min-w-0">
-                                                <div className={cn("truncate", att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
+                                                <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                                 <div className="text-muted-foreground truncate flex items-center gap-2">
-                                                  <span className="truncate">{att.email?.from_email}</span>
+                                                  <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
                                                   {att.email?.received_at && (
                                                     <span className="shrink-0 text-[10px]">
                                                       {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
@@ -6638,7 +6646,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         <span>{monthLabel}</span>
                                         <span className="ml-auto flex items-center gap-1.5">
                                           {(() => {
-                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false).length;
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email)).length;
                                             return unreadInMonth > 0 ? (
                                               <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
                                             ) : null;
@@ -6660,7 +6668,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         className={cn(
                                           "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
                                           selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
-                                          att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
+                                          att.email?.is_read === false && !isSentEmail(att.email) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                         )}
                                         onClick={() => {
                                           if (att.email) {
@@ -6676,11 +6684,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         title="Click to view, double-click to open in new tab"
                                       >
-                                        <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                        <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
                                         <div className="flex-1 min-w-0">
-                                          <div className={cn("truncate", att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
+                                          <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                           <div className="text-muted-foreground truncate flex items-center gap-2">
-                                            <span className="truncate">{att.email?.from_email}</span>
+                                            <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
                                             {att.email?.received_at && (
                                               <span className="shrink-0 text-[10px]">
                                                 {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
@@ -6779,7 +6787,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         <span>{monthLabel}</span>
                                         <span className="ml-auto flex items-center gap-1.5">
                                           {(() => {
-                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false).length;
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email)).length;
                                             return unreadInMonth > 0 ? (
                                               <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
                                             ) : null;
@@ -6801,7 +6809,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         className={cn(
                                           "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
                                           selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
-                                          att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
+                                          att.email?.is_read === false && !isSentEmail(att.email) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                         )}
                                         onClick={() => {
                                           if (att.email) {
@@ -6817,11 +6825,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         title="Click to view, double-click to open in new tab"
                                       >
-                                        <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                        <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
                                         <div className="flex-1 min-w-0">
-                                          <div className={cn("truncate", att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
+                                          <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                           <div className="text-muted-foreground truncate flex items-center gap-2">
-                                            <span className="truncate">{att.email?.from_email}</span>
+                                            <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
                                             {att.email?.received_at && (
                                               <span className="shrink-0 text-[10px]">
                                                 {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
