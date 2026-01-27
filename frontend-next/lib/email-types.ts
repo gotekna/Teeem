@@ -107,6 +107,22 @@ export type EmailDraftData = Omit<EmailDraft, "id" | "created_at" | "updated_at"
 // =============================================================================
 
 /**
+ * Pre-uploaded attachment that already exists in storage.
+ * Used for documents that have been downloaded for display but don't need re-uploading.
+ * (Ultra fix Jan 2026)
+ */
+export interface PreUploadedAttachment {
+  /** Display name shown in attachment bar */
+  filename: string;
+  /** Storage key to pass directly to backend (no re-upload needed) */
+  storageKey: string;
+  /** Optional: file size for display */
+  fileSize?: number;
+  /** Optional: content type for icon display */
+  contentType?: string;
+}
+
+/**
  * Parameters for sending an email.
  */
 export interface SendEmailParams {
