@@ -47,12 +47,15 @@ module Api
         end
 
         begin
+          Rails.logger.info "[UploadsController#presign] Starting presign for scope=#{scope}, filename=#{filename}"
           provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+          Rails.logger.info "[UploadsController#presign] Got provider"
 
           # Build storage path based on scope
           folder_path = build_folder_path(scope, metadata)
           safe_filename = sanitize_filename(filename)
           temp_key = "#{folder_path}/#{Time.current.to_i}_#{SecureRandom.hex(4)}_#{safe_filename}"
+          Rails.logger.info "[UploadsController#presign] Built temp_key=#{temp_key}"
 
           # Get presigned upload URL
           upload_url = provider.presigned_upload_url(
@@ -61,6 +64,7 @@ module Api
             expires_in: 3600,
             content_type: content_type
           )
+          Rails.logger.info "[UploadsController#presign] Got presigned URL"
 
           render json: {
             success: true,
@@ -72,10 +76,13 @@ module Api
             expires_in: 3600
           }
         rescue DocumentProviders::NotConnectedError => e
+          Rails.logger.error "[UploadsController#presign] Not connected: #{e.message}"
           render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
         rescue => e
-          Rails.logger.error "[UploadsController#presign] Failed: #{e.message}"
-          render json: { success: false, error: "Failed to generate upload URL" }, status: :unprocessable_entity
+          Rails.logger.error "[UploadsController#presign] Failed: #{e.class} - #{e.message}"
+          Rails.logger.error e.backtrace.first(5).join("\n")
+          # Return actual error message for debugging (internal API)
+          render json: { success: false, error: "Failed to generate upload URL: #{e.message}" }, status: :unprocessable_entity
         end
       end
 
