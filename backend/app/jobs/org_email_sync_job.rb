@@ -107,7 +107,10 @@ class OrgEmailSyncJob < ApplicationJob
     end
 
     # Update last sync time
-    @credential.update!(last_sync_at: Time.current)
+    # FRC (Jan 2026): Use update_columns to bypass optimistic locking
+    # Root cause: Long-running syncs (30+ min for 2000+ emails) hit StaleObjectError
+    # when credential is modified elsewhere. update_columns is safe for timestamps.
+    @credential.update_columns(last_sync_at: Time.current)
 
     Rails.logger.info "[OrgEmailSync] Completed: #{total_synced} emails synced, #{errors.count} errors"
 

@@ -188,6 +188,18 @@ class MicrosoftCredential < ApplicationRecord
       record_refresh_failure!(error_msg)
       false
     end
+  rescue ActiveRecord::StaleObjectError
+    # FRC (Jan 2026): Another process refreshed the token concurrently
+    # Reload to get the fresh token - don't record as failure
+    reload
+    if valid_credential?
+      Rails.logger.info "[MicrosoftCredential] Token already refreshed by another process for #{name || id}"
+      true
+    else
+      # Token still invalid after reload - actual failure
+      record_refresh_failure!("Concurrent token refresh failed")
+      false
+    end
   rescue StandardError => e
     record_refresh_failure!(e.message)
     false
@@ -235,6 +247,17 @@ class MicrosoftCredential < ApplicationRecord
       error_data = response.parse rescue {}
       error_msg = error_data["error_description"] || error_data["error"] || "Token refresh failed"
       record_refresh_failure!(error_msg)
+      false
+    end
+  rescue ActiveRecord::StaleObjectError
+    # FRC (Jan 2026): Another process refreshed the token concurrently
+    # Reload to get the fresh token - don't record as failure
+    reload
+    if valid_credential?
+      Rails.logger.info "[MicrosoftCredential] Token already refreshed by another process for #{owner_type}##{owner_id || name}"
+      true
+    else
+      record_refresh_failure!("Concurrent token refresh failed")
       false
     end
   rescue StandardError => e

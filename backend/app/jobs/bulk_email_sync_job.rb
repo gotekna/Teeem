@@ -144,6 +144,12 @@ class BulkEmailSyncJob < ApplicationJob
 
     result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
 
+    # FRC (Jan 2026): Reload credential after long-running OrgEmailSyncJob
+    # Root cause: During the sync (30+ mins), token refreshes update the credential's
+    # lock_version in DB. Our @credential object becomes stale, causing StaleObjectError
+    # on subsequent update! calls (like fetch_access_token! in Phase 2).
+    @credential.reload
+
     # Handle nil result (job returned early - no users to sync)
     if result.nil?
       Rails.logger.warn "[BulkSync] OrgEmailSyncJob returned nil - no users configured?"
