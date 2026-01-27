@@ -3201,9 +3201,15 @@ module Api
           # Use .size instead of .count to use preloaded data (avoids N+1)
           attachments_count: task.sm_task_attachments.size,
           # Unread email count for task card indicator (SSoT: synced with inbox read status)
-          unread_email_count: task.sm_task_attachments.count { |a|
-            a.attachable_type == "SyncedEmail" && a.attachable&.is_read == false
-          },
+          # FRC (Jan 2026): Exclude emails FROM our mailboxes - they're internal (never unread)
+          unread_email_count: begin
+            email_attachments = task.sm_task_attachments.select { |a| a.attachable_type == "SyncedEmail" && a.attachable }
+            our_mailboxes = email_attachments.map { |a| a.attachable.mailbox_owner_email&.downcase }.compact.uniq
+            email_attachments.count { |a|
+              email = a.attachable
+              email.is_read == false && !our_mailboxes.include?(email.from_email&.downcase)
+            }
+          end,
           # Include full attachments for task detail view (uses preloaded association)
           # Note: has_many_attached :files was removed (Jan 2026) - all files now via SmTaskAttachment
           attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) },
