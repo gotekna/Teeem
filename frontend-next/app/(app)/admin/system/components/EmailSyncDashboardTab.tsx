@@ -53,6 +53,7 @@ interface MailboxStats {
 
 interface OrganizationStats {
   id: number;
+  type: "microsoft" | "imap";
   name: string;
   status: string;
   last_sync_at: string | null;
@@ -60,7 +61,7 @@ interface OrganizationStats {
   mailboxes: MailboxStats[];
   sync_config: {
     sync_all: boolean;
-    sync_years: number;
+    sync_years?: number;
   };
 }
 
@@ -118,10 +119,14 @@ export function EmailSyncDashboardTab() {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  const handleSyncOrg = async (orgId: number) => {
+  const handleSyncOrg = async (orgId: number, orgType: "microsoft" | "imap") => {
     setSyncingOrgId(orgId);
     try {
-      await api.post(`/api/v1/microsoft_app/${orgId}/sync`, { full_sync: true });
+      if (orgType === "imap") {
+        await api.post(`/api/v1/imap_credentials/${orgId}/sync`);
+      } else {
+        await api.post(`/api/v1/microsoft_app/${orgId}/sync`, { full_sync: true });
+      }
       toast({
         title: "Sync Started",
         description: "Full email sync has been triggered. This may take a few minutes.",
@@ -299,8 +304,16 @@ export function EmailSyncDashboardTab() {
                     ) : (
                       <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     )}
-                    <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                      <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                      org.type === "imap"
+                        ? "bg-green-100 dark:bg-green-900"
+                        : "bg-blue-100 dark:bg-blue-900"
+                    }`}>
+                      {org.type === "imap" ? (
+                        <Mail className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      )}
                     </div>
                     <div className="text-left">
                       <CardTitle className="text-base">{org.name}</CardTitle>
@@ -311,6 +324,9 @@ export function EmailSyncDashboardTab() {
                   </button>
                 </CollapsibleTrigger>
                 <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="text-xs">
+                    {org.type === "imap" ? "IMAP" : "MS365"}
+                  </Badge>
                   <Badge variant={org.status === "connected" ? "default" : "secondary"}>
                     {org.status === "connected" ? (
                       <>
@@ -334,7 +350,7 @@ export function EmailSyncDashboardTab() {
                           variant="outline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleSyncOrg(org.id);
+                            handleSyncOrg(org.id, org.type);
                           }}
                           disabled={syncingOrgId === org.id}
                         >
