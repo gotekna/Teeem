@@ -296,34 +296,47 @@ class EmailStorageUploadService
   # The folder column is set to the virtual_folder_path, enabling instant reorganization.
   # Physical storage is content-addressed (Blobs/{hash}.eml) - virtual folders are DB-only.
   #
+  # ⚠️ RACE CONDITION HANDLING (Jan 2026):
+  # Parallel processing can cause two threads to create WarehouseDocument for the same email.
+  # Use find_or_create_by! to handle this gracefully.
+  #
   # @param email [SyncedEmail] The email record
   # @param blob [StorageBlob] The blob containing the .eml file (already uploaded)
   def create_warehouse_document_for_email(email, blob)
-    # Skip if warehouse_document already exists
+    # Skip if warehouse_document already exists (fast path)
     return if email.warehouse_document.present?
 
-    # Create WarehouseDocument with virtual folder path
-    # The blob is already created by StorageBlob.find_or_create_for_content!
-    WarehouseDocument.create!(
-      documentable: email,
-      storage_blob: blob,
-      source_type: "email",
-      folder: email.virtual_folder_path,
-      display_name: email.subject.presence || "No Subject",
-      original_filename: "#{email.id}.eml",
-      tenant_id: @tenant.id,  # SSoT: Always set tenant for multi-tenant support
-      metadata: {
+    # SSoT: Use find_or_create_by! to handle race conditions
+    # Unique constraint is on (documentable_type, documentable_id)
+    doc = WarehouseDocument.find_or_create_by!(
+      documentable_type: "SyncedEmail",
+      documentable_id: email.id
+    ) do |d|
+      d.storage_blob = blob
+      d.source_type = "email"
+      d.folder = email.virtual_folder_path
+      d.display_name = email.subject.presence || "No Subject"
+      d.original_filename = "#{email.id}.eml"
+      d.tenant_id = @tenant.id  # SSoT: Always set tenant for multi-tenant support
+      d.metadata = {
         subject: email.subject,
         from_email: email.from_email,
         received_at: email.received_at&.iso8601,
         mailbox: email.mailbox_owner_email
       }
-    )
+    end
 
-    # Increment blob reference count
-    blob.increment!(:reference_count)
-
-    Rails.logger.debug "[EmailUpload] Created WarehouseDocument for email #{email.id} in folder: #{email.virtual_folder_path}"
+    # Only increment reference count if we created a new document
+    # previously_new_record? returns true if this record was just created by find_or_create_by!
+    if doc.previously_new_record?
+      blob.increment!(:reference_count)
+      Rails.logger.debug "[EmailUpload] Created WarehouseDocument for email #{email.id} in folder: #{email.virtual_folder_path}"
+    else
+      Rails.logger.debug "[EmailUpload] WarehouseDocument already exists for email #{email.id}"
+    end
+  rescue ActiveRecord::RecordNotUnique => e
+    # Race condition fallback: another thread created the document between find and create
+    Rails.logger.info "[EmailUpload] WarehouseDocument race condition for email #{email.id}, already created by another thread"
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error "[EmailUpload] Failed to create WarehouseDocument for email #{email.id}: #{e.message}"
   end
