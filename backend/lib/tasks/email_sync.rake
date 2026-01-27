@@ -1,4 +1,167 @@
 namespace :synced_email do
+  desc "Full re-sync ALL organizations one by one (ensures no emails missing)"
+  task full_resync_all: :environment do
+    # This task runs a full sync for each connected Microsoft credential
+    # to ensure all emails are up to date across all organizations.
+    #
+    # Usage:
+    #   rails synced_email:full_resync_all
+    #   YEARS=5 rails synced_email:full_resync_all   # 5 year lookback (default: 3)
+    #   DRY_RUN=1 rails synced_email:full_resync_all # Show what would be synced without syncing
+
+    years = (ENV["YEARS"] || 3).to_i
+    dry_run = ENV["DRY_RUN"] == "1"
+
+    puts "=" * 70
+    puts "FULL EMAIL RE-SYNC - ALL ORGANIZATIONS"
+    puts "=" * 70
+    puts "Lookback: #{years} years"
+    puts "Mode: #{dry_run ? 'DRY RUN (no changes)' : 'LIVE SYNC'}"
+    puts "Started: #{Time.current.strftime('%Y-%m-%d %H:%M:%S')}"
+    puts ""
+
+    credentials = MicrosoftCredential.where(status: "connected", credential_type: "app")
+
+    if credentials.empty?
+      puts "No connected Microsoft credentials found."
+      exit 0
+    end
+
+    puts "Found #{credentials.count} organization(s) to sync:"
+    credentials.each_with_index do |cred, i|
+      # SSoT: Same priority as OrgEmailSyncJob
+      sc = cred.sync_config || {}
+      if sc["sync_all"]
+        mailbox_desc = "ALL tenant mailboxes (sync_all=true)"
+      elsif (sc["user_emails"] || []).any?
+        mailbox_desc = "#{sc["user_emails"].count} mailboxes (user_emails)"
+      else
+        uma_count = (sc["user_mailbox_access"] || {}).values.flatten.compact.uniq.count
+        mailbox_desc = "#{uma_count} mailboxes (user_mailbox_access)"
+      end
+      puts "  #{i + 1}. #{cred.name} - #{mailbox_desc}"
+    end
+    puts ""
+
+    results = []
+
+    credentials.each_with_index do |credential, index|
+      puts "-" * 70
+      puts "#{index + 1}/#{credentials.count}: #{credential.name}"
+      puts "-" * 70
+
+      # Show pre-sync stats
+      pre_count = SyncedEmail.where(microsoft_credential_id: credential.id).count
+      puts "  Emails before sync: #{pre_count}"
+
+      # SSoT: Match OrgEmailSyncJob mailbox selection logic exactly (lines 67-86)
+      # Priority: 1) sync_all → all tenant mailboxes
+      #           2) user_emails configured → use those
+      #           3) Auto-detect from user_mailbox_access
+      sync_config = credential.sync_config || {}
+      sync_all = sync_config["sync_all"] || false
+      user_emails = sync_config["user_emails"] || []
+
+      if sync_all
+        # Get all users from tenant
+        client = MicrosoftAppGraphClient.new(credential)
+        begin
+          tenant_users = client.list_users(select: "id,mail,userPrincipalName")
+          mailboxes = tenant_users.map { |u| u["mail"] || u["userPrincipalName"] }.compact
+        rescue => e
+          puts "  ERROR listing users: #{e.message}"
+          mailboxes = []
+        end
+      elsif user_emails.any?
+        # Use configured user_emails
+        mailboxes = user_emails
+      else
+        # Auto-detect from user_mailbox_access
+        uma = sync_config["user_mailbox_access"] || {}
+        mailboxes = uma.values.flatten.compact.uniq
+      end
+
+      puts "  Mailboxes to sync: #{mailboxes&.count || 0}"
+      mailboxes&.each { |m| puts "    - #{m}" }
+
+      if dry_run
+        puts "  [DRY RUN] Would sync #{mailboxes&.count || 0} mailboxes"
+        results << { name: credential.name, status: "dry_run", mailboxes: mailboxes&.count || 0 }
+        next
+      end
+
+      # Run full sync
+      begin
+        start_time = Time.current
+
+        # Temporarily set sync_years for this sync
+        original_config = credential.sync_config || {}
+        credential.update_columns(
+          sync_config: original_config.merge("sync_years" => years),
+          last_sync_at: nil  # Force full sync
+        )
+
+        result = OrgEmailSyncJob.perform_now("full", organization_id: credential.id)
+
+        elapsed = (Time.current - start_time).round(1)
+        post_count = SyncedEmail.where(microsoft_credential_id: credential.id).count
+        new_emails = post_count - pre_count
+
+        puts "  ✓ Completed in #{elapsed}s"
+        puts "  Emails after sync: #{post_count} (+#{new_emails} new)"
+
+        if result
+          puts "  Synced: #{result[:total_synced]} emails"
+          puts "  Errors: #{result[:errors].count}" if result[:errors]&.any?
+          result[:errors]&.first(3)&.each { |e| puts "    - #{e[:user]}: #{e[:error]}" }
+        end
+
+        results << {
+          name: credential.name,
+          status: "success",
+          synced: result&.dig(:total_synced) || 0,
+          new_emails: new_emails,
+          elapsed: elapsed,
+          errors: result&.dig(:errors)&.count || 0
+        }
+      rescue => e
+        puts "  ✗ FAILED: #{e.message}"
+        results << { name: credential.name, status: "failed", error: e.message }
+      end
+
+      puts ""
+    end
+
+    # Summary
+    puts "=" * 70
+    puts "SUMMARY"
+    puts "=" * 70
+
+    total_synced = 0
+    total_new = 0
+    failed = 0
+
+    results.each do |r|
+      if r[:status] == "success"
+        puts "  ✓ #{r[:name]}: #{r[:synced]} synced, +#{r[:new_emails]} new (#{r[:elapsed]}s)"
+        total_synced += r[:synced] || 0
+        total_new += r[:new_emails] || 0
+      elsif r[:status] == "dry_run"
+        puts "  ○ #{r[:name]}: #{r[:mailboxes]} mailboxes (dry run)"
+      else
+        puts "  ✗ #{r[:name]}: FAILED - #{r[:error]}"
+        failed += 1
+      end
+    end
+
+    puts ""
+    puts "Total: #{total_synced} emails synced, #{total_new} new emails added"
+    puts "Failed: #{failed}/#{credentials.count} organizations"
+    puts "Completed: #{Time.current.strftime('%Y-%m-%d %H:%M:%S')}"
+    puts ""
+    puts "Total emails in warehouse: #{SyncedEmail.count}"
+  end
+
   # DEPRECATED: Per-user Outlook credentials have been removed
   # Email sync now uses org-wide credentials via OrgEmailSyncJob
   desc "DEPRECATED - Run full sync (use OrgEmailSyncJob instead)"

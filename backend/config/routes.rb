@@ -1336,6 +1336,7 @@ Rails.application.routes.draw do
           get :unassigned
           get :search
           get :stats
+          get :sync_dashboard
           get :unread_counts
           get :sync_status
           post :sync

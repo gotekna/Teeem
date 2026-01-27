@@ -68,6 +68,11 @@ class StorageBlob < ApplicationRecord
 
   # Find or create blob for content
   # Returns existing blob if content_hash matches, otherwise creates new
+  #
+  # ⚠️ RACE CONDITION HANDLING (Jan 2026):
+  # Parallel processing (e.g., email upload jobs) can cause two threads to
+  # compute the same hash simultaneously. Both try find_or_create_by! and
+  # one fails with RecordNotUnique on content_hash. We rescue and retry find.
   def self.find_or_create_for_content!(content, filename: nil, content_type: nil)
     hash = compute_hash(content)
     was_new = false
@@ -94,6 +99,15 @@ class StorageBlob < ApplicationRecord
     blob.mark_verified! if was_new && blob.verified_at.nil?
 
     blob
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
+    # Race condition: another thread created the blob first
+    # Retry the find (it should now exist)
+    if e.message.include?("content_hash") || e.message.include?("storage_path")
+      Rails.logger.info "[StorageBlob] Race condition on hash #{hash[0..7]}..., retrying find"
+      retry_blob = find_by(content_hash: hash)
+      return retry_blob if retry_blob
+    end
+    raise # Re-raise if not a race condition we can handle
   end
 
   # Compute SHA256 hash of content

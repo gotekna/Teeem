@@ -62,6 +62,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmailSyncDashboardSection } from "./EmailSyncDashboardSection";
 
 interface ImapCredential {
   id: number;
@@ -1257,6 +1258,17 @@ export function EmailAccountsTab() {
           </p>
         </div>
         <TeamEmailDomainsConfig />
+      </div>
+
+      {/* Email Sync Dashboard */}
+      <div className="mt-8 pt-8 border-t">
+        <div className="mb-4">
+          <h3 className="text-lg font-medium">Email Sync Dashboard</h3>
+          <p className="text-sm text-muted-foreground">
+            View email sync statistics by organization and mailbox. Monitor sync status and trigger manual syncs.
+          </p>
+        </div>
+        <EmailSyncDashboardSection />
       </div>
 
       {/* Share Email Access Dialog */}

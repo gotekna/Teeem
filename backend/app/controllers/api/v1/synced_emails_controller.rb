@@ -1,7 +1,7 @@
 # Renamed from EmailWarehouseController (Jan 2026)
 class Api::V1::SyncedEmailsController < ApplicationController
   before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :mark_read, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :download_attachment, :download_eml, :attachment_presigned_url ]
-  before_action :require_admin, only: [ :bulk_delete_spam ]
+  before_action :require_admin, only: [ :bulk_delete_spam, :sync_dashboard ]
 
   # GET /api/v1/synced_emails
   # List synced emails with filtering
@@ -527,6 +527,45 @@ class Api::V1::SyncedEmailsController < ApplicationController
       jobs_with_emails: SyncedEmail.assigned.distinct.count(:job_id),
       spam_emails: SyncedEmail.spam.count,
       with_ai_summary: SyncedEmail.with_ai_summary.count
+    }
+  end
+
+  # GET /api/v1/synced_emails/sync_dashboard
+  # Admin dashboard showing mailboxes grouped by organization with sync stats
+  def sync_dashboard
+    credentials = MicrosoftCredential.app_credentials.connected.includes(:organization)
+
+    organizations = credentials.map do |cred|
+      # Get distinct mailboxes for this credential
+      mailboxes = SyncedEmailMailbox
+        .where(microsoft_credential_id: cred.id)
+        .select("LOWER(mailbox_owner_email) as email")
+        .distinct
+        .pluck("LOWER(mailbox_owner_email)")
+        .map { |email| mailbox_stats_for_dashboard(cred.id, email) }
+        .sort_by { |m| -m[:email_count] }
+
+      {
+        id: cred.id,
+        name: cred.name || cred.organization&.name || "Unknown",
+        status: cred.status,
+        last_sync_at: cred.updated_at,
+        total_emails: mailboxes.sum { |m| m[:email_count] },
+        mailboxes: mailboxes,
+        sync_config: {
+          sync_all: cred.sync_config&.dig("sync_all") || false,
+          sync_years: cred.sync_config&.dig("sync_years") || 3
+        }
+      }
+    end
+
+    render json: {
+      success: true,
+      data: {
+        total_emails: SyncedEmail.count,
+        total_mailboxes: SyncedEmailMailbox.select(:mailbox_owner_email).distinct.count,
+        organizations: organizations
+      }
     }
   end
 
@@ -1437,6 +1476,26 @@ class Api::V1::SyncedEmailsController < ApplicationController
     else
       render json: { success: false, error: "Email not accessible" }, status: :not_found
     end
+  end
+
+  # Helper for sync_dashboard - get stats for a single mailbox
+  def mailbox_stats_for_dashboard(credential_id, email)
+    appearances = SyncedEmailMailbox
+      .where(microsoft_credential_id: credential_id)
+      .where("LOWER(mailbox_owner_email) = ?", email.downcase)
+
+    email_ids = appearances.pluck(:synced_email_id)
+    emails_for_stats = SyncedEmail.where(id: email_ids)
+    last_received = emails_for_stats.maximum(:received_at)
+    last_synced = emails_for_stats.maximum(:updated_at)
+
+    {
+      email: email,
+      email_count: email_ids.count,
+      unread_count: appearances.unread.count,
+      last_email_received_at: last_received,
+      last_synced_at: last_synced
+    }
   end
 
   def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil, thread_counts_cache: nil, user_states_cache: nil, thread_emails: nil)
