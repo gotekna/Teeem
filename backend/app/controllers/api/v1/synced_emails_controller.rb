@@ -542,7 +542,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
         .select("LOWER(mailbox_owner_email) as email")
         .distinct
         .pluck("LOWER(mailbox_owner_email)")
-        .map { |email| mailbox_stats_for_dashboard(cred.id, email, :microsoft) }
+        .map { |email| mailbox_stats_for_dashboard(cred.id, email, :microsoft, credential_last_synced_at: cred.updated_at) }
         .sort_by { |m| -m[:email_count] }
 
       {
@@ -569,7 +569,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
         .select("LOWER(mailbox_owner_email) as email")
         .distinct
         .pluck("LOWER(mailbox_owner_email)")
-        .map { |email| mailbox_stats_for_dashboard(cred.id, email, :imap) }
+        .map { |email| mailbox_stats_for_dashboard(cred.id, email, :imap, credential_last_synced_at: cred.last_synced_at) }
         .sort_by { |m| -m[:email_count] }
 
       {
@@ -1539,7 +1539,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
   end
 
   # Helper for sync_dashboard - get stats for a single mailbox
-  def mailbox_stats_for_dashboard(credential_id, email, credential_type = :microsoft)
+  # FRC (Jan 2026): Added credential_last_synced_at parameter
+  # Root cause: Using SyncedEmail.updated_at showed when EMAIL was modified, not when SYNC ran.
+  # If no new emails arrive, the old date stays forever even though sync runs every 2 min.
+  def mailbox_stats_for_dashboard(credential_id, email, credential_type = :microsoft, credential_last_synced_at: nil)
     appearances = SyncedEmailMailbox.where("LOWER(mailbox_owner_email) = ?", email.downcase)
 
     case credential_type
@@ -1554,7 +1557,6 @@ class Api::V1::SyncedEmailsController < ApplicationController
     email_ids = appearances.pluck(:synced_email_id)
     emails_for_stats = SyncedEmail.where(id: email_ids)
     last_received = emails_for_stats.maximum(:received_at)
-    last_synced = emails_for_stats.maximum(:updated_at)
 
     # Attachment stats for this mailbox
     attachments = EmailAttachment.where(email_warehouse_id: email_ids)
@@ -1568,7 +1570,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       attachment_count: attachment_count,
       blob_count: blob_count,
       last_email_received_at: last_received,
-      last_synced_at: last_synced
+      last_synced_at: credential_last_synced_at  # Use credential's sync time, not email's updated_at
     }
   end
 
