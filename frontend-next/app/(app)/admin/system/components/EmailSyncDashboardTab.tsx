@@ -59,6 +59,7 @@ interface MailboxStats {
   unread_count: number;
   attachment_count: number;
   blob_count: number;
+  email_blob_count: number;
   last_email_received_at: string | null;
   last_synced_at: string | null;
 }
@@ -516,10 +517,34 @@ export function EmailSyncDashboardTab() {
                             </div>
                           </TableHead>
                           <TableHead className="text-right py-2 font-medium text-muted-foreground">
-                            <div className="flex items-center justify-end gap-1">
-                              <HardDrive className="h-4 w-4" />
-                              Blobs
-                            </div>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center justify-end gap-1 cursor-help">
+                                    <HardDrive className="h-4 w-4" />
+                                    Att Blobs
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Attachments uploaded to S3</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableHead>
+                          <TableHead className="text-right py-2 font-medium text-muted-foreground">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center justify-end gap-1 cursor-help">
+                                    <Mail className="h-4 w-4" />
+                                    Email Blobs
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Email bodies (.eml) uploaded to S3</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </TableHead>
                           <TableHead className="text-right py-2 font-medium text-muted-foreground">
                             <div className="flex items-center justify-end gap-1">
@@ -566,6 +591,15 @@ export function EmailSyncDashboardTab() {
                               {mailbox.blob_count > 0 ? (
                                 <span className={`font-mono ${mailbox.blob_count < mailbox.attachment_count ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400"}`}>
                                   {formatNumber(mailbox.blob_count)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">0</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-3 text-right">
+                              {mailbox.email_blob_count > 0 ? (
+                                <span className={`font-mono ${mailbox.email_blob_count < mailbox.email_count ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400"}`}>
+                                  {formatNumber(mailbox.email_blob_count)}
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground">0</span>
