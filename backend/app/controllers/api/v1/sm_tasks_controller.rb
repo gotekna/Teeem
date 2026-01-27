@@ -2710,6 +2710,7 @@ module Api
               body_preview: email.body_preview || email.body_text&.truncate(200),
               body_text: email.body_text, # Full plain text body
               body_html: email.body_html, # Full HTML body for quoted replies (preserves formatting)
+              mailbox_owner_email: email.mailbox_owner_email, # SSoT: Which mailbox this email belongs to (for sent detection)
               # SSoT: Download entire email as .eml file
               # Endpoint: GET /api/v1/synced_emails/:id/download_eml
               download_eml_url: "/api/v1/synced_emails/#{email.id}/download_eml",
