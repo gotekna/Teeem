@@ -1,7 +1,7 @@
 class Api::V1::ImapCredentialsController < ApplicationController
   include PresignedUploadHandler
 
-  before_action :set_credential, only: [:show, :update, :destroy, :sync, :toggle_sync_all, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
+  before_action :set_credential, only: [:show, :update, :destroy, :sync, :sync_status, :toggle_sync_all, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
 
   # GET /api/v1/imap_credentials
   # List user's IMAP accounts (owned + shared)
@@ -114,11 +114,33 @@ class Api::V1::ImapCredentialsController < ApplicationController
   def sync
     full_sync = params[:full_sync] == "true"
 
+    # Mark as syncing immediately so UI can show progress
+    @credential.update!(last_sync_status: "syncing", last_sync_error: nil)
+
     ImapSyncJob.perform_later(@credential.id, full_sync: full_sync)
 
     render json: {
       success: true,
-      message: "Sync started. New emails will appear shortly."
+      message: "Sync started. New emails will appear shortly.",
+      data: {
+        id: @credential.id,
+        sync_status: "syncing"
+      }
+    }
+  end
+
+  # GET /api/v1/imap_credentials/:id/sync_status
+  # Get current sync status for polling
+  def sync_status
+    render json: {
+      success: true,
+      data: {
+        id: @credential.id,
+        sync_status: @credential.last_sync_status,
+        sync_error: @credential.last_sync_error,
+        last_synced_at: @credential.last_synced_at,
+        email_count: SyncedEmailMailbox.where(imap_credential_id: @credential.id).count
+      }
     }
   end
 

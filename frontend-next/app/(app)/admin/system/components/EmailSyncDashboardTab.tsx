@@ -38,7 +38,17 @@ import {
   Database,
   HardDrive,
   Paperclip,
+  XCircle,
+  Loader2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 import { formatDistanceToNow, format } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
@@ -89,12 +99,39 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
+interface SyncProgress {
+  orgId: number;
+  orgName: string;
+  orgType: "microsoft" | "imap";
+  status: "syncing" | "success" | "error";
+  error?: string;
+  emailCount: number;
+  startTime: number;
+  completedInSeconds?: number;
+}
+
 export function EmailSyncDashboardTab() {
   const { toast } = useToast();
   const [data, setData] = useState<SyncDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedOrgs, setExpandedOrgs] = useState<Set<number>>(new Set());
   const [syncingOrgId, setSyncingOrgId] = useState<number | null>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // Update elapsed time every second when syncing
+  useEffect(() => {
+    if (!syncProgress || syncProgress.status !== "syncing") {
+      setElapsedSeconds(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - syncProgress.startTime) / 1000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [syncProgress?.status, syncProgress?.startTime]);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -121,7 +158,7 @@ export function EmailSyncDashboardTab() {
     fetchDashboard();
   }, [fetchDashboard]);
 
-  const handleSyncOrg = async (orgId: number, orgType: "microsoft" | "imap" | "orphaned") => {
+  const handleSyncOrg = async (orgId: number, orgType: "microsoft" | "imap" | "orphaned", orgName: string) => {
     if (orgType === "orphaned") {
       toast({
         title: "Cannot Sync",
@@ -130,6 +167,21 @@ export function EmailSyncDashboardTab() {
       });
       return;
     }
+
+    // Get current email count for this org
+    const org = data?.organizations.find(o => o.id === orgId);
+    const initialEmailCount = org?.total_emails || 0;
+
+    // Open progress dialog
+    setSyncProgress({
+      orgId,
+      orgName,
+      orgType: orgType as "microsoft" | "imap",
+      status: "syncing",
+      emailCount: initialEmailCount,
+      startTime: Date.now(),
+    });
+
     setSyncingOrgId(orgId);
     try {
       if (orgType === "imap") {
@@ -137,23 +189,68 @@ export function EmailSyncDashboardTab() {
       } else {
         await api.post(`/api/v1/microsoft_app/${orgId}/sync`, { full_sync: true });
       }
-      toast({
-        title: "Sync Started",
-        description: "Full email sync has been triggered. This may take a few minutes.",
-      });
-      // Refresh dashboard after a delay
-      setTimeout(fetchDashboard, 3000);
+      // Polling will update the status
     } catch (error) {
       console.error("Failed to trigger sync:", error);
-      toast({
-        title: "Error",
-        description: "Failed to trigger email sync",
-        variant: "destructive",
-      });
-    } finally {
+      setSyncProgress(prev => prev ? { ...prev, status: "error", error: "Failed to trigger sync" } : null);
       setSyncingOrgId(null);
     }
   };
+
+  // Poll sync status when syncing
+  useEffect(() => {
+    if (!syncProgress || syncProgress.status !== "syncing") return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        if (syncProgress.orgType === "imap") {
+          const response = await api.get<{
+            success: boolean;
+            data: {
+              sync_status: string;
+              sync_error: string | null;
+              email_count: number;
+            };
+          }>(`/api/v1/imap_credentials/${syncProgress.orgId}/sync_status`);
+
+          if (response.success) {
+            const { sync_status, sync_error, email_count } = response.data;
+
+            if (sync_status === "error") {
+              const completedTime = Math.floor((Date.now() - syncProgress.startTime) / 1000);
+              setSyncProgress(prev => prev ? { ...prev, status: "error", error: sync_error || "Unknown error", completedInSeconds: completedTime } : null);
+              setSyncingOrgId(null);
+              clearInterval(pollInterval);
+            } else if (sync_status === "idle" || sync_status === "success") {
+              const completedTime = Math.floor((Date.now() - syncProgress.startTime) / 1000);
+              setSyncProgress(prev => prev ? { ...prev, status: "success", emailCount: email_count, completedInSeconds: completedTime } : null);
+              setSyncingOrgId(null);
+              clearInterval(pollInterval);
+              // Refresh dashboard
+              setTimeout(fetchDashboard, 1000);
+            } else {
+              // Still syncing, update email count
+              setSyncProgress(prev => prev ? { ...prev, emailCount: email_count } : null);
+            }
+          }
+        } else {
+          // For MS365, we don't have a status endpoint yet, so just refresh after 30 seconds
+          const elapsed = Date.now() - syncProgress.startTime;
+          if (elapsed > 30000) {
+            const completedTime = Math.floor(elapsed / 1000);
+            setSyncProgress(prev => prev ? { ...prev, status: "success", completedInSeconds: completedTime } : null);
+            setSyncingOrgId(null);
+            clearInterval(pollInterval);
+            fetchDashboard();
+          }
+        }
+      } catch (error) {
+        console.error("Failed to poll sync status:", error);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [syncProgress?.orgId, syncProgress?.status, syncProgress?.orgType, syncProgress?.startTime, fetchDashboard]);
 
   const toggleOrgExpand = (orgId: number) => {
     setExpandedOrgs(prev => {
@@ -365,7 +462,7 @@ export function EmailSyncDashboardTab() {
                             variant="outline"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleSyncOrg(org.id, org.type);
+                              handleSyncOrg(org.id, org.type, org.name);
                             }}
                             disabled={syncingOrgId === org.id}
                           >
@@ -529,6 +626,108 @@ export function EmailSyncDashboardTab() {
           Refresh Dashboard
         </Button>
       </div>
+
+      {/* Sync Progress Dialog */}
+      <Dialog open={syncProgress !== null} onOpenChange={(open) => !open && syncProgress?.status !== "syncing" && setSyncProgress(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {syncProgress?.status === "syncing" ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                  Syncing Emails
+                </>
+              ) : syncProgress?.status === "success" ? (
+                <>
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  Sync Complete
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-5 w-5 text-red-500" />
+                  Sync Failed
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {syncProgress?.orgName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {syncProgress?.status === "syncing" && (
+              <>
+                <div className="flex items-center justify-center">
+                  <div className="relative">
+                    <div className="h-20 w-20 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                      <Mail className="h-10 w-10 text-blue-500 animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Fetching emails from server...
+                  </p>
+                  <p className="text-lg font-semibold">
+                    {formatNumber(syncProgress.emailCount)} emails
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Elapsed: {elapsedSeconds}s</span>
+                    <span>~{Math.max(1, Math.ceil(syncProgress.emailCount / 500))} min estimated</span>
+                  </div>
+                  <Progress value={undefined} className="h-2" />
+                </div>
+
+                <p className="text-xs text-center text-muted-foreground">
+                  This dialog will update automatically. You can close it and the sync will continue in the background.
+                </p>
+              </>
+            )}
+
+            {syncProgress?.status === "success" && (
+              <div className="text-center space-y-4">
+                <div className="h-20 w-20 mx-auto rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <CheckCircle className="h-10 w-10 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-lg font-semibold">
+                    {formatNumber(syncProgress.emailCount)} emails synced
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Completed in {syncProgress.completedInSeconds || 0} seconds
+                  </p>
+                </div>
+                <Button onClick={() => setSyncProgress(null)}>
+                  Close
+                </Button>
+              </div>
+            )}
+
+            {syncProgress?.status === "error" && (
+              <div className="text-center space-y-4">
+                <div className="h-20 w-20 mx-auto rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                  <XCircle className="h-10 w-10 text-red-500" />
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-red-600 dark:text-red-400">
+                    Sync Failed
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {syncProgress.error || "An unknown error occurred"}
+                  </p>
+                </div>
+                <Button onClick={() => setSyncProgress(null)} variant="outline">
+                  Close
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

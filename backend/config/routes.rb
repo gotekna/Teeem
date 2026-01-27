@@ -1511,6 +1511,7 @@ Rails.application.routes.draw do
         end
         member do
           post :sync
+          get :sync_status  # Poll sync progress
           put :toggle_sync_all  # Toggle sync_all setting (Jan 2026: sync all historical emails)
           get :reveal_password
           post :create_folder
