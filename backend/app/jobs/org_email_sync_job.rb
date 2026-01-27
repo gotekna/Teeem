@@ -271,10 +271,13 @@ class OrgEmailSyncJob < ApplicationJob
       end
     end
 
-    # Find or create - use internet_message_id as unique identifier
-    # Each email is stored once globally, regardless of which mailbox synced it
+    # Find or create - unique per (internet_message_id, mailbox_owner_email)
+    # ⚠️ FRC (Jan 2026): Same email can exist in multiple mailboxes (e.g., To: both James and Andrew)
+    # Each mailbox gets its own record so users see their own emails.
+    # This fixes: "email shows for James but not Andrew" when both are recipients.
     email = SyncedEmail.find_or_initialize_by(
-      internet_message_id: internet_message_id
+      internet_message_id: internet_message_id,
+      mailbox_owner_email: owner_email
     )
 
     # Extract recipients
