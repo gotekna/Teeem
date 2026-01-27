@@ -92,6 +92,26 @@ module Api
           end
         end
 
+        # N+1 fix: Preload storage_blob for CorporateCompanyDocument attachables
+        # Ultra fix (Jan 2026): Needed for storage_key in attachment_to_json
+        doc_ids = tasks_to_render.flat_map do |task|
+          task.sm_task_attachments
+              .select { |a| a.attachable_type == "CorporateCompanyDocument" }
+              .map(&:attachable_id)
+        end.uniq
+        if doc_ids.any?
+          preloaded_docs = CorporateCompanyDocument.where(id: doc_ids)
+                                                   .includes(:storage_blob)
+                                                   .index_by(&:id)
+          tasks_to_render.each do |task|
+            task.sm_task_attachments.each do |att|
+              if att.attachable_type == "CorporateCompanyDocument" && preloaded_docs[att.attachable_id]
+                att.attachable = preloaded_docs[att.attachable_id]
+              end
+            end
+          end
+        end
+
         render json: {
           success: true,
           tasks: tasks_to_render.map { |task| task_to_json_with_job(task) },
@@ -180,6 +200,21 @@ module Api
 
       # GET /api/v1/sm_tasks/:id
       def show
+        # N+1 fix: Preload storage_blob for document attachables (for storage_key in attachment_to_json)
+        doc_ids = @task.sm_task_attachments
+                       .select { |a| a.attachable_type == "CorporateCompanyDocument" }
+                       .map(&:attachable_id)
+        if doc_ids.any?
+          preloaded_docs = CorporateCompanyDocument.where(id: doc_ids)
+                                                   .includes(:storage_blob)
+                                                   .index_by(&:id)
+          @task.sm_task_attachments.each do |att|
+            if att.attachable_type == "CorporateCompanyDocument" && preloaded_docs[att.attachable_id]
+              att.attachable = preloaded_docs[att.attachable_id]
+            end
+          end
+        end
+
         render json: {
           success: true,
           sm_task: task_to_json(@task, include_dependencies: true)

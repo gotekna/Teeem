@@ -352,7 +352,7 @@ export function ComposeEmailModal({
       setScheduledDate(undefined);
       setScheduledTime("09:00");
     }
-  }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments]);
+  }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments, initialExistingStorageKeys]);
 
 
   // Generate signature when account is selected and user/company data is available
