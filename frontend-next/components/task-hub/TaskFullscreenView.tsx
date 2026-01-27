@@ -4013,6 +4013,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       }
     }
 
+    // Add Teeem marketing footer
+    body += '\n<p style="font-size: 11px; color: #999; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px;">Sent using <a href="https://www.teeem.com.au" style="color: #666;">Teeem</a> - Project Management Made Simple</p>\n';
+
     // Include original email as quoted reply if enabled
     if (includeOriginalEmail && originalEmailData) {
       const fromName = originalEmailData.from_name || originalEmailData.from_email || 'Unknown';

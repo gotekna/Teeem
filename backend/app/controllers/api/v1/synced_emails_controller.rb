@@ -136,13 +136,17 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Filter by folder name or ID (e.g., "Sent Items", "Inbox", etc.)
     # SSoT: Use in_folder scope for case-insensitive matching (Gmail=INBOX, Outlook=Inbox, etc.)
-    if params[:folder_id].present?
-      emails = emails.in_folder(params[:folder_id])
-    end
-    if params[:folder_name].present?
-      Rails.logger.info "[SyncedEmail] Filtering by folder_name: #{params[:folder_name].inspect}"
-      emails = emails.in_folder(params[:folder_name])
-      Rails.logger.info "[SyncedEmail] After folder filter, count: #{emails.count}"
+    # NOTE: For MS365 with microsoft_credential_id, folder filtering is handled in the
+    # mailbox_appearances join block below (folder_name is per-mailbox in join table)
+    if params[:microsoft_credential_id].blank?
+      if params[:folder_id].present?
+        emails = emails.in_folder(params[:folder_id])
+      end
+      if params[:folder_name].present?
+        Rails.logger.info "[SyncedEmail] Filtering by folder_name: #{params[:folder_name].inspect}"
+        emails = emails.in_folder(params[:folder_name])
+        Rails.logger.info "[SyncedEmail] After folder filter, count: #{emails.count}"
+      end
     end
 
     # Filter by direction (sent, received, cc, bcc)
@@ -194,12 +198,36 @@ class Api::V1::SyncedEmailsController < ApplicationController
               .where(synced_emails: { microsoft_credential_id: params[:microsoft_credential_id] })
               .where("LOWER(synced_email_mailboxes.mailbox_owner_email) = LOWER(?)", params[:mailbox])
               .distinct
+
+            # Ultra Email Architecture: folder_name is now per-mailbox in join table
+            # Apply folder filter on join table, not main table
+            if params[:folder_name].present?
+              # Handle Sent folder variations (Sent, Sent Items, [Gmail]/Sent Mail)
+              sent_variants = %w[sent sent\ items [gmail]/sent\ mail]
+              folder_lower = params[:folder_name].to_s.downcase
+              if sent_variants.include?(folder_lower)
+                emails = emails.where("LOWER(synced_email_mailboxes.folder_name) IN (?)", sent_variants)
+              else
+                emails = emails.where("LOWER(synced_email_mailboxes.folder_name) = LOWER(?)", params[:folder_name])
+              end
+            end
           else
             # All user's mailboxes - use join table for mailbox, main table for credential
             emails = emails.joins(:mailbox_appearances)
               .where(synced_emails: { microsoft_credential_id: params[:microsoft_credential_id] })
               .where("LOWER(synced_email_mailboxes.mailbox_owner_email) IN (?)", user_mailboxes.map(&:downcase))
               .distinct
+
+            # Ultra Email Architecture: folder_name is now per-mailbox in join table
+            if params[:folder_name].present?
+              sent_variants = %w[sent sent\ items [gmail]/sent\ mail]
+              folder_lower = params[:folder_name].to_s.downcase
+              if sent_variants.include?(folder_lower)
+                emails = emails.where("LOWER(synced_email_mailboxes.folder_name) IN (?)", sent_variants)
+              else
+                emails = emails.where("LOWER(synced_email_mailboxes.folder_name) = LOWER(?)", params[:folder_name])
+              end
+            end
           end
         else
           # User has no access to this credential's mailboxes
