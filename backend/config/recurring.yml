@@ -322,12 +322,12 @@ imap_email_sync:
 # Upload synced emails to Wasabi storage (self-healing)
 # FRC (Jan 2026): Auto-recovers from queue DB connection failures
 # Auto-discovers all tenants with pending emails (no manual tenant_id needed)
-# Runs hourly with small batch to avoid memory issues
+# Runs every 15 mins with batch_size 250 (~1000+/hour with auto-continue)
 email_storage_upload:
   class: UploadEmailsToStorageJob
   queue: low
-  args: [{ batch_size: 100 }]
-  schedule: every hour at minute 20
+  args: [{ batch_size: 250 }]
+  schedule: every 15 minutes
 
 # Wake up snoozed emails that have reached their snooze time
 # Runs every 5 minutes (was: 1 minute - caused queue congestion)
