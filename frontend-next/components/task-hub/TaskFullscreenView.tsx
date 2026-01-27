@@ -235,14 +235,14 @@ function getEmailSenderDisplay(email: TaskAttachmentEmail | undefined): string {
 }
 
 // Helper to check if email is a sent/internal email
-// Emails from our organization should never show as "unread" - they're internal
-function isSentEmail(email: TaskAttachmentEmail | undefined): boolean {
+// Emails sent FROM any of our mailboxes should never show as "unread"
+function isSentEmail(email: TaskAttachmentEmail | undefined, ourMailboxes: Set<string>): boolean {
   if (!email) return false;
   // No from_email = sent email (MS Graph doesn't include 'from' for sent items)
   if (!email.from_email && !!email.to_emails && email.to_emails.length > 0) return true;
-  // from_email from our organization = internal email (never unread)
+  // from_email matches one of our mailboxes = internal email (never unread)
   const fromEmail = email.from_email?.toLowerCase() || '';
-  if (fromEmail.includes('@tekna.') || fromEmail.includes('@teeem.')) return true;
+  if (fromEmail && ourMailboxes.has(fromEmail)) return true;
   return false;
 }
 
@@ -1413,8 +1413,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   };
 
   const matchedEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Matched')).length;
-  // FRC: Sent emails (no from_email OR from current user) should never count as "unread" - you wrote them
-  const unreadEmailCount = allEmailAttachments.filter(att => att.email?.is_read === false && !isSentEmail(att.email)).length;
+
+  // Collect all our mailbox emails (mailbox_owner_email) - works for any org/tenant
+  const ourMailboxes = useMemo(() => {
+    const mailboxes = new Set<string>();
+    allEmailAttachments.forEach(att => {
+      if (att.email?.mailbox_owner_email) {
+        mailboxes.add(att.email.mailbox_owner_email.toLowerCase());
+      }
+    });
+    return mailboxes;
+  }, [allEmailAttachments]);
+
+  // FRC: Emails FROM our mailboxes should never count as "unread" - they're internal
+  const unreadEmailCount = allEmailAttachments.filter(att => att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)).length;
   const threadEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Thread:')).length;
 
   // Calculate unique senders from attached emails with counts
@@ -6421,7 +6433,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         <span>{monthLabel}</span>
                                         <span className="ml-auto flex items-center gap-1.5">
                                           {(() => {
-                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email)).length;
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email, ourMailboxes)).length;
                                             return unreadInMonth > 0 ? (
                                               <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
                                             ) : null;
@@ -6445,7 +6457,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               className={cn(
                                                 "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
                                                 selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
-                                                att.email?.is_read === false && !isSentEmail(att.email) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
+                                                att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                               )}
                                               onClick={() => {
                                                 if (att.email) {
@@ -6461,9 +6473,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               }}
                                               title="Click to view, double-click to open in new tab"
                                             >
-                                              <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                              <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
                                               <div className="flex-1 min-w-0">
-                                                <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
+                                                <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                                 <div className="text-muted-foreground truncate flex items-center gap-2">
                                                   <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
                                                   {att.email?.received_at && (
@@ -6651,7 +6663,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         <span>{monthLabel}</span>
                                         <span className="ml-auto flex items-center gap-1.5">
                                           {(() => {
-                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email)).length;
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email, ourMailboxes)).length;
                                             return unreadInMonth > 0 ? (
                                               <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
                                             ) : null;
@@ -6673,7 +6685,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         className={cn(
                                           "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
                                           selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
-                                          att.email?.is_read === false && !isSentEmail(att.email) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
+                                          att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                         )}
                                         onClick={() => {
                                           if (att.email) {
@@ -6689,9 +6701,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         title="Click to view, double-click to open in new tab"
                                       >
-                                        <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                        <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
                                         <div className="flex-1 min-w-0">
-                                          <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
+                                          <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                           <div className="text-muted-foreground truncate flex items-center gap-2">
                                             <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
                                             {att.email?.received_at && (
@@ -6792,7 +6804,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         <span>{monthLabel}</span>
                                         <span className="ml-auto flex items-center gap-1.5">
                                           {(() => {
-                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email)).length;
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email, ourMailboxes)).length;
                                             return unreadInMonth > 0 ? (
                                               <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
                                             ) : null;
@@ -6814,7 +6826,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         className={cn(
                                           "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
                                           selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
-                                          att.email?.is_read === false && !isSentEmail(att.email) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
+                                          att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes) && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                         )}
                                         onClick={() => {
                                           if (att.email) {
@@ -6830,9 +6842,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         title="Click to view, double-click to open in new tab"
                                       >
-                                        <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                        <Mail className={cn("h-3 w-3 shrink-0", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
                                         <div className="flex-1 min-w-0">
-                                          <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
+                                          <div className={cn("truncate", (att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)) ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                           <div className="text-muted-foreground truncate flex items-center gap-2">
                                             <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
                                             {att.email?.received_at && (

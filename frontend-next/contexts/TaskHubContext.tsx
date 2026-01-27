@@ -27,6 +27,7 @@ export interface TaskAttachmentEmail {
   body_html?: string; // Full HTML body (preserves formatting)
   attachment_content_hashes?: string[]; // Content hashes of email file attachments for linking to documents
   download_eml_url?: string; // SSoT: API endpoint to download email as .eml file
+  mailbox_owner_email?: string; // The mailbox this email belongs to (for sent detection)
 }
 
 export interface TaskAttachmentDocument {
