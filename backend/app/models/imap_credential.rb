@@ -128,17 +128,25 @@ class ImapCredential < ApplicationRecord
   end
 
   # Mark sync as failed
+  # FRC (Jan 2026): Track attempt time separately from success time
+  # - last_synced_at = last SUCCESSFUL sync (unchanged on error)
+  # - updated_at = last attempt (used for error retry rate limiting)
   def mark_sync_error!(error_message)
     update!(
-      last_synced_at: Time.current,
       last_sync_status: "error",
       last_sync_error: error_message
+      # Note: updated_at auto-updates, used for retry rate limiting
     )
   end
 
   # Check if sync is due
+  # FRC (Jan 2026): Always retry errors, but rate-limit to 5 min to avoid hammering
   def sync_due?
     return true if last_synced_at.nil?
+    # Error state: use updated_at (last attempt) for rate limiting, not last_synced_at
+    if last_sync_status == "error"
+      return updated_at < 5.minutes.ago
+    end
     last_synced_at < sync_interval_minutes.minutes.ago
   end
 
