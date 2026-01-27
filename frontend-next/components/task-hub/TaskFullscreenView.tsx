@@ -1309,7 +1309,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   // Collapsible sections - all collapsed by default for cleaner initial view
   const [emailsCollapsed, setEmailsCollapsed] = useState(true);
-  const [documentsCollapsed, setDocumentsCollapsed] = useState(true);
+  const [documentsCollapsed, setDocumentsCollapsed] = useState(false); // Show documents expanded by default
   const [responseFilesCollapsed, setResponseFilesCollapsed] = useState(true);
   const [emailSourceCollapsed, setEmailSourceCollapsed] = useState(true); // Start collapsed
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
@@ -1567,6 +1567,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments, currentUser]);
 
   // Find the original email data for quoted reply
+  // SSoT: Must use same filtering as originalEmailSender to ensure TO address and greeting match
   const originalEmailData = useMemo(() => {
     // If we have forwarded email info, try to find the actual email record
     if (forwardedEmailInfo?.from_name) {
@@ -1594,9 +1595,24 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       };
     }
 
-    const findOldestEmail = (emails: typeof allEmailAttachments) => {
+    // SSoT: Filter to external senders only (same logic as originalEmailSender)
+    // This ensures the greeting name matches the TO address
+    const currentUserEmail = currentUser?.email?.toLowerCase() || '';
+    const isExternalSender = (email: { from_email?: string } | null | undefined): boolean => {
+      const fromEmail = email?.from_email?.toLowerCase() || '';
+      return fromEmail &&
+             fromEmail !== currentUserEmail &&
+             !fromEmail.includes('@teeem.') &&
+             !fromEmail.includes('@tekna.');
+    };
+
+    const findOldestExternalEmail = (emails: typeof allEmailAttachments) => {
       if (emails.length === 0) return null;
-      const sorted = [...emails].sort((a, b) => {
+      // Filter to external senders first
+      const externalEmails = emails.filter(att => isExternalSender(att.email));
+      if (externalEmails.length === 0) return null;
+      // Sort by received_at ascending (oldest first)
+      const sorted = [...externalEmails].sort((a, b) => {
         const dateA = a.email?.received_at ? new Date(a.email.received_at).getTime() : 0;
         const dateB = b.email?.received_at ? new Date(b.email.received_at).getTime() : 0;
         return dateA - dateB;
@@ -1604,17 +1620,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return sorted[0]?.email || null;
     };
 
-    // Try thread emails first
-    const threadEmail = findOldestEmail(categorizedEmails.thread);
+    // Try thread emails first (external senders only)
+    const threadEmail = findOldestExternalEmail(categorizedEmails.thread);
     if (threadEmail) return threadEmail;
 
-    // Then matched
-    const matchedEmail = findOldestEmail(categorizedEmails.matched);
+    // Then matched (external senders only)
+    const matchedEmail = findOldestExternalEmail(categorizedEmails.matched);
     if (matchedEmail) return matchedEmail;
 
-    // Finally linked
-    return findOldestEmail(categorizedEmails.linked);
-  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments]);
+    // Finally linked (external senders only)
+    return findOldestExternalEmail(categorizedEmails.linked);
+  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments, currentUser]);
 
   // Collect CC recipients from the original email's To and CC fields
   // Excludes the sender (goes in To) and current user's email
@@ -4087,9 +4103,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     body += '\n<br><br>\n';
     body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
     body += '<td style="vertical-align: middle; padding-right: 8px;">';
-    // Teeem logo as inline SVG data URI (black background, white serif "t")
-    const teeemLogoSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72"><rect width="72" height="72" rx="10" fill="%23000000"/><text x="50%25" y="55%25" dominant-baseline="middle" text-anchor="middle" font-family="Georgia,serif" font-weight="bold" font-size="36" fill="%23ffffff">t</text></svg>`;
-    body += `<a href="https://www.teeem.com.au" style="text-decoration: none; display: flex; align-items: center;"><img src="data:image/svg+xml,${teeemLogoSvg}" alt="Teeem" style="width: 32px; height: 32px; border-radius: 6px; vertical-align: middle;"><span style="font-family: Georgia, serif; font-size: 18px; color: #333; margin-left: 6px;">teeem</span></a>`;
+    // Teeem logo - use hosted PNG (email clients block SVG data URIs)
+    const teeemLogoUrl = 'https://teeem.vercel.app/icons/icon-72x72.png';
+    body += `<a href="https://www.teeem.com.au" style="text-decoration: none; display: inline-block;"><img src="${teeemLogoUrl}" alt="Teeem" style="width: 32px; height: 32px; border-radius: 6px; vertical-align: middle;"><span style="font-family: Georgia, serif; font-size: 18px; color: #333; margin-left: 6px; vertical-align: middle;">teeem</span></a>`;
     body += '</td>';
     body += '<td style="vertical-align: middle; padding-left: 12px;">';
     body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
@@ -5797,7 +5813,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   <span className="text-xs font-medium whitespace-nowrap">Attachments</span>
                 </div>
                 <div className="p-2">
-                  <Badge variant="secondary" className="text-xs px-1.5 py-0">{allEmailAttachments.length + infoAttachments.length + responseAttachments.length}</Badge>
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0">{allEmailAttachments.length + documentAttachments.length}</Badge>
                 </div>
               </div>
             ) : (
@@ -6915,7 +6931,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               )}
             </div>
 
-            {/* Documents Section (Info attachments) */}
+            {/* Documents Section (All document attachments) */}
             <div className="rounded-lg border overflow-hidden">
               <div className="flex items-center gap-2 p-2 border-b">
                 <div
@@ -6925,7 +6941,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   {documentsCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                   <FileText className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium text-muted-foreground">Documents</span>
-                  <Badge variant="secondary" className="text-xs">{infoAttachments.length}</Badge>
+                  <Badge variant="secondary" className="text-xs">{documentAttachments.length}</Badge>
                 </div>
                 {/* Bulk actions when documents selected */}
                 {selectedDocIds.size > 0 && (
@@ -6955,17 +6971,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
               {!documentsCollapsed && (
                 <div className="border rounded-md">
-                  {infoAttachments.length > 0 ? (
+                  {documentAttachments.length > 0 ? (
                     <div className="divide-y">
                       {/* Select all checkbox */}
                       <div className="flex items-center gap-2 p-2 bg-muted/30 text-xs border-b">
                         <input
                           type="checkbox"
                           className="h-3 w-3 rounded border-border"
-                          checked={infoAttachments.length > 0 && infoAttachments.every(a => selectedDocIds.has(a.id))}
+                          checked={documentAttachments.length > 0 && documentAttachments.every(a => selectedDocIds.has(a.id))}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              selectAllDocs(infoAttachments.map(a => a.id));
+                              selectAllDocs(documentAttachments.map(a => a.id));
                             } else {
                               clearDocSelection();
                             }
@@ -6973,7 +6989,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         />
                         <span className="text-muted-foreground">Select all</span>
                       </div>
-                      {infoAttachments.map((att) => (
+                      {documentAttachments.map((att) => (
                         <div
                           key={att.id}
                           className={cn(
