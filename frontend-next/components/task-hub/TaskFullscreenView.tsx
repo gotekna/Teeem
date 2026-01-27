@@ -3981,6 +3981,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       body += `<p>For your convenience, you can download all ${totalDocuments} files in a single ZIP archive:</p>\n`;
       body += `<p>📦 <a href="${downloadUrl}"><strong>Download All Files (ZIP)</strong></a></p>\n`;
       body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
+    } else if (totalDocuments === 1) {
+      // Single document still needs expiration warning (links expire same as ZIP)
+      const expiryDays = downloadAllExpiryDaysRef.current;
+      body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
     }
 
     // Add closing line (with blank line before for visual separation)

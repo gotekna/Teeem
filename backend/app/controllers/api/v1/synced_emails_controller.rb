@@ -186,16 +186,18 @@ class Api::V1::SyncedEmailsController < ApplicationController
         if user_mailboxes.any?
           # Ultra Email Architecture: Filter via mailbox_appearances join table
           # This allows emails sent to multiple recipients to be seen by all of them
+          # NOTE: Filter credential on synced_emails (always populated), not join table
+          # (join table microsoft_credential_id may be NULL from migration LEFT JOIN)
           if params[:mailbox].present? && user_mailboxes.map(&:downcase).include?(params[:mailbox].downcase)
-            # Specific mailbox requested - use join table
+            # Specific mailbox requested - use join table for mailbox, main table for credential
             emails = emails.joins(:mailbox_appearances)
-              .where(synced_email_mailboxes: { microsoft_credential_id: params[:microsoft_credential_id] })
+              .where(synced_emails: { microsoft_credential_id: params[:microsoft_credential_id] })
               .where("LOWER(synced_email_mailboxes.mailbox_owner_email) = LOWER(?)", params[:mailbox])
               .distinct
           else
-            # All user's mailboxes - use join table
+            # All user's mailboxes - use join table for mailbox, main table for credential
             emails = emails.joins(:mailbox_appearances)
-              .where(synced_email_mailboxes: { microsoft_credential_id: params[:microsoft_credential_id] })
+              .where(synced_emails: { microsoft_credential_id: params[:microsoft_credential_id] })
               .where("LOWER(synced_email_mailboxes.mailbox_owner_email) IN (?)", user_mailboxes.map(&:downcase))
               .distinct
           end
