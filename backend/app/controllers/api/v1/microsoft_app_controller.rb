@@ -502,7 +502,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
     # FRC (Jan 2026): Auto-derive user_emails from all accessible mailboxes
     # If ANY user has access to a mailbox, it should be synced automatically
     # This fixes the bug where granting access didn't enable syncing
-    all_accessible_mailboxes = user_mailbox_access.values.flatten.uniq.sort
+    # FRC (Jan 2026): Add .compact to handle nil values (frontend may send nil instead of [])
+    all_accessible_mailboxes = user_mailbox_access.values.flatten.compact.uniq.sort
 
     # Merge with existing sync_config, updating BOTH user_mailbox_access AND user_emails
     existing_config = credential.sync_config || {}
