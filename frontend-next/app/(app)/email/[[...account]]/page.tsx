@@ -1155,6 +1155,11 @@ export default function EmailPage() {
         params.append("folder_name", folderToUse);
       }
 
+      // FRC (Jan 2026): Show all individual emails, not just latest in thread
+      // This prevents confusion where an email appears "missing" because a reply exists
+      // Users can still see threads by clicking on an email to expand its conversation
+      params.append("latest_only", "false");
+
       const url = `/api/v1/synced_emails?${params.toString()}`;
       const response = await api.get<{ emails: Email[]; pagination: Pagination }>(url);
 
