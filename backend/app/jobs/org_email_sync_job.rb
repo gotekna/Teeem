@@ -271,14 +271,11 @@ class OrgEmailSyncJob < ApplicationJob
       end
     end
 
-    # Find or create - unique per (internet_message_id, mailbox_owner_email)
-    # ⚠️ FRC (Jan 2026): Same email can exist in multiple mailboxes (e.g., To: both James and Andrew)
-    # Each mailbox gets its own record so users see their own emails.
-    # This fixes: "email shows for James but not Andrew" when both are recipients.
-    email = SyncedEmail.find_or_initialize_by(
-      internet_message_id: internet_message_id,
-      mailbox_owner_email: owner_email
-    )
+    # Ultra Email Architecture: Store email content ONCE, link to multiple mailboxes
+    # ⚠️ FRC (Jan 2026): Same email can appear in multiple mailboxes (e.g., To: both James and Andrew)
+    # Solution: Store content once via internet_message_id, track mailbox appearances separately.
+    # This fixes: "email shows for James but not Andrew" - both get linked to the SAME email record.
+    email = SyncedEmail.find_or_initialize_by(internet_message_id: internet_message_id)
 
     # Extract recipients
     to_emails = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
@@ -302,31 +299,43 @@ class OrgEmailSyncJob < ApplicationJob
     received_at = email_data["receivedDateTime"] || email_data["createdDateTime"]
     is_draft = email_data["isDraft"] || (folder_name == "Drafts")
 
+    # Ultra Email Architecture: Only update content fields if new record or content is blank
+    # Don't overwrite existing content from another mailbox sync
+    if email.new_record? || email.subject.blank?
+      email.assign_attributes(
+        subject: email_data["subject"],
+        from_email: from_data["address"],
+        from_name: from_data["name"],
+        to_emails: to_emails,
+        cc_emails: cc_emails,
+        received_at: received_at,
+        sent_at: email_data["sentDateTime"],
+        has_attachments: email_data["hasAttachments"] || false,
+        body_preview: email_data["bodyPreview"],
+        body_text: body_text,
+        body_html: body_html,
+        conversation_id: email_data["conversationId"],
+        importance: email_data["importance"],
+        in_reply_to: email_data["inReplyTo"],
+        references: email_data["references"],
+        microsoft_credential_id: @credential&.id,  # Track which org this email came from
+        # SSoT: Multi-tenancy - set tenant_id from credential's organization
+        # This ensures emails are isolated per tenant and don't leak across orgs
+        tenant_id: @credential&.organization&.tenant_id
+      )
+    end
+
+    # Always update sync tracking and backward-compat fields
     email.assign_attributes(
-      outlook_id: email_data["id"],
-      subject: email_data["subject"],
-      from_email: from_data["address"],
-      from_name: from_data["name"],
-      to_emails: to_emails,
-      cc_emails: cc_emails,
-      received_at: received_at,
-      sent_at: email_data["sentDateTime"],
-      has_attachments: email_data["hasAttachments"] || false,
-      body_preview: email_data["bodyPreview"],
-      body_text: body_text,
-      body_html: body_html,
-      conversation_id: email_data["conversationId"],
-      folder_name: folder_name,
-      is_read: email_data["isRead"] || false,
-      importance: email_data["importance"],
-      in_reply_to: email_data["inReplyTo"],
-      references: email_data["references"],
       last_synced_at: Time.current,
-      microsoft_credential_id: @credential&.id,  # Track which org this email came from
-      mailbox_owner_email: owner_email,  # Track which mailbox this email came from (for fetching attachments)
-      # SSoT: Multi-tenancy - set tenant_id from credential's organization
-      # This ensures emails are isolated per tenant and don't leak across orgs
-      tenant_id: @credential&.organization&.tenant_id
+      # Backward compatibility: Keep mailbox_owner_email (first mailbox to sync wins)
+      # SSoT: Use mailbox_appearances for multi-mailbox support
+      mailbox_owner_email: email.mailbox_owner_email || owner_email,
+      # Keep outlook_id for backward compat (per-mailbox outlook_id is in mailbox_appearances)
+      outlook_id: email.outlook_id || email_data["id"],
+      # folder_name is per-mailbox, but keep for backward compat
+      folder_name: email.folder_name || folder_name,
+      is_read: email.is_read.nil? ? (email_data["isRead"] || false) : email.is_read
     )
 
     # Set first_synced_at if new record
@@ -341,6 +350,16 @@ class OrgEmailSyncJob < ApplicationJob
 
     is_new_record = email.new_record?
     email.save!
+
+    # Ultra Email Architecture: Create/update mailbox appearance (per-mailbox tracking)
+    # This links the email to the current mailbox with its specific outlook_id, folder, and read status
+    email.ensure_mailbox_appearance(
+      mailbox_email: owner_email,
+      outlook_id: email_data["id"],
+      folder_name: folder_name,
+      is_read: email_data["isRead"] || false,
+      microsoft_credential_id: @credential&.id
+    )
 
     # Build recipient links (to Users and Contacts)
     if email.persisted?
