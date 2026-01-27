@@ -1323,6 +1323,7 @@ Rails.application.routes.draw do
         member do
           put :user_mailbox_access, action: :update_user_mailbox_access
           put :toggle_sync_all
+          post :sync  # Trigger full email sync for this organization
         end
       end
 

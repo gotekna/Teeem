@@ -386,14 +386,21 @@ class OrgEmailSyncJob < ApplicationJob
 
     # Ultra Email Architecture: Create/update mailbox appearance (per-mailbox tracking)
     # This links the email to the current mailbox with its specific outlook_id, folder, and read status
-    email.ensure_mailbox_appearance(
-      mailbox_email: owner_email,
-      outlook_id: email_data["id"],
-      folder_name: folder_name,
-      # FRC (Jan 2026): Sent emails are always "read" - you wrote them!
-      is_read: folder_name == "Sent Items" ? true : (email_data["isRead"] || false),
-      microsoft_credential_id: @credential&.id
-    )
+    # ⚠️ FRC (Jan 2026): MUST have error handling - if this fails, email exists but isn't linked to mailbox!
+    begin
+      email.ensure_mailbox_appearance(
+        mailbox_email: owner_email,
+        outlook_id: email_data["id"],
+        folder_name: folder_name,
+        # FRC (Jan 2026): Sent emails are always "read" - you wrote them!
+        is_read: folder_name == "Sent Items" ? true : (email_data["isRead"] || false),
+        microsoft_credential_id: @credential&.id
+      )
+    rescue StandardError => e
+      Rails.logger.error "[OrgEmailSync] Failed to create mailbox appearance for email #{email.id} in #{owner_email}: #{e.message}"
+      # Re-raise to ensure the sync knows this email wasn't fully processed
+      raise
+    end
 
     # Build recipient links (to Users and Contacts)
     if email.persisted?
