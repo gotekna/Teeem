@@ -4105,17 +4105,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
     body += '<td style="vertical-align: middle; padding-right: 8px;">';
     // Teeem logos - actual file sizes match display sizes (TipTap ignores CSS sizing)
-    // Main: 28px (matches app header), Inline: 12px (matches 10px text)
+    // Main: 28px (matches app header), Inline: 10px (matches 10px text exactly)
     const teeemLogoUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-28.png';
-    const teeemLogoSmallUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-dark-small.png';
+    const teeemLogoSmallUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-10.png';
     body += `<img src="${teeemLogoUrl}" alt="t" style="vertical-align:middle;">`;
-    // "teeem" text proportional to 28px logo (matches app header ratio)
-    body += `<span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;color:#18181b;margin-left:6px;vertical-align:middle;">teeem</span>`;
+    // "teeem" text: Georgia serif (closest to Hedvig), normal weight, proportional to 28px logo
+    body += `<span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:normal;color:#18181b;margin-left:6px;vertical-align:middle;">teeem</span>`;
     body += '</td>';
     body += '<td style="vertical-align: middle; padding-left: 12px;">';
     body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
     body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
-    body += `<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <img src="${teeemLogoSmallUrl}" alt="t" style="vertical-align:middle;margin-right:2px;"><span style="font-family:Georgia,'Times New Roman',serif;font-size:10px;color:#18181b;vertical-align:middle;">teeem</span> <a href="https://www.teeem.com.au" style="font-size:10px;color:#666;margin-left:4px;">teeem.com.au</a></p>`;
+    body += `<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <img src="${teeemLogoSmallUrl}" alt="t" style="vertical-align:middle;margin-right:2px;"><span style="font-family:Georgia,'Times New Roman',serif;font-size:10px;font-weight:normal;color:#18181b;vertical-align:middle;">teeem</span> <a href="https://www.teeem.com.au" style="font-size:10px;color:#666;margin-left:4px;">teeem.com.au</a></p>`;
     body += '</td>';
     body += '</tr></table>\n';
 
