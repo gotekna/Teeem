@@ -774,6 +774,7 @@ module Api
           # Email bodies (SyncedEmail) - SSoT: Total from SyncedEmail, not WarehouseDocument
           # This shows the REAL total of emails in the system that need to be synced
           email_body_total = SyncedEmail.count
+          email_body_unfetchable = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%").count
           email_body_scope = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail")
           email_body_linked = email_body_scope.count
           email_body_with_blob = email_body_scope.where.not(storage_blob_id: nil).count
@@ -785,7 +786,8 @@ module Api
               total: email_body_total,
               with_blob: email_body_linked,  # "LINKED" = has WarehouseDocument
               with_file: email_body_with_file,
-              without_blob: email_body_total - email_body_linked,
+              without_blob: email_body_total - email_body_linked - email_body_unfetchable,
+              unfetchable: email_body_unfetchable,  # Emails from deleted mailboxes
               storage_rate: ((email_body_linked.to_f / email_body_total) * 100).round(1),
               file_rate: ((email_body_with_file.to_f / email_body_total) * 100).round(1)
             }
@@ -912,12 +914,24 @@ module Api
           total_bytes = StorageBlob.sum(:file_size) || 0
           blobs_path = StorageBlob.where("storage_path LIKE 'Blobs/%'").count
           emails_path = StorageBlob.where("storage_path LIKE 'Emails/%'").count
+
+          # Deduplication stats (attachments save most storage)
+          total_refs = StorageBlob.sum(:reference_count)
+          dupes_avoided = total_refs - total_blobs
+          # Estimate bytes saved: avg file size * dupes avoided
+          avg_size = total_blobs > 0 ? (total_bytes.to_f / total_blobs) : 0
+          bytes_saved = (avg_size * dupes_avoided).to_i
+
           {
             total_blobs: total_blobs,
             total_bytes: total_bytes,
             blobs_format: blobs_path,
             legacy_format: emails_path,
-            migration_rate: total_blobs > 0 ? ((blobs_path.to_f / total_blobs) * 100).round(1) : 0
+            migration_rate: total_blobs > 0 ? ((blobs_path.to_f / total_blobs) * 100).round(1) : 0,
+            # Deduplication
+            total_references: total_refs,
+            duplicates_avoided: dupes_avoided,
+            bytes_saved: bytes_saved
           }
         else
           { total_blobs: 0, total_bytes: 0, blobs_format: 0, legacy_format: 0, migration_rate: 0 }

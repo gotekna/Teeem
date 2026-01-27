@@ -44,7 +44,9 @@ class UploadEmailsToStorageJob < ApplicationJob
       Rails.logger.info "[UploadEmailsToStorageJob] Completed: uploaded=#{result[:uploaded]}, skipped=#{result[:skipped]}, errors=#{result[:errors]&.count || 0}"
 
       # Auto-continue: queue next batch if there are more emails to process
-      if batch_size.present? && result[:uploaded].to_i > 0
+      # FRC (Jan 2026): Must continue even if uploaded=0 (e.g., all skipped due to expired tokens)
+      # Otherwise sync stops silently when credentials expire mid-batch
+      if batch_size.present? && (result[:uploaded].to_i > 0 || result[:skipped].to_i > 0)
         remaining = SyncedEmail.where(storage_path: nil).count
         if remaining > 0
           Rails.logger.info "[UploadEmailsToStorageJob] #{remaining} emails remaining, queuing next batch in 5 seconds..."
