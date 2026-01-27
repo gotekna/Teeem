@@ -70,22 +70,30 @@ class StorageBlob < ApplicationRecord
   # Returns existing blob if content_hash matches, otherwise creates new
   def self.find_or_create_for_content!(content, filename: nil, content_type: nil)
     hash = compute_hash(content)
+    was_new = false
 
-    find_or_create_by!(content_hash: hash) do |blob|
-      blob.file_size = content.bytesize
-      blob.original_filename = filename
+    blob = find_or_create_by!(content_hash: hash) do |b|
+      was_new = true
+      b.file_size = content.bytesize
+      b.original_filename = filename
       # Guard: Ensure content_type is correct, especially for PDFs
       # Curl uploads often send wrong content_type (octet-stream)
-      blob.content_type = ensure_correct_content_type(
+      b.content_type = ensure_correct_content_type(
         content_type || detect_content_type(content, filename),
         filename
       )
-      blob.storage_path = generate_storage_path(hash, filename)
-      blob.reference_count = 0
+      b.storage_path = generate_storage_path(hash, filename)
+      b.reference_count = 0
 
       # Upload to storage provider
-      upload_to_storage!(blob, content)
+      upload_to_storage!(b, content)
     end
+
+    # FRC (Jan 2026): Mark as verified after successful upload
+    # This enables "HAS FILE" tracking in Data Warehouse
+    blob.mark_verified! if was_new && blob.verified_at.nil?
+
+    blob
   end
 
   # Compute SHA256 hash of content
