@@ -1135,6 +1135,13 @@ export default function EmailPage() {
             // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
             const parts = selectedAccount.split("_");
             params.append("microsoft_credential_id", parts[1]);
+            // FRC (Jan 2026): MUST also filter by mailbox_owner_email when user has access
+            // to multiple mailboxes in the same MS365 org (e.g., robert@ AND james@)
+            // Without this, emails from ALL accessible mailboxes are returned
+            const ms365Account = accounts.find(a => String(a.id) === selectedAccount);
+            if (ms365Account?.email_address) {
+              params.append("mailbox_owner_email", ms365Account.email_address);
+            }
           } else {
             params.append("imap_credential_id", selectedAccount);
           }
@@ -1176,7 +1183,7 @@ export default function EmailPage() {
         setLoading(false);
       }
     }
-  }, [toURLParams, selectedAccount, selectedFolder, historicalMailbox]);
+  }, [toURLParams, selectedAccount, selectedFolder, historicalMailbox, accounts]);
 
   // Performance: Infinite scroll - auto-load more emails when scrolling near bottom
   // Use refs to store latest state to avoid effect re-running on every state change

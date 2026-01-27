@@ -669,7 +669,7 @@ function OrganizationCard({
   healthInfo?: OrgHealthInfo;
 }) {
   const { confirm } = useConfirm();
-  const [open, setOpen] = React.useState(org.status === "connected" || org.status === "pending");
+  const [open, setOpen] = React.useState(org.status === "connected" || org.status === "pending" || org.status === "error");
   const [testing, setTesting] = React.useState(false);
   const [testingSharePoint, setTestingSharePoint] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
@@ -1084,11 +1084,23 @@ function OrganizationCard({
             )}
 
             {org.status === "error" && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Connection Error</AlertTitle>
-                <AlertDescription>{org.last_error || "Unknown error"}</AlertDescription>
-              </Alert>
+              <>
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Connection Error</AlertTitle>
+                  <AlertDescription>{org.last_error || "Unknown error"}</AlertDescription>
+                </Alert>
+                <div className="flex items-center gap-2">
+                  <Button variant="default" size="sm" onClick={handleRetryConsent} disabled={retrying}>
+                    {retrying ? <Spinner size={16} className="mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                    Reconnect
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={handleDisconnect} disabled={disconnecting}>
+                    {disconnecting ? <Spinner size={16} className="mr-1" /> : <XCircle className="h-4 w-4 mr-1" />}
+                    Remove
+                  </Button>
+                </div>
+              </>
             )}
           </CardContent>
           </AccordionContent>
