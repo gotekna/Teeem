@@ -460,13 +460,16 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
       # Get current user-mailbox access configuration
       user_mailbox_access = org.sync_config&.dig("user_mailbox_access") || {}
+      # Get sync_all setting (Jan 2026: Option B - sync all tenant mailboxes)
+      sync_all = org.sync_config&.dig("sync_all") || false
 
       {
         id: org.id,
         name: org.name,
         status: org.status,
         mailboxes: mailboxes,
-        user_mailbox_access: user_mailbox_access
+        user_mailbox_access: user_mailbox_access,
+        sync_all: sync_all
       }
     end
 
@@ -479,6 +482,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
   # PUT /api/v1/microsoft_app/:organization_id/user_mailbox_access
   # Configure which TEEEM users can access which mailboxes
+  # FRC (Jan 2026): Also auto-updates user_emails to sync all accessible mailboxes
   def update_user_mailbox_access
     unless current_user_admin?
       return render json: { error: "Only admins can configure mailbox access" }, status: :forbidden
@@ -495,14 +499,63 @@ class Api::V1::MicrosoftAppController < ApplicationController
     # Keys are TEEEM user IDs, values are arrays of allowed mailbox emails
     user_mailbox_access = params[:user_mailbox_access] || {}
 
-    # Merge with existing sync_config
-    new_sync_config = (credential.sync_config || {}).merge("user_mailbox_access" => user_mailbox_access)
+    # FRC (Jan 2026): Auto-derive user_emails from all accessible mailboxes
+    # If ANY user has access to a mailbox, it should be synced automatically
+    # This fixes the bug where granting access didn't enable syncing
+    all_accessible_mailboxes = user_mailbox_access.values.flatten.uniq.sort
+
+    # Merge with existing sync_config, updating BOTH user_mailbox_access AND user_emails
+    existing_config = credential.sync_config || {}
+    new_sync_config = existing_config.merge(
+      "user_mailbox_access" => user_mailbox_access,
+      "user_emails" => all_accessible_mailboxes
+    )
     credential.update!(sync_config: new_sync_config)
+
+    # Trigger incremental sync to pick up any new mailboxes
+    if all_accessible_mailboxes.any?
+      OrgEmailSyncJob.perform_later("incremental", credential_id: credential.id)
+    end
 
     render json: {
       success: true,
-      message: "Mailbox access configuration saved for #{credential.name}",
-      user_mailbox_access: user_mailbox_access
+      message: "Mailbox access configuration saved for #{credential.name}. Syncing #{all_accessible_mailboxes.count} mailbox(es).",
+      user_mailbox_access: user_mailbox_access,
+      user_emails: all_accessible_mailboxes
+    }
+  end
+
+  # PUT /api/v1/microsoft_app/:id/toggle_sync_all
+  # Toggle sync_all setting for an organization (Jan 2026: Option B - sync all tenant mailboxes)
+  # When enabled, OrgEmailSyncJob will sync ALL mailboxes from the tenant
+  def toggle_sync_all
+    unless current_user_admin?
+      return render json: { error: "Only admins can toggle sync settings" }, status: :forbidden
+    end
+
+    credential = MicrosoftCredential.find_by(id: params[:id])
+    unless credential
+      return render json: { error: "Organization not found" }, status: :not_found
+    end
+
+    sync_all = ActiveModel::Type::Boolean.new.cast(params[:sync_all])
+
+    # Update sync_config with new sync_all value
+    existing_config = credential.sync_config || {}
+    new_sync_config = existing_config.merge("sync_all" => sync_all)
+    credential.update!(sync_config: new_sync_config)
+
+    # If enabling sync_all, trigger a sync immediately
+    if sync_all
+      OrgEmailSyncJob.perform_later("incremental", credential_id: credential.id)
+    end
+
+    render json: {
+      success: true,
+      sync_all: sync_all,
+      message: sync_all ?
+        "Sync All enabled for #{credential.name}. All tenant mailboxes will be synced." :
+        "Sync All disabled for #{credential.name}. Only configured mailboxes will be synced."
     }
   end
 
