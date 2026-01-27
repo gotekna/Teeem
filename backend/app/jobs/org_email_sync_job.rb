@@ -593,7 +593,8 @@ class OrgEmailSyncJob < ApplicationJob
   end
 
   # Find an admin user for applying rules when no specific user is matched
+  # SSoT: Use user_roles join table (user.role column was removed in Dec 2025)
   def find_org_admin_user
-    @org_admin_user ||= User.where(role: "admin").first
+    @org_admin_user ||= User.with_role("admin").first
   end
 end

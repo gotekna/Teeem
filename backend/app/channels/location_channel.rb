@@ -20,7 +20,8 @@
 class LocationChannel < ApplicationCable::Channel
   def subscribed
     # Only supervisors, managers, and admins can view live locations
-    unless current_user&.admin? || current_user&.role.in?(%w[supervisor manager])
+    # SSoT: Use has_role? (user.role column was removed, roles are now in user_roles table)
+    unless current_user&.admin? || current_user&.has_role?('supervisor') || current_user&.has_role?('manager')
       reject
       return
     end
