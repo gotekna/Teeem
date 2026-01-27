@@ -130,8 +130,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Filter by mailbox_owner_email (for Warehouse links to historical mailboxes)
     # This allows filtering by mailbox even if it's not a connected account
+    # FRC (Jan 2026): Must use table prefix - synced_email_mailboxes also has this column
+    # and we join to it later when microsoft_credential_id is present
     if params[:mailbox_owner_email].present?
-      emails = emails.where("LOWER(mailbox_owner_email) = LOWER(?)", params[:mailbox_owner_email])
+      emails = emails.where("LOWER(synced_emails.mailbox_owner_email) = LOWER(?)", params[:mailbox_owner_email])
     end
 
     # Filter by folder name or ID (e.g., "Sent Items", "Inbox", etc.)
