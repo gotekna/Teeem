@@ -69,6 +69,7 @@ interface ImapCredential {
   smtp_port: number;
   sync_interval_minutes: number;
   is_active: boolean;
+  sync_all: boolean; // Jan 2026: Sync all historical emails
   last_synced_at: string | null;
   last_sync_status: string | null;
   last_sync_error: string | null;
@@ -564,6 +565,7 @@ export function EmailAccountsTab() {
   const [showPassword, setShowPassword] = useState(false);
   const [syncingId, setSyncingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [togglingSyncAllId, setTogglingSyncAllId] = useState<number | null>(null);
   // Sharing state
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [sharingCredential, setSharingCredential] = useState<ImapCredential | null>(null);
@@ -682,6 +684,40 @@ export function EmailAccountsTab() {
       console.error("Failed to trigger sync:", error);
     } finally {
       setSyncingId(null);
+    }
+  };
+
+  // Toggle sync_all for IMAP credential (Jan 2026: sync all historical emails)
+  const toggleImapSyncAll = async (id: number, newValue: boolean) => {
+    setTogglingSyncAllId(id);
+    // Optimistically update UI
+    setCredentials(prev =>
+      prev.map(c => c.id === id ? { ...c, sync_all: newValue } : c)
+    );
+
+    try {
+      await api.put(`/api/v1/imap_credentials/${id}/toggle_sync_all`, {
+        sync_all: newValue
+      });
+      toast({
+        title: newValue ? "Sync All Enabled" : "Sync All Disabled",
+        description: newValue
+          ? "All historical emails will now be synced"
+          : "Only recent emails will be synced",
+      });
+    } catch (error) {
+      console.error("Failed to toggle sync_all:", error);
+      // Revert optimistic update on error
+      setCredentials(prev =>
+        prev.map(c => c.id === id ? { ...c, sync_all: !newValue } : c)
+      );
+      toast({
+        title: "Error",
+        description: "Failed to update sync setting",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingSyncAllId(null);
     }
   };
 
@@ -1029,13 +1065,29 @@ export function EmailAccountsTab() {
                       <CardDescription>{cred.email_address}</CardDescription>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <Badge variant={cred.is_active ? "default" : "secondary"}>
                       {cred.is_active ? "Active" : "Inactive"}
                     </Badge>
                     {cred.provider && (
                       <Badge variant="outline">{cred.provider}</Badge>
                     )}
+                    {/* Sync All toggle (Jan 2026: sync all historical emails) */}
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50">
+                      <Label
+                        htmlFor={`imap-sync-all-${cred.id}`}
+                        className="text-xs font-medium cursor-pointer"
+                        title="When enabled, all historical emails will be synced"
+                      >
+                        Sync All
+                      </Label>
+                      <Switch
+                        id={`imap-sync-all-${cred.id}`}
+                        checked={cred.sync_all || false}
+                        onCheckedChange={(checked) => toggleImapSyncAll(cred.id, checked)}
+                        disabled={togglingSyncAllId === cred.id}
+                      />
+                    </div>
                   </div>
                 </div>
               </CardHeader>
