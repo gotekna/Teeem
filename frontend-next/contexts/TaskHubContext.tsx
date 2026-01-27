@@ -38,6 +38,11 @@ export interface TaskAttachmentDocument {
   storage_url?: string; // SSoT: Provider-agnostic download URL from StorableDocument
   file_url?: string; // For ActiveStorage files (when not in external storage)
   has_storage?: boolean; // SSoT: Can create share links (storage_blob, storage_path, or storage_reference)
+  // SSoT: Storage key for email attachments (Ultra fix Jan 2026)
+  // Pass directly to send_email API to avoid re-download and re-upload
+  storage_key?: string;
+  content_type?: string;
+  file_size?: number;
   created_at: string;
   content_hash?: string; // For matching with email attachment hashes
 }

@@ -2746,6 +2746,11 @@ module Api
               # SSoT: has_storage = can create share links (storage_blob, storage_path, or storage_reference)
               # Used by frontend to show Link option even if storage_url is nil (legacy SharePoint docs)
               has_storage: doc.storage_blob.present? || doc.storage_path.present? || doc.has_storage_reference?,
+              # SSoT: storage_key for email attachments - pass directly to send_email API to avoid re-upload
+              # Ultra fix (Jan 2026): Files already in storage don't need to be downloaded and re-uploaded
+              storage_key: doc.storage_blob&.storage_path,
+              content_type: doc.storage_blob&.content_type,
+              file_size: doc.storage_blob&.file_size,
               created_at: doc.created_at,
               content_hash: doc.content_hash
             }
