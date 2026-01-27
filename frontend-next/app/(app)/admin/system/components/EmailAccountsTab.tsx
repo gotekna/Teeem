@@ -29,6 +29,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Mail,
   Plus,
   Trash2,
@@ -138,6 +144,28 @@ function MS365MailboxAccessConfig() {
   const [localAccess, setLocalAccess] = useState<Record<number, Record<string, string[]>>>({});
   const [syncAllState, setSyncAllState] = useState<Record<number, boolean>>({});
   const [togglingSyncAll, setTogglingSyncAll] = useState<number | null>(null);
+  const [syncingOrgId, setSyncingOrgId] = useState<number | null>(null);
+
+  // Trigger a full sync for an MS365 organization
+  const handleSyncOrg = async (orgId: number) => {
+    setSyncingOrgId(orgId);
+    try {
+      await api.post(`/api/v1/microsoft_app/${orgId}/sync`, { full_sync: true });
+      toast({
+        title: "Sync Started",
+        description: "Full email sync has been triggered. This may take a few minutes.",
+      });
+    } catch (error) {
+      console.error("Failed to trigger sync:", error);
+      toast({
+        title: "Error",
+        description: "Failed to trigger email sync",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingOrgId(null);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -319,6 +347,27 @@ function MS365MailboxAccessConfig() {
                     disabled={togglingSyncAll === org.id}
                   />
                 </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSyncOrg(org.id)}
+                        disabled={syncingOrgId === org.id}
+                      >
+                        <RefreshCw
+                          className={`h-4 w-4 mr-1 ${syncingOrgId === org.id ? "animate-spin" : ""}`}
+                        />
+                        Sync
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Trigger a full sync of all configured mailboxes</p>
+                      <p className="text-xs text-muted-foreground">This may take several minutes for large mailboxes</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <Button
                   size="sm"
                   onClick={() => saveOrgAccess(org.id)}
@@ -1145,17 +1194,27 @@ export function EmailAccountsTab() {
                       <Pencil className="h-4 w-4 mr-1" />
                       Edit
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSync(cred.id)}
-                      disabled={syncingId === cred.id}
-                    >
-                      <RefreshCw
-                        className={`h-4 w-4 mr-1 ${syncingId === cred.id ? "animate-spin" : ""}`}
-                      />
-                      Sync
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSync(cred.id)}
+                            disabled={syncingId === cred.id}
+                          >
+                            <RefreshCw
+                              className={`h-4 w-4 mr-1 ${syncingId === cred.id ? "animate-spin" : ""}`}
+                            />
+                            Sync
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Sync recent emails (incremental)</p>
+                          <p className="text-xs text-muted-foreground">Enable &quot;Sync All&quot; toggle above for full historical sync</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <Button
                       variant="ghost"
                       size="sm"

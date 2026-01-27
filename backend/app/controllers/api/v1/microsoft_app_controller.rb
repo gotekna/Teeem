@@ -560,6 +560,29 @@ class Api::V1::MicrosoftAppController < ApplicationController
     }
   end
 
+  # POST /api/v1/microsoft_app/:id/sync
+  # Trigger a full email sync for this organization
+  def sync
+    unless current_user_admin?
+      return render json: { error: "Only admins can trigger syncs" }, status: :forbidden
+    end
+
+    credential = MicrosoftCredential.find_by(id: params[:id])
+    unless credential
+      return render json: { error: "Organization not found" }, status: :not_found
+    end
+
+    full_sync = params[:full_sync] == true || params[:full_sync] == "true"
+    sync_type = full_sync ? "full" : "incremental"
+
+    OrgEmailSyncJob.perform_later(sync_type, credential_id: credential.id)
+
+    render json: {
+      success: true,
+      message: "#{sync_type.titleize} email sync started for #{credential.name}. This may take several minutes."
+    }
+  end
+
   # DELETE /api/v1/microsoft_app/disconnect
   # Remove the organization-wide Microsoft access for a specific org
   def disconnect
