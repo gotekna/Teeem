@@ -1569,6 +1569,9 @@ class Api::V1::SyncedEmailsController < ApplicationController
       documentable_id: email_ids
     ).count
 
+    # Count emails marked as content_unavailable (permanently unobtainable from Microsoft)
+    content_unavailable_count = emails_for_stats.where(content_unavailable: true).count
+
     {
       email: email,
       email_count: email_ids.count,
@@ -1576,6 +1579,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       attachment_count: attachment_count,
       blob_count: blob_count,
       email_blob_count: email_blob_count,
+      content_unavailable_count: content_unavailable_count,
       last_email_received_at: last_received,
       last_synced_at: credential_last_synced_at  # Use credential's sync time, not email's updated_at
     }

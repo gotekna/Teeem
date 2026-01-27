@@ -28,6 +28,9 @@ export interface TaskAttachmentEmail {
   attachment_content_hashes?: string[]; // Content hashes of email file attachments for linking to documents
   download_eml_url?: string; // SSoT: API endpoint to download email as .eml file
   mailbox_owner_email?: string; // The mailbox this email belongs to (for sent detection)
+  // SSoT: Storage key for emails already stored (Ultra fix Jan 2026)
+  // Pass directly to send_email API to avoid re-download and re-upload
+  eml_storage_key?: string;
 }
 
 export interface TaskAttachmentDocument {

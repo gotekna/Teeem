@@ -51,12 +51,14 @@ class EmailStorageUploadService
     # Find emails that need uploading
     # Must have outlook_id (to fetch from Graph API) and mailbox_owner_email (to know which mailbox)
     # Check both storage_path (new) and storage_email_path (legacy) columns
+    # Exclude emails marked as content_unavailable (content cannot be retrieved from Microsoft)
     # Order by ID to ensure consistent ordering across batches
     emails = SyncedEmail
       .where(storage_path: [nil, ""])
       .where(storage_email_path: [nil, ""])
       .where.not(outlook_id: [nil, ""])
       .where.not(mailbox_owner_email: [nil, ""])
+      .where(content_unavailable: false)  # SSoT: Skip permanently unavailable emails
       .order(:id)
 
     emails = emails.limit(batch_size) if batch_size.present?
@@ -266,10 +268,46 @@ class EmailStorageUploadService
     increment_uploaded!
     @progress&.increment!(success: true)
   rescue StandardError => e
-    add_error!(email_id: email_id, error: e.message)
-    @progress&.increment!(success: false, error: "Email #{email_id}: #{e.message}")
-    Rails.logger.error "[EmailUpload] Error uploading email #{email_id}: #{e.class} - #{e.message}"
-    Rails.logger.error e.backtrace.first(3).join("\n")
+    error_message = e.message
+
+    # SSoT: Detect permanent Microsoft Graph errors (content cannot be retrieved)
+    # These errors indicate the email or mailbox no longer exists in Microsoft 365
+    permanent_error_patterns = [
+      /ErrorItemNotFound/i,           # Email deleted from O365
+      /ErrorInvalidUser/i,            # User account removed
+      /MailboxNotEnabledForRESTAPI/i, # Mailbox disabled/soft-deleted
+      /ErrorMailboxNotFound/i,        # Mailbox doesn't exist
+      /ResourceNotFound/i,            # Resource (email/user) not found
+      /MailboxMoveInProgress/i,       # Mailbox being migrated (retry later won't help if done)
+    ]
+
+    if permanent_error_patterns.any? { |pattern| error_message.match?(pattern) }
+      # Mark as permanently unavailable to stop future retry attempts
+      mark_email_content_unavailable!(email, error_message)
+      Rails.logger.warn "[EmailUpload] Email #{email_id} marked as content_unavailable: #{error_message}"
+    else
+      # Transient error - will be retried on next batch
+      add_error!(email_id: email_id, error: error_message)
+      Rails.logger.error "[EmailUpload] Error uploading email #{email_id}: #{e.class} - #{error_message}"
+      Rails.logger.error e.backtrace.first(3).join("\n")
+    end
+
+    @progress&.increment!(success: false, error: "Email #{email_id}: #{error_message}")
+  end
+
+  # Mark email as permanently unavailable (content cannot be retrieved from Microsoft)
+  # Uses update_columns to bypass validations (duplicates may exist)
+  def mark_email_content_unavailable!(email, reason)
+    return unless email
+
+    # Extract the error code from the message (e.g., "ErrorItemNotFound" from "...ErrorItemNotFound...")
+    error_code = reason.match(/(Error\w+|MailboxNotEnabledForRESTAPI|ResourceNotFound)/i)&.[](1) || "Unknown"
+
+    email.update_columns(
+      content_unavailable: true,
+      content_unavailable_reason: error_code
+    )
+    increment_skipped!  # Count as skipped, not error (won't be retried)
   end
 
   # SSoT: Get credential for an email

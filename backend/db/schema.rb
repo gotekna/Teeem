@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_27_141310) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_27_234713) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9493,10 +9493,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_27_141310) do
     t.string "storage_file_id"
     t.bigint "email_mailbox_id"
     t.bigint "tenant_id"
+    t.boolean "content_unavailable", default: false, null: false
+    t.string "content_unavailable_reason"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
     t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
+    t.index ["content_unavailable"], name: "index_synced_emails_on_content_unavailable", where: "(content_unavailable = true)"
     t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
     t.index ["direction"], name: "index_synced_emails_on_direction"
     t.index ["email_mailbox_id"], name: "index_synced_emails_on_email_mailbox_id"

@@ -36,9 +36,11 @@ class UploadEmailsToStorageJob < ApplicationJob
 
   def process_all_tenants(batch_size:)
     # Find tenants that have emails needing sync (unscoped to see all tenants)
+    # Exclude emails marked as content_unavailable (permanently unobtainable from Microsoft)
     tenant_ids_with_pending = SyncedEmail.unscoped
       .where(storage_path: [nil, ""])
       .where.not(outlook_id: [nil, ""])
+      .where(content_unavailable: false)
       .distinct
       .pluck(:tenant_id)
       .compact
