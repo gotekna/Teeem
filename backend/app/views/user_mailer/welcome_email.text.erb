@@ -9,7 +9,7 @@ Your Login Credentials:
 -----------------------
 Email: <%= @user.email %>
 Temporary Password: <%= @temp_password %>
-Role: <%= @user.role.titleize %>
+Role: <%= @user.role_names.map(&:titleize).join(', ').presence || 'User' %>
 
 IMPORTANT: Please change your password after your first login for security.
 

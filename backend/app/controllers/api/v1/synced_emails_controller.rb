@@ -1357,8 +1357,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
     else
       EmailUserState.find_by(synced_email_id: email.id, user_id: current_user.id)
     end
-    # Default to unread if no state exists (new emails are unread)
-    is_read = user_state&.is_read || false
+    # FRC (Jan 2026): If user has a state, use it. Otherwise fall back to the email's
+    # read status from O365/IMAP. Previously defaulted to false, which showed emails
+    # that were read in O365 as unread in TEEEM (wrong blue dots).
+    is_read = user_state ? user_state.is_read : email.is_read
 
     json = {
       id: email.id,

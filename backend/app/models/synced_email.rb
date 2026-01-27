@@ -32,8 +32,8 @@ class SyncedEmail < ApplicationRecord
   belongs_to :email_mailbox, optional: true
 
   # SSoT associations
-  has_many :email_recipients, dependent: :destroy
-  # Note: email_attachments uses email_warehouse_id FK (historical naming - email_warehouse was renamed to synced_email)
+  # Note: All these associations use email_warehouse_id FK (historical naming - email_warehouse was renamed to synced_email)
+  has_many :email_recipients, foreign_key: :email_warehouse_id, dependent: :destroy
   has_many :email_attachments, foreign_key: :email_warehouse_id, dependent: :destroy
   has_many :attachments, through: :email_attachments
 
