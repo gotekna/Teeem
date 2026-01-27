@@ -4100,12 +4100,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
 
     // Add Teeem marketing footer with spacing, logo, and TEEEM meaning
-    // NOTE: Using SVG for dark "t" logo matching app header branding
+    // NOTE: Using PNG for dark "t" logo matching app header branding (better email client compatibility than SVG)
     body += '\n<br><br>\n';
     body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
     body += '<td style="vertical-align: middle; padding-right: 8px;">';
     // Teeem logo - dark square with "t" matching app header (image must be OUTSIDE anchor for TipTap)
-    const teeemLogoUrl = 'https://teeem.vercel.app/icons/teeem-logo-dark.svg';
+    const teeemLogoUrl = 'https://teeem.vercel.app/icons/teeem-logo-dark.png';
     body += `<img src="${teeemLogoUrl}" alt="t" style="width: 28px; height: 28px; vertical-align: middle;">`;
     // "teeem" text matches app header: serif font, bold weight
     body += `<a href="https://www.teeem.com.au" style="text-decoration: none; font-family: Georgia, serif; font-size: 18px; font-weight: bold; color: #18181b; margin-left: 6px; vertical-align: middle;">teeem</a>`;
