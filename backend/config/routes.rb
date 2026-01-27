@@ -1322,6 +1322,7 @@ Rails.application.routes.draw do
         end
         member do
           put :user_mailbox_access, action: :update_user_mailbox_access
+          put :toggle_sync_all
         end
       end
 

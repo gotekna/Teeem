@@ -27,6 +27,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Mail,
   Plus,
@@ -111,6 +112,7 @@ interface MS365Organization {
   status: string;
   mailboxes: string[];
   user_mailbox_access: Record<string, string[]>; // user_id -> mailbox emails
+  sync_all: boolean; // Jan 2026: Option B - sync ALL tenant mailboxes
 }
 
 interface TeeemUser {
@@ -133,6 +135,8 @@ function MS365MailboxAccessConfig() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<number | null>(null);
   const [localAccess, setLocalAccess] = useState<Record<number, Record<string, string[]>>>({});
+  const [syncAllState, setSyncAllState] = useState<Record<number, boolean>>({});
+  const [togglingSyncAll, setTogglingSyncAll] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -149,10 +153,13 @@ function MS365MailboxAccessConfig() {
 
         // Initialize local access state from server data
         const initialAccess: Record<number, Record<string, string[]>> = {};
+        const initialSyncAll: Record<number, boolean> = {};
         response.organizations.forEach(org => {
           initialAccess[org.id] = org.user_mailbox_access || {};
+          initialSyncAll[org.id] = org.sync_all || false;
         });
         setLocalAccess(initialAccess);
+        setSyncAllState(initialSyncAll);
       }
     } catch (error) {
       console.error("Failed to fetch MS365 organizations:", error);
@@ -201,6 +208,36 @@ function MS365MailboxAccessConfig() {
       });
     } finally {
       setSaving(null);
+    }
+  };
+
+  // Toggle sync_all setting for an organization
+  const toggleSyncAll = async (orgId: number, newValue: boolean) => {
+    setTogglingSyncAll(orgId);
+    // Optimistically update UI
+    setSyncAllState(prev => ({ ...prev, [orgId]: newValue }));
+
+    try {
+      await api.put(`/api/v1/microsoft_app/${orgId}/toggle_sync_all`, {
+        sync_all: newValue
+      });
+      toast({
+        title: newValue ? "Sync All Enabled" : "Sync All Disabled",
+        description: newValue
+          ? "All tenant mailboxes will now be synced automatically"
+          : "Only configured mailboxes will be synced",
+      });
+    } catch (error) {
+      console.error("Failed to toggle sync_all:", error);
+      // Revert optimistic update on error
+      setSyncAllState(prev => ({ ...prev, [orgId]: !newValue }));
+      toast({
+        title: "Error",
+        description: "Failed to update sync setting",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingSyncAll(null);
     }
   };
 
@@ -254,7 +291,7 @@ function MS365MailboxAccessConfig() {
                   </CardDescription>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Badge variant={org.status === "connected" ? "default" : "secondary"}>
                   {org.status === "connected" ? (
                     <>
@@ -265,6 +302,22 @@ function MS365MailboxAccessConfig() {
                     org.status
                   )}
                 </Badge>
+                {/* Sync All toggle (Jan 2026: Option B - sync all tenant mailboxes) */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50">
+                  <Label
+                    htmlFor={`sync-all-${org.id}`}
+                    className="text-xs font-medium cursor-pointer"
+                    title="When enabled, all mailboxes from this tenant will be synced automatically"
+                  >
+                    Sync All
+                  </Label>
+                  <Switch
+                    id={`sync-all-${org.id}`}
+                    checked={syncAllState[org.id] || false}
+                    onCheckedChange={(checked) => toggleSyncAll(org.id, checked)}
+                    disabled={togglingSyncAll === org.id}
+                  />
+                </div>
                 <Button
                   size="sm"
                   onClick={() => saveOrgAccess(org.id)}
