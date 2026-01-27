@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_27_135101) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_27_141310) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9423,6 +9423,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_27_135101) do
     t.bigint "microsoft_credential_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "imap_credential_id"
+    t.bigint "uid"
+    t.index ["imap_credential_id", "mailbox_owner_email"], name: "idx_email_mailbox_imap_credential"
+    t.index ["imap_credential_id"], name: "index_synced_email_mailboxes_on_imap_credential_id"
     t.index ["mailbox_owner_email", "is_read"], name: "idx_email_mailbox_unread"
     t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_mailbox_credential"
     t.index ["microsoft_credential_id", "outlook_id"], name: "idx_email_mailbox_outlook_id"
@@ -11553,6 +11557,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_27_135101) do
   add_foreign_key "sync_file_states", "desktop_clients"
   add_foreign_key "sync_file_states", "sync_subscriptions"
   add_foreign_key "sync_subscriptions", "desktop_clients"
+  add_foreign_key "synced_email_mailboxes", "imap_credentials"
   add_foreign_key "synced_email_mailboxes", "microsoft_credentials"
   add_foreign_key "synced_email_mailboxes", "synced_emails"
   add_foreign_key "synced_emails", "email_mailboxes"
