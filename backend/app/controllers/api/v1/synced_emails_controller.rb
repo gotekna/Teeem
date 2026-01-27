@@ -1559,14 +1559,14 @@ class Api::V1::SyncedEmailsController < ApplicationController
     # Attachment stats for this mailbox
     attachments = EmailAttachment.where(email_warehouse_id: email_ids)
     attachment_count = attachments.count
-    has_blob = attachments.where.not(storage_blob_id: nil).exists?
+    blob_count = attachments.where.not(storage_blob_id: nil).count
 
     {
       email: email,
       email_count: email_ids.count,
       unread_count: appearances.unread.count,
       attachment_count: attachment_count,
-      has_blob: has_blob,
+      blob_count: blob_count,
       last_email_received_at: last_received,
       last_synced_at: last_synced
     }

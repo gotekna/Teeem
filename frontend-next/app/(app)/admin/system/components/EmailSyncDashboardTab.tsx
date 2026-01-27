@@ -48,7 +48,7 @@ interface MailboxStats {
   email_count: number;
   unread_count: number;
   attachment_count: number;
-  has_blob: boolean;
+  blob_count: number;
   last_email_received_at: string | null;
   last_synced_at: string | null;
 }
@@ -418,10 +418,10 @@ export function EmailSyncDashboardTab() {
                               Attachments
                             </div>
                           </TableHead>
-                          <TableHead className="text-center py-2 font-medium text-muted-foreground">
-                            <div className="flex items-center justify-center gap-1">
+                          <TableHead className="text-right py-2 font-medium text-muted-foreground">
+                            <div className="flex items-center justify-end gap-1">
                               <HardDrive className="h-4 w-4" />
-                              Blob
+                              Blobs
                             </div>
                           </TableHead>
                           <TableHead className="text-right py-2 font-medium text-muted-foreground">
@@ -465,11 +465,13 @@ export function EmailSyncDashboardTab() {
                                 <span className="text-muted-foreground">0</span>
                               )}
                             </TableCell>
-                            <TableCell className="py-3 text-center">
-                              {mailbox.has_blob ? (
-                                <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                            <TableCell className="py-3 text-right">
+                              {mailbox.blob_count > 0 ? (
+                                <span className={`font-mono ${mailbox.blob_count < mailbox.attachment_count ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400"}`}>
+                                  {formatNumber(mailbox.blob_count)}
+                                </span>
                               ) : (
-                                <span className="text-muted-foreground">-</span>
+                                <span className="text-muted-foreground">0</span>
                               )}
                             </TableCell>
                             <TableCell className="py-3 text-right">
