@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_26_181038) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_27_135101) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3108,7 +3108,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_181038) do
     t.string "visibility_rule"
     t.bigint "tenant_id"
     t.string "send_name_template"
-    t.string "warehouse_folder"
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"
@@ -5815,6 +5814,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_181038) do
     t.text "email_aliases", default: [], array: true
     t.integer "shared_with_user_ids", default: [], array: true
     t.integer "nav_position", default: 0
+    t.boolean "sync_all", default: false, null: false
     t.index ["is_active"], name: "index_imap_credentials_on_is_active"
     t.index ["user_id", "email_address"], name: "index_imap_credentials_on_user_id_and_email_address", unique: true
     t.index ["user_id"], name: "index_imap_credentials_on_user_id"
@@ -9413,6 +9413,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_181038) do
     t.index ["syncable_type", "syncable_id"], name: "index_sync_subscriptions_on_syncable_type_and_syncable_id"
   end
 
+  create_table "synced_email_mailboxes", force: :cascade do |t|
+    t.bigint "synced_email_id", null: false
+    t.string "mailbox_owner_email", null: false
+    t.string "outlook_id"
+    t.string "folder_name"
+    t.boolean "is_read", default: false
+    t.jsonb "labels", default: []
+    t.bigint "microsoft_credential_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["mailbox_owner_email", "is_read"], name: "idx_email_mailbox_unread"
+    t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_mailbox_credential"
+    t.index ["microsoft_credential_id", "outlook_id"], name: "idx_email_mailbox_outlook_id"
+    t.index ["microsoft_credential_id"], name: "index_synced_email_mailboxes_on_microsoft_credential_id"
+    t.index ["synced_email_id", "mailbox_owner_email"], name: "idx_email_mailbox_unique", unique: true
+    t.index ["synced_email_id"], name: "index_synced_email_mailboxes_on_synced_email_id"
+  end
+
   create_table "synced_emails", force: :cascade do |t|
     t.string "internet_message_id", null: false
     t.string "outlook_id"
@@ -11535,6 +11553,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_26_181038) do
   add_foreign_key "sync_file_states", "desktop_clients"
   add_foreign_key "sync_file_states", "sync_subscriptions"
   add_foreign_key "sync_subscriptions", "desktop_clients"
+  add_foreign_key "synced_email_mailboxes", "microsoft_credentials"
+  add_foreign_key "synced_email_mailboxes", "synced_emails"
   add_foreign_key "synced_emails", "email_mailboxes"
   add_foreign_key "synced_emails", "tenants"
   add_foreign_key "table_health_checks", "foundations"

@@ -35,11 +35,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
         bind_values << user_imap_ids
       end
 
-      # MS365 org mailboxes - filter by credential AND mailbox email
+      # Ultra Email Architecture: MS365 org mailboxes - filter via mailbox_appearances join table
+      # This allows emails sent to multiple recipients to be seen by all of them
       if ms365_cred_ids.any?
-        conditions << "(microsoft_credential_id IN (?) AND mailbox_owner_email IN (?))"
+        # Join with mailbox_appearances to find emails visible to this user's mailboxes
+        conditions << "(id IN (SELECT synced_email_id FROM synced_email_mailboxes WHERE microsoft_credential_id IN (?) AND LOWER(mailbox_owner_email) IN (?)))"
         bind_values << ms365_cred_ids
-        bind_values << ms365_mailbox_emails
+        bind_values << ms365_mailbox_emails.map(&:downcase)
       end
 
       if conditions.any?
@@ -182,12 +184,20 @@ class Api::V1::SyncedEmailsController < ApplicationController
         Rails.logger.info "[SyncedEmail] MS365 filter: credential=#{org_cred.id}, user_mailboxes=#{user_mailboxes.inspect}"
 
         if user_mailboxes.any?
-          emails = emails.where(microsoft_credential_id: params[:microsoft_credential_id])
-          # If specific mailbox requested, filter to that (if user has access)
+          # Ultra Email Architecture: Filter via mailbox_appearances join table
+          # This allows emails sent to multiple recipients to be seen by all of them
           if params[:mailbox].present? && user_mailboxes.map(&:downcase).include?(params[:mailbox].downcase)
-            emails = emails.where("LOWER(mailbox_owner_email) = LOWER(?)", params[:mailbox])
+            # Specific mailbox requested - use join table
+            emails = emails.joins(:mailbox_appearances)
+              .where(synced_email_mailboxes: { microsoft_credential_id: params[:microsoft_credential_id] })
+              .where("LOWER(synced_email_mailboxes.mailbox_owner_email) = LOWER(?)", params[:mailbox])
+              .distinct
           else
-            emails = emails.where("LOWER(mailbox_owner_email) IN (?)", user_mailboxes)
+            # All user's mailboxes - use join table
+            emails = emails.joins(:mailbox_appearances)
+              .where(synced_email_mailboxes: { microsoft_credential_id: params[:microsoft_credential_id] })
+              .where("LOWER(synced_email_mailboxes.mailbox_owner_email) IN (?)", user_mailboxes.map(&:downcase))
+              .distinct
           end
         else
           # User has no access to this credential's mailboxes
@@ -520,11 +530,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
         bind_values << user_imap_ids
       end
 
-      # MS365 org mailboxes
+      # Ultra Email Architecture: MS365 org mailboxes - use join table for proper multi-mailbox support
+      # Build the query using mailbox_appearances for accurate unread counts per mailbox
       if ms365_cred_ids.any?
-        conditions << "(microsoft_credential_id IN (?) AND mailbox_owner_email IN (?))"
+        # Use subquery to find emails visible to user's mailboxes via join table
+        conditions << "(id IN (SELECT synced_email_id FROM synced_email_mailboxes WHERE microsoft_credential_id IN (?) AND LOWER(mailbox_owner_email) IN (?)))"
         bind_values << ms365_cred_ids
-        bind_values << ms365_mailbox_emails
+        bind_values << ms365_mailbox_emails.map(&:downcase)
       end
 
       if conditions.any?
@@ -534,11 +546,31 @@ class Api::V1::SyncedEmailsController < ApplicationController
         return render json: { total: 0, by_account: [] }
       end
 
-      # Filter to unread only
-      unread_emails = emails.where(is_read: false)
+      # Ultra Email Architecture: Get unread counts per mailbox from join table
+      # The join table has per-mailbox is_read status (more accurate than email-level is_read)
+      ms365_unread_by_account = {}
+      if ms365_cred_ids.any?
+        ms365_unread_by_account = SyncedEmailMailbox
+          .where(microsoft_credential_id: ms365_cred_ids)
+          .where("LOWER(mailbox_owner_email) IN (?)", ms365_mailbox_emails.map(&:downcase))
+          .where(is_read: false)
+          .group(:mailbox_owner_email)
+          .count
+      end
 
-      # Get counts by mailbox/account
-      unread_by_account = unread_emails.group(:mailbox_owner_email).count
+      # For IMAP, still use the email-level is_read (no join table for IMAP yet)
+      imap_unread_by_account = {}
+      if user_imap_ids.any?
+        imap_unread_by_account = emails
+          .where(source_type: 'imap', imap_credential_id: user_imap_ids)
+          .where(is_read: false)
+          .group(:mailbox_owner_email)
+          .count
+      end
+
+      # Merge the counts
+      unread_by_account = ms365_unread_by_account.merge(imap_unread_by_account)
+      total_unread = unread_by_account.values.sum
 
       # Build result including all accounts (even with 0 unread)
       by_account = all_accounts.uniq.map do |email|
@@ -546,7 +578,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       end.sort_by { |a| [ -a[:count], a[:email] ] }
 
       render json: {
-        total: unread_emails.count,
+        total: total_unread,
         by_account: by_account
       }
     rescue StandardError => e

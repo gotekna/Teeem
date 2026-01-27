@@ -58,6 +58,12 @@ class SyncedEmail < ApplicationRecord
   # The .eml file itself uses SendNameResolver with template "{Subject} - {ReceivedDate}.eml"
   has_one :warehouse_document, as: :documentable, dependent: :destroy
 
+  # Ultra Email Architecture: Store Once, Link Many
+  # One email can appear in multiple mailboxes (e.g., sent to multiple recipients).
+  # Each mailbox appearance has its own outlook_id, folder_name, and is_read status.
+  # SSoT: Email content here (once). Mailbox appearances in SyncedEmailMailbox.
+  has_many :mailbox_appearances, class_name: 'SyncedEmailMailbox', dependent: :destroy
+
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze
 
@@ -283,6 +289,44 @@ class SyncedEmail < ApplicationRecord
   end
 
   # Instance methods
+
+  # ========================================
+  # Ultra Email Architecture: Mailbox Helpers
+  # ========================================
+
+  # Check if email appears in a specific mailbox
+  def in_mailbox?(mailbox_email)
+    mailbox_appearances.for_mailbox(mailbox_email).exists?
+  end
+
+  # Get all mailboxes this email appears in
+  def mailbox_emails
+    mailbox_appearances.pluck(:mailbox_owner_email)
+  end
+
+  # Get mailbox appearance for a specific mailbox
+  def mailbox_appearance_for(mailbox_email)
+    mailbox_appearances.for_mailbox(mailbox_email).first
+  end
+
+  # Get or create mailbox appearance (used during sync)
+  def ensure_mailbox_appearance(mailbox_email:, outlook_id: nil, folder_name: nil, is_read: false, microsoft_credential_id: nil)
+    appearance = mailbox_appearances.find_or_initialize_by(
+      mailbox_owner_email: mailbox_email.downcase
+    )
+    appearance.assign_attributes(
+      outlook_id: outlook_id,
+      folder_name: folder_name,
+      is_read: is_read,
+      microsoft_credential_id: microsoft_credential_id
+    )
+    appearance.save!
+    appearance
+  end
+
+  # ========================================
+  # Thread / Conversation Methods
+  # ========================================
 
   # Get all emails in this conversation thread
   def conversation_thread
