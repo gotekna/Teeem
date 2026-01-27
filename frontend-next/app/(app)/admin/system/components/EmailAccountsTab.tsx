@@ -62,7 +62,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { EmailSyncDashboardSection } from "./EmailSyncDashboardSection";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmailSyncDashboardTab } from "./EmailSyncDashboardTab";
 
 interface ImapCredential {
   id: number;
@@ -865,14 +866,21 @@ export function EmailAccountsTab() {
 
   return (
     <div className="space-y-6 pb-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-medium">Email Accounts</h3>
-          <p className="text-sm text-muted-foreground">
-            Connect email accounts to sync and send emails from TEEEM.
-          </p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+      <Tabs defaultValue="configuration" className="w-full">
+        <TabsList>
+          <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          <TabsTrigger value="sync-dashboard">Sync Dashboard</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="configuration" className="mt-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium">Email Accounts</h3>
+              <p className="text-sm text-muted-foreground">
+                Connect email accounts to sync and send emails from TEEEM.
+              </p>
+            </div>
+            <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
@@ -1235,41 +1243,36 @@ export function EmailAccountsTab() {
               </CardContent>
             </Card>
           ))}
-        </div>
-      )}
+          </div>
+          )}
 
-      {/* MS365 Mailbox Access Configuration */}
-      <div className="mt-8 pt-8 border-t">
-        <div className="mb-4">
-          <h3 className="text-lg font-medium">Microsoft 365 Mailbox Access</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure which users can access which mailboxes from connected Microsoft 365 organizations.
-          </p>
-        </div>
-        <MS365MailboxAccessConfig />
-      </div>
+          {/* MS365 Mailbox Access Configuration */}
+          <div className="mt-8 pt-8 border-t">
+            <div className="mb-4">
+              <h3 className="text-lg font-medium">Microsoft 365 Mailbox Access</h3>
+              <p className="text-sm text-muted-foreground">
+                Configure which users can access which mailboxes from connected Microsoft 365 organizations.
+              </p>
+            </div>
+            <MS365MailboxAccessConfig />
+          </div>
 
-      {/* Team Email Domains Configuration */}
-      <div className="mt-8 pt-8 border-t">
-        <div className="mb-4">
-          <h3 className="text-lg font-medium">Team Email Domains</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure email domains that belong to your team. Emails from these domains will appear in the &quot;Team&quot; tab of the Split Inbox.
-          </p>
-        </div>
-        <TeamEmailDomainsConfig />
-      </div>
+          {/* Team Email Domains Configuration */}
+          <div className="mt-8 pt-8 border-t">
+            <div className="mb-4">
+              <h3 className="text-lg font-medium">Team Email Domains</h3>
+              <p className="text-sm text-muted-foreground">
+                Configure email domains that belong to your team. Emails from these domains will appear in the &quot;Team&quot; tab of the Split Inbox.
+              </p>
+            </div>
+            <TeamEmailDomainsConfig />
+          </div>
+        </TabsContent>
 
-      {/* Email Sync Dashboard */}
-      <div className="mt-8 pt-8 border-t">
-        <div className="mb-4">
-          <h3 className="text-lg font-medium">Email Sync Dashboard</h3>
-          <p className="text-sm text-muted-foreground">
-            View email sync statistics by organization and mailbox. Monitor sync status and trigger manual syncs.
-          </p>
-        </div>
-        <EmailSyncDashboardSection />
-      </div>
+        <TabsContent value="sync-dashboard" className="mt-6">
+          <EmailSyncDashboardTab />
+        </TabsContent>
+      </Tabs>
 
       {/* Share Email Access Dialog */}
       <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>

@@ -4104,8 +4104,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
     body += '<td style="vertical-align: middle; padding-right: 8px;">';
     // Teeem logo - use hosted PNG (email clients block SVG data URIs)
+    // NOTE: Image MUST be outside anchor tag - TipTap strips img inside anchor when parsing HTML
     const teeemLogoUrl = 'https://teeem.vercel.app/icons/icon-72x72.png';
-    body += `<a href="https://www.teeem.com.au" style="text-decoration: none; display: inline-block;"><img src="${teeemLogoUrl}" alt="Teeem" style="width: 32px; height: 32px; border-radius: 6px; vertical-align: middle;"><span style="font-family: Georgia, serif; font-size: 18px; color: #333; margin-left: 6px; vertical-align: middle;">teeem</span></a>`;
+    body += `<img src="${teeemLogoUrl}" alt="Teeem" style="width: 32px; height: 32px; border-radius: 6px; vertical-align: middle;">`;
+    body += `<a href="https://www.teeem.com.au" style="text-decoration: none;"><span style="font-family: Georgia, serif; font-size: 18px; color: #333; margin-left: 6px; vertical-align: middle;">teeem</span></a>`;
     body += '</td>';
     body += '<td style="vertical-align: middle; padding-left: 12px;">';
     body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';

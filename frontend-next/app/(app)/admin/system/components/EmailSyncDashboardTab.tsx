@@ -36,6 +36,8 @@ import {
   MailOpen,
   Clock,
   Database,
+  HardDrive,
+  Paperclip,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow, format } from "date-fns";
@@ -62,13 +64,29 @@ interface OrganizationStats {
   };
 }
 
+interface StorageStats {
+  total_blobs: number;
+  total_size_bytes: number;
+  email_attachments: number;
+}
+
 interface SyncDashboardData {
   total_emails: number;
   total_mailboxes: number;
   organizations: OrganizationStats[];
+  storage?: StorageStats;
 }
 
-export function EmailSyncDashboardSection() {
+// Helper to format bytes
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
+export function EmailSyncDashboardTab() {
   const { toast } = useToast();
   const [data, setData] = useState<SyncDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -177,7 +195,7 @@ export function EmailSyncDashboardSection() {
 
   return (
     <div className="space-y-4">
-      {/* Summary Cards */}
+      {/* Summary Cards - Row 1: Email Stats */}
       <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
@@ -219,6 +237,51 @@ export function EmailSyncDashboardSection() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Summary Cards - Row 2: Storage Stats */}
+      {data.storage && (
+        <div className="grid grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                  <HardDrive className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{formatNumber(data.storage.total_blobs)}</p>
+                  <p className="text-xs text-muted-foreground">Storage Blobs</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-cyan-100 dark:bg-cyan-900/30 flex items-center justify-center">
+                  <Database className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{formatBytes(data.storage.total_size_bytes)}</p>
+                  <p className="text-xs text-muted-foreground">Total Storage</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center">
+                  <Paperclip className="h-5 w-5 text-pink-600 dark:text-pink-400" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{formatNumber(data.storage.email_attachments)}</p>
+                  <p className="text-xs text-muted-foreground">Email Attachments</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Organization Cards */}
       {data.organizations.map(org => (

@@ -559,12 +559,20 @@ class Api::V1::SyncedEmailsController < ApplicationController
       }
     end
 
+    # Get storage/blob stats
+    blob_stats = {
+      total_blobs: StorageBlob.count,
+      total_size_bytes: StorageBlob.sum(:file_size),
+      email_attachments: EmailAttachment.count
+    }
+
     render json: {
       success: true,
       data: {
         total_emails: SyncedEmail.count,
         total_mailboxes: SyncedEmailMailbox.select(:mailbox_owner_email).distinct.count,
-        organizations: organizations
+        organizations: organizations,
+        storage: blob_stats
       }
     }
   end
