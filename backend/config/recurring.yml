@@ -319,6 +319,16 @@ imap_email_sync:
   queue: default
   schedule: every 2 minutes
 
+# Upload synced emails to Wasabi storage (self-healing)
+# FRC (Jan 2026): Auto-recovers from queue DB connection failures
+# Auto-discovers all tenants with pending emails (no manual tenant_id needed)
+# Runs hourly with small batch to avoid memory issues
+email_storage_upload:
+  class: UploadEmailsToStorageJob
+  queue: low
+  args: [{ batch_size: 100 }]
+  schedule: every hour at minute 20
+
 # Wake up snoozed emails that have reached their snooze time
 # Runs every 5 minutes (was: 1 minute - caused queue congestion)
 email_snooze_wakeup:
