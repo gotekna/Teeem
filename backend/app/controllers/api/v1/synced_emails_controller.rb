@@ -589,6 +589,28 @@ class Api::V1::SyncedEmailsController < ApplicationController
     # Combine both types
     all_organizations = ms365_orgs + imap_accounts
 
+    # Orphaned mailboxes (no credential linked - can't sync)
+    orphaned_mailboxes = SyncedEmailMailbox
+      .where(microsoft_credential_id: nil, imap_credential_id: nil)
+      .select("LOWER(mailbox_owner_email) as email")
+      .distinct
+      .pluck("LOWER(mailbox_owner_email)")
+      .map { |email| mailbox_stats_for_dashboard(nil, email, :orphaned) }
+      .sort_by { |m| -m[:email_count] }
+
+    if orphaned_mailboxes.any?
+      all_organizations << {
+        id: 0,
+        type: "orphaned",
+        name: "Orphaned (No Credential)",
+        status: "warning",
+        last_sync_at: nil,
+        total_emails: orphaned_mailboxes.sum { |m| m[:email_count] },
+        mailboxes: orphaned_mailboxes,
+        sync_config: { sync_all: false }
+      }
+    end
+
     # Get storage/blob stats
     blob_stats = {
       total_blobs: StorageBlob.count,
@@ -1520,8 +1542,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
   def mailbox_stats_for_dashboard(credential_id, email, credential_type = :microsoft)
     appearances = SyncedEmailMailbox.where("LOWER(mailbox_owner_email) = ?", email.downcase)
 
-    if credential_type == :imap
+    case credential_type
+    when :imap
       appearances = appearances.where(imap_credential_id: credential_id)
+    when :orphaned
+      appearances = appearances.where(microsoft_credential_id: nil, imap_credential_id: nil)
     else
       appearances = appearances.where(microsoft_credential_id: credential_id)
     end
