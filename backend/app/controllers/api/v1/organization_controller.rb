@@ -317,12 +317,13 @@ module Api
         end
 
         # Get available S3 credentials for dropdown
+        # SSoT (Jan 2026): bucket removed - StorageConfiguration.bucket is SSoT
         s3_credentials = S3CompatibleCredential.active.order(:name).map do |cred|
           {
             id: cred.id,
             name: cred.name,
             provider_type: cred.provider_type,
-            bucket: cred.bucket,
+            # bucket removed - StorageConfiguration.bucket is SSoT
             status: cred.status,
             connected: cred.status == "connected"
           }

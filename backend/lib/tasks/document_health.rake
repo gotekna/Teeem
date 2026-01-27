@@ -24,7 +24,12 @@ namespace :documents do
       force_path_style: true
     )
 
-    bucket = cred.bucket
+    # SSoT (Jan 2026): bucket comes from StorageConfiguration, not credential
+    bucket = StorageConfiguration.instance&.bucket
+    unless bucket.present?
+      puts "ERROR: No bucket configured in StorageConfiguration"
+      exit 1
+    end
     puts "Checking S3 bucket: #{bucket}"
     puts ""
 
@@ -137,7 +142,12 @@ namespace :documents do
       force_path_style: true
     )
 
-    bucket = cred.bucket
+    # SSoT (Jan 2026): bucket comes from StorageConfiguration, not credential
+    bucket = StorageConfiguration.instance&.bucket
+    unless bucket.present?
+      puts "ERROR: No bucket configured in StorageConfiguration"
+      exit 1
+    end
 
     # Get all document attachments for this task
     attachments = task.sm_task_attachments.where(attachable_type: "CorporateCompanyDocument")

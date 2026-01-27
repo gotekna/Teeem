@@ -1419,20 +1419,29 @@ export function StorageConfigTab() {
   };
 
   // Fetch entity tabs for all scopes
+  // FRC (Jan 2026): Use per-scope error handling so one failing scope doesn't break all tabs
   const loadEntityTabs = async () => {
     setLoadingTabs(true);
     try {
       const tabsByScope: Record<string, EntityTab[]> = {};
 
-      // Fetch tabs for each scope in parallel
+      // Fetch tabs for each scope in parallel with per-scope error handling
       const scopeKeys = Object.keys(SCOPE_TO_API_SCOPE);
       const results = await Promise.all(
         scopeKeys.map(async (scopeKey) => {
-          const apiScope = SCOPE_TO_API_SCOPE[scopeKey];
-          const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>(
-            `/api/v1/entity_tabs?scope=${apiScope}`
-          );
-          return { scopeKey, tabs: response?.success ? response.data.tabs : [] };
+          try {
+            const apiScope = SCOPE_TO_API_SCOPE[scopeKey];
+            const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>(
+              `/api/v1/entity_tabs?scope=${apiScope}`
+            );
+            // Safely access nested properties
+            const tabs = response?.success && response?.data?.tabs ? response.data.tabs : [];
+            return { scopeKey, tabs };
+          } catch (scopeError) {
+            // Log but don't fail other scopes
+            console.warn(`Failed to load entity tabs for scope ${scopeKey}:`, scopeError);
+            return { scopeKey, tabs: [] };
+          }
         })
       );
 

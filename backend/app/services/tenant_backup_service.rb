@@ -278,7 +278,10 @@ class TenantBackupService
     )
   end
 
+  # SSoT (Jan 2026): bucket comes from StorageConfiguration, not credential
   def bucket
-    credential.bucket
+    @bucket ||= StorageConfiguration.instance&.bucket
+    raise NotConfiguredError, "No bucket configured. Set bucket in Storage Configuration first." unless @bucket.present?
+    @bucket
   end
 end

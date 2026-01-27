@@ -170,6 +170,7 @@ module Api
         }
       end
 
+      # SSoT (Jan 2026): bucket removed - StorageConfiguration.bucket is SSoT
       def credential_json(credential)
         return nil unless credential
 
@@ -178,7 +179,7 @@ module Api
           name: credential.name,
           providerName: credential.provider_name,
           endpoint: credential.endpoint,
-          bucket: credential.bucket,
+          # bucket removed - StorageConfiguration.bucket is SSoT
           isConnected: credential.connected?
         }
       end
