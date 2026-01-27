@@ -4100,18 +4100,26 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
 
     // Add Teeem marketing footer with spacing, logo, and TEEEM meaning
+    // NOTE: Using table cells for logo boxes - TipTap strips styled spans but preserves table backgrounds
     body += '\n<br><br>\n';
     body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
     body += '<td style="vertical-align: middle; padding-right: 8px;">';
-    // Teeem logo - inline HTML styled to match app header (dark box with lowercase "t")
-    // Using inline styles for email client compatibility
-    body += '<span style="display: inline-block; width: 28px; height: 28px; background-color: #18181b; color: white; font-size: 16px; font-weight: bold; text-align: center; line-height: 28px; border-radius: 4px; vertical-align: middle;">t</span>';
-    body += `<a href="https://www.teeem.com.au" style="text-decoration: none;"><span style="font-family: Georgia, serif; font-size: 18px; color: #333; margin-left: 6px; vertical-align: middle;">teeem</span></a>`;
+    // Teeem logo using nested table (TipTap preserves table background colors)
+    body += '<table cellpadding="0" cellspacing="0" style="display: inline-table; vertical-align: middle;"><tr>';
+    body += '<td style="width: 28px; height: 28px; background-color: #18181b; color: white; font-size: 16px; font-weight: bold; text-align: center; border-radius: 4px;">t</td>';
+    body += '</tr></table>';
+    body += `<a href="https://www.teeem.com.au" style="text-decoration: none; font-family: Georgia, serif; font-size: 18px; color: #333; margin-left: 6px; vertical-align: middle;">teeem</a>`;
     body += '</td>';
     body += '<td style="vertical-align: middle; padding-left: 12px;">';
     body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
     body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
-    body += '<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <a href="https://www.teeem.com.au" style="text-decoration: none;"><span style="display: inline-block; width: 14px; height: 14px; background-color: #18181b; color: white; font-size: 9px; font-weight: bold; text-align: center; line-height: 14px; border-radius: 2px; vertical-align: middle;">t</span><span style="font-family: Georgia, serif; color: #333; margin-left: 2px; vertical-align: middle;">teeem</span></a></p>';
+    // "Produced by" line with inline table logo
+    body += '<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by ';
+    body += '<a href="https://www.teeem.com.au" style="text-decoration: none;">';
+    body += '<table cellpadding="0" cellspacing="0" style="display: inline-table; vertical-align: middle;"><tr>';
+    body += '<td style="width: 14px; height: 14px; background-color: #18181b; color: white; font-size: 9px; font-weight: bold; text-align: center; border-radius: 2px;">t</td>';
+    body += '</tr></table>';
+    body += '<span style="font-family: Georgia, serif; color: #333; margin-left: 2px; vertical-align: middle;">teeem</span></a></p>';
     body += '</td>';
     body += '</tr></table>\n';
 
