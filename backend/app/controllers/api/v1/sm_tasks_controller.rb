@@ -1417,6 +1417,12 @@ module Api
       # GET /api/v1/sm_tasks/:id/download_all_response_files
       # Creates a zip file containing all response document attachments and returns a download URL
       # For external email recipients to download all files with one click
+      #
+      # Smart Caching (Jan 2026):
+      # - Calculates fingerprint of current attachments (IDs + timestamps)
+      # - If fingerprint matches cached zip, returns fresh presigned URL (no recreate)
+      # - If fingerprint changed, creates new zip and updates cache
+      # - Prevents duplicate zips and ensures data freshness
       def download_all_response_files
         require "zip"
 
@@ -1432,7 +1438,38 @@ module Api
           return render json: { success: false, error: "No files to download" }, status: :unprocessable_entity
         end
 
-        # Create zip file in memory
+        # Calculate fingerprint of current attachments for smart caching
+        fingerprint = calculate_response_zip_fingerprint(document_attachments)
+
+        # Generate zip filename (consistent for cache matching)
+        safe_name = @task.name.to_s.gsub(/[^a-zA-Z0-9\s-]/, "").strip.gsub(/\s+/, "_")[0..40]
+        zip_filename = "task_#{@task.id}_#{safe_name}_response.zip"
+
+        # Try to use cached zip if fingerprint matches
+        begin
+          provider = DocumentProviders.for_organization(current_organization)
+
+          if provider && can_use_cached_zip?(fingerprint, provider)
+            # Fingerprint matches and file exists - return fresh presigned URL
+            download_url = provider.download_url(@task.response_zip_path, expires_in: CorporateCompanySetting.link_expiry_seconds)
+            Rails.logger.info "[SmTasksController] Using cached zip for task #{@task.id} (fingerprint: #{fingerprint[0..7]})"
+
+            return render json: {
+              success: true,
+              download_method: "presigned_url",
+              share_url: download_url,
+              filename: File.basename(@task.response_zip_path).sub(/^\d{8}_\d{6}_/, ""),
+              file_count: document_attachments.size,
+              expiry_days: CorporateCompanySetting.link_expiry_days,
+              cached: true
+            }
+          end
+        rescue DocumentProviders::NotConnectedError, ActiveRecord::Encryption::Errors::Decryption
+          # Will fall through to base64 handling below
+          provider = nil
+        end
+
+        # Fingerprint changed or no cache - create new zip
         zip_data = Zip::OutputStream.write_buffer do |zip|
           document_attachments.each do |att|
             document = att.attachable
@@ -1451,11 +1488,6 @@ module Api
         end
         zip_data.rewind
 
-        # Generate a unique filename for the zip
-        # SSoT: Include task ID in filename for reliable matching during cleanup
-        safe_name = @task.name.to_s.gsub(/[^a-zA-Z0-9\s-]/, "").strip.gsub(/\s+/, "_")[0..40]
-        zip_filename = "task_#{@task.id}_#{safe_name}_response.zip"
-
         # Option 1: Return as direct download (for API calls)
         if params[:direct] == "true"
           send_data zip_data.read,
@@ -1466,10 +1498,7 @@ module Api
         end
 
         # Option 2: Upload to storage and return presigned download URL
-        # SSoT: Use DocumentProviders (auto-selects Wasabi/S3/SharePoint based on StorageConfiguration)
         begin
-          provider = DocumentProviders.for_organization(current_organization)
-
           unless provider
             # Fallback to base64 encoded data if no storage provider
             return render json: {
@@ -1485,13 +1514,20 @@ module Api
           temp_folder_path = "Temp/TaskResponseZips"
           timestamped_filename = "#{Time.current.strftime('%Y%m%d_%H%M%S')}_#{zip_filename}"
 
-          # SSoT: Delete previous zips for this same task before creating new one
-          # This ensures only the latest response zip is valid (old links become 404)
+          # Delete previous zip for this task (old cached zip is now stale)
           cleanup_previous_task_zips(provider, temp_folder_path, zip_filename)
 
           upload_result = provider.upload_file(temp_folder_path, zip_data.read, timestamped_filename, content_type: "application/zip")
 
           if upload_result[:path]
+            # Store cache info for future requests
+            @task.update!(
+              response_zip_fingerprint: fingerprint,
+              response_zip_path: upload_result[:path],
+              response_zip_created_at: Time.current
+            )
+            Rails.logger.info "[SmTasksController] Created new zip for task #{@task.id} (fingerprint: #{fingerprint[0..7]})"
+
             # Get presigned download URL (expiry from company settings - SSoT)
             download_url = provider.download_url(upload_result[:path], expires_in: CorporateCompanySetting.link_expiry_seconds)
 
@@ -1501,7 +1537,8 @@ module Api
               share_url: download_url,
               filename: zip_filename,
               file_count: document_attachments.size,
-              expiry_days: CorporateCompanySetting.link_expiry_days
+              expiry_days: CorporateCompanySetting.link_expiry_days,
+              cached: false
             }
           else
             render json: { success: false, error: "Failed to upload zip file" }, status: :unprocessable_entity
@@ -2428,6 +2465,30 @@ module Api
       rescue => e
         # Don't fail the upload if cleanup fails - just log
         Rails.logger.warn "[SmTasksController] cleanup_previous_task_zips error: #{e.message}"
+      end
+
+      # Calculate fingerprint for response zip caching
+      # Fingerprint = hash of sorted (attachment_id, document_updated_at) pairs
+      # Changes when: attachments added/removed, documents modified
+      def calculate_response_zip_fingerprint(document_attachments)
+        data = document_attachments.map do |att|
+          doc = att.attachable
+          "#{att.id}:#{doc&.updated_at&.to_i}"
+        end.sort.join("|")
+
+        Digest::SHA256.hexdigest(data)[0..15] # Short hash is sufficient
+      end
+
+      # Check if we can use cached zip (fingerprint matches AND file exists)
+      def can_use_cached_zip?(fingerprint, provider)
+        return false unless @task.response_zip_fingerprint == fingerprint
+        return false unless @task.response_zip_path.present?
+
+        # Verify file still exists in storage
+        provider.file_exists?(@task.response_zip_path)
+      rescue => e
+        Rails.logger.warn "[SmTasksController] Cache check failed: #{e.message}"
+        false
       end
 
       # Parse user counts from SQL result, ensuring valid integer IDs
