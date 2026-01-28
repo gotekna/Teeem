@@ -440,7 +440,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Xero Status */}
           <Link prefetch={false}
-            href={xeroPendingReview > 0 ? "/contacts/filter/pending_review" : "/settings/integrations/xero"}
+            href="/xero/sync"
             className={cn(
               "relative p-1.5 rounded-md transition-colors",
               xeroPendingReview > 0 ? "text-amber-500 dark:text-amber-400 hover:text-amber-600" : getStatusColors(xeroStatus)

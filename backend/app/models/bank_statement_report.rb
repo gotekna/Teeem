@@ -394,9 +394,9 @@ class BankStatementReport < ApplicationRecord
 
     Rails.logger.info("[BankStatementReport] Uploaded to storage: #{resolved_path}/#{filename}")
 
-    # SSoT: Create CorporateCompanyDocument so it appears in document warehouse
+    # SSoT: Create WarehouseDocument so it appears in document warehouse
     if corporate_company.present?
-      create_document_record(
+      create_warehouse_document_record(
         filename: filename,
         storage_path: result[:path] || resolved_path,
         storage_file_id: result[:id],
@@ -411,36 +411,40 @@ class BankStatementReport < ApplicationRecord
     nil
   end
 
-  # Create a CorporateCompanyDocument record for the warehouse
-  # SSoT: Links the PDF to the company's document system so it appears in tabs
-  def create_document_record(filename:, storage_path:, storage_file_id:, storage_url:, file_size:)
-    # Use unique external_id to prevent duplicates
-    external_id = "bank_statement_report:#{id}"
+  # Create a WarehouseDocument record for the warehouse
+  # SSoT: WarehouseDocument is THE ONE table for all document metadata (Jan 2026)
+  def create_warehouse_document_record(filename:, storage_path:, storage_file_id:, storage_url:, file_size:)
+    # Find or create storage blob first
+    blob = StorageBlob.find_or_create_by!(storage_path: "#{storage_path}/#{filename}") do |b|
+      b.original_filename = filename
+      b.file_size = file_size
+      b.content_type = "application/pdf"
+    end
 
-    doc = CorporateCompanyDocument.find_or_initialize_by(
-      source: "xero",
-      external_id: external_id
+    # Create WarehouseDocument
+    doc = WarehouseDocument.find_or_initialize_by(
+      documentable_type: "BankStatementReport",
+      documentable_id: id
     )
 
     doc.assign_attributes(
-      company_id: company_id,
-      document_type: "Bank Statement",
+      source_type: "xero",
       display_name: display_name,
-      file_name: filename,
-      file_size: file_size,
-      mime_type: "application/pdf",
-      folder: "XERO",  # Shows in XERO tab
-      document_date: period_end,
-      expected_storage_path: "#{storage_path}/#{filename}",
-      storage_file_id: storage_file_id,
-      storage_download_url: storage_url,
-      storage_type: "electronic",
-      ai_verification_status: "verified",  # System-generated, no AI needed
-      documentable: self  # Link back to BankStatementReport
+      original_filename: filename,
+      folder: "Corporate/#{corporate_company&.company_group.presence || 'Default'}/#{corporate_company&.company_code}/XERO/Bank",
+      storage_blob: blob,
+      linkable: corporate_company,
+      metadata: {
+        document_type: "Bank Statement",
+        document_date: period_end&.iso8601,
+        company_id: company_id,
+        storage_file_id: storage_file_id,
+        storage_url: storage_url
+      }
     )
 
     if doc.save
-      Rails.logger.info("[BankStatementReport] Created CorporateCompanyDocument #{doc.id} for report #{id}")
+      Rails.logger.info("[BankStatementReport] Created WarehouseDocument #{doc.id} for report #{id}")
     else
       Rails.logger.error("[BankStatementReport] Failed to create document: #{doc.errors.full_messages.join(', ')}")
     end

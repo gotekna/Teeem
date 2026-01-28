@@ -1748,7 +1748,6 @@ module Api
           # ============================================
           # Check for documents with wrong external_id format
           # SSoT: WarehouseDocument uses metadata for tracking, no external_id format issues
-          # Legacy CorporateCompanyDocument external_id format validation removed (Jan 2026)
           wrong_format_count = 0  # WarehouseDocument doesn't use external_id
 
           # SSoT: Check for Xero PDFs missing storage_blob (should all have blobs after sync)

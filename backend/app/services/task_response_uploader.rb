@@ -8,7 +8,7 @@
 # ALL task uploads now go through SmTasksController#upload_standard_file which:
 #   1. Creates StorageBlob (content-hash deduplication)
 #   2. Stores files at Blobs/{hash}.ext (provider-agnostic)
-#   3. Creates CorporateCompanyDocument with storage_blob reference
+#   3. Creates WarehouseDocument with storage_blob reference (SSoT)
 #
 # This file is kept only for reference. Remove after confirming no other code uses it.
 # ════════════════════════════════════════════════════════════════════════════════
@@ -94,10 +94,11 @@ class TaskResponseUploader
     raise UploadError, "Failed to upload file: #{e.message}"
   end
 
-  # Create a CorporateCompanyDocument record for the uploaded file
+  # Create a WarehouseDocument record for the uploaded file
+  #
   # @param upload_result [Hash] Result from #upload
   # @param file [ActionDispatch::Http::UploadedFile] Original file
-  # @return [CorporateCompanyDocument] The created document record
+  # @return [WarehouseDocument] The created document record
   def create_document_record(upload_result, file)
     # Get mime type from uploaded file (important for preview to work)
     mime_type = if file.respond_to?(:content_type)
@@ -109,33 +110,35 @@ class TaskResponseUploader
     # SSoT: Resolve display_name from EntityTab template (e.g., {{OriginalFileName}})
     resolved_display_name = resolve_display_name(upload_result[:filename])
 
-    attrs = {
-      file_name: upload_result[:filename],
-      display_name: resolved_display_name,  # SSoT: From EntityTab.display_name template
-      mime_type: mime_type,  # Required for PDF/image preview
-      # SSoT: Use storage_item_id (provider-agnostic) instead of sharepoint_file_id
-      storage_item_id: upload_result[:file_id],
-      # Map provider type to valid storage_provider value
-      # wasabi/s3/etc. → s3_compatible, sharepoint stays sharepoint
-      storage_provider: normalized_storage_provider,
-      # SSoT: storage_path must be FULL path including filename (not just folder)
-      # S3 download uses this as the object key
-      storage_path: upload_result[:full_path],
-      # Use "other" document type for task uploads (task_response/task_attachment not in valid types)
-      document_type: "other",
+    # Create or find StorageBlob for the file
+    file_content = file.respond_to?(:read) ? file.read : file.to_s
+    file.rewind if file.respond_to?(:rewind)
+
+    blob = StorageBlob.find_or_create_for_content!(
+      file_content,
+      filename: upload_result[:filename],
+      content_type: mime_type,
+      storage_path: upload_result[:full_path]
+    )
+
+    # Determine documentable (task or job)
+    documentable = task
+    documentable = job if job.present?
+
+    WarehouseDocument.create!(
+      documentable: documentable,
+      storage_blob: blob,
+      source_type: "task",
       folder: folder_name,
-      source: "task_upload"
-    }
-
-    # SSoT: Always link to task (user uploaded from task context)
-    # Also link to job if available for cross-referencing
-    attrs[:sm_task_id] = task.id
-    if job.present?
-      attrs[:job_id] = job.id
-      attrs[:documentable] = job  # Keep polymorphic for legacy compatibility
-    end
-
-    CorporateCompanyDocument.create!(attrs)
+      display_name: resolved_display_name,
+      original_filename: upload_result[:filename],
+      tenant_id: @tenant.id,
+      metadata: {
+        task_id: task.id,
+        job_id: job&.id,
+        upload_category: @category
+      }
+    )
   end
 
   private
@@ -155,7 +158,7 @@ class TaskResponseUploader
     category == "response" ? "Responses" : "Attachments"
   end
 
-  # Normalize storage provider type to valid CorporateCompanyDocument values
+  # Normalize storage provider type to valid WarehouseDocument values
   # SSoT: Only 3 provider types - sharepoint, s3_compatible, local
   # StorageConfiguration.provider_type already normalizes legacy values
   def normalized_storage_provider

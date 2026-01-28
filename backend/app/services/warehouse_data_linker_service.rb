@@ -1,4 +1,9 @@
-# Service to link existing data into the warehouse structure
+# frozen_string_literal: true
+
+# WarehouseDataLinkerService - Links existing data into the warehouse structure
+#
+# This service now works with WarehouseDocument (SSoT) for all document operations.
+#
 # Connects documents to their parent entities (Jobs, POs, Invoices)
 class WarehouseDataLinkerService
   attr_reader :results
@@ -27,16 +32,16 @@ class WarehouseDataLinkerService
     results
   end
 
-  # Link documents to ExternalInvoices based on matching criteria
+  # Link warehouse documents to ExternalInvoices based on matching criteria
   def link_invoice_documents!
-    # Find documents that look like invoices but aren't linked
-    invoice_docs = CorporateCompanyDocument
+    # Find warehouse documents that look like invoices but aren't linked to an entity
+    invoice_docs = WarehouseDocument
       .where(documentable_type: nil)
-      .where("document_type ILIKE '%invoice%' OR document_type ILIKE '%bill%' OR title ILIKE '%INV-%' OR title ILIKE '%BILL-%'")
+      .where("display_name ILIKE '%invoice%' OR display_name ILIKE '%bill%' OR display_name ILIKE '%INV-%' OR display_name ILIKE '%BILL-%'")
 
     invoice_docs.find_each do |doc|
       begin
-        # Try to match by invoice number in title
+        # Try to match by invoice number in display_name
         invoice = find_matching_invoice(doc)
         if invoice
           doc.update!(documentable: invoice)
@@ -49,12 +54,12 @@ class WarehouseDataLinkerService
     end
   end
 
-  # Link documents to PurchaseOrders based on matching criteria
+  # Link warehouse documents to PurchaseOrders based on matching criteria
   def link_po_documents!
-    # Find documents that look like POs but aren't linked
-    po_docs = CorporateCompanyDocument
+    # Find warehouse documents that look like POs but aren't linked
+    po_docs = WarehouseDocument
       .where(documentable_type: nil)
-      .where("document_type ILIKE '%purchase%' OR document_type ILIKE '%po%' OR title ILIKE '%PO-%'")
+      .where("display_name ILIKE '%purchase%' OR display_name ILIKE '%po%' OR display_name ILIKE '%PO-%'")
 
     po_docs.find_each do |doc|
       begin
@@ -70,13 +75,13 @@ class WarehouseDataLinkerService
     end
   end
 
-  # Link documents to Jobs based on job reference in title/folder
+  # Link warehouse documents to Jobs based on job reference in display_name/folder
   def link_job_documents!
-    # Find documents with job references that aren't linked
-    # Skip documents already linked to something or that are company-level docs
-    unlinked_docs = CorporateCompanyDocument
+    # Find warehouse documents with job references that aren't linked
+    # Skip documents already linked to something
+    unlinked_docs = WarehouseDocument
       .where(documentable_type: nil)
-      .where.not(document_type: [ "invoice", "bill", "purchase_order" ]) # Skip invoice/PO types
+      .where.not(source_type: %w[invoice bill purchase_order])
 
     unlinked_docs.find_each do |doc|
       begin
@@ -95,21 +100,21 @@ class WarehouseDataLinkerService
   private
 
   def find_matching_invoice(doc)
-    # Extract invoice number patterns from title
+    # Extract invoice number patterns from display_name
     # Common patterns: INV-001234, Invoice 001234, etc.
-    title = doc.title.to_s
+    display_name = doc.display_name.to_s
 
     # Try exact invoice number match
-    if match = title.match(/INV[- ]?(\d+)/i)
+    if match = display_name.match(/INV[- ]?(\d+)/i)
       invoice_num = match[1]
       invoice = ExternalInvoice.find_by("invoice_number ILIKE ?", "%#{invoice_num}%")
       return invoice if invoice
     end
 
-    # Try matching by external_id if document came from Xero
-    if doc.source == "xero" && doc.external_id.present?
+    # Try matching by metadata if document has external_id info
+    if doc.metadata.is_a?(Hash) && doc.metadata["external_id"].present?
       # external_id might be formatted as "xero:invoice_guid:attachment_id"
-      parts = doc.external_id.to_s.split(":")
+      parts = doc.metadata["external_id"].to_s.split(":")
       if parts.length >= 2
         invoice = ExternalInvoice.find_by(external_id: parts[1])
         return invoice if invoice
@@ -120,10 +125,10 @@ class WarehouseDataLinkerService
   end
 
   def find_matching_po(doc)
-    title = doc.title.to_s
+    display_name = doc.display_name.to_s
 
     # Try PO number match
-    if match = title.match(/PO[- ]?(\d+)/i)
+    if match = display_name.match(/PO[- ]?(\d+)/i)
       po_num = "PO-#{match[1].rjust(6, '0')}"
       po = PurchaseOrder.find_by(purchase_order_number: po_num)
       return po if po
@@ -133,8 +138,7 @@ class WarehouseDataLinkerService
   end
 
   def find_matching_job(doc)
-    # Try to find job by folder path or title containing job reference
-    # This is project-specific - adjust patterns as needed
+    # Try to find job by folder path or display_name containing job reference
 
     # If document has a folder that matches a job title pattern
     if doc.folder.present?

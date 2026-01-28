@@ -92,12 +92,13 @@ class EntityTabQueryService
   end
 
   # Single grouped query for document counts
+  # SSoT: WarehouseDocument is THE ONE document table (Jan 2026)
   def preload_document_counts(document_type_ids)
     return {} if document_type_ids.empty?
 
-    CorporateCompanyDocument
-      .where(document_type_id: document_type_ids)
-      .group(:document_type_id)
+    WarehouseDocument
+      .where(job_documents: { document_type_id: document_type_ids })
+      .group("job_documents.document_type_id")
       .count
   end
 

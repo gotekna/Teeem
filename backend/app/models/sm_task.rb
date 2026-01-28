@@ -190,7 +190,7 @@ class SmTask < ApplicationRecord
   # Task Attachments (emails, documents, uploads)
   has_many :sm_task_attachments, dependent: :destroy
   has_many :attached_emails, through: :sm_task_attachments, source: :attachable, source_type: "SyncedEmail"
-  has_many :attached_documents, through: :sm_task_attachments, source: :attachable, source_type: "CorporateCompanyDocument"
+  has_many :attached_documents, through: :sm_task_attachments, source: :attachable, source_type: "WarehouseDocument"
 
   # Task Followers (for notifications)
   has_many :task_followers, dependent: :destroy

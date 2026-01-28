@@ -1320,7 +1320,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   // Collapsible sections - all collapsed by default for cleaner initial view
   const [emailsCollapsed, setEmailsCollapsed] = useState(true);
-  const [documentsCollapsed, setDocumentsCollapsed] = useState(false); // Show documents expanded by default
+  const [documentsCollapsed, setDocumentsCollapsed] = useState(true); // Collapsed by default like other sections
   const [responseFilesCollapsed, setResponseFilesCollapsed] = useState(true);
   const [emailSourceCollapsed, setEmailSourceCollapsed] = useState(true); // Start collapsed
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());

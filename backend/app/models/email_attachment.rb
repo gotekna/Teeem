@@ -85,11 +85,14 @@ class EmailAttachment < ApplicationRecord
     nil
   end
 
-  # Check if this attachment matches an existing company document by content hash
+  # Check if this attachment matches an existing document by content hash
   def find_matching_document
     return nil if content_hash.blank?
 
-    CorporateCompanyDocument.find_by(content_hash: content_hash)
+    # SSoT: StorageBlob uses content_hash for deduplication
+    # Find any WarehouseDocument linked to a blob with matching hash
+    blob = StorageBlob.find_by(content_hash: content_hash)
+    blob&.warehouse_documents&.first
   end
 
   # Calculate content hash from binary data
