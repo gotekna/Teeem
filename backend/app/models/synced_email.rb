@@ -365,15 +365,32 @@ class SyncedEmail < ApplicationRecord
     "#{type.titleize} (#{(confidence * 100).to_i}%)"
   end
 
-  # Get document attachments only (exclude signature images and inline images)
-  # SSoT: Uses email_attachments association (Jan 2026 refactor)
+  # Get document attachments (exclude small signature images, keep large photos)
+  # SSoT: Same 50KB threshold as sync_attachments! (line 979)
+  # - Images >= 50KB = real photos (construction site, documents) → INCLUDE
+  # - Images < 50KB = likely email signatures → EXCLUDE
+  # - Non-images (PDF, EML, etc.) → ALWAYS INCLUDE
   def document_attachments
-    email_attachments.select { |ea| !ea.storage_blob&.content_type&.start_with?('image/') }
+    email_attachments.select { |ea| include_attachment?(ea) }
   end
 
-  # Get count of document attachments (excluding images)
+  # Get count of document attachments (excluding small signature images)
   def document_attachments_count
-    email_attachments.count { |ea| !ea.storage_blob&.content_type&.start_with?('image/') }
+    email_attachments.count { |ea| include_attachment?(ea) }
+  end
+
+  # SSoT: Determines if an attachment should be shown in document lists
+  # Matches the sync logic threshold of 50KB for filtering signature images
+  def include_attachment?(attachment)
+    content_type = attachment.storage_blob&.content_type
+    file_size = attachment.storage_blob&.file_size || 0
+
+    # Non-images always included
+    return true unless content_type&.start_with?('image/')
+
+    # Large images (>= 50KB) included - likely real photos
+    # Small images (< 50KB) excluded - likely signatures
+    file_size >= 50_000
   end
 
   # ========================================
