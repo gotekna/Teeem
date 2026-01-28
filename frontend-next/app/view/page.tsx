@@ -73,6 +73,24 @@ function parseEmlContent(content: string): {
     isHtml = true;
   }
 
+  // Helper to decode part content based on transfer encoding
+  const decodePartContent = (content: string, transferEncoding: string): string => {
+    if (transferEncoding.includes("base64")) {
+      try {
+        // Remove whitespace and decode base64
+        const cleaned = content.replace(/\s/g, '');
+        return atob(cleaned);
+      } catch {
+        return content; // Return as-is if decode fails
+      }
+    } else if (transferEncoding.includes("quoted-printable")) {
+      return content
+        .replace(/=\r?\n/g, "") // Remove soft line breaks
+        .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+    }
+    return content;
+  };
+
   // Handle multipart messages - extract first text part
   if (contentType.includes("multipart")) {
     const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
@@ -85,14 +103,20 @@ function parseEmlContent(content: string): {
       let textPart = "";
 
       for (const part of parts) {
-        if (part.includes("Content-Type: text/html")) {
-          const partLines = part.split(/\r?\n/);
-          let partBodyStart = partLines.findIndex(l => l === "") + 1;
-          htmlPart = partLines.slice(partBodyStart).join("\n");
-        } else if (part.includes("Content-Type: text/plain")) {
-          const partLines = part.split(/\r?\n/);
-          let partBodyStart = partLines.findIndex(l => l === "") + 1;
-          textPart = partLines.slice(partBodyStart).join("\n");
+        // Parse part headers to get content-transfer-encoding
+        const partLines = part.split(/\r?\n/);
+        const partBodyStart = partLines.findIndex(l => l === "") + 1;
+        const partHeaders = partLines.slice(0, partBodyStart).join("\n").toLowerCase();
+        const partBody = partLines.slice(partBodyStart).join("\n");
+
+        // Detect transfer encoding for this part
+        const encodingMatch = partHeaders.match(/content-transfer-encoding:\s*(\S+)/i);
+        const partEncoding = encodingMatch ? encodingMatch[1].toLowerCase() : "";
+
+        if (part.toLowerCase().includes("content-type: text/html")) {
+          htmlPart = decodePartContent(partBody, partEncoding);
+        } else if (part.toLowerCase().includes("content-type: text/plain")) {
+          textPart = decodePartContent(partBody, partEncoding);
         }
       }
 
@@ -104,13 +128,10 @@ function parseEmlContent(content: string): {
         isHtml = false;
       }
     }
-  }
-
-  // Decode quoted-printable if needed
-  if (headers["content-transfer-encoding"]?.includes("quoted-printable") || body.includes("=\n")) {
-    body = body
-      .replace(/=\r?\n/g, "") // Remove soft line breaks
-      .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  } else {
+    // Non-multipart: decode the body based on main content-transfer-encoding
+    const transferEncoding = headers["content-transfer-encoding"] || "";
+    body = decodePartContent(body, transferEncoding);
   }
 
   // Clean up the boundary markers from body
