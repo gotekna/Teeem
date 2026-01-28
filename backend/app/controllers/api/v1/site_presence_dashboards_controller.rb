@@ -108,8 +108,9 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
           total: sessions.count,
           completed: sessions.completed.count,
           active: sessions.active.count,
-          pending_approval: sessions.pending_approval.count,
-          with_anomalies: sessions.where(has_anomalies: true).count
+          pending_approval: sessions.pending_approval.count
+          # Note: has_anomalies column doesn't exist yet - commenting out for now
+          # with_anomalies: sessions.where(has_anomalies: true).count
         },
         hours: {
           total: sessions.completed.sum { |s| s.total_hours || 0 }.round(2),
@@ -320,8 +321,9 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
       sessions: sessions.count,
       completed: sessions.completed.count,
       hours: entries.sum { |e| e.total_hours || 0 }.round(2),
-      cost: entries.sum(&:total_cost).to_f.round(2),
-      anomalies: sessions.where(has_anomalies: true).count
+      cost: entries.sum(&:total_cost).to_f.round(2)
+      # Note: has_anomalies column doesn't exist yet
+      # anomalies: sessions.where(has_anomalies: true).count
     }
   end
 
@@ -340,7 +342,8 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
   def current_alerts
     {
       pending_approvals: SitePresenceSession.pending_approval.count,
-      anomalies_today: SitePresenceSession.where("DATE(checkin_at) = ?", Date.current).where(has_anomalies: true).count,
+      # Note: has_anomalies column doesn't exist yet - returning 0
+      anomalies_today: 0,
       over_budget_jobs: JobCostBudget.over_budget.count,
       ai_suggestions_pending: AiTimesheetSuggestion.pending.count
     }
@@ -380,7 +383,7 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
       elapsed_hours: elapsed,
       gps_verified: session.gps_verified_checkin || false,
       face_verified: session.face_verified_checkin || false,
-      has_anomalies: session.has_anomalies || false
+      has_anomalies: false  # Column doesn't exist yet
     }
 
     if include_checkout
@@ -401,8 +404,8 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
       job: session.job&.name,
       date: session.checkin_at&.to_date,
       hours: session.total_hours,
-      has_anomalies: session.has_anomalies,
-      anomaly_types: session.anomaly_details&.keys,
+      has_anomalies: false,  # Column doesn't exist yet
+      anomaly_types: [],  # Column doesn't exist yet
       checkin_photo: session.checkin_photo_id.present?,
       checkout_photo: session.checkout_photo_id.present?,
       face_verified: session.face_verified_checkin && session.face_verified_checkout
