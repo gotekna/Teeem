@@ -139,14 +139,6 @@ corporate_financial_reports_monthly:
   queue: low
   schedule: every month on the 1st at 4am
 
-# Monthly bank statement PDF generation for all corporate bank accounts
-# Runs on the 2nd of each month at 5am (after bank transaction sync completes)
-# Uses BankStatementTemplate branding and uploads to SharePoint BANK folder
-corporate_bank_statements_monthly:
-  class: CorporateBankStatementsJob
-  queue: low
-  schedule: every month on the 2nd at 5am
-
 # ============================================
 # RECURRING INVOICES (T.A.S.)
 # ============================================
@@ -266,20 +258,6 @@ warehouse_xero_attachments:
 #   class: XeroSyncHealthMonitorJob
 #   queue: default
 #   schedule: every 5 minutes
-
-# Batch document verification (AI classification)
-warehouse_document_verification:
-  class: BatchDocumentVerificationJob
-  queue: low
-  args: [{ limit: 25 }]
-  schedule: every 4 hours at minute 30
-
-# Sync job documents from OneDrive to database (data warehouse)
-# Moved from every 6h to daily 3am off-peak to avoid blocking worker threads
-warehouse_job_documents_sync:
-  class: JobDocumentSyncJob
-  queue: low
-  schedule: at 3am every day
 
 # ============================================
 # ACCOUNTS PAYABLE - BILL INBOX
