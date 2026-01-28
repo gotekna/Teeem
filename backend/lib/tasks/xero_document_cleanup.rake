@@ -511,7 +511,7 @@ namespace :xero do
 
           docs_query = docs_query.where(source_type: source_type) if source_type.present?
 
-          docs = docs_query.order(Arel.sql("CASE WHEN documentable_id IS NOT NULL THEN 0 ELSE 1 END, created_at ASC"))
+          docs = docs_query.order(Arel.sql("CASE WHEN warehouse_documents.documentable_id IS NOT NULL THEN 0 ELSE 1 END, warehouse_documents.created_at ASC"))
 
           # Keep the best one (linked > oldest)
           keep_doc = docs.first
