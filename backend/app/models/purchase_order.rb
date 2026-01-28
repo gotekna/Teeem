@@ -92,8 +92,7 @@ class PurchaseOrder < ApplicationRecord
   has_many :bill_payments, dependent: :nullify
   belongs_to :last_bill_inbox, class_name: "BillInbox", optional: true
 
-  # Documents attached to this PO (via polymorphic documentable)
-  has_many :corporate_company_documents, as: :documentable, dependent: :nullify
+  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
 
   # Nested attributes
   accepts_nested_attributes_for :line_items, allow_destroy: true

@@ -35,7 +35,7 @@ class CaseRecord < ApplicationRecord
   # Case content
   has_many :case_actions, foreign_key: :case_id, dependent: :destroy
   has_many :case_documents, foreign_key: :case_id, dependent: :destroy
-  has_many :corporate_company_documents, through: :case_documents
+  # Note: corporate_company_documents through association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
   has_many :case_emails, foreign_key: :case_id, dependent: :destroy
   has_many :emails, through: :case_emails, source: :email_warehouse
   has_many :case_timeline_events, foreign_key: :case_id, dependent: :destroy

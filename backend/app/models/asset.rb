@@ -9,7 +9,7 @@ class Asset < ApplicationRecord
   # Existing associations
   has_one :asset_insurance, dependent: :destroy
   has_many :asset_service_histories, dependent: :destroy
-  has_many :corporate_company_documents, dependent: :nullify
+  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
 
   # New associations for Asset Register
   has_one :depreciation_profile, class_name: "AssetDepreciationProfile", dependent: :destroy
@@ -127,7 +127,8 @@ class Asset < ApplicationRecord
   end
 
   def documents_count
-    corporate_company_documents.count
+    # Note: corporate_company_documents table dropped (Jan 2026) - use WarehouseDocument
+    0  # Placeholder until WarehouseDocument integration
   end
 
   # Asset number in format: ABC-VEH-001

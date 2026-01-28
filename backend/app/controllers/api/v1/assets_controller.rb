@@ -241,19 +241,12 @@ module Api
       end
 
       # GET /api/v1/assets/:id/documents
+      # Note: corporate_company_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
+      # TODO: Implement WarehouseDocument query for assets
       def documents
-        documents = @asset.corporate_company_documents.includes(:corporate_company, :user, :document_type_record).order(created_at: :desc)
-
         render json: {
           success: true,
-          documents: documents.as_json(
-            include: {
-              corporate_company: {},
-              user: {},
-              document_type_record: {}
-            },
-            methods: [ :formatted_document_type, :file_size_mb ]
-          )
+          documents: []  # Table dropped - use WarehouseDocument
         }
       end
 

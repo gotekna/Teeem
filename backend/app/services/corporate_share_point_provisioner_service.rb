@@ -366,33 +366,12 @@ class CorporateSharePointProvisionerService
   end
 
   # Create or link document in database
+  # Note: corporate_company_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
+  # TODO: Migrate this method to create WarehouseDocument records instead
   def sync_document_to_database(company, file_id)
-    file = @client.get_file(file_id)
-
-    # Parse document name
-    parsed = parse_document_name(file["name"])
-    document_type = DocumentType.find_by(name: parsed[:type])
-
-    company_document = company.corporate_company_documents.find_or_initialize_by(
-      sharepoint_file_id: file_id
-    )
-
-    company_document.assign_attributes(
-      document_name: parsed[:description] || file["name"],
-      document_type: document_type&.category,
-      document_type_record: document_type,
-      file_name: file["name"],
-      file_size: file["size"],
-      year: parsed[:date]&.year,
-      folder: file.dig("parentReference", "path")&.split("/").last,
-      storage_type: "electronic",
-      sharepoint_file_id: file_id,
-      sharepoint_download_url: file["webUrl"],
-      company_code: extract_company_code(file["name"], company)
-    )
-
-    company_document.save!
-    company_document
+    Rails.logger.warn "[CorporateSharePointProvisionerService] sync_document_to_database called but corporate_company_documents table dropped. File ID: #{file_id}"
+    # Return nil to prevent errors - callers should handle nil gracefully
+    nil
   end
 
   private

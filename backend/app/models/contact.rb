@@ -100,8 +100,7 @@ class Contact < ApplicationRecord
   has_many :shareholding_companies, through: :corporate_company_shareholdings, source: :corporate_company
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
 
-  # Personal documents (for family members, directors, etc.)
-  has_many :corporate_company_documents, dependent: :destroy
+  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
 
   # SSoT: Contact documents (Xero invoices, bills, etc.)
   has_many :contact_documents, dependent: :destroy
