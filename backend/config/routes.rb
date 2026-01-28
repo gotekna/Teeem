@@ -500,6 +500,10 @@ Rails.application.routes.draw do
         collection do
           get :counts
         end
+        member do
+          get :preview
+          get :download
+        end
       end
 
       # Tekna Document Templates (HTML → PDF generation)

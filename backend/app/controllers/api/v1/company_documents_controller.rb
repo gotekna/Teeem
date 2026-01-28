@@ -52,7 +52,7 @@ module Api
             created_at: doc.created_at,
             document_date: doc.metadata&.dig("document_date"),
             financial_years: doc.metadata&.dig("financial_years"),
-            file_url: doc.storage_blob&.storage_path,
+            file_url: "/api/v1/company_documents/#{doc.id}/download",
             company_id: doc.metadata&.dig("company_id"),
             ai_verification_status: doc.metadata&.dig("ai_verification_status"),
             ai_suggested_name: doc.metadata&.dig("ai_suggested_name"),
@@ -65,6 +65,38 @@ module Api
         end
 
         render json: { success: true, documents: documents }
+      end
+
+      # GET /api/v1/company_documents/:id/preview
+      # Returns a presigned URL for inline document preview
+      def preview
+        doc = WarehouseDocument.find(params[:id])
+
+        url = doc.download_url(expires_in: 3600, disposition: :inline)
+
+        if url.present?
+          render json: { success: true, preview_url: url }
+        else
+          render json: { success: false, error: "Preview not available for this document" }
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Document not found" }, status: :not_found
+      end
+
+      # GET /api/v1/company_documents/:id/download
+      # Redirects to a presigned download URL
+      def download
+        doc = WarehouseDocument.find(params[:id])
+
+        url = doc.download_url(expires_in: 3600, disposition: :inline)
+
+        if url.present?
+          redirect_to url, allow_other_host: true
+        else
+          render json: { success: false, error: "Download not available" }, status: :not_found
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Document not found" }, status: :not_found
       end
 
       # GET /api/v1/company_documents/counts
