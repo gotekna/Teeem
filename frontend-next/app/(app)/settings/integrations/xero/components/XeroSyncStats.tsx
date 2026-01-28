@@ -61,6 +61,38 @@ interface TenantPdfSyncStats {
   pending: number;
   percentage: number;
   last_synced_at: string | null;
+  next_sync_at: string | null;
+  schedule: string | null;
+  blocker: {
+    reason: string;
+    detail: string;
+    pending_count?: number;
+    sync_mode?: string;
+    daily_percentage?: number;
+    resets_at?: string;
+    resets_at_display?: string;
+  } | null;
+  breakdown: {
+    bills: { total: number; synced: number };
+    sales_invoices: { total: number; synced: number };
+    credit_notes: { total: number; synced: number };
+    quotes: { total: number; synced: number };
+  } | null;
+}
+
+interface TenantDataSyncStats {
+  total_in_database: number;
+  linked_to_contacts: number;
+  unlinked_count: number;
+  last_synced_at: string | null;
+  next_sync_at: string | null;
+  schedule: string | null;
+  blocker: {
+    reason: string;
+    detail: string;
+    unlinked_count: number;
+    unlinked_contact_count: number;
+  } | null;
 }
 
 interface TenantStats {
@@ -73,6 +105,7 @@ interface TenantStats {
   match_breakdown: MatchBreakdown;
   rate_limits: TenantRateLimits | null;
   pdf_sync?: TenantPdfSyncStats;
+  data_sync?: TenantDataSyncStats;
 }
 
 interface PendingReviewItem {
@@ -130,7 +163,7 @@ export function XeroSyncStats() {
     try {
       const response = await api.get<{ success: boolean; data: SyncStatsData }>("/api/v1/xero/sync_stats");
       if (response.success) {
-        // Enrich tenant data with PDF sync stats
+        // Enrich tenant data with PDF sync stats and data sync stats
         const enrichedTenants = await Promise.all(
           response.data.tenants.map(async (tenant) => {
             try {
@@ -138,15 +171,29 @@ export function XeroSyncStats() {
                 `/api/v1/xero/pdf_sync_status?tenant_id=${tenant.tenant_id}`
               );
               if (pdfResponse.success && pdfResponse.data) {
+                const stage1 = pdfResponse.data.stage1_data_sync;
                 const stage2 = pdfResponse.data.stage2_pdf_download || pdfResponse.data;
                 return {
                   ...tenant,
+                  data_sync: stage1 ? {
+                    total_in_database: stage1.total_in_database || 0,
+                    linked_to_contacts: stage1.linked_to_contacts || 0,
+                    unlinked_count: stage1.unlinked_count || 0,
+                    last_synced_at: stage1.last_synced_at || null,
+                    next_sync_at: stage1.next_sync_at || null,
+                    schedule: stage1.schedule || null,
+                    blocker: stage1.blocker || null,
+                  } : undefined,
                   pdf_sync: {
                     total: stage2.total_to_sync || 0,
                     synced: stage2.downloaded || 0,
                     pending: stage2.pending || 0,
                     percentage: stage2.progress_percentage || 0,
                     last_synced_at: stage2.last_synced_at || null,
+                    next_sync_at: stage2.next_sync_at || null,
+                    schedule: stage2.schedule || null,
+                    blocker: stage2.blocker || null,
+                    breakdown: stage2.breakdown || null,
                   },
                 };
               }
@@ -527,6 +574,21 @@ export function XeroSyncStats() {
                       <div className="text-xs text-muted-foreground mt-1">
                         {tenant.documents.total.toLocaleString()} / {tenant.documents.total.toLocaleString()}
                       </div>
+                      {/* Stage 1 Timing */}
+                      {tenant.data_sync && (
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/50">
+                          <span>
+                            Last: {tenant.data_sync.last_synced_at
+                              ? formatDistanceToNow(new Date(tenant.data_sync.last_synced_at), { addSuffix: false })
+                              : "—"}
+                          </span>
+                          <span>
+                            Next: {tenant.data_sync.next_sync_at
+                              ? formatDistanceToNow(new Date(tenant.data_sync.next_sync_at), { addSuffix: false })
+                              : "—"}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     {/* Stage 2: PDF Sync */}
                     <div className="p-2 bg-muted/30 rounded border">
@@ -544,8 +606,97 @@ export function XeroSyncStats() {
                       <div className="text-xs text-muted-foreground mt-1">
                         {(tenant.pdf_sync?.synced || 0).toLocaleString()} / {(tenant.pdf_sync?.total || tenant.documents.total).toLocaleString()}
                       </div>
+                      {/* Stage 2 Timing */}
+                      {tenant.pdf_sync && (
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/50">
+                          <span>
+                            Last: {tenant.pdf_sync.last_synced_at
+                              ? formatDistanceToNow(new Date(tenant.pdf_sync.last_synced_at), { addSuffix: false })
+                              : "—"}
+                          </span>
+                          <span>
+                            Next: {tenant.pdf_sync.next_sync_at
+                              ? formatDistanceToNow(new Date(tenant.pdf_sync.next_sync_at), { addSuffix: false })
+                              : "—"}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {/* Schedule Info */}
+                  <div className="flex flex-wrap gap-2 text-[10px]">
+                    {tenant.data_sync?.schedule && (
+                      <span className="bg-muted px-2 py-0.5 rounded text-muted-foreground">
+                        {tenant.data_sync.schedule}
+                      </span>
+                    )}
+                    {tenant.pdf_sync?.schedule && (
+                      <span className="bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded text-blue-700 dark:text-blue-300">
+                        {tenant.pdf_sync.schedule}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Stage 1 Blocker - Unlinked Contacts */}
+                  {tenant.data_sync?.blocker && (
+                    <button
+                      onClick={() => router.push(`/settings/integrations/xero?tab=contacts&sheet=unlinked`)}
+                      className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/30 p-2 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors w-full text-left border border-amber-200 dark:border-amber-800"
+                    >
+                      <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{tenant.data_sync.blocker.reason}</span>
+                      <ChevronRight className="h-3 w-3 ml-auto flex-shrink-0" />
+                    </button>
+                  )}
+
+                  {/* Stage 2 Blocker - Rate Limiting / Catching Up */}
+                  {tenant.pdf_sync?.blocker && (
+                    <div className={`text-xs p-2 rounded border ${
+                      tenant.pdf_sync.blocker.sync_mode === "rate_limited"
+                        ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
+                        : tenant.pdf_sync.blocker.sync_mode === "catching_up"
+                        ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                        : "bg-muted text-muted-foreground border-border"
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {tenant.pdf_sync.blocker.sync_mode === "rate_limited" ? (
+                          <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                        ) : (
+                          <Activity className="h-3 w-3 flex-shrink-0" />
+                        )}
+                        <span className="font-medium">{tenant.pdf_sync.blocker.reason}</span>
+                      </div>
+                      <div className="text-[10px] mt-1 opacity-80">{tenant.pdf_sync.blocker.detail}</div>
+                      {tenant.pdf_sync.blocker.resets_at_display && (
+                        <div className="text-[10px] mt-1">
+                          Resets: {tenant.pdf_sync.blocker.resets_at_display}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* PDF Breakdown by Type */}
+                  {tenant.pdf_sync?.breakdown && (
+                    <div className="grid grid-cols-4 gap-1 text-[10px]">
+                      <div className="text-center p-1 bg-muted/30 rounded">
+                        <div className="font-medium">{tenant.pdf_sync.breakdown.bills.synced}/{tenant.pdf_sync.breakdown.bills.total}</div>
+                        <div className="text-muted-foreground">Bills</div>
+                      </div>
+                      <div className="text-center p-1 bg-muted/30 rounded">
+                        <div className="font-medium">{tenant.pdf_sync.breakdown.sales_invoices.synced}/{tenant.pdf_sync.breakdown.sales_invoices.total}</div>
+                        <div className="text-muted-foreground">Invoices</div>
+                      </div>
+                      <div className="text-center p-1 bg-muted/30 rounded">
+                        <div className="font-medium">{tenant.pdf_sync.breakdown.quotes.synced}/{tenant.pdf_sync.breakdown.quotes.total}</div>
+                        <div className="text-muted-foreground">Quotes</div>
+                      </div>
+                      <div className="text-center p-1 bg-muted/30 rounded">
+                        <div className="font-medium">{tenant.pdf_sync.breakdown.credit_notes.synced}/{tenant.pdf_sync.breakdown.credit_notes.total}</div>
+                        <div className="text-muted-foreground">Credits</div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Stats Grid */}
                   <div className="grid grid-cols-3 gap-3 text-center">

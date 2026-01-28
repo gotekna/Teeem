@@ -78,6 +78,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
   const [office365Tooltip, setOffice365Tooltip] = React.useState('Office 365: Not Connected');
+  const [xeroPendingReview, setXeroPendingReview] = React.useState(0);
   const [showCreateTask, setShowCreateTask] = React.useState(false);
 
   // Prevent duplicate fetches (React StrictMode double-mount)
@@ -155,6 +156,23 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         // On API error, show disconnected (honest about status)
         setXeroStatus('disconnected');
         setXeroTooltip('Xero: Not Connected');
+      }
+
+      // Fetch Xero pending review count (contacts needing review)
+      try {
+        const syncStatsResponse = await api.get<{
+          success: boolean;
+          data: {
+            global: {
+              pending_reviews: { count: number };
+            };
+          };
+        }>("/api/v1/xero/sync_stats");
+        if (syncStatsResponse?.success && syncStatsResponse?.data?.global?.pending_reviews) {
+          setXeroPendingReview(syncStatsResponse.data.global.pending_reviews.count || 0);
+        }
+      } catch (error) {
+        console.debug("Failed to fetch Xero pending review count:", error);
       }
 
       // Check organization-wide Microsoft 365 connection status
@@ -422,27 +440,39 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Xero Status */}
           <Link prefetch={false}
-            href="/settings/integrations/xero"
+            href={xeroPendingReview > 0 ? "/contacts/filter/pending_review" : "/settings/integrations/xero"}
             className={cn(
               "relative p-1.5 rounded-md transition-colors",
-              getStatusColors(xeroStatus)
+              xeroPendingReview > 0 ? "text-amber-500 dark:text-amber-400 hover:text-amber-600" : getStatusColors(xeroStatus)
             )}
-            title={xeroTooltip}
+            title={xeroPendingReview > 0 ? `${xeroPendingReview} Xero contacts pending review` : xeroTooltip}
           >
             <span className="sr-only">Xero Connections</span>
             <XeroIcon className="h-4 w-4" />
-            {/* Status indicator dot - shows actual connection status */}
-            {xeroStatus === 'connected' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-border" />
-            )}
-            {(xeroStatus === 'degraded' || xeroStatus === 'rate_limited') && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-border" />
-            )}
-            {xeroStatus === 'disconnected' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-muted-foreground border border-white dark:border-border" />
-            )}
-            {xeroStatus === 'error' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-border" />
+            {/* Pending review badge - takes priority over status dot */}
+            {xeroPendingReview > 0 ? (
+              <Badge
+                variant="default"
+                className="absolute -top-1 -right-1.5 h-4 min-w-[16px] flex items-center justify-center p-0 px-1 text-[10px] bg-amber-500 hover:bg-amber-500"
+              >
+                {xeroPendingReview > 9 ? "9+" : xeroPendingReview}
+              </Badge>
+            ) : (
+              <>
+                {/* Status indicator dot - shows actual connection status */}
+                {xeroStatus === 'connected' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-border" />
+                )}
+                {(xeroStatus === 'degraded' || xeroStatus === 'rate_limited') && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-border" />
+                )}
+                {xeroStatus === 'disconnected' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-muted-foreground border border-white dark:border-border" />
+                )}
+                {xeroStatus === 'error' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-border" />
+                )}
+              </>
             )}
           </Link>
 
