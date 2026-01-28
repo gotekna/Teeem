@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
+import { FuzzyMatchReviewModal } from "./FuzzyMatchReviewModal";
 
 interface TenantContactStats {
   total_links: number;
@@ -158,6 +159,8 @@ export function XeroSyncStats() {
   const [data, setData] = React.useState<SyncStatsData | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [syncing, setSyncing] = React.useState<string | null>(null);
+  const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
+  const [selectedReviewItem, setSelectedReviewItem] = React.useState<PendingReviewItem | null>(null);
 
   const fetchData = React.useCallback(async () => {
     try {
@@ -495,7 +498,10 @@ export function XeroSyncStats() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => router.push(`/contacts/${item.contact_id}`)}
+                    onClick={() => {
+                      setSelectedReviewItem(item);
+                      setReviewModalOpen(true);
+                    }}
                   >
                     Review
                   </Button>
@@ -760,6 +766,14 @@ export function XeroSyncStats() {
             ))}
         </div>
       </div>
+
+      {/* Fuzzy Match Review Modal */}
+      <FuzzyMatchReviewModal
+        open={reviewModalOpen}
+        onOpenChange={setReviewModalOpen}
+        item={selectedReviewItem}
+        onReviewed={fetchData}
+      />
     </div>
   );
 }
