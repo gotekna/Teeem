@@ -125,7 +125,28 @@ class XeroAttachmentSyncService
     # SSoT: Get folder path from EntityTab (no hardcoding)
     folder = compute_folder_from_document_type(document_type)
 
-    # SSoT: Create StorageBlob (handles deduplication)
+    # ========================================
+    # SSoT Content-Hash Deduplication (Jan 2026)
+    # ========================================
+    # Before creating a new WarehouseDocument, check if a document with
+    # the same content_hash already exists. If yes, link it to the Xero
+    # invoice instead of creating a new one. This prevents duplicate
+    # document metadata for the same file content.
+
+    content_hash = StorageBlob.compute_hash(pdf_content)
+    existing_by_content = find_document_by_content_hash(content_hash)
+
+    if existing_by_content
+      # Link existing document to Xero invoice
+      linked_doc = link_existing_document_to_xero(existing_by_content, document_type, folder)
+      if linked_doc
+        results[:pdf] = linked_doc
+        return
+      end
+      # If linking failed, fall through to create new document
+    end
+
+    # SSoT: Create StorageBlob (handles deduplication at storage level)
     storage_blob = StorageBlob.find_or_create_for_content!(
       pdf_content,
       filename: filename,
@@ -467,6 +488,58 @@ class XeroAttachmentSyncService
       xero_client.get_credit_note_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
     else
       xero_client.get_invoice_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+    end
+  end
+
+  # ========================================
+  # SSoT Content-Hash Deduplication (Jan 2026)
+  # ========================================
+
+  # Find existing WarehouseDocument with same content hash
+  # Returns nil if no match found or if already linked to this invoice
+  def find_document_by_content_hash(hash)
+    return nil if hash.blank?
+
+    WarehouseDocument
+      .joins(:storage_blob)
+      .where(storage_blobs: { content_hash: hash })
+      .where.not(documentable: external_invoice) # Not already linked to this invoice
+      .where(tenant_id: @tenant.id)
+      .first
+  end
+
+  # Link existing document to Xero invoice
+  # Preserves original metadata while adding Xero link
+  # @return [WarehouseDocument, nil] The updated document or nil if update failed
+  def link_existing_document_to_xero(doc, document_type, folder)
+    original_source_type = doc.source_type
+    original_documentable_type = doc.documentable_type
+    original_documentable_id = doc.documentable_id
+
+    doc.assign_attributes(
+      documentable: external_invoice,
+      source_type: "xero",
+      folder: folder,
+      linkable: external_invoice.contact,
+      metadata: (doc.metadata || {}).merge(
+        "xero_id" => external_invoice.external_id,
+        "xero_linked_at" => Time.current.iso8601,
+        "original_source_type" => original_source_type,
+        "original_documentable_type" => original_documentable_type,
+        "original_documentable_id" => original_documentable_id,
+        "document_type_id" => document_type&.id,
+        "document_type_name" => document_type&.name,
+        "invoice_number" => external_invoice.invoice_number,
+        "invoice_type" => external_invoice.invoice_type
+      )
+    )
+
+    if doc.save
+      Rails.logger.info("[XeroAttachmentSync] Linked existing document #{doc.id} to ExternalInvoice #{external_invoice.id} (content-hash dedup)")
+      doc
+    else
+      Rails.logger.warn("[XeroAttachmentSync] Failed to link existing document #{doc.id}: #{doc.errors.full_messages.join(', ')}")
+      nil
     end
   end
 
