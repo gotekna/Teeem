@@ -728,8 +728,9 @@ function SortableQuestionItem({
           {item.attachments.map((att) => {
             // Handle document attachments (CorporateCompanyDocument)
             if (att.document) {
-              // SSoT: Use storage_url (provider-agnostic) first, then file_url (ActiveStorage legacy)
-              const url = att.document?.storage_url || att.document?.file_url;
+              // SSoT: Use storage_url for downloads, storage_url_inline for viewers
+              const downloadUrl = att.document?.storage_url || att.document?.file_url;
+              const viewUrl = att.document?.storage_url_inline || downloadUrl;
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
               const isRenaming = renamingAttachmentId === att.id;
 
@@ -743,7 +744,7 @@ function SortableQuestionItem({
                 <div key={att.id} className="flex items-center gap-1 text-xs group">
                   <Paperclip className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
                   {/* Download button - always visible */}
-                  {url && (
+                  {downloadUrl && (
                     <button
                       onClick={() => onDownloadAttachment?.(att)}
                       className="text-muted-foreground hover:text-foreground"
@@ -803,12 +804,13 @@ function SortableQuestionItem({
                   ) : (
                     // Display mode: single click = drawer, double click = new window
                     <>
-                      {url ? (
+                      {viewUrl ? (
                         <button
-                          onClick={() => onOpenDocument?.(url, fileName, fileType)}
+                          onClick={() => onOpenDocument?.(viewUrl, fileName, fileType)}
                           onDoubleClick={(e) => {
                             e.preventDefault();
-                            window.open(url, '_blank');
+                            // Double-click opens in new tab using inline URL
+                            window.open(viewUrl, '_blank');
                           }}
                           className="text-green-600 dark:text-green-400 hover:text-green-700 hover:underline font-medium text-left"
                           title="Click to preview, double-click to open in new tab"
@@ -2776,16 +2778,16 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       if (response?.success && response?.share_url) {
         window.open(response.share_url, '_blank');
       } else {
-        // Fallback to direct URL if API fails
-        const url = att.document.storage_url || att.document.file_url;
+        // Fallback to inline URL if API fails (SSoT: use storage_url_inline for viewing)
+        const url = att.document.storage_url_inline || att.document.storage_url || att.document.file_url;
         if (url) {
           window.open(url, '_blank');
         }
       }
     } catch (err) {
       console.error('Failed to get open link:', err);
-      // Fallback to direct URL on error
-      const url = att.document.storage_url || att.document.file_url;
+      // Fallback to inline URL on error (SSoT: use storage_url_inline for viewing)
+      const url = att.document.storage_url_inline || att.document.storage_url || att.document.file_url;
       if (url) {
         window.open(url, '_blank');
       }
@@ -7230,7 +7232,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               setSelectedEmailId(att.email.id);
                             } else if (att.document) {
                               // Single click = open preview (consistent with Questions section)
-                              const url = att.document?.storage_url || att.document?.file_url;
+                              // SSoT: Use storage_url_inline for viewers (Content-Disposition: inline)
+                              const url = att.document?.storage_url_inline || att.document?.storage_url || att.document?.file_url;
                               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
                               const ext = (att.document?.file_name || '').split('.').pop()?.toLowerCase() || '';
                               const fileType: 'pdf' | 'image' | 'other' = ext === 'pdf' ? 'pdf'

@@ -131,11 +131,19 @@ module StorableDocument
   # URL Methods
   # ========================================
 
-  # Get download URL for the stored file
+  # Get download URL for the stored file (forces browser download)
   # SSoT: Delegates to DocumentStorageService (handles S3, SharePoint, ActiveStorage)
   def storage_url
     service = DocumentStorageService.new
-    result = service.download_url(self)
+    result = service.download_url(self, disposition: :attachment)
+    result[:success] ? result[:url] : nil
+  end
+
+  # Get inline view URL for the stored file (browser displays in viewer)
+  # SSoT: Same as storage_url but with Content-Disposition: inline
+  def storage_url_inline
+    service = DocumentStorageService.new
+    result = service.download_url(self, disposition: :inline)
     result[:success] ? result[:url] : nil
   end
 
