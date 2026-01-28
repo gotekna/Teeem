@@ -108,7 +108,7 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
           total: sessions.count,
           completed: sessions.completed.count,
           active: sessions.active.count,
-          pending_approval: sessions.pending.count,
+          pending_approval: sessions.pending_approval.count,
           with_anomalies: sessions.where(has_anomalies: true).count
         },
         hours: {
@@ -252,7 +252,7 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
   # GET /api/v1/site_presence_dashboards/pending_approvals
   # Sessions pending approval
   def pending_approvals
-    sessions = SitePresenceSession.pending
+    sessions = SitePresenceSession.pending_approval
                                   .includes(:worker_profile, :job)
                                   .order(checkin_at: :desc)
                                   .limit(50)
@@ -260,7 +260,7 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
     render json: {
       success: true,
       data: {
-        count: SitePresenceSession.pending.count,
+        count: SitePresenceSession.pending_approval.count,
         sessions: sessions.map { |s| approval_session_json(s) }
       }
     }
@@ -339,7 +339,7 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
 
   def current_alerts
     {
-      pending_approvals: SitePresenceSession.pending.count,
+      pending_approvals: SitePresenceSession.pending_approval.count,
       anomalies_today: SitePresenceSession.where("DATE(checkin_at) = ?", Date.current).where(has_anomalies: true).count,
       over_budget_jobs: JobCostBudget.over_budget.count,
       ai_suggestions_pending: AiTimesheetSuggestion.pending.count
