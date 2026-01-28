@@ -315,6 +315,16 @@ module DocumentProviders
       raise NotFoundError, "File not found: #{path_or_id}"
     end
 
+    # Check if a file exists without throwing errors
+    # Used for cache validation (zip files, etc.)
+    def file_exists?(path_or_id)
+      key = resolve_key(path_or_id)
+      @client.head_object(bucket: @bucket, key: key)
+      true
+    rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchKey
+      false
+    end
+
     def delete_file(path_or_id)
       key = resolve_key(path_or_id)
       @client.delete_object(bucket: @bucket, key: key)

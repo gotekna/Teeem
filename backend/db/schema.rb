@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_28_060351) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8886,6 +8886,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_060351) do
     t.bigint "tenant_id"
     t.jsonb "board_priority", default: {}
     t.bigint "case_id"
+    t.string "response_zip_fingerprint"
+    t.string "response_zip_path"
+    t.datetime "response_zip_created_at"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
