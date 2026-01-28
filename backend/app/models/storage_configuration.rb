@@ -823,16 +823,16 @@ class StorageConfiguration < ApplicationRecord
   # - TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf, NotebookPageAttachment
   #
   # @param entity [ActiveRecord] The document entity (must respond to :job, :user, :created_at)
-  # @param warehouse_type [Symbol] The warehouse type (:excel_documents, :word_documents, :powerpoint_documents, :notes, :pdf_documents)
-  # @param tab_name [String] Optional tab name for job-attached documents (default: derived from warehouse_type)
+  # @param scope [Symbol] The warehouse scope (:excel_documents, :word_documents, :powerpoint_documents, :notes, :pdf_documents)
+  # @param tab_name [String] Optional tab name for job-attached documents (default: derived from scope)
   # @return [String] The resolved folder path
   #
   # Examples:
-  #   resolve_warehouse_path(spreadsheet, warehouse_type: :excel_documents)
+  #   resolve_warehouse_path(spreadsheet, scope: :excel_documents)
   #   # Job attached: "Jobs/JOB-001/Excel"
   #   # No job:       "Warehousing/Excel/Robert Harder/2026"
   #
-  def resolve_warehouse_path(entity, warehouse_type:, tab_name: nil)
+  def resolve_warehouse_path(entity, scope:, tab_name: nil)
     job = entity.respond_to?(:job) ? entity.job : nil
     user = entity.respond_to?(:user) ? entity.user : nil
     uploaded_by = entity.respond_to?(:uploaded_by) ? entity.uploaded_by : nil
@@ -842,12 +842,12 @@ class StorageConfiguration < ApplicationRecord
     if job.present?
       # Job-attached: Use job folder structure
       # SSoT: EntityTab defines the folder name, but we use tab_name for document type
-      effective_tab_name = tab_name || default_tab_name_for(warehouse_type)
+      effective_tab_name = tab_name || default_tab_name_for(scope)
       job_path(job.job_code, effective_tab_name)
     else
       # Standalone: Use warehousing folder structure
       # SSoT: StorageConfiguration.resolve_path with warehouse_folders
-      resolve_path(warehouse_type, {
+      resolve_path(scope, {
         UserName: effective_user&.name || "Unknown",
         Year: created_at&.year&.to_s || Time.current.year.to_s,
         Month: created_at&.strftime("%m") || Time.current.strftime("%m")
