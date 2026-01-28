@@ -169,47 +169,36 @@ module Api
           Rails.logger.info "[SharePointUploadSession] Logged activity for #{params[:filename]} on job #{job.id}"
         end
 
-        # 2. Create/update JobDocument for immediate warehouse indexing
-        # This happens immediately instead of waiting for JobDocumentSyncJob
+        # SSoT (Jan 2026): Create/update WarehouseDocument directly (no legacy JobDocument)
         if job && params[:sharepoint_item_id].present?
-          job_doc = JobDocument.find_or_initialize_by(
-            job: job,
-            sharepoint_item_id: params[:sharepoint_item_id]
-          )
-
           # Detect document type from extension
           extension = File.extname(params[:filename].to_s).delete(".").downcase
           doc_type = DocumentType.find_by_extension(extension) if extension.present?
 
-          job_doc.update!(
-            file_name: params[:filename],
-            file_size: params[:file_size].to_i,
-            folder_path: params[:folder_path],
-            web_url: params[:web_url],
-            last_modified_at: Time.current,
-            last_modified_by: current_user&.name,
-            sync_status: "synced",
-            last_synced_at: Time.current,
-            document_type: doc_type
-          )
+          # Find existing by SharePoint item ID in metadata, or create new
+          warehouse_doc = WarehouseDocument.find_by(
+            "source_type = ? AND linkable_type = ? AND linkable_id = ? AND metadata->>'sharepoint_item_id' = ?",
+            "job", "Job", job.id, params[:sharepoint_item_id]
+          ) || WarehouseDocument.new(source_type: "job", linkable: job)
 
-          # Dual-write: Create/update WarehouseDocument entry for File Warehouse
-          warehouse_doc = WarehouseDocument.find_or_initialize_by(documentable: job_doc)
           warehouse_doc.update!(
-            source_type: "job",
             display_name: params[:filename],
             original_filename: params[:filename],
             folder: params[:folder_path],
             file_size: params[:file_size].to_i,
-            linkable: job,
             metadata: (warehouse_doc.metadata || {}).merge(
               "job_code" => job.job_code,
+              "document_type_id" => doc_type&.id,
               "document_type" => doc_type&.name,
-              "source" => "sharepoint_upload"
+              "sharepoint_item_id" => params[:sharepoint_item_id],
+              "web_url" => params[:web_url],
+              "source" => "sharepoint_upload",
+              "last_modified_by" => current_user&.name,
+              "synced_at" => Time.current.iso8601
             )
           )
 
-          Rails.logger.info "[SharePointUploadSession] Indexed JobDocument #{job_doc.id} for #{params[:filename]}"
+          Rails.logger.info "[SharePointUploadSession] Indexed WarehouseDocument #{warehouse_doc.id} for #{params[:filename]}"
         end
 
         render json: { success: true }
