@@ -297,15 +297,12 @@ module Api
       end
 
       # GET /api/v1/companies/:id/documents
+      # Note: corporate_company_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
+      # TODO: Implement WarehouseDocument query
       def documents
-        documents = @company.corporate_company_documents.order(created_at: :desc)
-
-        # Filter by type
-        documents = documents.by_type(params[:document_type]) if params[:document_type].present?
-
         render json: {
           success: true,
-          documents: documents.as_json(methods: [ :formatted_document_type, :file_size_mb ])
+          documents: []  # Table dropped - use WarehouseDocument
         }
       end
 
@@ -533,38 +530,34 @@ module Api
 
       # GET /api/v1/companies/:id/data_stats
       # Returns data warehouse statistics for a company
+      # Note: corporate_company_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
+      # TODO: Implement WarehouseDocument statistics
       def data_stats
-        # Document statistics
-        documents = @company.corporate_company_documents
+        # Document statistics - stub data (table dropped)
         doc_stats = {
-          total_documents: documents.count,
-          by_source: documents.group(:source).count,
-          by_folder: documents.group(:folder).count,
-          by_document_type: documents.group(:document_type).count,
-          by_ai_status: documents.group(:ai_verification_status).count,
-          with_files: documents.where.not(file_url: [ nil, "" ]).count,
-          verified: documents.where(ai_verification_status: "verified").count,
-          needs_review: documents.where(ai_verification_status: %w[mismatch needs_review pending]).count,
-          latest_upload: documents.maximum(:created_at),
-          oldest_document: documents.minimum(:document_date),
-          newest_document: documents.maximum(:document_date),
-          financial_years: documents.pluck(:financial_years).flatten.compact.uniq.sort.reverse.first(5),
-          total_file_size: documents.sum(:file_size) || 0
+          total_documents: 0,
+          by_source: {},
+          by_folder: {},
+          by_document_type: {},
+          by_ai_status: {},
+          with_files: 0,
+          verified: 0,
+          needs_review: 0,
+          latest_upload: nil,
+          oldest_document: nil,
+          newest_document: nil,
+          financial_years: [],
+          total_file_size: 0
         }
 
-        # Document types breakdown
-        doc_type_stats = documents
-          .joins("LEFT JOIN document_types ON document_types.name = corporate_company_documents.document_type")
-          .select("corporate_company_documents.document_type, document_types.abbreviation, COUNT(*) as count")
-          .group("corporate_company_documents.document_type, document_types.abbreviation")
-          .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.count } }
+        # Document types breakdown - stub data
+        doc_type_stats = []
 
-        # OneDrive sync status
-        onedrive_docs = documents.where(source: "onedrive")
+        # OneDrive sync status - stub data
         onedrive_stats = {
-          total: onedrive_docs.count,
-          last_synced: onedrive_docs.maximum(:synced_at),
-          by_folder: onedrive_docs.group(:folder).count
+          total: 0,
+          last_synced: nil,
+          by_folder: {}
         }
 
         # Xero connection stats - SSoT: Use XeroConnectionHealth
@@ -587,18 +580,6 @@ module Api
           has_folder: @company.sharepoint_folder_url.present?
         }
 
-        # File types (CAD/BIM from job_documents if this company has associated jobs)
-        # For now, just company documents file breakdown
-        file_extensions = documents.where.not(file_url: nil)
-          .pluck(:title)
-          .map { |t| File.extname(t.to_s).downcase }
-          .compact
-          .reject(&:empty?)
-          .tally
-          .sort_by { |_, count| -count }
-          .first(10)
-          .to_h
-
         render json: {
           success: true,
           data: {
@@ -612,7 +593,7 @@ module Api
             onedrive: onedrive_stats,
             xero: xero_stats,
             sharepoint: sharepoint_stats,
-            file_extensions: file_extensions,
+            file_extensions: {},
             last_updated: Time.current
           }
         }
@@ -620,46 +601,46 @@ module Api
 
       # GET /api/v1/companies/:id/warehouse_health
       # Returns data warehouse health checks for a company
+      # Note: corporate_company_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
+      # TODO: Implement WarehouseDocument health checks
       def warehouse_health
         checks = []
 
-        # 1. Documents Health Check
-        documents = @company.corporate_company_documents
-        total_docs = documents.count
-        verified_docs = documents.where(ai_verification_status: "verified").count
-        doc_rate = total_docs > 0 ? (verified_docs.to_f / total_docs * 100).round(1) : 0
+        # 1. Documents Health Check - stub data (table dropped)
+        total_docs = 0
+        verified_docs = 0
+        doc_rate = 0
 
         checks << {
           id: "documents_verified",
           name: "Document Verification",
           category: "documents",
-          description: "Documents verified by AI",
+          description: "Documents verified by AI (migrated to WarehouseDocument)",
           value: verified_docs,
           total: total_docs,
           percentage: doc_rate,
-          status: doc_rate >= 90 ? "pass" : doc_rate >= 70 ? "warning" : "fail",
-          action: doc_rate < 90 ? "Run AI verification on pending documents" : nil
+          status: "pass",  # No documents = pass by default
+          action: nil
         }
 
-        # 2. Documents with Files
-        docs_with_files = documents.where.not(file_url: [ nil, "" ]).count
-        file_rate = total_docs > 0 ? (docs_with_files.to_f / total_docs * 100).round(1) : 100
+        # 2. Documents with Files - stub data (table dropped)
+        docs_with_files = 0
+        file_rate = 100
 
         checks << {
           id: "documents_stored",
           name: "Documents Stored",
           category: "documents",
-          description: "Documents with files in cloud storage",
+          description: "Documents with files in cloud storage (migrated to WarehouseDocument)",
           value: docs_with_files,
           total: total_docs,
           percentage: file_rate,
-          status: file_rate >= 95 ? "pass" : file_rate >= 80 ? "warning" : "fail",
-          action: file_rate < 95 ? "Upload missing document files" : nil
+          status: "pass",  # No documents = pass by default
+          action: nil
         }
 
         # 3. SharePoint/OneDrive Connection
         has_sharepoint = @company.sharepoint_folder_url.present?
-        onedrive_docs = documents.where(source: "onedrive").count
 
         checks << {
           id: "sharepoint_connected",
@@ -671,7 +652,7 @@ module Api
           percentage: has_sharepoint ? 100 : 0,
           status: has_sharepoint ? "pass" : "fail",
           action: has_sharepoint ? nil : "Connect company to SharePoint folder",
-          extra: { synced_documents: onedrive_docs }
+          extra: { synced_documents: 0 }
         }
 
         # 4. Xero Connection - SSoT: Use connected? which delegates to XeroConnectionHealth

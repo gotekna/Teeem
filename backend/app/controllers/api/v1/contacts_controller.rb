@@ -797,7 +797,7 @@ module Api
             end
             linked_company_data[:directors_count] = linked_company.corporate_company_directors.current.count
             linked_company_data[:shareholdings_count] = linked_company.corporate_company_shareholdings.count
-            linked_company_data[:documents_count] = linked_company.corporate_company_documents.count
+            linked_company_data[:documents_count] = 0  # Table dropped (Jan 2026) - use WarehouseDocument
             # SSoT: Include bank accounts from the bank_accounts table
             linked_company_data[:bank_accounts] = linked_company.bank_accounts.active.map do |ba|
               {

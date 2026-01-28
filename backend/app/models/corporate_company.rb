@@ -51,7 +51,7 @@ class CorporateCompany < ApplicationRecord
   has_many :corporate_company_compliance_items, foreign_key: "company_id", dependent: :destroy
   has_many :pending_compliance_items, -> { where(completed: false) }, class_name: "CorporateCompanyComplianceItem", foreign_key: "company_id"
 
-  has_many :corporate_company_documents, foreign_key: "company_id", dependent: :destroy
+  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
   has_many :corporate_company_activities, foreign_key: "company_id", dependent: :destroy
   has_one :corporate_company_xero_connection, foreign_key: "company_id", dependent: :destroy
   has_many :corporate_company_monthly_pls, dependent: :destroy  # Cached Xero P&L data

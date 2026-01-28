@@ -2,7 +2,7 @@ class CorporateCompanyLoan < ApplicationRecord
   # Associations
   belongs_to :lender_company, class_name: "CorporateCompany"
   belongs_to :borrower_company, class_name: "CorporateCompany"
-  has_many :corporate_company_documents, foreign_key: "loan_id", dependent: :nullify
+  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
 
   # Validations
   validates :principal_amount, presence: true, numericality: { greater_than: 0 }
