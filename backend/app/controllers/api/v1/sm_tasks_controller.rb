@@ -2406,7 +2406,7 @@ module Api
       # When user sends a new response, old zips should be invalidated (links become 404)
       # This ensures only the latest response is accessible
       def cleanup_previous_task_zips(provider, folder_path, zip_filename)
-        files = provider.list_files(folder_path) rescue []
+        files = provider.list_folder(folder_path) rescue []
         return if files.empty?
 
         # zip_filename is like "TaskName_response_files.zip"
