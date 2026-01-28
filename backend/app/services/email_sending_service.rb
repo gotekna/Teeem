@@ -396,14 +396,25 @@ class EmailSendingService
 
   # Normalize attachments for Graph API (expects Base64)
   def normalize_attachments_for_graph
-    @params.attachments_list.map do |att|
+    @params.attachments_list.each_with_index.map do |att, idx|
       content = att[:content]
-      # Convert to Base64 if not already
-      content = Base64.strict_encode64(content) unless content.is_a?(String) && content.match?(/\A[A-Za-z0-9+\/=]+\z/)
+      filename = att[:filename] || att[:name]
+
+      # FRC (Jan 2026): ALWAYS Base64 encode binary content for Graph API
+      # Previous code tried to detect if content was already Base64, but this was unreliable
+      # Binary content (ASCII-8BIT) should always be encoded, never passed through as-is
+      original_size = content&.bytesize || 0
+      original_encoding = content&.encoding
+
+      # Force binary encoding before Base64 to ensure clean encoding
+      content = content.dup.force_encoding(Encoding::ASCII_8BIT) if content
+      encoded_content = Base64.strict_encode64(content)
+
+      Rails.logger.info "[EmailSendingService] Graph attachment #{idx + 1}: '#{filename}' - original: #{original_size} bytes (#{original_encoding}), base64: #{encoded_content.length} chars"
 
       {
-        name: att[:filename] || att[:name],
-        content: content,
+        name: filename,
+        content: encoded_content,
         content_type: att[:content_type]
       }
     end
