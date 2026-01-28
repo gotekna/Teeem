@@ -679,13 +679,13 @@ module Api
         end
 
         # Count synced files and last sync based on actual provider
+        # SSoT (Jan 2026): All documents are now in WarehouseDocument (warehouse_docs defined above).
+        # warehouse_documents has no storage_provider column - all docs are in the current provider.
         synced_files_count, last_sync_time = case actual_provider_type
         when "s3_compatible"
-          s3_docs = documents.where(storage_provider: %w[s3 wasabi s3_compatible])
-          [s3_docs.count, s3_docs.maximum(:last_modified_at) || s3_credential&.updated_at]
+          [warehouse_docs.count, warehouse_docs.maximum(:updated_at) || s3_credential&.updated_at]
         when "sharepoint"
-          sp_docs = documents.where(storage_provider: "sharepoint")
-          [sp_docs.count, sp_docs.maximum(:last_modified_at) || ms_credential&.last_sync_at]
+          [warehouse_docs.count, warehouse_docs.maximum(:updated_at) || ms_credential&.last_sync_at]
         else
           [0, nil]
         end
