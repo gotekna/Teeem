@@ -329,6 +329,16 @@ email_storage_upload:
   args: [{ batch_size: 250 }]
   schedule: every 15 minutes
 
+# Backfill missing email attachment blobs
+# FRC (Jan 2026): Older emails may have EmailAttachment records without storage_blob_id
+# This job downloads attachment content from Microsoft and stores via StorageBlob
+# Runs hourly to catch any missing attachments
+email_attachment_blob_backfill:
+  class: BackfillEmailAttachmentBlobsJob
+  queue: low
+  args: [{ batch_size: 100 }]
+  schedule: every hour at minute 30
+
 # Wake up snoozed emails that have reached their snooze time
 # Runs every 5 minutes (was: 1 minute - caused queue congestion)
 email_snooze_wakeup:

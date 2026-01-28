@@ -946,7 +946,9 @@ class SyncedEmail < ApplicationRecord
   def sync_attachments!(force: false)
     has_inline_images = body_html&.include?('cid:')
     return unless has_attachments || has_inline_images
-    return if email_attachments.any? && !force
+    # FRC (Jan 2026): Only skip if ALL attachments have blobs, not just if records exist
+    # Old code skipped if any EmailAttachment existed, even without blob (metadata-only)
+    return if !force && email_attachments.any? && email_attachments.where(storage_blob_id: nil).none?
 
     # SSoT: Try linking existing attachments first (don't re-download)
     return if link_existing_attachments!
@@ -985,6 +987,9 @@ class SyncedEmail < ApplicationRecord
       elsif ea.content_id.blank? && content_id.present?
         ea.update_column(:content_id, content_id)
       end
+
+      # Skip if already has blob (avoid re-downloading)
+      next if ea.storage_blob_id.present?
 
       # Store content via StorageBlob (handles deduplication)
       ea.store_content!(content, filename: filename, content_type: content_type)
