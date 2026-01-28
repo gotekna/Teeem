@@ -1645,6 +1645,44 @@ module Api
       def job_all_files
         job = Job.find(params[:job_id])
 
+        # SSoT (Jan 2026): JobDocument table was dropped. Use WarehouseDocument instead.
+        # Return warehouse documents linked to this job until full migration to WarehouseDocument is complete.
+        unless defined?(JobDocument) && ActiveRecord::Base.connection.table_exists?("job_documents")
+          warehouse_docs = WarehouseDocument.where(linkable_type: "Job", linkable_id: job.id)
+            .or(WarehouseDocument.where(source_type: "job", documentable_type: "Job", documentable_id: job.id))
+            .includes(:storage_blob)
+
+          files = warehouse_docs.map do |doc|
+            blob = doc.storage_blob
+            {
+              id: doc.id.to_s,
+              document_id: doc.id,
+              name: doc.display_name || doc.original_filename || "Untitled",
+              original_name: doc.original_filename,
+              size: doc.file_size || blob&.file_size || 0,
+              web_url: nil,
+              storage_provider: "wasabi",
+              storage_path: blob&.storage_path,
+              download_url: doc.download_url ? "#{request.base_url}/api/v1/documents/warehouse_download?id=#{doc.id}" : nil,
+              modified: doc.updated_at&.iso8601,
+              type: "file",
+              folder_path: doc.folder || "",
+              document_type_id: nil,
+              document_type_name: doc.document_type_name,
+              from_cache: false
+            }
+          end
+
+          return render json: {
+            success: true,
+            files: files.sort_by { |f| [f[:folder_path].to_s.downcase, f[:name].to_s.downcase] },
+            total: files.size,
+            ai_stats: { total: 0, analyzed: 0, unanalyzed: 0, pending_review: 0, approved: 0, rejected: 0 },
+            source: "warehouse_documents"
+          }
+        end
+
+        # Legacy path: JobDocument table (deprecated - will be removed)
         # Check if we have cached documents in the data warehouse
         # Include entity_tabs through document_type to get entity_tab_key for folder view
         cached_docs = job.job_documents.includes({ document_type: :entity_tabs }, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
@@ -3293,7 +3331,7 @@ module Api
           folder_path: doc.folder,
           file_extension: File.extname(doc.original_filename.to_s).delete("."),
           file_type: doc.storage_blob&.content_type,
-          file_size: doc.file_size || doc.storage_blob&.byte_size,
+          file_size: doc.file_size || doc.storage_blob&.file_size,
           web_url: doc.meta("web_url"),
           current_type: doc_type ? {
             id: doc_type.id,
