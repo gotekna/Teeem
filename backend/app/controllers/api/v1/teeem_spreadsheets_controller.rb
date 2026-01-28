@@ -9,17 +9,18 @@ module Api
       # Imports an email attachment directly into a new TeeemSpreadsheet
       # Params:
       #   - email_id: ID of the SyncedEmail
-      #   - attachment_id: ID of the email attachment
+      #   - attachment_id: ID of the attachment (WarehouseDocument)
+      # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
       def import_from_attachment
         email = SyncedEmail.find(params[:email_id])
-        email_attachment = email.email_attachments.find_by(id: params[:attachment_id])
+        attachment_doc = email.attachment_documents.find_by(id: params[:attachment_id])
 
-        unless email_attachment
+        unless attachment_doc
           return render json: { success: false, error: "Attachment not found" }, status: :not_found
         end
 
         # Download the attachment content
-        content = fetch_attachment_content(email, email_attachment)
+        content = fetch_attachment_content(email, attachment_doc)
         unless content.present?
           return render json: { success: false, error: "Could not download attachment" }, status: :unprocessable_entity
         end
@@ -48,7 +49,8 @@ module Api
           end
 
           # Create the spreadsheet with a name based on the attachment filename
-          base_name = email_attachment.filename.sub(/\.(xlsx?|csv)$/i, "")
+          filename = attachment_doc.original_filename || attachment_doc.display_name || "spreadsheet"
+          base_name = filename.sub(/\.(xlsx?|csv)$/i, "")
           spreadsheet = current_user.teeem_spreadsheets.create!(
             name: base_name,
             description: "Imported from email: #{email.subject}",
@@ -325,44 +327,30 @@ module Api
       end
 
       # Fetch attachment content from storage (similar to SyncedEmailsController#download_attachment)
-      def fetch_attachment_content(email, email_attachment)
-        # Priority 1: Use storage_blob if available (Wasabi)
-        if email_attachment.stored?
-          content = email_attachment.download
+      # Note: email_attachments table DROPPED (Jan 2026) - attachment_doc is now WarehouseDocument
+      def fetch_attachment_content(email, attachment_doc)
+        # Priority 1: Use storage_blob if available (SSoT)
+        if attachment_doc.storage_blob.present?
+          content = attachment_doc.storage_blob.download
           return content&.b if content.present?
         end
 
-        # Priority 2: Try SharePoint if available
-        if email_attachment.attachment&.storage_reference.present?
-          sp_config = MicrosoftCredential.teeem_sharepoint_config
-          if sp_config
-            begin
-              client = MicrosoftAppGraphClient.for_sharepoint(sp_config)
-              content = client.download_file(
-                sp_config.drive_id || StorageConfiguration.instance.drive_id,
-                email_attachment.attachment.storage_reference
-              )
-              return content&.b if content.present?
-            rescue StandardError => e
-              Rails.logger.warn "[TeeemSpreadsheet] SharePoint download failed: #{e.message}"
-            end
-          end
-        end
-
-        # Priority 3: Try to download from Outlook directly
-        if email.outlook_message_id.present? && email_attachment.outlook_attachment_id.present?
+        # Priority 2: Try to download from Outlook directly
+        # Note: Since attachments are now in WarehouseDocument, we need to try sync first
+        if email.has_attachments && email.outlook_id.present?
           cred = email.microsoft_credential
           if cred
             begin
-              client = MicrosoftAppGraphClient.for_org(cred)
-              content = client.download_attachment(
-                email.mailbox_owner_email,
-                email.outlook_message_id,
-                email_attachment.outlook_attachment_id
-              )
-              return content&.b if content.present?
+              # Sync attachments to get content via WarehouseDocument
+              email.sync_attachments!(force: true)
+              # Reload and try again
+              attachment_doc.reload
+              if attachment_doc.storage_blob.present?
+                content = attachment_doc.storage_blob.download
+                return content&.b if content.present?
+              end
             rescue StandardError => e
-              Rails.logger.warn "[TeeemSpreadsheet] Outlook download failed: #{e.message}"
+              Rails.logger.warn "[TeeemSpreadsheet] Attachment sync failed: #{e.message}"
             end
           end
         end

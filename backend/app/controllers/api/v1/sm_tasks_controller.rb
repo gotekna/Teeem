@@ -2799,16 +2799,16 @@ module Api
               # Ultra fix (Jan 2026): Avoids re-download and re-upload of .eml files
               eml_storage_key: email.eml_stored? ? email.email_storage_path : nil,
               # SSoT: Return attachment metadata for display
-              # Download URL: /api/v1/synced_email/:email_id/attachments/:attachment_id/download
-              # Frontend constructs download URL from email_id + attachment.id (never expose storage_path)
+              # Download URL: /api/v1/synced_emails/:email_id/attachment_documents/:doc_id/download
+              # Frontend constructs download URL from email_id + doc.id (never expose storage_path)
               email_id: email.id,
-              email_attachments: email.email_attachments.map do |ea|
+              # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+              email_attachments: email.attachment_documents.map do |doc|
                 {
-                  id: ea.id,
-                  filename: ea.filename,
-                  # content_type and file_size are on storage_blob (Jan 2026 refactor)
-                  content_type: ea.storage_blob&.content_type,
-                  file_size: ea.storage_blob&.file_size
+                  id: doc.id,
+                  filename: doc.original_filename || doc.display_name,
+                  content_type: doc.content_type || doc.storage_blob&.content_type,
+                  file_size: doc.file_size || doc.storage_blob&.file_size
                 }
               end
             }

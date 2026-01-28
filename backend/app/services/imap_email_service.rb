@@ -577,21 +577,38 @@ class ImapEmailService
   end
 
   def attach_email_files(email, attachments)
-    # Note: has_many_attached :files was removed (Jan 2026) - create EmailAttachment records instead
-    # SSoT: EmailAttachment uses store_content! for deduplicated storage via StorageBlob
+    # Note: email_attachments table DROPPED (Jan 2026) - use WarehouseDocument + StorageBlob
+    # SSoT: StorageBlob handles content-addressed deduplication
     attachments.each do |attachment|
       next unless attachment[:content].present?
 
-      # Note: content_type and file_size are stored in storage_blob, not email_attachment (Jan 2026 refactor)
-      email_attachment = email.email_attachments.create!(
-        filename: attachment[:filename]
+      content = attachment[:content]
+      filename = attachment[:filename]
+      content_type = attachment[:content_type]
+
+      # Create StorageBlob (handles deduplication via content_hash)
+      blob = StorageBlob.find_or_create_for_content!(
+        content,
+        filename: filename,
+        content_type: content_type
       )
-      # SSoT: Use store_content! which handles deduplication via StorageBlob
-      email_attachment.store_content!(
-        attachment[:content],
-        filename: attachment[:filename],
-        content_type: attachment[:content_type]
+
+      # Create WarehouseDocument linking to blob
+      WarehouseDocument.create!(
+        documentable: email,
+        storage_blob_id: blob.id,
+        display_name: filename,
+        original_filename: filename,
+        folder: 'Emails/Attachments',
+        source_type: 'email_attachment',
+        tenant_id: email.tenant_id,
+        content_type: content_type || blob.content_type,
+        file_size: content.bytesize,
+        metadata: { 'synced_email_id' => email.id.to_s }
       )
+
+      blob.increment!(:reference_count)
+      Rails.logger.debug "[ImapEmailService] Created attachment: #{filename}"
     end
   rescue => e
     Rails.logger.error "[ImapEmailService] Error attaching files: #{e.message}"

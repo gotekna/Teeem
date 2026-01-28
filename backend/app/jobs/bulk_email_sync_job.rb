@@ -174,12 +174,12 @@ class BulkEmailSyncJob < ApplicationJob
     end
 
     # Get emails with unprocessed attachments
+    # Note: email_attachments table DROPPED (Jan 2026) - use WarehouseDocument with source_type='email_attachment'
     scope = SyncedEmail
       .where(microsoft_credential_id: @credential.id)
       .where(has_attachments: true)
       .where.not(mailbox_owner_email: nil)
-      .left_joins(:email_attachments)
-      .where(email_attachments: { id: nil })
+      .where("NOT EXISTS (SELECT 1 FROM warehouse_documents WHERE warehouse_documents.metadata->>'synced_email_id' = synced_emails.id::text AND warehouse_documents.source_type = 'email_attachment')")
       .order(:id)
 
     # Resume from checkpoint if available
@@ -215,6 +215,7 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "[BulkSync] Phase 2 complete: #{@progress['attachments_uploaded']} uploaded, #{@progress['attachments_deduplicated']} deduplicated"
   end
 
+  # Note: email_attachments table DROPPED (Jan 2026) - use WarehouseDocument + StorageBlob
   def process_email_attachments(email, client)
     attachments = client.get_email_attachments(email.mailbox_owner_email, email.outlook_id)
 
@@ -225,53 +226,59 @@ class BulkEmailSyncJob < ApplicationJob
         next
       end
 
-      outlook_attachment_id = attachment_data["id"]
       filename = attachment_data["name"]
       content_type = attachment_data["contentType"]
       file_size = attachment_data["size"]
       content_bytes_base64 = attachment_data["contentBytes"]
+      content_id = attachment_data["contentId"]  # For inline images
 
       content_binary = Base64.decode64(content_bytes_base64)
-      content_hash = Attachment.compute_hash(content_binary)
+      content_hash = StorageBlob.compute_hash(content_binary)
 
-      existing_attachment = Attachment.find_by(content_hash: content_hash)
+      # SSoT: Use StorageBlob for deduplication (content-addressed storage)
+      existing_blob = StorageBlob.find_by(content_hash: content_hash)
 
-      if existing_attachment
-        # Deduplicate - just create link
-        EmailAttachment.find_or_create_by(
-          synced_email: email,
-          attachment: existing_attachment
-        ) do |ea|
-          ea.outlook_attachment_id = outlook_attachment_id
-          ea.filename = filename
-          ea.storage_path = existing_attachment.storage_path
-          ea.content_hash = content_hash
+      if existing_blob
+        # Deduplicate - just create WarehouseDocument link
+        WarehouseDocument.find_or_create_by!(
+          source_type: 'email_attachment',
+          storage_blob_id: existing_blob.id,
+          metadata: { 'synced_email_id' => email.id.to_s }
+        ) do |doc|
+          doc.documentable = email
+          doc.display_name = filename
+          doc.original_filename = filename
+          doc.folder = 'Emails/Attachments'
+          doc.tenant_id = email.tenant_id
+          doc.content_type = content_type || existing_blob.content_type
+          doc.file_size = file_size || existing_blob.file_size
+          doc.metadata = { 'synced_email_id' => email.id.to_s, 'content_id' => content_id }.compact
         end
 
+        existing_blob.increment!(:reference_count)
         @progress["attachments_deduplicated"] += 1
       else
-        # Upload new attachment (provider-agnostic)
-        result = upload_attachment(filename, content_binary, content_type, file_size, email.received_at, content_hash)
-
-        attachment = Attachment.create!(
-          storage_file_id: result[:id],
-          storage_path: result[:path],
+        # Upload new attachment via StorageBlob
+        blob = StorageBlob.find_or_create_for_content!(
+          content_binary,
           filename: filename,
-          content_type: content_type,
-          file_size: file_size,
-          content_hash: content_hash,
-          organization_microsoft_app_credential: @credential
+          content_type: content_type
         )
 
-        EmailAttachment.create!(
-          synced_email: email,
-          attachment: attachment,
-          outlook_attachment_id: outlook_attachment_id,
-          filename: filename,
-          storage_path: result[:path],
-          content_hash: content_hash
+        WarehouseDocument.create!(
+          documentable: email,
+          storage_blob_id: blob.id,
+          display_name: filename,
+          original_filename: filename,
+          folder: 'Emails/Attachments',
+          source_type: 'email_attachment',
+          tenant_id: email.tenant_id,
+          content_type: content_type || blob.content_type,
+          file_size: file_size || blob.file_size,
+          metadata: { 'synced_email_id' => email.id.to_s, 'content_id' => content_id }.compact
         )
 
+        blob.increment!(:reference_count)
         @progress["attachments_uploaded"] += 1
       end
 
@@ -279,7 +286,7 @@ class BulkEmailSyncJob < ApplicationJob
     end
 
     # Update attachment_count after processing all attachments for this email
-    email.update!(attachment_count: email.email_attachments.count)
+    email.update!(attachment_count: email.attachment_documents.count)
   end
 
   def upload_attachment(filename, content, content_type, file_size, email_date, content_hash)
