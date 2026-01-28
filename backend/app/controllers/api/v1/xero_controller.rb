@@ -2397,7 +2397,7 @@ module Api
               @contact = Contact.create!(
                 name: xero_contact_name,
                 entity_type: "company",
-                status: "active"
+                is_active: true
               )
               Rails.logger.info("[Xero] Created new contact #{@contact.id} (#{@contact.name}) for Xero contact #{xero_contact_id}")
             else
