@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
@@ -121,19 +121,19 @@ export function FuzzyMatchReviewSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-500" />
             Review Fuzzy Matches ({items.length})
-          </SheetTitle>
-          <SheetDescription>
+          </DialogTitle>
+          <DialogDescription>
             These Xero contacts were matched by name similarity. Approve correct matches or reject incorrect ones.
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="mt-4">
+        <div className="flex-1 overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center h-48">
               <Spinner size={32} className="text-muted-foreground" />
@@ -147,8 +147,8 @@ export function FuzzyMatchReviewSheet({
               </p>
             </div>
           ) : (
-            <ScrollArea className="h-[calc(100vh-200px)]">
-              <div className="space-y-3 pr-4">
+            <ScrollArea className="h-[60vh]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pr-4">
                 {items.map((item) => {
                   const confidencePercent = Math.round((item.match_confidence || 0) * 100);
                   const isLowConfidence = confidencePercent < 70;
@@ -235,7 +235,7 @@ export function FuzzyMatchReviewSheet({
         </div>
 
         {!loading && items.length > 0 && (
-          <div className="absolute bottom-4 left-4 right-4">
+          <div className="pt-4 border-t">
             <Button
               variant="outline"
               className="w-full"
@@ -247,7 +247,7 @@ export function FuzzyMatchReviewSheet({
             </Button>
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
