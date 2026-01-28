@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HolidaysTab } from "@/app/(app)/admin/system/components/HolidaysTab";
 import { WorkflowsTab } from "@/app/(app)/admin/system/components/WorkflowsTab";
 import { BrandColorsTab } from "@/app/(app)/admin/system/components/BrandColorsTab";
-import { ConnectionsTab } from "@/app/(app)/admin/system/components/ConnectionsTab";
+// SSoT (Jan 2026): ConnectionsTab moved to top-level /settings/connections
 import { JobSetupTab } from "@/app/(app)/admin/system/components/JobSetupTab";
 import { DocumentsTab } from "@/app/(app)/admin/system/components/DocumentsTab";
 import { EntityConfigurationTab } from "@/app/(app)/admin/system/components/EntityConfigurationTab";
@@ -35,13 +35,13 @@ import { OfflineTab } from "@/app/(app)/admin/system/components/OfflineTab";
 // SSoT: Workflow Config moved under Job Setup as sub-tab
 // SSoT: Documents consolidated here (was separate Organization tab)
 // SSoT: Folder Config (was Entity Config) moved here from Developer
+// SSoT (Jan 2026): Connections moved to top-level /settings/connections
 const COMPANY_TABS = [
   { id: "info", label: "Info" },
   { id: "brand-colors", label: "Brand Colors" },
   { id: "documents", label: "Documents" },
   { id: "holidays", label: "Holidays" },
   { id: "workflows", label: "Workflows" },
-  { id: "connections", label: "Connections" },
   { id: "job-setup", label: "Job Setup" },
   { id: "entity-config", label: "Folder Config" },
   { id: "offline", label: "Offline" },
@@ -56,16 +56,15 @@ export default function CompanySettingsPage() {
   // URL is SSoT for tab state (path-based navigation)
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/company to work
+  // SSoT (Jan 2026): Connections moved to top-level /settings/connections
   const { activeTab, subTab } = useMemo(() => {
     const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     const sub = parts[1] || undefined;
     // Validate tab exists
-    // For connections tab without subTab, default to "provider"
     // For entity-config tab without subTab, default to "storage_config"
     const validTab = COMPANY_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;
     let effectiveSubTab = sub;
-    if (validTab === "connections" && !sub) effectiveSubTab = "provider";
     if (validTab === "entity-config" && !sub) effectiveSubTab = "storage_config";
     return {
       activeTab: validTab,
@@ -75,15 +74,14 @@ export default function CompanySettingsPage() {
 
   // Redirect to include default sub-tab in URL for breadcrumb visibility
   // This keeps URL as SSoT for current tab state
+  // SSoT (Jan 2026): Connections redirect removed - now at /settings/connections
   useEffect(() => {
     const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
     const urlHasSubTab = parts.length >= 2;
 
     // Redirect tabs with default sub-tabs to full URL
     if (!urlHasSubTab) {
-      if (activeTab === "connections") {
-        router.replace(`/settings/company/connections/provider`, { scroll: false });
-      } else if (activeTab === "entity-config") {
+      if (activeTab === "entity-config") {
         router.replace(`/settings/company/entity-config/storage_config`, { scroll: false });
       }
     }
@@ -121,9 +119,7 @@ export default function CompanySettingsPage() {
           <TabsContent value="workflows">
             <WorkflowsTab />
           </TabsContent>
-          <TabsContent value="connections">
-            <ConnectionsTab subTab={subTab} />
-          </TabsContent>
+          {/* SSoT (Jan 2026): Connections moved to top-level /settings/connections */}
           <TabsContent value="job-setup">
             <JobSetupTab subTab={subTab} basePath="/settings/company/job-setup" />
           </TabsContent>

@@ -2187,6 +2187,7 @@ function IntegrationsSubTab() {
 }
 
 // Sub-tab definitions for connections
+// SSoT: Connections is now top-level in Settings (Jan 2026)
 const CONNECTIONS_SUB_TABS = [
   { id: "provider", label: "Storage Provider" },
   { id: "integrations", label: "Integrations" },
@@ -2194,7 +2195,8 @@ const CONNECTIONS_SUB_TABS = [
   { id: "costs", label: "Cost Comparison" },
 ];
 
-const DEFAULT_CONNECTIONS_BASE_PATH = "/settings/company/connections";
+// SSoT: Connections is now top-level in Settings (Jan 2026)
+const DEFAULT_CONNECTIONS_BASE_PATH = "/settings/connections";
 
 interface ConnectionsTabProps {
   subTab?: string;

@@ -364,10 +364,19 @@ You're a craftsman, an artist, an engineer who thinks like a designer. Every lin
 | Users | `/settings/users` | User management |
 | Access Control | `/settings/roles` | Permissions, User Roles, Groups |
 | Corporate | `/settings/corporate` | Groups, Companies, Company Tabs |
-| Company | `/settings/company` | Info, Brand Colors, Documents, Holidays, Workflows, Connections, Job Setup, Entity Config |
+| Company | `/settings/company` | Info, Brand Colors, Documents, Holidays, Workflows, Job Setup, Entity Config, Offline |
 | Operations | `/settings/operations` | Schedule Master, SM Tasks, Contact Types, Meeting Types, Supervisor Checklist, Cost |
+| Connections | `/settings/connections` | Storage Provider, Integrations, Migration, Cost Comparison |
 | System | `/settings/system` | System configuration |
 | Developer | `/settings/developer` | Components Lab, Developer Tools, Brand Guidelines, Unreal Engine |
+
+### Connections Sub-tabs Detail (Jan 2026 - now top-level)
+| Sub-tab | URL | Contains |
+|---------|-----|----------|
+| Storage Provider | `/settings/connections/provider` | SharePoint, S3/Wasabi, MinIO config |
+| Integrations | `/settings/connections/integrations` | Xero, Cloudflare |
+| Migration | `/settings/connections/migration` | Email migration, attachment deduplication, document migration |
+| Cost Comparison | `/settings/connections/costs` | Storage cost comparison |
 
 ### Company Sub-tabs Detail
 | Sub-tab | URL | Contains |
@@ -377,9 +386,9 @@ You're a craftsman, an artist, an engineer who thinks like a designer. Every lin
 | Documents | `/settings/company/documents` | Document Types, Templates, PDF Fields |
 | Holidays | `/settings/company/holidays` | Public holidays |
 | Workflows | `/settings/company/workflows` | Workflow configuration |
-| Connections | `/settings/company/connections` | Storage Provider, Integrations (Xero), Migration, Cost Comparison |
 | Job Setup | `/settings/company/job-setup` | Lists (Types/Statuses/Stages/Suburbs), Workflow |
 | Entity Config | `/settings/company/entity-config` | Corporate, Jobs, Contacts, Document Types, Storage Config, Email Config |
+| Offline | `/settings/company/offline` | Offline mode settings |
 
 ### Navigation Patterns
 - **URL is SSoT** for tab state - use `router.push()` not local state
@@ -389,7 +398,8 @@ You're a craftsman, an artist, an engineer who thinks like a designer. Every lin
 
 ### SSoT Consolidations (Jan 2026)
 - ❌ `/settings/documents` → Moved to `/settings/company/documents`
-- ❌ `/settings/integrations` → Moved to `/settings/company/connections/integrations`
+- ❌ `/settings/integrations` → Redirects to `/settings/connections/integrations`
+- ❌ `/settings/company/connections` → Moved to top-level `/settings/connections`
 - ❌ Entity Config in Developer → Moved to `/settings/company/entity-config`
 - ❌ Workflow Config separate tab → Moved to `/settings/company/job-setup/workflow`
 - ❌ Doc Templates duplicate → Consolidated into Documents > Templates
