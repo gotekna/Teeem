@@ -3821,11 +3821,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           if (q.response) {
             body += `<p>${q.response}`;
             // If there are attachments, add them immediately after (no gap)
+            // SSoT: Respect attachmentEmailOptions - 'attach' = filename only, 'link'/'both' = with links, 'none' = skip
             if (q.attachments && q.attachments.length > 0) {
               q.attachments.forEach((att, attIdx) => {
+                const opt = attachmentEmailOptions[att.id] || 'link';
+                if (opt === 'none') return; // Skip excluded attachments
+
+                // Only show links if option is 'link' or 'both'
+                const showLinks = opt === 'link' || opt === 'both';
+
                 if (att.document) {
-                  const links = shareLinksMap[att.id];
-                  const fallbackUrl = att.document.storage_url || att.document.file_url;
+                  const links = showLinks ? shareLinksMap[att.id] : undefined;
+                  const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
                   body += `\n📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                     question: q.text,
                     answer: q.response,
@@ -3836,10 +3843,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   })}`;
                 } else if (att.email) {
                   // Email attachment - add link with .eml extension
-                  const links = shareLinksMap[att.id];
+                  const links = showLinks ? shareLinksMap[att.id] : undefined;
                   const emailName = getAttachmentDisplayName(att);
                   const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
-                  if (links?.download || links?.open) {
+                  if (showLinks && (links?.download || links?.open)) {
                     body += `\n📧 ${formatFileLink(emlName, links?.download, links?.open, {
                       question: q.text,
                       answer: q.response,
@@ -3848,6 +3855,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       allQA,
                       contentType: 'message/rfc822'
                     })}`;
+                  } else {
+                    body += `\n📧 ${emlName}`;
                   }
                 }
               });
@@ -3855,12 +3864,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             body += `</p>\n`;
           } else if (q.attachments && q.attachments.length > 0) {
             // Attachments only (no text response)
+            // SSoT: Respect attachmentEmailOptions - 'attach' = filename only, 'link'/'both' = with links, 'none' = skip
             body += `<p>`;
+            let addedCount = 0;
             q.attachments.forEach((att, attIdx) => {
-              if (attIdx > 0) body += `<br>`;
+              const opt = attachmentEmailOptions[att.id] || 'link';
+              if (opt === 'none') return; // Skip excluded attachments
+
+              // Only show links if option is 'link' or 'both'
+              const showLinks = opt === 'link' || opt === 'both';
+
+              if (addedCount > 0) body += `<br>`;
+              addedCount++;
+
               if (att.document) {
-                const links = shareLinksMap[att.id];
-                const fallbackUrl = att.document.storage_url || att.document.file_url;
+                const links = showLinks ? shareLinksMap[att.id] : undefined;
+                const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
                 body += `📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                   question: q.text,
                   allFiles,
@@ -3870,10 +3889,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 })}`;
               } else if (att.email) {
                 // Email attachment - add link with .eml extension
-                const links = shareLinksMap[att.id];
+                const links = showLinks ? shareLinksMap[att.id] : undefined;
                 const emailName = getAttachmentDisplayName(att);
                 const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
-                if (links?.download || links?.open) {
+                if (showLinks && (links?.download || links?.open)) {
                   body += `📧 ${formatFileLink(emlName, links?.download, links?.open, {
                     question: q.text,
                     allFiles,
@@ -3881,6 +3900,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     allQA,
                     contentType: 'message/rfc822'
                   })}`;
+                } else {
+                  body += `📧 ${emlName}`;
                 }
               }
             });
@@ -3915,14 +3936,21 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             });
 
           // Show text response (no extra spacing before attachments)
+          // SSoT: Respect attachmentEmailOptions - 'attach' = filename only, 'link'/'both' = with links, 'none' = skip
           if (q.response) {
             body += `<p>${q.response}`;
             // If there are attachments, add them immediately after (no gap)
             if (q.attachments && q.attachments.length > 0) {
               q.attachments.forEach((att, attIdx) => {
+                const opt = attachmentEmailOptions[att.id] || 'link';
+                if (opt === 'none') return; // Skip excluded attachments
+
+                // Only show links if option is 'link' or 'both'
+                const showLinks = opt === 'link' || opt === 'both';
+
                 if (att.document) {
-                  const links = shareLinksMap[att.id];
-                  const fallbackUrl = att.document.storage_url || att.document.file_url;
+                  const links = showLinks ? shareLinksMap[att.id] : undefined;
+                  const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
                   body += `\n📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                     question: q.text,
                     answer: q.response,
@@ -3933,10 +3961,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   })}`;
                 } else if (att.email) {
                   // Email attachment - add link with .eml extension
-                  const links = shareLinksMap[att.id];
+                  const links = showLinks ? shareLinksMap[att.id] : undefined;
                   const emailName = getAttachmentDisplayName(att);
                   const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
-                  if (links?.download || links?.open) {
+                  if (showLinks && (links?.download || links?.open)) {
                     body += `\n📧 ${formatFileLink(emlName, links?.download, links?.open, {
                       question: q.text,
                       answer: q.response,
@@ -3945,6 +3973,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       allQA,
                       contentType: 'message/rfc822'
                     })}`;
+                  } else {
+                    body += `\n📧 ${emlName}`;
                   }
                 }
               });
@@ -3952,12 +3982,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             body += `</p>\n`;
           } else if (q.attachments && q.attachments.length > 0) {
             // Attachments only (no text response)
+            // SSoT: Respect attachmentEmailOptions - 'attach' = filename only, 'link'/'both' = with links, 'none' = skip
             body += `<p>`;
+            let addedCount = 0;
             q.attachments.forEach((att, attIdx) => {
-              if (attIdx > 0) body += `<br>`;
+              const opt = attachmentEmailOptions[att.id] || 'link';
+              if (opt === 'none') return; // Skip excluded attachments
+
+              // Only show links if option is 'link' or 'both'
+              const showLinks = opt === 'link' || opt === 'both';
+
+              if (addedCount > 0) body += `<br>`;
+              addedCount++;
+
               if (att.document) {
-                const links = shareLinksMap[att.id];
-                const fallbackUrl = att.document.storage_url || att.document.file_url;
+                const links = showLinks ? shareLinksMap[att.id] : undefined;
+                const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
                 body += `📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                   question: q.text,
                   allFiles,
@@ -3967,10 +4007,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 })}`;
               } else if (att.email) {
                 // Email attachment - add link with .eml extension
-                const links = shareLinksMap[att.id];
+                const links = showLinks ? shareLinksMap[att.id] : undefined;
                 const emailName = getAttachmentDisplayName(att);
                 const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
-                if (links?.download || links?.open) {
+                if (showLinks && (links?.download || links?.open)) {
                   body += `📧 ${formatFileLink(emlName, links?.download, links?.open, {
                     question: q.text,
                     allFiles,
@@ -3978,6 +4018,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     allQA,
                     contentType: 'message/rfc822'
                   })}`;
+                } else {
+                  body += `📧 ${emlName}`;
                 }
               }
             });
