@@ -136,19 +136,19 @@ export interface SendEmailParams {
   reply_to_message_id?: string;
   attachments?: File[];
   sm_task_id?: number;  // Optional: Link sent email to SM task
-  // SSoT: Existing storage keys for files already in S3 (Ultra fix Jan 2026)
-  // Pass these directly to backend - avoids re-downloading and re-uploading
-  existingStorageKeys?: string[];
+  // SSoT: Pre-uploaded attachments already in S3 (Ultra fix Jan 2026)
+  // Pass with filename and storageKey - avoids re-downloading and re-uploading
+  preUploadedAttachments?: PreUploadedAttachment[];
 }
 
 /**
  * Queued email waiting to be sent (with undo capability).
  */
-export interface QueuedEmail extends Omit<SendEmailParams, "attachments" | "existingStorageKeys"> {
+export interface QueuedEmail extends Omit<SendEmailParams, "attachments" | "preUploadedAttachments"> {
   id: string;
   attachments: File[];
-  // SSoT: Existing storage keys (pass directly to backend, no re-upload)
-  existingStorageKeys: string[];
+  // SSoT: Pre-uploaded attachments (pass directly to backend with filenames)
+  preUploadedAttachments: PreUploadedAttachment[];
   timeoutId: NodeJS.Timeout;
   countdown: number;
   intervalId: NodeJS.Timeout;
