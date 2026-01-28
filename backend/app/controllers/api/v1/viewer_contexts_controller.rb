@@ -30,10 +30,10 @@ module Api
         # Generate short ID
         id = SecureRandom.urlsafe_base64(6) # 8 chars
 
-        # FRC (Jan 2026): Use link_expiry_days from StorageConfiguration instead of hardcoded 24 hours
-        # This allows email download links to remain valid for the configured period (default: 7 days)
-        expiry_days = StorageConfiguration.instance&.link_expiry_days || 7
-        Rails.cache.write("viewer_context:#{id}", context.to_json, expires_in: expiry_days.days)
+        # FRC (Jan 2026): Use 7-day expiry to match typical presigned URL expiry
+        # Note: Can't use StorageConfiguration.instance here - this is a public endpoint without tenant context
+        # The viewer context just needs to outlive the presigned URLs it contains, which are typically 7 days
+        Rails.cache.write("viewer_context:#{id}", context.to_json, expires_in: 7.days)
 
         render json: { success: true, id: id }
       rescue => e
