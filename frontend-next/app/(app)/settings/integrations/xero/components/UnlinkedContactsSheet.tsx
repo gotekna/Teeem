@@ -120,12 +120,12 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
     }
   }, [isOpen, fetchData]);
 
-  const handleLink = async (xeroContactName: string, contactId: number) => {
+  const handleLink = async (xeroContactId: string, xeroContactName: string, contactId: number) => {
     setLinking(xeroContactName);
     try {
       const response = await api.post<{ success: boolean; data: { invoices_linked: number } }>(
         "/api/v1/xero/link_unlinked_contact",
-        { xero_contact_name: xeroContactName, contact_id: contactId }
+        { xero_contact_id: xeroContactId, xero_contact_name: xeroContactName, contact_id: contactId }
       );
       if (response?.success) {
         toast.success(`Linked ${response.data.invoices_linked} invoices`);
@@ -140,13 +140,14 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
     }
   };
 
-  const handleCreateNew = async (xeroContactName: string) => {
+  const handleCreateNew = async (xeroContactId: string, xeroContactName: string) => {
     setLinking(xeroContactName);
     try {
       const response = await api.post<{
         success: boolean;
         data: { contact_id: number; invoices_linked: number };
       }>("/api/v1/xero/link_unlinked_contact", {
+        xero_contact_id: xeroContactId,
         xero_contact_name: xeroContactName,
         create_new: true,
       });
@@ -481,7 +482,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                                     className="shrink-0 ml-auto"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleLink(contact.xero_contact_name, match.id);
+                                      handleLink(contact.xero_contact_id, contact.xero_contact_name, match.id);
                                     }}
                                     disabled={linking === contact.xero_contact_name}
                                   >
@@ -511,7 +512,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                               className="w-full"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleCreateNew(contact.xero_contact_name);
+                                handleCreateNew(contact.xero_contact_id, contact.xero_contact_name);
                               }}
                               disabled={linking === contact.xero_contact_name}
                             >
