@@ -586,12 +586,15 @@ export function XeroSyncStats() {
                     </div>
                   )}
 
-                  {/* Pending Reviews Warning */}
+                  {/* Pending Reviews Warning - Clickable to review page */}
                   {tenant.contacts.pending_review > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
+                    <button
+                      onClick={() => router.push("/contacts/filter/pending_review")}
+                      className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 cursor-pointer transition-colors w-full text-left"
+                    >
                       <AlertTriangle className="h-3 w-3" />
                       {tenant.contacts.pending_review} pending review
-                    </div>
+                    </button>
                   )}
 
                   {/* Last Sync */}
