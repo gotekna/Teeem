@@ -675,11 +675,11 @@ namespace :xero do
         by_source: {}
       }
 
-      # Find orphaned documents (no documentable, not an attachment)
+      # Find orphaned Xero documents (no documentable link)
+      # Note: We include attachments since they may also be orphaned
       orphans = WarehouseDocument
         .where(documentable_id: nil)
-        .where(parent_document_id: nil) # Not an attachment
-        .where(source_type: "xero") # Only Xero orphans for now
+        .where(source_type: "xero")
 
       results[:found] = orphans.count
       results[:to_delete] = orphans.count
