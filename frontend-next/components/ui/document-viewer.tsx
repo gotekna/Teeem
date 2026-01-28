@@ -609,13 +609,21 @@ export function DocumentViewer({
         pdfBlobCacheRef.current.set(url, blobUrl);
         setPdfBlobUrl(blobUrl);
         setPdfLoadProgress(100);
+        setPdfLoading(false);
       })
       .catch(err => {
-        if (err.name === 'AbortError') return;
+        // CRITICAL: Aborted fetches must NOT change loading state
+        // When user switches files rapidly, old fetch is aborted and new fetch starts.
+        // If we set pdfLoading=false here, it overwrites the new fetch's loading=true state,
+        // causing a race condition that shows black screen instead of loading indicator.
+        if (err.name === 'AbortError') {
+          console.log(`[DocumentViewer] Fetch aborted (user switched files): ${fileName}`);
+          return;
+        }
         console.error(`[DocumentViewer] PDF fetch failed for ${fileName}:`, err);
         setError("Unable to load PDF. Click Download to save the file.");
-      })
-      .finally(() => setPdfLoading(false));
+        setPdfLoading(false);
+      });
 
     return () => {
       controller.abort();
