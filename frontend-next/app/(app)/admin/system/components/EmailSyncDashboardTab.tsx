@@ -500,22 +500,11 @@ export function EmailSyncDashboardTab() {
                           <TableHead className="text-left py-2 font-medium text-muted-foreground">
                             Mailbox
                           </TableHead>
+                          {/* Email Body Group */}
                           <TableHead className="text-right py-2 font-medium text-muted-foreground">
                             <div className="flex items-center justify-end gap-1">
                               <Mail className="h-4 w-4" />
                               Emails
-                            </div>
-                          </TableHead>
-                          <TableHead className="text-right py-2 font-medium text-muted-foreground">
-                            <div className="flex items-center justify-end gap-1">
-                              <MailOpen className="h-4 w-4" />
-                              Unread
-                            </div>
-                          </TableHead>
-                          <TableHead className="text-right py-2 font-medium text-muted-foreground">
-                            <div className="flex items-center justify-end gap-1">
-                              <Paperclip className="h-4 w-4" />
-                              Attachments
                             </div>
                           </TableHead>
                           <TableHead className="text-right py-2 font-medium text-muted-foreground">
@@ -524,22 +513,7 @@ export function EmailSyncDashboardTab() {
                                 <TooltipTrigger asChild>
                                   <div className="flex items-center justify-end gap-1 cursor-help">
                                     <HardDrive className="h-4 w-4" />
-                                    Att Blobs
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Attachments uploaded to S3</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </TableHead>
-                          <TableHead className="text-right py-2 font-medium text-muted-foreground">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex items-center justify-end gap-1 cursor-help">
-                                    <Mail className="h-4 w-4" />
-                                    Email Blobs
+                                    Blobs
                                   </div>
                                 </TooltipTrigger>
                                 <TooltipContent>
@@ -552,19 +526,54 @@ export function EmailSyncDashboardTab() {
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <div className="flex items-center justify-end gap-1 cursor-help">
-                                    <AlertCircle className="h-4 w-4" />
-                                    Unavailable
+                                  <div className="flex items-center justify-end gap-1 cursor-help text-orange-600 dark:text-orange-400">
+                                    Missing
                                   </div>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>Emails with content no longer available in O365</p>
-                                  <p className="text-xs text-muted-foreground">Deleted from mailbox or account removed</p>
+                                  <p>Emails without .eml blob in S3</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableHead>
+                          {/* Attachment Group */}
+                          <TableHead className="text-right py-2 font-medium text-muted-foreground border-l border-border/50">
+                            <div className="flex items-center justify-end gap-1">
+                              <Paperclip className="h-4 w-4" />
+                              Attachments
+                            </div>
+                          </TableHead>
+                          <TableHead className="text-right py-2 font-medium text-muted-foreground">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center justify-end gap-1 cursor-help">
+                                    <HardDrive className="h-4 w-4" />
+                                    Blobs
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Attachments uploaded to S3</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           </TableHead>
                           <TableHead className="text-right py-2 font-medium text-muted-foreground">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center justify-end gap-1 cursor-help text-orange-600 dark:text-orange-400">
+                                    Missing
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Attachments without blob in S3</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableHead>
+                          {/* Other Stats */}
+                          <TableHead className="text-right py-2 font-medium text-muted-foreground border-l border-border/50">
                             <div className="flex items-center justify-end gap-1">
                               <Clock className="h-4 w-4" />
                               Last Email
@@ -576,7 +585,12 @@ export function EmailSyncDashboardTab() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {org.mailboxes.map(mailbox => (
+                        {org.mailboxes.map(mailbox => {
+                          // Calculate missing counts
+                          const emailMissing = mailbox.email_count - mailbox.email_blob_count - (mailbox.content_unavailable_count || 0);
+                          const attMissing = mailbox.attachment_count - mailbox.blob_count;
+
+                          return (
                           <TableRow key={mailbox.email} className="border-b last:border-b-0 hover:bg-muted/50">
                             <TableCell className="py-3">
                               <div className="flex items-center gap-2">
@@ -586,19 +600,30 @@ export function EmailSyncDashboardTab() {
                                 <span className="font-medium">{mailbox.email}</span>
                               </div>
                             </TableCell>
+                            {/* Email Body Group */}
                             <TableCell className="py-3 text-right">
                               <span className="font-mono">{formatNumber(mailbox.email_count)}</span>
                             </TableCell>
                             <TableCell className="py-3 text-right">
-                              {mailbox.unread_count > 0 ? (
-                                <Badge variant="secondary" className="font-mono">
-                                  {formatNumber(mailbox.unread_count)}
-                                </Badge>
+                              {mailbox.email_blob_count > 0 ? (
+                                <span className="font-mono text-green-600 dark:text-green-400">
+                                  {formatNumber(mailbox.email_blob_count)}
+                                </span>
                               ) : (
                                 <span className="text-muted-foreground">0</span>
                               )}
                             </TableCell>
                             <TableCell className="py-3 text-right">
+                              {emailMissing > 0 ? (
+                                <span className="font-mono text-orange-600 dark:text-orange-400">
+                                  {formatNumber(emailMissing)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">0</span>
+                              )}
+                            </TableCell>
+                            {/* Attachment Group */}
+                            <TableCell className="py-3 text-right border-l border-border/50">
                               {mailbox.attachment_count > 0 ? (
                                 <span className="font-mono">{formatNumber(mailbox.attachment_count)}</span>
                               ) : (
@@ -607,7 +632,7 @@ export function EmailSyncDashboardTab() {
                             </TableCell>
                             <TableCell className="py-3 text-right">
                               {mailbox.blob_count > 0 ? (
-                                <span className={`font-mono ${mailbox.blob_count < mailbox.attachment_count ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400"}`}>
+                                <span className="font-mono text-green-600 dark:text-green-400">
                                   {formatNumber(mailbox.blob_count)}
                                 </span>
                               ) : (
@@ -615,24 +640,16 @@ export function EmailSyncDashboardTab() {
                               )}
                             </TableCell>
                             <TableCell className="py-3 text-right">
-                              {mailbox.email_blob_count > 0 ? (
-                                <span className={`font-mono ${mailbox.email_blob_count < mailbox.email_count - (mailbox.content_unavailable_count || 0) ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400"}`}>
-                                  {formatNumber(mailbox.email_blob_count)}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">0</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="py-3 text-right">
-                              {(mailbox.content_unavailable_count || 0) > 0 ? (
+                              {attMissing > 0 ? (
                                 <span className="font-mono text-orange-600 dark:text-orange-400">
-                                  {formatNumber(mailbox.content_unavailable_count || 0)}
+                                  {formatNumber(attMissing)}
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground">0</span>
                               )}
                             </TableCell>
-                            <TableCell className="py-3 text-right">
+                            {/* Other Stats */}
+                            <TableCell className="py-3 text-right border-l border-border/50">
                               {mailbox.last_email_received_at ? (
                                 <TooltipProvider>
                                   <Tooltip>
@@ -669,7 +686,7 @@ export function EmailSyncDashboardTab() {
                               )}
                             </TableCell>
                           </TableRow>
-                        ))}
+                        )})}
                       </TableBody>
                     </Table>
                   </div>
