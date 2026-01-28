@@ -1773,8 +1773,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const documentAttachments = localAttachments.filter(a => a.document && !a.email);
 
   // All document attachments are available via the Attachments panel (Documents section)
-  // Response documents are those linked to specific questions
-  const responseDocuments = documentAttachments.filter(a => a.category === 'response');
+  // Response documents are those linked to questions OR with category 'response'
+  // SSoT: Same logic as emails - action_item_id means linked to a question
+  const responseDocuments = documentAttachments.filter(a => a.action_item_id || a.category === 'response');
 
   // Emails linked to questions OR with category 'response' are response items
   const responseEmails = allEmailAttachments.filter(a => a.action_item_id || a.category === 'response');
