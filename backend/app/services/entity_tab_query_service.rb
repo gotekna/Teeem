@@ -93,13 +93,18 @@ class EntityTabQueryService
 
   # Single grouped query for document counts
   # SSoT: WarehouseDocument is THE ONE document table (Jan 2026)
+  # Document type is stored in metadata JSONB (metadata->>'document_type_id')
   def preload_document_counts(document_type_ids)
     return {} if document_type_ids.empty?
 
-    WarehouseDocument
-      .where(job_documents: { document_type_id: document_type_ids })
-      .group("job_documents.document_type_id")
+    # Query WarehouseDocument using metadata JSONB for document_type_id
+    counts = WarehouseDocument
+      .where("metadata->>'document_type_id' IN (?)", document_type_ids.map(&:to_s))
+      .group("metadata->>'document_type_id'")
       .count
+
+    # Convert string keys back to integers for lookup
+    counts.transform_keys(&:to_i)
   end
 
   # Load storage config once (eliminates 192 queries)
