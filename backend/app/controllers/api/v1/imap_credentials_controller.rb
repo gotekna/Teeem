@@ -835,12 +835,16 @@ class Api::V1::ImapCredentialsController < ApplicationController
           next
         end
 
-        Rails.logger.info "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': SUCCESS (#{file.size} bytes)"
+        # FRC (Jan 2026): Read file content and ensure binary encoding to prevent PDF corruption
+        file_content = file.read
+        file_content = file_content.dup.force_encoding(Encoding::ASCII_8BIT) if file_content
+
+        Rails.logger.info "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': SUCCESS (#{file_content&.bytesize || 0} bytes, encoding: #{file_content&.encoding})"
 
         # Use provided filename (preserves original name), fallback to extracted filename
         attachments << {
           filename: filename.presence || file.original_filename,
-          content: file.read,
+          content: file_content,
           content_type: content_type.presence || file.content_type
         }
       end

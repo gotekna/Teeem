@@ -250,7 +250,9 @@ module DocumentProviders
     def download_file(path_or_id)
       key = resolve_key(path_or_id)
       response = @client.get_object(bucket: @bucket, key: key)
-      response.body.read
+      content = response.body.read
+      # FRC (Jan 2026): Force binary encoding to prevent PDF corruption in email attachments
+      content.force_encoding(Encoding::ASCII_8BIT)
     rescue Aws::S3::Errors::NoSuchKey
       raise NotFoundError, "File not found: #{path_or_id}"
     end

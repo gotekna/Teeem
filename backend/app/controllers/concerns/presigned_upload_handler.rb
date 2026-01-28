@@ -94,6 +94,11 @@ module PresignedUploadHandler
       return nil
     end
 
+    # FRC (Jan 2026): Force binary encoding to prevent PDF corruption
+    # S3 returns binary content but Ruby may interpret as UTF-8, corrupting PDFs
+    content = content.dup.force_encoding(Encoding::ASCII_8BIT)
+    Rails.logger.info "[PresignedUploadHandler] Content size: #{content.bytesize} bytes, encoding: #{content.encoding}"
+
     # Extract filename from key
     filename = File.basename(storage_key)
     # Remove timestamp prefix if present (e.g., "1706012345_abc123_filename.pdf")
