@@ -51,6 +51,19 @@ class ExternalInvoice < ApplicationRecord
   scope :unpaid, -> { where.not(status: "paid") }
   scope :active, -> { where.not(status: %w[voided deleted]) }
 
+  # SSoT: THE ONE scope for invoices needing contact linking
+  # Used by both status page counts and unlinked_contacts endpoint
+  # - active (not voided/deleted)
+  # - not draft (no PDF available for drafts)
+  # - no contact_id linked
+  # - has a real contact_name (not blank or "No Contact")
+  scope :needs_contact_linking, -> {
+    active
+      .where.not(status: "draft")
+      .where(contact_id: nil)
+      .where.not(contact_name: [nil, "", "No Contact"])
+  }
+
   # Sync scopes
   scope :enabled, -> { where(sync_enabled: true) }
   scope :pending_push, -> { where(pending_push: true) }
