@@ -2108,6 +2108,8 @@ Rails.application.routes.draw do
       resources :site_presence_dashboards, only: [] do
         collection do
           get :overview
+          get :active_sessions
+          get :today
           get :live
           get :daily_activity
           get :job_profitability
