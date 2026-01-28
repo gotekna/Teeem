@@ -39,7 +39,8 @@ export interface TaskAttachmentDocument {
   file_name: string;
   display_name: string;
   document_type?: string;
-  storage_url?: string; // SSoT: Provider-agnostic download URL from StorableDocument
+  storage_url?: string; // SSoT: Provider-agnostic download URL (Content-Disposition: attachment)
+  storage_url_inline?: string; // SSoT: Inline view URL for viewers (Content-Disposition: inline)
   file_url?: string; // For ActiveStorage files (when not in external storage)
   has_storage?: boolean; // SSoT: Can create share links (storage_blob, storage_path, or storage_reference)
   // SSoT: Storage key for email attachments (Ultra fix Jan 2026)
