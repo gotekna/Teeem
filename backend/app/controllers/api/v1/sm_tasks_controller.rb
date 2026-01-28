@@ -1086,17 +1086,6 @@ module Api
       def update_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
 
-        # FRC (Jan 2026): Source emails cannot be linked to questions or marked as response
-        # Source emails are INPUT (the email task was created from), not OUTPUT
-        if attachment.is_source?
-          if params[:action_item_id].present? || params[:category] == "response"
-            return render json: {
-              success: false,
-              error: "Source email cannot be linked to questions or marked as response"
-            }, status: :unprocessable_entity
-          end
-        end
-
         # Handle display_name update - SSoT is warehouse_document.display_name
         if params[:display_name].present?
           if attachment.warehouse_document.present?
