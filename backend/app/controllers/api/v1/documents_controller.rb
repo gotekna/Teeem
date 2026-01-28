@@ -17,10 +17,11 @@ module Api
         warehouse_counts = WarehouseDocument.group(:source_type).count
         warehouse_total = WarehouseDocument.count
 
-        # Legacy counts (for documents not yet migrated or for comparison)
-        job_count = warehouse_counts["job"] || JobDocument.where.not(file_name: [nil, ""]).count
-        corp_count = warehouse_counts["corporate"] || CorporateCompanyDocument.where.not(file_name: [nil, ""]).count
-        people_count = warehouse_counts["people"] || PeopleDocument.where.not(title: [nil, ""]).count
+        # SSoT (Jan 2026): WarehouseDocument counts are authoritative
+        # Legacy fallback removed - all documents should be in WarehouseDocument
+        job_count = warehouse_counts["job"] || 0
+        corp_count = warehouse_counts["corporate"] || 0
+        people_count = warehouse_counts["people"] || 0
 
         # Email counts - use warehouse_document counts
         # SSoT (Jan 2026): WarehouseDocument is THE ONE table for all document metadata
@@ -31,8 +32,8 @@ module Api
         email_total = email_eml_count + email_attachment_count
 
         # Task attachment counts - documents uploaded against task IDs
-        # Supports both legacy CorporateCompanyDocument and new WarehouseDocument attachables
-        task_doc_count = SmTaskAttachment.where(attachable_type: ['CorporateCompanyDocument', 'WarehouseDocument']).distinct.count(:attachable_id) rescue 0
+        # SSoT (Jan 2026): SmTaskAttachment only references WarehouseDocument now
+        task_doc_count = SmTaskAttachment.where(attachable_type: 'WarehouseDocument').distinct.count(:attachable_id) rescue 0
 
         # Document templates (Word/Excel templates stored in storage)
         template_count = DocumentTemplate.where.not(storage_path: [nil, ""]).count rescue 0
@@ -78,8 +79,8 @@ module Api
         total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count + notes_count + excel_count + word_count + powerpoint_count + pdf_count
 
         # Fetch task documents with their task associations
-        # Supports both legacy CorporateCompanyDocument and new WarehouseDocument attachables
-        task_attachments = SmTaskAttachment.where(attachable_type: ['CorporateCompanyDocument', 'WarehouseDocument'])
+        # SSoT (Jan 2026): SmTaskAttachment only references WarehouseDocument now
+        task_attachments = SmTaskAttachment.where(attachable_type: 'WarehouseDocument')
                                            .includes(:sm_task, :attachable)
         task_documents = task_attachments.filter_map do |att|
           doc = att.attachable
@@ -145,7 +146,7 @@ module Api
       #   source_type: Filter by source (corporate, job, email, people, contact)
       #   folder: Filter by virtual folder path
       #   search: Full-text search on display_name
-      #   documentable_type: Filter by underlying model (SyncedEmail, JobDocument, etc.)
+      #   documentable_type: Filter by underlying model (SyncedEmail, etc.)
       #   limit: Max results (default: 100)
       #   offset: Pagination offset
       def warehouse
@@ -372,10 +373,12 @@ module Api
         results = results.sort_by { |r| r[:uploaded_at] || "" }.reverse.first(limit)
 
         # Only include folders for corporate-only queries (backward compatibility)
+        # SSoT (Jan 2026): Uses WarehouseDocument.folder for corporate documents
         folders = if sources == ["corporate"]
-          folder_counts = CorporateCompanyDocument.where.not(folder: [ nil, "" ])
-                                                  .group(:folder)
-                                                  .count
+          folder_counts = WarehouseDocument.where(source_type: "corporate")
+                                           .where.not(folder: [nil, ""])
+                                           .group(:folder)
+                                           .count
           folder_counts.keys.sort.map.with_index do |folder_name, index|
             {
               id: (index + 1).to_s,
@@ -429,7 +432,7 @@ module Api
           )
 
           # For user "My Documents" uploads, we store in S3 but don't create a
-          # CorporateCompanyDocument record (which requires company/contact/job/task owner).
+          # WarehouseDocument record (which requires company/contact/job/task linkable).
           # Files are accessible directly via S3 path: Users/{user_id}/{folder}/{filename}
           render json: {
             success: true,
@@ -918,14 +921,15 @@ module Api
 
       # POST /api/v1/documents/analyze
       # AI analysis of document content
+      # SSoT (Jan 2026): Uses WarehouseDocument with metadata for document properties
       def analyze
-        document = CorporateCompanyDocument.find(params[:document_id])
+        document = WarehouseDocument.find(params[:document_id])
 
         # Return mock suggestion for now - can integrate with AI service later
         suggestion = {
-          display_title: document.display_title || document.title,
-          document_type_id: document.document_type_id,
-          fiscal_year: document.year&.to_s,
+          display_title: document.display_name,
+          document_type_id: document.meta("document_type_id"),
+          fiscal_year: document.meta("fiscal_year")&.to_s,
           confidence: 0.85,
           reasoning: "Based on filename pattern and content analysis"
         }
@@ -957,7 +961,7 @@ module Api
       # Params:
       #   path: The current S3 path (e.g., "Tasks/123/Attachments/old-name.pdf")
       #   new_name: The new filename (e.g., "Invoice-2024.pdf")
-      #   document_id: Optional - the CorporateCompanyDocument ID to update
+      #   document_id: Optional - the WarehouseDocument ID to update
       #   source: Optional - the document source type (job, corporate, people, task)
       def rename
         path = params[:path]
@@ -1035,27 +1039,33 @@ module Api
       # Multi-Source Search Helpers (AttachmentPicker)
       # ========================================
 
-      # Search corporate documents (CorporateCompanyDocument)
+      # Search corporate documents (via WarehouseDocument SSoT)
       def search_corporate_documents(search_term, limit)
-        scope = CorporateCompanyDocument.includes(:corporate_company, :user, :document_type_record)
-                                        .order(created_at: :desc)
-                                        .limit(limit)
+        scope = WarehouseDocument.where(source_type: "corporate")
+                                 .includes(:storage_blob, :linkable)
+                                 .order(created_at: :desc)
+                                 .limit(limit)
 
-        scope = scope.search_text(search_term) if search_term.present?
+        if search_term.present?
+          search_pattern = "%#{search_term.downcase}%"
+          scope = scope.where("LOWER(display_name) LIKE ? OR LOWER(original_filename) LIKE ?", search_pattern, search_pattern)
+        end
 
         scope.map do |doc|
+          doc_type_id = doc.meta("document_type_id")
+          doc_type = DocumentType.find_by(id: doc_type_id) if doc_type_id
           {
             id: doc.id,
-            name: doc.file_name,
-            display_title: doc.display_name || doc.file_name,
+            name: doc.original_filename,
+            display_title: doc.display_name,
             source_type: "corporate",
-            document_type: doc.document_type_record ? {
-              id: doc.document_type_record.id,
-              name: doc.document_type_record.name,
-              abbreviation: doc.document_type_record.abbreviation || doc.document_type_record.name[0..2].upcase
+            document_type: doc_type ? {
+              id: doc_type.id,
+              name: doc_type.name,
+              abbreviation: doc_type.abbreviation || doc_type.name[0..2].upcase
             } : nil,
-            url: doc.storage_url || doc.file_url,
-            file_url: doc.storage_url || doc.file_url,
+            url: doc.download_url,
+            file_url: doc.download_url,
             uploaded_at: doc.created_at&.iso8601
           }
         end
@@ -2081,16 +2091,19 @@ module Api
 
       # Update document record after S3 rename
       def update_document_record(document_id, source, new_filename, new_path)
-        case source
-        when "job"
-          doc = JobDocument.find_by(id: document_id)
-          doc&.update(file_name: new_filename, storage_path: new_path)
-        when "corporate", "task"
-          doc = CorporateCompanyDocument.find_by(id: document_id)
-          doc&.update(file_name: new_filename, storage_path: new_path)
-        when "people"
-          doc = PeopleDocument.find_by(id: document_id)
-          doc&.update(file_name: new_filename, storage_path: new_path)
+        doc = case source
+              when "job"
+                JobDocument.find_by(id: document_id)
+              when "corporate", "task"
+                CorporateCompanyDocument.find_by(id: document_id)
+              when "people"
+                PeopleDocument.find_by(id: document_id)
+              end
+
+        if doc
+          doc.update(file_name: new_filename, storage_path: new_path)
+          # Dual-write: Update WarehouseDocument if linked
+          doc.warehouse_document&.update(display_name: new_filename, original_filename: new_filename)
         end
       end
 
@@ -2099,15 +2112,25 @@ module Api
         # Normalize path for comparison (remove leading slash)
         normalized_old = old_path.sub(%r{^/}, "")
 
-        # Try each document type
+        # Try each document type (legacy models)
         [CorporateCompanyDocument, JobDocument, PeopleDocument].each do |klass|
           next unless klass.column_names.include?("storage_path")
 
           doc = klass.find_by("storage_path = ? OR storage_path = ?", old_path, normalized_old)
           if doc
             doc.update(file_name: new_filename, storage_path: new_path)
+            doc.warehouse_document&.update(display_name: new_filename, original_filename: new_filename)
             Rails.logger.info "[Documents] Updated #{klass.name}##{doc.id} after rename"
             return
+          end
+        end
+
+        # Also check standalone WarehouseDocuments (not linked to legacy models)
+        blob = StorageBlob.find_by("storage_path = ? OR storage_path = ?", old_path, normalized_old)
+        if blob
+          blob.warehouse_documents.where(documentable_id: nil).find_each do |wd|
+            wd.update(display_name: new_filename, original_filename: new_filename)
+            Rails.logger.info "[Documents] Updated WarehouseDocument##{wd.id} after rename"
           end
         end
       end

@@ -1272,7 +1272,14 @@ module Api
           deleted_corp_count = deleted_corp_docs.count
           deleted_corp_docs.destroy_all if deleted_corp_count > 0
 
-          Rails.logger.info "[SharePoint] Deleted file #{file_id}, removed #{deleted_count} JobDocument(s), #{deleted_corp_count} CorporateCompanyDocument(s)"
+          # Also clean up any standalone WarehouseDocuments via StorageBlob
+          blob = StorageBlob.find_by(storage_path: file_id)
+          if blob
+            orphaned_warehouse = WarehouseDocument.where(storage_blob: blob).where(documentable_id: nil)
+            orphaned_warehouse.destroy_all
+          end
+
+          Rails.logger.info "[DocumentStorage] Deleted file #{file_id}, removed #{deleted_count} JobDocument(s), #{deleted_corp_count} CorporateCompanyDocument(s)"
 
           render json: { success: true, message: "File deleted successfully" }
 
