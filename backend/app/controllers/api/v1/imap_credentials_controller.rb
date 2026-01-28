@@ -813,16 +813,29 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # Handle attachment_data (new format with filenames - Ultra fix Jan 2026)
     # Format: [{ key: "storage/path", filename: "document.pdf", content_type: "application/pdf" }]
     if params[:attachment_data].present?
-      Array(params[:attachment_data]).each do |att_data|
+      att_data_array = Array(params[:attachment_data])
+      Rails.logger.info "[SendEmail] Processing #{att_data_array.size} attachment_data items"
+
+      att_data_array.each_with_index do |att_data, idx|
         # Support both string keys and symbol keys
         storage_key = att_data[:key] || att_data["key"]
         filename = att_data[:filename] || att_data["filename"]
         content_type = att_data[:content_type] || att_data["content_type"]
 
-        next unless storage_key.present?
+        if storage_key.blank?
+          Rails.logger.warn "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': No storage_key, skipping"
+          next
+        end
 
+        Rails.logger.info "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': Downloading from #{storage_key}"
         file = download_from_storage(storage_key)
-        next unless file
+
+        unless file
+          Rails.logger.error "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': FAILED to download from #{storage_key}"
+          next
+        end
+
+        Rails.logger.info "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': SUCCESS (#{file.size} bytes)"
 
         # Use provided filename (preserves original name), fallback to extracted filename
         attachments << {
@@ -831,6 +844,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
           content_type: content_type.presence || file.content_type
         }
       end
+
+      Rails.logger.info "[SendEmail] Processed #{attachments.size} of #{att_data_array.size} attachments successfully"
     end
 
     # Legacy: Handle storage keys (from presigned URL uploads) - for backwards compatibility
