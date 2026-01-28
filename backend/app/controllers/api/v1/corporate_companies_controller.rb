@@ -297,13 +297,60 @@ module Api
       end
 
       # GET /api/v1/companies/:id/documents
-      # Note: corporate_company_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
-      # TODO: Implement WarehouseDocument query
+      # Returns WarehouseDocument records for this corporate company
+      # Optional params:
+      #   - folder: Filter by specific folder path
+      #   - include_descendants: When true, includes documents from all subfolders (cascade view)
       def documents
+        # SSoT: Query WarehouseDocument records linked to this company
+        docs = WarehouseDocument.where(documentable: @company)
+                                .includes(:storage_blob)
+                                .order(created_at: :desc)
+
+        # Filter by folder with optional cascade (include_descendants)
+        if params[:folder].present?
+          if params[:include_descendants] == 'true'
+            # Cascade view: include this folder AND all subfolders
+            folder_path = params[:folder]
+            docs = docs.where("folder = ? OR folder LIKE ?", folder_path, "#{folder_path}/%")
+          else
+            # Exact folder match only
+            docs = docs.where(folder: params[:folder])
+          end
+        end
+
+        # Format response with download URLs
+        docs_json = docs.map do |doc|
+          download_url = doc.download_url rescue nil
+
+          {
+            id: doc.id,
+            name: doc.storage_blob&.original_filename || doc.display_name,
+            displayName: doc.display_name,
+            folder: doc.folder,
+            fileSize: doc.storage_blob&.file_size,
+            contentType: doc.storage_blob&.content_type,
+            source: doc.source_type,
+            storagePath: doc.storage_blob&.storage_path,
+            storageProvider: "s3_compatible",
+            createdAt: doc.created_at&.iso8601,
+            updatedAt: doc.updated_at&.iso8601,
+            downloadUrl: download_url
+          }
+        end
+
         render json: {
           success: true,
-          documents: []  # Table dropped - use WarehouseDocument
+          exists: docs.any?,
+          total: docs.count,
+          documents: docs_json
         }
+      rescue => e
+        Rails.logger.error("[CorporateCompaniesController#documents] Error: #{e.message}")
+        render json: {
+          success: false,
+          error: "Failed to fetch documents: #{e.message}"
+        }, status: :internal_server_error
       end
 
       # GET /api/v1/companies/:id/assets

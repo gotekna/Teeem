@@ -243,6 +243,93 @@ class StorageLocation < ApplicationRecord
       .count
   end
 
+  # ════════════════════════════════════════════════════════════════════════════════
+  # RECURSIVE DESCENDANT METHODS
+  # For cascade document views - get all documents in a folder AND its descendants
+  # Uses PostgreSQL recursive CTE for efficient deep hierarchy traversal
+  # ════════════════════════════════════════════════════════════════════════════════
+
+  # Get all descendant IDs using PostgreSQL recursive CTE
+  # Returns array including self.id and all child/grandchild/etc IDs
+  # @return [Array<Integer>] Array of StorageLocation IDs
+  def all_descendant_ids
+    return [id] if children.empty?
+
+    sql = <<~SQL
+      WITH RECURSIVE descendants AS (
+        SELECT id, parent_id FROM entity_tabs WHERE id = ?
+        UNION ALL
+        SELECT et.id, et.parent_id FROM entity_tabs et
+        INNER JOIN descendants d ON et.parent_id = d.id
+      )
+      SELECT id FROM descendants
+    SQL
+
+    StorageLocation.connection.execute(
+      StorageLocation.sanitize_sql([sql, id])
+    ).pluck('id')
+  end
+
+  # Get all descendant hierarchy paths
+  # @return [Array<String>] Array of hierarchy paths for self and all descendants
+  def all_descendant_paths
+    StorageLocation.where(id: all_descendant_ids).map(&:hierarchy_path)
+  end
+
+  # Get all descendant display names for folder path matching
+  # Returns paths relative to this location (e.g., if this is "Insurance",
+  # returns ["Insurance", "Insurance/General", "Insurance/Claims", ...])
+  # @return [Array<String>] Array of folder paths for self and descendants
+  def all_descendant_folder_paths
+    descendants = StorageLocation.where(id: all_descendant_ids)
+                                  .includes(:parent)
+                                  .order(:parent_id, :order_position)
+
+    descendants.map do |loc|
+      build_relative_path(loc)
+    end.compact
+  end
+
+  # Count documents including all descendants
+  # @param include_descendants [Boolean] Whether to include descendant folders
+  # @return [Integer] Total document count
+  def document_count_cascade(include_descendants: false)
+    return document_count unless include_descendants
+
+    # Get all document_type_ids from self and all descendants
+    all_type_ids = StorageLocation.where(id: all_descendant_ids)
+                                   .joins(:storage_location_document_types)
+                                   .pluck('entity_tab_document_types.document_type_id')
+                                   .uniq
+
+    return 0 if all_type_ids.empty?
+
+    WarehouseDocument
+      .where("metadata->>'document_type_id' IN (?)", all_type_ids.map(&:to_s))
+      .count
+  end
+
+  private
+
+  # Build path relative to self for a descendant location
+  def build_relative_path(descendant)
+    return display_name if descendant.id == id
+
+    # Build path from descendant back to self
+    path_parts = []
+    current = descendant
+    while current && current.id != id
+      path_parts.unshift(current.display_name)
+      current = current.parent
+    end
+
+    # Prepend our own display_name
+    path_parts.unshift(display_name)
+    path_parts.join('/')
+  end
+
+  public
+
   # SSoT: Get the full warehouse path by substituting folder name into template
   # Template comes from StorageConfiguration.warehouse_folders (e.g., "Warehousing/{{TeeemXL}}")
   # Folder name comes from: warehouse_folder column (if set) OR display_name (default)
@@ -443,6 +530,7 @@ class StorageLocation < ApplicationRecord
       inherited_template: inherited_template,
       hierarchy_path: hierarchy_path,
       document_count: document_count,
+      document_count_cascade: document_count_cascade(include_descendants: true),  # SSoT: Count including all descendants
       is_photo_category: is_photo_category,  # SSoT: Explicit photo gallery flag
       can_delete: can_delete?,
       children: children.enabled.ordered.map(&:as_nested_json),

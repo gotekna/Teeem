@@ -625,8 +625,9 @@ export default function XeroIntegrationPage() {
           )}
 
           {/* PDF Sync Status - Above Health Check */}
+          {/* SSoT: Show global data (all tenants) to match UnlinkedContactsSheet */}
           {status?.connected && (
-            <XeroPdfSyncStatus tenantId={tenants.find(t => t.is_primary)?.tenant_id} />
+            <XeroPdfSyncStatus />
           )}
 
         </TabsContent>

@@ -5,6 +5,7 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  FolderTree,
   Calendar,
   ChevronRight,
   ChevronDown,
@@ -13,6 +14,8 @@ import {
   DollarSign,
   Hash,
   ClipboardList,
+  ArrowLeft,
+  Layers,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -149,17 +152,32 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Cascade view mode - shows documents from folder AND all subfolders
+  const [cascadeMode, setCascadeMode] = useState(true);
+  // Selected folder for filtering (null = show all in tree view)
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+
   useEffect(() => {
     loadDocuments();
-  }, [contact.id]);
+  }, [contact.id, selectedFolder, cascadeMode]);
 
   const loadDocuments = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<DocumentsResponse>(
-        `/api/v1/contacts/${contact.id}/documents`
-      );
+      // Build query params for folder filtering
+      const params: Record<string, string> = {};
+      if (selectedFolder) {
+        params.folder = selectedFolder;
+        if (cascadeMode) {
+          params.include_descendants = 'true';
+        }
+      }
+
+      const queryString = new URLSearchParams(params).toString();
+      const url = `/api/v1/contacts/${contact.id}/documents${queryString ? `?${queryString}` : ''}`;
+
+      const response = await api.get<DocumentsResponse>(url);
 
       if (response?.success) {
         const docs = response.documents || [];
@@ -435,21 +453,66 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
 
   const yearGroups = groupedDocuments();
 
+  // Handle folder click - view folder contents
+  const handleViewFolder = (folder: string) => {
+    setSelectedFolder(folder);
+  };
+
+  // Handle back to all documents
+  const handleBackToAll = () => {
+    setSelectedFolder(null);
+  };
+
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center justify-between">
             <span className="flex items-center gap-2">
-              <Folder className="h-5 w-5" />
-              Documents
+              {selectedFolder ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBackToAll}
+                    className="p-1 h-auto"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <FolderTree className="h-5 w-5 text-amber-500" />
+                  <span>{selectedFolder}</span>
+                  {cascadeMode && (
+                    <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400">
+                      + Subfolders
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Folder className="h-5 w-5" />
+                  Documents
+                </>
+              )}
               {documents.length > 0 && (
                 <Badge variant="secondary">{documents.length}</Badge>
               )}
             </span>
-            <Button variant="outline" size="sm" onClick={loadDocuments}>
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Cascade Mode Toggle */}
+              <Button
+                variant={cascadeMode ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setCascadeMode(!cascadeMode)}
+                title={cascadeMode ? "Showing all subfolders" : "Showing this folder only"}
+                className="text-xs"
+              >
+                <Layers className="h-3.5 w-3.5 mr-1" />
+                {cascadeMode ? "All Subfolders" : "This Folder Only"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={loadDocuments}>
+                Refresh
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -515,36 +578,53 @@ export function ContactDocumentsTab({ contact }: ContactDocumentsTabProps) {
                                     return (
                                       <div key={folderKey}>
                                         {/* Folder Header */}
-                                        <button
-                                          onClick={() =>
-                                            toggleFolder(
-                                              yearGroup.year,
-                                              monthGroup.month,
-                                              folderGroup.folder
-                                            )
-                                          }
-                                          className="w-full flex items-center gap-2 p-2 pl-14 hover:bg-muted/50 transition-colors text-left"
-                                        >
-                                          {isFolderExpanded ? (
-                                            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                                          ) : (
-                                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                                          )}
-                                          {isFolderExpanded ? (
-                                            <FolderOpen className="h-4 w-4 text-amber-500" />
-                                          ) : (
-                                            <Folder className="h-4 w-4 text-amber-500" />
-                                          )}
-                                          <span className="text-sm">
-                                            {folderGroup.folder}
-                                          </span>
-                                          <Badge
-                                            variant="outline"
-                                            className="ml-auto text-xs"
+                                        <div className="flex items-center w-full">
+                                          <button
+                                            onClick={() =>
+                                              toggleFolder(
+                                                yearGroup.year,
+                                                monthGroup.month,
+                                                folderGroup.folder
+                                              )
+                                            }
+                                            className="flex-1 flex items-center gap-2 p-2 pl-14 hover:bg-muted/50 transition-colors text-left"
                                           >
-                                            {folderGroup.documents.length}
-                                          </Badge>
-                                        </button>
+                                            {isFolderExpanded ? (
+                                              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                            ) : (
+                                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                            )}
+                                            {isFolderExpanded ? (
+                                              <FolderOpen className="h-4 w-4 text-amber-500" />
+                                            ) : (
+                                              <Folder className="h-4 w-4 text-amber-500" />
+                                            )}
+                                            <span className="text-sm">
+                                              {folderGroup.folder}
+                                            </span>
+                                          </button>
+                                          <div className="flex items-center gap-2 pr-2">
+                                            <Badge
+                                              variant="outline"
+                                              className="text-xs"
+                                            >
+                                              {folderGroup.documents.length}
+                                            </Badge>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleViewFolder(folderGroup.folder);
+                                              }}
+                                              title="View all documents in this folder"
+                                            >
+                                              <FolderTree className="h-3 w-3 mr-1" />
+                                              View
+                                            </Button>
+                                          </div>
+                                        </div>
 
                                         {isFolderExpanded && (
                                           <div className="border-t bg-background">

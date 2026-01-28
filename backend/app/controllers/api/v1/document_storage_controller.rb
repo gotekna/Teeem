@@ -1636,6 +1636,8 @@ module Api
       #
       # Params:
       #   refresh_thumbnails: "true" - Fetch fresh thumbnail URLs from SharePoint (cached ones expire)
+      #   folder: Filter by specific folder path
+      #   include_descendants: When true, includes documents from all subfolders (cascade view)
       def job_all_files
         job = Job.find(params[:job_id])
 
@@ -1645,6 +1647,18 @@ module Api
           warehouse_docs = WarehouseDocument.where(linkable_type: "Job", linkable_id: job.id)
             .or(WarehouseDocument.where(source_type: "job", documentable_type: "Job", documentable_id: job.id))
             .includes(:storage_blob)
+
+          # Filter by folder with optional cascade (include_descendants)
+          if params[:folder].present?
+            if params[:include_descendants] == 'true'
+              # Cascade view: include this folder AND all subfolders
+              folder_path = params[:folder]
+              warehouse_docs = warehouse_docs.where("folder = ? OR folder LIKE ?", folder_path, "#{folder_path}/%")
+            else
+              # Exact folder match only
+              warehouse_docs = warehouse_docs.where(folder: params[:folder])
+            end
+          end
 
           files = warehouse_docs.map do |doc|
             blob = doc.storage_blob
@@ -1680,6 +1694,18 @@ module Api
         # Check if we have cached documents in the data warehouse
         # Include entity_tabs through document_type to get entity_tab_key for folder view
         cached_docs = job.job_documents.includes({ document_type: :entity_tabs }, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
+
+        # Filter by folder with optional cascade (include_descendants)
+        if params[:folder].present?
+          if params[:include_descendants] == 'true'
+            # Cascade view: include this folder AND all subfolders
+            folder_path = params[:folder]
+            cached_docs = cached_docs.where("folder_path = ? OR folder_path LIKE ?", folder_path, "#{folder_path}/%")
+          else
+            # Exact folder match only
+            cached_docs = cached_docs.where(folder_path: params[:folder])
+          end
+        end
 
         if cached_docs.any?
           # Refresh thumbnails if requested (they expire after ~24-48 hours)

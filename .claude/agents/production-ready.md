@@ -6,6 +6,176 @@
 
 **Priority:** THOROUGHNESS over speed. Click EVERYTHING. No time constraints.
 
+## 🔴 CRITICAL: Left Navigation Systematic Testing
+
+**Navigate the application STRICTLY via the Left Navigation Bar. Test each item completely before moving to the next.**
+
+### Left Navigation Order (SSoT from App)
+
+| # | Nav Item | URL | Priority |
+|---|----------|-----|----------|
+| 1 | Dashboard | `/dashboard` | Deep Test |
+| 2 | Tasks | `/tasks` | Standard |
+| 3 | Calendar | `/calendar` | Standard |
+| 4 | Email | `/email` | Standard |
+| 5 | Contacts | `/contacts` | Deep Test |
+| 6 | Leads | `/leads` | Standard |
+| 7 | Jobs | `/jobs` | Deep Test |
+| 8 | Finance | `/finance` | Standard |
+| 9 | Meetings | `/meetings` | Standard |
+| 10 | Warehouse | `/warehouse` | Standard |
+| 11 | Corporate | `/corporate` | Deep Test |
+| 12 | Portal | `/portal` | Standard |
+| 13 | Settings | `/settings` | Deep Test |
+| 14 | Teeem Docs | `/my-docs` | Standard |
+| 15 | Missing | `/missing` | Standard |
+
+### Testing Protocol Per Nav Item
+
+```
+FOR EACH LEFT NAV ITEM:
+1. Click the nav item in the left sidebar
+2. Take snapshot, check for 404/errors
+3. Count and click EVERY tab on the page
+4. For each tab, count and click EVERY sub-tab
+5. For list pages: click 2-3 rows to open details/drawers
+6. Test any Add/Edit/Delete buttons (open modals)
+7. Check console for errors after each action
+8. REPORT STATS before moving to next nav item
+```
+
+### Stats Report Format (After Each Nav Item)
+
+```
+========================================
+📍 LEFT NAV: [Name] (/path)
+========================================
+✅ PAGE LOADED (or ❌ ERROR: description)
+
+📊 COUNTERS FOR THIS SECTION:
+  Tabs:          X clicked
+  Sub-tabs:      X clicked
+  Rows opened:   X records
+  Modals:        X opened
+  Drawers:       X opened
+  Errors:        X found
+
+📋 TABS TESTED:
+  ✅ Tab1 (X sub-tabs)
+  ✅ Tab2
+  ❌ Tab3 - ERROR: description
+
+🚨 ERRORS FOUND:
+  [ERROR 1] Description...
+
+➡️ NEXT: [Next Nav Item]
+========================================
+```
+
+### Running Totals (Update After Each Section)
+
+```
+========================================
+📊 RUNNING TOTALS (after Section X)
+========================================
+PAGES_OPENED:      X / 15 nav items
+TABS_CLICKED:      X
+SUB_TABS_CLICKED:  X
+ROWS_OPENED:       X
+MODALS_OPENED:     X
+DRAWERS_OPENED:    X
+ERRORS_FOUND:      X
+========================================
+```
+
+## 🔴 CRITICAL: Save Results to Notebook
+
+**ALWAYS save test results to a notebook file for comparison across runs.**
+
+### Results File Location
+
+```
+/Users/robertharder/GitHub/teeem/TEEEM_DOCS/PR_TEST_RESULTS.md
+```
+
+### File Structure
+
+```markdown
+# Production Ready Test Results
+
+## Run: YYYY-MM-DD HH:MM (Brisbane)
+Environment: Staging | Beta | Production
+Tester: Claude
+
+### Summary
+| Metric | Count |
+|--------|-------|
+| Nav Items Tested | X/15 |
+| Tabs Clicked | X |
+| Sub-tabs Clicked | X |
+| Rows Opened | X |
+| Modals Opened | X |
+| Drawers Opened | X |
+| Errors Found | X |
+
+### Results by Navigation
+
+#### 1. Dashboard (/dashboard)
+- Status: ✅ PASS | ❌ FAIL
+- Tabs: 3 (Overview ✅, Competitor Comparison ✅, Architecture ✅)
+- Sub-tabs: 7 (all in Architecture)
+- Errors: None
+
+#### 2. Tasks (/tasks)
+- Status: ✅ PASS
+- Tabs: 0 (single view)
+- Views: List ✅, Board ✅, Gantt ✅
+- Records: 18 tasks displayed
+- Errors: None
+
+#### 3. Calendar (/calendar)
+...
+
+[Continue for all 15 nav items]
+
+### Errors Log
+| # | Page | Error | Status |
+|---|------|-------|--------|
+| 1 | /path | Description | NEW/KNOWN/FIXED |
+
+---
+## Previous Run: YYYY-MM-DD HH:MM
+[Previous results for comparison]
+```
+
+### Workflow
+
+1. **Start of /pr**: Read existing `PR_TEST_RESULTS.md` if exists
+2. **During testing**: Track all metrics per nav item
+3. **End of /pr**: Append new run results to the file
+4. **Compare**: Show diff from previous run (new errors, fixed errors, metric changes)
+
+### Comparison Output
+
+```
+========================================
+📊 COMPARISON WITH PREVIOUS RUN
+========================================
+Previous: 2026-01-28 14:30
+Current:  2026-01-29 05:20
+
+| Metric | Previous | Current | Change |
+|--------|----------|---------|--------|
+| Tabs | 45 | 48 | +3 |
+| Errors | 2 | 0 | -2 ✅ |
+
+🆕 NEW ERRORS: None
+✅ FIXED ERRORS:
+  - /contacts/photo - Photo tab 500 error
+  - /jobs/plans - PDF preview CORS
+========================================
+```
+
 ## 🔴 TEST LIKE AN IMPATIENT USER
 
 **Real users don't wait. They:**
@@ -31,7 +201,25 @@ This agent must test:
 
 **DO NOT** just test list pages. You MUST click into a row, open drawers, test modals, and check console on EVERY page.
 
-## Login Credentials
+## 🔴 CRITICAL: Always Start with Fresh Login
+
+**Every /pr run MUST start with a fresh login to ensure clean session state.**
+
+### Login Steps (MANDATORY FIRST ACTION)
+
+```
+1. Navigate to: https://teeem-staging.vercel.app/login
+2. Clear any existing session (if logged in, log out first)
+3. Fill credentials:
+   - Email: robert@tekna.com.au
+   - Password: Wisdom50-50
+4. Click Sign In
+5. Wait for Dashboard to load
+6. Verify login successful (user name visible in header)
+7. THEN begin left navigation testing
+```
+
+### Login Credentials
 
 ```
 Email: robert@tekna.com.au
