@@ -107,6 +107,21 @@ class XeroRateLimitTracker
       daily_count = Rails.cache.read(daily_key_for(tenant_id)).to_i
       total_count = Rails.cache.read(total_key_for(tenant_id)).to_i
 
+      # ⚠️ SAFEGUARD: Auto-reset impossibly high counters (Jan 2026)
+      # ════════════════════════════════════════════════════════════════
+      # Why: Counter can drift past limit if jobs increment on retries/429s.
+      #      A daily count > DAILY_LIMIT is IMPOSSIBLE - Xero would have 429'd
+      #      us at exactly 5000. If we see >100%, our tracking drifted.
+      # Fix: Auto-reset to unblock sync instead of staying stuck forever.
+      # ════════════════════════════════════════════════════════════════
+      if daily_count > DAILY_LIMIT
+        Rails.logger.warn("[XeroRateLimitTracker] SAFEGUARD: Daily count #{daily_count} exceeds limit #{DAILY_LIMIT} for tenant #{tenant_id} - auto-resetting (impossible value)")
+        reset_for(tenant_id)
+        minute_count = 0
+        daily_count = 0
+        total_count = 0
+      end
+
       # Check for Xero-enforced lockout (SSoT for "is Xero actually blocking us")
       lockout = current_lockout(tenant_id: tenant_id)
       is_locked_out = lockout.present?
