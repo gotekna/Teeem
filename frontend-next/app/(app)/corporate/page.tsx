@@ -771,7 +771,7 @@ export default function CorporateDashboardPage() {
                 email: m.contact_email,
                 entity_type: m.contact_entity_type,
                 company_group_memberships_count: 1, // Will be updated below
-                membership_types: [m.membership_type],
+                membership_types: m.membership_type ? [m.membership_type] : [],
                 company_group_names: [groupsMap[group.id] || group.name],
               });
             } else {
@@ -780,7 +780,7 @@ export default function CorporateDashboardPage() {
               if (existing) {
                 existing.company_group_memberships_count = ((existing.company_group_memberships_count as number) || 0) + 1;
                 const types = existing.membership_types as string[];
-                if (!types.includes(m.membership_type)) {
+                if (m.membership_type && !types.includes(m.membership_type)) {
                   types.push(m.membership_type);
                 }
                 const groupNames = existing.company_group_names as string[];
