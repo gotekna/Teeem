@@ -992,7 +992,7 @@ module Api
           attrs[:title] = "New Job" if attrs[:title].blank?
           # Note: job_status_id is a lookup field - don't set a default here
           # The user should select a status from the lookup dropdown
-          attrs[:site_supervisor_name] = "TBA" if attrs[:site_supervisor_name].blank?
+          # Note: site_supervisor_name column removed (Jan 2026) - use job_contacts SSoT
         end
 
         attrs

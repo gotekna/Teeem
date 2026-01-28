@@ -401,9 +401,10 @@ module Engines
           data[:owner_rep_address] ||= rep_pc.present? ? rep_addr.sub(/\s*#{rep_pc}\s*$/, "").strip : rep_addr
         end
 
-        # Site supervisor info (from job columns)
-        data[:site_supervisor_name] ||= job.site_supervisor_name
-        data[:site_supervisor_phone] ||= job.site_supervisor_phone
+        # Site supervisor info (from job_contacts SSoT - columns removed Jan 2026)
+        supervisor_info = job.site_supervisor_info
+        data[:site_supervisor_name] ||= supervisor_info[:name]
+        data[:site_supervisor_phone] ||= supervisor_info[:phone]
 
         # Resident owner status (for checkbox)
         data[:resident_owner] = job.resident_owner
