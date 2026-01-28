@@ -31,11 +31,11 @@ class StorageBlob < ApplicationRecord
   belongs_to :organization, optional: true  # Optional for tenant-shared blobs
 
   # Associations
-  has_many :email_attachments, dependent: :nullify
-  has_many :corporate_company_documents, dependent: :nullify
+  # Note: email_attachments and corporate_company_documents tables DROPPED (Jan 2026)
+  # All documents now use WarehouseDocument as SSoT (Ultra Design)
   has_many :chat_messages, dependent: :nullify
   has_many :bill_inboxes, dependent: :nullify
-  has_many :warehouse_documents, dependent: :nullify  # Phase 3: Universal document table
+  has_many :warehouse_documents, dependent: :nullify  # SSoT: Universal document table
 
   # Validations
   # content_hash is optional for legacy records (backfill without download)
@@ -285,8 +285,9 @@ class StorageBlob < ApplicationRecord
 
   # Find tenant through linked records (warehouse_documents -> documentable -> tenant)
   # Uses TenantResolvable pattern for fail-fast behavior
+  # Note: email_attachments table DROPPED (Jan 2026) - all attachments now in WarehouseDocument
   def find_tenant_from_links
-    # Try warehouse_document first
+    # SSoT: All documents now go through WarehouseDocument
     if warehouse_documents.any?
       doc = warehouse_documents.first
       # Try direct tenant access
@@ -297,18 +298,6 @@ class StorageBlob < ApplicationRecord
         # FRC (Jan 2026): Must check tenant.present? - nil microsoft_credential returns nil chain
         doc_ms_tenant = doc.documentable.microsoft_credential&.organization&.tenant if doc.documentable.respond_to?(:microsoft_credential)
         return doc_ms_tenant if doc_ms_tenant.present?
-      end
-    end
-
-    # Try email_attachments -> synced_email -> microsoft_credential -> tenant
-    if email_attachments.any?
-      att = email_attachments.first
-      if att.respond_to?(:synced_email) && att.synced_email.present?
-        # FRC (Jan 2026): Must check tenant.present? - nil tenant_id returns nil tenant
-        ms_tenant = att.synced_email.microsoft_credential&.organization&.tenant
-        return ms_tenant if ms_tenant.present?
-        email_tenant = att.synced_email.tenant if att.synced_email.respond_to?(:tenant)
-        return email_tenant if email_tenant.present?
       end
     end
 

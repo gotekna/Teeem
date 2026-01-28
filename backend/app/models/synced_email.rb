@@ -14,10 +14,10 @@ class SyncedEmail < ApplicationRecord
   # Note: Uses custom update_searchable_vector callback instead of trigger
   searchable_columns :subject, :from_email, :body_text
 
-  # SSoT: Email attachments use email_attachments → StorageBlob chain (Jan 2026)
-  # ActiveStorage has_many_attached :files was REMOVED - it violated SSoT by
-  # duplicating attachments that should be accessed via email_attachments association.
-  # See: BulkEmailSyncJob which creates EmailAttachment records during sync.
+  # SSoT: Email attachments use WarehouseDocument with source_type='email_attachment' (Jan 2026)
+  # ActiveStorage has_many_attached :files was REMOVED - it violated SSoT.
+  # EmailAttachment table was DROPPED - all attachments now in WarehouseDocument (Ultra Design).
+  # Use attachment_documents method to query attachments for this email.
 
   # Associations
   belongs_to :job, optional: true
@@ -34,8 +34,7 @@ class SyncedEmail < ApplicationRecord
   # SSoT associations
   # Note: All these associations use email_warehouse_id FK (historical naming - email_warehouse was renamed to synced_email)
   has_many :email_recipients, foreign_key: :email_warehouse_id, dependent: :destroy
-  has_many :email_attachments, foreign_key: :email_warehouse_id, dependent: :destroy
-  has_many :attachments, through: :email_attachments
+  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents method instead
 
   # Email Labels (Gmail-style multi-label system)
   # Note: email_label_assignments uses email_warehouse_id FK (historical naming)
@@ -365,25 +364,32 @@ class SyncedEmail < ApplicationRecord
     "#{type.titleize} (#{(confidence * 100).to_i}%)"
   end
 
+  # SSoT: Get attachment documents for this email via WarehouseDocument (Jan 2026)
+  # Returns WarehouseDocument records with source_type='email_attachment' linked to this email
+  def attachment_documents
+    WarehouseDocument.where(source_type: 'email_attachment')
+                     .where("metadata->>'synced_email_id' = ?", id.to_s)
+  end
+
   # Get document attachments (exclude small signature images, keep large photos)
-  # SSoT: Same 50KB threshold as sync_attachments! (line 979)
+  # SSoT: Same 50KB threshold as sync_attachments!
   # - Images >= 50KB = real photos (construction site, documents) → INCLUDE
   # - Images < 50KB = likely email signatures → EXCLUDE
   # - Non-images (PDF, EML, etc.) → ALWAYS INCLUDE
   def document_attachments
-    email_attachments.select { |ea| include_attachment?(ea) }
+    attachment_documents.select { |doc| include_attachment_doc?(doc) }
   end
 
   # Get count of document attachments (excluding small signature images)
   def document_attachments_count
-    email_attachments.count { |ea| include_attachment?(ea) }
+    attachment_documents.count { |doc| include_attachment_doc?(doc) }
   end
 
   # SSoT: Determines if an attachment should be shown in document lists
   # Matches the sync logic threshold of 50KB for filtering signature images
-  def include_attachment?(attachment)
-    content_type = attachment.storage_blob&.content_type
-    file_size = attachment.storage_blob&.file_size || 0
+  def include_attachment_doc?(doc)
+    content_type = doc.content_type || doc.storage_blob&.content_type
+    file_size = doc.file_size || doc.storage_blob&.file_size || 0
 
     # Non-images always included
     return true unless content_type&.start_with?('image/')
@@ -866,31 +872,31 @@ class SyncedEmail < ApplicationRecord
 
   # Extract text from all attached PDF files
   # SSoT: Uses PdfTextExtractionService for all PDF text extraction
-  # Note: has_many_attached :files was removed (Jan 2026) - uses email_attachments association
+  # Note: Uses WarehouseDocument (Jan 2026 - email_attachments table dropped)
   def extract_pdf_text
-    return nil unless email_attachments.any?
+    return nil unless attachment_documents.any?
 
     pdf_texts = []
 
-    email_attachments.each do |email_attachment|
-      # content_type is on storage_blob, not email_attachment (Jan 2026 refactor)
-      next unless email_attachment.storage_blob&.content_type == "application/pdf"
-      next unless email_attachment.stored?
+    attachment_documents.each do |doc|
+      content_type = doc.content_type || doc.storage_blob&.content_type
+      next unless content_type == "application/pdf"
+      next unless doc.storage_blob.present?
 
       begin
-        content = email_attachment.download
+        content = doc.storage_blob.download
         next unless content.present?
 
         result = PdfTextExtractionService.extract(content, join_pages: true)
         next unless result[:success]
 
         pdf_texts << {
-          filename: email_attachment.filename,
+          filename: doc.original_filename || doc.display_name,
           text: result[:text],
           pages: result[:page_count]
         }
       rescue StandardError => e
-        Rails.logger.error "Failed to extract PDF text from #{email_attachment.filename}: #{e.message}"
+        Rails.logger.error "Failed to extract PDF text from #{doc.display_name}: #{e.message}"
       end
     end
 
@@ -902,17 +908,18 @@ class SyncedEmail < ApplicationRecord
   # Returns true if attachments were linked, false if download still needed
   def link_existing_attachments!
     return false unless has_attachments
-    return false if email_attachments.any?
+    return false if attachment_documents.any?
 
-    # Find related emails with synced attachments
-    related = SyncedEmail.where.not(id: id)
+    # Find related emails with synced attachments (via WarehouseDocument)
+    related_with_attachments = SyncedEmail.where.not(id: id)
       .where(has_attachments: true)
-      .joins(:email_attachments)
-      .where.not(email_attachments: { storage_blob_id: nil })
+      .joins("INNER JOIN warehouse_documents ON warehouse_documents.metadata->>'synced_email_id' = synced_emails.id::text")
+      .where(warehouse_documents: { source_type: 'email_attachment' })
+      .where.not(warehouse_documents: { storage_blob_id: nil })
 
     # Priority 1: Same internet_message_id (exact same email, different mailbox)
     if internet_message_id.present?
-      source = related.find_by(internet_message_id: internet_message_id)
+      source = related_with_attachments.find_by(internet_message_id: internet_message_id)
       if source
         Rails.logger.info "[SyncedEmail] Linking attachments from email #{source.id} (same internet_message_id)"
         return copy_attachments_from!(source)
@@ -921,7 +928,7 @@ class SyncedEmail < ApplicationRecord
 
     # Priority 2: Same conversation_id (thread) with matching subject
     if conversation_id.present?
-      source = related.where(conversation_id: conversation_id).first
+      source = related_with_attachments.where(conversation_id: conversation_id).first
       if source
         Rails.logger.info "[SyncedEmail] Linking attachments from email #{source.id} (same conversation_id)"
         return copy_attachments_from!(source)
@@ -931,41 +938,47 @@ class SyncedEmail < ApplicationRecord
     false
   end
 
-  # Copy attachments from another email, linking to same StorageBlobs
+  # Copy attachments from another email, linking to same StorageBlobs via WarehouseDocument
   def copy_attachments_from!(source_email)
-    source_email.email_attachments.each do |src_att|
-      next unless src_att.storage_blob_id
+    source_email.attachment_documents.each do |src_doc|
+      next unless src_doc.storage_blob_id
 
-      # Create new EmailAttachment linking to same blob (handle missing auto-increment)
-      next_id = (EmailAttachment.maximum(:id) || 0) + 1
-      ea = EmailAttachment.create!(
-        id: next_id,
-        synced_email_id: id,
-        filename: src_att.filename,
-        storage_blob_id: src_att.storage_blob_id
+      # Create new WarehouseDocument linking to same blob
+      WarehouseDocument.create!(
+        documentable: self,
+        storage_blob_id: src_doc.storage_blob_id,
+        display_name: src_doc.display_name,
+        original_filename: src_doc.original_filename,
+        folder: 'Emails/Attachments',
+        source_type: 'email_attachment',
+        tenant_id: tenant_id,
+        content_type: src_doc.content_type,
+        file_size: src_doc.file_size,
+        metadata: { 'synced_email_id' => id.to_s }
       )
 
       # Increment blob reference count
-      src_att.storage_blob&.increment!(:reference_count)
-      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_att.filename} → blob #{src_att.storage_blob_id}"
+      src_doc.storage_blob&.increment!(:reference_count)
+      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_doc.display_name} → blob #{src_doc.storage_blob_id}"
     end
 
     # Update attachment count
-    update_column(:attachment_count, email_attachments.reload.count) if email_attachments.any?
+    new_count = attachment_documents.reload.count
+    update_column(:attachment_count, new_count) if new_count > 0
 
-    email_attachments.any?
+    new_count > 0
   end
 
-  # SSoT: Sync attachments from Microsoft Graph to EmailAttachment → StorageBlob
+  # SSoT: Sync attachments from Microsoft Graph to WarehouseDocument + StorageBlob
   # Called automatically for new emails with attachments via OrgEmailSyncJob
   # FRC (Jan 2026): Microsoft reports has_attachments=false for inline images only.
   # Check body for cid: references to catch inline images that need syncing.
   def sync_attachments!(force: false)
     has_inline_images = body_html&.include?('cid:')
     return unless has_attachments || has_inline_images
-    # FRC (Jan 2026): Only skip if ALL attachments have blobs, not just if records exist
-    # Old code skipped if any EmailAttachment existed, even without blob (metadata-only)
-    return if !force && email_attachments.any? && email_attachments.where(storage_blob_id: nil).none?
+    # FRC (Jan 2026): Only skip if ALL attachments have blobs
+    existing_docs = attachment_documents.where.not(storage_blob_id: nil)
+    return if !force && existing_docs.any?
 
     # SSoT: Try linking existing attachments first (don't re-download)
     return if link_existing_attachments!
@@ -995,28 +1008,39 @@ class SyncedEmail < ApplicationRecord
       # Skip small inline images (likely signatures)
       next if att["isInline"] && content_type&.start_with?("image/") && byte_size < 50_000
 
-      # Find existing or create new (handle missing auto-increment)
-      ea = email_attachments.find_by(filename: filename)
-      if ea.nil?
-        next_id = (EmailAttachment.maximum(:id) || 0) + 1
-        ea = email_attachments.build(id: next_id, filename: filename, content_id: content_id)
-        ea.save!
-      elsif ea.content_id.blank? && content_id.present?
-        ea.update_column(:content_id, content_id)
-      end
+      # Check if already have this attachment (by filename)
+      existing_doc = attachment_documents.find { |d| d.original_filename == filename }
+      next if existing_doc&.storage_blob_id.present?
 
-      # Skip if already has blob (avoid re-downloading)
-      next if ea.storage_blob_id.present?
+      # Create StorageBlob (handles deduplication via content_hash)
+      blob = StorageBlob.find_or_create_for_content!(
+        content,
+        filename: filename,
+        content_type: content_type
+      )
 
-      # Store content via StorageBlob (handles deduplication)
-      ea.store_content!(content, filename: filename, content_type: content_type)
+      # Create WarehouseDocument linking to blob
+      WarehouseDocument.create!(
+        documentable: self,
+        storage_blob_id: blob.id,
+        display_name: filename,
+        original_filename: filename,
+        folder: 'Emails/Attachments',
+        source_type: 'email_attachment',
+        tenant_id: tenant_id,
+        content_type: content_type || blob.content_type,
+        file_size: byte_size.positive? ? byte_size : blob.file_size,
+        metadata: { 'synced_email_id' => id.to_s, 'content_id' => content_id }.compact
+      )
+
+      blob.increment!(:reference_count)
       Rails.logger.debug "[SyncedEmail] Synced attachment: #{filename}"
     rescue StandardError => e
       Rails.logger.error "[SyncedEmail] Failed to sync attachment #{filename}: #{e.message}"
     end
 
     # Update attachment count
-    update_column(:attachment_count, email_attachments.reload.count)
+    update_column(:attachment_count, attachment_documents.reload.count)
   end
 
   private

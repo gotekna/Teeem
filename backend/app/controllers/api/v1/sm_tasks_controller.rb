@@ -67,11 +67,10 @@ module Api
           @tasks = @tasks.for_user_roles(user) if user
         end
 
-        # Apply limit before preloading nested email_attachments
+        # Apply limit before preloading
         tasks_to_render = @tasks.limit(500).to_a
 
-        # N+1 fix: Preload email_attachments + storage_blob for SyncedEmail attachables
-        # This is a separate preload because polymorphic associations don't support nested includes
+        # N+1 fix: Preload SyncedEmail attachables
         synced_email_ids = tasks_to_render.flat_map do |task|
           task.sm_task_attachments
               .select { |a| a.attachable_type == "SyncedEmail" }
@@ -79,9 +78,14 @@ module Api
         end.uniq
         if synced_email_ids.any?
           # Preload in batch, then the attachment_to_json will use cached data
-          preloaded_emails = SyncedEmail.where(id: synced_email_ids)
-                                           .includes(email_attachments: :storage_blob)
-                                           .index_by(&:id)
+          # Note: Email attachments now in WarehouseDocument (Jan 2026 - email_attachments dropped)
+          preloaded_emails = SyncedEmail.where(id: synced_email_ids).index_by(&:id)
+          # Preload attachment documents for these emails
+          @attachment_docs_cache = WarehouseDocument
+            .includes(:storage_blob)
+            .where(source_type: 'email_attachment')
+            .where("metadata->>'synced_email_id' IN (?)", synced_email_ids.map(&:to_s))
+            .group_by { |d| d.metadata['synced_email_id'].to_i }
           # Inject preloaded emails into attachables to avoid re-query
           tasks_to_render.each do |task|
             task.sm_task_attachments.each do |att|
