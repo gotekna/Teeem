@@ -49,9 +49,12 @@ class BackupConfiguration < ApplicationRecord
   validate :mirror_requires_secondary_credential
 
   # Get or create configuration for current tenant
-  # @return [BackupConfiguration]
+  # @return [BackupConfiguration, nil] Returns nil if no tenant context
   def self.for_tenant
-    find_or_create_by!(tenant: ActsAsTenant.current_tenant)
+    tenant = ActsAsTenant.current_tenant
+    return nil unless tenant
+
+    find_or_create_by!(tenant: tenant)
   end
 
   # Check if database backups are enabled
