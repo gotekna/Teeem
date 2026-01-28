@@ -1618,8 +1618,8 @@ export default function CorporateDashboardPage() {
                         {people.map((person) => {
                           const name = (person.display_name || person.name || "Unknown") as string;
                           const email = (person.email || "—") as string;
-                          const membershipTypes = (person.membership_types || []) as string[];
-                          const groupNames = (person.company_group_names || []) as string[];
+                          const membershipTypes = ((person.membership_types || []) as (string | null)[]).filter(Boolean) as string[];
+                          const groupNames = ((person.company_group_names || []) as (string | null)[]).filter(Boolean) as string[];
                           return (
                             <TableRow key={person.id} className="border-b hover:bg-muted/50">
                               <TableCell className="py-2 px-3">
