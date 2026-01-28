@@ -475,6 +475,9 @@ export function DocumentViewer({
   const [emlLoading, setEmlLoading] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  // PDF blob URL state - fetching via JS bypasses Content-Disposition: attachment issues
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const fileType = getFileType(fileName);
   const hasFiles = files && files.length > 0;
@@ -512,6 +515,46 @@ export function DocumentViewer({
       setDownloadingAll(false);
     }
   };
+
+  // Fetch PDF via JavaScript and create blob URL
+  // This bypasses Content-Disposition: attachment which would trigger downloads instead of display
+  useEffect(() => {
+    if (fileType !== "pdf" || !url) {
+      setPdfBlobUrl(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setPdfLoading(true);
+    setPdfBlobUrl(null);
+    setError(null);
+
+    fetch(url, { signal: controller.signal })
+      .then(res => {
+        if (!res.ok) throw new Error("Failed to fetch PDF");
+        return res.blob();
+      })
+      .then(blob => {
+        // Create blob URL for the PDF - this will work regardless of Content-Disposition
+        const blobUrl = URL.createObjectURL(blob);
+        setPdfBlobUrl(blobUrl);
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        console.error("PDF fetch error:", err);
+        setError("Unable to load PDF preview");
+      })
+      .finally(() => setPdfLoading(false));
+
+    return () => {
+      controller.abort();
+      // Clean up blob URL when component unmounts or URL changes
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileType, url]);
 
   // Fetch and parse EML content when URL changes
   useEffect(() => {
@@ -777,12 +820,17 @@ export function DocumentViewer({
               </a>
             </div>
           ) : fileType === "pdf" ? (
-            <iframe
-              src={url}
-              className="w-full h-full rounded-lg shadow-2xl"
-              style={{ minHeight: "calc(100vh - 200px)" }}
-              onError={() => setError("Unable to load PDF preview")}
-            />
+            pdfLoading ? (
+              <div className={isDark ? "text-white" : "text-gray-800"}>Loading PDF...</div>
+            ) : pdfBlobUrl ? (
+              <iframe
+                key={pdfBlobUrl}
+                src={pdfBlobUrl}
+                className="w-full h-full rounded-lg shadow-2xl"
+                style={{ minHeight: "calc(100vh - 200px)" }}
+                onError={() => setError("Unable to load PDF preview")}
+              />
+            ) : null
           ) : fileType === "image" ? (
             <div className="max-w-full max-h-full overflow-auto">
               <img

@@ -1460,12 +1460,12 @@ module Api
           total_invoices_in_db = base_scope_no_drafts.count
           invoices_with_contacts = base_scope_no_drafts.where.not(contact_id: nil)
           total_with_contacts = invoices_with_contacts.count
-          # SSoT: Count unlinked invoices that have a real contact name (same logic as unlinked_contacts endpoint)
-          # Excludes blank names and "No Contact" since those can't be matched
-          # Also excludes drafts for consistency with Stage 1/2 denominator
-          invoices_without_contacts = base_scope_no_drafts.where(contact_id: nil)
-            .where.not(contact_name: [nil, "", "No Contact"])
-            .count
+          # SSoT: Use ExternalInvoice.needs_contact_linking scope (THE ONE definition)
+          # Apply tenant filter if specified
+          needs_linking_scope = tenant_id.present? ?
+            ExternalInvoice.needs_contact_linking.where(tenant_id: tenant_id) :
+            ExternalInvoice.needs_contact_linking
+          invoices_without_contacts = needs_linking_scope.count
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
           # Jan 2026: Always check BOTH tenant-specific AND global (nil) records
@@ -1488,13 +1488,10 @@ module Api
 
           # Stage 1 blocker info - why aren't all invoices linked?
           stage1_blocker = if invoices_without_contacts > 0
-            # Count unique Xero contacts (same grouping as unlinked_contacts endpoint)
-            unlinked_contact_count = base_scope_no_drafts.where(contact_id: nil)
-              .where.not(contact_name: [nil, "", "No Contact"])
-              .distinct
-              .count(:contact_name)
+            # SSoT: Use same scope for contact count (distinct contact_name)
+            unlinked_contact_count = needs_linking_scope.distinct.count(:contact_name)
             # Find example unlinked invoices to help diagnose
-            unlinked_sample = base_scope_no_drafts.where(contact_id: nil).limit(5).pluck(:external_id, :contact_name)
+            unlinked_sample = needs_linking_scope.limit(5).pluck(:external_id, :contact_name)
             {
               reason: "#{unlinked_contact_count} Xero contact#{'s' if unlinked_contact_count != 1} with #{invoices_without_contacts} invoice#{'s' if invoices_without_contacts != 1} not linked",
               detail: "Xero contacts need to be matched to TEEEM contacts first",
@@ -2212,9 +2209,9 @@ module Api
       # Returns grouped unlinked Xero contacts with potential TEEEM contact matches
       def unlinked_contacts
         begin
-          # Get all unlinked invoices grouped by contact_name
-          unlinked = ExternalInvoice.where(contact_id: nil)
-            .where.not(contact_name: [ nil, "", "No Contact" ])
+          # SSoT: Use ExternalInvoice.needs_contact_linking scope (THE ONE definition)
+          # This ensures counts match the status page exactly
+          unlinked = ExternalInvoice.needs_contact_linking
             .group(:contact_name, :external_contact_id)
             .select("contact_name, external_contact_id, COUNT(*) as invoice_count, SUM(total) as total_amount")
             .order("invoice_count DESC")
@@ -2383,18 +2380,30 @@ module Api
         xero_contact_name = params[:xero_contact_name]
         tenant_id = params[:tenant_id]
         contact_id = params[:contact_id]
+        create_new = params[:create_new] == true || params[:create_new] == "true"
 
         unless xero_contact_id.present?
           return render json: { success: false, error: "xero_contact_id is required" }, status: :bad_request
         end
 
-        unless contact_id.present?
+        # contact_id is required UNLESS create_new is true
+        unless contact_id.present? || create_new
           return render json: { success: false, error: "contact_id is required" }, status: :bad_request
         end
 
         begin
           ActiveRecord::Base.transaction do
-            @contact = Contact.find(contact_id)
+            # If create_new, create a new Contact first
+            if create_new
+              @contact = Contact.create!(
+                name: xero_contact_name,
+                contact_type: "company",
+                status: "active"
+              )
+              Rails.logger.info("[Xero] Created new contact #{@contact.id} (#{@contact.name}) for Xero contact #{xero_contact_id}")
+            else
+              @contact = Contact.find(contact_id)
+            end
 
             # Get tenant info - prefer passed tenant_id, fall back to finding from invoices
             effective_tenant_id = tenant_id
