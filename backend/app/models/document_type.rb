@@ -551,8 +551,9 @@ class DocumentType < ApplicationRecord
 
   # Count documents that would need renaming with the new format
   # (those that don't already match what the new format would generate)
-  # SSoT: WarehouseDocument is now THE ONE table for document metadata
+  # NOTE: WarehouseDocument doesn't track document_type_id, so we return 0
+  # In the future, document types could be inferred from folder/source_type
   def documents_needing_standardization_count
-    WarehouseDocument.where(document_type_id: id).count
+    0
   end
 end
