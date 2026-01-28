@@ -18,10 +18,11 @@ class BackfillEmailAttachmentBlobsJob < ApplicationJob
     Rails.logger.info "[BackfillAttachmentBlobs] Starting backfill (batch_size: #{batch_size})"
 
     # Find emails with attachments that are missing blobs
-    query = EmailAttachment.where(storage_blob_id: nil)
+    # FRC (Jan 2026): Use unscoped to bypass tenant scoping in background job
+    query = EmailAttachment.unscoped.where(storage_blob_id: nil)
 
     if mailbox.present?
-      email_ids = SyncedEmail.where(mailbox_owner_email: mailbox).pluck(:id)
+      email_ids = SyncedEmail.unscoped.where(mailbox_owner_email: mailbox).pluck(:id)
       query = query.where(email_warehouse_id: email_ids)
     end
 
@@ -39,12 +40,21 @@ class BackfillEmailAttachmentBlobsJob < ApplicationJob
     errors = 0
 
     email_ids_with_missing.each do |email_id|
-      email = SyncedEmail.find_by(id: email_id)
+      email = SyncedEmail.unscoped.find_by(id: email_id)
       next unless email
 
       begin
-        # sync_attachments! will now only download missing blobs (Jan 2026 fix)
-        email.sync_attachments!(force: false)
+        # FRC (Jan 2026): Set tenant context for StorageBlob uploads
+        # sync_attachments! calls StorageBlob which requires ActsAsTenant.current_tenant
+        tenant = email.tenant
+        unless tenant
+          Rails.logger.warn "[BackfillAttachmentBlobs] Email #{email_id} has no tenant, skipping"
+          next
+        end
+
+        ActsAsTenant.with_tenant(tenant) do
+          email.sync_attachments!(force: false)
+        end
         uploaded += 1
         print "."
       rescue => e
@@ -57,7 +67,7 @@ class BackfillEmailAttachmentBlobsJob < ApplicationJob
     Rails.logger.info "[BackfillAttachmentBlobs] Completed: #{uploaded} emails processed, #{errors} errors"
 
     # Check if more work remains
-    remaining = EmailAttachment.where(storage_blob_id: nil).count
+    remaining = EmailAttachment.unscoped.where(storage_blob_id: nil).count
     if remaining > 0
       Rails.logger.info "[BackfillAttachmentBlobs] #{remaining} attachments still missing blobs - queuing next batch"
       BackfillEmailAttachmentBlobsJob.set(wait: 5.seconds).perform_later(batch_size: batch_size, mailbox: mailbox)
