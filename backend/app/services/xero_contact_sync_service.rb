@@ -455,7 +455,14 @@ class XeroContactSyncService
 
     # Priority 3: Fuzzy name match (requires review)
     if xero_name.present?
-      contacts_to_check = Contact.where(entity_type: %w[company trust sole_trader])
+      # Include companies, trusts, sole traders, AND contacts with no entity_type
+      # Also include any contact whose name looks like a company (contains Pty, Ltd, etc.)
+      # This ensures we don't miss matches due to missing entity_type
+      contacts_to_check = Contact.where(is_active: true).where(
+        "entity_type IN (?) OR entity_type IS NULL OR display_name ~* ?",
+        %w[company trust sole_trader],
+        '(pty|ltd|limited|inc|corp|trust|trading|holdings|group|services|solutions|industries|enterprises)\\b'
+      )
       result = fuzzy_match_by_name_with_score(xero_name, contacts_to_check)
       if result
         Rails.logger.info("Cross-tenant fuzzy match: #{xero_name} -> #{result[:contact].display_name} (#{(result[:score] * 100).round}%)")
