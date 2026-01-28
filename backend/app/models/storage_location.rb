@@ -355,10 +355,8 @@ class StorageLocation < ApplicationRecord
   def effective_warehouse_path
     return nil unless warehouse_enabled
 
-    if uses_custom_path && warehouse_folder.present?
-      # Custom path - use exactly what's set
-      warehouse_folder
-    elsif parent&.warehouse_enabled
+    # SSoT: warehouse_folder column removed (Jan 2026) - use display_name for all paths
+    if parent&.warehouse_enabled
       # SSoT: INHERIT FROM PARENT - child path = parent path + "/" + display_name
       parent_path = parent.effective_warehouse_path
       return nil unless parent_path.present?
@@ -402,15 +400,7 @@ class StorageLocation < ApplicationRecord
 
     static_path = ([prefix] + tab_parts).join('/')
 
-    # If warehouse_folder has dynamic tokens, append them after static path
-    if warehouse_folder.present? && warehouse_folder.include?('{{')
-      dynamic_parts = warehouse_folder.split('/').select { |p| p.include?('{{') }
-      return "#{static_path}/#{dynamic_parts.join('/')}" if dynamic_parts.any?
-    end
-
-    # For tabs with non-dynamic warehouse_folder (legacy paths), use as-is
-    return warehouse_folder if warehouse_folder.present?
-
+    # SSoT: warehouse_folder column removed (Jan 2026) - just use static path
     static_path
   end
 
@@ -442,7 +432,7 @@ class StorageLocation < ApplicationRecord
       xero_scope: xero_scope,
       xero_account_name: xero_account_name,  # Resolved name (e.g., "Tekna Homes")
       warehouse_enabled: warehouse_enabled,
-      warehouse_folder: warehouse_folder,
+      warehouse_folder: display_name,  # SSoT: warehouse_folder column removed (Jan 2026) - use display_name
       full_warehouse_path: full_warehouse_path,
       # SSoT: Template inheritance fields
       uses_custom_path: uses_custom_path,
@@ -470,13 +460,13 @@ class StorageLocation < ApplicationRecord
       # Backwards compatibility aliases
       scope: warehouse_type,
       has_storage_folder: warehouse_enabled,
-      storage_folder_path: warehouse_folder,
+      storage_folder_path: display_name,  # SSoT: warehouse_folder column removed (Jan 2026)
       full_storage_path: full_warehouse_path,
       storage_path_type: warehouse_type_override || 'corporate',
       storage_base_path: warehouse_base_path,
       effective_storage_path: effective_warehouse_path,
       has_sharepoint_folder: warehouse_enabled,
-      sharepoint_folder_path: warehouse_folder,
+      sharepoint_folder_path: display_name,  # SSoT: warehouse_folder column removed (Jan 2026)
       full_sharepoint_path: full_warehouse_path,
       sharepoint_path_type: warehouse_type_override || 'corporate',
       sharepoint_base_path: warehouse_base_path,
