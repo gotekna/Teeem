@@ -12,12 +12,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import {
   CheckCircle2,
   XCircle,
   ArrowRight,
   AlertTriangle,
   RefreshCw,
+  Search,
+  ArrowRightLeft,
+  Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -35,6 +39,13 @@ interface PendingReviewItem {
   created_at: string;
 }
 
+interface Contact {
+  id: number;
+  display_name: string;
+  entity_type: string | null;
+  email?: string | null;
+}
+
 interface FuzzyMatchReviewSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -49,6 +60,12 @@ export function FuzzyMatchReviewSheet({
   const [loading, setLoading] = React.useState(true);
   const [items, setItems] = React.useState<PendingReviewItem[]>([]);
   const [processingId, setProcessingId] = React.useState<number | null>(null);
+
+  // For "Change" functionality
+  const [changingItem, setChangingItem] = React.useState<PendingReviewItem | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [searchResults, setSearchResults] = React.useState<Contact[]>([]);
+  const [searching, setSearching] = React.useState(false);
 
   const fetchPendingReviews = React.useCallback(async () => {
     setLoading(true);
@@ -75,6 +92,36 @@ export function FuzzyMatchReviewSheet({
       fetchPendingReviews();
     }
   }, [open, fetchPendingReviews]);
+
+  // Search contacts when query changes
+  React.useEffect(() => {
+    if (!changingItem || searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const response = await api.get<{ success: boolean; data: Contact[] }>(
+          `/api/v1/contacts?q=${encodeURIComponent(searchQuery)}&per_page=10`
+        );
+        if (response?.success && response.data) {
+          // Filter out current contact
+          const filtered = response.data.filter(
+            (c) => c.id !== changingItem.contact_id
+          );
+          setSearchResults(filtered);
+        }
+      } catch (err) {
+        console.error("Search failed:", err);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, changingItem]);
 
   const handleApprove = async (item: PendingReviewItem) => {
     setProcessingId(item.id);
@@ -106,7 +153,7 @@ export function FuzzyMatchReviewSheet({
       );
 
       if (response?.success) {
-        toast.success(`Rejected: ${item.external_contact_name}`);
+        toast.success(`Rejected - will create new contact on next sync`);
         setItems((prev) => prev.filter((i) => i.id !== item.id));
         onReviewed();
       } else {
@@ -120,6 +167,44 @@ export function FuzzyMatchReviewSheet({
     }
   };
 
+  const handleTransfer = async (item: PendingReviewItem, targetContact: Contact) => {
+    setProcessingId(item.id);
+    try {
+      const response = await api.post<{ success: boolean; error?: string; message?: string }>(
+        `/api/v1/contacts/${item.contact_id}/xero_links/${item.id}/transfer`,
+        { target_contact_id: targetContact.id }
+      );
+
+      if (response?.success) {
+        toast.success(`Linked "${item.external_contact_name}" → "${targetContact.display_name}"`);
+        setItems((prev) => prev.filter((i) => i.id !== item.id));
+        setChangingItem(null);
+        setSearchQuery("");
+        setSearchResults([]);
+        onReviewed();
+      } else {
+        toast.error(response?.error || "Failed to transfer link");
+      }
+    } catch (error) {
+      console.error("Error transferring:", error);
+      toast.error("Failed to transfer link");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const startChange = (item: PendingReviewItem) => {
+    setChangingItem(item);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
+  const cancelChange = () => {
+    setChangingItem(null);
+    setSearchQuery("");
+    setSearchResults([]);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
@@ -129,7 +214,7 @@ export function FuzzyMatchReviewSheet({
             Review Fuzzy Matches ({items.length})
           </DialogTitle>
           <DialogDescription>
-            These Xero contacts were matched by name similarity. Approve correct matches or reject incorrect ones.
+            Approve correct matches, change to link to a different contact, or create new.
           </DialogDescription>
         </DialogHeader>
 
@@ -153,12 +238,15 @@ export function FuzzyMatchReviewSheet({
                   const confidencePercent = Math.round((item.match_confidence || 0) * 100);
                   const isLowConfidence = confidencePercent < 70;
                   const isProcessing = processingId === item.id;
+                  const isChanging = changingItem?.id === item.id;
 
                   return (
                     <div
                       key={item.id}
                       className={`p-4 border rounded-lg ${
-                        isLowConfidence
+                        isChanging
+                          ? "border-blue-300 bg-blue-50/50 dark:border-blue-700 dark:bg-blue-950/20"
+                          : isLowConfidence
                           ? "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20"
                           : "border-border bg-card"
                       }`}
@@ -196,36 +284,103 @@ export function FuzzyMatchReviewSheet({
                         </div>
                       </div>
 
-                      {/* Actions */}
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleReject(item)}
-                          disabled={isProcessing}
-                          className="flex-1 border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30"
-                        >
-                          {isProcessing ? (
-                            <Spinner size={14} className="mr-1" />
-                          ) : (
-                            <XCircle className="h-4 w-4 mr-1" />
+                      {/* Change mode - show search */}
+                      {isChanging ? (
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Search for correct contact..."
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              className="pl-8 h-9"
+                              autoFocus
+                            />
+                          </div>
+
+                          {searching && (
+                            <div className="flex items-center justify-center py-2">
+                              <Spinner size={16} />
+                            </div>
                           )}
-                          Reject
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => handleApprove(item)}
-                          disabled={isProcessing}
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          {isProcessing ? (
-                            <Spinner size={14} className="mr-1" />
-                          ) : (
-                            <CheckCircle2 className="h-4 w-4 mr-1" />
+
+                          {searchResults.length > 0 && (
+                            <div className="border rounded max-h-32 overflow-y-auto">
+                              {searchResults.map((contact) => (
+                                <button
+                                  key={contact.id}
+                                  onClick={() => handleTransfer(item, contact)}
+                                  disabled={isProcessing}
+                                  className="w-full text-left px-3 py-2 hover:bg-muted text-sm flex items-center justify-between"
+                                >
+                                  <span className="truncate">{contact.display_name}</span>
+                                  <Badge variant="outline" className="text-xs ml-2">
+                                    {contact.entity_type || "contact"}
+                                  </Badge>
+                                </button>
+                              ))}
+                            </div>
                           )}
-                          Approve
-                        </Button>
-                      </div>
+
+                          {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+                            <p className="text-xs text-muted-foreground text-center py-2">
+                              No contacts found
+                            </p>
+                          )}
+
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={cancelChange}
+                            className="w-full"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        /* Normal actions */
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleReject(item)}
+                            disabled={isProcessing}
+                            className="flex-1 text-xs"
+                            title="Create new contact"
+                          >
+                            {isProcessing ? (
+                              <Spinner size={14} className="mr-1" />
+                            ) : (
+                              <Plus className="h-3 w-3 mr-1" />
+                            )}
+                            New
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => startChange(item)}
+                            disabled={isProcessing}
+                            className="flex-1 text-xs"
+                            title="Link to different contact"
+                          >
+                            <ArrowRightLeft className="h-3 w-3 mr-1" />
+                            Change
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleApprove(item)}
+                            disabled={isProcessing}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs"
+                          >
+                            {isProcessing ? (
+                              <Spinner size={14} className="mr-1" />
+                            ) : (
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                            )}
+                            Approve
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
