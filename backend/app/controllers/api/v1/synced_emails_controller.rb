@@ -1405,16 +1405,23 @@ class Api::V1::SyncedEmailsController < ApplicationController
   def reconstruct_eml_from_warehouse
     Rails.logger.info "[SyncedEmail] Reconstructing EML from warehouse: email_id=#{@email.id}"
 
+    # FRC (Jan 2026): Sent emails from MS Graph have no from_email
+    # Use mailbox_owner_email for sent items, or from_name as fallback
+    from_address = @email.from_email.presence ||
+                   (@email.folder_name&.downcase&.start_with?("sent") ? @email.mailbox_owner_email : nil) ||
+                   (@email.from_name.present? ? "#{@email.from_name} <noreply@teeem.com.au>" : nil)
+
     # Validate required fields - fail explicitly if missing
-    raise "Email has no from_email" if @email.from_email.blank?
+    raise "Email has no from address (from_email, mailbox_owner, or from_name)" if from_address.blank?
     raise "Email has no body (html or text)" if @email.body_html.blank? && @email.body_text.blank?
 
     email_ref = @email # Capture reference for block scope
+    from_addr = from_address # Capture for block scope
 
     mail = Mail.new do |m|
       m.message_id = email_ref.internet_message_id if email_ref.internet_message_id.present?
       m.subject = email_ref.subject.presence || "(No subject)"
-      m.from = email_ref.from_email
+      m.from = from_addr
       m.to = email_ref.to_emails if email_ref.to_emails.present?
       m.cc = email_ref.cc_emails if email_ref.cc_emails.present?
       m.date = email_ref.received_at || email_ref.sent_at || email_ref.created_at
