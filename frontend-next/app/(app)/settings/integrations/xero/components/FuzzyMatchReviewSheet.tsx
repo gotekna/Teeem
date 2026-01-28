@@ -114,12 +114,12 @@ export function FuzzyMatchReviewSheet({
       setSearching(true);
       setCollapsedCompanies(new Set()); // Reset collapsed state on new search
       try {
-        const response = await api.get<{ success: boolean; data: Contact[] }>(
+        const response = await api.get<{ success: boolean; contacts: Contact[] }>(
           `/api/v1/contacts?search=${encodeURIComponent(searchQuery)}&include_companies=true&per_page=20`
         );
-        if (response?.success && response.data) {
+        if (response?.success && response.contacts) {
           // Filter out current contact
-          const filtered = response.data.filter(
+          const filtered = response.contacts.filter(
             (c) => c.id !== changingItem.contact_id
           );
           setSearchResults(filtered);
