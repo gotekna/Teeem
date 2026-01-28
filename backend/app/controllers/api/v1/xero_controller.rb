@@ -2394,8 +2394,19 @@ module Api
           ActiveRecord::Base.transaction do
             # If create_new, create a new Contact first
             if create_new
+              # Generate a unique contact_code (required by DB)
+              next_id = (Contact.maximum(:id) || 0) + 1
+              temp_code = "C#{next_id}"
+              # Ensure uniqueness
+              while Contact.exists?(contact_code: temp_code)
+                next_id += 1
+                temp_code = "C#{next_id}"
+              end
+
               @contact = Contact.create!(
                 name: xero_contact_name,
+                company_name_or_trust: xero_contact_name,
+                contact_code: temp_code,
                 entity_type: "company",
                 is_active: true
               )
