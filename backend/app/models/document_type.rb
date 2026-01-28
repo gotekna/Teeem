@@ -3,9 +3,8 @@ class DocumentType < ApplicationRecord
   acts_as_tenant :tenant
 
   # Associations
-  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped
+  # Note: corporate_company_documents and job_documents associations REMOVED (Jan 2026) - tables dropped
   # SSoT: WarehouseDocument is now THE ONE table for document metadata
-  has_many :job_documents, dependent: :nullify
 
   # SSoT: StorageLocation associations (renamed from EntityTab Jan 2026)
   has_many :storage_location_document_types, foreign_key: :document_type_id, dependent: :destroy
@@ -552,7 +551,8 @@ class DocumentType < ApplicationRecord
 
   # Count documents that would need renaming with the new format
   # (those that don't already match what the new format would generate)
+  # SSoT: WarehouseDocument is now THE ONE table for document metadata
   def documents_needing_standardization_count
-    job_documents.where(document_type_id: id).count
+    WarehouseDocument.where(document_type_id: id).count
   end
 end
