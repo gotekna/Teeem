@@ -122,14 +122,15 @@ class WarehouseDocument < ApplicationRecord
 
   # SSoT: Get presigned download URL - storage_blob is THE ONE source
   # Uses resolved_tenant (from TenantResolvable) for provider - Jan 2026 fix
-  def download_url(expires_in: 3600)
+  def download_url(expires_in: 3600, disposition: :attachment)
     return nil unless storage_blob&.storage_path.present?
 
     provider = DocumentProviders.for_tenant(resolved_tenant)
     provider.download_url(
       storage_blob.storage_path,
       expires_in: expires_in,
-      filename: download_filename
+      filename: download_filename,
+      disposition: disposition
     )
   rescue ::TenantNotFoundError => e
     Rails.logger.error "[WarehouseDocument] download_url failed - no tenant: #{e.message}"
