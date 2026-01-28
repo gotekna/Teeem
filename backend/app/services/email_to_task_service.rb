@@ -173,6 +173,7 @@ class EmailToTaskService
     task.sm_task_attachments.create!(
       attachable: @email,
       attachment_type: "email",
+      is_source: true,  # SSoT: Marks this as the source email (task created from)
       notes: "Source email - task created from this email",
       added_by: @user
     )
