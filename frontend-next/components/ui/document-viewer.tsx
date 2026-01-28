@@ -530,9 +530,21 @@ export function DocumentViewer({
   // - Pre-fetching: Next/prev files load in background for instant switching
   // - Memory management: Blob URLs cleaned up on unmount
   useEffect(() => {
-    if (fileType !== "pdf" || !url) {
+    console.log(`[DocumentViewer] PDF load - file: ${fileName}, type: ${fileType}, url: ${url ? url.substring(0, 80) + '...' : 'EMPTY'}`);
+
+    if (fileType !== "pdf") {
       setPdfBlobUrl(null);
       setPdfLoadProgress(0);
+      return;
+    }
+
+    // Handle empty/missing URL - show error instead of black screen
+    if (!url) {
+      console.warn(`[DocumentViewer] Empty URL for: ${fileName}`);
+      setPdfBlobUrl(null);
+      setPdfLoadProgress(0);
+      setError("Document URL not available. The file may not be uploaded to storage yet.");
+      setPdfLoading(false);
       return;
     }
 
@@ -591,6 +603,7 @@ export function DocumentViewer({
         return blob;
       })
       .then(blob => {
+        console.log(`[DocumentViewer] PDF loaded successfully: ${fileName} (${blob.size} bytes)`);
         const blobUrl = URL.createObjectURL(blob);
         // Cache for instant navigation
         pdfBlobCacheRef.current.set(url, blobUrl);
@@ -599,7 +612,7 @@ export function DocumentViewer({
       })
       .catch(err => {
         if (err.name === 'AbortError') return;
-        console.error("PDF fetch error:", err);
+        console.error(`[DocumentViewer] PDF fetch failed for ${fileName}:`, err);
         setError("Unable to load PDF. Click Download to save the file.");
       })
       .finally(() => setPdfLoading(false));
@@ -958,7 +971,26 @@ export function DocumentViewer({
                 style={{ minHeight: "calc(100vh - 200px)" }}
                 onError={() => setError("Unable to load PDF preview")}
               />
-            ) : null
+            ) : (
+              // Fallback UI when PDF blob URL couldn't be created (prevents black screen)
+              <div className={`p-8 rounded-lg shadow-md text-center max-w-md ${isDark ? "bg-gray-800" : "bg-white"}`}>
+                <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h2 className={`text-xl font-semibold mb-2 ${isDark ? "text-white" : "text-gray-800"}`}>
+                  Unable to Preview
+                </h2>
+                <p className={`mb-4 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
+                  This document couldn&apos;t be loaded for preview.
+                </p>
+                <a
+                  href={effectiveDownloadUrl}
+                  download={fileName}
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
+                >
+                  <Download className="h-5 w-5" />
+                  Download File
+                </a>
+              </div>
+            )
           ) : fileType === "image" ? (
             <div className="max-w-full max-h-full overflow-auto">
               <img
