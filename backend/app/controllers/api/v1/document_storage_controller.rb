@@ -2110,8 +2110,11 @@ module Api
 
         job = Job.find(job_id)
 
+        # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
         # Count documents needing analysis
-        unanalyzed_count = JobDocument.where(job_id: job.id, ai_analyzed_at: nil).count
+        unanalyzed_count = WarehouseDocument.where(source_type: "job", linkable: job)
+                                            .where("metadata->>'ai_analyzed_at' IS NULL")
+                                            .count
 
         if unanalyzed_count == 0
           return render json: {
@@ -2182,33 +2185,35 @@ module Api
       #   - job_id: Optional - filter by job
       #   - status: 'pending' (default), 'approved', 'rejected', 'all'
       #   - min_confidence: Optional - only show docs above this confidence (0-100)
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def documents_needing_review
-        scope = JobDocument.includes(:job, :document_type, :ai_suggested_type)
-                          .where.not(ai_analyzed_at: nil)
+        scope = WarehouseDocument.where(source_type: "job")
+                                 .includes(:storage_blob, :linkable)
+                                 .where("metadata->>'ai_analyzed_at' IS NOT NULL")
 
         # Filter by job if specified
         if params[:job_id].present?
-          scope = scope.where(job_id: params[:job_id])
+          scope = scope.where(linkable_type: "Job", linkable_id: params[:job_id])
         end
 
         # Filter by rename status
         status = params[:status] || "pending"
         unless status == "all"
-          scope = scope.where(rename_status: status)
+          scope = scope.where("metadata->>'rename_status' = ?", status)
         end
 
         # Filter by minimum confidence
         if params[:min_confidence].present?
           min_conf = params[:min_confidence].to_i
-          scope = scope.where("ai_confidence >= ?", min_conf)
+          scope = scope.where("(metadata->>'ai_confidence')::int >= ?", min_conf)
         end
 
         # Order by confidence descending (highest confidence first)
-        documents = scope.order(ai_confidence: :desc, ai_analyzed_at: :desc).limit(100)
+        documents = scope.order(Arel.sql("(metadata->>'ai_confidence')::int DESC NULLS LAST, metadata->>'ai_analyzed_at' DESC")).limit(100)
 
         render json: {
           success: true,
-          documents: documents.map { |doc| format_document_for_review(doc) },
+          documents: documents.map { |doc| format_warehouse_document_for_review(doc) },
           count: documents.length,
           filters: {
             job_id: params[:job_id],
@@ -2221,12 +2226,13 @@ module Api
       # POST /api/v1/documents/approve_document_rename
       # Approve or reject AI rename suggestion for a document
       # Params:
-      #   - document_id: The JobDocument ID
+      #   - document_id: WarehouseDocument ID
       #   - action: 'approve' or 'reject'
       #   - custom_name: Optional - use this name instead of AI suggestion
       #   - custom_type_id: Optional - use this document type instead of AI suggestion
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def approve_document_rename
-        document = JobDocument.find(params[:document_id])
+        document = WarehouseDocument.find(params[:document_id])
         action = params[:action]
 
         unless %w[approve reject].include?(action)
@@ -2235,9 +2241,11 @@ module Api
 
         if action == "reject"
           document.update!(
-            rename_status: "rejected",
-            rename_approved_at: Time.current,
-            rename_approved_by_id: current_user&.id
+            metadata: (document.metadata || {}).merge(
+              "rename_status" => "rejected",
+              "rename_approved_at" => Time.current.iso8601,
+              "rename_approved_by_id" => current_user&.id
+            )
           )
 
           return render json: {
@@ -2257,41 +2265,46 @@ module Api
         end
 
         # Determine the new name
-        new_name = params[:custom_name].presence || document.ai_proposed_name
+        new_name = params[:custom_name].presence || document.meta("ai_proposed_name")
 
         unless new_name.present?
           return render json: { error: "No proposed name available" }, status: :bad_request
         end
 
         # Determine the document type
-        new_type_id = params[:custom_type_id].presence || document.ai_suggested_type_id
+        new_type_id = params[:custom_type_id].presence || document.meta("ai_suggested_type_id")
 
         begin
           client = MicrosoftGraphClient.new(credential)
           # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
           storage_drive_id = StorageConfiguration.instance&.drive_id
 
-          # Rename the file in SharePoint (SSoT: use storage_reference)
+          # Rename the file in SharePoint (SSoT: use storage_reference from blob)
+          storage_ref = document.storage_blob&.storage_path
           result = client.patch(
-            "/drives/#{storage_drive_id}/items/#{document.storage_reference}",
+            "/drives/#{storage_drive_id}/items/#{storage_ref}",
             { name: new_name }
           )
 
           # Update the document record
+          old_name = document.original_filename || document.display_name
           document.update!(
-            file_name: new_name,
-            document_type_id: new_type_id,
-            rename_status: "completed",
-            rename_approved_at: Time.current,
-            rename_approved_by_id: current_user&.id,
-            web_url: result["webUrl"]
+            display_name: new_name,
+            original_filename: new_name,
+            metadata: (document.metadata || {}).merge(
+              "document_type_id" => new_type_id,
+              "rename_status" => "completed",
+              "rename_approved_at" => Time.current.iso8601,
+              "rename_approved_by_id" => current_user&.id,
+              "web_url" => result["webUrl"]
+            )
           )
 
           render json: {
             success: true,
             message: "Document renamed successfully",
             document_id: document.id,
-            old_name: document.original_file_name,
+            old_name: old_name,
             new_name: new_name,
             document_type_id: new_type_id,
             web_url: result["webUrl"]
@@ -2311,7 +2324,8 @@ module Api
       # POST /api/v1/documents/bulk_approve_renames
       # Bulk approve multiple document renames
       # Params:
-      #   - document_ids: Array of JobDocument IDs to approve
+      #   - document_ids: Array of WarehouseDocument IDs to approve
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def bulk_approve_renames
         document_ids = params[:document_ids] || []
 
@@ -2326,8 +2340,10 @@ module Api
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
-        documents = JobDocument.where(id: document_ids, rename_status: "pending")
-                              .where.not(ai_proposed_name: nil)
+        documents = WarehouseDocument.where(id: document_ids)
+                                     .where("metadata->>'rename_status' = ?", "pending")
+                                     .where("metadata->>'ai_proposed_name' IS NOT NULL")
+                                     .includes(:storage_blob)
 
         results = { approved: 0, failed: 0, errors: [] }
 
@@ -2337,20 +2353,26 @@ module Api
 
         documents.each do |doc|
           begin
-            # Rename in SharePoint (SSoT: use storage_reference)
+            ai_proposed_name = doc.meta("ai_proposed_name")
+            storage_ref = doc.storage_blob&.storage_path
+
+            # Rename in SharePoint (SSoT: use storage_reference from blob)
             result = client.patch(
-              "/drives/#{storage_drive_id}/items/#{doc.storage_reference}",
-              { name: doc.ai_proposed_name }
+              "/drives/#{storage_drive_id}/items/#{storage_ref}",
+              { name: ai_proposed_name }
             )
 
             # Update document record
             doc.update!(
-              file_name: doc.ai_proposed_name,
-              document_type_id: doc.ai_suggested_type_id,
-              rename_status: "completed",
-              rename_approved_at: Time.current,
-              rename_approved_by_id: current_user&.id,
-              web_url: result["webUrl"]
+              display_name: ai_proposed_name,
+              original_filename: ai_proposed_name,
+              metadata: (doc.metadata || {}).merge(
+                "document_type_id" => doc.meta("ai_suggested_type_id"),
+                "rename_status" => "completed",
+                "rename_approved_at" => Time.current.iso8601,
+                "rename_approved_by_id" => current_user&.id,
+                "web_url" => result["webUrl"]
+              )
             )
 
             results[:approved] += 1
@@ -3004,6 +3026,7 @@ module Api
       end
 
       # Map foundation_id to model class
+      # SSoT (Jan 2026): Documents now use WarehouseDocument instead of CorporateCompanyDocument
       def get_model_for_foundation(foundation_id)
         case foundation_id&.to_s&.downcase
         when "contacts", "contact"
@@ -3015,7 +3038,7 @@ module Api
         when "assets", "asset"
           Asset
         when "documents", "document", "company_documents"
-          CorporateCompanyDocument
+          WarehouseDocument
         when "pay_now_requests", "pay_now_request"
           PayNowRequest
         when "financial_transactions", "financial_transaction"
@@ -3027,7 +3050,7 @@ module Api
             # Whitelist valid model classes to prevent RCE via constantize
             valid_models = %w[
               Job Contact Supplier Case Invoice Quote Estimate Task
-              SmTask SmScheduleMasterTemplate Foundation Record CorporateCompanyDocument
+              SmTask SmScheduleMasterTemplate Foundation Record WarehouseDocument
               PayNowRequest FinancialTransaction User PricebookItem
               Column FoundationView WhsIncident WhsInspection WhsInduction
             ]
@@ -3249,37 +3272,44 @@ module Api
       end
 
       # Format a document for the review UI
-      def format_document_for_review(doc)
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      def format_warehouse_document_for_review(doc)
+        job = doc.linkable if doc.linkable_type == "Job"
+        doc_type_id = doc.meta("document_type_id")
+        doc_type = DocumentType.find_by(id: doc_type_id) if doc_type_id
+        suggested_type_id = doc.meta("ai_suggested_type_id")
+        suggested_type = DocumentType.find_by(id: suggested_type_id) if suggested_type_id
+
         {
           id: doc.id,
-          job_id: doc.job_id,
-          job_title: doc.job&.title,
-          # SSoT: Use storage_reference (provider-agnostic)
-          sharepoint_item_id: doc.storage_reference,
-          storage_reference: doc.storage_reference,
-          current_name: doc.file_name,
-          original_name: doc.original_file_name,
-          proposed_name: doc.ai_proposed_name,
-          folder_path: doc.folder_path,
-          file_extension: doc.file_extension,
-          file_type: doc.file_type,
-          file_size: doc.file_size,
-          web_url: doc.web_url,
-          current_type: doc.document_type ? {
-            id: doc.document_type.id,
-            name: doc.document_type.name,
-            abbreviation: doc.document_type.abbreviation
+          job_id: job&.id,
+          job_title: job&.title,
+          # SSoT: Use storage_path from blob (provider-agnostic)
+          sharepoint_item_id: doc.storage_blob&.storage_path,
+          storage_reference: doc.storage_blob&.storage_path,
+          current_name: doc.display_name || doc.original_filename,
+          original_name: doc.original_filename,
+          proposed_name: doc.meta("ai_proposed_name"),
+          folder_path: doc.folder,
+          file_extension: File.extname(doc.original_filename.to_s).delete("."),
+          file_type: doc.storage_blob&.content_type,
+          file_size: doc.file_size || doc.storage_blob&.byte_size,
+          web_url: doc.meta("web_url"),
+          current_type: doc_type ? {
+            id: doc_type.id,
+            name: doc_type.name,
+            abbreviation: doc_type.abbreviation
           } : nil,
-          suggested_type: doc.ai_suggested_type ? {
-            id: doc.ai_suggested_type.id,
-            name: doc.ai_suggested_type.name,
-            abbreviation: doc.ai_suggested_type.abbreviation
+          suggested_type: suggested_type ? {
+            id: suggested_type.id,
+            name: suggested_type.name,
+            abbreviation: suggested_type.abbreviation
           } : nil,
-          ai_confidence: doc.ai_confidence&.to_f,
-          ai_reasoning: doc.ai_reasoning,
-          ai_analyzed_at: doc.ai_analyzed_at&.iso8601,
-          rename_status: doc.rename_status,
-          rename_approved_at: doc.rename_approved_at&.iso8601
+          ai_confidence: doc.meta("ai_confidence")&.to_f,
+          ai_reasoning: doc.meta("ai_reasoning"),
+          ai_analyzed_at: doc.meta("ai_analyzed_at"),
+          rename_status: doc.meta("rename_status"),
+          rename_approved_at: doc.meta("rename_approved_at")
         }
       end
 

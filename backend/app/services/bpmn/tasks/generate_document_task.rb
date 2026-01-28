@@ -236,31 +236,23 @@ module Bpmn
         end
       end
 
+      # SSoT (Jan 2026): Uses WarehouseDocument directly (no legacy JobDocument)
       def create_job_documents(job, uploaded_files)
         uploaded_files.each do |file|
           next unless file[:web_url]
 
-          # Create JobDocument record if the model exists
-          if defined?(JobDocument)
-            job_doc = JobDocument.create(
-              job: job,
-              file_name: file[:name],
-              file_type: "generated",
-              web_url: file[:web_url]
-            )
-
-            # Dual-write: Create WarehouseDocument for File Warehouse
-            if job_doc.persisted?
-              WarehouseDocument.create(
-                documentable: job_doc,
-                source_type: "job",
-                display_name: file[:name],
-                original_filename: file[:name],
-                linkable: job,
-                metadata: { job_code: job.job_code, source: "generated" }
-              )
-            end
-          end
+          WarehouseDocument.create!(
+            source_type: "job",
+            display_name: file[:name],
+            original_filename: file[:name],
+            linkable: job,
+            metadata: {
+              job_code: job.job_code,
+              source: "generated",
+              web_url: file[:web_url],
+              file_type: "generated"
+            }
+          )
         end
       end
     end

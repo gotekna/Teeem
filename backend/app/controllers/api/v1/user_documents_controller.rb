@@ -184,42 +184,39 @@ module Api
           return render json: { success: false, error: "Job not found" }, status: :not_found
         end
 
-        # Create JobDocument linked to same StorageBlob (deduplication - same file, new reference)
-        job_document = JobDocument.new(
-          job: job,
-          file_name: @document.file_name,
-          file_size: @document.file_size,
+        # SSoT (Jan 2026): Create WarehouseDocument directly (no legacy JobDocument)
+        # Same StorageBlob = deduplication (same file, new reference)
+        folder_path = params[:folder_path].presence || "From My Docs"
+
+        warehouse_doc = WarehouseDocument.new(
+          source_type: "job",
+          linkable: job,
+          display_name: @document.file_name,
+          original_filename: @document.file_name,
+          folder: folder_path,
           content_type: @document.content_type,
+          file_size: @document.file_size,
           storage_blob: @document.storage_blob,
-          storage_provider: @document.storage_provider,
-          folder_path: params[:folder_path].presence || "From My Docs"
+          metadata: {
+            job_code: job.job_code,
+            storage_provider: @document.storage_provider,
+            source: "linked_from_my_docs"
+          }
         )
 
-        if job_document.save
+        if warehouse_doc.save
           # Increment blob reference count (same file, new reference)
           @document.storage_blob&.increment_reference!
-
-          # Create WarehouseDocument for job document
-          WarehouseDocument.create!(
-            documentable: job_document,
-            source_type: "job",
-            display_name: job_document.file_name,
-            original_filename: job_document.file_name,
-            folder: job_document.virtual_folder_path,
-            content_type: job_document.content_type,
-            file_size: job_document.file_size,
-            storage_blob: @document.storage_blob
-          )
 
           render json: {
             success: true,
             message: "Document linked to job #{job.job_code}",
-            job_document_id: job_document.id
+            job_document_id: warehouse_doc.id
           }
         else
           render json: {
             success: false,
-            errors: job_document.errors.full_messages
+            errors: warehouse_doc.errors.full_messages
           }, status: :unprocessable_entity
         end
       end
