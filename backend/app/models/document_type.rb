@@ -340,6 +340,16 @@ class DocumentType < ApplicationRecord
     nil
   end
 
+  # SSoT: Get the catch-all "General Documents" type for a given scope
+  # Used during document migration when no specific type match is found
+  # The catch-all type preserves the original filename via {OriginalFileName} placeholder
+  #
+  # @param scope_name [String] The scope ('company', 'job', 'contacts')
+  # @return [DocumentType, nil] The catch-all document type for the scope
+  def self.catchall_for_scope(scope_name)
+    find_by(name: 'General Documents', scope: scope_name, active: true)
+  end
+
   # Normalize any term (name or alias) to the canonical document type name
   def self.normalize_to_canonical(term)
     doc_type = find_by_name_or_alias(term)

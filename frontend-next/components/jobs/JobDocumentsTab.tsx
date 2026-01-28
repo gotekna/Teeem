@@ -43,6 +43,7 @@ import {
   List,
   FolderTree,
   ChevronDown,
+  Layers,
 } from "lucide-react";
 import { PhotoGallery, type PhotoItem } from "@/components/ui/photo-gallery";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
@@ -234,6 +235,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [loadingAllFiles, setLoadingAllFiles] = useState(false);
   const [allFilesJobFolderUrl, setAllFilesJobFolderUrl] = useState<string | null>(null);
   const [aiStats, setAiStats] = useState<AIStats | null>(null);
+
+  // Cascade mode - shows documents from folder AND all subfolders
+  const [cascadeMode, setCascadeMode] = useState(true);
+  // Selected folder for cascade filtering (null = show all)
+  const [selectedFolderFilter, setSelectedFolderFilter] = useState<string | null>(null);
 
   // Files grouped by folder path (for tree view) - no longer needed with new approach
   // but keeping for potential future use
@@ -1313,11 +1319,22 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   };
 
   // Load all files in the job folder (for All Files tab)
-  const loadAllFiles = async () => {
+  const loadAllFiles = async (folderFilter?: string) => {
     try {
       setLoadingAllFiles(true);
       setError(null);
-      const url = `/api/v1/documents/job_all_files?job_id=${jobId}`;
+
+      // Build URL with optional folder filter and cascade mode
+      const params = new URLSearchParams({ job_id: String(jobId) });
+      const effectiveFolder = folderFilter ?? selectedFolderFilter;
+      if (effectiveFolder) {
+        params.append('folder', effectiveFolder);
+        if (cascadeMode) {
+          params.append('include_descendants', 'true');
+        }
+      }
+
+      const url = `/api/v1/documents/job_all_files?${params.toString()}`;
       console.log('[All Files] Fetching:', url);
 
       const response = await api.get<{
@@ -2162,7 +2179,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             <Button
               variant="outline"
               size="sm"
-              onClick={loadAllFiles}
+              onClick={() => loadAllFiles()}
               disabled={loadingAllFiles}
             >
               {loadingAllFiles ? (
