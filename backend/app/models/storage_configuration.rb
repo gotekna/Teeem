@@ -766,7 +766,6 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # SSoT: Get the storage_provider value to use when CREATING new documents
-  # This is THE ONE value to set on new JobDocument, CorporateCompanyDocument, etc.
   def storage_provider_for_new_documents
     case provider_type
     when "s3_compatible"
@@ -873,11 +872,10 @@ class StorageConfiguration < ApplicationRecord
   # ========================================
 
   # Default routing configuration (fallback when database doesn't have it)
-  # NOTE: Xero documents now use WarehouseDocument directly (Jan 2026 migration)
-  # xero_primary_invoice and xero_attachment routes REMOVED - see XeroAttachmentSyncService
+  # SSoT: WarehouseDocument is now THE ONE table for all document metadata
   DEFAULT_DOCUMENT_ROUTING = {
-    "sharepoint_scan" => { "model" => "CorporateCompanyDocument", "warehouse_type" => "corporate_entity", "description" => "SharePoint scanned documents" },
-    "email_attachment" => { "model" => "CorporateCompanyDocument", "warehouse_type" => "corporate_entity", "description" => "Email attachments" }
+    "sharepoint_scan" => { "model" => "WarehouseDocument", "warehouse_type" => "corporate_entity", "description" => "SharePoint scanned documents" },
+    "email_attachment" => { "model" => "WarehouseDocument", "warehouse_type" => "corporate_entity", "description" => "Email attachments" }
   }.freeze
 
   # SSoT: Get routing configuration for a document source
@@ -889,16 +887,16 @@ class StorageConfiguration < ApplicationRecord
 
   # SSoT: Get the document model class for a source
   # @param source [String, Symbol] The document source
-  # @return [Class] The ActiveRecord model class (ContactDocument, CorporateCompanyDocument, etc.)
+  # @return [Class] The ActiveRecord model class (WarehouseDocument is THE ONE SSoT)
   def document_model_for(source)
     routing = routing_for(source)
-    return CorporateCompanyDocument unless routing # Default fallback
+    return WarehouseDocument unless routing # Default fallback
 
     model_name = routing["model"]
     model_name.constantize
   rescue NameError
-    Rails.logger.warn("[StorageConfiguration] Unknown model '#{model_name}' for source '#{source}', falling back to CorporateCompanyDocument")
-    CorporateCompanyDocument
+    Rails.logger.warn("[StorageConfiguration] Unknown model '#{model_name}' for source '#{source}', falling back to WarehouseDocument")
+    WarehouseDocument
   end
 
   # SSoT: Get the EntityTab warehouse type for a source

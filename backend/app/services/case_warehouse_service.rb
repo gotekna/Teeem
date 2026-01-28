@@ -218,12 +218,10 @@ class CaseWarehouseService
     emails = search_emails(date_range: { start: start_date, end: end_date })
     events += emails.map { |e| timeline_event_from_email(e) }
 
-    # Add document events
-    docs = CorporateCompanyDocument
-      .where(company_id: case_record.related_company_ids)
-      .where("document_date BETWEEN ? AND ? OR created_at BETWEEN ? AND ?",
-             start_date, end_date, start_date, end_date)
-      .order(:document_date)
+    # Add document events from WarehouseDocument (SSoT Jan 2026)
+    docs = WarehouseDocument
+      .where("created_at BETWEEN ? AND ?", start_date, end_date)
+      .order(:created_at)
     events += docs.map { |d| timeline_event_from_document(d) }
 
     # Add financial transaction events
@@ -253,7 +251,7 @@ class CaseWarehouseService
       shareholdings: CorporateCompanyShareholding.where(shareholder_type: "Contact", shareholder_id: contact_id)
                                         .includes(:corporate_company),
       relationships: contact.contact_relationships.includes(:related_contact),
-      documents: CorporateCompanyDocument.where(contact_id: contact_id),
+      documents: WarehouseDocument.where(documentable_type: "Contact", documentable_id: contact_id),
       emails: SyncedEmail.involving_email(contact.email),
       company_group_memberships: contact.corporate_group_memberships.includes(:corporate_group)
     }
@@ -410,21 +408,21 @@ class CaseWarehouseService
   end
 
   # Convert document to timeline event hash
+  # SSoT: WarehouseDocument (Jan 2026)
   def timeline_event_from_document(doc)
     {
-      date: doc.document_date || doc.created_at.to_date,
+      date: doc.created_at.to_date,
       time: doc.created_at,
       type: "document",
-      title: doc.title || doc.filename,
-      description: "Type: #{doc.document_type}",
-      source_type: "CorporateCompanyDocument",
+      title: doc.display_name || doc.original_filename,
+      description: "Source: #{doc.source_type}",
+      source_type: "WarehouseDocument",
       source_id: doc.id,
       icon: "file-text",
       color: "blue",
       metadata: {
-        document_type: doc.document_type,
-        file_size: doc.file_size,
-        verification_status: doc.ai_verification_status
+        source_type: doc.source_type,
+        folder: doc.folder
       }
     }
   end

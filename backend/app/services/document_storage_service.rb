@@ -512,7 +512,7 @@ class DocumentStorageService
   #   5. storage_blob.original_filename (fallback)
   #   6. "document" (last resort)
   #
-  # Note: display_name is checked FIRST because CorporateCompanyDocument generates
+  # Note: display_name is checked FIRST because document models generate
   # nice display names (e.g., "Invoice INV-0520") but the warehouse_document may
   # have been created earlier with just the raw file_name.
   #
@@ -528,7 +528,7 @@ class DocumentStorageService
     end
 
     # 1. Try display_name FIRST - this is the user-friendly name
-    # CorporateCompanyDocument.generate_display_name creates names like "Invoice INV-0520"
+    # Various document models generate display names like "Invoice INV-0520"
     if record.respond_to?(:display_name) && record.display_name.present?
       display = record.display_name
       original = record.respond_to?(:file_name) ? record.file_name : nil

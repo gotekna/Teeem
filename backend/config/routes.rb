@@ -90,7 +90,6 @@ Rails.application.routes.draw do
       # Stores viewer context server-side to avoid URL length limits
       resources :viewer_contexts, only: [:create, :show]
 
-      # All Documents - unified view across JobDocument, CorporateCompanyDocument, PeopleDocument
       get "documents/all", to: "documents#all"
 
       # =============================================================
@@ -1075,7 +1074,6 @@ Rails.application.routes.draw do
         member do
           get :internal_messages
           get :activities
-          get :documents  # ContactDocument records (including migrated Xero PDFs)
           # Archive system (Phase 3 Contact Consolidation)
           get :deletion_check  # Pre-flight check before delete - returns warnings/blockers
           post :archive        # Archive instead of delete - preserves data
@@ -3099,32 +3097,6 @@ Rails.application.routes.draw do
           get :depreciation    # Depreciation schedule report
           get :insurance       # Insurance summary report
           get :summary         # Dashboard summary metrics
-        end
-      end
-
-      # Company Documents (routes to CorporateCompanyDocumentsController)
-      resources :company_documents, controller: "corporate_company_documents" do
-        collection do
-          get :duplicates
-          post :analyze_duplicates
-          post :resolve_duplicates
-          post :auto_resolve_duplicates
-          get :marked_for_deletion
-          post :permanently_delete
-          get :counts
-        end
-        member do
-          get :download
-          get :preview
-          get :content
-          post :validate
-          post :ai_verify
-          post :apply_ai_suggestion
-          post :relocate
-          post :feedback
-          post :upload_edited
-          post :split
-          post :restore
         end
       end
 

@@ -312,6 +312,16 @@ cleanup_ephemeral_emails:
   args: [{ dry_run: false, delete_from_outlook: true }]
   schedule: at 3am every day
 
+# Clean up emails marked as content_unavailable (deleted from O365/Gmail by user)
+# FRC (Jan 2026): When user deletes email from mailbox, sync marks it unavailable.
+# This job removes the now-useless records from our database.
+# Runs daily at 3:30am (after ephemeral cleanup)
+cleanup_unavailable_emails:
+  class: CleanupUnavailableEmailsJob
+  queue: low
+  args: [{ dry_run: false, batch_size: 500 }]
+  schedule: at 3:30am every day
+
 # Sync IMAP email accounts (unified inbox)
 # Reduced from 15min to 2min for faster email delivery
 imap_email_sync:

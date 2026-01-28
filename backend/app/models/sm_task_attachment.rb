@@ -18,7 +18,7 @@ class SmTaskAttachment < ApplicationRecord
 
   # Validations
   validates :attachable_type, inclusion: {
-    in: %w[SyncedEmail CorporateCompanyDocument]
+    in: %w[SyncedEmail WarehouseDocument]
   }
   validates :attachment_type, inclusion: { in: ATTACHMENT_TYPES }, allow_blank: true
   validates :category, inclusion: { in: CATEGORIES }, allow_blank: true
@@ -35,7 +35,7 @@ class SmTaskAttachment < ApplicationRecord
 
   # Scopes
   scope :emails, -> { where(attachable_type: "SyncedEmail") }
-  scope :documents, -> { where(attachable_type: "CorporateCompanyDocument") }
+  scope :documents, -> { where(attachable_type: "WarehouseDocument") }
   scope :recent, -> { order(created_at: :desc) }
   scope :info, -> { where(category: "info") }
   scope :responses, -> { where(category: "response") }
@@ -85,7 +85,7 @@ class SmTaskAttachment < ApplicationRecord
   end
 
   # Get the storage blob from the attached document
-  # CorporateCompanyDocument has storage_blob directly
+  # WarehouseDocument has storage_blob directly
   # SyncedEmail uses warehouse_document.storage_blob
   def storage_blob
     if attachable.respond_to?(:storage_blob) && attachable.storage_blob
@@ -114,8 +114,8 @@ class SmTaskAttachment < ApplicationRecord
     case attachable_type
     when "SyncedEmail"
       attachable&.subject || "Email"
-    when "CorporateCompanyDocument"
-      attachable&.file_name || "Document"
+    when "WarehouseDocument"
+      attachable&.display_name || attachable&.original_filename || "Document"
     else
       "Attachment"
     end

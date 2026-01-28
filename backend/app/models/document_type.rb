@@ -3,7 +3,8 @@ class DocumentType < ApplicationRecord
   acts_as_tenant :tenant
 
   # Associations
-  has_many :corporate_company_documents, dependent: :nullify
+  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped
+  # SSoT: WarehouseDocument is now THE ONE table for document metadata
   has_many :job_documents, dependent: :nullify
 
   # SSoT: StorageLocation associations (renamed from EntityTab Jan 2026)
@@ -65,7 +66,7 @@ class DocumentType < ApplicationRecord
   end
 
   # SSoT: primary_tab = primary location's display name (for backward compatibility)
-  # Used by ContactDocument, SmTaskPhoto for filename token resolution
+  # Used by SmTaskPhoto for filename token resolution
   def primary_tab
     primary_storage_location&.display_name || read_attribute(:primary_tab)
   end
@@ -145,11 +146,8 @@ class DocumentType < ApplicationRecord
     end
   end
 
-  # Callbacks - clear CorporateCompanyDocument abbreviation cache when document types change
-  after_save :clear_abbreviation_cache
-  after_destroy :clear_abbreviation_cache
-  # ULTRA SSoT: When display_name template changes, regenerate all linked documents' display_names
-  after_save :regenerate_document_display_names, if: :saved_change_to_display_name?
+  # Callbacks
+  # SSoT: WarehouseDocument.display_name is computed dynamically via SendNameResolver
   # Sync pending storage_location_ids after create (deferred from storage_location_ids= setter)
   after_create :sync_pending_storage_location_ids
   # Track naming format changes for standardization prompts
@@ -512,25 +510,6 @@ class DocumentType < ApplicationRecord
   end
 
   private
-
-  # Clear the CorporateCompanyDocument abbreviation cache when document types are updated
-  def clear_abbreviation_cache
-    CorporateCompanyDocument.clear_abbreviations_cache!
-  end
-
-  # ULTRA SSoT: Regenerate display_names for all linked documents when display_name template changes
-  def regenerate_document_display_names
-    return unless display_name.present?
-
-    # Queue a background job to avoid blocking the save
-    RegenerateDisplayNamesJob.perform_later(id) if defined?(RegenerateDisplayNamesJob)
-
-    # For now, also do inline update for immediate effect (small batches)
-    corporate_company_documents.find_each(batch_size: 100) do |doc|
-      new_name = doc.expand_display_template(display_name)
-      doc.update_column(:display_name, new_name) if new_name != doc.display_name
-    end
-  end
 
   # Sync pending storage_location_ids that were deferred during create
   def sync_pending_storage_location_ids
