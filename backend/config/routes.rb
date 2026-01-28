@@ -494,6 +494,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # Company Documents (corporate company document counts)
+      # SSoT: WarehouseDocument is THE ONE table for document metadata (Jan 2026)
+      resources :company_documents, only: [:index] do
+        collection do
+          get :counts
+        end
+      end
+
       # Tekna Document Templates (HTML → PDF generation)
       resources :tekna_documents, only: [] do
         collection do

@@ -239,7 +239,8 @@ class Job < ApplicationRecord
   end
 
   # Site supervisor info for prepopulating POs
-  # SSoT: Derives from job_contacts with role "supervisor", falls back to legacy columns
+  # SSoT: Derives from job_contacts with role "supervisor"
+  # Note: site_supervisor_name/phone columns removed (Jan 2026)
   def site_supervisor_info
     supervisor_contact = job_contacts.find_by(role: "supervisor")
     if supervisor_contact&.user.present?
@@ -251,12 +252,12 @@ class Job < ApplicationRecord
         display_name: user.name
       }
     else
-      # Legacy fallback for old jobs that have data in columns
+      # No supervisor assigned - return empty info
       {
-        name: site_supervisor_name,
+        name: nil,
         email: nil,
-        phone: site_supervisor_phone,
-        display_name: site_supervisor_name
+        phone: nil,
+        display_name: nil
       }
     end
   end

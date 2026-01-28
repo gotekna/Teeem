@@ -93,13 +93,18 @@ class EntityTabQueryService
 
   # Single grouped query for document counts
   # SSoT: WarehouseDocument is THE ONE document table (Jan 2026)
+  # Document type is stored in metadata JSONB (metadata->>'document_type_id')
   def preload_document_counts(document_type_ids)
     return {} if document_type_ids.empty?
 
-    WarehouseDocument
-      .where(job_documents: { document_type_id: document_type_ids })
-      .group("job_documents.document_type_id")
+    # Query WarehouseDocument using metadata JSONB for document_type_id
+    counts = WarehouseDocument
+      .where("metadata->>'document_type_id' IN (?)", document_type_ids.map(&:to_s))
+      .group("metadata->>'document_type_id'")
       .count
+
+    # Convert string keys back to integers for lookup
+    counts.transform_keys(&:to_i)
   end
 
   # Load storage config once (eliminates 192 queries)
@@ -138,7 +143,7 @@ class EntityTabQueryService
 
   # SSoT: Get resolved warehouse path by substituting folder name into template
   # Template: StorageConfiguration.warehouse_folders (e.g., "Warehousing/{{TeeemXL}}")
-  # Folder name: warehouse_folder column (if set) OR display_name (default)
+  # Folder name: display_name (warehouse_folder column was removed Jan 2026)
   def derive_warehouse_folder(tab)
     return nil unless tab.warehouse_enabled
 
@@ -148,8 +153,8 @@ class EntityTabQueryService
     template = @storage_config.dig(:warehouse_folders, warehouse_type)
     return nil unless template.present?
 
-    # Use stored warehouse_folder if set, otherwise default to display_name
-    folder_name = tab.warehouse_folder.presence || tab.display_name.to_s
+    # SSoT: Use display_name for folder name (warehouse_folder column removed Jan 2026)
+    folder_name = tab.display_name.to_s
 
     # Substitute folder name into template
     template.gsub('{{TeeemXL}}', folder_name).gsub('{{TabName}}', folder_name)
