@@ -6,7 +6,6 @@
 # Example: Corporate/Tekna/THS/XERO/Bank/THS XB NAB 083-052 305422840 Dec24.pdf
 # PDFs can be regenerated on demand from the underlying bank transaction data.
 class BankStatementReport < ApplicationRecord
-  include DocumentTemplatable
   include StorageUploadable
 
   belongs_to :corporate_company, foreign_key: "company_id", optional: true

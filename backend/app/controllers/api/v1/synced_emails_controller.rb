@@ -612,10 +612,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
     end
 
     # Get storage/blob stats
+    # Note: email_attachments table DROPPED (Jan 2026) - use WarehouseDocument count
     blob_stats = {
       total_blobs: StorageBlob.count,
       total_size_bytes: StorageBlob.sum(:file_size),
-      email_attachments: EmailAttachment.count
+      email_attachments: WarehouseDocument.where(source_type: 'email_attachment').count
     }
 
     render json: {
@@ -1084,82 +1085,50 @@ class Api::V1::SyncedEmailsController < ApplicationController
   end
 
   # GET /api/v1/synced_email/:id/attachments/:attachment_id/download
-  # Download an attachment - tries local storage first (SSoT), then SharePoint, then Outlook
-  # attachment_id can be either local EmailAttachment ID or outlook_attachment_id
+  # Download an attachment - tries local storage first (SSoT via WarehouseDocument), then Outlook
+  # attachment_id is WarehouseDocument ID
+  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
   def download_attachment
     attachment_id = params[:attachment_id]
     filename_param = params[:filename]  # SSoT: Frontend sends filename for local file matching
 
-    # Try to find local EmailAttachment first
-    email_attachment = @email.email_attachments.find_by(id: attachment_id)
-    outlook_attachment_id = email_attachment&.outlook_attachment_id || attachment_id
-    filename_hint = filename_param || email_attachment&.filename || email_attachment&.attachment&.filename
-    content_type_hint = email_attachment&.attachment&.content_type
+    # Try to find WarehouseDocument attachment first
+    attachment_doc = @email.attachment_documents.find_by(id: attachment_id)
+    filename_hint = filename_param || attachment_doc&.original_filename || attachment_doc&.display_name
+    content_type_hint = attachment_doc&.content_type || attachment_doc&.storage_blob&.content_type
 
-    # SSoT: Try email_attachments first (primary path since Jan 2026)
-    # Priority 1: Use attachment found by ID if it's stored in Wasabi
-    if email_attachment&.stored?
-      Rails.logger.info "[SyncedEmail] Downloading attachment from Wasabi by ID: #{email_attachment.id} (#{email_attachment.filename})"
-      content = email_attachment.download
+    # SSoT: Try WarehouseDocument + StorageBlob first (primary path since Jan 2026)
+    # Priority 1: Use attachment found by ID if it has a storage blob
+    if attachment_doc&.storage_blob.present?
+      Rails.logger.info "[SyncedEmail] Downloading attachment from storage by ID: #{attachment_doc.id} (#{attachment_doc.display_name})"
+      content = attachment_doc.storage_blob.download
       # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
       content = content&.b
       if content.present?
         return send_data(
           content,
-          filename: email_attachment.filename,
-          type: email_attachment.storage_blob&.content_type || "application/octet-stream",
+          filename: attachment_doc.original_filename || attachment_doc.display_name,
+          type: content_type_hint || "application/octet-stream",
           disposition: "attachment"
         )
       end
     end
 
     # Priority 2: Search by filename if ID lookup didn't work
-    if @email.email_attachments.any? && filename_hint.present?
-      attachment = @email.email_attachments.find { |a| a.filename == filename_hint }
-      if attachment&.stored?
-        Rails.logger.info "[SyncedEmail] Downloading attachment from Wasabi by filename: #{filename_hint}"
-        content = attachment.download
+    if @email.attachment_documents.any? && filename_hint.present?
+      doc = @email.attachment_documents.find { |d| (d.original_filename || d.display_name) == filename_hint }
+      if doc&.storage_blob.present?
+        Rails.logger.info "[SyncedEmail] Downloading attachment from storage by filename: #{filename_hint}"
+        content = doc.storage_blob.download
         # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
         content = content&.b
         if content.present?
           return send_data(
             content,
             filename: filename_hint,
-            type: attachment.storage_blob&.content_type || "application/octet-stream",
+            type: doc.content_type || doc.storage_blob&.content_type || "application/octet-stream",
             disposition: "attachment"
           )
-        end
-      end
-    end
-
-    # Fallback 1: Try SharePoint if attachment is synced there
-    if email_attachment&.attachment&.storage_reference.present?
-      sp_config = MicrosoftCredential.teeem_sharepoint_config
-      if sp_config
-        begin
-          Rails.logger.info "[SyncedEmail] Downloading attachment from SharePoint: #{email_attachment.attachment.storage_reference}"
-          teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
-          content = teeem_client.get_drive_item_content(
-            drive_id: sp_config[:drive_id],
-            item_id: email_attachment.attachment.storage_reference
-          )
-          # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
-          content = content&.b
-
-          if content.present?
-            filename = filename_hint || "attachment"
-            content_type = content_type_hint || "application/octet-stream"
-
-            return send_data(
-              content,
-              filename: filename,
-              type: content_type,
-              disposition: "attachment"
-            )
-          end
-        rescue StandardError => e
-          # SharePoint download failed - fall back to Outlook
-          Rails.logger.warn "[SyncedEmail] SharePoint download failed, falling back to Outlook: #{e.message}"
         end
       end
     end
@@ -1214,43 +1183,45 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Returns a presigned URL for direct download (no Rails streaming)
   # SSoT: Same pattern as document_storage_controller#presigned_url
   # Why: Avoids double transfer (S3 → Rails → Browser), browser fetches directly from S3
+  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
   def attachment_presigned_url
     attachment_id = params[:attachment_id]
     filename_param = params[:filename]
 
-    # Try to find local EmailAttachment first
-    email_attachment = @email.email_attachments.find_by(id: attachment_id)
+    # Try to find WarehouseDocument attachment first
+    attachment_doc = @email.attachment_documents.find_by(id: attachment_id)
 
     # Priority 1: Use attachment found by ID if it has storage_blob
-    if email_attachment&.storage_blob.present?
-      url = email_attachment.storage_blob.presigned_url(
+    if attachment_doc&.storage_blob.present?
+      filename = attachment_doc.original_filename || attachment_doc.display_name
+      url = attachment_doc.storage_blob.presigned_url(
         expires_in: 900,  # 15 minutes
-        filename: email_attachment.filename
+        filename: filename
       )
 
       return render json: {
         success: true,
         url: url,
-        filename: email_attachment.filename,
-        content_type: email_attachment.storage_blob.content_type,
+        filename: filename,
+        content_type: attachment_doc.content_type || attachment_doc.storage_blob.content_type,
         expires_in: 900
       }
     end
 
     # Priority 2: Search by filename if ID lookup didn't find a blob
-    if @email.email_attachments.any? && filename_param.present?
-      attachment = @email.email_attachments.find { |a| a.filename == filename_param && a.storage_blob.present? }
-      if attachment&.storage_blob.present?
-        url = attachment.storage_blob.presigned_url(
+    if @email.attachment_documents.any? && filename_param.present?
+      doc = @email.attachment_documents.find { |d| (d.original_filename || d.display_name) == filename_param && d.storage_blob.present? }
+      if doc&.storage_blob.present?
+        url = doc.storage_blob.presigned_url(
           expires_in: 900,
-          filename: attachment.filename
+          filename: filename_param
         )
 
         return render json: {
           success: true,
           url: url,
-          filename: attachment.filename,
-          content_type: attachment.storage_blob.content_type,
+          filename: filename_param,
+          content_type: doc.content_type || doc.storage_blob.content_type,
           expires_in: 900
         }
       end
@@ -1690,25 +1661,26 @@ class Api::V1::SyncedEmailsController < ApplicationController
     json
   end
 
-  # Build attachments list - use synced records or fetch from MS365
+  # Build attachments list - use synced records (WarehouseDocument) or fetch from MS365
+  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
   def build_attachments_list(email)
-    # First try local email_attachments (already synced to SharePoint)
-    synced = email.email_attachments.includes(:storage_blob, :attachment)
+    # First try local attachment_documents (already synced via WarehouseDocument)
+    synced = email.attachment_documents.includes(:storage_blob)
     if synced.any?
-      return synced.map do |ea|
+      return synced.map do |doc|
+        # For inline images: content_id matches cid: references in HTML
+        content_id = doc.metadata&.dig('content_id')
         # Generate presigned URL for inline images (to replace cid: references)
-        inline_url = if ea.storage_blob.present? && ea.content_id.present?
-                       ea.storage_blob.presigned_url(expires_in: 3600)
+        inline_url = if doc.storage_blob.present? && content_id.present?
+                       doc.storage_blob.presigned_url(expires_in: 3600)
                      end
         {
-          id: ea.id,
-          name: ea.filename || ea.storage_blob&.original_filename || "Unknown",
-          # content_type and file_size are on storage_blob (Jan 2026 refactor)
-          content_type: ea.storage_blob&.content_type,
-          size: ea.storage_blob&.file_size,
-          outlook_attachment_id: ea.outlook_attachment_id,
-          # For inline images: content_id matches cid: references in HTML
-          content_id: ea.content_id,
+          id: doc.id,
+          name: doc.original_filename || doc.display_name || "Unknown",
+          content_type: doc.content_type || doc.storage_blob&.content_type,
+          size: doc.file_size || doc.storage_blob&.file_size,
+          outlook_attachment_id: nil,  # Not stored in WarehouseDocument
+          content_id: content_id,
           inline_url: inline_url
         }
       end

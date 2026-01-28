@@ -99,10 +99,9 @@ class CleanupUnavailableEmailsJob < ApplicationJob
         email.warehouse_document.destroy
       end
 
-      # Delete email attachments
-      if email.respond_to?(:email_attachments)
-        email.email_attachments.destroy_all
-      end
+      # Delete email attachments (WarehouseDocument records with source_type='email_attachment')
+      # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents
+      email.attachment_documents.destroy_all if email.respond_to?(:attachment_documents)
 
       # Delete mailbox appearances (email can appear in multiple mailboxes)
       if defined?(SyncedEmailAppearance) && email.respond_to?(:synced_email_appearances)
