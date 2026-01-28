@@ -12,10 +12,10 @@
 #   ├── storage_path: Where file lives in provider
 #   ├── reference_count: How many records link to this blob
 #      ↓
-#   EmailAttachment, etc. (link via storage_blob_id)
+#   WarehouseDocument (link via storage_blob_id)
 #
 # Deduplication:
-#   Same file sent to 100 users = 1 StorageBlob, 100 EmailAttachments
+#   Same file sent to 100 users = 1 StorageBlob, 100 WarehouseDocuments
 #
 # SSoT: Uses TenantResolvable for fail-fast tenant derivation (Jan 2026 fix)
 #

@@ -22,14 +22,13 @@ module Api
         corp_count = warehouse_counts["corporate"] || CorporateCompanyDocument.where.not(file_name: [nil, ""]).count
         people_count = warehouse_counts["people"] || PeopleDocument.where.not(title: [nil, ""]).count
 
-        # Email counts - use warehouse_document counts (source_type: "email" covers both)
-        email_total = warehouse_counts["email"] || 0
-        # Split between EML files and attachments based on documentable_type
+        # Email counts - use warehouse_document counts
+        # SSoT (Jan 2026): WarehouseDocument is THE ONE table for all document metadata
         email_eml_count = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail").count
-        email_attachment_count = WarehouseDocument.where(source_type: "email", documentable_type: "EmailAttachment").count
+        email_attachment_count = WarehouseDocument.where(source_type: "email_attachment").count
         # Fallback to legacy counts if no warehouse documents
         email_eml_count = SyncedEmail.where.not(storage_email_path: [nil, ""]).count if email_eml_count == 0
-        email_attachment_count = EmailAttachment.where.not(storage_path: [nil, ""]).count if email_attachment_count == 0
+        email_total = email_eml_count + email_attachment_count
 
         # Task attachment counts - documents uploaded against task IDs
         # These are CorporateCompanyDocuments linked via SmTaskAttachment
@@ -148,7 +147,7 @@ module Api
       #   source_type: Filter by source (corporate, job, email, people, contact)
       #   folder: Filter by virtual folder path
       #   search: Full-text search on display_name
-      #   documentable_type: Filter by underlying model (SyncedEmail, EmailAttachment, etc.)
+      #   documentable_type: Filter by underlying model (SyncedEmail, JobDocument, etc.)
       #   limit: Max results (default: 100)
       #   offset: Pagination offset
       def warehouse
@@ -1196,11 +1195,12 @@ module Api
                                    .where("EXTRACT(YEAR FROM received_at) = ?", year)
                                    .count
 
-          # Count attachments from synced_email_attachments
-          attachment_count = SyncedEmailAttachment.joins(:synced_email)
-                                                  .where(synced_emails: { mailbox_owner_email: mailbox })
-                                                  .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
-                                                  .count
+          # Count attachments from warehouse_documents (SSoT Jan 2026)
+          attachment_count = WarehouseDocument.where(source_type: "email_attachment")
+                                              .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+                                              .where(synced_emails: { mailbox_owner_email: mailbox })
+                                              .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                              .count
 
           folders = [
             { name: "Email Body", path: "#{mailbox}/#{year}/Email Body", count: email_count },
@@ -1216,12 +1216,13 @@ module Api
           folder_type = path_segments[2]  # "Email Body" or "Attachments"
 
           if folder_type == "Attachments"
-            # Count attachments by month
-            months = SyncedEmailAttachment.joins(:synced_email)
-                                          .where(synced_emails: { mailbox_owner_email: mailbox })
-                                          .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
-                                          .group("EXTRACT(MONTH FROM synced_emails.received_at)::INTEGER")
-                                          .count
+            # Count attachments by month (SSoT Jan 2026: WarehouseDocument)
+            months = WarehouseDocument.where(source_type: "email_attachment")
+                                      .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+                                      .where(synced_emails: { mailbox_owner_email: mailbox })
+                                      .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                      .group("EXTRACT(MONTH FROM synced_emails.received_at)::INTEGER")
+                                      .count
           else
             # Count emails by month
             months = SyncedEmail.where(mailbox_owner_email: mailbox)
@@ -1247,23 +1248,26 @@ module Api
           month = path_segments[3].to_i
 
           if folder_type == "Attachments"
-            # Show email attachments
-            attachments = SyncedEmailAttachment.joins(:synced_email)
-                                               .where(synced_emails: { mailbox_owner_email: mailbox })
-                                               .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
-                                               .where("EXTRACT(MONTH FROM synced_emails.received_at) = ?", month)
-                                               .order("synced_emails.received_at DESC")
-                                               .limit(500)
+            # Show email attachments (SSoT Jan 2026: WarehouseDocument)
+            attachments = WarehouseDocument.where(source_type: "email_attachment")
+                                           .includes(:storage_blob)
+                                           .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+                                           .where(synced_emails: { mailbox_owner_email: mailbox })
+                                           .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                           .where("EXTRACT(MONTH FROM synced_emails.received_at) = ?", month)
+                                           .order("synced_emails.received_at DESC")
+                                           .limit(500)
 
             files = attachments.map do |att|
+              email = SyncedEmail.find_by(id: att.metadata["synced_email_id"])
               {
                 id: att.id,
-                name: att.filename || "(Unknown)",
+                name: att.display_name || "(Unknown)",
                 type: "attachment",
-                mimeType: att.content_type || "application/octet-stream",
-                fileSize: att.file_size,
-                receivedAt: att.synced_email&.received_at&.iso8601,
-                emailSubject: att.synced_email&.subject
+                mimeType: att.storage_blob&.content_type || "application/octet-stream",
+                fileSize: att.storage_blob&.file_size,
+                receivedAt: email&.received_at&.iso8601,
+                emailSubject: email&.subject
               }
             end
           else
@@ -2214,14 +2218,7 @@ module Api
             jobId: documentable.job_id,
             contactId: documentable.contact_id
           }
-        when EmailAttachment
-          email = documentable.email_warehouse
-          {
-            emailSubject: email&.subject,
-            emailFrom: email&.from_email,
-            emailReceivedAt: email&.received_at&.iso8601,
-            attachmentIndex: documentable.attachment_index
-          }
+        # Note: EmailAttachment removed (Jan 2026) - attachments now in WarehouseDocument with source_type='email_attachment'
         when ContactDocument
           {
             contactId: documentable.contact_id,

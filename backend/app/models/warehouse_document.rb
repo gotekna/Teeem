@@ -349,15 +349,7 @@ class WarehouseDocument < ApplicationRecord
         email.storage_email_path.presence ||
         compute_email_legacy_path(email)
 
-    when "EmailAttachment"
-      att = documentable
-      att.storage_path.presence ||
-        compute_attachment_legacy_path(att)
-
-      doc = documentable
-      doc.storage_path.presence ||
-        compute_job_document_legacy_path(doc)
-
+    # Note: EmailAttachment removed (Jan 2026) - attachments now in WarehouseDocument with source_type='email_attachment'
     # SSoT: WarehouseDocument is now THE ONE table for all document metadata
 
     when "UserDocument"

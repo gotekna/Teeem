@@ -38,7 +38,7 @@ namespace :warehouse do
   # - Jobs (from JobDocument → 'Jobs/{{JobCode}}')
   # - Contacts (from ContactDocument → 'Contacts/{{ContactName}}')
   # - Corporate (from CorporateCompanyDocument → 'Corporate/{{CompanyGroup}}')
-  # - Emails (from SyncedEmail + EmailAttachment → 'Emails/{{Mailbox}}')
+  # - Emails (from SyncedEmail + WarehouseDocument → 'Emails/{{Mailbox}}')
   # - Tasks (from SmTaskAttachment → 'Tasks/{{TaskId}}')
   # - Warehousing (from UserDocument → 'Warehousing/{{UserName}}')
   EXPECTED_ROOT_FOLDERS = %w[Jobs Contacts Corporate Emails Tasks Warehousing].freeze
@@ -355,19 +355,19 @@ namespace :warehouse do
     end
   end
 
-  desc "Backfill WarehouseDocument entries for CorporateCompanyDocument and EmailAttachment"
+  desc "Backfill WarehouseDocument entries for CorporateCompanyDocument"
   task backfill_documents: :environment do
     puts "=" * 60
     puts "BACKFILL DOCUMENT WAREHOUSE ENTRIES"
     puts "=" * 60
-    puts "Creating WarehouseDocument entries for CorporateCompanyDocument, EmailAttachment"
+    puts "Creating WarehouseDocument entries for CorporateCompanyDocument"
+    # Note: EmailAttachment removed (Jan 2026) - attachments now in WarehouseDocument with source_type='email_attachment'
 
-    stats = { corporate: 0, email_attachment: 0, errors: [] }
+    stats = { corporate: 0, errors: [] }
 
-    # 1. CorporateCompanyDocument
-    puts "\n[1/2] Backfilling CorporateCompanyDocument..."
+    puts "\nBackfilling CorporateCompanyDocument..."
     total_corp = CorporateCompanyDocument.where.not(storage_blob_id: nil).count
-    puts "       Processing #{total_corp} documents..."
+    puts "Processing #{total_corp} documents..."
 
     CorporateCompanyDocument.includes(:storage_blob, :warehouse_document, :corporate_company)
                             .where.not(storage_blob_id: nil).find_each.with_index do |doc, i|
@@ -382,33 +382,12 @@ namespace :warehouse do
         stats[:errors] << "CorporateCompanyDocument #{doc.id}: #{e.message}"
       end
     end
-    puts "\n   Created: #{stats[:corporate]} warehouse documents"
-
-    # 2. EmailAttachment
-    puts "\n[2/2] Backfilling EmailAttachment..."
-    total_email = EmailAttachment.where.not(storage_blob_id: nil).count
-    puts "       Processing #{total_email} attachments..."
-
-    EmailAttachment.includes(:storage_blob, :warehouse_document, :synced_email)
-                   .where.not(storage_blob_id: nil).find_each.with_index do |att, i|
-      next if att.warehouse_document.present?
-
-      begin
-        att.send(:create_warehouse_entry)
-        stats[:email_attachment] += 1
-        print "." if stats[:email_attachment] % 100 == 0
-        puts " #{stats[:email_attachment]}/#{total_email}" if stats[:email_attachment] % 1000 == 0
-      rescue => e
-        stats[:errors] << "EmailAttachment #{att.id}: #{e.message}"
-      end
-    end
-    puts "\n   Created: #{stats[:email_attachment]} warehouse documents"
+    puts "\nCreated: #{stats[:corporate]} warehouse documents"
 
     puts "\n" + "=" * 60
     puts "BACKFILL COMPLETE"
     puts "=" * 60
     puts "CorporateCompanyDocument: #{stats[:corporate]}"
-    puts "EmailAttachment:          #{stats[:email_attachment]}"
     puts "Errors:                   #{stats[:errors].count}"
     if stats[:errors].any?
       puts "\nFirst 10 errors:"
