@@ -542,7 +542,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
         .select("LOWER(mailbox_owner_email) as email")
         .distinct
         .pluck("LOWER(mailbox_owner_email)")
-        .map { |email| mailbox_stats_for_dashboard(cred.id, email, :microsoft, credential_last_synced_at: cred.updated_at) }
+        .map { |email| mailbox_stats_for_dashboard(cred.id, email, :microsoft, credential_last_synced_at: cred.last_sync_at) }
         .sort_by { |m| -m[:email_count] }
 
       {
@@ -550,7 +550,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
         type: "microsoft",
         name: cred.name || cred.organization&.name || "Unknown",
         status: cred.status,
-        last_sync_at: cred.updated_at,
+        last_sync_at: cred.last_sync_at,
         total_emails: mailboxes.sum { |m| m[:email_count] },
         mailboxes: mailboxes,
         sync_config: {
