@@ -120,21 +120,20 @@ export default function SitePresenceDashboardPage() {
 
       // Process overview stats
       if (overviewRes?.success && overviewRes?.data) {
+        // Backend returns nested structure: data.live, data.today, data.this_week, data.alerts
         const data = overviewRes.data as {
-          active_sessions?: number;
-          workers_on_site?: number;
-          today_hours?: number;
-          pending_approvals?: number;
-          anomaly_count?: number;
-          weekly_hours?: number;
+          live?: { active_sessions?: number; active_workers?: number };
+          today?: { hours?: number; anomalies?: number };
+          this_week?: { hours?: number };
+          alerts?: { pending_approvals?: number; anomalies_today?: number };
         };
         setStats({
-          activeSessions: data.active_sessions || 0,
-          workersOnSite: data.workers_on_site || 0,
-          todayHours: data.today_hours || 0,
-          pendingApprovals: data.pending_approvals || 0,
-          anomalyCount: data.anomaly_count || 0,
-          weeklyHours: data.weekly_hours || 0,
+          activeSessions: data.live?.active_sessions || 0,
+          workersOnSite: data.live?.active_workers || 0,
+          todayHours: data.today?.hours || 0,
+          pendingApprovals: data.alerts?.pending_approvals || 0,
+          anomalyCount: data.alerts?.anomalies_today || data.today?.anomalies || 0,
+          weeklyHours: data.this_week?.hours || 0,
         });
       }
 
