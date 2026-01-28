@@ -1394,7 +1394,7 @@ module Api
               name: doc.display_name || filename,
               type: "corporate",
               mimeType: doc.storage_blob&.content_type || "application/octet-stream",
-              fileSize: doc.file_size || doc.storage_blob&.byte_size || 0,
+              fileSize: doc.file_size || doc.storage_blob&.file_size || 0,
               createdAt: doc.created_at&.iso8601,
               url: doc.download_url
             }
@@ -1940,7 +1940,7 @@ module Api
             {
               name: doc.display_name || filename,
               path: doc.folder || "",
-              size: doc.file_size || doc.storage_blob&.byte_size || 0,
+              size: doc.file_size || doc.storage_blob&.file_size || 0,
               content_type: doc.storage_blob&.content_type || MiniMime.lookup_by_filename(filename)&.content_type || "application/octet-stream",
               last_modified: doc.updated_at&.iso8601,
               url: doc.download_url || "",
@@ -1969,7 +1969,7 @@ module Api
             {
               name: doc.display_name || filename,
               path: doc.folder || "",
-              size: doc.file_size || doc.storage_blob&.byte_size || 0,
+              size: doc.file_size || doc.storage_blob&.file_size || 0,
               content_type: doc.storage_blob&.content_type || MiniMime.lookup_by_filename(filename)&.content_type || "application/octet-stream",
               last_modified: doc.updated_at&.iso8601,
               url: doc.download_url || "",
@@ -2165,7 +2165,7 @@ module Api
           name: filename,
           display_title: doc.display_name || filename,
           type: doc.content_type || blob&.content_type || "application/octet-stream",
-          size: doc.file_size || blob&.byte_size || 0,
+          size: doc.file_size || blob&.file_size || 0,
           url: doc.download_url,
           job_title: linkable.is_a?(Job) ? linkable.title : nil,
           job_id: linkable.is_a?(Job) ? linkable.id : nil,

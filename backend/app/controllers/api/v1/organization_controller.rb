@@ -516,7 +516,7 @@ module Api
           total_records: warehouse_docs.count,
           by_source: warehouse_by_source,
           by_folder: warehouse_docs.group(:folder).count,
-          total_file_size: warehouse_docs.joins(:storage_blob).sum("storage_blobs.byte_size") || 0,
+          total_file_size: warehouse_docs.joins(:storage_blob).sum("storage_blobs.file_size") || 0,
           latest_upload: warehouse_docs.maximum(:created_at),
           warehouse_total: warehouse_docs.count,
           warehouse_by_source: warehouse_by_source
@@ -723,11 +723,11 @@ module Api
         job_docs = WarehouseDocument.where(source_type: "job").joins(:storage_blob)
         job_doc_stats = {
           total_files: job_docs.count,
-          revit_files: job_docs.where("storage_blobs.filename ILIKE ? OR storage_blobs.filename ILIKE ?", "%.rvt", "%.rfa").count,
-          autocad_files: job_docs.where("storage_blobs.filename ILIKE ? OR storage_blobs.filename ILIKE ?", "%.dwg", "%.dxf").count,
-          pdf_files: job_docs.where("storage_blobs.filename ILIKE ?", "%.pdf").count,
-          image_files: job_docs.where("storage_blobs.filename ~* ?", "\\.(jpg|jpeg|png|gif|heic)$").count,
-          total_size: job_docs.sum("storage_blobs.byte_size") || 0
+          revit_files: job_docs.where("storage_blobs.original_filename ILIKE ? OR storage_blobs.original_filename ILIKE ?", "%.rvt", "%.rfa").count,
+          autocad_files: job_docs.where("storage_blobs.original_filename ILIKE ? OR storage_blobs.original_filename ILIKE ?", "%.dwg", "%.dxf").count,
+          pdf_files: job_docs.where("storage_blobs.original_filename ILIKE ?", "%.pdf").count,
+          image_files: job_docs.where("storage_blobs.original_filename ~* ?", "\\.(jpg|jpeg|png|gif|heic)$").count,
+          total_size: job_docs.sum("storage_blobs.file_size") || 0
         }
 
         # Phase 3: Warehouse Document Breakdown (SSoT for all stored files)
