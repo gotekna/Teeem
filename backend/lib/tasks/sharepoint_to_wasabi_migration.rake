@@ -71,8 +71,16 @@ namespace :sharepoint do
 
     desc "Show migration status - how many files still reference SharePoint"
     task status: :environment do
+      tenant = Tenant.first
+      unless tenant
+        puts "ERROR: No tenant found"
+        exit 1
+      end
+
+      ActsAsTenant.with_tenant(tenant) do
       puts "\n" + "=" * 70
       puts "SHAREPOINT → WASABI MIGRATION STATUS"
+      puts "Tenant: #{tenant.name} (ID: #{tenant.id})"
       puts "=" * 70
 
       total_sharepoint = 0
@@ -122,6 +130,7 @@ namespace :sharepoint do
         puts "Nothing to migrate!"
       end
       puts "=" * 70
+      end # ActsAsTenant.with_tenant
     end
 
     desc "Migrate files from SharePoint to Wasabi. Args: limit, table (optional)"
@@ -129,10 +138,19 @@ namespace :sharepoint do
       limit = (args[:limit] || 50).to_i
       target_table = args[:table]&.to_sym
 
+      tenant = Tenant.first
+      unless tenant
+        puts "ERROR: No tenant found"
+        exit 1
+      end
+
+      ActsAsTenant.with_tenant(tenant) do
+
       puts "\n" + "=" * 70
       puts "SHAREPOINT → WASABI MIGRATION"
       puts "Limit: #{limit} files"
       puts "Table: #{target_table || 'all'}"
+      puts "Tenant: #{tenant.name} (ID: #{tenant.id})"
       puts "=" * 70
 
       # Get SharePoint client
@@ -142,7 +160,7 @@ namespace :sharepoint do
         exit 1
       end
 
-      sp_config = StorageConfiguration.instance
+      sp_config = StorageConfiguration.for_tenant(tenant)
       unless sp_config
         puts "StorageConfiguration not found."
         exit 1
@@ -282,6 +300,7 @@ namespace :sharepoint do
         end
       end
       puts "=" * 70
+      end # ActsAsTenant.with_tenant
     end
   end
 end
