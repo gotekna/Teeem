@@ -602,8 +602,29 @@ export function DocumentViewer({
         const blob = new Blob([combined], { type: 'application/pdf' });
         return blob;
       })
-      .then(blob => {
-        console.log(`[DocumentViewer] PDF loaded successfully: ${fileName} (${blob.size} bytes)`);
+      .then(async blob => {
+        console.log(`[DocumentViewer] PDF loaded: ${fileName} (${blob.size} bytes)`);
+
+        // Validate PDF content - detect corrupted/invalid files
+        // Real PDFs start with %PDF magic bytes and are typically >500 bytes
+        const MIN_PDF_SIZE = 500;
+        if (blob.size < MIN_PDF_SIZE) {
+          console.error(`[DocumentViewer] PDF content too small (${blob.size} bytes) - likely corrupted: ${fileName}`);
+          setError("Document appears to be corrupted or incomplete. Click Download to save the file.");
+          setPdfLoading(false);
+          return;
+        }
+
+        // Check PDF magic bytes (%PDF = 0x25 0x50 0x44 0x46)
+        const header = await blob.slice(0, 4).text();
+        if (!header.startsWith('%PDF')) {
+          console.error(`[DocumentViewer] Invalid PDF header "${header}" - not a PDF: ${fileName}`);
+          setError("Document is not a valid PDF. Click Download to save the file.");
+          setPdfLoading(false);
+          return;
+        }
+
+        console.log(`[DocumentViewer] PDF validated successfully: ${fileName}`);
         const blobUrl = URL.createObjectURL(blob);
         // Cache for instant navigation
         pdfBlobCacheRef.current.set(url, blobUrl);
@@ -922,10 +943,10 @@ export function DocumentViewer({
         {/* Document viewer - takes remaining space */}
         <main className="flex-1 flex items-center justify-center p-4 min-w-0">
           {error ? (
-            <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md">
+            <div className={`p-8 rounded-lg shadow-md text-center max-w-md ${isDark ? "bg-gray-800" : "bg-white"}`}>
               <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">Unable to Preview</h2>
-              <p className="text-gray-600 mb-4">{error}</p>
+              <h2 className={`text-xl font-semibold mb-2 ${isDark ? "text-white" : "text-gray-800"}`}>Unable to Preview</h2>
+              <p className={`mb-4 ${isDark ? "text-gray-300" : "text-gray-600"}`}>{error}</p>
               <a
                 href={effectiveDownloadUrl}
                 download={fileName}
