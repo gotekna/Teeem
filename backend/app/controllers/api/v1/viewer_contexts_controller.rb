@@ -27,11 +27,13 @@ module Api
         context = params.permit!.to_h.except(:controller, :action, :viewer_context)
         context = params[:context].permit!.to_h if params[:context].present?
 
-        # Generate short ID (8 chars is enough for 24hr ephemeral storage)
+        # Generate short ID
         id = SecureRandom.urlsafe_base64(6) # 8 chars
 
-        # Store in cache with 24-hour expiry
-        Rails.cache.write("viewer_context:#{id}", context.to_json, expires_in: 24.hours)
+        # FRC (Jan 2026): Use link_expiry_days from StorageConfiguration instead of hardcoded 24 hours
+        # This allows email download links to remain valid for the configured period (default: 7 days)
+        expiry_days = StorageConfiguration.instance&.link_expiry_days || 7
+        Rails.cache.write("viewer_context:#{id}", context.to_json, expires_in: expiry_days.days)
 
         render json: { success: true, id: id }
       rescue => e

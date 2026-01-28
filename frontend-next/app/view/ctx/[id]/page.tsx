@@ -91,7 +91,7 @@ function ViewerContent() {
             {error || "Invalid Link"}
           </h1>
           <p className="text-gray-600">
-            This document link may have expired. Links are valid for 24 hours.
+            This document link may have expired or is invalid.
           </p>
         </div>
       </div>
