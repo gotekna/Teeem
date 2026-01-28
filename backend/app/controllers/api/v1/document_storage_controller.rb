@@ -3026,7 +3026,7 @@ module Api
       end
 
       # Map foundation_id to model class
-      # SSoT (Jan 2026): Documents now use WarehouseDocument instead of CorporateCompanyDocument
+      # SSoT: All documents use WarehouseDocument
       def get_model_for_foundation(foundation_id)
         case foundation_id&.to_s&.downcase
         when "contacts", "contact"

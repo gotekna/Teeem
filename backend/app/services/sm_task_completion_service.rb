@@ -112,17 +112,10 @@ class SmTaskCompletionService
     return false unless required_doc_type_id
 
     # Check attached documents for matching document type
-    # Supports both legacy CorporateCompanyDocument and new WarehouseDocument attachables
+    # SSoT (Jan 2026): All documents are now WarehouseDocument
     task.sm_task_attachments.documents.any? do |attachment|
       doc = attachment.attachable
-      case doc
-      when WarehouseDocument
-        doc.meta("document_type_id")&.to_i == required_doc_type_id
-      when CorporateCompanyDocument
-        doc.document_type_id == required_doc_type_id
-      else
-        false
-      end
+      doc.is_a?(WarehouseDocument) && doc.meta("document_type_id")&.to_i == required_doc_type_id
     end
   end
 

@@ -6,12 +6,13 @@ class ExternalInvoice < ApplicationRecord
   # LIM (Jan 2026): xero_contact association removed - ContactExternalLink is THE ONE SSoT
   # XeroContact table had 0 records, ContactExternalLink has 1,018 records
 
+  # SSoT: WarehouseDocument polymorphic association for document metadata
+  has_many :warehouse_documents, as: :documentable, dependent: :nullify
+
   # SSoT: Update contact's cached supplier flag when bill changes
   # Only bills (ACCPAY) affect is_supplier_cached
   after_commit :refresh_supplier_cached_flag, on: [:create, :destroy], if: :bill?
   after_commit :refresh_supplier_cached_flag_on_contact_change, on: :update, if: :should_refresh_supplier_flag?
-
-  # SSoT: WarehouseDocument is now THE ONE table for document metadata
 
   # SSoT: ACCOUNTING_SYSTEMS, RECORD_SYNC_DIRECTIONS defined in ExternalSyncConstants concern
 

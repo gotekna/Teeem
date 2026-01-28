@@ -13,7 +13,7 @@ module Api
     #   3. POST /api/v1/uploads/confirm - Confirm upload and create record
     #
     # Scopes determine where the file is stored and what record type is created:
-    #   - documents: CorporateCompanyDocument (corporate documents)
+    #   - documents: WarehouseDocument (corporate documents)
     #   - user_documents: UserDocument (personal documents)
     #   - job_documents: Job attachments
     #   - task_attachments: SmTaskAttachment (use SmTasksController instead)
@@ -185,7 +185,7 @@ module Api
         end
       end
 
-      # SSoT (Jan 2026): Uses WarehouseDocument directly (no legacy CorporateCompanyDocument)
+      # SSoT: Uses WarehouseDocument directly
       def create_corporate_document(key, filename, content_type, file_size, metadata, provider)
         # Get company from metadata or current user's default
         company_id = metadata[:company_id] || metadata["company_id"]

@@ -244,7 +244,7 @@ module StorableDocument
   # SSoT: Unified legacy storage ID accessor
   # Different models use different column names:
   #   - storage_item_id (JobDocument, ContactDocument - renamed from sharepoint_item_id)
-  #   - storage_file_id (CorporateCompanyDocument, BillInbox - renamed from sharepoint_file_id)
+  #   - storage_file_id (BillInbox - renamed from sharepoint_file_id)
   #   - external_id (PeopleDocument)
   # This method handles all - ONLY use internally, external code should use storage_reference
   def legacy_storage_id
