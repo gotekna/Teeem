@@ -16,6 +16,7 @@ module Api
     #
     class BackupConfigurationsController < ApplicationController
       before_action :require_admin
+      before_action :ensure_tenant_context
 
       # GET /api/v1/backup_configuration
       def show
@@ -200,6 +201,15 @@ module Api
           createdAt: log.created_at,
           updatedAt: log.updated_at
         }
+      end
+
+      def ensure_tenant_context
+        unless ActsAsTenant.current_tenant
+          render json: {
+            success: false,
+            error: "Tenant context not available"
+          }, status: :unprocessable_entity
+        end
       end
     end
   end
