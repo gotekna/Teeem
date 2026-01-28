@@ -33,6 +33,37 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
     }
   end
 
+  # GET /api/v1/site_presence_dashboards/active_sessions
+  # Active sessions for dashboard (alias for live with simpler structure)
+  def active_sessions
+    sessions = SitePresenceSession.active
+                                   .includes(:worker_profile, :job)
+                                   .order(:checkin_at)
+
+    render json: {
+      success: true,
+      data: {
+        sessions: sessions.map { |s| dashboard_session_json(s) }
+      }
+    }
+  end
+
+  # GET /api/v1/site_presence_dashboards/today
+  # Today's sessions for dashboard
+  def today
+    sessions = SitePresenceSession.where("DATE(checkin_at) = ?", Date.current)
+                                   .includes(:worker_profile, :job)
+                                   .order(checkin_at: :desc)
+                                   .limit(50)
+
+    render json: {
+      success: true,
+      data: {
+        sessions: sessions.map { |s| dashboard_session_json(s, include_checkout: true) }
+      }
+    }
+  end
+
   # GET /api/v1/site_presence_dashboards/live
   # Who's currently on site
   def live
@@ -335,6 +366,32 @@ class Api::V1::SitePresenceDashboardsController < ApplicationController
       gps_verified: session.gps_verified_checkin,
       face_verified: session.face_verified_checkin
     }
+  end
+
+  # Dashboard session format matching frontend ActiveSession/RecentSession interfaces
+  def dashboard_session_json(session, include_checkout: false)
+    elapsed = session.checkin_at ? ((Time.current - session.checkin_at) / 1.hour).round(2) : 0
+
+    base = {
+      id: session.id,
+      worker_name: session.worker_profile&.display_name || "Unknown",
+      job_name: session.job&.name || "Unknown Job",
+      checkin_at: session.checkin_at&.iso8601,
+      elapsed_hours: elapsed,
+      gps_verified: session.gps_verified_checkin || false,
+      face_verified: session.face_verified_checkin || false,
+      has_anomalies: session.has_anomalies || false
+    }
+
+    if include_checkout
+      base.merge!(
+        checkout_at: session.checkout_at&.iso8601,
+        total_hours: session.total_hours || 0,
+        approval_status: session.approval_status || "pending"
+      )
+    end
+
+    base
   end
 
   def approval_session_json(session)
