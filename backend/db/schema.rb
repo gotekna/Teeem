@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_28_123716) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2446,21 +2446,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
     t.datetime "updated_at", null: false
     t.index ["email_subscription_id", "alias_address"], name: "index_email_aliases_on_email_subscription_id_and_alias_address", unique: true
     t.index ["email_subscription_id"], name: "index_email_aliases_on_email_subscription_id"
-  end
-
-  create_table "email_attachments", id: :bigint, default: nil, force: :cascade do |t|
-    t.bigint "email_warehouse_id", null: false
-    t.string "outlook_attachment_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "attachment_id"
-    t.string "filename"
-    t.string "storage_path"
-    t.string "content_hash"
-    t.bigint "storage_blob_id"
-    t.string "content_id"
-    t.index ["email_warehouse_id", "content_id"], name: "idx_email_attachments_warehouse_content"
-    t.index ["storage_blob_id"], name: "index_email_attachments_on_storage_blob_id"
   end
 
   create_table "email_blacklist_items", id: :bigint, default: nil, force: :cascade do |t|
@@ -5904,95 +5889,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
     t.index ["parent_id"], name: "index_job_documentation_tabs_on_parent_id"
   end
 
-  create_table "job_documents", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.bigint "document_type_id"
-    t.string "storage_drive_id"
-    t.string "file_name", null: false
-    t.string "file_extension"
-    t.string "file_type"
-    t.bigint "file_size"
-    t.string "folder_path"
-    t.string "web_url"
-    t.string "thumbnail_url"
-    t.string "version_id"
-    t.datetime "last_modified_at"
-    t.string "last_modified_by"
-    t.string "sync_status", default: "synced"
-    t.datetime "last_synced_at"
-    t.jsonb "cad_metadata", default: {}
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "ai_suggested_type_id"
-    t.string "ai_proposed_name"
-    t.decimal "ai_confidence", precision: 5, scale: 2
-    t.text "ai_reasoning"
-    t.datetime "ai_analyzed_at"
-    t.string "rename_status", default: "pending"
-    t.datetime "rename_approved_at"
-    t.bigint "rename_approved_by_id"
-    t.string "original_file_name"
-    t.string "title"
-    t.text "description"
-    t.date "document_date"
-    t.string "display_title"
-    t.string "mime_type"
-    t.integer "financial_years", default: [], array: true
-    t.string "ai_verification_status"
-    t.datetime "ai_verified_at"
-    t.datetime "user_validated_at"
-    t.bigint "user_validated_by_id"
-    t.boolean "validation_required", default: false
-    t.string "content_hash"
-    t.string "external_id"
-    t.string "source", default: "manual"
-    t.string "storage_type"
-    t.bigint "contact_id"
-    t.bigint "company_id"
-    t.bigint "legacy_corporate_document_id"
-    t.string "storage_provider"
-    t.string "storage_item_id"
-    t.string "storage_path"
-    t.string "migration_status"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.text "migration_error"
-    t.string "source_provider"
-    t.string "source_item_id"
-    t.bigint "parent_document_id"
-    t.string "version_status", default: "draft", null: false
-    t.integer "version_number", default: 1, null: false
-    t.datetime "signed_at"
-    t.bigint "signed_by_id"
-    t.bigint "storage_blob_id"
-    t.index ["ai_analyzed_at"], name: "index_job_documents_on_ai_analyzed_at"
-    t.index ["ai_suggested_type_id"], name: "index_job_documents_on_ai_suggested_type_id"
-    t.index ["company_id"], name: "index_job_documents_on_company_id"
-    t.index ["contact_id"], name: "index_job_documents_on_contact_id"
-    t.index ["content_hash"], name: "index_job_documents_on_content_hash"
-    t.index ["document_type_id", "version_status"], name: "index_job_documents_on_document_type_id_and_version_status"
-    t.index ["document_type_id"], name: "index_job_documents_on_document_type_id"
-    t.index ["external_id"], name: "index_job_documents_on_external_id"
-    t.index ["file_type"], name: "index_job_documents_on_file_type"
-    t.index ["financial_years"], name: "index_job_documents_on_financial_years", using: :gin
-    t.index ["job_id", "file_type"], name: "index_job_documents_on_job_id_and_file_type"
-    t.index ["job_id", "folder_path"], name: "index_job_documents_on_job_id_and_folder_path"
-    t.index ["job_id"], name: "index_job_documents_on_job_id"
-    t.index ["legacy_corporate_document_id"], name: "index_job_documents_on_legacy_corporate_document_id"
-    t.index ["migration_status"], name: "index_job_documents_on_migration_status"
-    t.index ["parent_document_id"], name: "index_job_documents_on_parent_document_id"
-    t.index ["rename_approved_by_id"], name: "index_job_documents_on_rename_approved_by_id"
-    t.index ["rename_status"], name: "index_job_documents_on_rename_status"
-    t.index ["signed_by_id"], name: "index_job_documents_on_signed_by_id"
-    t.index ["storage_blob_id"], name: "index_job_documents_on_storage_blob_id"
-    t.index ["storage_drive_id"], name: "index_job_documents_on_storage_drive_id"
-    t.index ["storage_provider", "storage_item_id"], name: "index_job_documents_on_storage_provider_and_storage_item_id"
-    t.index ["storage_provider"], name: "index_job_documents_on_storage_provider"
-    t.index ["sync_status"], name: "index_job_documents_on_sync_status"
-    t.index ["version_id"], name: "index_job_documents_on_version_id"
-    t.index ["version_status"], name: "index_job_documents_on_version_status"
-  end
-
   create_table "job_people", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "contact_id", null: false
@@ -6964,52 +6860,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
     t.string "text_align"
     t.string "pdf_form_field_name"
     t.index ["pdf_template_key", "field_key"], name: "index_pdf_field_positions_on_pdf_template_key_and_field_key", unique: true
-  end
-
-  create_table "people_documents", force: :cascade do |t|
-    t.bigint "contact_id", null: false
-    t.string "title", null: false
-    t.text "description"
-    t.string "document_type", null: false
-    t.date "document_date"
-    t.date "expiry_date"
-    t.string "document_number"
-    t.string "issuing_authority"
-    t.string "issuing_country"
-    t.string "file_name"
-    t.integer "file_size"
-    t.string "mime_type"
-    t.datetime "uploaded_at"
-    t.string "folder"
-    t.string "source", default: "manual"
-    t.bigint "document_type_id"
-    t.string "content_hash"
-    t.string "external_id"
-    t.bigint "legacy_corporate_document_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "storage_provider"
-    t.string "storage_item_id"
-    t.string "storage_path"
-    t.string "migration_status"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.text "migration_error"
-    t.string "source_provider"
-    t.string "source_item_id"
-    t.bigint "storage_blob_id"
-    t.index ["contact_id"], name: "index_people_documents_on_contact_id"
-    t.index ["content_hash"], name: "index_people_documents_on_content_hash"
-    t.index ["document_date"], name: "index_people_documents_on_document_date"
-    t.index ["document_type"], name: "index_people_documents_on_document_type"
-    t.index ["document_type_id"], name: "index_people_documents_on_document_type_id"
-    t.index ["expiry_date"], name: "index_people_documents_on_expiry_date"
-    t.index ["external_id"], name: "index_people_documents_on_external_id"
-    t.index ["legacy_corporate_document_id"], name: "index_people_documents_on_legacy_corporate_document_id"
-    t.index ["migration_status"], name: "index_people_documents_on_migration_status"
-    t.index ["storage_blob_id"], name: "index_people_documents_on_storage_blob_id"
-    t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
-    t.index ["storage_provider"], name: "index_people_documents_on_storage_provider"
   end
 
   create_table "performance_anomalies", force: :cascade do |t|
@@ -8446,30 +8296,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
     t.integer "updated_by"
   end
 
-  create_table "sm_task_attachments", force: :cascade do |t|
-    t.bigint "sm_task_id", null: false
-    t.string "attachable_type", null: false
-    t.bigint "attachable_id", null: false
-    t.string "attachment_type", limit: 50
-    t.text "notes"
-    t.bigint "added_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "category", default: "info"
-    t.bigint "action_item_id"
-    t.string "display_name"
-    t.boolean "is_source", default: false, null: false
-    t.datetime "deleted_at"
-    t.bigint "deleted_by_id"
-    t.index ["action_item_id"], name: "index_sm_task_attachments_on_action_item_id"
-    t.index ["added_by_id"], name: "index_sm_task_attachments_on_added_by_id"
-    t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"
-    t.index ["category"], name: "index_sm_task_attachments_on_category"
-    t.index ["deleted_at"], name: "index_sm_task_attachments_on_deleted_at"
-    t.index ["sm_task_id", "attachable_type", "attachable_id"], name: "idx_sm_task_attachments_unique", unique: true
-    t.index ["sm_task_id"], name: "index_sm_task_attachments_on_sm_task_id"
-  end
-
   create_table "sm_task_document_types", force: :cascade do |t|
     t.bigint "sm_task_id", null: false
     t.bigint "document_type_id", null: false
@@ -8489,56 +8315,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["is_active"], name: "index_sm_task_groups_on_is_active"
-  end
-
-  create_table "sm_task_photos", force: :cascade do |t|
-    t.bigint "sm_task_id"
-    t.bigint "job_id"
-    t.bigint "uploaded_by_id"
-    t.bigint "resource_id"
-    t.string "photo_url", null: false
-    t.string "photo_type", limit: 20
-    t.text "description"
-    t.text "notes"
-    t.datetime "taken_at"
-    t.decimal "latitude", precision: 10, scale: 7
-    t.decimal "longitude", precision: 10, scale: 7
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "is_checkin_photo", default: false
-    t.boolean "is_checkout_photo", default: false
-    t.jsonb "face_verification_result"
-    t.decimal "face_match_confidence", precision: 5, scale: 2
-    t.boolean "face_verified", default: false
-    t.decimal "site_visibility_score", precision: 5, scale: 2
-    t.boolean "site_visible"
-    t.jsonb "ai_analysis"
-    t.string "weather_detected", limit: 30
-    t.string "lighting_conditions", limit: 30
-    t.decimal "exif_latitude", precision: 10, scale: 7
-    t.decimal "exif_longitude", precision: 10, scale: 7
-    t.datetime "exif_timestamp"
-    t.bigint "document_type_id"
-    t.string "storage_path"
-    t.string "storage_item_id"
-    t.string "storage_provider", limit: 20
-    t.string "migration_status", limit: 20
-    t.text "migration_error"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.index ["document_type_id"], name: "index_sm_task_photos_on_document_type_id"
-    t.index ["face_verified"], name: "index_sm_task_photos_on_face_verified"
-    t.index ["is_checkin_photo"], name: "index_sm_task_photos_on_is_checkin_photo"
-    t.index ["is_checkout_photo"], name: "index_sm_task_photos_on_is_checkout_photo"
-    t.index ["job_id"], name: "index_sm_task_photos_on_job_id"
-    t.index ["migration_status"], name: "index_sm_task_photos_on_migration_status"
-    t.index ["photo_type"], name: "index_sm_task_photos_on_photo_type"
-    t.index ["resource_id"], name: "index_sm_task_photos_on_resource_id"
-    t.index ["sm_task_id", "photo_type"], name: "index_sm_task_photos_on_sm_task_id_and_photo_type"
-    t.index ["sm_task_id"], name: "index_sm_task_photos_on_sm_task_id"
-    t.index ["storage_provider"], name: "index_sm_task_photos_on_storage_provider"
-    t.index ["taken_at"], name: "index_sm_task_photos_on_taken_at"
-    t.index ["uploaded_by_id"], name: "index_sm_task_photos_on_uploaded_by_id"
   end
 
   create_table "sm_tasks", force: :cascade do |t|
@@ -8974,6 +8750,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
     t.datetime "updated_at", null: false
     t.jsonb "file_name_templates", default: {}, null: false
     t.jsonb "config_links", default: {}, null: false
+    t.jsonb "document_routing", default: {"sharepoint_scan"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"SharePoint scanned documents"}, "xero_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Xero invoice/bill attachments"}, "email_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Email attachments"}, "xero_primary_invoice"=>{"model"=>"ContactDocument", "scope"=>"contact", "description"=>"Primary Xero invoice/bill PDF"}}, null: false
     t.jsonb "virtual_warehouses", default: {}, null: false
     t.jsonb "warehouse_folders", default: {}, null: false
     t.boolean "exclude_sm_tasks", default: false, null: false
@@ -9704,34 +9481,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
     t.datetime "updated_at", null: false
     t.index ["user_id", "word"], name: "index_user_dictionary_words_on_user_id_and_word", unique: true
     t.index ["user_id"], name: "index_user_dictionary_words_on_user_id"
-  end
-
-  create_table "user_documents", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.bigint "document_type_id"
-    t.string "file_name", null: false
-    t.string "file_extension", limit: 10
-    t.integer "file_size"
-    t.string "content_type"
-    t.string "category", limit: 20
-    t.string "folder"
-    t.string "storage_path"
-    t.string "storage_item_id"
-    t.string "storage_provider", limit: 20
-    t.string "migration_status", limit: 20
-    t.text "migration_error"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "storage_blob_id"
-    t.index ["category"], name: "index_user_documents_on_category"
-    t.index ["document_type_id"], name: "index_user_documents_on_document_type_id"
-    t.index ["migration_status"], name: "index_user_documents_on_migration_status"
-    t.index ["storage_blob_id"], name: "index_user_documents_on_storage_blob_id"
-    t.index ["storage_provider"], name: "index_user_documents_on_storage_provider"
-    t.index ["user_id", "category"], name: "index_user_documents_on_user_id_and_category"
-    t.index ["user_id"], name: "index_user_documents_on_user_id"
   end
 
   create_table "user_entity_tab_preferences", force: :cascade do |t|
@@ -10641,7 +10390,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"
   add_foreign_key "email_aliases", "email_subscriptions"
-  add_foreign_key "email_attachments", "storage_blobs"
   add_foreign_key "email_dns_records", "email_subscriptions"
   add_foreign_key "email_drafts", "imap_credentials"
   add_foreign_key "email_drafts", "organizations"
@@ -10992,13 +10740,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
   add_foreign_key "job_cost_budgets", "users", column: "alert_acknowledged_by_id", on_delete: :nullify
   add_foreign_key "job_documentation_tabs", "job_documentation_tabs", column: "parent_id", on_delete: :cascade
   add_foreign_key "job_documentation_tabs", "jobs"
-  add_foreign_key "job_documents", "document_types"
-  add_foreign_key "job_documents", "document_types", column: "ai_suggested_type_id", on_delete: :nullify
-  add_foreign_key "job_documents", "job_documents", column: "parent_document_id"
-  add_foreign_key "job_documents", "jobs"
-  add_foreign_key "job_documents", "storage_blobs"
-  add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
-  add_foreign_key "job_documents", "users", column: "signed_by_id"
   add_foreign_key "job_people", "contacts"
   add_foreign_key "job_people", "jobs"
   add_foreign_key "job_plan_revisions", "job_plans"
@@ -11106,7 +10847,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
   add_foreign_key "payment_links", "external_invoices", column: "invoice_id"
   add_foreign_key "payments", "purchase_orders"
   add_foreign_key "payments", "users", column: "created_by_id"
-  add_foreign_key "people_documents", "storage_blobs"
   add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
   add_foreign_key "performance_requests", "organizations"
   add_foreign_key "performance_requests", "users"
@@ -11186,13 +10926,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
   add_foreign_key "share_transfers", "corporate_companies", column: "company_id"
   add_foreign_key "signature_usages", "document_types"
-  add_foreign_key "signature_usages", "job_documents"
   add_foreign_key "signature_usages", "jobs"
   add_foreign_key "signature_usages", "users"
   add_foreign_key "site_presence_sessions", "cost_centres"
   add_foreign_key "site_presence_sessions", "jobs"
-  add_foreign_key "site_presence_sessions", "sm_task_photos", column: "checkin_photo_id", on_delete: :nullify
-  add_foreign_key "site_presence_sessions", "sm_task_photos", column: "checkout_photo_id", on_delete: :nullify
   add_foreign_key "site_presence_sessions", "sm_tasks"
   add_foreign_key "site_presence_sessions", "users", column: "approved_by_id", on_delete: :nullify
   add_foreign_key "site_presence_sessions", "worker_profiles"
@@ -11247,17 +10984,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
-  add_foreign_key "sm_task_attachments", "sm_tasks", on_delete: :cascade
-  add_foreign_key "sm_task_attachments", "task_action_items", column: "action_item_id"
-  add_foreign_key "sm_task_attachments", "users", column: "added_by_id", on_delete: :nullify
-  add_foreign_key "sm_task_attachments", "users", column: "deleted_by_id", on_delete: :nullify
   add_foreign_key "sm_task_document_types", "document_types"
   add_foreign_key "sm_task_document_types", "sm_tasks"
-  add_foreign_key "sm_task_photos", "document_types"
-  add_foreign_key "sm_task_photos", "jobs", on_delete: :cascade
-  add_foreign_key "sm_task_photos", "sm_resources", column: "resource_id", on_delete: :nullify
-  add_foreign_key "sm_task_photos", "sm_tasks", on_delete: :cascade
-  add_foreign_key "sm_task_photos", "users", column: "uploaded_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "bpmn_processes", column: "complete_workflow_id"
   add_foreign_key "sm_tasks", "bpmn_processes", column: "start_workflow_id"
   add_foreign_key "sm_tasks", "cases"
@@ -11359,9 +11087,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
   add_foreign_key "user_absences", "users"
   add_foreign_key "user_absences", "users", column: "approved_by_id"
   add_foreign_key "user_dictionary_words", "users"
-  add_foreign_key "user_documents", "document_types"
-  add_foreign_key "user_documents", "storage_blobs"
-  add_foreign_key "user_documents", "users"
   add_foreign_key "user_entity_tab_preferences", "users"
   add_foreign_key "user_job_tab_configs", "job_tabs"
   add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
