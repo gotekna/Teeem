@@ -3812,8 +3812,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             .map(att => {
               const links = shareLinksMap[att.id];
               if (att.document) {
-                const fallback = att.document?.storage_url || att.document?.file_url || '';
-                return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+                // SSoT: Use storage_url for downloads (attachment disposition), storage_url_inline for viewing (inline disposition)
+                const downloadFallback = att.document?.storage_url || att.document?.file_url || '';
+                const openFallback = att.document?.storage_url_inline || downloadFallback;
+                return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || downloadFallback, openUrl: links?.open || openFallback };
               } else {
                 // Email attachment - use .eml extension for proper viewer handling
                 const emailName = getAttachmentDisplayName(att);
@@ -3930,8 +3932,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             .map(att => {
               const links = shareLinksMap[att.id];
               if (att.document) {
-                const fallback = att.document?.storage_url || att.document?.file_url || '';
-                return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+                // SSoT: Use storage_url for downloads (attachment disposition), storage_url_inline for viewing (inline disposition)
+                const downloadFallback = att.document?.storage_url || att.document?.file_url || '';
+                const openFallback = att.document?.storage_url_inline || downloadFallback;
+                return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || downloadFallback, openUrl: links?.open || openFallback };
               } else {
                 // Email attachment - use .eml extension for proper viewer handling
                 const emailName = getAttachmentDisplayName(att);
@@ -4090,8 +4094,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       // Build file list for viewer navigation (if multiple linked files)
       const linkedFilesForViewer: ViewerFile[] = linkedFiles.map(att => {
         const links = shareLinksMap[att.id];
-        const fallback = att.document?.storage_url || att.document?.file_url || '';
-        return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+        // SSoT: Use storage_url for downloads (attachment disposition), storage_url_inline for viewing (inline disposition)
+        const downloadFallback = att.document?.storage_url || att.document?.file_url || '';
+        const openFallback = att.document?.storage_url_inline || downloadFallback;
+        return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || downloadFallback, openUrl: links?.open || openFallback };
       });
 
       body += '<p><strong>File links:</strong></p>\n';
@@ -4551,11 +4557,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           const links = shareLinks[att.id];
           // Handle both documents and emails
           if (att.document) {
-            const fallback = att.document.storage_url || att.document.file_url || '';
+            // SSoT: Use storage_url for downloads (attachment disposition), storage_url_inline for viewing (inline disposition)
+            const downloadFallback = att.document.storage_url || att.document.file_url || '';
+            const openFallback = att.document.storage_url_inline || downloadFallback;
             return {
               name: att.display_name || att.document.display_name || att.document.file_name || 'Document',
-              downloadUrl: links?.download || fallback,
-              openUrl: links?.open || fallback
+              downloadUrl: links?.download || downloadFallback,
+              openUrl: links?.open || openFallback
             };
           } else if (att.email) {
             // Ensure .eml extension for proper file type detection in document viewer
