@@ -311,25 +311,28 @@ class XeroApiClient
     end
 
     # SSoT: Use XeroConnectionHealth for each credential
-    # Key insight: health.connected == true even when display_status == "warning"
-    # A credential in "warning" state is still WORKING (just needs attention)
+    # Key insight: health.connected == true even when display_status == "warning" or "rate_limited"
+    # A credential in "warning" or "rate_limited" state is still WORKING (just needs attention/waiting)
     total = all_credentials.count
-    working_count = 0      # health.connected == true (includes warning state)
-    fully_healthy_count = 0 # display_status == "connected" (no issues)
+    working_count = 0         # health.connected == true (includes warning/rate_limited state)
+    fully_healthy_count = 0   # display_status == "connected" (no issues)
     needs_attention_count = 0 # needs_attention == true
+    rate_limited_count = 0    # FRC: Track rate-limited credentials separately
 
     all_credentials.each do |cred|
       health = XeroConnectionHealth.for_credential(cred)
       # SSoT: Use health.connected to determine if credential is working
-      # This correctly considers "warning" state as working (just needs attention)
+      # This correctly considers "warning" and "rate_limited" states as working
       working_count += 1 if health.connected
       fully_healthy_count += 1 if health.display_status == "connected"
       needs_attention_count += 1 if health.needs_attention
+      rate_limited_count += 1 if health.display_status == "rate_limited"
     end
 
     # Aggregate status:
     # - NO working connections → disconnected (red, needs immediate attention)
     # - SOME working but needs attention → warning (orange, degraded)
+    # - SOME rate limited → rate_limited (orange, syncing paused)
     # - ALL fully healthy → connected (green)
     has_working = working_count > 0
 
@@ -357,6 +360,22 @@ class XeroApiClient
         total: total,
         connected_count: working_count,
         needs_attention: needs_attention_count
+      }
+    elsif rate_limited_count > 0
+      # FRC: Some working but rate limited - orange (syncing paused)
+      primary = XeroCredential.current
+      primary_health = primary ? XeroConnectionHealth.for_credential(primary) : nil
+      {
+        connected: true,
+        status: "rate_limited",
+        display_status: "rate_limited",
+        message: rate_limited_count == 1 ? (primary_health&.message || "Rate limit reached - syncing paused") : "#{rate_limited_count} of #{total} Xero orgs are rate limited. Resets 10:00 AM Brisbane.",
+        tenant_name: primary&.tenant_name,
+        tenant_id: primary&.tenant_id,
+        total: total,
+        connected_count: working_count,
+        needs_attention: 0,
+        rate_limited: rate_limited_count
       }
     else
       # Credentials all good - now check sync health for orange indicator

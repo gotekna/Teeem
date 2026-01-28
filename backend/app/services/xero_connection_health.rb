@@ -125,6 +125,24 @@ class XeroConnectionHealth
         )
       end
 
+      # FRC: Check rate limits before declaring healthy
+      # This integrates rate limit status into connection health (SSoT consistency)
+      if credential.tenant_id.present?
+        usage = XeroRateLimitTracker.usage_for(credential.tenant_id)
+        if usage && !usage[:can_make_request]
+          return HealthStatus.new(
+            connected: true,  # Still connected, just throttled
+            display_status: "rate_limited",
+            message: usage[:locked_out] ? "Rate limit enforced by Xero. Syncing paused." : "Daily limit reached (#{usage.dig(:daily, :used)}/5000). Resets 10:00 AM Brisbane.",
+            expires_at: credential.expires_at,
+            needs_attention: false,  # Self-heals at rate limit reset
+            action_required: "wait",
+            tenant_name: credential.tenant_name,
+            tenant_id: credential.tenant_id
+          )
+        end
+      end
+
       # Healthy!
       HealthStatus.new(
         connected: true,
@@ -192,6 +210,7 @@ class XeroConnectionHealth
         warning_count: 0,
         error_count: 0,
         disconnected_count: 0,
+        rate_limited_count: 0,  # FRC: Track rate-limited orgs separately
         credentials: []
       }
 
@@ -204,6 +223,7 @@ class XeroConnectionHealth
         when "warning" then results[:warning_count] += 1
         when "error" then results[:error_count] += 1
         when "disconnected" then results[:disconnected_count] += 1
+        when "rate_limited" then results[:rate_limited_count] += 1
         end
 
         results[:credentials] << {
