@@ -80,19 +80,26 @@ namespace :xero do
       puts "=" * 60
     end
 
-    desc "Dry run: Preview duplicate document cleanup"
+    desc "Dry run: Preview Xero duplicate document cleanup"
     task duplicates_dry_run: :environment do
       puts "=" * 60
-      puts "Duplicate Document Cleanup - DRY RUN"
+      puts "Xero Duplicate Document Cleanup - DRY RUN"
       puts "=" * 60
+      puts "Scope: source_type = 'xero' only"
+      puts ""
 
-      results = cleanup_duplicates(dry_run: true)
+      results = cleanup_duplicates(dry_run: true, source_type: "xero")
 
       puts "\nResults:"
       puts "  Duplicate groups processed: #{results[:groups_processed]}"
       puts "  Documents to keep: #{results[:kept]}"
       puts "  Documents to delete: #{results[:to_delete]}"
       puts "  Errors: #{results[:errors].count}"
+
+      if results[:errors].any?
+        puts "\nErrors (first 10):"
+        results[:errors].first(10).each { |e| puts "  #{e}" }
+      end
 
       if results[:samples].any?
         puts "\nSample deletions (first 10):"
@@ -108,16 +115,79 @@ namespace :xero do
       puts "  rails xero:cleanup:duplicates_execute"
     end
 
-    desc "Execute: Delete duplicate documents"
+    desc "Execute: Delete Xero duplicate documents"
     task duplicates_execute: :environment do
       puts "=" * 60
-      puts "Duplicate Document Cleanup - EXECUTE"
+      puts "Xero Duplicate Document Cleanup - EXECUTE"
       puts "=" * 60
+      puts "Scope: source_type = 'xero' only"
       puts "\nThis will DELETE duplicate WarehouseDocuments."
       puts "Press Ctrl+C within 5 seconds to cancel..."
       sleep 5
 
-      results = cleanup_duplicates(dry_run: false)
+      results = cleanup_duplicates(dry_run: false, source_type: "xero")
+
+      puts "\nResults:"
+      puts "  Duplicate groups processed: #{results[:groups_processed]}"
+      puts "  Documents kept: #{results[:kept]}"
+      puts "  Documents deleted: #{results[:deleted]}"
+      puts "  Errors: #{results[:errors].count}"
+
+      if results[:errors].any?
+        puts "\nErrors (first 5):"
+        results[:errors].first(5).each { |e| puts "  #{e}" }
+      end
+
+      puts "\n" + "=" * 60
+    end
+
+    desc "Dry run: Preview ALL duplicate document cleanup (all source types)"
+    task duplicates_all_dry_run: :environment do
+      puts "=" * 60
+      puts "ALL Duplicate Document Cleanup - DRY RUN"
+      puts "=" * 60
+      puts "Scope: ALL source types (xero, corporate, email, job, etc.)"
+      puts ""
+
+      results = cleanup_duplicates(dry_run: true, source_type: nil)
+
+      puts "\nResults:"
+      puts "  Duplicate groups processed: #{results[:groups_processed]}"
+      puts "  Documents to keep: #{results[:kept]}"
+      puts "  Documents to delete: #{results[:to_delete]}"
+      puts "  Errors: #{results[:errors].count}"
+
+      if results[:errors].any?
+        puts "\nErrors (first 10):"
+        results[:errors].first(10).each { |e| puts "  #{e}" }
+      end
+
+      if results[:samples].any?
+        puts "\nSample deletions (first 10):"
+        results[:samples].first(10).each do |sample|
+          puts "  Keep: #{sample[:keep_id]} (#{sample[:keep_reason]})"
+          puts "  Delete: #{sample[:delete_ids].join(', ')}"
+          puts ""
+        end
+      end
+
+      puts "\n" + "=" * 60
+      puts "To execute cleanup, run:"
+      puts "  rails xero:cleanup:duplicates_all_execute"
+    end
+
+    desc "Execute: Delete ALL duplicate documents (all source types)"
+    task duplicates_all_execute: :environment do
+      puts "=" * 60
+      puts "ALL Duplicate Document Cleanup - EXECUTE"
+      puts "=" * 60
+      puts "Scope: ALL source types (xero, corporate, email, job, etc.)"
+      puts "\n⚠️  WARNING: This affects ALL document types, not just Xero!"
+      puts "This will DELETE duplicate WarehouseDocuments across ALL sources."
+      puts "Press Ctrl+C within 10 seconds to cancel..."
+      sleep 10
+
+      results = cleanup_duplicates(dry_run: false, source_type: nil)
 
       puts "\nResults:"
       puts "  Duplicate groups processed: #{results[:groups_processed]}"
@@ -408,7 +478,7 @@ namespace :xero do
 
     private
 
-    def cleanup_duplicates(dry_run:)
+    def cleanup_duplicates(dry_run:, source_type: nil)
       results = {
         groups_processed: 0,
         kept: 0,
@@ -419,9 +489,14 @@ namespace :xero do
       }
 
       # Find all content hashes with multiple documents
-      duplicate_hashes = WarehouseDocument
+      # Scope to source_type if provided (matches status check)
+      base_query = WarehouseDocument
         .joins(:storage_blob)
         .where.not(storage_blobs: { content_hash: nil })
+
+      base_query = base_query.where(source_type: source_type) if source_type.present?
+
+      duplicate_hashes = base_query
         .group("storage_blobs.content_hash")
         .having("COUNT(*) > 1")
         .pluck("storage_blobs.content_hash")
@@ -430,10 +505,13 @@ namespace :xero do
 
       duplicate_hashes.each_with_index do |hash, index|
         begin
-          docs = WarehouseDocument
+          docs_query = WarehouseDocument
             .joins(:storage_blob)
             .where(storage_blobs: { content_hash: hash })
-            .order(Arel.sql("CASE WHEN documentable_id IS NOT NULL THEN 0 ELSE 1 END, created_at ASC"))
+
+          docs_query = docs_query.where(source_type: source_type) if source_type.present?
+
+          docs = docs_query.order(Arel.sql("CASE WHEN documentable_id IS NOT NULL THEN 0 ELSE 1 END, created_at ASC"))
 
           # Keep the best one (linked > oldest)
           keep_doc = docs.first
