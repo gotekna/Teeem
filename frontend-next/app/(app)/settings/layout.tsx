@@ -17,6 +17,7 @@ import {
   Server,
   Code,
   Wrench,
+  Plug,
 } from "lucide-react";
 
 // Personal tabs - visible to all authenticated users
@@ -28,7 +29,6 @@ const PERSONAL_TABS = [
 ];
 
 // Organization tabs - visible to admin users only
-// SSoT: Integrations is now under Company > Connections > Integrations
 // SSoT: Documents moved under Company
 // SSoT: Entity Config moved under Company
 const ORGANIZATION_TABS = [
@@ -37,6 +37,7 @@ const ORGANIZATION_TABS = [
   { id: "corporate", label: "Corporate", icon: Building2 },
   { id: "company", label: "Company", icon: Building },
   { id: "operations", label: "Operations", icon: Wrench },
+  { id: "integrations", label: "Integrations", icon: Plug },
   { id: "system", label: "System", icon: Server },
   { id: "developer", label: "Developer", icon: Code },
 ];

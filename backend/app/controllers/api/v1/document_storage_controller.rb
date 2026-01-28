@@ -1180,20 +1180,21 @@ module Api
       # Why: Avoids double transfer (S3 → Rails → Browser), browser fetches directly from S3
       # Params:
       #   - file_id: Direct storage reference (S3 key or SharePoint item ID)
-      #   - document_id: JobDocument ID (will lookup storage_reference from the model)
+      #   - document_id: WarehouseDocument ID (will lookup storage_reference from the model)
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def presigned_url
         file_id = params[:file_id]
         document_id = params[:document_id]
 
-        # Support both file_id (direct storage ID) and document_id (JobDocument lookup)
+        # Support both file_id (direct storage ID) and document_id (WarehouseDocument lookup)
         if document_id.present?
-          document = JobDocument.find_by(id: document_id)
+          document = WarehouseDocument.find_by(id: document_id)
           unless document
             return render json: { success: false, error: "Document not found" }, status: :not_found
           end
 
-          # SSoT: Use storage_reference from StorableDocument concern
-          file_id = document.storage_reference
+          # SSoT: Use storage_path from storage_blob
+          file_id = document.storage_blob&.storage_path || document.storage_path
           unless file_id.present?
             return render json: { success: false, error: "Document has no storage reference" }, status: :unprocessable_entity
           end
@@ -1261,25 +1262,17 @@ module Api
             client.delete_file(file_id)
           end
 
-          # SSoT: Update database to reflect deletion
-          # Find and remove any JobDocument records pointing to this file
-          deleted_docs = JobDocument.where(storage_item_id: file_id)
-          deleted_count = deleted_docs.count
-          deleted_docs.destroy_all if deleted_count > 0
-
-          # Also check CorporateCompanyDocument
-          deleted_corp_docs = CorporateCompanyDocument.where(storage_file_id: file_id)
-          deleted_corp_count = deleted_corp_docs.count
-          deleted_corp_docs.destroy_all if deleted_corp_count > 0
-
-          # Also clean up any standalone WarehouseDocuments via StorageBlob
+          # SSoT (Jan 2026): Update database to reflect deletion via WarehouseDocument
+          # Find StorageBlob and delete associated WarehouseDocuments
           blob = StorageBlob.find_by(storage_path: file_id)
+          deleted_count = 0
           if blob
-            orphaned_warehouse = WarehouseDocument.where(storage_blob: blob).where(documentable_id: nil)
-            orphaned_warehouse.destroy_all
+            deleted_count = WarehouseDocument.where(storage_blob: blob).count
+            WarehouseDocument.where(storage_blob: blob).destroy_all
+            # Note: Don't destroy blob yet - let blob:cleanup handle orphans safely
           end
 
-          Rails.logger.info "[DocumentStorage] Deleted file #{file_id}, removed #{deleted_count} JobDocument(s), #{deleted_corp_count} CorporateCompanyDocument(s)"
+          Rails.logger.info "[DocumentStorage] Deleted file #{file_id}, removed #{deleted_count} WarehouseDocument(s)"
 
           render json: { success: true, message: "File deleted successfully" }
 
@@ -2389,9 +2382,9 @@ module Api
       # - 'sharepoint' or nil: Downloads from SharePoint
       #
       # Params:
-      #   document_id: JobDocument ID (required)
+      #   document_id: WarehouseDocument ID (required)
       #   preview: "true" for inline display, omit for attachment download
-      #
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def job_document_download
         document_id = params[:document_id]
         is_preview = params[:preview] == "true"
@@ -2400,16 +2393,21 @@ module Api
           return render json: { error: "document_id is required" }, status: :bad_request
         end
 
-        document = JobDocument.find_by(id: document_id)
+        document = WarehouseDocument.find_by(id: document_id)
 
         unless document
           return render json: { error: "Document not found" }, status: :not_found
         end
 
+        blob = document.storage_blob
+        unless blob&.storage_path.present?
+          return render json: { error: "Document has no storage reference" }, status: :unprocessable_entity
+        end
+
         begin
           # SSoT: Only serve documents from current storage provider (no fallback)
           storage_config = StorageConfiguration.instance
-          doc_provider = document.storage_provider || "sharepoint"
+          doc_provider = document.meta("storage_provider") || storage_config.provider_type || "sharepoint"
 
           unless storage_config.document_in_current_provider?(doc_provider)
             return render json: {
@@ -2421,9 +2419,9 @@ module Api
           # Route to correct provider based on document's storage_provider
           case doc_provider
           when "s3_compatible", "wasabi", "s3"
-            download_from_s3(document, is_preview)
+            download_from_s3_warehouse(document, is_preview)
           when "sharepoint"
-            download_from_sharepoint(document, is_preview)
+            download_from_sharepoint_warehouse(document, is_preview)
           else
             render json: { error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
           end
@@ -2433,7 +2431,7 @@ module Api
         rescue DocumentProviders::NotConnectedError => e
           render json: { error: "Storage provider not connected: #{e.message}" }, status: :service_unavailable
         rescue StandardError => e
-          Rails.logger.error "[JobDocumentDownload] Error downloading document #{document_id}: #{e.message}"
+          Rails.logger.error "[WarehouseDocumentDownload] Error downloading document #{document_id}: #{e.message}"
           Rails.logger.error e.backtrace.first(5).join("\n")
           render json: { error: "Failed to download: #{e.message}" }, status: :internal_server_error
         end
