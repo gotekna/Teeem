@@ -586,8 +586,8 @@ export function EmailSyncDashboardTab() {
                       </TableHeader>
                       <TableBody>
                         {org.mailboxes.map(mailbox => {
-                          // Calculate missing counts
-                          const emailMissing = mailbox.email_count - mailbox.email_blob_count - (mailbox.content_unavailable_count || 0);
+                          // Calculate missing counts (simple: count - blobs)
+                          const emailMissing = mailbox.email_count - mailbox.email_blob_count;
                           const attMissing = mailbox.attachment_count - mailbox.blob_count;
 
                           return (
