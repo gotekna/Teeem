@@ -1778,7 +1778,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const responseDocuments = documentAttachments.filter(a => a.action_item_id || a.category === 'response');
 
   // Emails linked to questions OR with category 'response' are response items
-  const responseEmails = allEmailAttachments.filter(a => a.action_item_id || a.category === 'response');
+  // FRC (Jan 2026): EXCLUDE source emails - they're INPUT (task created from), not OUTPUT
+  // is_source=true marks the email the task was created from - never show as responses
+  const responseEmails = allEmailAttachments.filter(a =>
+    (a.action_item_id || a.category === 'response') &&
+    !a.is_source
+  );
 
   // Combined response attachments (documents + emails linked to questions)
   const responseAttachments = [...responseDocuments, ...responseEmails];
