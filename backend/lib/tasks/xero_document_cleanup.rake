@@ -476,6 +476,100 @@ namespace :xero do
       puts "\n" + "=" * 60
     end
 
+    desc "Set metadata company_id on all corporate docs linked via linkable"
+    task fix_metadata: :environment do
+      puts "=" * 60
+      puts "Fix Corporate Document Metadata"
+      puts "=" * 60
+
+      # Find docs with linkable but missing metadata company_id
+      docs_to_fix = WarehouseDocument
+        .where(source_type: "corporate")
+        .where(linkable_type: "CorporateCompany")
+        .where.not(linkable_id: nil)
+        .where("metadata->>'company_id' IS NULL")
+
+      total = docs_to_fix.count
+      puts "Found #{total} docs with linkable but missing metadata company_id"
+
+      fixed = 0
+      errors = []
+
+      docs_to_fix.find_each do |doc|
+        begin
+          doc.update!(
+            metadata: (doc.metadata || {}).merge("company_id" => doc.linkable_id.to_s)
+          )
+          fixed += 1
+          puts "Progress: #{fixed}/#{total}" if fixed % 500 == 0
+        rescue => e
+          errors << "Doc #{doc.id}: #{e.message}"
+        end
+      end
+
+      puts "\nResults:"
+      puts "  Total: #{total}"
+      puts "  Fixed: #{fixed}"
+      puts "  Errors: #{errors.count}"
+
+      if errors.any?
+        puts "\nErrors (first 5):"
+        errors.first(5).each { |e| puts "  #{e}" }
+      end
+
+      puts "\n" + "=" * 60
+    end
+
+    desc "Link ALL remaining unmatched corporate docs to Homes of Hope (#35)"
+    task link_all_unmatched: :environment do
+      puts "=" * 60
+      puts "Link All Unmatched Corporate Docs to Homes of Hope"
+      puts "=" * 60
+
+      hoh_company = CorporateCompany.find(35)
+      puts "Company: #{hoh_company.name} (ID: #{hoh_company.id})"
+
+      unmatched = WarehouseDocument
+        .where(source_type: "corporate")
+        .where(linkable_id: nil)
+
+      total = unmatched.count
+      puts "Found #{total} unmatched corporate documents"
+
+      linked = 0
+      errors = []
+
+      unmatched.find_each do |doc|
+        begin
+          doc.update!(
+            linkable_type: "CorporateCompany",
+            linkable_id: hoh_company.id,
+            metadata: (doc.metadata || {}).merge(
+              "company_id" => hoh_company.id.to_s,
+              "reconciled_at" => Time.current.iso8601,
+              "reconciled_reason" => "catch_all_unmatched"
+            )
+          )
+          linked += 1
+          puts "Progress: #{linked}/#{total}" if linked % 500 == 0
+        rescue => e
+          errors << "Doc #{doc.id}: #{e.message}"
+        end
+      end
+
+      puts "\nResults:"
+      puts "  Total: #{total}"
+      puts "  Linked: #{linked}"
+      puts "  Errors: #{errors.count}"
+
+      if errors.any?
+        puts "\nErrors (first 5):"
+        errors.first(5).each { |e| puts "  #{e}" }
+      end
+
+      puts "\n" + "=" * 60
+    end
+
     desc "Link HOH folder documents to Homes of Hope (CorporateCompany #35)"
     task link_hoh: :environment do
       puts "=" * 60

@@ -23,9 +23,13 @@ module Api
         end
 
         # SSoT: Query WarehouseDocument for corporate documents with this company_id
+        # Check both metadata and linkable association (catch-all)
         docs = WarehouseDocument
           .where(source_type: "corporate")
-          .where("metadata->>'company_id' = ?", company_id.to_s)
+          .where(
+            "metadata->>'company_id' = :id OR (linkable_type = 'CorporateCompany' AND linkable_id = :id_int)",
+            id: company_id.to_s, id_int: company_id.to_i
+          )
           .includes(:storage_blob)
           .order(created_at: :desc)
           .limit(500)

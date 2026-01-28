@@ -1147,26 +1147,13 @@ module Api
         end
 
         begin
-          # SSoT: Check storage provider to route to correct download method
-          storage_config = StorageConfiguration.instance
-          provider_type = storage_config&.provider_type || "sharepoint"
-
-          if provider_type.to_s.in?(%w[wasabi s3 s3_compatible])
-            # S3/Wasabi: file_id is the S3 key
-            # Fallback: Pre-migration files may still be on SharePoint
-            begin
-              download_from_s3_by_key(file_id, is_preview)
-            rescue DocumentProviders::NotFoundError => e
-              if sharepoint_connected?
-                Rails.logger.info "[DocumentStorage] S3 download failed for '#{file_id}', falling back to SharePoint"
-                download_from_sharepoint_by_id(file_id, is_preview)
-              else
-                raise e
-              end
-            end
-          else
-            # SharePoint: file_id is the Graph API item ID
+          # Route by file_id format, not just current provider.
+          # SharePoint item IDs are alphanumeric (e.g. "01P43HWV5GJTQ6IY66V5AKLYLFE7LSUORX").
+          # S3 keys have path separators or extensions (e.g. "Blobs/ab/abc123.pdf").
+          if sharepoint_item_id?(file_id)
             download_from_sharepoint_by_id(file_id, is_preview)
+          else
+            download_from_s3_by_key(file_id, is_preview)
           end
 
         rescue DocumentProviders::NotFoundError => e
@@ -1213,27 +1200,13 @@ module Api
         end
 
         begin
-          # SSoT: Check storage provider to route to correct method
-          storage_config = StorageConfiguration.instance
-          provider_type = storage_config&.provider_type || "sharepoint"
-
-          if provider_type.to_s.in?(%w[wasabi s3 s3_compatible])
-            # S3/Wasabi: file_id is the S3 key
-            # Fallback: Pre-migration files may still be on SharePoint.
-            # S3 presigned URLs are generated without verifying the key exists,
-            # so we must check existence first to avoid broken URLs.
-            if s3_file_exists?(file_id)
-              presigned_url_for_s3(file_id)
-            elsif sharepoint_connected?
-              Rails.logger.info "[DocumentStorage] S3 key not found for '#{file_id}', falling back to SharePoint"
-              presigned_url_for_sharepoint(file_id)
-            else
-              # No fallback available - generate S3 URL anyway (will fail in browser)
-              presigned_url_for_s3(file_id)
-            end
-          else
-            # SharePoint: file_id is the Graph API item ID
+          # Route by file_id format, not just current provider.
+          # SharePoint item IDs are alphanumeric (e.g. "01P43HWV5GJTQ6IY66V5AKLYLFE7LSUORX").
+          # S3 keys have path separators or extensions (e.g. "Blobs/ab/abc123.pdf").
+          if sharepoint_item_id?(file_id)
             presigned_url_for_sharepoint(file_id)
+          else
+            presigned_url_for_s3(file_id)
           end
 
         rescue DocumentProviders::NotFoundError => e
@@ -2651,17 +2624,12 @@ module Api
         end
       end
 
-      # Generate presigned URL for S3/Wasabi files
-      # Check if a file exists on S3 (HEAD request - very cheap, no content transfer)
-      # Used by presigned_url to detect pre-migration SharePoint files before generating a broken URL
-      def s3_file_exists?(s3_key)
-        credential = S3CompatibleCredential.active.connected.first
-        return false unless credential
-
-        provider = DocumentProviders::S3Compatible.new(credential)
-        provider.file_exists?(s3_key)
-      rescue StandardError
-        false
+      # Detect SharePoint Graph API item IDs by format (no API call).
+      # SharePoint IDs: alphanumeric + !, no slashes or dots
+      # S3 keys: contain path separators / or file extensions .
+      # Matches DocumentProviders::SharePoint#looks_like_id?
+      def sharepoint_item_id?(file_id)
+        file_id.present? && !file_id.include?("/") && file_id.match?(/\A[A-Za-z0-9!_-]+\z/)
       end
 
       # SSoT: Used by presigned_url action for PDF performance optimization
