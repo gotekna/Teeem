@@ -86,22 +86,20 @@ module Api
                                            .where("storage_email_path IS NOT NULL AND storage_email_path != ''")
                                            .sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
-            # Attachment storage breakdown - SSoT: EmailAttachment linked to SyncedEmail
+            # Attachment storage breakdown - SSoT (Jan 2026): WarehouseDocument with source_type='email_attachment'
             email_ids = emails.pluck(:id)
-            attachments = EmailAttachment.where(email_warehouse_id: email_ids)
-            total_attachments = attachments.count  # SSoT: total attachment count
+            attachments = WarehouseDocument.where(source_type: "email_attachment")
+                                           .where("metadata->>'synced_email_id' IN (?)", email_ids.map(&:to_s))
+            total_attachments = attachments.count
             wasabi_attachments = attachments.where.not(storage_blob_id: nil).count
-            sharepoint_attachments = attachments.where(storage_blob_id: nil)
-                                                .where("storage_path IS NOT NULL AND storage_path != ''")
-                                                .count
+            sharepoint_attachments = 0  # Legacy SharePoint path no longer used
 
             # Deduplication stats (how many unique blobs vs total references)
             blob_ids_with_count = attachments.where.not(storage_blob_id: nil).pluck(:storage_blob_id)
             unique_blob_count = blob_ids_with_count.uniq.count
             dedup_savings_count = blob_ids_with_count.count - unique_blob_count
             # Calculate bytes saved by deduplication
-            dedup_savings_bytes = if unique_blob_count > 0 && defined?(StorageBlob)
-              # Get average blob size from the blobs used by these attachments
+            dedup_savings_bytes = if unique_blob_count > 0
               avg_blob_size = StorageBlob.where(id: blob_ids_with_count.uniq).average(:file_size)&.to_i || 0
               dedup_savings_count * avg_blob_size
             else
@@ -110,21 +108,17 @@ module Api
 
             # Per-mailbox attachment counts - include ALL mailboxes
             per_mailbox_attachment_counts = attachments
-              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
+              .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
               .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
               .count
 
             # Shared attachments per mailbox - include ALL mailboxes
-            shared_per_mailbox = if defined?(StorageBlob)
-              attachments
-                .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
-                .joins("INNER JOIN storage_blobs ON storage_blobs.id = email_attachments.storage_blob_id")
-                .where("storage_blobs.reference_count > 1")
-                .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
-                .count
-            else
-              {}
-            end
+            shared_per_mailbox = attachments
+              .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+              .joins("INNER JOIN storage_blobs ON storage_blobs.id = warehouse_documents.storage_blob_id")
+              .where("storage_blobs.reference_count > 1")
+              .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
+              .count
 
             # Per-mailbox email storage counts - include ALL mailboxes
             per_mailbox_wasabi_counts = emails
@@ -138,19 +132,15 @@ module Api
               .group("COALESCE(NULLIF(mailbox_owner_email, ''), 'Unknown')")
               .count
 
-            # Per-mailbox attachment storage counts - include ALL mailboxes
+            # Per-mailbox attachment storage counts - SSoT (Jan 2026): WarehouseDocument
             per_mailbox_att_wasabi = attachments
-              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
+              .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
               .where.not(storage_blob_id: nil)
               .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
               .count
 
-            per_mailbox_att_sharepoint = attachments
-              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
-              .where(storage_blob_id: nil)
-              .where("email_attachments.storage_path IS NOT NULL AND email_attachments.storage_path != ''")
-              .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
-              .count
+            # Note: SharePoint path no longer used for email attachments (all via StorageBlob now)
+            per_mailbox_att_sharepoint = {}
 
             # Document storage breakdown (Tekna tenant only - org-wide)
             # SSoT: Orphaned documents (sync_status: 'missing') are deleted, not tracked
@@ -576,14 +566,14 @@ module Api
                                      .count
           remaining_to_upload = uploadable - with_storage
 
-          # Email Attachments Storage Progress
-          attachment_count = defined?(EmailAttachment) ? EmailAttachment.count : 0
-          attachments_with_blob = defined?(EmailAttachment) ? EmailAttachment.where.not(storage_blob_id: nil).count : 0
-          attachments_legacy = defined?(EmailAttachment) ? EmailAttachment.where(storage_blob_id: nil).where("storage_path IS NOT NULL AND storage_path != ''").count : 0
+          # Email Attachments Storage Progress (SSoT Jan 2026: WarehouseDocument)
+          attachment_count = WarehouseDocument.where(source_type: "email_attachment").count
+          attachments_with_blob = WarehouseDocument.where(source_type: "email_attachment").where.not(storage_blob_id: nil).count
+          attachments_legacy = 0  # Legacy EmailAttachment table dropped
 
           # StorageBlob Deduplication Stats (SSoT for file storage)
-          unique_blobs = defined?(StorageBlob) ? StorageBlob.count : 0
-          total_blob_bytes = defined?(StorageBlob) ? (StorageBlob.sum(:file_size) || 0) : 0
+          unique_blobs = StorageBlob.count
+          total_blob_bytes = StorageBlob.sum(:file_size) || 0
           # Deduplication ratio: if 1000 attachments → 500 unique blobs = 2x dedup
           dedup_ratio = unique_blobs > 0 ? (attachments_with_blob.to_f / unique_blobs).round(2) : 0
           files_saved = attachments_with_blob > unique_blobs ? attachments_with_blob - unique_blobs : 0
@@ -794,10 +784,9 @@ module Api
             }
           end
 
-          # Email attachments - SSoT: Total from EmailAttachment, not WarehouseDocument
-          email_attach_total = EmailAttachment.count
-          email_attach_scope = WarehouseDocument.where(source_type: "email", documentable_type: "EmailAttachment")
-          email_attach_linked = email_attach_scope.count
+          # Email attachments - SSoT (Jan 2026): WarehouseDocument with source_type='email_attachment'
+          email_attach_scope = WarehouseDocument.where(source_type: "email_attachment")
+          email_attach_total = email_attach_scope.count
           email_attach_with_blob = email_attach_scope.where.not(storage_blob_id: nil).count
           email_attach_with_file = count_with_file.call(email_attach_scope)
           if email_attach_total > 0
@@ -805,10 +794,10 @@ module Api
               source_type: "email_attachment",
               label: "Email Attachments",
               total: email_attach_total,
-              with_blob: email_attach_linked,  # "LINKED" = has WarehouseDocument
+              with_blob: email_attach_with_blob,
               with_file: email_attach_with_file,
-              without_blob: email_attach_total - email_attach_linked,
-              storage_rate: ((email_attach_linked.to_f / email_attach_total) * 100).round(1),
+              without_blob: email_attach_total - email_attach_with_blob,
+              storage_rate: ((email_attach_with_blob.to_f / email_attach_total) * 100).round(1),
               file_rate: ((email_attach_with_file.to_f / email_attach_total) * 100).round(1)
             }
           end

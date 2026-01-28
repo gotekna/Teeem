@@ -220,9 +220,9 @@ class BulkEmailSyncJob < ApplicationJob
     attachments = client.get_email_attachments(email.mailbox_owner_email, email.outlook_id)
 
     attachments.each do |attachment_data|
-      # SSoT: Use EmailAttachmentFilterService for filtering signatures/embedded images
-      if EmailAttachmentFilterService.should_skip?(attachment_data)
-        Rails.logger.debug "[BulkSync] Skipping attachment: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
+      # Filter out inline/embedded images (typically signatures)
+      if attachment_data["isInline"] == true || attachment_data["contentId"].present?
+        Rails.logger.debug "[BulkSync] Skipping inline attachment: #{attachment_data['name']}"
         next
       end
 

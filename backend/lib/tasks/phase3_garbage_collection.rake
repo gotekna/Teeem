@@ -43,21 +43,19 @@ namespace :blob do
       # Find blobs older than age_days with no references
       cutoff_date = age_days.days.ago
 
-      # Phase 3: Primary check is WarehouseDocument (SSoT)
+      # SSoT (Jan 2026): WarehouseDocument is THE ONE table for all document metadata
       warehouse_blob_ids = WarehouseDocument.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
 
-      # Legacy: Also check direct associations
-      email_blob_ids = EmailAttachment.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
+      # Legacy direct associations (not WarehouseDocument)
       corp_blob_ids = CorporateCompanyDocument.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
       chat_blob_ids = ChatMessage.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
       bill_blob_ids = BillInbox.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
 
       # Combine all referenced blob IDs
-      all_referenced_ids = (warehouse_blob_ids + email_blob_ids + corp_blob_ids + chat_blob_ids + bill_blob_ids).uniq
+      all_referenced_ids = (warehouse_blob_ids + corp_blob_ids + chat_blob_ids + bill_blob_ids).uniq
 
       puts "Reference counts:"
       puts "  WarehouseDocuments: #{warehouse_blob_ids.count} unique blobs"
-      puts "  EmailAttachments: #{email_blob_ids.count} unique blobs"
       puts "  CorporateCompanyDocuments: #{corp_blob_ids.count} unique blobs"
       puts "  ChatMessages: #{chat_blob_ids.count} unique blobs"
       puts "  BillInboxes: #{bill_blob_ids.count} unique blobs"
@@ -159,14 +157,13 @@ namespace :blob do
       checked = 0
 
       StorageBlob.find_each do |blob|
-        # Count actual references
+        # Count actual references (SSoT: WarehouseDocument + legacy direct associations)
         warehouse_count = WarehouseDocument.where(storage_blob_id: blob.id).count
-        email_count = EmailAttachment.where(storage_blob_id: blob.id).count
         corp_count = CorporateCompanyDocument.where(storage_blob_id: blob.id).count
         chat_count = ChatMessage.where(storage_blob_id: blob.id).count
         bill_count = BillInbox.where(storage_blob_id: blob.id).count
 
-        actual_count = warehouse_count + email_count + corp_count + chat_count + bill_count
+        actual_count = warehouse_count + corp_count + chat_count + bill_count
         stored_count = blob.reference_count
 
         if actual_count != stored_count
@@ -369,11 +366,10 @@ namespace :blob do
       puts ""
     end
 
-    # Reference integrity quick check
+    # Reference integrity quick check (SSoT: WarehouseDocument + legacy)
     mismatched = 0
     StorageBlob.where("reference_count > 0").find_each do |blob|
       actual = WarehouseDocument.where(storage_blob_id: blob.id).count +
-               EmailAttachment.where(storage_blob_id: blob.id).count +
                CorporateCompanyDocument.where(storage_blob_id: blob.id).count
       mismatched += 1 if actual != blob.reference_count
     end

@@ -314,9 +314,7 @@ namespace :blob do
         unlinked = WarehouseDocument.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil)
         puts "  Unlinked: #{unlinked} warehouse documents"
 
-        # Bulk unlink from EmailAttachments
-        puts "  Unlinking email attachments..."
-        EmailAttachment.where(storage_blob_id: orphan_ids).update_all(storage_blob_id: nil) rescue nil
+        # Note: EmailAttachment removed (Jan 2026) - attachments now in WarehouseDocument
 
         # Bulk unlink from ALL associations with storage_blob_id foreign key
         puts "  Unlinking other associations..."

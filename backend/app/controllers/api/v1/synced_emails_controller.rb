@@ -1536,8 +1536,9 @@ class Api::V1::SyncedEmailsController < ApplicationController
     emails_for_stats = SyncedEmail.where(id: email_ids)
     last_received = emails_for_stats.maximum(:received_at)
 
-    # Attachment stats for this mailbox
-    attachments = EmailAttachment.where(email_warehouse_id: email_ids)
+    # Attachment stats for this mailbox (SSoT Jan 2026: WarehouseDocument)
+    attachments = WarehouseDocument.where(source_type: "email_attachment")
+                                   .where("metadata->>'synced_email_id' IN (?)", email_ids.map(&:to_s))
     attachment_count = attachments.count
     blob_count = attachments.where.not(storage_blob_id: nil).count
 
@@ -1704,8 +1705,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
       client = MicrosoftAppGraphClient.new(credential)
       ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
 
-      # SSoT: Use EmailAttachmentFilterService to filter out signature/embedded images
-      filtered = EmailAttachmentFilterService.filter_attachments(ms_attachments)
+      # Filter out embedded images/signatures (inline attachments with contentId)
+      # These are typically small signature images that clutter the attachment list
+      filtered = ms_attachments.reject do |att|
+        att["isInline"] == true || att["contentId"].present?
+      end
 
       # SSoT: Update attachment_count when we discover actual count from Outlook
       # This ensures the count is accurate for future list views
