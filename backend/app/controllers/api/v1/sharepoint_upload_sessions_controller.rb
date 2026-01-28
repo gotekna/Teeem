@@ -192,6 +192,23 @@ module Api
             last_synced_at: Time.current,
             document_type: doc_type
           )
+
+          # Dual-write: Create/update WarehouseDocument entry for File Warehouse
+          warehouse_doc = WarehouseDocument.find_or_initialize_by(documentable: job_doc)
+          warehouse_doc.update!(
+            source_type: "job",
+            display_name: params[:filename],
+            original_filename: params[:filename],
+            folder: params[:folder_path],
+            file_size: params[:file_size].to_i,
+            linkable: job,
+            metadata: (warehouse_doc.metadata || {}).merge(
+              "job_code" => job.job_code,
+              "document_type" => doc_type&.name,
+              "source" => "sharepoint_upload"
+            )
+          )
+
           Rails.logger.info "[SharePointUploadSession] Indexed JobDocument #{job_doc.id} for #{params[:filename]}"
         end
 

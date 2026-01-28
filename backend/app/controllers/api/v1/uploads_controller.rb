@@ -251,6 +251,24 @@ module Api
           sync_status: "synced"
         )
 
+        # Dual-write: Create WarehouseDocument entry for File Warehouse
+        WarehouseDocument.create!(
+          documentable: doc,
+          source_type: "job",
+          display_name: filename,
+          original_filename: filename,
+          folder: doc.folder_path,
+          content_type: content_type,
+          file_size: file_size,
+          storage_blob: blob,
+          linkable: job,
+          metadata: {
+            job_code: job.job_code,
+            document_type: metadata[:document_type] || metadata["document_type"],
+            source: "manual"
+          }
+        ) rescue Rails.logger.error("[UploadsController] Failed to create warehouse entry for JobDocument #{doc.id}")
+
         { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.file_name } }
       end
 

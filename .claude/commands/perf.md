@@ -153,9 +153,55 @@ For each navigation:
 - **LCP > 4000ms** = Very slow (FAIL)
 - Take snapshot to verify content rendered (no persistent spinners >2s)
 
-### Step 1.5: Content Validation (CRITICAL)
+### Step 1.5: Error State Detection (CRITICAL - DO THIS FIRST)
 
-**CLS metrics don't catch functional bugs!** After each performance trace, take a snapshot and validate:
+**A broken page can still have fast LCP/CLS scores!** The shell renders quickly but the content fails to load. This is the #1 blind spot in performance-only checks.
+
+#### After EVERY performance trace:
+1. **Wait 3 seconds** for API calls to complete
+2. **Take a snapshot** of the fully-loaded page
+3. **Check the snapshot for error indicators:**
+
+#### Error State Checks (MANDATORY)
+| What to Look For | How to Detect in Snapshot | Verdict |
+|-----------------|--------------------------|---------|
+| Error messages | Text containing "Failed to", "Error", "Something went wrong", "Unexpected error" | **FAIL - BROKEN** |
+| Retry buttons | Button with text "Retry", "Try again", "Reload" | **FAIL - BROKEN** |
+| Empty page with no content | Main area has no data rows, no cards, no meaningful content | **WARN - Possibly broken** |
+| Console errors | Check console badge count (e.g., "Console 4" with error count) | **FAIL - API Error** |
+| 401/403 indicators | "Unauthorized", "Forbidden", "Access denied" | **FAIL - Auth broken** |
+
+#### How to Detect
+```
+After performance_start_trace completes:
+1. Wait 3 seconds: use wait_for with a known element, or just take_snapshot
+2. take_snapshot
+3. Search snapshot text for:
+   - "Failed to" / "Error" / "Something went wrong"
+   - Any "Retry" / "Try again" buttons
+   - Warning/error triangles or icons
+4. Check console badge: if errors > 0, copy and review
+5. If ANY error found: Mark as [FAIL - BROKEN PAGE] regardless of LCP/CLS
+```
+
+#### Example: The "Tasks PASS But Broken" Bug (2026-01-28)
+```
+WRONG ASSESSMENT (metrics-only):
+  Tasks: LCP 427ms, CLS 0.00 [PASS]
+
+CORRECT ASSESSMENT (with error detection):
+  Tasks: LCP 427ms, CLS 0.00 [FAIL - BROKEN PAGE]
+  Error: "Failed to load tasks" with Retry button visible
+  Console: "Error: An unexpected error occurred" (API returning 401)
+
+Root cause: Backend API returning 401 Unauthorized
+```
+
+**Rule: A fast broken page is worse than a slow working page.**
+
+### Step 1.6: Content Validation
+
+**CLS metrics don't catch functional bugs!** After confirming the page isn't broken (Step 1.5), validate content:
 
 #### Table Content Checks
 For any page with TeeemTableView:
@@ -368,30 +414,37 @@ Display summary table:
 ================================================================================
                        PERFORMANCE CHECK RESULTS
 ================================================================================
-Page                        LCP        CLS      Status
+Page                    LCP      CLS    Content    Status
 --------------------------------------------------------------------------------
-Jobs List                   800ms      0.02     [PASS]
-Jobs > Overview             600ms      0.00     [PASS]
-Jobs > Schedule            1200ms      0.15     [WARN] High CLS
-Jobs > Documents            500ms      0.00     [PASS]
-Jobs > Financials           700ms      0.00     [PASS]
-Jobs > Activity             450ms      0.00     [PASS]
-Jobs > Settings             400ms      0.00     [PASS]
-Contacts List               900ms      0.05     [PASS]
-Contacts > Overview         550ms      0.00     [PASS]
-Contacts > Corporate        600ms      0.00     [PASS]
-Contacts > Documents        500ms      0.00     [PASS]
-Contacts > Financial        650ms      0.00     [PASS]
-Contacts > Coms             400ms      0.00     [PASS]
-Contacts > Cases            500ms      0.00     [PASS]
-Contacts > Emails           700ms      0.00     [PASS]
-Pricebook List              600ms      0.00     [PASS]
-Pricebook > Item            550ms      0.00     [PASS]
-Email List                  750ms      0.03     [PASS]
-Email > Subfolder           400ms      0.00     [PASS]
-Email > Detail              500ms      0.02     [PASS]
-Tasks List                  650ms      0.01     [PASS]
-Tasks > Fullscreen          450ms      0.00     [PASS]
+Jobs List               800ms    0.02   OK         [PASS]
+Jobs > Overview         600ms    0.00   OK         [PASS]
+Jobs > Schedule        1200ms    0.15   OK         [WARN] High CLS
+Jobs > Documents        500ms    0.00   OK         [PASS]
+Jobs > Financials       700ms    0.00   OK         [PASS]
+Jobs > Activity         450ms    0.00   OK         [PASS]
+Jobs > Settings         400ms    0.00   OK         [PASS]
+Contacts List           900ms    0.05   OK         [PASS]
+Contacts > Overview     550ms    0.00   OK         [PASS]
+Contacts > Corporate    600ms    0.00   OK         [PASS]
+Contacts > Documents    500ms    0.00   OK         [PASS]
+Contacts > Financial    650ms    0.00   OK         [PASS]
+Contacts > Coms         400ms    0.00   OK         [PASS]
+Contacts > Cases        500ms    0.00   OK         [PASS]
+Contacts > Emails       700ms    0.00   OK         [PASS]
+Pricebook List          600ms    0.00   OK         [PASS]
+Pricebook > Item        550ms    0.00   OK         [PASS]
+Email List              750ms    0.03   OK         [PASS]
+Email > Subfolder       400ms    0.00   OK         [PASS]
+Email > Detail          500ms    0.02   OK         [PASS]
+Tasks List              650ms    0.01   OK         [PASS]
+Tasks > Fullscreen      450ms    0.00   OK         [PASS]
+================================================================================
+
+Content column values:
+  OK      = Page loaded with real data, no errors
+  BROKEN  = Error state detected (Failed to load, Retry button, etc.)
+  EMPTY   = Page loaded but shows no content (possibly broken)
+  ERROR   = Console errors detected
 ================================================================================
 
 SYSTEM HEALTH PERFORMANCE DASHBOARD:
@@ -615,6 +668,7 @@ Before implementing ANY performance fix, verify:
 | 4 | SSR data ignored | "0 records" displayed | → Client state read before SSR applied → wrong variable | 2025-01-09 |
 | 5 | Refs as bandaids | Added ref but bug returned | → Ref hid the real issue → effect still ran twice | 2025-12 |
 | 6 | Short cache TTL | Constant reloading | → Reduced TTL "for safety" → but mutations already clear cache | 2025-12 |
+| 7 | Metrics-only checks | Tasks "PASS" but page broken | → LCP measures shell render → API errors happen after paint → need snapshot validation | 2026-01-28 |
 
 **Use this table to:**
 1. Recognize if your current issue matches a known pattern

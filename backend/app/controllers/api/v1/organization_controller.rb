@@ -525,7 +525,10 @@ module Api
           verified_count: documents.where(ai_verification_status: "verified").count,
           needs_review_count: documents.where(ai_verification_status: %w[mismatch needs_review pending]).count,
           total_file_size: documents.sum(:file_size) || 0,
-          latest_upload: documents.maximum(:created_at)
+          latest_upload: documents.maximum(:created_at),
+          # WarehouseDocument SSoT stats (Phase 3 migration progress)
+          warehouse_total: WarehouseDocument.count,
+          warehouse_by_source: WarehouseDocument.group(:source_type).count
         }
 
         # Document types breakdown
