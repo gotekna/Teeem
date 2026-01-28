@@ -135,6 +135,10 @@ class WarehouseDocument < ApplicationRecord
   rescue ::TenantNotFoundError => e
     Rails.logger.error "[WarehouseDocument] download_url failed - no tenant: #{e.message}"
     nil
+  rescue DocumentProviders::NotConnectedError => e
+    # Storage not configured - gracefully return nil (common in local dev)
+    Rails.logger.debug "[WarehouseDocument] download_url skipped - storage not configured"
+    nil
   end
 
   # Update folder (instant - just DB update, no S3 copy)
