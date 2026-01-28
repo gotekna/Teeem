@@ -476,6 +476,57 @@ namespace :xero do
       puts "\n" + "=" * 60
     end
 
+    desc "Link HOH folder documents to Homes of Hope (CorporateCompany #35)"
+    task link_hoh: :environment do
+      puts "=" * 60
+      puts "Link HOH Documents to Homes of Hope"
+      puts "=" * 60
+
+      hoh_company = CorporateCompany.find(35)
+      puts "Company: #{hoh_company.name} (ID: #{hoh_company.id})"
+
+      hoh_docs = WarehouseDocument
+        .where(source_type: "corporate")
+        .where(documentable_id: nil)
+        .where(linkable_id: nil)
+        .where("folder LIKE ?", "Corporate/Charity/HOH/%")
+
+      total = hoh_docs.count
+      puts "Found #{total} HOH documents to link"
+
+      linked = 0
+      errors = []
+
+      hoh_docs.find_each do |doc|
+        begin
+          doc.update!(
+            linkable_type: "CorporateCompany",
+            linkable_id: hoh_company.id,
+            metadata: (doc.metadata || {}).merge(
+              "reconciled_at" => Time.current.iso8601,
+              "reconciled_reason" => "folder_path_HOH"
+            )
+          )
+          linked += 1
+          puts "Progress: #{linked}/#{total}" if linked % 200 == 0
+        rescue => e
+          errors << "Doc #{doc.id}: #{e.message}"
+        end
+      end
+
+      puts "\nResults:"
+      puts "  Total: #{total}"
+      puts "  Linked: #{linked}"
+      puts "  Errors: #{errors.count}"
+
+      if errors.any?
+        puts "\nErrors (first 5):"
+        errors.first(5).each { |e| puts "  #{e}" }
+      end
+
+      puts "\n" + "=" * 60
+    end
+
     private
 
     def cleanup_duplicates(dry_run:, source_type: nil)

@@ -7,7 +7,7 @@
 #
 module Api
   module V1
-    class DocumentTasksController < Api::V1::BaseController
+    class DocumentTasksController < ApplicationController
       before_action :set_job
 
       # GET /api/v1/jobs/:job_id/document_tasks?category=:document_type_id
