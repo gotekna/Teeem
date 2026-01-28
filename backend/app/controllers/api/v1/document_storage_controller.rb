@@ -1875,17 +1875,23 @@ module Api
 
       # POST /api/v1/documents/upload_signed_version
       # Upload a signed version of an existing draft document
-      # Creates a new JobDocument record linked to the original as parent_document
+      # SSoT (Jan 2026): Uses WarehouseDocument with version metadata
       # Params:
-      #   - parent_document_id: ID of the draft document to create signed version for
+      #   - parent_document_id: ID of the draft WarehouseDocument
       #   - file: The signed file to upload
       #   - folder_path: Optional subfolder path within the job folder
       def upload_signed_version
-        parent_doc = JobDocument.find(params[:parent_document_id])
-        job = parent_doc.job
+        parent_doc = WarehouseDocument.find(params[:parent_document_id])
+        job = parent_doc.linkable if parent_doc.linkable_type == "Job"
 
-        # Validate the document type supports versioning
-        unless parent_doc.versionable?
+        unless job
+          return render json: { success: false, error: "Document not linked to a job" }, status: :unprocessable_entity
+        end
+
+        # Validate the document supports versioning (check metadata)
+        doc_type_id = parent_doc.meta("document_type_id")
+        doc_type = DocumentType.find_by(id: doc_type_id) if doc_type_id
+        unless doc_type&.supports_versioning
           return render json: {
             success: false,
             error: "This document type does not support Draft/Signed versioning"
@@ -1893,7 +1899,7 @@ module Api
         end
 
         # Validate the parent is a draft
-        unless parent_doc.draft?
+        unless parent_doc.meta("version_status") == "draft"
           return render json: {
             success: false,
             error: "Only draft documents can have signed versions uploaded"
@@ -1923,7 +1929,7 @@ module Api
           end
 
           # Determine upload folder (same as parent document)
-          folder_path = parent_doc.folder_path || ""
+          folder_path = parent_doc.folder || ""
 
           # Generate filename with "Signed" suffix
           original_name = File.basename(file.original_filename, ".*")
@@ -1933,7 +1939,6 @@ module Api
           # Upload to SharePoint
           target_folder_id = job_folder["id"]
           if folder_path.present?
-            # Navigate to the subfolder if needed
             subfolder = client.find_or_create_subfolder(target_folder_id, folder_path)
             target_folder_id = subfolder["id"] if subfolder
           end
@@ -1945,16 +1950,42 @@ module Api
             content_type: file.content_type
           )
 
-          # Create the signed version using the model method
-          signed_version = parent_doc.create_signed_version!(
-            {
-              file_name: signed_filename,
-              file_extension: File.extname(signed_filename).delete_prefix(".").downcase,
-              file_size: uploaded_file["size"],
-              storage_item_id: uploaded_file["id"],
-              web_url: uploaded_file["webUrl"]
-            },
-            signed_by_user: current_user
+          # Create StorageBlob for the uploaded file
+          blob = StorageBlob.create!(
+            storage_path: uploaded_file["id"],
+            filename: signed_filename,
+            content_type: file.content_type,
+            byte_size: uploaded_file["size"]
+          )
+
+          # Create signed version as new WarehouseDocument with parent reference
+          version_number = (parent_doc.meta("version_number") || 1).to_i + 1
+          signed_version = WarehouseDocument.create!(
+            source_type: parent_doc.source_type,
+            linkable: job,
+            storage_blob: blob,
+            display_name: signed_filename,
+            original_filename: signed_filename,
+            folder: folder_path,
+            metadata: {
+              document_type_id: doc_type_id,
+              document_type: doc_type&.name,
+              version_status: "signed",
+              version_number: version_number,
+              parent_document_id: parent_doc.id,
+              signed_at: Time.current.iso8601,
+              signed_by_id: current_user&.id,
+              signed_by_name: current_user&.name,
+              storage_provider: "sharepoint"
+            }
+          )
+
+          # Update parent to reflect it has a signed version
+          parent_doc.update!(
+            metadata: parent_doc.metadata.merge(
+              "version_status" => "superseded",
+              "signed_version_id" => signed_version.id
+            )
           )
 
           render json: {
@@ -1962,16 +1993,16 @@ module Api
             message: "Signed version uploaded successfully",
             signed_document: {
               id: signed_version.id,
-              file_name: signed_version.file_name,
-              version_status: signed_version.version_status,
-              version_number: signed_version.version_number,
-              signed_at: signed_version.signed_at&.iso8601,
-              signed_by_name: signed_version.signed_by&.name,
+              file_name: signed_filename,
+              version_status: "signed",
+              version_number: version_number,
+              signed_at: signed_version.meta("signed_at"),
+              signed_by_name: signed_version.meta("signed_by_name"),
               web_url: uploaded_file["webUrl"]
             },
             parent_document: {
               id: parent_doc.id,
-              version_status: parent_doc.reload.version_status
+              version_status: "superseded"
             }
           }
 
@@ -2438,14 +2469,14 @@ module Api
       end
 
       # GET /api/v1/documents/job_document_url
-      # Get a pre-signed URL for direct browser access to a job document
+      # Get a pre-signed URL for direct browser access to a document
       #
       # Returns a URL that can be used directly in browser for 1 hour.
       # Useful for opening PDFs in new tabs, image previews, etc.
       #
       # Params:
-      #   document_id: JobDocument ID (required)
-      #
+      #   document_id: WarehouseDocument ID (required)
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def job_document_url
         document_id = params[:document_id]
 
@@ -2453,16 +2484,21 @@ module Api
           return render json: { success: false, error: "document_id is required" }, status: :bad_request
         end
 
-        document = JobDocument.find_by(id: document_id)
+        document = WarehouseDocument.find_by(id: document_id)
 
         unless document
           return render json: { success: false, error: "Document not found" }, status: :not_found
         end
 
+        blob = document.storage_blob
+        unless blob&.storage_path.present?
+          return render json: { success: false, error: "Document has no storage reference" }, status: :unprocessable_entity
+        end
+
         begin
           # SSoT: Only serve documents from current storage provider (no fallback)
           storage_config = StorageConfiguration.instance
-          doc_provider = document.storage_provider || "sharepoint"
+          doc_provider = document.meta("storage_provider") || storage_config.provider_type || "sharepoint"
 
           unless storage_config.document_in_current_provider?(doc_provider)
             return render json: {
@@ -2475,19 +2511,20 @@ module Api
           # Route to correct provider based on document's storage_provider
           case doc_provider
           when "s3_compatible", "wasabi", "s3"
-            url = get_s3_presigned_url(document)
+            url = get_s3_presigned_url_warehouse(document)
           when "sharepoint"
-            url = get_sharepoint_download_url(document)
+            url = get_sharepoint_download_url_warehouse(document)
           else
             return render json: { success: false, error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
           end
 
+          filename = document.original_filename || document.display_name
           render json: {
             success: true,
             download_url: url,
             storage_provider: doc_provider,
-            file_name: document.file_name,
-            mime_type: document.mime_type,
+            file_name: filename,
+            mime_type: document.content_type || blob&.content_type,
             expires_in: 3600
           }
 
@@ -2496,7 +2533,7 @@ module Api
         rescue DocumentProviders::NotConnectedError => e
           render json: { success: false, error: "Storage provider not connected" }, status: :service_unavailable
         rescue StandardError => e
-          Rails.logger.error "[JobDocumentUrl] Error getting URL for document #{document_id}: #{e.message}"
+          Rails.logger.error "[WarehouseDocumentUrl] Error getting URL for document #{document_id}: #{e.message}"
           render json: { success: false, error: "Failed to get download URL" }, status: :internal_server_error
         end
       end

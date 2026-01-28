@@ -143,19 +143,18 @@ module Api
             per_mailbox_att_sharepoint = {}
 
             # Document storage breakdown (Tekna tenant only - org-wide)
-            # SSoT: Orphaned documents (sync_status: 'missing') are deleted, not tracked
+            # SSoT (Jan 2026): Uses WarehouseDocument with StorageBlob
             document_storage = if org_name == "Tekna"
               doc_by_provider = { "s3_compatible" => 0, "sharepoint" => 0 }
-              [JobDocument, CorporateCompanyDocument, PeopleDocument].each do |klass|
-                next unless defined?(klass)
-                klass.group(:storage_provider).count.each do |provider, count|
-                  normalized = case provider
-                               when "s3_compatible", "wasabi", "s3" then "s3_compatible"
-                               when "sharepoint", nil then "sharepoint"
-                               else "s3_compatible"
-                               end
-                  doc_by_provider[normalized] += count
-                end
+              # Group WarehouseDocuments by storage provider in metadata
+              WarehouseDocument.joins(:storage_blob).find_each do |wd|
+                provider = wd.meta("storage_provider") || StorageConfiguration.instance&.provider_type || "sharepoint"
+                normalized = case provider
+                             when "s3_compatible", "wasabi", "s3" then "s3_compatible"
+                             when "sharepoint", nil then "sharepoint"
+                             else "s3_compatible"
+                             end
+                doc_by_provider[normalized] += 1
               end
               doc_by_provider
             else
@@ -503,42 +502,33 @@ module Api
         # Get company settings for organization name
         company_setting = CorporateCompanySetting.instance
 
-        # Document statistics (all company_documents)
-        # SSoT: Count documents WITH files (matches Documents page definition)
-        documents = CorporateCompanyDocument.all
-        documents_with_files = documents.where.not(file_name: [nil, ""])
-
-        # SSoT: Total documents across ALL tables (matches Documents page)
-        job_doc_count = defined?(JobDocument) ? JobDocument.where.not(file_name: [nil, ""]).count : 0
-        people_doc_count = defined?(PeopleDocument) ? PeopleDocument.where.not(title: [nil, ""]).count : 0
-        all_docs_total = documents_with_files.count + job_doc_count + people_doc_count
+        # Document statistics - SSoT (Jan 2026): WarehouseDocument is THE ONE source
+        warehouse_docs = WarehouseDocument.all
+        warehouse_by_source = warehouse_docs.group(:source_type).count
 
         doc_stats = {
-          total_documents: all_docs_total,  # SSoT: Grand total across all document tables
-          corporate_documents: documents_with_files.count,  # CorporateCompanyDocument only
-          job_documents_count: job_doc_count,  # JobDocument only
-          people_documents_count: people_doc_count,  # PeopleDocument only
-          total_records: documents.count,  # Full CorporateCompanyDocument count (admin)
-          by_source: documents.group(:source).count,
-          by_folder: documents.group(:folder).count,
-          by_ai_status: documents.group(:ai_verification_status).count,
-          verified_count: documents.where(ai_verification_status: "verified").count,
-          needs_review_count: documents.where(ai_verification_status: %w[mismatch needs_review pending]).count,
-          total_file_size: documents.sum(:file_size) || 0,
-          latest_upload: documents.maximum(:created_at),
-          # WarehouseDocument SSoT stats (Phase 3 migration progress)
-          warehouse_total: WarehouseDocument.count,
-          warehouse_by_source: WarehouseDocument.group(:source_type).count
+          total_documents: warehouse_docs.count,  # SSoT: Grand total in WarehouseDocument
+          corporate_documents: warehouse_by_source["corporate"] || 0,
+          job_documents_count: warehouse_by_source["job"] || 0,
+          people_documents_count: warehouse_by_source["people"] || 0,
+          email_documents_count: warehouse_by_source["email"] || 0,
+          contact_documents_count: warehouse_by_source["contact"] || 0,
+          total_records: warehouse_docs.count,
+          by_source: warehouse_by_source,
+          by_folder: warehouse_docs.group(:folder).count,
+          total_file_size: warehouse_docs.joins(:storage_blob).sum("storage_blobs.byte_size") || 0,
+          latest_upload: warehouse_docs.maximum(:created_at),
+          warehouse_total: warehouse_docs.count,
+          warehouse_by_source: warehouse_by_source
         }
 
-        # Document types breakdown
-        doc_type_stats = documents
-          .joins("LEFT JOIN document_types ON document_types.name = corporate_company_documents.document_type")
-          .select("corporate_company_documents.document_type, document_types.abbreviation, COUNT(*) as doc_count")
-          .group("corporate_company_documents.document_type, document_types.abbreviation")
-          .order("doc_count DESC")
-          .limit(15)
-          .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.doc_count } }
+        # Document types breakdown - SSoT (Jan 2026): From WarehouseDocument metadata
+        doc_type_stats = warehouse_docs
+          .group("metadata->>'document_type'")
+          .count
+          .sort_by { |_k, v| -v }
+          .first(15)
+          .map { |type, count| { type: type || "Uncategorized", abbreviation: type&.slice(0, 3)&.upcase, count: count } }
 
         # Email statistics with detailed breakdown
         # Note: synced_email table only has job_id for linking (no contact_id, company_id, etc.)
@@ -729,27 +719,16 @@ module Api
           last_sync: all_xero_connections.maximum(:last_sync_at)
         }
 
-        # Job documents (CAD/BIM files) stats
-        job_doc_stats = if defined?(JobDocument)
-          {
-            total_files: JobDocument.count,
-            revit_files: JobDocument.where("file_extension IN (?)", [ ".rvt", ".rfa" ]).count,
-            autocad_files: JobDocument.where("file_extension IN (?)", [ ".dwg", ".dxf" ]).count,
-            pdf_files: JobDocument.where(file_extension: ".pdf").count,
-            image_files: JobDocument.where("file_extension IN (?)", [ ".jpg", ".jpeg", ".png", ".gif", ".heic" ]).count,
-            total_size: JobDocument.sum(:file_size) || 0
-          }
-        else
-          # Estimate from company documents
-          {
-            total_files: 0,
-            revit_files: 0,
-            autocad_files: 0,
-            pdf_files: documents.where("title LIKE ?", "%.pdf").count,
-            image_files: documents.where("title LIKE ? OR title LIKE ? OR title LIKE ?", "%.jpg", "%.png", "%.jpeg").count,
-            total_size: 0
-          }
-        end
+        # Job documents (CAD/BIM files) stats - SSoT (Jan 2026): WarehouseDocument
+        job_docs = WarehouseDocument.where(source_type: "job").joins(:storage_blob)
+        job_doc_stats = {
+          total_files: job_docs.count,
+          revit_files: job_docs.where("storage_blobs.filename ILIKE ? OR storage_blobs.filename ILIKE ?", "%.rvt", "%.rfa").count,
+          autocad_files: job_docs.where("storage_blobs.filename ILIKE ? OR storage_blobs.filename ILIKE ?", "%.dwg", "%.dxf").count,
+          pdf_files: job_docs.where("storage_blobs.filename ILIKE ?", "%.pdf").count,
+          image_files: job_docs.where("storage_blobs.filename ~* ?", "\\.(jpg|jpeg|png|gif|heic)$").count,
+          total_size: job_docs.sum("storage_blobs.byte_size") || 0
+        }
 
         # Phase 3: Warehouse Document Breakdown (SSoT for all stored files)
         # Shows documents by source_type with storage status
