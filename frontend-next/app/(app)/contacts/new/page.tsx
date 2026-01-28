@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,21 +62,36 @@ interface ContactFormData {
 
 export default function NewContactPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { createFormTypes, loading: entityTypesLoading } = useEntityTypes();
   const [loading, setLoading] = React.useState(false);
-  const [formData, setFormData] = React.useState<ContactFormData>({
-    entity_type: "person",
-    first_name: "",
-    last_name: "",
-    company_name_or_trust: "",
-    email: "",
-    mobile_phone: "",
-    office_phone: "",
-    address: "",
-    notes: "",
-    contact_type: "supplier",
-    primary_company_id: null,
+
+  // Get prefill values from URL params (e.g., from Xero fuzzy match review)
+  const prefillName = searchParams.get("name") || "";
+  const prefillType = searchParams.get("type") || "";
+
+  const [formData, setFormData] = React.useState<ContactFormData>(() => {
+    // Determine entity type - if name contains "Pty Ltd", "Trust", etc., default to company
+    const lowerName = prefillName.toLowerCase();
+    const isLikelyCompany = lowerName.includes("pty") || lowerName.includes("ltd") ||
+                            lowerName.includes("trust") || lowerName.includes("inc") ||
+                            lowerName.includes("corp") || lowerName.includes("limited");
+    const defaultType = prefillType || (isLikelyCompany ? "company" : "person");
+
+    return {
+      entity_type: defaultType,
+      first_name: defaultType === "person" && prefillName ? prefillName.split(" ")[0] || "" : "",
+      last_name: defaultType === "person" && prefillName ? prefillName.split(" ").slice(1).join(" ") || "" : "",
+      company_name_or_trust: defaultType !== "person" ? prefillName : "",
+      email: "",
+      mobile_phone: "",
+      office_phone: "",
+      address: "",
+      notes: "",
+      contact_type: "supplier",
+      primary_company_id: null,
+    };
   });
 
   // Company search state (for person -> company linking)
