@@ -2213,7 +2213,10 @@ module Api
       def unlinked_contacts
         begin
           # Get all unlinked invoices grouped by contact_name
-          unlinked = ExternalInvoice.where(contact_id: nil)
+          # SSoT: Use same filters as status page (active, non-draft) for consistent counts
+          unlinked = ExternalInvoice.active  # Excludes voided/deleted
+            .where.not(status: "draft")      # Excludes drafts (no PDF available)
+            .where(contact_id: nil)
             .where.not(contact_name: [ nil, "", "No Contact" ])
             .group(:contact_name, :external_contact_id)
             .select("contact_name, external_contact_id, COUNT(*) as invoice_count, SUM(total) as total_amount")
