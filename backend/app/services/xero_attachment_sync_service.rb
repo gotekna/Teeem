@@ -38,7 +38,11 @@ class XeroAttachmentSyncService
     @skip_storage_upload = skip_storage_upload
     # SSoT: Derive TEEEM tenant from Xero tenant_id
     # ExternalInvoice.tenant_id is Xero tenant UUID, not TEEEM Tenant.id
+    @xero_tenant_id = external_invoice.tenant_id  # Xero org UUID
+    @xero_credential = XeroCredential.find_by(tenant_id: @xero_tenant_id)
+    @xero_tenant_name = @xero_credential&.tenant_name  # Xero org name (e.g., "Tekna Homes")
     @tenant = find_teeem_tenant_from_xero_tenant_id(external_invoice.tenant_id)
+    @organization = @tenant&.organizations&.where(is_active: true)&.first
     @storage_config = @tenant ? StorageConfiguration.for_tenant(@tenant) : nil
     @results = { pdf: nil, attachments: [], errors: [], skipped: false }
   end
@@ -416,6 +420,12 @@ class XeroAttachmentSyncService
       "invoice_number" => external_invoice.invoice_number,
       "invoice_type" => external_invoice.invoice_type,
       "xero_id" => external_invoice.external_id,
+      "xero_tenant_id" => @xero_tenant_id,
+      "xero_tenant_name" => @xero_tenant_name,
+      "tenant_id" => @tenant&.id,
+      "tenant_name" => @tenant&.name,
+      "organization_id" => @organization&.id,
+      "organization_name" => @organization&.name,
       "contact_id" => external_invoice.contact_id,
       "document_type_id" => document_type&.id,
       "document_type_name" => document_type&.name,
@@ -429,6 +439,12 @@ class XeroAttachmentSyncService
       "invoice_number" => external_invoice.invoice_number,
       "invoice_type" => external_invoice.invoice_type,
       "xero_id" => external_invoice.external_id,
+      "xero_tenant_id" => @xero_tenant_id,
+      "xero_tenant_name" => @xero_tenant_name,
+      "tenant_id" => @tenant&.id,
+      "tenant_name" => @tenant&.name,
+      "organization_id" => @organization&.id,
+      "organization_name" => @organization&.name,
       "attachment_id" => attachment_id,
       "original_filename" => filename,
       "contact_id" => external_invoice.contact_id,
