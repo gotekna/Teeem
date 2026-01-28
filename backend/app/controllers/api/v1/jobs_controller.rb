@@ -390,7 +390,7 @@ module Api
       # GET /api/v1/jobs/:id/emails
       def emails
         @emails = @job.emails
-                              .includes(:user)
+                              .includes(:synced_by_user)
                               .order(received_at: :desc)
 
         render json: { emails: @emails }

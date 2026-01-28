@@ -6,7 +6,7 @@ module Api
 
       # GET /api/v1/companies/:company_id/minutes
       def index
-        @minutes = @company.company_minutes
+        @minutes = @company.corporate_company_minutes
                           .includes(:minute_template)
                           .order(meeting_date: :desc)
 
@@ -36,7 +36,7 @@ module Api
 
       # POST /api/v1/companies/:company_id/minutes
       def create
-        @minute = @company.company_minutes.new(minute_params)
+        @minute = @company.corporate_company_minutes.new(minute_params)
 
         # If template provided, generate initial content
         if @minute.minute_template.present? && @minute.content.blank?
@@ -110,7 +110,7 @@ module Api
 
       # POST /api/v1/companies/:company_id/minutes/:id/generate_from_template
       def generate_from_template
-        @minute = @company.company_minutes.find(params[:id])
+        @minute = @company.corporate_company_minutes.find(params[:id])
         template = MinuteTemplate.find(params[:template_id])
         variables = params[:variables] || {}
 
@@ -175,7 +175,7 @@ module Api
         # Generate content
         content = render_template(template.body, merged_variables)
 
-        @minute = @company.company_minutes.create!(
+        @minute = @company.corporate_company_minutes.create!(
           minute_template: template,
           title: params[:title] || template.name,
           meeting_date: meeting_date,
@@ -201,7 +201,7 @@ module Api
       end
 
       def set_minute
-        @minute = @company.company_minutes.find(params[:id])
+        @minute = @company.corporate_company_minutes.find(params[:id])
       end
 
       def minute_params
