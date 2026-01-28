@@ -24,6 +24,7 @@ import {
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { FuzzyMatchReviewModal } from "./FuzzyMatchReviewModal";
+import { FuzzyMatchReviewSheet } from "./FuzzyMatchReviewSheet";
 
 interface TenantContactStats {
   total_links: number;
@@ -161,6 +162,7 @@ export function XeroSyncStats() {
   const [syncing, setSyncing] = React.useState<string | null>(null);
   const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
   const [selectedReviewItem, setSelectedReviewItem] = React.useState<PendingReviewItem | null>(null);
+  const [reviewSheetOpen, setReviewSheetOpen] = React.useState(false);
 
   const fetchData = React.useCallback(async () => {
     try {
@@ -307,7 +309,7 @@ export function XeroSyncStats() {
             {global.pending_reviews.count > 0 && (
               <Button
                 variant="default"
-                onClick={() => router.push("/contacts/quality-review")}
+                onClick={() => setReviewSheetOpen(true)}
               >
                 <Eye className="h-4 w-4 mr-2" />
                 Review {global.pending_reviews.count} Pending Matches
@@ -471,7 +473,7 @@ export function XeroSyncStats() {
                 variant="outline"
                 size="sm"
                 className="border-amber-400 text-amber-800 hover:bg-amber-100"
-                onClick={() => router.push("/contacts/quality-review")}
+                onClick={() => setReviewSheetOpen(true)}
               >
                 Review All
                 <ChevronRight className="h-4 w-4 ml-1" />
@@ -743,10 +745,10 @@ export function XeroSyncStats() {
                     </div>
                   )}
 
-                  {/* Pending Reviews Warning - Clickable to review page */}
+                  {/* Pending Reviews Warning - Clickable to open review sheet */}
                   {tenant.contacts.pending_review > 0 && (
                     <button
-                      onClick={() => router.push("/contacts/quality-review")}
+                      onClick={() => setReviewSheetOpen(true)}
                       className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 cursor-pointer transition-colors w-full text-left"
                     >
                       <AlertTriangle className="h-3 w-3" />
@@ -772,6 +774,13 @@ export function XeroSyncStats() {
         open={reviewModalOpen}
         onOpenChange={setReviewModalOpen}
         item={selectedReviewItem}
+        onReviewed={fetchData}
+      />
+
+      {/* Review All Sheet */}
+      <FuzzyMatchReviewSheet
+        open={reviewSheetOpen}
+        onOpenChange={setReviewSheetOpen}
         onReviewed={fetchData}
       />
     </div>
