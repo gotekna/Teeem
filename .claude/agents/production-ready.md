@@ -10,25 +10,146 @@
 
 **Navigate the application STRICTLY via the Left Navigation Bar. Test each item completely before moving to the next.**
 
-### Left Navigation Order (SSoT from App)
+### Left Navigation Order (SSoT from App) - 77+ Pages
 
-| # | Nav Item | URL | Priority |
-|---|----------|-----|----------|
-| 1 | Dashboard | `/dashboard` | Deep Test |
-| 2 | Tasks | `/tasks` | Standard |
-| 3 | Calendar | `/calendar` | Standard |
-| 4 | Email | `/email` | Standard |
-| 5 | Contacts | `/contacts` | Deep Test |
-| 6 | Leads | `/leads` | Standard |
-| 7 | Jobs | `/jobs` | Deep Test |
-| 8 | Finance | `/finance` | Standard |
-| 9 | Meetings | `/meetings` | Standard |
-| 10 | Warehouse | `/warehouse` | Standard |
-| 11 | Corporate | `/corporate` | Deep Test |
-| 12 | Portal | `/portal` | Standard |
-| 13 | Settings | `/settings` | Deep Test |
-| 14 | Teeem Docs | `/my-docs` | Standard |
-| 15 | Missing | `/missing` | Standard |
+**Note:** Page count may vary as features are added/removed. Always discover from live nav.
+
+```
+1. Dashboard                          /dashboard
+2. Tasks                              /tasks
+3. Calendar                           /calendar
+4. Email                              /email
+   ├── robert@tekna.com.au            /email?account=ms365_9_6588f630
+   ├── robert@teeem.au                /email?account=2
+   ├── hello@coinvesthomes.com.au     /email?account=1
+   ├── robert@homesofhope.org.au      /email?account=ms365_11_85f3617d
+   ├── rob@100xbestlife.com           /email?account=ms365_10_798a35c1
+   ├── rob@lyw.org.au                 /email?account=ms365_12_ec16e727
+   ├── james@homesofhope.org.au       /email?account=ms365_11_0e80ccd6
+   └── andrew@homesofhope.org.au      /email?account=ms365_11_a9258d5e
+5. Contacts                           /contacts
+6. Leads                              /leads
+7. Jobs                               /jobs
+   ├── Gantt Schedule                 /admin/system/schedule-master/gantt
+   ├── Schedule Master                /admin/system/schedule-master/data-view/setup
+   ├── WHS                            /whs
+   ├── Purchase Orders                /purchase_orders
+   ├── Quote Requests                 /quote-requests
+   ├── Site Presence                  /admin/site-presence
+   │   ├── Active Sessions            /site_presence_sessions
+   │   ├── Live Tracking              /site-presence/live
+   │   ├── Worker Profiles            /worker_profiles
+   │   ├── Cost Centres               /cost_centres
+   │   ├── Labour Costs               /labour_cost_entries
+   │   ├── Job Budgets                /job_cost_budgets
+   │   └── AI Suggestions             /ai_timesheet_suggestions
+   ├── Price Book                     /pricebook
+   │   └── Price Histories            /price_histories
+   ├── Estimating                     /estimates
+   │   └── Recipes                    /recipes
+   └── Job Photos                     /jobs/photos
+8. Finance                            /finance
+   ├── Xero                           /settings/integrations/xero
+   └── T.A.S.                         /financial/tas
+9. Meetings                           /meetings
+10. Warehouse                         /warehouse
+11. Corporate                         /corporate
+    ├── Assets                        /corporate/assets
+    └── Cases                         /cases
+12. Portal                            /portal
+13. Settings                          /settings
+    │   PERSONAL TABS:
+    ├── Profile                       /settings/profile
+    ├── Notifications                 /settings/notifications
+    ├── Security                      /settings/security
+    ├── Preferences                   /settings/preferences
+    │   ORGANIZATION TABS:
+    ├── Users                         /settings/users
+    ├── Access Control                /settings/roles
+    ├── Corporate                     /settings/corporate
+    ├── Company                       /settings/company
+    │   ├── Info                      /settings/company/info
+    │   ├── Brand Colors              /settings/company/brand-colors
+    │   ├── Documents                 /settings/company/documents
+    │   │   ├── Document Types        /settings/company/documents/types
+    │   │   │   ├── All               (filter)
+    │   │   │   ├── Company           (filter)
+    │   │   │   ├── Job               (filter)
+    │   │   │   └── Contacts          (filter)
+    │   │   ├── Document Templates    /settings/company/documents/templates
+    │   │   ├── Bank Statements       /settings/company/documents/bank
+    │   │   ├── Invoice Templates     /settings/company/documents/invoices
+    │   │   ├── Email Signatures      /settings/company/documents/signatures
+    │   │   └── PDF Fields            /settings/company/documents/pdf
+    │   ├── Holidays                  /settings/company/holidays
+    │   ├── Workflows                 /settings/company/workflows
+    │   ├── Job Setup                 /settings/company/job-setup
+    │   ├── Folder Config             /settings/company/folder-config
+    │   └── Offline                   /settings/company/offline
+    ├── Operations                    /settings/operations
+    ├── Connections                   /settings/connections
+    │   ├── Storage Provider          /settings/connections/provider
+    │   ├── Integrations              /settings/connections/integrations
+    │   ├── Migration                 /settings/connections/migration
+    │   └── Cost Comparison           /settings/connections/costs
+    ├── System                        /settings/system
+    ├── Developer                     /settings/developer
+    │   LEFT NAV SUB-ITEMS:
+    ├── Support                       /support
+    ├── Workflows                     /workflows/processes
+    ├── SaaS Customers                /admin/saas-customers
+    ├── Support Tickets               /admin/support-tickets
+    └── Referrers                     /admin/referrers
+14. Teeem Docs                        /my-docs
+15. Missing                           /missing
+    ├── Accounts                      /accounts
+    ├── Agent Tasks                   /agent-tasks
+    ├── Chat                          /chat
+    ├── Company Groups                /company-groups
+    ├── Contact Duplicates            /contacts/duplicates
+    ├── Contact Quality Review        /contacts/quality-review
+    ├── Data Warehouse                /data-warehouse
+    ├── Design System                 /design-system
+    ├── Designer                      /designer
+    ├── Device                        /device
+    ├── E-Signature                   /e-signature
+    ├── Email Rules                   /email/rules
+    ├── Email Settings                /email/settings
+    ├── Financial Transactions        /financial/transactions
+    ├── Financial Reports             /financial/reports
+    ├── Pricebook Health              /pricebook/health
+    ├── Public Holidays               /public-holidays
+    ├── Schedule Templates            /schedule-templates
+    ├── SharePoint                    /sharepoint
+    ├── SM Tasks                      /sm_tasks
+    ├── System Health                 /system-health
+    ├── System Performance            /system-performance
+    ├── Task Templates                /task-templates
+    ├── Training                      /training
+    ├── Xero (Main)                   /xero
+    └── Xero Sync                     /xero/sync
+```
+
+### Page Count Summary
+
+| Section | Main | Sub-items | Total |
+|---------|------|-----------|-------|
+| Dashboard | 1 | 0 | 1 |
+| Tasks | 1 | 0 | 1 |
+| Calendar | 1 | 0 | 1 |
+| Email | 1 | 8 accounts | 9 |
+| Contacts | 1 | 0 | 1 |
+| Leads | 1 | 0 | 1 |
+| Jobs | 1 | 9 + 7 + 1 + 1 = 18 | 19 |
+| Finance | 1 | 2 | 3 |
+| Meetings | 1 | 0 | 1 |
+| Warehouse | 1 | 0 | 1 |
+| Corporate | 1 | 2 | 3 |
+| Portal | 1 | 0 | 1 |
+| Settings | 1 | 5 | 6 |
+| Teeem Docs | 1 | 0 | 1 |
+| Missing | 1 | 27 | 28 |
+| **TOTAL** | **15** | **62** | **77** |
 
 ### Testing Protocol Per Nav Item
 
