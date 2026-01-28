@@ -66,8 +66,8 @@ interface HeaderBarProps {
   onMenuClick?: () => void;
 }
 
-// Connection status: 'connected' | 'disconnected' | 'error' | 'degraded'
-type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'degraded';
+/// Connection status: 'connected' | 'disconnected' | 'error' | 'degraded' | 'rate_limited'
+type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'degraded' | 'rate_limited';
 
 export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const router = useRouter();
@@ -129,10 +129,15 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                            xeroData?.message?.toLowerCase().includes('expired') ||
                            xeroData?.message?.toLowerCase().includes('reconnect');
 
-        if (xeroData?.connected === true && !needsReauth && xeroData?.status !== 'degraded') {
+        if (xeroData?.connected === true && !needsReauth && xeroData?.status !== 'degraded' && xeroData?.status !== 'rate_limited') {
           // Fully connected and healthy
           setXeroStatus('connected');
           setXeroTooltip(`Xero: Connected${xeroData.tenant_name ? ` (${xeroData.tenant_name})` : ''}`);
+        } else if (xeroData?.status === 'rate_limited') {
+          // FRC: Rate limited shows as degraded (orange) with specific message
+          setXeroStatus('rate_limited');
+          const message = xeroData?.message || 'Rate limit reached - syncing paused';
+          setXeroTooltip(`Xero: ${message}`);
         } else if (xeroData?.status === 'degraded' || needsReauth) {
           // Token expired, needs attention, or sync stalled
           setXeroStatus('degraded');
@@ -213,6 +218,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       case 'connected':
         return "text-green-500 dark:text-green-400 hover:text-green-600 dark:text-green-400";
       case 'degraded':
+      case 'rate_limited':  // FRC: rate_limited shows same orange as degraded
         return "text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:text-orange-400";
       case 'error':
         return "text-red-500 dark:text-red-400 hover:text-red-600 dark:text-red-400";
@@ -429,7 +435,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             {xeroStatus === 'connected' && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-border" />
             )}
-            {xeroStatus === 'degraded' && (
+            {(xeroStatus === 'degraded' || xeroStatus === 'rate_limited') && (
               <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-border" />
             )}
             {xeroStatus === 'disconnected' && (
