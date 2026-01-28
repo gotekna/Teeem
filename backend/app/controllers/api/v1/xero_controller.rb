@@ -2383,18 +2383,30 @@ module Api
         xero_contact_name = params[:xero_contact_name]
         tenant_id = params[:tenant_id]
         contact_id = params[:contact_id]
+        create_new = params[:create_new] == true || params[:create_new] == "true"
 
         unless xero_contact_id.present?
           return render json: { success: false, error: "xero_contact_id is required" }, status: :bad_request
         end
 
-        unless contact_id.present?
+        # contact_id is required UNLESS create_new is true
+        unless contact_id.present? || create_new
           return render json: { success: false, error: "contact_id is required" }, status: :bad_request
         end
 
         begin
           ActiveRecord::Base.transaction do
-            @contact = Contact.find(contact_id)
+            # If create_new, create a new Contact first
+            if create_new
+              @contact = Contact.create!(
+                name: xero_contact_name,
+                contact_type: "company",
+                status: "active"
+              )
+              Rails.logger.info("[Xero] Created new contact #{@contact.id} (#{@contact.name}) for Xero contact #{xero_contact_id}")
+            else
+              @contact = Contact.find(contact_id)
+            end
 
             # Get tenant info - prefer passed tenant_id, fall back to finding from invoices
             effective_tenant_id = tenant_id
