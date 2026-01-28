@@ -1821,15 +1821,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     if (!task.description?.startsWith('**Created from email:**')) return null;
 
     const lines = task.description.split('\n');
-    const fromMatch = lines.find(l => l.startsWith('From:'));
-    const dateMatch = lines.find(l => l.startsWith('Date:'));
 
-    // Find where the email body starts (after the metadata lines)
+    // Only check first 5 lines for metadata (avoid matching "From:" in forwarded email body)
+    const metadataLines = lines.slice(0, 5);
+    const fromMatch = metadataLines.find(l => l.startsWith('From:'));
+    const dateMatch = metadataLines.find(l => l.startsWith('Date:'));
+
+    // Find where the email body starts (after the header + From + Date lines)
+    // Typically: line 0 = header, line 1 = From, line 2 = Date, line 3 = empty, line 4+ = body
     let bodyStartIndex = 0;
-    for (let i = 0; i < lines.length; i++) {
+    for (let i = 0; i < Math.min(lines.length, 5); i++) {
       if (lines[i].startsWith('From:') || lines[i].startsWith('Date:') || lines[i].startsWith('**Created from email:**')) {
         bodyStartIndex = i + 1;
       } else if (lines[i].trim() !== '') {
+        // Non-empty, non-metadata line = start of body
         break;
       }
     }
