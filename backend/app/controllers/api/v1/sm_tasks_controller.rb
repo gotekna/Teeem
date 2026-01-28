@@ -2750,6 +2750,7 @@ module Api
               cc_emails: email.cc_emails,
               received_at: email.received_at,
               is_read: email.is_read, # SSoT: Read status synced with inbox
+              folder_name: email.folder_name, # SSoT: "Sent Items" = sent email (never show as unread)
               has_attachments: email.document_attachments_count > 0,
               document_attachments_count: email.document_attachments_count,
               conversation_id: email.conversation_id,

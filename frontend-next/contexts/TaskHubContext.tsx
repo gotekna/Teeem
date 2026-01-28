@@ -18,6 +18,7 @@ export interface TaskAttachmentEmail {
   cc_emails?: string[];
   received_at: string;
   is_read?: boolean; // SSoT: Read status synced with inbox
+  folder_name?: string; // SSoT: "Sent Items" = sent email (never show as unread)
   has_attachments: boolean;
   document_attachments_count?: number; // Count of real documents (excludes signature images)
   conversation_id?: string;
