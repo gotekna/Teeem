@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_27_234713) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_28_053713) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8686,6 +8686,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_27_234713) do
     t.string "category", default: "info"
     t.bigint "action_item_id"
     t.string "display_name"
+    t.boolean "is_source", default: false, null: false
     t.index ["action_item_id"], name: "index_sm_task_attachments_on_action_item_id"
     t.index ["added_by_id"], name: "index_sm_task_attachments_on_added_by_id"
     t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"

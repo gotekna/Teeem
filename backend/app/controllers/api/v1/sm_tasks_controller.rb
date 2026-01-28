@@ -1086,6 +1086,17 @@ module Api
       def update_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
 
+        # FRC DEBUG: Log when action_item_id or category is being set on source emails
+        if attachment.is_source? && (params[:action_item_id].present? || params[:category].present?)
+          Rails.logger.warn "[FRC-DEBUG] Source email attachment being modified!"
+          Rails.logger.warn "[FRC-DEBUG] Task: #{@task.id} (#{@task.name})"
+          Rails.logger.warn "[FRC-DEBUG] Attachment: #{attachment.id}, notes: #{attachment.notes}"
+          Rails.logger.warn "[FRC-DEBUG] Params: action_item_id=#{params[:action_item_id]}, category=#{params[:category]}"
+          Rails.logger.warn "[FRC-DEBUG] User: #{current_user&.id} (#{current_user&.email})"
+          Rails.logger.warn "[FRC-DEBUG] Request: #{request.method} #{request.fullpath}"
+          Rails.logger.warn "[FRC-DEBUG] Referrer: #{request.referrer}"
+        end
+
         # Handle display_name update - SSoT is warehouse_document.display_name
         if params[:display_name].present?
           if attachment.warehouse_document.present?
@@ -2720,7 +2731,8 @@ module Api
           display_name: attachment.display_name, # Custom display name (overrides document/email name)
           added_by: attachment.added_by&.name,
           created_at: attachment.created_at,
-          action_item_id: attachment.action_item_id
+          action_item_id: attachment.action_item_id,
+          is_source: attachment.is_source  # SSoT: True if this is the source email (task created from)
         }
 
         case attachment.attachable_type
