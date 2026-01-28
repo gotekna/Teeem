@@ -31,22 +31,15 @@ class CleanupUnavailableEmailsJob < ApplicationJob
     kept_reasons = []
 
     unavailable_emails.each do |email|
-      # Check if email is linked to important records
-      links = check_email_links(email)
-
-      if links.any?
-        kept_count += 1
-        kept_reasons << { id: email.id, subject: email.subject&.truncate(50), links: links }
-        Rails.logger.info "[CleanupUnavailable] KEPT email #{email.id} - linked to: #{links.join(', ')}"
+      # FRC (Jan 2026): If email is deleted from O365/IMAP, delete from our DB too.
+      # Previously kept linked emails, but a deleted email has no value even if linked.
+      if dry_run
+        Rails.logger.info "[CleanupUnavailable] WOULD DELETE email #{email.id}: #{email.subject&.truncate(50)}"
+        deleted_count += 1
       else
-        if dry_run
-          Rails.logger.info "[CleanupUnavailable] WOULD DELETE email #{email.id}: #{email.subject&.truncate(50)}"
-          deleted_count += 1
-        else
-          delete_email_and_related(email)
-          deleted_count += 1
-          Rails.logger.info "[CleanupUnavailable] DELETED email #{email.id}: #{email.subject&.truncate(50)}"
-        end
+        delete_email_and_related(email)
+        deleted_count += 1
+        Rails.logger.info "[CleanupUnavailable] DELETED email #{email.id}: #{email.subject&.truncate(50)}"
       end
     end
 

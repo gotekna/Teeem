@@ -104,14 +104,17 @@ class SyncSubscription < ApplicationRecord
   end
 
   # Get document count for this subscription
+  # SSoT: WarehouseDocument is now THE ONE table for all document metadata
   def document_count
     case syncable_type
     when "Job"
-      JobDocument.where(job_id: syncable_id).count
+      WarehouseDocument.where(linkable_type: "Job", linkable_id: syncable_id).count
     when "CorporateCompany"
-      CorporateCompanyDocument.where(company_id: syncable_id).count
+      WarehouseDocument.where(linkable_type: "CorporateCompany", linkable_id: syncable_id).count
     when "Contact"
-      PeopleDocument.where(contact_id: syncable_id).count
+      WarehouseDocument.where(linkable_type: "Contact", linkable_id: syncable_id).count
+    else
+      0
     end
   end
 

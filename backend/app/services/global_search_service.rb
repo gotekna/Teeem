@@ -28,7 +28,7 @@ class GlobalSearchService
   # Searchable types and their model classes
   SEARCHABLE_TYPES = {
     "emails" => SyncedEmail,
-    "documents" => CorporateCompanyDocument,
+    "documents" => WarehouseDocument,
     "jobs" => Job,
     "contacts" => Contact,
     "tasks" => SmTask,
@@ -161,8 +161,8 @@ class GlobalSearchService
     case model.name
     when "SyncedEmail"
       model.order(received_at: :desc)
-    when "CorporateCompanyDocument"
-      model.includes(:document_type_record).order(created_at: :desc)
+    when "WarehouseDocument"
+      model.order(created_at: :desc)
     when "Job"
       model.order(created_at: :desc)
     when "Contact"
@@ -188,15 +188,14 @@ class GlobalSearchService
         date: record.received_at&.iso8601,
         has_attachments: record.has_attachments
       }
-    when "CorporateCompanyDocument"
+    when "WarehouseDocument"
       {
         id: record.id,
         type: "document",
-        title: record.display_name || record.file_name,
-        subtitle: record.document_type_record&.name || "Document",
+        title: record.display_name || record.original_filename,
+        subtitle: record.source_type&.titleize || "Document",
         date: record.created_at&.iso8601,
-        # SSoT: storage_url (from StorableDocument concern) is THE ONE way to get download URLs
-        url: record.storage_url || record.file_url
+        folder: record.folder
       }
     when "Job"
       {

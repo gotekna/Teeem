@@ -7,7 +7,6 @@
 #
 # Xero tabs are children of the Xero tab in corporate_entity warehouse_type (SSoT)
 #
-# Replaces: CorporateStorageLocation, DocumentFolder, JobTab, JobDocumentationTab,
 #           XeroFeatureTab, UserJobTabConfig
 #
 class StorageLocation < ApplicationRecord
@@ -238,9 +237,9 @@ class StorageLocation < ApplicationRecord
     return 0 unless tab_group == 'documents'
     return 0 if document_types.empty?
 
-    # Count documents with any of our linked document types
-    CorporateCompanyDocument
-      .where(document_type_id: document_type_ids)
+    # Count documents with any of our linked document types via WarehouseDocument
+    WarehouseDocument
+      .where("metadata->>'document_type_id' IN (?)", document_type_ids.map(&:to_s))
       .count
   end
 

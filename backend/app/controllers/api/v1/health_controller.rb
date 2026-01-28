@@ -415,7 +415,8 @@ module Api
         when "companies"
           CorporateCompany.count
         when "documents"
-          CorporateCompanyDocument.count
+          # SSoT: WarehouseDocument is the universal document table (Jan 2026)
+          defined?(WarehouseDocument) ? WarehouseDocument.count : 0
         else
           0
         end

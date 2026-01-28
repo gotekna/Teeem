@@ -88,7 +88,6 @@ class DocumentRenameService
   end
 
   # Batch rename multiple documents
-  # @param documents [Array<JobDocument>] Documents to rename
   # @param use_ai_names [Boolean] Use ai_proposed_name for each document
   # @param approved_by [User] Optional user who approved the renames
   # @return [Hash] Stats with success/failure counts
@@ -130,7 +129,6 @@ class DocumentRenameService
   end
 
   # Preview what would be renamed (dry run)
-  # @param documents [Array<JobDocument>] Documents to check
   # @return [Array<Hash>] Preview of changes
   def self.preview(documents)
     documents.filter_map do |doc|

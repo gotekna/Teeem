@@ -73,7 +73,6 @@ class SendNameResolver
 
   # Resolve Send Name directly from a documentable (without WarehouseDocument)
   # Useful for documents that haven't been migrated to warehouse yet
-  # @param documentable [ActiveRecord::Base] The document (EmailAttachment, JobDocument, etc.)
   # @param source_type [String] The source type for template selection
   # @return [String] The resolved filename
   def resolve_for_documentable(documentable, source_type: nil)
@@ -428,14 +427,9 @@ class SendNameResolver
     case documentable.class.name
     when "EmailAttachment", "SyncedEmail"
       "email"
-    when "JobDocument"
       "job"
-    when "CorporateCompanyDocument"
-      "corporate"
     when "PeopleDocument"
       "people"
-    when "ContactDocument"
-      "contact"
     when "UserDocument"
       "user"
     when "DocumentTemplate"

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_28_120851) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -988,31 +988,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
     t.index ["role"], name: "index_case_contacts_on_role"
   end
 
-  create_table "case_documents", force: :cascade do |t|
-    t.bigint "case_id", null: false
-    t.bigint "company_document_id", null: false
-    t.string "relevance"
-    t.text "notes"
-    t.integer "sequence"
-    t.jsonb "ai_tags", default: []
-    t.text "ai_summary"
-    t.decimal "relevance_score", precision: 5, scale: 2
-    t.bigint "added_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "short_code"
-    t.string "source_type"
-    t.string "original_location"
-    t.string "action_taken"
-    t.index ["added_by_id"], name: "index_case_documents_on_added_by_id"
-    t.index ["case_id", "company_document_id"], name: "index_case_documents_on_case_id_and_company_document_id", unique: true
-    t.index ["case_id"], name: "index_case_documents_on_case_id"
-    t.index ["company_document_id"], name: "index_case_documents_on_company_document_id"
-    t.index ["relevance"], name: "index_case_documents_on_relevance"
-    t.index ["relevance_score"], name: "index_case_documents_on_relevance_score"
-    t.index ["short_code"], name: "index_case_documents_on_short_code"
-  end
-
   create_table "case_email_qas", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "case_id", null: false
     t.bigint "case_email_id"
@@ -1380,40 +1355,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
     t.index ["contact_id"], name: "index_contact_corporate_group_memberships_on_contact_id"
     t.index ["tenant_id"], name: "index_contact_corporate_group_memberships_on_tenant_id"
-  end
-
-  create_table "contact_documents", force: :cascade do |t|
-    t.bigint "contact_id", null: false
-    t.bigint "document_type_id"
-    t.bigint "uploaded_by_id"
-    t.string "file_name", null: false
-    t.string "file_extension", limit: 10
-    t.integer "file_size"
-    t.string "content_type"
-    t.string "folder"
-    t.string "storage_path"
-    t.string "storage_item_id"
-    t.string "storage_provider", limit: 20
-    t.string "storage_file_id"
-    t.string "web_url"
-    t.string "migration_status", limit: 20
-    t.text "migration_error"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "source", default: "manual"
-    t.string "external_id"
-    t.bigint "storage_blob_id"
-    t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
-    t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
-    t.index ["folder"], name: "index_contact_documents_on_folder"
-    t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
-    t.index ["source", "external_id"], name: "index_contact_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
-    t.index ["source"], name: "index_contact_documents_on_source"
-    t.index ["storage_blob_id"], name: "index_contact_documents_on_storage_blob_id"
-    t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
-    t.index ["uploaded_by_id"], name: "index_contact_documents_on_uploaded_by_id"
   end
 
   create_table "contact_emails", force: :cascade do |t|
@@ -1841,113 +1782,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
     t.index ["is_current"], name: "index_corporate_company_directors_on_is_current"
   end
 
-  create_table "corporate_company_documents", force: :cascade do |t|
-    t.bigint "company_id"
-    t.text "description"
-    t.string "document_type", null: false
-    t.date "document_date"
-    t.string "file_url"
-    t.string "file_name"
-    t.integer "file_size"
-    t.datetime "uploaded_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "folder"
-    t.string "storage_type"
-    t.string "filed_by"
-    t.bigint "document_type_id"
-    t.string "storage_file_id"
-    t.string "storage_download_url"
-    t.datetime "last_modified_at"
-    t.string "expected_storage_path"
-    t.string "register_folder"
-    t.string "company_code"
-    t.string "source", default: "manual"
-    t.bigint "asset_id"
-    t.bigint "loan_id"
-    t.bigint "contact_id"
-    t.integer "financial_years", default: [], array: true
-    t.datetime "ai_verified_at"
-    t.string "ai_verification_status"
-    t.string "ai_suggested_name"
-    t.string "ai_suggested_folder"
-    t.decimal "ai_confidence_score"
-    t.datetime "user_validated_at"
-    t.bigint "user_validated_by_id"
-    t.string "display_name"
-    t.string "ai_suggested_type"
-    t.integer "ai_suggested_fy", default: [], array: true
-    t.text "ai_analysis_notes"
-    t.boolean "validation_required", default: false
-    t.date "ref_date"
-    t.date "filed_date"
-    t.string "ai_extracted_description"
-    t.date "ai_extracted_date"
-    t.integer "ai_source_page"
-    t.text "ai_source_quote"
-    t.boolean "ai_contains_multiple_documents", default: false
-    t.jsonb "ai_split_recommendation"
-    t.string "documentable_type"
-    t.bigint "documentable_id"
-    t.string "content_hash"
-    t.string "external_id"
-    t.integer "job_id"
-    t.string "mime_type"
-    t.datetime "synced_to_xero_at"
-    t.string "xero_attachment_id"
-    t.boolean "sync_to_xero", default: false, null: false
-    t.string "focus", default: "company", null: false
-    t.boolean "is_pdf_eligible", default: true, null: false
-    t.datetime "orphaned_at"
-    t.string "orphan_reason"
-    t.decimal "ocr_confidence", precision: 5, scale: 2
-    t.string "ocr_method"
-    t.decimal "human_confidence", precision: 5, scale: 2
-    t.tsvector "searchable"
-    t.bigint "sm_task_id"
-    t.string "storage_provider"
-    t.string "storage_item_id"
-    t.string "storage_path"
-    t.string "migration_status"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.text "migration_error"
-    t.string "source_provider"
-    t.string "source_item_id"
-    t.bigint "storage_blob_id"
-    t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
-    t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
-    t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
-    t.index ["company_id", "document_type"], name: "idx_company_docs_company_type"
-    t.index ["company_id", "folder"], name: "idx_company_docs_company_folder"
-    t.index ["company_id"], name: "index_corporate_company_documents_on_company_id"
-    t.index ["contact_id"], name: "index_corporate_company_documents_on_contact_id"
-    t.index ["content_hash"], name: "index_corporate_company_documents_on_content_hash"
-    t.index ["document_date"], name: "index_corporate_company_documents_on_document_date"
-    t.index ["document_type"], name: "index_corporate_company_documents_on_document_type"
-    t.index ["document_type_id"], name: "index_corporate_company_documents_on_document_type_id"
-    t.index ["documentable_type", "documentable_id"], name: "idx_company_docs_documentable"
-    t.index ["financial_years"], name: "index_corporate_company_documents_on_financial_years", using: :gin
-    t.index ["focus"], name: "index_corporate_company_documents_on_focus"
-    t.index ["folder"], name: "index_corporate_company_documents_on_folder"
-    t.index ["is_pdf_eligible"], name: "index_corporate_company_documents_on_is_pdf_eligible", where: "((source)::text = 'xero'::text)"
-    t.index ["job_id"], name: "index_corporate_company_documents_on_job_id"
-    t.index ["loan_id"], name: "index_corporate_company_documents_on_loan_id"
-    t.index ["migration_status"], name: "index_corporate_company_documents_on_migration_status"
-    t.index ["orphaned_at"], name: "index_corporate_company_documents_on_orphaned_at", where: "(orphaned_at IS NOT NULL)"
-    t.index ["searchable"], name: "idx_documents_searchable_gin", using: :gin
-    t.index ["sm_task_id"], name: "index_corporate_company_documents_on_sm_task_id"
-    t.index ["source", "external_id"], name: "index_corporate_company_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
-    t.index ["source"], name: "index_corporate_company_documents_on_source"
-    t.index ["storage_blob_id"], name: "index_corporate_company_documents_on_storage_blob_id"
-    t.index ["storage_file_id"], name: "index_corporate_company_documents_on_storage_file_id", unique: true, where: "(storage_file_id IS NOT NULL)"
-    t.index ["storage_provider", "migration_status"], name: "idx_corp_docs_provider_migration"
-    t.index ["storage_provider"], name: "index_corporate_company_documents_on_storage_provider"
-    t.index ["storage_type"], name: "index_corporate_company_documents_on_storage_type"
-    t.index ["sync_to_xero", "synced_to_xero_at"], name: "idx_corp_docs_pending_xero_sync"
-    t.index ["user_validated_by_id"], name: "index_corporate_company_documents_on_user_validated_by_id"
-  end
-
   create_table "corporate_company_loans", force: :cascade do |t|
     t.bigint "lender_company_id", null: false
     t.bigint "borrower_company_id", null: false
@@ -2344,43 +2178,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
     t.index ["status"], name: "index_dividends_on_status"
   end
 
-  create_table "document_activities", force: :cascade do |t|
-    t.bigint "company_document_id", null: false
-    t.bigint "user_id"
-    t.string "action", null: false
-    t.jsonb "old_values", default: {}
-    t.jsonb "new_values", default: {}
-    t.text "notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["action"], name: "index_document_activities_on_action"
-    t.index ["company_document_id"], name: "index_document_activities_on_company_document_id"
-    t.index ["created_at"], name: "index_document_activities_on_created_at"
-    t.index ["user_id"], name: "index_document_activities_on_user_id"
-  end
-
-  create_table "document_duplicate_reviews", force: :cascade do |t|
-    t.bigint "case_id", null: false
-    t.bigint "existing_document_id", null: false
-    t.bigint "new_document_id"
-    t.string "new_file_path"
-    t.string "new_file_hash"
-    t.string "new_file_name"
-    t.bigint "new_file_size"
-    t.string "source_type"
-    t.string "status", default: "pending"
-    t.string "resolution"
-    t.bigint "resolved_by_id"
-    t.datetime "resolved_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["case_id", "status"], name: "index_document_duplicate_reviews_on_case_id_and_status"
-    t.index ["case_id"], name: "index_document_duplicate_reviews_on_case_id"
-    t.index ["existing_document_id"], name: "index_document_duplicate_reviews_on_existing_document_id"
-    t.index ["new_document_id"], name: "index_document_duplicate_reviews_on_new_document_id"
-    t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
-  end
-
   create_table "document_folders", force: :cascade do |t|
     t.string "name", null: false
     t.text "description"
@@ -2487,31 +2284,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
     t.index ["scope"], name: "index_document_types_on_scope"
     t.index ["supports_versioning"], name: "index_document_types_on_supports_versioning"
     t.index ["tenant_id"], name: "index_document_types_on_tenant_id"
-  end
-
-  create_table "document_verification_feedbacks", force: :cascade do |t|
-    t.bigint "company_document_id", null: false
-    t.bigint "user_id", null: false
-    t.string "ai_suggested_name"
-    t.string "ai_suggested_folder"
-    t.string "ai_suggested_type"
-    t.string "ai_suggested_fy"
-    t.integer "ai_confidence"
-    t.string "user_final_name"
-    t.string "user_final_folder"
-    t.string "user_final_type"
-    t.string "user_final_fy"
-    t.string "action", null: false
-    t.text "rejection_reason"
-    t.text "document_text_snippet"
-    t.string "company_code"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["action"], name: "index_document_verification_feedbacks_on_action"
-    t.index ["company_code", "action"], name: "idx_on_company_code_action_af023a5fcb"
-    t.index ["company_code"], name: "index_document_verification_feedbacks_on_company_code"
-    t.index ["company_document_id"], name: "index_document_verification_feedbacks_on_company_document_id"
-    t.index ["user_id"], name: "index_document_verification_feedbacks_on_user_id"
   end
 
   create_table "documentation_categories", force: :cascade do |t|
@@ -9202,7 +8974,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
     t.datetime "updated_at", null: false
     t.jsonb "file_name_templates", default: {}, null: false
     t.jsonb "config_links", default: {}, null: false
-    t.jsonb "document_routing", default: {"sharepoint_scan"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"SharePoint scanned documents"}, "xero_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Xero invoice/bill attachments"}, "email_attachment"=>{"model"=>"CorporateCompanyDocument", "scope"=>"corporate_entity", "description"=>"Email attachments"}, "xero_primary_invoice"=>{"model"=>"ContactDocument", "scope"=>"contact", "description"=>"Primary Xero invoice/bill PDF"}}, null: false
     t.jsonb "virtual_warehouses", default: {}, null: false
     t.jsonb "warehouse_folders", default: {}, null: false
     t.boolean "exclude_sm_tasks", default: false, null: false
@@ -10776,9 +10547,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
   add_foreign_key "case_contacts", "cases"
   add_foreign_key "case_contacts", "contacts"
   add_foreign_key "case_contacts", "users", column: "added_by_id"
-  add_foreign_key "case_documents", "cases"
-  add_foreign_key "case_documents", "corporate_company_documents", column: "company_document_id"
-  add_foreign_key "case_documents", "users", column: "added_by_id"
   add_foreign_key "case_jobs", "cases"
   add_foreign_key "case_jobs", "jobs"
   add_foreign_key "case_timeline_events", "cases"
@@ -10809,10 +10577,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
   add_foreign_key "contact_corporate_group_memberships", "corporate_companies", column: "company_id"
   add_foreign_key "contact_corporate_group_memberships", "corporate_groups", column: "company_group_id"
   add_foreign_key "contact_corporate_group_memberships", "tenants"
-  add_foreign_key "contact_documents", "contacts"
-  add_foreign_key "contact_documents", "document_types"
-  add_foreign_key "contact_documents", "storage_blobs"
-  add_foreign_key "contact_documents", "users", column: "uploaded_by_id"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
@@ -10837,13 +10601,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
   add_foreign_key "corporate_company_compliance_items", "corporate_companies", column: "company_id"
   add_foreign_key "corporate_company_directors", "contacts"
   add_foreign_key "corporate_company_directors", "corporate_companies", column: "company_id"
-  add_foreign_key "corporate_company_documents", "assets"
-  add_foreign_key "corporate_company_documents", "contacts"
-  add_foreign_key "corporate_company_documents", "corporate_companies", column: "company_id"
-  add_foreign_key "corporate_company_documents", "corporate_company_loans", column: "loan_id"
-  add_foreign_key "corporate_company_documents", "document_types"
-  add_foreign_key "corporate_company_documents", "sm_tasks"
-  add_foreign_key "corporate_company_documents", "storage_blobs"
   add_foreign_key "corporate_company_loans", "corporate_companies", column: "borrower_company_id"
   add_foreign_key "corporate_company_loans", "corporate_companies", column: "lender_company_id"
   add_foreign_key "corporate_company_minutes", "corporate_companies", column: "company_id"
@@ -10867,12 +10624,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
   add_foreign_key "dividend_payments", "contacts", column: "shareholder_id"
   add_foreign_key "dividend_payments", "dividends"
   add_foreign_key "dividends", "corporate_companies", column: "company_id"
-  add_foreign_key "document_activities", "corporate_company_documents", column: "company_document_id"
-  add_foreign_key "document_activities", "users"
-  add_foreign_key "document_duplicate_reviews", "cases"
-  add_foreign_key "document_duplicate_reviews", "corporate_company_documents", column: "existing_document_id"
-  add_foreign_key "document_duplicate_reviews", "corporate_company_documents", column: "new_document_id"
-  add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
   add_foreign_key "document_folders", "document_folders", column: "parent_id"
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_tasks", "storage_blobs"
@@ -10880,8 +10631,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_113806) do
   add_foreign_key "document_type_folders", "document_folders"
   add_foreign_key "document_type_folders", "document_types"
   add_foreign_key "document_types", "tenants"
-  add_foreign_key "document_verification_feedbacks", "corporate_company_documents", column: "company_document_id"
-  add_foreign_key "document_verification_feedbacks", "users"
   add_foreign_key "e_signature_certificates", "e_signature_requests"
   add_foreign_key "e_signature_events", "e_signature_requests"
   add_foreign_key "e_signature_events", "e_signature_signers"

@@ -92,20 +92,19 @@ module Api
           end
         end
 
-        # N+1 fix: Preload storage_blob for CorporateCompanyDocument attachables
-        # Ultra fix (Jan 2026): Needed for storage_key in attachment_to_json
+        # N+1 fix: Preload storage_blob for WarehouseDocument attachables
         doc_ids = tasks_to_render.flat_map do |task|
           task.sm_task_attachments
-              .select { |a| a.attachable_type == "CorporateCompanyDocument" }
+              .select { |a| a.attachable_type == "WarehouseDocument" }
               .map(&:attachable_id)
         end.uniq
         if doc_ids.any?
-          preloaded_docs = CorporateCompanyDocument.where(id: doc_ids)
-                                                   .includes(:storage_blob)
-                                                   .index_by(&:id)
+          preloaded_docs = WarehouseDocument.where(id: doc_ids)
+                                            .includes(:storage_blob)
+                                            .index_by(&:id)
           tasks_to_render.each do |task|
             task.sm_task_attachments.each do |att|
-              if att.attachable_type == "CorporateCompanyDocument" && preloaded_docs[att.attachable_id]
+              if att.attachable_type == "WarehouseDocument" && preloaded_docs[att.attachable_id]
                 att.attachable = preloaded_docs[att.attachable_id]
               end
             end
@@ -202,14 +201,14 @@ module Api
       def show
         # N+1 fix: Preload storage_blob for document attachables (for storage_key in attachment_to_json)
         doc_ids = @task.sm_task_attachments
-                       .select { |a| a.attachable_type == "CorporateCompanyDocument" }
+                       .select { |a| a.attachable_type == "WarehouseDocument" }
                        .map(&:attachable_id)
         if doc_ids.any?
-          preloaded_docs = CorporateCompanyDocument.where(id: doc_ids)
-                                                   .includes(:storage_blob)
-                                                   .index_by(&:id)
+          preloaded_docs = WarehouseDocument.where(id: doc_ids)
+                                            .includes(:storage_blob)
+                                            .index_by(&:id)
           @task.sm_task_attachments.each do |att|
-            if att.attachable_type == "CorporateCompanyDocument" && preloaded_docs[att.attachable_id]
+            if att.attachable_type == "WarehouseDocument" && preloaded_docs[att.attachable_id]
               att.attachable = preloaded_docs[att.attachable_id]
             end
           end
@@ -969,9 +968,8 @@ module Api
       # POST /api/v1/sm_tasks/:id/attachments
       # Supports multiple document sources:
       #   - email → SyncedEmail
-      #   - document → CorporateCompanyDocument (legacy/default)
       #   - user_document → UserDocument (My Docs)
-      #   - warehouse_document → WarehouseDocument (job, contact, task docs)
+      #   - warehouse_document → WarehouseDocument (alias for document)
       def add_attachment
         attachment_type = params[:attachment_type]
         attachable_id = params[:attachable_id]
@@ -980,12 +978,10 @@ module Api
         attachable = case attachment_type
         when "email"
           SyncedEmail.find(attachable_id)
-        when "document"
-          CorporateCompanyDocument.find(attachable_id)
+        when "document", "warehouse_document"
+          WarehouseDocument.find(attachable_id)
         when "user_document"
           UserDocument.find(attachable_id)
-        when "warehouse_document"
-          WarehouseDocument.find(attachable_id)
         else
           return render json: { success: false, error: "Invalid attachment type: #{attachment_type}" }, status: :unprocessable_entity
         end
@@ -1160,7 +1156,6 @@ module Api
       # All uploads now go through upload_standard_file which uses StorageBlob
 
       # Standard file upload using StorageBlob (SSoT for file storage)
-      # Creates a CorporateCompanyDocument record to track the file
       # ActiveStorage was REMOVED (Jan 2026) - use StorageBlob for deduplication
       def upload_standard_file(file, category)
         # Read file content for StorageBlob
@@ -1175,32 +1170,14 @@ module Api
         )
         blob.increment_reference!
 
-        # Create a document record for the uploaded file
-        # Document ownership: job_id OR contact_id (for personal tasks)
-        doc_attrs = {
-          file_name: file.original_filename,
+        # SSoT (Jan 2026): Create WarehouseDocument record for the uploaded file
+        doc = WarehouseDocument.create!(
           display_name: file.original_filename,
-          mime_type: file.content_type,  # Required for PDF/image preview
-          document_type: "other",
-          filed_by: current_user&.name,
-          uploaded_at: Time.current,
-          storage_blob: blob,  # SSoT: Link to StorageBlob (replaces ActiveStorage)
-          content_hash: blob.content_hash
-        }
-
-        # SSoT: Task is the primary owner for task attachments
-        doc_attrs[:sm_task_id] = @task.id
-
-        # Also set secondary owner if available (for cross-referencing)
-        if @task.job_id.present?
-          doc_attrs[:job_id] = @task.job_id
-        elsif @task.supplier_id.present?
-          doc_attrs[:contact_id] = @task.supplier_id
-        elsif current_user&.contact_id.present?
-          doc_attrs[:contact_id] = current_user.contact_id
-        end
-
-        doc = CorporateCompanyDocument.create!(doc_attrs)
+          storage_blob: blob,
+          source_type: "task",
+          folder: "Tasks/#{@task.id}",
+          documentable: @task
+        )
 
         # Create the task attachment linking to the document
         attachment = @task.sm_task_attachments.create!(
@@ -1300,29 +1277,14 @@ module Api
           # Delete the temp file (StorageBlob now has it in Blobs/ folder)
           provider.delete_file(key) rescue nil
 
-          # Create document record
-          doc_attrs = {
-            file_name: filename,
+          # SSoT (Jan 2026): Create WarehouseDocument record
+          doc = WarehouseDocument.create!(
             display_name: filename,
-            mime_type: content_type,
-            document_type: "other",
-            filed_by: current_user&.name,
-            uploaded_at: Time.current,
             storage_blob: blob,
-            content_hash: blob.content_hash,
-            sm_task_id: @task.id
-          }
-
-          # Secondary owner for cross-referencing
-          if @task.job_id.present?
-            doc_attrs[:job_id] = @task.job_id
-          elsif @task.supplier_id.present?
-            doc_attrs[:contact_id] = @task.supplier_id
-          elsif current_user&.contact_id.present?
-            doc_attrs[:contact_id] = current_user.contact_id
-          end
-
-          doc = CorporateCompanyDocument.create!(doc_attrs)
+            source_type: "task",
+            folder: "Tasks/#{@task.id}",
+            documentable: @task
+          )
 
           # Create task attachment
           attachment = @task.sm_task_attachments.create!(
@@ -1356,7 +1318,8 @@ module Api
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
         document = attachment.attachable
 
-        unless document.is_a?(CorporateCompanyDocument)
+        # SSoT (Jan 2026): Support both WarehouseDocument (new) and legacy document types
+        unless document.is_a?(WarehouseDocument) || document.respond_to?(:storage_blob)
           return render json: { success: false, error: "Attachment is not a document" }, status: :unprocessable_entity
         end
 
@@ -1370,11 +1333,15 @@ module Api
           return render json: { success: false, error: "Could not download file content" }, status: :unprocessable_entity
         end
 
+        # Get filename and content type from appropriate source
+        filename = document.respond_to?(:display_name) ? document.display_name : (document.respond_to?(:file_name) ? document.file_name : "attachment")
+        content_type = document.storage_blob&.content_type || "application/octet-stream"
+
         render json: {
           success: true,
-          filename: document.file_name || document.display_name || "attachment",
+          filename: filename,
           content: Base64.strict_encode64(content),
-          content_type: document.mime_type || "application/octet-stream"
+          content_type: content_type
         }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Attachment not found" }, status: :not_found
@@ -1389,8 +1356,8 @@ module Api
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
         attachable = attachment.attachable
 
-        # Validate attachment type
-        unless attachable.is_a?(CorporateCompanyDocument) || attachable.is_a?(SyncedEmail)
+        # SSoT (Jan 2026): Support WarehouseDocument (new) and SyncedEmail
+        unless attachable.is_a?(WarehouseDocument) || attachable.is_a?(SyncedEmail)
           return render json: { success: false, error: "Attachment type not supported for sharing" }, status: :unprocessable_entity
         end
 
@@ -1432,7 +1399,7 @@ module Api
         end
 
         # Filter to only documents (not emails)
-        document_attachments = response_attachments.select { |att| att.attachable.is_a?(CorporateCompanyDocument) }
+        document_attachments = response_attachments.select { |att| att.attachable.is_a?(WarehouseDocument) }
 
         if document_attachments.empty?
           return render json: { success: false, error: "No files to download" }, status: :unprocessable_entity
@@ -2842,31 +2809,28 @@ module Api
               end
             }
           )
-        when "CorporateCompanyDocument"
+        when "WarehouseDocument"
           doc = attachment.attachable
           # Defensive: attachable may be nil if document was deleted
           return base unless doc
           base.merge(
             document: {
               id: doc.id,
-              file_name: doc.file_name,
+              file_name: doc.storage_blob&.original_filename || doc.display_name,
               # SSoT: Use attachment.display_name which checks warehouse_document first
               display_name: attachment.display_name,
-              document_type: doc.document_type,
-              # SSoT: Use StorableDocument#storage_url for provider-agnostic download URL
-              # ActiveStorage has_one_attached :file was REMOVED (Jan 2026)
-              storage_url: doc.storage_url,  # Content-Disposition: attachment (forces download)
-              storage_url_inline: doc.storage_url_inline,  # Content-Disposition: inline (for viewers)
-              # SSoT: has_storage = can create share links (storage_blob, storage_path, or storage_reference)
-              # Used by frontend to show Link option even if storage_url is nil (legacy SharePoint docs)
-              has_storage: doc.storage_blob.present? || doc.storage_path.present? || doc.has_storage_reference?,
+              document_type: nil,  # WarehouseDocument doesn't have document_type
+              # SSoT: Use download_url for WarehouseDocument
+              storage_url: doc.download_url,  # Content-Disposition: attachment (forces download)
+              storage_url_inline: doc.download_url(disposition: :inline),  # Content-Disposition: inline (for viewers)
+              # SSoT: has_storage = can create share links
+              has_storage: doc.storage_blob.present?,
               # SSoT: storage_key for email attachments - pass directly to send_email API to avoid re-upload
-              # Ultra fix (Jan 2026): Files already in storage don't need to be downloaded and re-uploaded
               storage_key: doc.storage_blob&.storage_path,
               content_type: doc.storage_blob&.content_type,
               file_size: doc.storage_blob&.file_size,
               created_at: doc.created_at,
-              content_hash: doc.content_hash
+              content_hash: doc.storage_blob&.content_hash
             }
           )
         else

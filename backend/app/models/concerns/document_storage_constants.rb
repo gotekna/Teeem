@@ -9,7 +9,6 @@
 #
 # Include this concern in document models to get validated constants:
 #
-#   class JobDocument < ApplicationRecord
 #     include DocumentStorageConstants
 #
 #     validates :storage_provider, inclusion: { in: STORAGE_PROVIDERS }, allow_nil: true

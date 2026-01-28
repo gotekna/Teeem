@@ -3,7 +3,6 @@
 # WarehouseDocument - SSoT for File Warehouse metadata
 #
 # This is THE universal table for all document warehouse metadata.
-# Links ANY document type (JobDocument, EmailAttachment, etc.) to StorageBlob.
 #
 # Architecture (Phase 6: Ultra Design):
 #   WarehouseDocument (THE ONE table for 5000 clients)
@@ -355,23 +354,11 @@ class WarehouseDocument < ApplicationRecord
       att.storage_path.presence ||
         compute_attachment_legacy_path(att)
 
-    when "JobDocument"
       doc = documentable
       doc.storage_path.presence ||
         compute_job_document_legacy_path(doc)
 
-    when "CorporateCompanyDocument"
-      doc = documentable
-      doc.expected_storage_path.presence ||
-        compute_corporate_document_legacy_path(doc)
-
-    when "ContactDocument"
-      doc = documentable
-      doc.respond_to?(:storage_path) ? doc.storage_path : nil
-
-    when "PeopleDocument"
-      doc = documentable
-      doc.respond_to?(:storage_path) ? doc.storage_path : nil
+    # SSoT: WarehouseDocument is now THE ONE table for all document metadata
 
     when "UserDocument"
       doc = documentable
@@ -445,21 +432,6 @@ class WarehouseDocument < ApplicationRecord
     filename = doc.filename.presence || "#{doc.id}"
     safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")
     "#{jobs_folder}/#{job.job_code}/#{doc_type}/#{safe_filename}"
-  end
-
-  # Compute corporate document legacy path if not stored
-  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
-  def compute_corporate_document_legacy_path(doc)
-    return nil unless doc.id.present?
-
-    company = doc.corporate_company
-    return nil unless company
-
-    corporate_folder = StorageConfiguration.instance&.path_for(:corporate) || "Corporate"
-    doc_type = doc.document_type_record&.name || "Documents"
-    filename = doc.filename.presence || "#{doc.id}"
-    safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")
-    "#{corporate_folder}/#{company.company_code}/#{doc_type}/#{safe_filename}"
   end
 
   # Full sanitization for 100% accurate filenames
