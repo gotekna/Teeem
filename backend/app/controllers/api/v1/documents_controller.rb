@@ -31,9 +31,8 @@ module Api
         email_total = email_eml_count + email_attachment_count
 
         # Task attachment counts - documents uploaded against task IDs
-        # These are CorporateCompanyDocuments linked via SmTaskAttachment
-        task_attachment_ids = SmTaskAttachment.where(attachable_type: 'CorporateCompanyDocument').distinct.pluck(:attachable_id) rescue []
-        task_doc_count = task_attachment_ids.size
+        # Supports both legacy CorporateCompanyDocument and new WarehouseDocument attachables
+        task_doc_count = SmTaskAttachment.where(attachable_type: ['CorporateCompanyDocument', 'WarehouseDocument']).distinct.count(:attachable_id) rescue 0
 
         # Document templates (Word/Excel templates stored in storage)
         template_count = DocumentTemplate.where.not(storage_path: [nil, ""]).count rescue 0
@@ -79,14 +78,13 @@ module Api
         total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count + notes_count + excel_count + word_count + powerpoint_count + pdf_count
 
         # Fetch task documents with their task associations
-        # SSoT: Task documents are CorporateCompanyDocuments linked via SmTaskAttachment
-        task_documents = if task_attachment_ids.any?
-          CorporateCompanyDocument
-            .where(id: task_attachment_ids)
-            .includes(:corporate_company, sm_task_attachments: :sm_task)
-            .map { |doc| serialize_task_doc(doc) }
-        else
-          []
+        # Supports both legacy CorporateCompanyDocument and new WarehouseDocument attachables
+        task_attachments = SmTaskAttachment.where(attachable_type: ['CorporateCompanyDocument', 'WarehouseDocument'])
+                                           .includes(:sm_task, :attachable)
+        task_documents = task_attachments.filter_map do |att|
+          doc = att.attachable
+          next unless doc
+          serialize_task_doc_from_attachment(att, doc)
         end
 
         render json: {
@@ -1595,19 +1593,20 @@ module Api
       end
 
       # Task scope: Tasks/{{TaskNumber}}
-      # Uses SmTaskAttachment linked to CorporateCompanyDocument
+      # Supports both legacy CorporateCompanyDocument and new WarehouseDocument attachables
       def build_task_live_tree(path_segments)
+        task_attachable_types = ['CorporateCompanyDocument', 'WarehouseDocument']
         depth = path_segments.size
 
         case depth
         when 0
           # Root: Show "Tasks" folder as entry point
-          count = SmTaskAttachment.where(attachable_type: "CorporateCompanyDocument").distinct.count(:sm_task_id)
+          count = SmTaskAttachment.where(attachable_type: task_attachable_types).distinct.count(:sm_task_id)
           { folders: [{ name: "Tasks", path: "Tasks", count: count }], files: [] }
 
         when 1
           # Level 1: Show tasks with attachments
-          tasks = SmTaskAttachment.where(attachable_type: "CorporateCompanyDocument")
+          tasks = SmTaskAttachment.where(attachable_type: task_attachable_types)
                                   .joins(:sm_task)
                                   .group("sm_tasks.task_number", "sm_tasks.id", "sm_tasks.name")
                                   .count
@@ -1626,24 +1625,38 @@ module Api
           task = SmTask.find_by(task_number: task_identifier) || SmTask.find_by(id: task_identifier)
           return { folders: [], files: [] } unless task
 
-          attachments = SmTaskAttachment.where(sm_task_id: task.id, attachable_type: "CorporateCompanyDocument")
+          attachments = SmTaskAttachment.where(sm_task_id: task.id, attachable_type: task_attachable_types)
                                         .includes(:attachable)
 
           files = attachments.map do |attachment|
             doc = attachment.attachable
             next unless doc
 
-            {
-              id: doc.id,
-              name: doc.display_name || doc.file_name || "Untitled",
-              type: "task",
-              mimeType: doc.mime_type || "application/octet-stream",
-              fileSize: doc.file_size || 0,
-              createdAt: doc.created_at&.iso8601,
-              taskId: task.id,
-              taskNumber: task.task_number,
-              url: doc.storage_url || doc.file_url
-            }
+            if doc.is_a?(WarehouseDocument)
+              {
+                id: doc.id,
+                name: doc.display_name || doc.original_filename || "Untitled",
+                type: "task",
+                mimeType: doc.content_type || "application/octet-stream",
+                fileSize: doc.file_size || 0,
+                createdAt: doc.created_at&.iso8601,
+                taskId: task.id,
+                taskNumber: task.task_number,
+                url: doc.download_url
+              }
+            else
+              {
+                id: doc.id,
+                name: doc.display_name || doc.file_name || "Untitled",
+                type: "task",
+                mimeType: doc.mime_type || "application/octet-stream",
+                fileSize: doc.file_size || 0,
+                createdAt: doc.created_at&.iso8601,
+                taskId: task.id,
+                taskNumber: task.task_number,
+                url: doc.try(:storage_url) || doc.try(:file_url)
+              }
+            end
           end.compact
 
           { folders: [], files: files }
@@ -2324,9 +2337,62 @@ module Api
         }
       end
 
-      # Serialize task documents (CorporateCompanyDocuments attached to tasks)
+      # Serialize task documents from attachment + attachable pair
+      # Supports both legacy CorporateCompanyDocument and new WarehouseDocument
+      def serialize_task_doc_from_attachment(attachment, doc)
+        task = attachment.sm_task
+
+        case doc
+        when WarehouseDocument
+          {
+            id: doc.id,
+            source: "task",
+            fileName: doc.original_filename || doc.display_name,
+            displayName: doc.display_name,
+            mimeType: doc.content_type || "application/octet-stream",
+            fileSize: doc.file_size || 0,
+            fileUrl: doc.download_url,
+            folderPath: doc.folder,
+            storagePath: doc.storage_path,
+            storageProvider: nil,
+            createdAt: doc.created_at&.iso8601,
+            taskId: task&.id,
+            taskName: task&.name,
+            taskNumber: task&.task_number,
+            jobId: task&.job_id,
+            jobNumber: task&.job&.job_number,
+            documentTypeId: doc.meta("document_type_id"),
+            documentTypeName: doc.meta("document_type"),
+            isImage: image_file?(doc.original_filename || doc.display_name)
+          }
+        when CorporateCompanyDocument
+          {
+            id: doc.id,
+            source: "task",
+            fileName: doc.file_name,
+            displayName: doc.display_name || doc.file_name,
+            mimeType: doc.mime_type || "application/octet-stream",
+            fileSize: doc.file_size || 0,
+            fileUrl: generate_download_url(doc),
+            folderPath: doc.folder,
+            storagePath: doc.storage_path,
+            storageProvider: doc.storage_provider,
+            createdAt: doc.created_at&.iso8601,
+            taskId: task&.id,
+            taskName: task&.name,
+            taskNumber: task&.task_number,
+            jobId: task&.job_id,
+            jobNumber: task&.job&.job_number,
+            documentTypeId: doc.document_type_id,
+            documentTypeName: doc.document_type_record&.name,
+            isImage: image_file?(doc.file_name)
+          }
+        end
+      end
+
+      # Legacy: Serialize task doc from CorporateCompanyDocument directly
+      # DEPRECATED: Use serialize_task_doc_from_attachment instead
       def serialize_task_doc(doc)
-        # Get the task this document is attached to
         task_attachment = doc.sm_task_attachments.first
         task = task_attachment&.sm_task
 
@@ -2338,21 +2404,17 @@ module Api
           mimeType: doc.mime_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
           fileUrl: generate_download_url(doc),
-          folderPath: doc.folder,  # Folder only (not full path)
-          storagePath: doc.storage_path,  # Full S3 key - SSoT for rename/download
+          folderPath: doc.folder,
+          storagePath: doc.storage_path,
           storageProvider: doc.storage_provider,
           createdAt: doc.created_at&.iso8601,
-          # Task info
           taskId: task&.id,
           taskName: task&.name,
           taskNumber: task&.task_number,
-          # Job info (if task is part of a job)
           jobId: task&.job_id,
           jobNumber: task&.job&.job_number,
-          # Document type
           documentTypeId: doc.document_type_id,
           documentTypeName: doc.document_type_record&.name,
-          # Metadata
           isImage: image_file?(doc.file_name)
         }
       end
