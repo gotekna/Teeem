@@ -239,6 +239,9 @@ function getEmailSenderDisplay(email: TaskAttachmentEmail | undefined): string {
 // Emails sent FROM any of our mailboxes should never show as "unread"
 function isSentEmail(email: TaskAttachmentEmail | undefined, ourMailboxes: Set<string>): boolean {
   if (!email) return false;
+  // SSoT: folder_name is the authoritative source (from MS Graph sync)
+  // "Sent Items", "Sent", "Outbox" are all sent folders
+  if (email.folder_name?.toLowerCase().startsWith('sent') || email.folder_name?.toLowerCase() === 'outbox') return true;
   // No from_email = sent email (MS Graph doesn't include 'from' for sent items)
   if (!email.from_email && !!email.to_emails && email.to_emails.length > 0) return true;
   // from_email matches one of our mailboxes = internal email (never unread)

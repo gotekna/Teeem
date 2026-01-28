@@ -624,6 +624,18 @@ class OrgEmailSyncJob < ApplicationJob
       .exists?
     return false if already_attached
 
+    # SSoT: Check if user previously deleted this attachment - respect their choice
+    # Soft delete prevents auto-attach from re-creating removed attachments
+    was_deleted = SmTaskAttachment.was_deleted?(
+      sm_task_id: task_id,
+      attachable_type: "SyncedEmail",
+      attachable_id: email.id
+    )
+    if was_deleted
+      Rails.logger.info "[OrgEmailSync] Skipping auto-attach of email #{email.id} to task ##{task_id} (user previously deleted)"
+      return false
+    end
+
     # Attach the new email to the task
     SmTaskAttachment.create!(
       sm_task: task,

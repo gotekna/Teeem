@@ -1009,9 +1009,10 @@ module Api
       end
 
       # DELETE /api/v1/sm_tasks/:id/attachments/:attachment_id
+      # SSoT: Uses soft delete to prevent email sync from re-creating deleted attachments
       def remove_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
-        attachment.destroy
+        attachment.soft_delete!(current_user)
 
         render json: { success: true, message: "Attachment removed" }
       rescue ActiveRecord::RecordNotFound
@@ -2750,6 +2751,7 @@ module Api
               cc_emails: email.cc_emails,
               received_at: email.received_at,
               is_read: email.is_read, # SSoT: Read status synced with inbox
+              folder_name: email.folder_name, # SSoT: "Sent Items" = sent email (never show as unread)
               has_attachments: email.document_attachments_count > 0,
               document_attachments_count: email.document_attachments_count,
               conversation_id: email.conversation_id,
