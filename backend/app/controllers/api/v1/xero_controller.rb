@@ -2024,6 +2024,14 @@ module Api
                                                 .limit(10)
                                                 .map do |link|
             tenant = credentials.find { |c| c.tenant_id == link.tenant_id }
+            # Try to get Xero contact name from multiple sources
+            xero_name = link.external_name ||
+                        link.metadata&.dig("name") ||
+                        ExternalInvoice.where(external_contact_id: link.external_contact_id, tenant_id: link.tenant_id)
+                                       .where.not(contact_name: nil)
+                                       .limit(1)
+                                       .pick(:contact_name) ||
+                        link.external_contact_id
             {
               id: link.id,
               contact_id: link.contact_id,
@@ -2031,7 +2039,7 @@ module Api
               tenant_id: link.tenant_id,
               tenant_name: tenant&.tenant_name || link.tenant_name,
               external_contact_id: link.external_contact_id,
-              external_contact_name: link.metadata&.dig("name") || link.external_contact_id,
+              external_contact_name: xero_name,
               match_type: link.match_type,
               match_confidence: link.match_confidence,
               created_at: link.created_at
@@ -2122,7 +2130,7 @@ module Api
                   tenant_id: tid,
                   tenant_name: cred&.tenant_name || "Unknown",
                   external_contact_id: link&.external_contact_id,
-                  external_contact_name: link&.metadata&.dig("name") || link&.external_contact_id,
+                  external_contact_name: link&.external_name || link&.metadata&.dig("name") || link&.external_contact_id,
                   match_type: link&.match_type,
                   sync_enabled: link&.sync_enabled,
                   last_synced_at: link&.last_synced_at
@@ -3078,7 +3086,7 @@ module Api
 
             {
               link_id: link.id,
-              xero_contact_name: link.external_contact_name,
+              xero_contact_name: link.external_name,
               xero_contact_id: link.external_contact_id,
               tenant_id: link.tenant_id,
               tenant_name: XeroCredential.find_by(tenant_id: link.tenant_id)&.tenant_name,
