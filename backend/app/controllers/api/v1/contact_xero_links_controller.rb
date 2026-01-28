@@ -321,7 +321,8 @@ module Api
           contact_name: link.contact&.display_name,
           contact_email: link.contact&.email,
           contact_tax_number: link.contact&.abn,
-          match_confidence_percent: link.match_confidence ? (link.match_confidence * 100).round : nil
+          match_confidence_percent: link.match_confidence ? (link.match_confidence * 100).round : nil,
+          external_contact_name: link.external_name || link.metadata&.dig("name") || link.external_contact_id
         )
       end
     end
