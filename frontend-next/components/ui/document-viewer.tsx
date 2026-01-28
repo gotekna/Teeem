@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Download,
   DownloadCloud,
@@ -475,9 +475,13 @@ export function DocumentViewer({
   const [emlLoading, setEmlLoading] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [downloadingAll, setDownloadingAll] = useState(false);
-  // PDF blob URL state - fetching via JS bypasses Content-Disposition: attachment issues
+
+  // PDF blob URL cache - maps original URL to blob URL
+  // This ensures instant navigation when switching between files
+  const pdfBlobCacheRef = useRef<Map<string, string>>(new Map());
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfLoadProgress, setPdfLoadProgress] = useState<number>(0);
 
   const fileType = getFileType(fileName);
   const hasFiles = files && files.length > 0;
@@ -517,44 +521,135 @@ export function DocumentViewer({
   };
 
   // Fetch PDF via JavaScript and create blob URL
-  // This bypasses Content-Disposition: attachment which would trigger downloads instead of display
+  // Architecture: Fetching via JS bypasses Content-Disposition headers entirely
+  // This guarantees PDFs always display, regardless of server configuration
+  //
+  // Features:
+  // - Blob URL caching: Instant navigation when switching between files
+  // - Progress tracking: User sees loading progress for large files
+  // - Pre-fetching: Next/prev files load in background for instant switching
+  // - Memory management: Blob URLs cleaned up on unmount
   useEffect(() => {
     if (fileType !== "pdf" || !url) {
       setPdfBlobUrl(null);
+      setPdfLoadProgress(0);
+      return;
+    }
+
+    // Check cache first - instant display if already loaded
+    const cached = pdfBlobCacheRef.current.get(url);
+    if (cached) {
+      setPdfBlobUrl(cached);
+      setPdfLoading(false);
+      setPdfLoadProgress(100);
       return;
     }
 
     const controller = new AbortController();
     setPdfLoading(true);
     setPdfBlobUrl(null);
+    setPdfLoadProgress(0);
     setError(null);
 
+    // Fetch with progress tracking
     fetch(url, { signal: controller.signal })
-      .then(res => {
+      .then(async res => {
         if (!res.ok) throw new Error("Failed to fetch PDF");
-        return res.blob();
+
+        // Try to get content length for progress
+        const contentLength = res.headers.get('content-length');
+        const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+        if (!total || !res.body) {
+          // No content-length or no body stream - fall back to simple blob
+          const blob = await res.blob();
+          return blob;
+        }
+
+        // Stream with progress
+        const reader = res.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          setPdfLoadProgress(Math.round((received / total) * 100));
+        }
+
+        // Combine chunks into blob - concatenate Uint8Arrays first
+        const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+        const combined = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+          combined.set(chunk, offset);
+          offset += chunk.length;
+        }
+        const blob = new Blob([combined], { type: 'application/pdf' });
+        return blob;
       })
       .then(blob => {
-        // Create blob URL for the PDF - this will work regardless of Content-Disposition
         const blobUrl = URL.createObjectURL(blob);
+        // Cache for instant navigation
+        pdfBlobCacheRef.current.set(url, blobUrl);
         setPdfBlobUrl(blobUrl);
+        setPdfLoadProgress(100);
       })
       .catch(err => {
         if (err.name === 'AbortError') return;
         console.error("PDF fetch error:", err);
-        setError("Unable to load PDF preview");
+        setError("Unable to load PDF. Click Download to save the file.");
       })
       .finally(() => setPdfLoading(false));
 
     return () => {
       controller.abort();
-      // Clean up blob URL when component unmounts or URL changes
-      if (pdfBlobUrl) {
-        URL.revokeObjectURL(pdfBlobUrl);
+    };
+  }, [fileType, url]);
+
+  // Pre-fetch adjacent PDFs for instant navigation
+  useEffect(() => {
+    if (!files || files.length <= 1) return;
+
+    const prefetchPdf = async (fileUrl: string) => {
+      // Skip if already cached or not a PDF URL
+      if (pdfBlobCacheRef.current.has(fileUrl)) return;
+      if (!fileUrl) return;
+
+      try {
+        const res = await fetch(fileUrl);
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        pdfBlobCacheRef.current.set(fileUrl, blobUrl);
+      } catch {
+        // Silent fail for pre-fetch
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileType, url]);
+
+    // Pre-fetch next and previous PDF files
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : null;
+    const nextIndex = currentIndex < files.length - 1 ? currentIndex + 1 : null;
+
+    if (prevIndex !== null && getFileType(files[prevIndex].name) === 'pdf') {
+      prefetchPdf(files[prevIndex].openUrl);
+    }
+    if (nextIndex !== null && getFileType(files[nextIndex].name) === 'pdf') {
+      prefetchPdf(files[nextIndex].openUrl);
+    }
+  }, [files, currentIndex]);
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      pdfBlobCacheRef.current.forEach(blobUrl => {
+        URL.revokeObjectURL(blobUrl);
+      });
+      pdfBlobCacheRef.current.clear();
+    };
+  }, []);
 
   // Fetch and parse EML content when URL changes
   useEffect(() => {
@@ -821,7 +916,40 @@ export function DocumentViewer({
             </div>
           ) : fileType === "pdf" ? (
             pdfLoading ? (
-              <div className={isDark ? "text-white" : "text-gray-800"}>Loading PDF...</div>
+              <div className="flex flex-col items-center justify-center gap-4">
+                {/* Professional loading indicator with progress */}
+                <div className="w-16 h-16 relative">
+                  <svg className="w-full h-full" viewBox="0 0 100 100">
+                    {/* Background circle */}
+                    <circle
+                      cx="50" cy="50" r="40"
+                      fill="none"
+                      stroke={isDark ? "#374151" : "#e5e7eb"}
+                      strokeWidth="8"
+                    />
+                    {/* Progress circle */}
+                    <circle
+                      cx="50" cy="50" r="40"
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={`${pdfLoadProgress * 2.51} 251`}
+                      transform="rotate(-90 50 50)"
+                      className="transition-all duration-300"
+                    />
+                  </svg>
+                  {/* Percentage text */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-700"}`}>
+                      {pdfLoadProgress}%
+                    </span>
+                  </div>
+                </div>
+                <p className={isDark ? "text-gray-300" : "text-gray-600"}>
+                  Loading document...
+                </p>
+              </div>
             ) : pdfBlobUrl ? (
               <iframe
                 key={pdfBlobUrl}
