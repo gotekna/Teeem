@@ -1519,7 +1519,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         loadAllFilesInFlightRef.current = false;
       });
     }
-  }, [viewMode, orgStatus.connected, selectedCategoryKey, selectedSubCategoryKey]);
+  }, [viewMode, orgStatus.connected, selectedCategoryKey, selectedSubCategoryKey, cascadeMode]);
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
@@ -2142,6 +2142,17 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             </span>
           </div>
           <div className="flex gap-2">
+            {/* Cascade Mode Toggle */}
+            <Button
+              variant={cascadeMode ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setCascadeMode(!cascadeMode)}
+              title={cascadeMode ? "Showing all subfolders" : "Showing this folder only"}
+              className="h-7 px-2 text-xs"
+            >
+              <Layers className="h-3.5 w-3.5 mr-1" />
+              {cascadeMode ? "All Subfolders" : "This Folder"}
+            </Button>
             {/* Table/Gallery Toggle */}
             <div className="flex items-center rounded-md border border-border bg-muted p-0.5">
               <Button
