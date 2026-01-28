@@ -178,7 +178,7 @@ namespace :sharepoint do
       if credential.credential_type == "app"
         sp_client = MicrosoftAppGraphClient.new(credential)
       else
-        sp_client = MicrosoftGraphClient.new(credential.valid_access_token)
+        sp_client = MicrosoftGraphClient.new(credential)
       end
 
       stats = { migrated: 0, skipped: 0, errors: [], already_s3: 0 }

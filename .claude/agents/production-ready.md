@@ -20,14 +20,16 @@
 ## CRITICAL: Test EVERYTHING
 
 This agent must test:
-1. **Every list page** - Main navigation pages
+1. **Every page** - Open every page in the navigation
 2. **Every tab on every page** - Click each tab, check for errors
-3. **Detail pages** - Click into records and test all their tabs
-4. **Every settings sub-page** - Navigate to each settings URL directly
-5. **Every admin tab** - Click through all admin system tabs
-6. **Specific features** - Plan preview, modals, photo tabs, actions
+3. **A row in every table** - Click one row to open its drawer/detail view
+4. **Every popup/modal** - Add buttons, edit buttons, action menus
+5. **Every settings sub-page** - Navigate to each settings URL directly
+6. **Every admin tab** - Click through all admin system tabs
+7. **A PDF/document** - Open at least one document to verify viewer works
+8. **Console errors on every page** - Check for 404s, 500s, JS errors after each action
 
-**DO NOT** just test list pages. You MUST click into detail pages and test ALL tabs.
+**DO NOT** just test list pages. You MUST click into a row, open drawers, test modals, and check console on EVERY page.
 
 ## Login Credentials
 
@@ -97,6 +99,61 @@ After EVERY navigation:
 
 **This is NOT optional.** Checking only network requests will miss 404 pages.
 
+## 🔴 CRITICAL: Chrome DevTools MCP Required - NO FALLBACK
+
+**This agent REQUIRES Chrome DevTools MCP tools to function. There is NO acceptable fallback.**
+
+### Before Starting: Verify & Connect Chrome DevTools MCP
+
+1. **Test the connection** by calling `mcp__chrome-devtools__list_pages()`
+   - If it returns pages → Chrome is running, proceed
+   - If it fails → Chrome is not running, **start it yourself** (Step 2)
+
+2. **If Chrome is NOT running, start it yourself:**
+   ```
+   mcp__chrome-devtools__new_page({ url: "https://teeem-staging.vercel.app" })
+   ```
+   Then navigate and auto-login:
+   ```
+   mcp__chrome-devtools__navigate_page({ type: 'url', url: 'https://teeem-staging.vercel.app' })
+   ```
+   If on login page, fill credentials:
+   - Email: `robert@tekna.com.au`
+   - Password: `Wisdom50-50`
+   ```
+   mcp__chrome-devtools__fill_form({ elements: [
+     { uid: "EMAIL_FIELD_UID", value: "robert@tekna.com.au" },
+     { uid: "PASSWORD_FIELD_UID", value: "Wisdom50-50" }
+   ]})
+   mcp__chrome-devtools__click({ uid: "SIGNIN_BUTTON_UID" })
+   ```
+
+3. **If tools are lost mid-session** (context compaction, reconnection issues):
+   - **STOP IMMEDIATELY** - Do not switch to curl testing
+   - **Reconnect yourself** - repeat Step 1 and 2 above
+   - If reconnection fails after 2 attempts, tell the user: "Chrome DevTools MCP won't connect. Please run `/c` and restart `/pr`."
+   - **NEVER fall back to curl/API-only testing** - it misses real bugs
+
+4. **Required tools** - you MUST have access to ALL of these before proceeding:
+   - `mcp__chrome-devtools__navigate_page`
+   - `mcp__chrome-devtools__take_snapshot`
+   - `mcp__chrome-devtools__click`
+   - `mcp__chrome-devtools__wait_for`
+   - `mcp__chrome-devtools__list_network_requests`
+   - `mcp__chrome-devtools__list_console_messages`
+
+### Why This Matters
+
+Curl/API testing ONLY catches backend 500s on known endpoints. It CANNOT:
+- Navigate actual pages and see what the user sees
+- Click tabs and discover frontend-initiated API calls that 404
+- Open row drawers and test detail views
+- See console errors from the browser
+- Find deleted controllers that routes still point to
+- Test modals, popups, PDF viewers, or any interactive UI
+
+**A /pr that only does curl testing is WORTHLESS. It gives false confidence while real bugs (like entire deleted controllers) go undetected.**
+
 ## Test Methodology
 
 For each page:
@@ -107,7 +164,7 @@ For each page:
 5. Check network for 500 errors using `mcp__chrome-devtools__list_network_requests` with `resourceTypes: ["fetch", "xhr"]`
 6. Check console for errors using `mcp__chrome-devtools__list_console_messages` with `types: ["error"]`
 7. **For pages with tabs:** Click EACH tab and repeat checks
-8. **For list pages:** Click into records to test detail views
+8. **For list pages:** Click a row to open the drawer/detail view, check for errors
 9. **For detail pages:** Click EVERY tab
 10. **Increment PAGES_OPENED counter**
 11. Log all errors with specific paths for fixing

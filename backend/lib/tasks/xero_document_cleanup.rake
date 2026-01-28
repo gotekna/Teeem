@@ -621,6 +621,159 @@ namespace :xero do
       puts "\n" + "=" * 60
     end
 
+    desc "Investigate corporate docs: find duplicates, orphans, and misclassified"
+    task corporate_audit: :environment do
+      puts "=" * 60
+      puts "Corporate Document Audit"
+      puts "=" * 60
+
+      total = WarehouseDocument.where(source_type: "corporate").count
+      with_blob = WarehouseDocument.where(source_type: "corporate").where.not(storage_blob_id: nil).count
+      no_blob = total - with_blob
+      puts "\nTotal corporate docs: #{total}"
+      puts "  With blob: #{with_blob}"
+      puts "  Without blob: #{no_blob}"
+
+      # 1. Corporate docs WITH blob that duplicate another source_type
+      puts "\n--- WITH BLOB: Cross-source duplicates ---"
+      blob_dupes = 0
+      blob_unique = 0
+      WarehouseDocument.where(source_type: "corporate").where.not(storage_blob_id: nil).find_each do |doc|
+        other = WarehouseDocument.where(storage_blob_id: doc.storage_blob_id)
+                                 .where.not(id: doc.id)
+                                 .where.not(source_type: "corporate")
+                                 .first
+        if other
+          blob_dupes += 1
+          puts "  DUPE: Corp WD##{doc.id} = #{other.source_type} WD##{other.id} (#{other.documentable_type}##{other.documentable_id})" if blob_dupes <= 10
+        else
+          blob_unique += 1
+          puts "  UNIQUE: Corp WD##{doc.id} blob:#{doc.storage_blob_id} #{doc.display_name.to_s[0..50]}" if blob_unique <= 5
+        end
+      end
+      puts "  Duplicates of task/job/other docs: #{blob_dupes}"
+      puts "  Unique corporate-only: #{blob_unique}"
+
+      # 2. Corporate docs WITHOUT blob - check by display_name match
+      puts "\n--- WITHOUT BLOB: Display name matches ---"
+      name_match = 0
+      name_no_match = 0
+      sample_size = [no_blob, 500].min
+      WarehouseDocument.where(source_type: "corporate", storage_blob_id: nil).limit(sample_size).find_each do |doc|
+        other = WarehouseDocument.where.not(source_type: "corporate")
+                                 .where.not(storage_blob_id: nil)
+                                 .where(display_name: doc.display_name)
+                                 .first
+        if other
+          name_match += 1
+          puts "  MATCH: Corp WD##{doc.id} '#{doc.display_name.to_s[0..40]}' = #{other.source_type} WD##{other.id}" if name_match <= 5
+        else
+          name_no_match += 1
+        end
+      end
+      puts "  Name matches (sampled #{sample_size}): #{name_match}"
+      puts "  No match: #{name_no_match}"
+
+      # 3. Check metadata filename matches
+      puts "\n--- WITHOUT BLOB: Metadata filename matches ---"
+      fn_match = 0
+      WarehouseDocument.where(source_type: "corporate", storage_blob_id: nil).limit(sample_size).find_each do |doc|
+        filename = doc.metadata&.dig("filename")
+        next unless filename.present?
+        other = WarehouseDocument.where.not(source_type: "corporate")
+                                 .where.not(storage_blob_id: nil)
+                                 .where(display_name: filename.sub(/\.[^.]+$/, ""))
+                                 .or(WarehouseDocument.where.not(source_type: "corporate")
+                                                      .where.not(storage_blob_id: nil)
+                                                      .where("display_name ILIKE ?", "%#{filename.sub(/\.[^.]+$/, "")}%"))
+                                 .first
+        if other
+          fn_match += 1
+          puts "  FN MATCH: Corp WD##{doc.id} '#{filename[0..40]}' = #{other.source_type} WD##{other.id}" if fn_match <= 5
+        end
+      end
+      puts "  Filename matches (sampled #{sample_size}): #{fn_match}"
+
+      # 4. Summary
+      puts "\n--- CLEANUP RECOMMENDATION ---"
+      puts "  Safe to delete (blob dupes): #{blob_dupes}"
+      puts "  Corporate-only with blob (keep): #{blob_unique}"
+      puts "  No blob, no file (metadata-only orphans): #{no_blob}"
+      puts "\n  Action: Delete #{blob_dupes} blob duplicates immediately."
+      puts "  Action: #{no_blob} metadata-only records have no viewable file."
+      puts "          These are ghost records from the CorporateCompanyDocument migration."
+
+      puts "\n" + "=" * 60
+    end
+
+    desc "Delete corporate docs that duplicate task/job docs (same blob)"
+    task delete_blob_dupes: :environment do
+      puts "=" * 60
+      puts "Delete Corporate Blob Duplicates"
+      puts "=" * 60
+
+      to_delete = []
+
+      WarehouseDocument.where(source_type: "corporate").where.not(storage_blob_id: nil).find_each do |doc|
+        other = WarehouseDocument.where(storage_blob_id: doc.storage_blob_id)
+                                 .where.not(id: doc.id)
+                                 .where.not(source_type: "corporate")
+                                 .first
+        if other
+          to_delete << { id: doc.id, display: doc.display_name.to_s[0..50], real_source: other.source_type, real_id: other.id }
+        end
+      end
+
+      puts "Found #{to_delete.count} corporate docs that duplicate other sources"
+      to_delete.first(10).each do |d|
+        puts "  WD##{d[:id]} '#{d[:display]}' → real: #{d[:real_source]} WD##{d[:real_id]}"
+      end
+
+      if to_delete.empty?
+        puts "Nothing to delete."
+      else
+        deleted = 0
+        errors = []
+        to_delete.each do |d|
+          begin
+            WarehouseDocument.find(d[:id]).destroy!
+            deleted += 1
+          rescue => e
+            errors << "WD##{d[:id]}: #{e.message}"
+          end
+        end
+
+        puts "\nResults:"
+        puts "  Deleted: #{deleted}"
+        puts "  Errors: #{errors.count}"
+        errors.first(5).each { |e| puts "  #{e}" } if errors.any?
+      end
+
+      puts "\n" + "=" * 60
+    end
+
+    desc "Delete metadata-only corporate docs (no blob = no file to view)"
+    task delete_no_blob: :environment do
+      puts "=" * 60
+      puts "Delete Corporate Metadata-Only Docs (No Blob)"
+      puts "=" * 60
+
+      no_blob = WarehouseDocument.where(source_type: "corporate", storage_blob_id: nil)
+      total = no_blob.count
+      puts "Found #{total} corporate docs with no storage blob"
+      puts "These are ghost records - no actual file to view or download."
+
+      if total == 0
+        puts "Nothing to delete."
+      else
+        puts "\nDeleting #{total} metadata-only records..."
+        deleted = no_blob.delete_all
+        puts "Deleted: #{deleted}"
+      end
+
+      puts "\n" + "=" * 60
+    end
+
     private
 
     def cleanup_duplicates(dry_run:, source_type: nil)
