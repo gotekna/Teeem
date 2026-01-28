@@ -3259,13 +3259,25 @@ module Api
           # Use .size instead of .count to use preloaded data (avoids N+1)
           attachments_count: task.sm_task_attachments.size,
           # Unread email count for task card indicator (SSoT: synced with inbox read status)
-          # FRC (Jan 2026): Exclude emails FROM our mailboxes - they're internal (never unread)
+          # FRC (Jan 2026): Exclude sent/internal emails - they should never show as unread
+          # SSoT: Must match frontend isSentEmail() logic in TaskFullscreenView.tsx
           unread_email_count: begin
             email_attachments = task.sm_task_attachments.select { |a| a.attachable_type == "SyncedEmail" && a.attachable }
             our_mailboxes = email_attachments.map { |a| a.attachable.mailbox_owner_email&.downcase }.compact.uniq
             email_attachments.count { |a|
               email = a.attachable
-              email.is_read == false && !our_mailboxes.include?(email.from_email&.downcase)
+              next false unless email.is_read == false
+              # Skip sent emails (folder_name = "Sent Items", "Sent", "Outbox")
+              folder = email.folder_name&.downcase || ""
+              next false if folder.start_with?("sent") || folder == "outbox"
+              # Skip emails with no from_email (sent emails from MS Graph)
+              next false if email.from_email.blank?
+              # Skip emails FROM our mailboxes (internal)
+              from_email = email.from_email.downcase
+              next false if our_mailboxes.include?(from_email)
+              # Skip emails FROM @tekna.com.au or @teeem.com.au (internal)
+              next false if from_email.end_with?("@tekna.com.au", "@teeem.com.au")
+              true
             }
           end,
           # Include full attachments for task detail view (uses preloaded association)
