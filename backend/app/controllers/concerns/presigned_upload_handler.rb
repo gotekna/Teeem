@@ -84,9 +84,20 @@ module PresignedUploadHandler
   def download_from_storage(storage_key)
     provider = DocumentProviders::S3Compatible.for_organization(current_organization)
 
+    # Log root path for debugging
+    Rails.logger.info "[PresignedUploadHandler] download_from_storage: key=#{storage_key}, root_path=#{provider.instance_variable_get(:@root_path).inspect}, bucket=#{provider.instance_variable_get(:@bucket)}"
+
     # Download file content
     content = provider.download_file(storage_key)
-    return nil unless content
+    unless content
+      Rails.logger.error "[PresignedUploadHandler] download_file returned nil for #{storage_key}"
+      return nil
+    end
+
+    # FRC (Jan 2026): Force binary encoding to prevent PDF corruption
+    # S3 returns binary content but Ruby may interpret as UTF-8, corrupting PDFs
+    content = content.dup.force_encoding(Encoding::ASCII_8BIT)
+    Rails.logger.info "[PresignedUploadHandler] Content size: #{content.bytesize} bytes, encoding: #{content.encoding}"
 
     # Extract filename from key
     filename = File.basename(storage_key)
