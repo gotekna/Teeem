@@ -45,7 +45,8 @@ class Job < ApplicationRecord
   has_many :unreal_measurements, dependent: :destroy
   has_many :rain_logs, dependent: :destroy
   has_many :external_invoices, dependent: :nullify
-  has_many :job_documents, dependent: :destroy
+  # Note: job_documents association REMOVED (Jan 2026) - table dropped
+  # SSoT: WarehouseDocument is now THE ONE table for document metadata
   has_many :teeem_spreadsheets, dependent: :nullify
 
   # Plans (new plans tab with revision tracking)
