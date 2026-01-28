@@ -42,7 +42,9 @@ class BackfillImapEmailBlobsJob < ApplicationJob
 
     emails_by_credential.each do |cred_id, emails|
       credential = ImapCredential.find_by(id: cred_id)
-      next unless credential&.connected?
+      next unless credential
+      # Skip if credential has sync error (likely auth issue)
+      next if credential.last_sync_status == "error"
 
       tenant = credential.user&.tenant
       next unless tenant
