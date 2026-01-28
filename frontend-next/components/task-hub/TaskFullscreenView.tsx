@@ -4111,22 +4111,27 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     // NOTE: Email links removed - external recipients don't need .eml downloads of conversations they're part of
 
-    // Count total document attachments (question attachments + general response files)
-    const questionDocCount = includedQuestions.reduce((count, q) => {
-      return count + (q.attachments?.filter(a => a.document)?.length || 0);
+    // FRC (Jan 2026): Count only documents with LINKS (not 'attach' only)
+    // ZIP/expiry message only makes sense when there are download links in the email body
+    const questionLinkedDocCount = includedQuestions.reduce((count, q) => {
+      return count + (q.attachments?.filter(a => {
+        if (!a.document) return false;
+        const opt = attachmentEmailOptions[a.id] || 'link';
+        return opt === 'link' || opt === 'both';
+      })?.length || 0);
     }, 0);
-    const totalDocuments = questionDocCount + linkedFiles.length;
+    const totalLinkedDocuments = questionLinkedDocCount + linkedFiles.length;
 
-    // Add "Download All" link if available (for multiple files)
+    // Add "Download All" link if available (for multiple linked files)
     // Use ref for synchronous access (avoids React state timing issues)
     const downloadUrl = downloadAllShareUrlRef.current;
-    if (downloadUrl && totalDocuments > 1) {
+    if (downloadUrl && totalLinkedDocuments > 1) {
       const expiryDays = downloadAllExpiryDaysRef.current;
-      body += `<p>For your convenience, you can download all ${totalDocuments} files in a single ZIP archive:</p>\n`;
+      body += `<p>For your convenience, you can download all ${totalLinkedDocuments} files in a single ZIP archive:</p>\n`;
       body += `<p>📦 <a href="${downloadUrl}"><strong>Download All Files (ZIP)</strong></a></p>\n`;
       body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
-    } else if (totalDocuments === 1) {
-      // Single document still needs expiration warning (links expire same as ZIP)
+    } else if (totalLinkedDocuments === 1) {
+      // Single linked document still needs expiration warning (links expire same as ZIP)
       const expiryDays = downloadAllExpiryDaysRef.current;
       body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
     }
