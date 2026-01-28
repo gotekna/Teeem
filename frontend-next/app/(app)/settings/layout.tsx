@@ -17,7 +17,7 @@ import {
   Server,
   Code,
   Wrench,
-  Plug,
+  Cable,
 } from "lucide-react";
 
 // Personal tabs - visible to all authenticated users
@@ -31,13 +31,14 @@ const PERSONAL_TABS = [
 // Organization tabs - visible to admin users only
 // SSoT: Documents moved under Company
 // SSoT: Entity Config moved under Company
+// SSoT: Connections is top-level (Jan 2026) - contains Storage Provider, Integrations, Migration, Cost Comparison
 const ORGANIZATION_TABS = [
   { id: "users", label: "Users", icon: Users },
   { id: "roles", label: "Access Control", icon: ShieldCheck },
   { id: "corporate", label: "Corporate", icon: Building2 },
   { id: "company", label: "Company", icon: Building },
   { id: "operations", label: "Operations", icon: Wrench },
-  { id: "integrations", label: "Integrations", icon: Plug },
+  { id: "connections", label: "Connections", icon: Cable },
   { id: "system", label: "System", icon: Server },
   { id: "developer", label: "Developer", icon: Code },
 ];
@@ -53,15 +54,16 @@ export default function SettingsLayout({
 
   // Extract current tab from path
   // /settings/profile → "profile"
-  // /settings/integrations/xero → "integrations"
+  // /settings/connections/provider → "connections"
   // /settings/company/info → "company"
   const pathParts = pathname.replace("/settings", "").split("/").filter(Boolean);
   const currentTab = pathParts[0] || "profile";
 
   // Hide navigation on detail pages (e.g., /settings/integrations/xero)
-  // Detail pages are 2+ levels deep under a non-company section
-  // Company sub-tabs still show navigation (e.g., /settings/company/info)
-  const isDetailPage = pathParts.length >= 2 && pathParts[0] !== "company";
+  // Detail pages are 2+ levels deep under sections without sub-tabs
+  // Company and Connections sub-tabs still show navigation (e.g., /settings/company/info, /settings/connections/provider)
+  const sectionsWithSubTabs = ["company", "connections"];
+  const isDetailPage = pathParts.length >= 2 && !sectionsWithSubTabs.includes(pathParts[0]);
 
   const handleTabChange = (value: string) => {
     router.push(`/settings/${value}`);
