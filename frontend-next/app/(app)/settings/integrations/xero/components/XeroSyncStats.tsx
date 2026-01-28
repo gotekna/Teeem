@@ -304,7 +304,7 @@ export function XeroSyncStats() {
             {global.pending_reviews.count > 0 && (
               <Button
                 variant="default"
-                onClick={() => router.push("/contacts/filter/pending_review")}
+                onClick={() => router.push("/contacts/quality-review")}
               >
                 <Eye className="h-4 w-4 mr-2" />
                 Review {global.pending_reviews.count} Pending Matches
@@ -468,7 +468,7 @@ export function XeroSyncStats() {
                 variant="outline"
                 size="sm"
                 className="border-amber-400 text-amber-800 hover:bg-amber-100"
-                onClick={() => router.push("/contacts/filter/pending_review")}
+                onClick={() => router.push("/contacts/quality-review")}
               >
                 Review All
                 <ChevronRight className="h-4 w-4 ml-1" />
@@ -740,7 +740,7 @@ export function XeroSyncStats() {
                   {/* Pending Reviews Warning - Clickable to review page */}
                   {tenant.contacts.pending_review > 0 && (
                     <button
-                      onClick={() => router.push("/contacts/filter/pending_review")}
+                      onClick={() => router.push("/contacts/quality-review")}
                       className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 cursor-pointer transition-colors w-full text-left"
                     >
                       <AlertTriangle className="h-3 w-3" />

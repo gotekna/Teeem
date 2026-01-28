@@ -1501,6 +1501,8 @@ module Api
       # Returns WarehouseDocument records for this contact (including migrated Xero PDFs)
       # Optional params:
       #   - tab_key: Filter by EntityTab (returns docs where document_type is linked to tab via primary or also_show_in)
+      #   - folder: Filter by specific folder path
+      #   - include_descendants: When true, includes documents from all subfolders (cascade view)
 
       def documents
         # SSoT: Query WarehouseDocument records linked to this contact
@@ -1512,6 +1514,19 @@ module Api
         if params[:tab_key].present?
           # Map tab_key to folder for filtering
           documents = documents.where(folder: params[:tab_key])
+        end
+
+        # Filter by folder with optional cascade (include_descendants)
+        if params[:folder].present?
+          if params[:include_descendants] == 'true'
+            # Cascade view: include this folder AND all subfolders
+            # Use LIKE query with folder path prefix
+            folder_path = params[:folder]
+            documents = documents.where("folder = ? OR folder LIKE ?", folder_path, "#{folder_path}/%")
+          else
+            # Exact folder match only
+            documents = documents.where(folder: params[:folder])
+          end
         end
 
         # Build lookup map for ExternalInvoice dates (for Xero docs)
