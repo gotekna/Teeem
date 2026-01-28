@@ -7160,6 +7160,53 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     <span>Download All</span>
                   </button>
                 )}
+                {/* Select All dropdown for attachment options */}
+                {responseAttachments.length > 1 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <button className={`${responseAttachments.filter(att => att.document).length > 1 ? '' : 'ml-auto'} text-xs text-muted-foreground hover:text-foreground flex items-center gap-1`}>
+                        <Check className="h-3 w-3" />
+                        <span>Set All</span>
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenuItem onClick={() => {
+                        const newOptions: Record<number, 'attach' | 'link' | 'both' | 'none'> = {};
+                        responseAttachments.forEach(att => { newOptions[att.id] = 'attach'; });
+                        setAttachmentEmailOptions(newOptions);
+                      }}>
+                        <Paperclip className="h-3 w-3 mr-2" />
+                        Attach Only
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        const newOptions: Record<number, 'attach' | 'link' | 'both' | 'none'> = {};
+                        responseAttachments.forEach(att => { newOptions[att.id] = 'link'; });
+                        setAttachmentEmailOptions(newOptions);
+                      }}>
+                        <Link2 className="h-3 w-3 mr-2" />
+                        Link Only
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        const newOptions: Record<number, 'attach' | 'link' | 'both' | 'none'> = {};
+                        responseAttachments.forEach(att => { newOptions[att.id] = 'both'; });
+                        setAttachmentEmailOptions(newOptions);
+                      }}>
+                        <Check className="h-3 w-3 mr-2" />
+                        Both (Attach + Link)
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => {
+                        const newOptions: Record<number, 'attach' | 'link' | 'both' | 'none'> = {};
+                        responseAttachments.forEach(att => { newOptions[att.id] = 'none'; });
+                        setAttachmentEmailOptions(newOptions);
+                      }}>
+                        <X className="h-3 w-3 mr-2" />
+                        Skip All
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
 
               {!responseFilesCollapsed && (
