@@ -27,12 +27,32 @@ class SmTaskAttachment < ApplicationRecord
   after_create :auto_populate_keywords
   after_create :create_warehouse_entry
 
+  # Soft delete support - deleted attachments won't be re-created by auto-attach
+  # SSoT: Use deleted_at to track user-removed attachments
+  default_scope { where(deleted_at: nil) }
+  scope :with_deleted, -> { unscope(where: :deleted_at) }
+  scope :deleted, -> { unscope(where: :deleted_at).where.not(deleted_at: nil) }
+
   # Scopes
   scope :emails, -> { where(attachable_type: "SyncedEmail") }
   scope :documents, -> { where(attachable_type: "CorporateCompanyDocument") }
   scope :recent, -> { order(created_at: :desc) }
   scope :info, -> { where(category: "info") }
   scope :responses, -> { where(category: "response") }
+
+  # Soft delete - marks as deleted instead of destroying
+  # SSoT: Prevents email sync from re-creating deleted attachments
+  def soft_delete!(user = nil)
+    update!(deleted_at: Time.current, deleted_by_id: user&.id)
+  end
+
+  # Check if attachment was previously deleted (for auto-attach prevention)
+  def self.was_deleted?(sm_task_id:, attachable_type:, attachable_id:)
+    with_deleted
+      .where(sm_task_id: sm_task_id, attachable_type: attachable_type, attachable_id: attachable_id)
+      .where.not(deleted_at: nil)
+      .exists?
+  end
 
   # Phase 4: Virtual folder path for File Warehouse
   # SSoT: Reads from StorageConfiguration + respects exclude_sm_tasks checkbox

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_28_053713) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_28_060351) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8687,10 +8687,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_053713) do
     t.bigint "action_item_id"
     t.string "display_name"
     t.boolean "is_source", default: false, null: false
+    t.datetime "deleted_at"
+    t.bigint "deleted_by_id"
     t.index ["action_item_id"], name: "index_sm_task_attachments_on_action_item_id"
     t.index ["added_by_id"], name: "index_sm_task_attachments_on_added_by_id"
     t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"
     t.index ["category"], name: "index_sm_task_attachments_on_category"
+    t.index ["deleted_at"], name: "index_sm_task_attachments_on_deleted_at"
     t.index ["sm_task_id", "attachable_type", "attachable_id"], name: "idx_sm_task_attachments_unique", unique: true
     t.index ["sm_task_id"], name: "index_sm_task_attachments_on_sm_task_id"
   end
@@ -11495,6 +11498,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_053713) do
   add_foreign_key "sm_task_attachments", "sm_tasks", on_delete: :cascade
   add_foreign_key "sm_task_attachments", "task_action_items", column: "action_item_id"
   add_foreign_key "sm_task_attachments", "users", column: "added_by_id", on_delete: :nullify
+  add_foreign_key "sm_task_attachments", "users", column: "deleted_by_id", on_delete: :nullify
   add_foreign_key "sm_task_document_types", "document_types"
   add_foreign_key "sm_task_document_types", "sm_tasks"
   add_foreign_key "sm_task_photos", "document_types"
