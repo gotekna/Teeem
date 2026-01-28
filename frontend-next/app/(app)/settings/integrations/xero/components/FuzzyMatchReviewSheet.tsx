@@ -13,18 +13,22 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { ExpandChevron } from "@/components/ui/expand-chevron";
 import {
   CheckCircle2,
-  XCircle,
   ArrowRight,
   AlertTriangle,
   RefreshCw,
   Search,
   ArrowRightLeft,
   Plus,
+  Building2,
+  User,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 interface PendingReviewItem {
   id: number;
@@ -44,6 +48,10 @@ interface Contact {
   display_name: string;
   entity_type: string | null;
   email?: string | null;
+  primary_company?: {
+    id: number;
+    name: string;
+  } | null;
 }
 
 interface FuzzyMatchReviewSheetProps {
@@ -57,6 +65,7 @@ export function FuzzyMatchReviewSheet({
   onOpenChange,
   onReviewed,
 }: FuzzyMatchReviewSheetProps) {
+  const router = useRouter();
   const [loading, setLoading] = React.useState(true);
   const [items, setItems] = React.useState<PendingReviewItem[]>([]);
   const [processingId, setProcessingId] = React.useState<number | null>(null);
@@ -66,6 +75,7 @@ export function FuzzyMatchReviewSheet({
   const [searchQuery, setSearchQuery] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<Contact[]>([]);
   const [searching, setSearching] = React.useState(false);
+  const [collapsedCompanies, setCollapsedCompanies] = React.useState<Set<string>>(new Set());
 
   const fetchPendingReviews = React.useCallback(async () => {
     setLoading(true);
@@ -102,9 +112,10 @@ export function FuzzyMatchReviewSheet({
 
     const timer = setTimeout(async () => {
       setSearching(true);
+      setCollapsedCompanies(new Set()); // Reset collapsed state on new search
       try {
         const response = await api.get<{ success: boolean; data: Contact[] }>(
-          `/api/v1/contacts?q=${encodeURIComponent(searchQuery)}&per_page=10`
+          `/api/v1/contacts?search=${encodeURIComponent(searchQuery)}&include_companies=true&per_page=20`
         );
         if (response?.success && response.data) {
           // Filter out current contact
@@ -122,6 +133,43 @@ export function FuzzyMatchReviewSheet({
 
     return () => clearTimeout(timer);
   }, [searchQuery, changingItem]);
+
+  // Group contacts by company for tree view
+  const groupedContacts = React.useMemo(() => {
+    const groups: Record<string, Contact[]> = {};
+
+    searchResults.forEach((contact) => {
+      const companyName = contact.primary_company?.name || "Other";
+      if (!groups[companyName]) groups[companyName] = [];
+      groups[companyName].push(contact);
+    });
+
+    // Sort: groups with more results first, "Other" last
+    return Object.entries(groups).sort(([a, aContacts], [b, bContacts]) => {
+      if (a === "Other") return 1;
+      if (b === "Other") return -1;
+      return bContacts.length - aContacts.length;
+    });
+  }, [searchResults]);
+
+  const toggleCompany = (companyName: string) => {
+    setCollapsedCompanies((prev) => {
+      const next = new Set(prev);
+      if (next.has(companyName)) {
+        next.delete(companyName);
+      } else {
+        next.add(companyName);
+      }
+      return next;
+    });
+  };
+
+  // Handle "New" - open contact page with prefilled name
+  const handleCreateNew = (item: PendingReviewItem) => {
+    const name = encodeURIComponent(item.external_contact_name);
+    router.push(`/contacts/new?name=${name}`);
+    onOpenChange(false);
+  };
 
   const handleApprove = async (item: PendingReviewItem) => {
     setProcessingId(item.id);
@@ -304,21 +352,50 @@ export function FuzzyMatchReviewSheet({
                             </div>
                           )}
 
-                          {searchResults.length > 0 && (
-                            <div className="border rounded max-h-32 overflow-y-auto">
-                              {searchResults.map((contact) => (
-                                <button
-                                  key={contact.id}
-                                  onClick={() => handleTransfer(item, contact)}
-                                  disabled={isProcessing}
-                                  className="w-full text-left px-3 py-2 hover:bg-muted text-sm flex items-center justify-between"
-                                >
-                                  <span className="truncate">{contact.display_name}</span>
-                                  <Badge variant="outline" className="text-xs ml-2">
-                                    {contact.entity_type || "contact"}
-                                  </Badge>
-                                </button>
-                              ))}
+                          {groupedContacts.length > 0 && (
+                            <div className="border rounded max-h-48 overflow-y-auto">
+                              {groupedContacts.map(([companyName, contacts]) => {
+                                const isCollapsed = collapsedCompanies.has(companyName);
+                                return (
+                                  <div key={companyName}>
+                                    {/* Company header */}
+                                    <div
+                                      className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-semibold bg-muted/50 cursor-pointer hover:bg-muted select-none sticky top-0"
+                                      onClick={() => toggleCompany(companyName)}
+                                    >
+                                      <ExpandChevron expanded={!isCollapsed} size={12} />
+                                      <Building2 className="h-3 w-3 text-muted-foreground" />
+                                      <span className="flex-1 truncate">{companyName}</span>
+                                      <span className="text-[10px] text-muted-foreground bg-muted px-1 py-0.5 rounded-full">
+                                        {contacts.length}
+                                      </span>
+                                    </div>
+
+                                    {/* Contacts in this company */}
+                                    {!isCollapsed && contacts.map((contact) => (
+                                      <button
+                                        key={contact.id}
+                                        onClick={() => handleTransfer(item, contact)}
+                                        disabled={isProcessing}
+                                        className={cn(
+                                          "w-full text-left px-3 py-1.5 hover:bg-accent/50 text-sm flex items-center gap-2 pl-6",
+                                          isProcessing && "opacity-50"
+                                        )}
+                                      >
+                                        {contact.entity_type === "company" ? (
+                                          <Building2 className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                        ) : (
+                                          <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                        )}
+                                        <span className="truncate flex-1">{contact.display_name}</span>
+                                        <Badge variant="outline" className="text-[10px] ml-1 flex-shrink-0">
+                                          {contact.entity_type || "contact"}
+                                        </Badge>
+                                      </button>
+                                    ))}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
 
@@ -343,16 +420,12 @@ export function FuzzyMatchReviewSheet({
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleReject(item)}
+                            onClick={() => handleCreateNew(item)}
                             disabled={isProcessing}
                             className="flex-1 text-xs"
                             title="Create new contact"
                           >
-                            {isProcessing ? (
-                              <Spinner size={14} className="mr-1" />
-                            ) : (
-                              <Plus className="h-3 w-3 mr-1" />
-                            )}
+                            <Plus className="h-3 w-3 mr-1" />
                             New
                           </Button>
                           <Button
