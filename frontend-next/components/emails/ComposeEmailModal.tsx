@@ -534,11 +534,6 @@ export function ComposeEmailModal({
         await api.post("/api/v1/imap_credentials/schedule_email", payload);
       } else {
         // Queue with undo capability (see UNDO_DELAY_SECONDS in email-constants.ts)
-        // Combine existing storage keys with pre-uploaded attachment keys
-        const allStorageKeys = [
-          ...existingStorageKeys,
-          ...preUploadedAttachments.map(att => att.storageKey),
-        ];
         queueSend({
           credential_id: formData.credential_id,
           from_address: formData.from_address || undefined,
@@ -549,8 +544,8 @@ export function ComposeEmailModal({
           body: fullBody,
           reply_to_message_id: replyToMessageId,
           attachments: attachments,
-          // SSoT: Pass existing storage keys directly (no re-upload needed)
-          existingStorageKeys: allStorageKeys.length > 0 ? allStorageKeys : undefined,
+          // SSoT: Pass pre-uploaded attachments with filenames (Ultra fix Jan 2026)
+          preUploadedAttachments: preUploadedAttachments.length > 0 ? preUploadedAttachments : undefined,
           sm_task_id: smTaskId,  // Link sent email to SM task
         });
       }

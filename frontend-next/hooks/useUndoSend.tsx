@@ -6,7 +6,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { UNDO_DELAY_SECONDS } from "@/lib/email-constants";
-import type { QueuedEmail, SendEmailParams } from "@/lib/email-types";
+import type { QueuedEmail, SendEmailParams, PreUploadedAttachment } from "@/lib/email-types";
 
 /**
  * Hook for sending emails with undo capability.
@@ -65,23 +65,32 @@ export function useUndoSend() {
     });
 
     try {
-      // SSoT: Start with existing storage keys (files already in S3 - no upload needed)
-      // Ultra fix (Jan 2026): Documents from task attachments already have storage_key
-      const attachmentStorageKeys: string[] = [...email.existingStorageKeys];
+      // SSoT: Start with pre-uploaded attachments (files already in S3 with filenames)
+      // Ultra fix (Jan 2026): Documents from task attachments already have storage_key and filename
+      const attachmentData: { key: string; filename: string; content_type?: string }[] =
+        email.preUploadedAttachments.map(att => ({
+          key: att.storageKey,
+          filename: att.filename,
+          content_type: att.contentType,
+        }));
 
       // Upload new attachments via presigned URL (only for files not already in storage)
       // Use 'chat' scope for email attachments - no record needed, just the S3 key
       for (const file of email.attachments) {
         const uploadResult = await uploadFile(file, 'chat');
         if (uploadResult.success && uploadResult.key) {
-          attachmentStorageKeys.push(uploadResult.key);
+          attachmentData.push({
+            key: uploadResult.key,
+            filename: file.name,
+            content_type: file.type || undefined,
+          });
         } else {
           console.error('[useUndoSend] Failed to upload attachment:', file.name, uploadResult.error);
           throw new Error(`Failed to upload attachment: ${file.name}`);
         }
       }
 
-      // Send email with storage keys instead of files
+      // Send email with attachment data (key + filename) instead of just keys
       await api.post("/api/v1/imap_credentials/send_email", {
         credential_id: email.credential_id,
         to: email.to,
@@ -91,7 +100,8 @@ export function useUndoSend() {
         cc: email.cc,
         bcc: email.bcc,
         reply_to_message_id: email.reply_to_message_id,
-        attachment_storage_keys: attachmentStorageKeys.length > 0 ? attachmentStorageKeys : undefined,
+        // SSoT: Pass attachment data with filenames (Ultra fix Jan 2026)
+        attachment_data: attachmentData.length > 0 ? attachmentData : undefined,
         sm_task_id: email.sm_task_id,  // Link sent email to SM task
       });
 
@@ -118,8 +128,8 @@ export function useUndoSend() {
       id: emailId,
       ...params,
       attachments: params.attachments || [],
-      // SSoT: Existing storage keys (pass directly to backend, no re-upload)
-      existingStorageKeys: params.existingStorageKeys || [],
+      // SSoT: Pre-uploaded attachments (pass to backend with filenames)
+      preUploadedAttachments: params.preUploadedAttachments || [],
       countdown,
       timeoutId: null as unknown as NodeJS.Timeout,
       intervalId: null as unknown as NodeJS.Timeout,

@@ -272,6 +272,7 @@ class EmailStorageUploadService
 
     # SSoT: Detect permanent Microsoft Graph errors (content cannot be retrieved)
     # These errors indicate the email or mailbox no longer exists in Microsoft 365
+    # Note: Token refresh happens within with_retry, so if we get here, token isn't the issue
     permanent_error_patterns = [
       /ErrorItemNotFound/i,           # Email deleted from O365
       /ErrorInvalidUser/i,            # User account removed
@@ -279,6 +280,7 @@ class EmailStorageUploadService
       /ErrorMailboxNotFound/i,        # Mailbox doesn't exist
       /ResourceNotFound/i,            # Resource (email/user) not found
       /MailboxMoveInProgress/i,       # Mailbox being migrated (retry later won't help if done)
+      /ErrorAccessDenied/i,           # No permission to mailbox (credential lacks access)
     ]
 
     if permanent_error_patterns.any? { |pattern| error_message.match?(pattern) }

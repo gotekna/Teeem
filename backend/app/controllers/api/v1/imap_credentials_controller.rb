@@ -810,7 +810,30 @@ class Api::V1::ImapCredentialsController < ApplicationController
       end
     end
 
-    # Handle storage keys (from presigned URL uploads)
+    # Handle attachment_data (new format with filenames - Ultra fix Jan 2026)
+    # Format: [{ key: "storage/path", filename: "document.pdf", content_type: "application/pdf" }]
+    if params[:attachment_data].present?
+      Array(params[:attachment_data]).each do |att_data|
+        # Support both string keys and symbol keys
+        storage_key = att_data[:key] || att_data["key"]
+        filename = att_data[:filename] || att_data["filename"]
+        content_type = att_data[:content_type] || att_data["content_type"]
+
+        next unless storage_key.present?
+
+        file = download_from_storage(storage_key)
+        next unless file
+
+        # Use provided filename (preserves original name), fallback to extracted filename
+        attachments << {
+          filename: filename.presence || file.original_filename,
+          content: file.read,
+          content_type: content_type.presence || file.content_type
+        }
+      end
+    end
+
+    # Legacy: Handle storage keys (from presigned URL uploads) - for backwards compatibility
     if params[:attachment_storage_keys].present?
       Array(params[:attachment_storage_keys]).each do |storage_key|
         file = download_from_storage(storage_key)
