@@ -278,9 +278,22 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   filteredEntries.forEach(([key, path]) => {
     if (!path) return;
 
+    // SSoT: Child scopes (task_attachments, task_responses, etc.) only store suffix
+    // Need to combine with parent's base path for tree building
+    const parentKey = WAREHOUSE_TYPE_PARENTS[key];
+    let effectivePath = path;
+    if (parentKey) {
+      const parentPath = scopeFolders[parentKey];
+      if (parentPath) {
+        // Child scope: combine parent base + suffix
+        // e.g., "Tasks/{{TaskId}}/{{TaskName}}" + "Responses" = "Tasks/{{TaskId}}/{{TaskName}}/Responses"
+        effectivePath = `${parentPath}/${path}`.replace(/\/+/g, '/');
+      }
+    }
+
     // Split path but stop at first placeholder for folder building
     // e.g., "Tasks/{{TaskStatus}}/{{JobName}}" → only create "Tasks" folder
-    const allParts = path.split('/').filter(Boolean);
+    const allParts = effectivePath.split('/').filter(Boolean);
     const isMainScope = mainScopeKeys.includes(key);
 
     // For main scopes, only take parts before first placeholder

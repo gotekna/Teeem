@@ -139,12 +139,18 @@ class ContactExternalLink < ApplicationRecord
   end
 
   # Approve a fuzzy match review
+  # Recalculates match_confidence based on current names to fix stale values
   def approve_review!(reviewer_email = nil)
+    # Recalculate match confidence now that link is confirmed
+    new_confidence = calculate_match_confidence
+
     update!(
       needs_review: false,
       sync_enabled: true,
       reviewed_at: Time.current,
-      reviewed_by: reviewer_email
+      reviewed_by: reviewer_email,
+      match_confidence: new_confidence,
+      match_type: "manual"  # Mark as manually reviewed
     )
   end
 
