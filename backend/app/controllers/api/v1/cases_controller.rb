@@ -562,7 +562,8 @@ module Api
           review.replace!(current_user)
         when "keep_both"
           # SSoT: Folder path comes from StorageConfiguration template (warehouse_folders['case'])
-          folder_path = StorageConfiguration.instance.resolve_path(:case, { CaseId: @case.case_number })
+          # Use resolve_virtual_path for WarehouseDocument.folder (UI display)
+          folder_path = StorageConfiguration.instance.resolve_virtual_path(:case, { CaseId: @case.case_number })
           new_doc = WarehouseDocument.create!(
             display_name: review.new_file_name,
             original_filename: review.new_file_name,

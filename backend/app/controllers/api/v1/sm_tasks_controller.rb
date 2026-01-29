@@ -1176,7 +1176,7 @@ module Api
 
         # SSoT (Jan 2026): Create WarehouseDocument record for the uploaded file
         # Folder path comes from StorageConfiguration template (warehouse_folders['task_attachments'])
-        folder_path = StorageConfiguration.instance.resolve_path(:task_attachments, { TaskId: @task.id })
+        folder_path = StorageConfiguration.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
         doc = WarehouseDocument.create!(
           display_name: file.original_filename,
           storage_blob: blob,
@@ -1285,7 +1285,7 @@ module Api
 
           # SSoT (Jan 2026): Create WarehouseDocument record
           # Folder path comes from StorageConfiguration template (warehouse_folders['task_attachments'])
-          folder_path = StorageConfiguration.instance.resolve_path(:task_attachments, { TaskId: @task.id })
+          folder_path = StorageConfiguration.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
           doc = WarehouseDocument.create!(
             display_name: filename,
             storage_blob: blob,

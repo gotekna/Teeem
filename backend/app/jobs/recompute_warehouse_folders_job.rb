@@ -70,7 +70,7 @@ class RecomputeWarehouseFoldersJob < ApplicationJob
 
   def compute_folder_for_document(config, doc, warehouse_type)
     tokens = extract_tokens_for_document(doc)
-    config.resolve_path(warehouse_type.to_sym, tokens)
+    config.resolve_virtual_path(warehouse_type.to_sym, tokens)
   end
 
   # Extract token values from document and its documentable

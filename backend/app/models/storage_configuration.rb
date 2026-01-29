@@ -475,6 +475,33 @@ class StorageConfiguration < ApplicationRecord
     subfolder.present? ? File.join(path, subfolder) : path
   end
 
+  # SSoT: Resolve VIRTUAL folder path (without root_path prefix)
+  # Use this for WarehouseDocument.folder - the virtual path displayed in File Warehouse UI
+  # Use resolve_path() for actual storage operations that need the full path
+  #
+  # @param warehouse_type [String, Symbol] The warehouse type (task, job, email, etc.)
+  # @param substitutions [Hash] Values to substitute in path
+  # @return [String] Virtual folder path (e.g., "Tasks/123/Attachments")
+  #
+  def resolve_virtual_path(warehouse_type, substitutions = {})
+    base_folder = root_folder_for(warehouse_type)
+    return nil if base_folder.nil?
+
+    resolved = base_folder.dup
+    substitutions.each do |key, value|
+      resolved.gsub!("{{#{key}}}", value.to_s)
+    end
+
+    # Remove any remaining unsubstituted tokens
+    resolved.gsub!(/\/?\{\{[^\}]+\}\}/, "")
+
+    # Clean up double slashes and leading/trailing slashes
+    resolved.gsub!(%r{//+}, "/")
+    resolved.gsub!(%r{^/|/$}, "")
+
+    resolved
+  end
+
   # ========================================
   # Folder Path Computation (WarehouseDocumentable SSoT)
   # ========================================
