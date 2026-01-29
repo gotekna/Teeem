@@ -44,6 +44,9 @@ import {
   ClipboardList,
   FolderHeart,
   Clock,
+  BookOpen,
+  ArrowRight,
+  Layers,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -1918,9 +1921,13 @@ export function StorageConfigTab() {
         </Badge>
       </div>
 
-      {/* Tabs: Configuration vs Live Preview */}
+      {/* Tabs: Setup Info, Configuration, Live Preview */}
       <Tabs defaultValue="config" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="grid w-full grid-cols-3 max-w-xl">
+          <TabsTrigger value="setup" className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4" />
+            Setup Info
+          </TabsTrigger>
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             Configuration

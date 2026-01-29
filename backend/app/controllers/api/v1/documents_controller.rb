@@ -3,7 +3,7 @@
 module Api
   module V1
     class DocumentsController < ApplicationController
-      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move ]
+      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move, :link_to_task ]
 
       # GET /api/v1/documents/all
       # Returns file counts for the entire warehouse (fast)
