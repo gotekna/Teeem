@@ -2326,12 +2326,21 @@ module Api
               contactId: linkable.id,
               contactName: linkable.display_name
             )
+          when SmTask
+            base_info.merge(
+              taskId: linkable.id,
+              taskName: linkable.name,
+              taskNumber: linkable.task_number,
+              jobId: linkable.job_id
+            )
           else
-            # Extract from metadata if no linkable
+            # Extract from metadata if no linkable (including orphaned task docs)
+            # taskId: nil explicitly included so frontend can detect orphaned task documents
             base_info.merge(
               jobId: wd.meta("job_id"),
               companyId: wd.meta("company_id"),
-              contactId: wd.meta("contact_id")
+              contactId: wd.meta("contact_id"),
+              taskId: wd.meta("task_id")  # Will be nil for orphaned task docs
             ).compact
           end
         # Legacy: Handle SyncedEmail directly (still valid documentable)
