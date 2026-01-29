@@ -51,6 +51,8 @@ import {
   FileSpreadsheet,
   PenTool,
   Pencil,
+  AlertTriangle,
+  Link2,
 } from "lucide-react";
 import {
   Dialog,
@@ -389,6 +391,12 @@ export default function AllDocumentsPage() {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [isRenameSaving, setIsRenameSaving] = useState(false);
+
+  // Link to Task dialog state (for orphaned documents)
+  const [showLinkToTaskDialog, setShowLinkToTaskDialog] = useState(false);
+  const [linkToTaskSearch, setLinkToTaskSearch] = useState("");
+  const [linkToTaskResults, setLinkToTaskResults] = useState<Array<{ id: number; name: string; task_number: number }>>([]);
+  const [isLinkingToTask, setIsLinkingToTask] = useState(false);
 
   // SSoT: Scope folder names from StorageConfiguration
   // Start empty - API will provide all scopes from StorageConfiguration.SCOPE_FOLDERS
@@ -1393,6 +1401,76 @@ export default function AllDocumentsPage() {
     }
   }, [previewDocument, renameValue]);
 
+  // Check if document is orphaned (task source but no linked task)
+  const isOrphanedDocument = useCallback((doc: DocumentItem | null): boolean => {
+    if (!doc) return false;
+    return doc.source === "task" && !doc.taskId;
+  }, []);
+
+  // Search for tasks to link to
+  const searchTasksForLink = useCallback(async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setLinkToTaskResults([]);
+      return;
+    }
+    try {
+      const response = await api.get<{ tasks: Array<{ id: number; name: string; task_number: number }>; success: boolean }>(
+        `/api/v1/sm_tasks?search=${encodeURIComponent(searchTerm)}&limit=10`
+      );
+      if (response.success && response.tasks) {
+        setLinkToTaskResults(response.tasks.map(t => ({ id: t.id, name: t.name, task_number: t.task_number })));
+      }
+    } catch (error) {
+      console.error("Failed to search tasks:", error);
+    }
+  }, []);
+
+  // Link document to task
+  const handleLinkToTask = useCallback(async (taskId: number) => {
+    if (!previewDocument) return;
+
+    setIsLinkingToTask(true);
+    try {
+      const response = await api.patch<{ success: boolean; document: DocumentItem; task: { id: number; name: string; task_number: number }; error?: string }>(
+        `/api/v1/documents/${previewDocument.id}/link_to_task`,
+        { task_id: taskId }
+      );
+
+      if (response.success) {
+        toast({
+          title: "Document linked",
+          description: `Linked to Task #${response.task.task_number}: ${response.task.name}`,
+        });
+        // Update the preview document with new task info
+        setPreviewDocument({
+          ...previewDocument,
+          taskId: response.task.id,
+          taskName: response.task.name,
+          taskNumber: response.task.task_number,
+        });
+        setShowLinkToTaskDialog(false);
+        setLinkToTaskSearch("");
+        setLinkToTaskResults([]);
+        // Refresh the file list to update folder structure
+        fetchDocuments();
+      } else {
+        toast({
+          title: "Failed to link",
+          description: response.error || "Unknown error",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to link document to task",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLinkingToTask(false);
+    }
+  }, [previewDocument, toast, fetchDocuments]);
+
   // Render tree node recursively
   const renderTreeNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
     const isExpanded = expandedFolders.has(node.id);
@@ -2077,6 +2155,24 @@ export default function AllDocumentsPage() {
                     {previewDocument.source === "task" && previewDocument.taskName && (
                       <Badge variant="outline" className="text-xs">{previewDocument.taskName}</Badge>
                     )}
+                    {/* Orphaned task document - show warning and link option */}
+                    {isOrphanedDocument(previewDocument) && (
+                      <>
+                        <Badge variant="destructive" className="text-xs gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Orphaned
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-5 text-xs px-2 gap-1"
+                          onClick={() => setShowLinkToTaskDialog(true)}
+                        >
+                          <Link2 className="h-3 w-3" />
+                          Link to Task
+                        </Button>
+                      </>
+                    )}
                     {previewDocument.storageProvider === "s3_compatible" && (
                       <Badge variant="secondary" className="text-xs">S3</Badge>
                     )}
@@ -2502,6 +2598,67 @@ export default function AllDocumentsPage() {
                 </li>
               </ul>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link to Task Dialog (for orphaned documents) */}
+      <Dialog open={showLinkToTaskDialog} onOpenChange={setShowLinkToTaskDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5" />
+              Link to Task
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This document is orphaned (original task was deleted). Search for a task to link it to.
+            </p>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search tasks by name or number..."
+                value={linkToTaskSearch}
+                onChange={(e) => {
+                  setLinkToTaskSearch(e.target.value);
+                  searchTasksForLink(e.target.value);
+                }}
+                className="pl-9"
+              />
+            </div>
+
+            {linkToTaskResults.length > 0 && (
+              <div className="border rounded-md max-h-60 overflow-auto">
+                {linkToTaskResults.map((task) => (
+                  <button
+                    key={task.id}
+                    onClick={() => handleLinkToTask(task.id)}
+                    disabled={isLinkingToTask}
+                    className="w-full text-left px-3 py-2 hover:bg-accent flex items-center justify-between group border-b last:border-b-0"
+                  >
+                    <div>
+                      <p className="font-medium text-sm">#{task.task_number} {task.name}</p>
+                    </div>
+                    <Link2 className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {linkToTaskSearch && linkToTaskResults.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No tasks found matching &quot;{linkToTaskSearch}&quot;
+              </p>
+            )}
+
+            {isLinkingToTask && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

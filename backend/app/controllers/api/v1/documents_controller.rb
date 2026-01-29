@@ -1045,6 +1045,55 @@ module Api
         end
       end
 
+      # PATCH /api/v1/documents/:id/link_to_task
+      # Re-link an orphaned document to a task
+      # Used when a document's original task association is broken/deleted
+      # Params:
+      #   task_id: The SmTask ID to link to
+      def link_to_task
+        task_id = params[:task_id]
+
+        unless task_id.present?
+          return render json: { success: false, error: "Missing task_id parameter" }, status: :bad_request
+        end
+
+        task = SmTask.find_by(id: task_id)
+        unless task
+          return render json: { success: false, error: "Task not found" }, status: :not_found
+        end
+
+        begin
+          # Update the linkable association to point to the task
+          @document.update!(
+            linkable_type: "SmTask",
+            linkable_id: task.id
+          )
+
+          # Also update the folder path based on the new task
+          config = StorageConfiguration.instance rescue nil
+          if config
+            new_folder = config.resolve_virtual_path(:task_attachments, { TaskId: task.id })
+            @document.update!(folder: new_folder) if new_folder.present?
+          end
+
+          render json: {
+            success: true,
+            message: "Document linked to task successfully",
+            document: document_to_json(@document),
+            task: {
+              id: task.id,
+              name: task.name,
+              task_number: task.task_number
+            }
+          }
+        rescue ActiveRecord::RecordInvalid => e
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        rescue StandardError => e
+          Rails.logger.error "[Documents] Link to task failed: #{e.message}"
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       # ========================================
