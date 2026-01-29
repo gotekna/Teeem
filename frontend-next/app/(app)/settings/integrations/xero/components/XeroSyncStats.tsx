@@ -164,6 +164,23 @@ export function XeroSyncStats() {
   const [selectedReviewItem, setSelectedReviewItem] = React.useState<PendingReviewItem | null>(null);
   const [reviewSheetOpen, setReviewSheetOpen] = React.useState(false);
 
+  // Light-weight callback to update pending count without refetching everything
+  const handleReviewed = React.useCallback(() => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        global: {
+          ...prev.global,
+          pending_reviews: {
+            ...prev.global.pending_reviews,
+            count: Math.max(0, prev.global.pending_reviews.count - 1),
+          },
+        },
+      };
+    });
+  }, []);
+
   const fetchData = React.useCallback(async () => {
     try {
       const response = await api.get<{ success: boolean; data: SyncStatsData }>("/api/v1/xero/sync_stats");
@@ -774,14 +791,14 @@ export function XeroSyncStats() {
         open={reviewModalOpen}
         onOpenChange={setReviewModalOpen}
         item={selectedReviewItem}
-        onReviewed={fetchData}
+        onReviewed={handleReviewed}
       />
 
       {/* Review All Sheet */}
       <FuzzyMatchReviewSheet
         open={reviewSheetOpen}
         onOpenChange={setReviewSheetOpen}
-        onReviewed={fetchData}
+        onReviewed={handleReviewed}
       />
     </div>
   );
