@@ -396,6 +396,7 @@ class WarehouseDocument < ApplicationRecord
 
   # SSoT: Compute folder from StorageConfiguration template
   # Maps source_type to warehouse_type and expands template with documentable context
+  # Uses resolve_virtual_path (not resolve_path) for UI display folder without root_path prefix
   def compute_folder_from_template
     warehouse_type = source_type_to_warehouse_type
     return unless warehouse_type
@@ -404,7 +405,7 @@ class WarehouseDocument < ApplicationRecord
     return unless config
 
     tokens = extract_folder_tokens
-    computed = config.resolve_path(warehouse_type.to_sym, tokens)
+    computed = config.resolve_virtual_path(warehouse_type.to_sym, tokens)
     self.folder = computed if computed.present?
   rescue StandardError => e
     Rails.logger.debug "[WarehouseDocument] Could not compute folder: #{e.message}"

@@ -427,7 +427,8 @@ class BankStatementReport < ApplicationRecord
     )
 
     # SSoT: Folder path comes from StorageConfiguration template (warehouse_folders['bank_statement'])
-    folder_path = StorageConfiguration.instance.resolve_path(
+    # Use resolve_virtual_path for WarehouseDocument.folder (UI display), not resolve_path (storage)
+    folder_path = StorageConfiguration.instance.resolve_virtual_path(
       :bank_statement,
       {
         CompanyGroup: corporate_company&.company_group.presence || "Default",
