@@ -238,9 +238,9 @@ class StorageConfiguration < ApplicationRecord
     # Task documents
     # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
     # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
-    'task' => 'Tasks/{{TaskId}}',
-    'task_attachments' => 'Tasks/{{TaskId}}/Attachments',
-    'task_responses' => 'Tasks/{{TaskId}}/Responses',
+    'task' => 'Tasks/{{TaskId}}/{{TaskName}}',
+    'task_attachments' => 'Tasks/{{TaskId}}/{{TaskName}}/Attachments',
+    'task_responses' => 'Tasks/{{TaskId}}/{{TaskName}}/Responses',
     # Case documents (Jan 2026)
     # SSoT: Virtual folder paths for File Warehouse - actual files in Blobs/{hash}.ext
     'case' => 'Cases/{{CaseId}}',

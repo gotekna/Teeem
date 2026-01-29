@@ -805,7 +805,7 @@ class StorageLocation < ApplicationRecord
   # Task document folder tabs
   # SSoT: Defines the folder structure for task-related documents
   # Base folder: "Tasks" (defined in StorageConfiguration.warehouse_folders)
-  # Template: "Tasks/{{TaskId}}/{{Category}}"
+  # Template: "Tasks/{{TaskId}}/{{TaskName}}/{{Category}}"
   private_class_method def self.seed_task_tabs!
     # NOTE: Overview tab NOT created for tasks (Jan 2026)
     # - Tasks only need Attachments and Responses tabs
@@ -845,7 +845,7 @@ class StorageLocation < ApplicationRecord
   # Task Attachments tabs (for task attachments - under Tasks)
   # SSoT: Defines the folder structure for task attachment documents
   # Base folder: "Tasks" (stored on overview tab)
-  # Template: "Tasks/{{TaskId}}/Attachments"
+  # Template: "Tasks/{{TaskId}}/{{TaskName}}/Attachments"
   private_class_method def self.seed_task_attachments_tabs!
     # Overview/root tab - defines the base folder for this warehouse_type
     # SSoT: warehouse_folder on overview tab = warehouse_type base folder
@@ -892,7 +892,7 @@ class StorageLocation < ApplicationRecord
   # Task Response tabs (for task responses - separate from attachments)
   # SSoT: Defines the folder structure for task response documents
   # Base folder: "Tasks" (stored on overview tab)
-  # Template: "Tasks/{{TaskId}}/Responses"
+  # Template: "Tasks/{{TaskId}}/{{TaskName}}/Responses"
   private_class_method def self.seed_task_responses_tabs!
     # Overview/root tab - defines the base folder for this warehouse_type
     # SSoT: warehouse_folder on overview tab = warehouse_type base folder
