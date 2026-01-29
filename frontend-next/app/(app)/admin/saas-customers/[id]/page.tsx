@@ -89,7 +89,7 @@ export default function SaasCustomerDetailPage() {
 
   // Path-based tab navigation
   const activeTab = useMemo(() => {
-    const parts = pathname.replace(`/admin/saas-customers/${customerId}`, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(`/admin/saas-customers/${customerId}`, "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname, customerId]);
 

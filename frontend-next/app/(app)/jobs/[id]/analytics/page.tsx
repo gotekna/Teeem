@@ -75,7 +75,7 @@ export default function SmAnalyticsPage() {
 
   // Path-based tab: /jobs/123/analytics/overview, /jobs/123/analytics/evm
   const activeTab = useMemo(() => {
-    const parts = pathname.replace(`/jobs/${constructionId}/analytics`, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(`/jobs/${constructionId}/analytics`, "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname, constructionId]);
 

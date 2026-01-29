@@ -229,7 +229,7 @@ export default function ContactDetailPage() {
 
   // Parse tab and subtab from path: /contacts/123/overview/identity → { tab: "overview", subtab: "identity" }
   const pathSegments = useMemo(() => {
-    const parts = pathname.replace(`/contacts/${id}`, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(`/contacts/${id}`, "").split("/").filter(Boolean);
     return {
       tab: parts[0] || "overview",
       subtab: parts[1] || null,
@@ -734,7 +734,7 @@ export default function ContactDetailPage() {
     if ((isEditPath || hasEditQueryParam) && contact && !loading) {
       setEditModalOpen(true);
       // Clean up URL by removing /edit or ?edit=true
-      const cleanPath = pathname.replace(/\/edit$/, "");
+      const cleanPath = (pathname ?? "").replace(/\/edit$/, "");
       window.history.replaceState({}, "", cleanPath);
     }
   }, [pathname, contact, loading]);

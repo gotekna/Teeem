@@ -140,7 +140,7 @@ export default function XeroPage() {
 
   // Parse tab from path: /xero/payments → "payments", /xero → "invoices"
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/xero", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/xero", "").split("/").filter(Boolean);
     // Skip "callback" path (OAuth callback uses query params)
     if (parts[0] === "callback") return "invoices";
     return parts[0] || "invoices";

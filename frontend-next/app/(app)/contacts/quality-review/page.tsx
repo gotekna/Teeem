@@ -228,7 +228,7 @@ export default function ContactQualityReviewPage() {
 
   // Parse filter from path: /contacts/quality-review/abn_mismatch → "abn_mismatch"
   const activeTab = React.useMemo(() => {
-    const parts = pathname.replace("/contacts/quality-review", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/contacts/quality-review", "").split("/").filter(Boolean);
     return parts[0] || "all";
   }, [pathname]);
 

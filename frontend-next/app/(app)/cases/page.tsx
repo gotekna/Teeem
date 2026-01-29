@@ -70,7 +70,7 @@ export default function CasesPage() {
   // Path-based tab: /cases/tab/cases, /cases/tab/proposals
   // Uses /cases/tab/ prefix to avoid conflicts with /cases/[id] detail routes
   const activeTab = React.useMemo(() => {
-    const parts = pathname.replace("/cases", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/cases", "").split("/").filter(Boolean);
     // Path format: /cases/tab/{tabname}
     if (parts[0] === "tab" && parts[1]) {
       return parts[1];

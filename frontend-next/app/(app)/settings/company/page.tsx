@@ -58,7 +58,7 @@ export default function CompanySettingsPage() {
   // This allows breadcrumb navigation to /settings/company to work
   // SSoT (Jan 2026): Connections moved to top-level /settings/connections
   const { activeTab, subTab } = useMemo(() => {
-    const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/settings/company", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     const sub = parts[1] || undefined;
     // Validate tab exists
@@ -76,7 +76,7 @@ export default function CompanySettingsPage() {
   // This keeps URL as SSoT for current tab state
   // SSoT (Jan 2026): Connections redirect removed - now at /settings/connections
   useEffect(() => {
-    const parts = pathname.replace("/settings/company", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/settings/company", "").split("/").filter(Boolean);
     const urlHasSubTab = parts.length >= 2;
 
     // Redirect tabs with default sub-tabs to full URL

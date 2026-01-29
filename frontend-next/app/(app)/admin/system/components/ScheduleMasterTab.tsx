@@ -349,7 +349,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Parse path segments for state
   // Pattern: /[basePath]/[subtab]/[view-or-table]
   const pathSegments = React.useMemo(() => {
-    const parts = pathname.replace(basePath, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(basePath, "").split("/").filter(Boolean);
     return {
       subtab: parts[0] || null,  // e.g., "data-view", "tables"
       extra: parts[1] || null,   // e.g., "live" (view) or "sm_resources" (table)

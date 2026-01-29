@@ -50,7 +50,7 @@ export default function TrainingPage() {
 
   // Path-based tab: /training/all, /training/required, /training/completed
   const activeTab = React.useMemo(() => {
-    const parts = pathname.replace("/training", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/training", "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname]);
 

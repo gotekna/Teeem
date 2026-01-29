@@ -56,7 +56,8 @@ export default function SettingsLayout({
   // /settings/profile → "profile"
   // /settings/connections/provider → "connections"
   // /settings/company/info → "company"
-  const pathParts = pathname.replace("/settings", "").split("/").filter(Boolean);
+  // Note: pathname can be null during SSR/hydration
+  const pathParts = (pathname ?? "").replace("/settings", "").split("/").filter(Boolean);
   const currentTab = pathParts[0] || "profile";
 
   // Hide navigation on detail pages (e.g., /settings/integrations/xero)

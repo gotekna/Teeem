@@ -78,7 +78,7 @@ export default function SitePresenceDashboardPage() {
 
   // Path-based tab navigation
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/admin/site-presence", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/admin/site-presence", "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname]);
 
