@@ -486,6 +486,7 @@ Rails.application.routes.draw do
           get :download  # Human-readable download URL (redirects to S3)
           get :preview   # Universal document preview (Excel/Word/PDF)
           patch :move    # Move file to different folder (File Warehouse action)
+          patch :link_to_task  # Re-link orphaned document to a task
         end
         collection do
           post :analyze

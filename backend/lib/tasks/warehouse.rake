@@ -141,6 +141,12 @@ namespace :warehouse do
     puts "🔄 Syncing Teeem documents to File Warehouse..."
     puts ""
 
+    # Set tenant context (required for StorageConfiguration)
+    tenant = Tenant.first
+    ActsAsTenant.current_tenant = tenant
+    puts "Using tenant: #{tenant.name}"
+    puts ""
+
     total = 0
     success = 0
     failed = 0
