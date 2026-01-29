@@ -349,6 +349,79 @@ namespace :warehouse do
     puts "Done!"
   end
 
+  desc "Fix orphaned documents - move null folder docs to Orphans/YYYY/MM and cleanup broken task attachments"
+  task fix_orphans: :environment do
+    puts "🔧 Fixing orphaned documents..."
+    puts ""
+
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        puts "Tenant: #{tenant.name}"
+
+        # 1. Fix WarehouseDocuments with null/blank folders
+        null_folder_docs = WarehouseDocument.where(folder: [nil, ""])
+        puts "  Documents with null folder: #{null_folder_docs.count}"
+
+        fixed_folders = 0
+        moved_to_orphans = 0
+
+        null_folder_docs.find_each do |doc|
+          # Try to compute folder from documentable
+          if doc.documentable.present? && doc.documentable.respond_to?(:virtual_folder_path)
+            begin
+              computed = doc.documentable.virtual_folder_path
+              if computed.present?
+                doc.update!(folder: computed)
+                fixed_folders += 1
+                next
+              end
+            rescue StandardError
+              # Fall through to other methods
+            end
+          end
+
+          # For emails/email_attachments - compute from metadata
+          if doc.source_type.in?(%w[email email_attachment])
+            mailbox = doc.meta("mailbox")
+            received_at = doc.meta("received_at")&.then { |t| Time.parse(t) rescue nil }
+            date = received_at || doc.created_at || Time.current
+
+            if mailbox.present?
+              subfolder = doc.source_type == "email" ? "Email Body" : "Attachments"
+              computed = "Emails/#{mailbox}/#{subfolder}/#{date.year}/#{format('%02d', date.month)}"
+              doc.update!(folder: computed)
+              fixed_folders += 1
+              next
+            end
+          end
+
+          # Move to Orphans/YYYY/MM based on created_at
+          date = doc.created_at || Time.current
+          orphan_folder = "Orphans/#{date.year}/#{format('%02d', date.month)}"
+          doc.update!(folder: orphan_folder)
+          moved_to_orphans += 1
+        end
+
+        puts "    Fixed with computed folder: #{fixed_folders}"
+        puts "    Moved to Orphans: #{moved_to_orphans}"
+
+        # 2. Clean up SmTaskAttachments pointing to deleted records
+        broken_attachments = 0
+        SmTaskAttachment.find_each do |att|
+          if att.attachable.nil?
+            att.destroy
+            broken_attachments += 1
+          end
+        end
+        puts "    Deleted broken task attachments: #{broken_attachments}"
+
+        puts ""
+      end
+    end
+
+    puts "Done!"
+  end
+
   desc "Full warehouse setup: link docs, sync attachments, refresh views, capture snapshot"
   task setup: :environment do
     puts "🚀 Running full warehouse setup..."
