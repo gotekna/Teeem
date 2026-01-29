@@ -1055,12 +1055,15 @@ module Api
       end
 
       # PATCH /api/v1/documents/:id/link_to_task
-      # Re-link an orphaned document to a task
-      # Used when a document's original task association is broken/deleted
+      # Link any WarehouseDocument to a task
+      # Creates SmTaskAttachment → triggers callback → creates new WarehouseDocument in task folder
+      # Original document stays in place (same blob, multiple folder entries)
       # Params:
       #   task_id: The SmTask ID to link to
+      #   category: (optional) "info" (default) or "response"
       def link_to_task
         task_id = params[:task_id]
+        category = params[:category] || "info"
 
         unless task_id.present?
           return render json: { success: false, error: "Missing task_id parameter" }, status: :bad_request
@@ -1072,18 +1075,32 @@ module Api
         end
 
         begin
-          # Update the linkable association to point to the task
-          @document.update!(
-            linkable_type: "SmTask",
-            linkable_id: task.id
+          # Check if already attached to this task (avoid duplicates)
+          existing = SmTaskAttachment.find_by(
+            sm_task_id: task.id,
+            attachable_type: "WarehouseDocument",
+            attachable_id: @document.id
           )
 
-          # Also update the folder path based on the new task
-          config = StorageConfiguration.instance rescue nil
-          if config
-            new_folder = config.resolve_virtual_path(:task_attachments, { TaskId: task.id })
-            @document.update!(folder: new_folder) if new_folder.present?
+          if existing
+            return render json: {
+              success: false,
+              error: "Document is already attached to this task"
+            }, status: :unprocessable_entity
           end
+
+          # Create SmTaskAttachment pointing to this WarehouseDocument
+          # The after_create callback will create a NEW WarehouseDocument
+          # in the task folder (Tasks/{{TaskId}}/{{Category}}) with the same blob
+          attachment = SmTaskAttachment.create!(
+            sm_task_id: task.id,
+            attachable_type: "WarehouseDocument",
+            attachable_id: @document.id,
+            category: category,
+            attachment_type: "document",
+            added_by: current_user,
+            display_name: @document.display_name
+          )
 
           render json: {
             success: true,
@@ -1093,7 +1110,9 @@ module Api
               id: task.id,
               name: task.name,
               task_number: task.task_number
-            }
+            },
+            attachment_id: attachment.id,
+            warehouse_document_id: attachment.warehouse_document&.id
           }
         rescue ActiveRecord::RecordInvalid => e
           render json: { success: false, error: e.message }, status: :unprocessable_entity
@@ -1713,7 +1732,9 @@ module Api
 
         else
           # Level 2+: Show subfolders (Attachments/Responses) and files for selected task
-          task_identifier = path_segments[1]
+          # Frontend sends path WITHOUT "Tasks/" prefix: "2236/Responses"
+          # path_segments[0] = task ID, path_segments[1] = subfolder (if present)
+          task_identifier = path_segments[0]
 
           task = SmTask.find_by(task_number: task_identifier) || SmTask.find_by(id: task_identifier)
           return { folders: [], files: [] } unless task
@@ -1722,21 +1743,22 @@ module Api
           # SmTaskAttachment.attachable points to ORIGINAL doc, warehouse_document points to task folder entry
           base_folder = "Tasks/#{task_identifier}"
 
-          if path_segments.size == 2
-            # Show Attachments/Responses subfolders
+          if path_segments.size == 1
+            # Level 2: Show Attachments/Responses subfolders for this task
             subfolder_counts = WarehouseDocument.where("folder LIKE ?", "#{base_folder}/%")
                                                 .group(:folder)
                                                 .count
 
             folders = subfolder_counts.map do |folder, count|
-              name = folder.split("/").last
-              { name: name, path: folder, count: count }
+              subfolder_name = folder.sub("#{base_folder}/", "")
+              { name: subfolder_name, path: "#{task_identifier}/#{subfolder_name}", count: count }
             end
 
             { folders: folders, files: [] }
           else
-            # Level 3: Show files in subfolder (e.g., Tasks/2236/Responses)
-            full_path = path_segments.join("/")
+            # Level 3+: Show files in subfolder (e.g., path="2236/Responses")
+            subfolder = path_segments[1..-1].join("/")
+            full_path = "#{base_folder}/#{subfolder}"
             docs = WarehouseDocument.where(folder: full_path)
                                     .includes(:storage_blob)
 
