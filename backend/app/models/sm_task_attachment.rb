@@ -137,28 +137,45 @@ class SmTaskAttachment < ApplicationRecord
   # Links to same StorageBlob as the attached document
   # SSoT: Sets linkable to SmTask for proper folder display in File Warehouse
   #
-  # Skip creating warehouse entry when attachable IS a WarehouseDocument
-  # because the link_to_task controller action already handles updating it
+  # IMPORTANT: ALWAYS creates a new WarehouseDocument in the task folder,
+  # even when attachable is already a WarehouseDocument. This allows the
+  # same physical file (StorageBlob) to appear in multiple virtual folders.
+  # Example: A PDF in "Corporate/Finance" can ALSO appear in "Tasks/2236/Responses"
   def create_warehouse_entry
-    # If attachable is already a WarehouseDocument, it's being linked via the
-    # link_to_task endpoint which updates the existing WarehouseDocument directly.
-    # Creating another one would be a duplicate.
-    if attachable_type == "WarehouseDocument"
-      Rails.logger.info("[SmTaskAttachment] ##{id}: Skipping warehouse entry - attachable is already a WarehouseDocument")
-      return
-    end
-
     blob = storage_blob
     unless blob
       Rails.logger.warn("[SmTaskAttachment] ##{id}: No storage blob found for #{attachable_type}##{attachable_id}")
       return
     end
 
+    # Get display name from attachable
+    name = case attachable_type
+           when "WarehouseDocument"
+             attachable&.display_name || attachable&.original_filename || "Document"
+           when "SyncedEmail"
+             attachable&.subject || "Email"
+           else
+             "Attachment"
+           end
+
+    # Get original filename
+    filename = case attachable_type
+               when "WarehouseDocument"
+                 attachable&.original_filename || attachable&.display_name
+               when "SyncedEmail"
+                 "#{attachable&.subject || 'Email'}.eml"
+               else
+                 nil
+               end
+
+    # Compute the task folder path (e.g., "Tasks/2236/Responses")
+    folder = compute_task_folder_path
+
     create_warehouse_document!(
       source_type: "task",
-      folder: virtual_folder_path,
-      display_name: display_name,
-      original_filename: attachable&.try(:file_name) || attachable&.try(:filename) || attachable&.try(:original_filename),
+      folder: folder,
+      display_name: name,
+      original_filename: filename,
       storage_blob: blob,
       linkable_type: "SmTask",
       linkable_id: sm_task_id,
@@ -167,11 +184,30 @@ class SmTaskAttachment < ApplicationRecord
         task_name: sm_task&.name,
         category: category,
         attachable_type: attachable_type,
-        attachable_id: attachable_id
+        attachable_id: attachable_id,
+        original_warehouse_document_id: attachable_type == "WarehouseDocument" ? attachable_id : nil
       }
     )
   rescue StandardError => e
     Rails.logger.error("[SmTaskAttachment] ##{id}: Failed to create warehouse entry: #{e.message}")
     Rails.logger.error(e.backtrace.first(5).join("\n"))
+  end
+
+  # Compute the folder path for File Warehouse: Tasks/{{TaskId}}/{{Category}}
+  # Category: "info" → "Attachments", "response" → "Responses"
+  def compute_task_folder_path
+    task = sm_task
+    return "Tasks/Unknown" unless task
+
+    # Use task_number if available, otherwise task id
+    task_identifier = task.task_number.presence || task.id.to_s
+
+    # Map category to folder name
+    subfolder = case category
+                when "response" then "Responses"
+                else "Attachments"
+                end
+
+    "Tasks/#{task_identifier}/#{subfolder}"
   end
 end

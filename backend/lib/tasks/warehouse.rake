@@ -254,9 +254,6 @@ namespace :warehouse do
 
     Tenant.find_each do |tenant|
       ActsAsTenant.with_tenant(tenant) do
-        config = StorageConfiguration.instance rescue nil
-        next unless config
-
         puts "Tenant: #{tenant.name}"
 
         created = 0
@@ -264,7 +261,7 @@ namespace :warehouse do
         errors = 0
 
         # Find SmTaskAttachments without corresponding WarehouseDocument
-        SmTaskAttachment.includes(:sm_task, :attachable).find_each do |att|
+        SmTaskAttachment.includes(:sm_task, :attachable, :warehouse_document).find_each do |att|
           # Skip if already has warehouse document
           if att.warehouse_document.present?
             skipped += 1
@@ -280,39 +277,38 @@ namespace :warehouse do
             end
 
             # Get the storage blob from the attachable
-            blob = nil
-            if att.attachable.is_a?(WarehouseDocument)
-              blob = att.attachable.storage_blob
-            elsif att.attachable.respond_to?(:storage_blob)
-              blob = att.attachable.storage_blob
-            elsif att.attachable&.warehouse_document&.storage_blob
-              blob = att.attachable.warehouse_document.storage_blob
-            end
-
+            blob = att.storage_blob
             unless blob
               puts "  ⚠️  SmTaskAttachment ##{att.id}: No storage blob"
               errors += 1
               next
             end
 
-            # Determine folder based on category
-            folder_type = case att.category
-                          when "response" then :task_responses
-                          else :task_attachments
-                          end
+            # Compute folder path: Tasks/{{TaskNumber}}/{{Category}}
+            # SSoT: Same logic as SmTaskAttachment#compute_task_folder_path
+            task_identifier = task.task_number.presence || task.id.to_s
+            subfolder = att.category == "response" ? "Responses" : "Attachments"
+            folder = "Tasks/#{task_identifier}/#{subfolder}"
 
-            folder = config.resolve_virtual_path(folder_type, { TaskId: task.id })
-
-            # Get display name
-            display_name = if att.read_attribute(:display_name).present?
-                             att.read_attribute(:display_name)
-                           elsif att.attachable.respond_to?(:display_name)
-                             att.attachable.display_name
-                           elsif att.attachable.respond_to?(:subject)
-                             att.attachable.subject
+            # Get display name from attachable
+            display_name = case att.attachable_type
+                           when "WarehouseDocument"
+                             att.attachable&.display_name || att.attachable&.original_filename || "Document"
+                           when "SyncedEmail"
+                             att.attachable&.subject || "Email"
                            else
-                             "Attachment"
+                             att.read_attribute(:display_name) || "Attachment"
                            end
+
+            # Get original filename
+            filename = case att.attachable_type
+                       when "WarehouseDocument"
+                         att.attachable&.original_filename || att.attachable&.display_name
+                       when "SyncedEmail"
+                         "#{att.attachable&.subject || 'Email'}.eml"
+                       else
+                         nil
+                       end
 
             # Create the warehouse document
             wd = WarehouseDocument.create!(
@@ -320,7 +316,7 @@ namespace :warehouse do
               source_type: "task",
               folder: folder,
               display_name: display_name,
-              original_filename: att.attachable&.try(:original_filename) || att.attachable&.try(:file_name),
+              original_filename: filename,
               storage_blob: blob,
               linkable_type: "SmTask",
               linkable_id: task.id,
@@ -329,12 +325,13 @@ namespace :warehouse do
                 task_name: task.name,
                 category: att.category,
                 attachable_type: att.attachable_type,
-                attachable_id: att.attachable_id
+                attachable_id: att.attachable_id,
+                original_warehouse_document_id: att.attachable_type == "WarehouseDocument" ? att.attachable_id : nil
               }
             )
 
             created += 1
-            puts "  ✅ SmTaskAttachment ##{att.id} → WarehouseDocument ##{wd.id} (#{display_name})"
+            puts "  ✅ SmTaskAttachment ##{att.id} → WarehouseDocument ##{wd.id} (#{display_name}) [#{folder}]"
           rescue StandardError => e
             errors += 1
             puts "  ❌ SmTaskAttachment ##{att.id}: #{e.message}"

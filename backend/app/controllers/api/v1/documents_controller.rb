@@ -1055,9 +1055,9 @@ module Api
       end
 
       # PATCH /api/v1/documents/:id/link_to_task
-      # Link any document to a task (creates SmTaskAttachment + updates WarehouseDocument)
-      # Works for: orphaned docs (re-linking), emails, corporate docs, any document
-      # Creates SmTaskAttachment so document appears in task's Attachments tab
+      # Link any WarehouseDocument to a task
+      # Creates SmTaskAttachment → triggers callback → creates new WarehouseDocument in task folder
+      # Original document stays in place (same blob, multiple folder entries)
       # Params:
       #   task_id: The SmTask ID to link to
       #   category: (optional) "info" (default) or "response"
@@ -1090,7 +1090,8 @@ module Api
           end
 
           # Create SmTaskAttachment pointing to this WarehouseDocument
-          # This makes the document appear in the task's Attachments tab
+          # The after_create callback will create a NEW WarehouseDocument
+          # in the task folder (Tasks/{{TaskId}}/{{Category}}) with the same blob
           attachment = SmTaskAttachment.create!(
             sm_task_id: task.id,
             attachable_type: "WarehouseDocument",
@@ -1101,20 +1102,6 @@ module Api
             display_name: @document.display_name
           )
 
-          # Update the WarehouseDocument's linkable association to point to the task
-          @document.update!(
-            linkable_type: "SmTask",
-            linkable_id: task.id
-          )
-
-          # Also update the folder path based on the new task
-          config = StorageConfiguration.instance rescue nil
-          if config
-            folder_type = category == "response" ? :task_responses : :task_attachments
-            new_folder = config.resolve_virtual_path(folder_type, { TaskId: task.id })
-            @document.update!(folder: new_folder) if new_folder.present?
-          end
-
           render json: {
             success: true,
             message: "Document linked to task successfully",
@@ -1124,7 +1111,8 @@ module Api
               name: task.name,
               task_number: task.task_number
             },
-            attachment_id: attachment.id
+            attachment_id: attachment.id,
+            warehouse_document_id: attachment.warehouse_document&.id
           }
         rescue ActiveRecord::RecordInvalid => e
           render json: { success: false, error: e.message }, status: :unprocessable_entity
@@ -1718,25 +1706,22 @@ module Api
       end
 
       # Task scope: Tasks/{{TaskNumber}}
-      # SSoT (Jan 2026): Query SmTaskAttachment directly and resolve files from attachable
-      # SmTaskAttachment.attachable can be:
-      #   - WarehouseDocument (linked doc from elsewhere in system)
-      #   - SyncedEmail (attached email - uses email.warehouse_document)
+      # SSoT (Jan 2026): SmTaskAttachment only references WarehouseDocument now
       def build_task_live_tree(path_segments)
         depth = path_segments.size
 
         case depth
         when 0
           # Root: Show "Tasks" folder as entry point
-          count = SmTaskAttachment.distinct.count(:sm_task_id)
+          count = SmTaskAttachment.where(attachable_type: 'WarehouseDocument').distinct.count(:sm_task_id)
           { folders: [{ name: "Tasks", path: "Tasks", count: count }], files: [] }
 
         when 1
           # Level 1: Show tasks with attachments
-          tasks = SmTaskAttachment
-                    .joins(:sm_task)
-                    .group("sm_tasks.task_number", "sm_tasks.id", "sm_tasks.name")
-                    .count
+          tasks = SmTaskAttachment.where(attachable_type: 'WarehouseDocument')
+                                  .joins(:sm_task)
+                                  .group("sm_tasks.task_number", "sm_tasks.id", "sm_tasks.name")
+                                  .count
 
           folders = tasks.map do |(task_number, task_id, task_name), count|
             display = task_number.present? ? "#{task_number} - #{task_name}" : task_name
@@ -1754,111 +1739,46 @@ module Api
           task = SmTask.find_by(task_number: task_identifier) || SmTask.find_by(id: task_identifier)
           return { folders: [], files: [] } unless task
 
+          # SSoT: Query WarehouseDocument directly by folder path (not via SmTaskAttachment.attachable)
+          # SmTaskAttachment.attachable points to ORIGINAL doc, warehouse_document points to task folder entry
+          base_folder = "Tasks/#{task_identifier}"
+
           if path_segments.size == 1
             # Level 2: Show Attachments/Responses subfolders for this task
-            # Count by category: "info" → Attachments, "response" → Responses
-            category_counts = task.sm_task_attachments
-                                  .group(:category)
-                                  .count
+            subfolder_counts = WarehouseDocument.where("folder LIKE ?", "#{base_folder}/%")
+                                                .group(:folder)
+                                                .count
 
-            folders = []
-            info_count = category_counts["info"] || category_counts[nil] || 0
-            response_count = category_counts["response"] || 0
-
-            # Also count nil categories as "Attachments"
-            nil_count = category_counts[nil] || 0
-            info_total = (category_counts["info"] || 0) + nil_count
-
-            folders << { name: "Attachments", path: "#{task_identifier}/Attachments", count: info_total } if info_total > 0
-            folders << { name: "Responses", path: "#{task_identifier}/Responses", count: response_count } if response_count > 0
+            folders = subfolder_counts.map do |folder, count|
+              subfolder_name = folder.sub("#{base_folder}/", "")
+              { name: subfolder_name, path: "#{task_identifier}/#{subfolder_name}", count: count }
+            end
 
             { folders: folders, files: [] }
           else
             # Level 3+: Show files in subfolder (e.g., path="2236/Responses")
-            subfolder = path_segments[1]
+            subfolder = path_segments[1..-1].join("/")
+            full_path = "#{base_folder}/#{subfolder}"
+            docs = WarehouseDocument.where(folder: full_path)
+                                    .includes(:storage_blob)
 
-            # Map subfolder name to category
-            category = case subfolder.downcase
-                       when "responses" then "response"
-                       when "attachments" then "info"
-                       else subfolder.downcase
-                       end
-
-            # Query SmTaskAttachments for this task and category
-            attachments = if category == "info"
-              task.sm_task_attachments.where(category: ["info", nil])
-            else
-              task.sm_task_attachments.where(category: category)
-            end
-
-            attachments = attachments.includes(:attachable)
-
-            files = attachments.filter_map do |att|
-              # Resolve the actual document/file from the attachable
-              doc = resolve_attachment_document(att)
-              next unless doc
-
+            files = docs.map do |doc|
               {
-                id: doc[:id],
-                name: att.display_name.presence || doc[:name],
+                id: doc.id,
+                name: doc.display_name || doc.original_filename || "Untitled",
                 type: "task",
-                mimeType: doc[:mimeType],
-                fileSize: doc[:fileSize],
-                createdAt: att.created_at&.iso8601,
+                mimeType: doc.content_type || doc.storage_blob&.content_type || "application/octet-stream",
+                fileSize: doc.file_size || doc.storage_blob&.file_size || 0,
+                createdAt: doc.created_at&.iso8601,
                 taskId: task.id,
                 taskNumber: task.task_number,
-                category: att.category,
-                attachmentId: att.id,
-                url: doc[:url]
+                path: doc.folder,
+                url: doc.download_url
               }
             end
 
             { folders: [], files: files }
           end
-        end
-      end
-
-      # Helper: Resolve SmTaskAttachment to actual document data
-      # Returns hash with :id, :name, :mimeType, :fileSize, :url
-      def resolve_attachment_document(attachment)
-        case attachment.attachable_type
-        when "WarehouseDocument"
-          doc = attachment.attachable
-          return nil unless doc
-
-          {
-            id: doc.id,
-            name: doc.display_name || doc.original_filename || "Document",
-            mimeType: doc.content_type || doc.storage_blob&.content_type || "application/octet-stream",
-            fileSize: doc.file_size || doc.storage_blob&.file_size || 0,
-            url: doc.download_url
-          }
-        when "SyncedEmail"
-          email = attachment.attachable
-          return nil unless email
-
-          # Email may have warehouse_document for the .eml file
-          if email.warehouse_document&.storage_blob
-            doc = email.warehouse_document
-            {
-              id: doc.id,
-              name: email.subject || "Email",
-              mimeType: "message/rfc822",
-              fileSize: doc.file_size || doc.storage_blob&.file_size || 0,
-              url: doc.download_url
-            }
-          else
-            # Fallback: use email directly
-            {
-              id: email.id,
-              name: email.subject || "Email",
-              mimeType: "message/rfc822",
-              fileSize: 0,
-              url: nil
-            }
-          end
-        else
-          nil
         end
       end
 
