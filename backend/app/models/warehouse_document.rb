@@ -430,9 +430,14 @@ class WarehouseDocument < ApplicationRecord
   def extract_folder_tokens
     tokens = {}
 
-    # Task context
+    # Task context - handle both SmTask and SmTaskAttachment
     if source_type == "task" && documentable.present?
-      tokens[:TaskId] = documentable.id
+      if documentable.is_a?(SmTask)
+        tokens[:TaskId] = documentable.id
+      elsif documentable.respond_to?(:sm_task) && documentable.sm_task
+        # SmTaskAttachment - get the task via association
+        tokens[:TaskId] = documentable.sm_task.id
+      end
     end
 
     # Job context
