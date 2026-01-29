@@ -11,6 +11,9 @@ module Api
       # Skip auth for job_document_download - opened in new browser tab via window.open()
       skip_before_action :authorize_request, only: [ :callback, :download, :job_document_download ]
 
+      # Skip tenant for public download endpoints - tenant determined from storage key, not user
+      skip_before_action :set_tenant, only: [ :download, :job_document_download ], raise: false
+
       # Require admin for sensitive operations
       before_action :require_admin, only: [ :disconnect, :change_root_folder, :sync_corporate_documents ]
 
