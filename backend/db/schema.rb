@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_28_212708) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_29_093309) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9552,10 +9552,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_212708) do
     t.string "storage_provider"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "storage_blob_id"
     t.index ["is_template"], name: "index_teeem_documents_on_is_template"
     t.index ["job_id", "updated_at"], name: "index_teeem_documents_on_job_id_and_updated_at"
     t.index ["job_id"], name: "index_teeem_documents_on_job_id"
     t.index ["name"], name: "index_teeem_documents_on_name"
+    t.index ["storage_blob_id"], name: "index_teeem_documents_on_storage_blob_id"
     t.index ["user_id", "updated_at"], name: "index_teeem_documents_on_user_id_and_updated_at"
     t.index ["user_id"], name: "index_teeem_documents_on_user_id"
   end
@@ -9570,10 +9572,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_212708) do
     t.integer "page_count", default: 1, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "storage_blob_id"
     t.index ["is_template"], name: "index_teeem_pdfs_on_is_template"
     t.index ["job_id", "updated_at"], name: "index_teeem_pdfs_on_job_id_and_updated_at"
     t.index ["job_id"], name: "index_teeem_pdfs_on_job_id"
     t.index ["name"], name: "index_teeem_pdfs_on_name"
+    t.index ["storage_blob_id"], name: "index_teeem_pdfs_on_storage_blob_id"
     t.index ["user_id", "updated_at"], name: "index_teeem_pdfs_on_user_id_and_updated_at"
     t.index ["user_id"], name: "index_teeem_pdfs_on_user_id"
   end
@@ -9587,10 +9591,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_212708) do
     t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "storage_blob_id"
     t.index ["is_template"], name: "index_teeem_presentations_on_is_template"
     t.index ["job_id", "updated_at"], name: "index_teeem_presentations_on_job_id_and_updated_at"
     t.index ["job_id"], name: "index_teeem_presentations_on_job_id"
     t.index ["name"], name: "index_teeem_presentations_on_name"
+    t.index ["storage_blob_id"], name: "index_teeem_presentations_on_storage_blob_id"
     t.index ["user_id", "updated_at"], name: "index_teeem_presentations_on_user_id_and_updated_at"
     t.index ["user_id"], name: "index_teeem_presentations_on_user_id"
   end
@@ -9604,10 +9610,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_212708) do
     t.datetime "updated_at", null: false
     t.bigint "job_id"
     t.text "description"
+    t.bigint "storage_blob_id"
     t.index ["is_template"], name: "index_teeem_spreadsheets_on_is_template"
     t.index ["job_id", "updated_at"], name: "index_teeem_spreadsheets_on_job_id_and_updated_at"
     t.index ["job_id"], name: "index_teeem_spreadsheets_on_job_id"
     t.index ["name"], name: "index_teeem_spreadsheets_on_name"
+    t.index ["storage_blob_id"], name: "index_teeem_spreadsheets_on_storage_blob_id"
     t.index ["user_id", "updated_at"], name: "index_teeem_spreadsheets_on_user_id_and_updated_at"
     t.index ["user_id"], name: "index_teeem_spreadsheets_on_user_id"
   end
@@ -11469,12 +11477,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_28_212708) do
   add_foreign_key "task_viewers", "sm_tasks"
   add_foreign_key "task_viewers", "users"
   add_foreign_key "teeem_documents", "jobs"
+  add_foreign_key "teeem_documents", "storage_blobs"
   add_foreign_key "teeem_documents", "users"
   add_foreign_key "teeem_pdfs", "jobs"
+  add_foreign_key "teeem_pdfs", "storage_blobs"
   add_foreign_key "teeem_pdfs", "users"
   add_foreign_key "teeem_presentations", "jobs"
+  add_foreign_key "teeem_presentations", "storage_blobs"
   add_foreign_key "teeem_presentations", "users"
   add_foreign_key "teeem_spreadsheets", "jobs"
+  add_foreign_key "teeem_spreadsheets", "storage_blobs"
   add_foreign_key "teeem_spreadsheets", "users"
   add_foreign_key "template_pack_items", "template_packs"
   add_foreign_key "template_packs", "corporate_groups", column: "source_tenant_id"
