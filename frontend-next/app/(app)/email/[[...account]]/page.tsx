@@ -1503,53 +1503,71 @@ export default function EmailPage() {
   }, [emailIdParam]);
 
   // Sync ALL mailboxes (IMAP + Office 365)
+  // FRC (Jan 2026): Sync is now synchronous - no more 3-second wait
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const syncPromises: Promise<unknown>[] = [];
+      const results: { total_synced?: number; message?: string }[] = [];
 
       // Sync all IMAP accounts
-      syncPromises.push(api.post("/api/v1/imap_credentials/sync_all").catch(() => {}));
+      const imapResult = await api.post<{ total_synced?: number; message?: string }>("/api/v1/imap_credentials/sync_all").catch(() => ({}));
+      if (imapResult) results.push(imapResult);
 
-      // Sync Office 365/Outlook accounts
+      // Sync Office 365/Outlook accounts (runs synchronously now)
       if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
-        syncPromises.push(api.post("/api/v1/synced_emails/sync").catch(() => {}));
+        const ms365Result = await api.post<{ total_synced?: number; message?: string }>("/api/v1/synced_emails/sync").catch(() => ({}));
+        if (ms365Result) results.push(ms365Result);
       }
 
-      await Promise.all(syncPromises);
-      setTimeout(() => {
-        fetchEmails();
-        setSyncing(false);
-      }, 3000);
+      // Show results
+      const totalSynced = results.reduce((sum, r) => sum + (r?.total_synced || 0), 0);
+      if (totalSynced > 0) {
+        toast({ title: `Synced ${totalSynced} new email${totalSynced === 1 ? '' : 's'}` });
+      } else {
+        toast({ title: "No new emails" });
+      }
+
+      // Refresh the email list
+      fetchEmails();
     } catch (error) {
       console.error("Failed to sync:", error);
+      toast({ title: "Sync failed", variant: "destructive" });
+    } finally {
       setSyncing(false);
     }
   };
 
   // Sync ALL accounts (same as handleSync - kept for backwards compatibility)
+  // FRC (Jan 2026): Sync is now synchronous - no more 3-second wait
   const handleSplitSync = async () => {
     setSyncing(true);
     try {
-      const syncPromises: Promise<unknown>[] = [];
+      const results: { total_synced?: number; message?: string }[] = [];
 
       // Sync all IMAP accounts
-      syncPromises.push(api.post("/api/v1/imap_credentials/sync_all").catch(() => {}));
+      const imapResult = await api.post<{ total_synced?: number; message?: string }>("/api/v1/imap_credentials/sync_all").catch(() => ({}));
+      if (imapResult) results.push(imapResult);
 
-      // Sync Office 365/Outlook accounts
+      // Sync Office 365/Outlook accounts (runs synchronously now)
       if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
-        syncPromises.push(api.post("/api/v1/synced_emails/sync").catch(() => {}));
+        const ms365Result = await api.post<{ total_synced?: number; message?: string }>("/api/v1/synced_emails/sync").catch(() => ({}));
+        if (ms365Result) results.push(ms365Result);
       }
 
-      await Promise.all(syncPromises);
+      // Show results
+      const totalSynced = results.reduce((sum, r) => sum + (r?.total_synced || 0), 0);
+      if (totalSynced > 0) {
+        toast({ title: `Synced ${totalSynced} new email${totalSynced === 1 ? '' : 's'}` });
+      } else {
+        toast({ title: "No new emails" });
+      }
 
-      // Wait for sync to complete, then refresh
-      setTimeout(() => {
-        splitInbox.refresh();
-        setSyncing(false);
-      }, 3000);
+      // Refresh the split inbox
+      splitInbox.refresh();
     } catch (error) {
       console.error("Failed to sync:", error);
+      toast({ title: "Sync failed", variant: "destructive" });
+    } finally {
       setSyncing(false);
     }
   };

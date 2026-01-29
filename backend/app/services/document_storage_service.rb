@@ -527,7 +527,14 @@ class DocumentStorageService
       return "#{safe_subject}.eml"
     end
 
-    # 1. Try display_name FIRST - this is the user-friendly name
+    # 1. WarehouseDocument: Use download_filename (SSoT via SendNameResolver)
+    # FRC (Jan 2026): Email attachments are WarehouseDocuments with proper display_name.
+    # The download_filename method handles full resolution with templates.
+    if record.is_a?(WarehouseDocument)
+      return record.download_filename
+    end
+
+    # 2. Try display_name FIRST - this is the user-friendly name
     # Various document models generate display names like "Invoice INV-0520"
     if record.respond_to?(:display_name) && record.display_name.present?
       display = record.display_name
@@ -544,22 +551,22 @@ class DocumentStorageService
       return display
     end
 
-    # 2. Try warehouse_document (Phase 3 SSoT)
+    # 3. Try warehouse_document (Phase 3 SSoT)
     if record.respond_to?(:warehouse_document) && record.warehouse_document.present?
       return record.warehouse_document.download_filename
     end
 
-    # 3. Try record's file_name
+    # 4. Try record's file_name
     if record.respond_to?(:file_name) && record.file_name.present?
       return record.file_name
     end
 
-    # 4. Try storage_blob's original_filename
+    # 5. Try storage_blob's original_filename
     if record.respond_to?(:storage_blob) && record.storage_blob&.original_filename.present?
       return record.storage_blob.original_filename
     end
 
-    # 5. Last resort fallback
+    # 6. Last resort fallback
     "document"
   end
 

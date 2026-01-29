@@ -99,6 +99,7 @@ import {
   User,
   Users,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -741,7 +742,7 @@ function SortableQuestionItem({
                 : 'other';
 
               return (
-                <div key={att.id} className="flex items-center gap-1 text-xs group">
+                <div key={att.id} className="flex items-center gap-1 text-xs group relative">
                   <Paperclip className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
                   {/* Download button - always visible */}
                   {downloadUrl && (
@@ -754,9 +755,9 @@ function SortableQuestionItem({
                     </button>
                   )}
                   {isRenaming ? (
-                    // Inline edit mode - use form submit to get current input value directly
+                    // Inline edit mode - pops out with absolute positioning for full visibility
                     <form
-                      className="flex items-center gap-1 flex-1"
+                      className="absolute left-0 top-0 z-50 flex items-center gap-1 bg-background border rounded-md shadow-lg p-1 min-w-[320px]"
                       onSubmit={(e) => {
                         e.preventDefault();
                         const form = e.currentTarget;
@@ -771,8 +772,10 @@ function SortableQuestionItem({
                       <Input
                         name="attachmentName"
                         defaultValue={renamingAttachmentName}
-                        className="h-5 text-xs px-1 py-0 flex-1"
+                        className="h-6 text-xs px-2 py-0 flex-1 min-w-[240px]"
                         autoFocus
+                        maxLength={200}
+                        title="Characters not allowed: brackets, colons, quotes, slashes, pipes, question marks, asterisks"
                         onKeyDown={(e) => {
                           e.stopPropagation();
                           if (e.key === 'Escape') {
@@ -780,10 +783,17 @@ function SortableQuestionItem({
                             setRenamingAttachmentName?.('');
                           }
                         }}
+                        onChange={(e) => {
+                          // Strip invalid filename characters as user types
+                          const invalidChars = /[<>:"/\\|?*]/g;
+                          if (invalidChars.test(e.target.value)) {
+                            e.target.value = e.target.value.replace(invalidChars, '');
+                          }
+                        }}
                       />
                       <button
                         type="submit"
-                        className="text-green-600 hover:text-green-700 p-0.5"
+                        className="text-green-600 hover:text-green-700 p-0.5 shrink-0"
                         title="Save"
                       >
                         <Check className="h-3 w-3" />
@@ -795,7 +805,7 @@ function SortableQuestionItem({
                           setRenamingAttachmentId?.(null);
                           setRenamingAttachmentName?.('');
                         }}
-                        className="text-muted-foreground hover:text-foreground p-0.5"
+                        className="text-muted-foreground hover:text-foreground p-0.5 shrink-0"
                         title="Cancel"
                       >
                         <X className="h-3 w-3" />
@@ -1778,11 +1788,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const responseDocuments = documentAttachments.filter(a => a.action_item_id || a.category === 'response');
 
   // Emails linked to questions OR with category 'response' are response items
-  // FRC (Jan 2026): EXCLUDE source emails - they're INPUT (task created from), not OUTPUT
-  // is_source=true marks the email the task was created from - never show as responses
+  // FRC (Jan 2026): EXCLUDE source emails AND sent emails from response attachments
+  // - is_source=true marks the email the task was created from (INPUT)
+  // - isSentEmail() detects emails WE sent (already sent, shouldn't be re-attached)
+  // Only INCOMING emails that need to be forwarded/referenced should appear
   const responseEmails = allEmailAttachments.filter(a =>
     (a.action_item_id || a.category === 'response') &&
-    !a.is_source
+    !a.is_source &&
+    !isSentEmail(a.email, ourMailboxes)
   );
 
   // Combined response attachments (documents + emails linked to questions)
@@ -7136,16 +7149,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             if (att.email) {
                               setSelectedEmailId(att.email.id);
                             } else if (att.document) {
-                              // Single click = open preview (consistent with Questions section)
+                              // Single click = open external viewer (same as what EU sees)
                               // SSoT: Use storage_url_inline for viewers (Content-Disposition: inline)
-                              const url = att.document?.storage_url_inline || att.document?.storage_url || att.document?.file_url;
+                              const openUrl = att.document?.storage_url_inline || att.document?.storage_url || att.document?.file_url;
+                              const downloadUrl = att.document?.storage_url || att.document?.file_url;
                               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-                              const ext = (att.document?.file_name || '').split('.').pop()?.toLowerCase() || '';
-                              const fileType: 'pdf' | 'image' | 'other' = ext === 'pdf' ? 'pdf'
-                                : ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext) ? 'image'
-                                : 'other';
-                              if (url) {
-                                setViewerDocument({ url, fileName, fileType });
+                              if (openUrl) {
+                                // Open the same viewer that external users see
+                                const viewerParams = new URLSearchParams({
+                                  url: openUrl,
+                                  name: fileName,
+                                  ...(downloadUrl && downloadUrl !== openUrl ? { download: downloadUrl } : {})
+                                });
+                                window.open(`/view?${viewerParams.toString()}`, '_blank');
                               }
                             }
                           }}
@@ -7184,10 +7200,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               )}
                             </>
                           )}
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 min-w-0 relative">
                             {renamingAttachmentId === att.id ? (
                               <form
-                                className="flex items-center gap-1"
+                                className="absolute left-0 top-0 z-50 flex items-center gap-1 bg-background border rounded-md shadow-lg p-1 min-w-[320px]"
                                 onSubmit={(e) => {
                                   e.preventDefault();
                                   const form = e.currentTarget;
@@ -7209,14 +7225,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                       setRenamingAttachmentName('');
                                     }
                                   }}
-                                  className="h-7 text-sm flex-1"
+                                  onChange={(e) => {
+                                    // Strip invalid filename characters as user types
+                                    const invalidChars = /[<>:"/\\|?*]/g;
+                                    if (invalidChars.test(e.target.value)) {
+                                      e.target.value = e.target.value.replace(invalidChars, '');
+                                    }
+                                  }}
+                                  className="h-7 text-sm flex-1 min-w-[240px]"
                                   autoFocus
+                                  maxLength={200}
+                                  title="Characters not allowed: brackets, colons, quotes, slashes, pipes, question marks, asterisks"
                                 />
                                 <Button
                                   type="submit"
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
+                                  className="h-6 w-6 p-0 text-green-600 hover:text-green-700 shrink-0"
                                   title="Save"
                                 >
                                   <Check className="h-3.5 w-3.5" />
@@ -7225,7 +7250,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground shrink-0"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setRenamingAttachmentId(null);

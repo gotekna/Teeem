@@ -59,7 +59,12 @@ class SendNameResolver
     if template.present?
       context = build_context(warehouse_document)
       expanded = expand_template(template, context)
-      return sanitize_and_ensure_extension(expanded, warehouse_document) if expanded.present?
+      # FRC (Jan 2026): Check if expanded result is MEANINGFUL, not just present.
+      # Templates like "{Subject} - {Date}.eml" become "- .eml" when tokens are missing.
+      # A meaningful filename must have at least 3 alphanumeric chars (not counting extension).
+      if expanded.present? && meaningful_filename?(expanded)
+        return sanitize_and_ensure_extension(expanded, warehouse_document)
+      end
     end
 
     # 3. Fallback chain
@@ -438,5 +443,39 @@ class SendNameResolver
     else
       "corporate" # Default fallback
     end
+  end
+
+  # FRC (Jan 2026): Check if a filename is meaningful (not just punctuation/extension)
+  # Templates with missing tokens produce garbage like "- .eml", "Task -.pdf"
+  #
+  # Garbage patterns from failed template expansion:
+  # - "- .eml" → {Subject} missing
+  # - "Task -.pdf" → Task {Number} - {Description} with tokens missing
+  # - " - 17-01-2026.eml" → Just date, no subject
+  #
+  # @param filename [String] The filename to check
+  # @return [Boolean] True if filename has meaningful content
+  def meaningful_filename?(filename)
+    return false if filename.blank?
+
+    # Remove extension
+    base = File.basename(filename.to_s, ".*")
+
+    # Garbage patterns from failed template expansion
+    garbage_patterns = [
+      /^[\s\-]+$/,           # Just spaces and dashes
+      /^Task\s*[\-\s]*$/i,   # "Task" or "Task -" alone
+      /^[\s\-]*\d{2}-\d{2}-\d{4}[\s\-]*$/,  # Just a date like "17-01-2026"
+      /^[\s\-]*\d{4}-\d{2}-\d{2}[\s\-]*$/,  # Just a date like "2026-01-17"
+    ]
+
+    return false if garbage_patterns.any? { |p| base.match?(p) }
+
+    # Count alphanumeric characters (excluding common template words)
+    cleaned = base.gsub(/\b(Task|Email)\b/i, "")
+    alnum_count = cleaned.gsub(/[^a-zA-Z0-9]/, "").length
+
+    # Must have at least 3 alphanumeric chars beyond template words
+    alnum_count >= 3
   end
 end
