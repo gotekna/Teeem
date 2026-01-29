@@ -249,7 +249,7 @@ export default function AssetDetailPage() {
   // URL is SSoT for tab state (path-based navigation)
   const activeTab = React.useMemo(() => {
     const basePath = `/corporate/assets/${assetId}`;
-    const pathSuffix = pathname.replace(basePath, "");
+    const pathSuffix = (pathname ?? "").replace(basePath, "");
     const parts = pathSuffix.split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname, assetId]);

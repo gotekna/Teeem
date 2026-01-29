@@ -198,7 +198,7 @@ export default function NewJobPage() {
   // Parse status from path: /jobs/new/status/enquiry → "enquiry"
   // Also supports legacy ?status= query param for backward compatibility
   const statusFromPath = React.useMemo(() => {
-    const parts = pathname.replace("/jobs/new", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/jobs/new", "").split("/").filter(Boolean);
     if (parts[0] === "status" && parts[1]) {
       return parts[1]; // e.g., "enquiry"
     }

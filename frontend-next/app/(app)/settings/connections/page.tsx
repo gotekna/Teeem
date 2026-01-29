@@ -28,7 +28,7 @@ export default function ConnectionsSettingsPage() {
 
   // URL is SSoT for sub-tab state
   const subTab = useMemo(() => {
-    const parts = pathname.replace("/settings/connections", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/settings/connections", "").split("/").filter(Boolean);
     return parts[0] || "provider";
   }, [pathname]);
 

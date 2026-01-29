@@ -99,9 +99,38 @@ class StorageConfiguration < ApplicationRecord
   # This ensures File Warehouse instantly reflects template changes
   after_save :invalidate_warehouse_folder_cache, if: :warehouse_folders_changed?
 
+  # SSoT: When templates change, queue job to update all affected WarehouseDocument.folder values
+  # This ensures File Warehouse always matches current templates
+  after_save :queue_folder_recomputation, if: :warehouse_folders_changed?
+
   def invalidate_warehouse_folder_cache
     Rails.cache.delete("warehouse_folder_tree_v2")
     Rails.logger.info "[StorageConfiguration] Cleared warehouse folder tree cache after template change"
+  end
+
+  def queue_folder_recomputation
+    # Find which warehouse types had their templates changed
+    changed_types = warehouse_folders_change_affected_types
+    return if changed_types.empty?
+
+    Rails.logger.info "[StorageConfiguration] Template changed for: #{changed_types.join(', ')} - queuing folder recomputation"
+    RecomputeWarehouseFoldersJob.perform_later(tenant_id, changed_types)
+  end
+
+  # Determine which warehouse types had template changes
+  def warehouse_folders_change_affected_types
+    return [] unless saved_change_to_warehouse_folders?
+
+    old_folders, new_folders = saved_change_to_warehouse_folders
+    old_folders ||= {}
+    new_folders ||= {}
+
+    # Find keys where value changed
+    changed = []
+    (old_folders.keys | new_folders.keys).each do |key|
+      changed << key if old_folders[key] != new_folders[key]
+    end
+    changed
   end
 
   # Auto-sync root_path based on provider_type

@@ -399,7 +399,7 @@ export default function SmResourcesPage() {
   // URL is SSoT for tab state (path-based navigation)
   const activeTab = useMemo(() => {
     const basePath = `/jobs/${constructionId}/resources`;
-    const parts = pathname.replace(basePath, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(basePath, "").split("/").filter(Boolean);
     return parts[0] || "schedule";
   }, [pathname, constructionId]);
 

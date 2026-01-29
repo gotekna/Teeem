@@ -581,19 +581,31 @@ module Api
 
           # Add Emails folder as expandable - shows individual mailboxes when expanded
           # Each mailbox links to its specific email page
+          # SSoT: Only add if not already in folders (some non-email docs may have folder starting with "Emails/")
           unless include_emails
+            # Check if Emails folder already exists (from non-email docs like attachments)
+            existing_emails_folder = folders.find { |f| f[:name] == "Emails" }
+
             email_count = WarehouseDocument.where(source_type: "email").count
             mailbox_count = SyncedEmail.where.not(mailbox_owner_email: [ nil, "" ])
                                         .distinct
                                         .count(:mailbox_owner_email)
             if email_count > 0
-              folders << {
-                name: "Emails",
-                path: "Emails",
-                count: email_count,
-                mailbox_count: mailbox_count,  # Show "X mailboxes" in UI
-                expandable: true               # User can expand to see mailboxes
-              }
+              if existing_emails_folder
+                # Update existing folder with full email count and mailbox info
+                existing_emails_folder[:count] = email_count
+                existing_emails_folder[:mailbox_count] = mailbox_count
+                existing_emails_folder[:expandable] = true
+              else
+                # Add new Emails folder
+                folders << {
+                  name: "Emails",
+                  path: "Emails",
+                  count: email_count,
+                  mailbox_count: mailbox_count,  # Show "X mailboxes" in UI
+                  expandable: true               # User can expand to see mailboxes
+                }
+              end
             end
           end
 

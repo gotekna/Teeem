@@ -42,7 +42,7 @@ export default function DeveloperSettingsPage() {
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/developer to work
   const { activeTab, subtab } = useMemo(() => {
-    const parts = pathname.replace("/settings/developer", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/settings/developer", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     const sub = parts[1] || undefined;  // e.g., "document-types" from /settings/developer/components/document-types
     // Validate tab exists

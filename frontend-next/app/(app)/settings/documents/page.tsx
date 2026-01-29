@@ -36,7 +36,7 @@ export default function DocumentsSettingsPage() {
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/documents to work
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/settings/documents", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/settings/documents", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     // Validate tab exists
     return DOCUMENT_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;

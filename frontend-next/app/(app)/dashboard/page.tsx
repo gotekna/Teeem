@@ -47,7 +47,7 @@ export default function DashboardPage() {
   // Path-based tab: /dashboard/overview, /dashboard/competitor
   // URL always shows current tab for clarity
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/dashboard", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/dashboard", "").split("/").filter(Boolean);
     return parts[0] || null; // null means no tab in URL yet
   }, [pathname]);
 

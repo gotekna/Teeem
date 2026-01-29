@@ -56,7 +56,7 @@ export default function MeetingsPage() {
 
   // Path-based tab: /meetings/upcoming, /meetings/past
   const activeTab = React.useMemo(() => {
-    const parts = pathname.replace("/meetings", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/meetings", "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname]);
 

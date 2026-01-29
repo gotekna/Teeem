@@ -185,7 +185,7 @@ export default function SystemHealthPage() {
 
   // Path-based tab: /system-health/health, /system-health/performance
   const activeTab = React.useMemo(() => {
-    const parts = pathname.replace("/system-health", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/system-health", "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname]);
 

@@ -97,7 +97,7 @@ export default function CompanyDetailPage() {
   // Parse path: /corporate/companies/123/overview/info → { tab: "overview", subtab: "info" }
   const { activeTab, overviewSubTab } = React.useMemo(() => {
     const basePath = `/corporate/companies/${companyId}`;
-    const pathSuffix = pathname.replace(basePath, "");
+    const pathSuffix = (pathname ?? "").replace(basePath, "");
     const parts = pathSuffix.split("/").filter(Boolean);
     return {
       activeTab: parts[0] || null,

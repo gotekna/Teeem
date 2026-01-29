@@ -1019,7 +1019,7 @@ export default function RolesSettingsPage() {
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/roles to work
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/settings/roles", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/settings/roles", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     // Validate tab exists
     return ROLES_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;

@@ -32,7 +32,7 @@ export default function PortalPage() {
 
   // Parse tab from path: /portal/users → "users", /portal → "users"
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/portal", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/portal", "").split("/").filter(Boolean);
     return parts[0] || "users";
   }, [pathname]);
 
