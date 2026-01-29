@@ -431,7 +431,7 @@ export default function AllDocumentsPage() {
   // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
   const [s3Folders, setS3Folders] = useState<Record<string, {
     folders: Array<{ name: string; path: string; count?: number; external_link?: string; mailbox_count?: number; expandable?: boolean }>;
-    files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string }>;
+    files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string; warehouse_document_id?: number }>;
     loading?: boolean;
     message?: string;
     progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };

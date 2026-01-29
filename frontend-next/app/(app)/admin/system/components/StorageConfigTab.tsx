@@ -704,19 +704,25 @@ function TreeNode({
 
       {/* SSoT: Show warehouse_folders path pattern under folder name */}
       {(() => {
-        const scopeKey = node.scopeKey || node.scopeKeys?.[0];
-        const rootFolderPath = scopeKey ? scopeRootFolders[scopeKey] : null;
-        if (!isEditingThisNode && rootFolderPath) {
-          return (
-            <div
-              className="text-[10px] text-muted-foreground font-mono"
-              style={{ paddingLeft: `${level * 16 + 28}px` }}
-            >
-              {rootFolderPath?.replace(/\/+/g, '/').replace(/\/+$/, '')}
-            </div>
-          );
-        }
-        return null;
+        // Get ALL scope keys for this node
+        const scopeKeys = node.scopeKeys || (node.scopeKey ? [node.scopeKey] : []);
+        if (scopeKeys.length === 0 || isEditingThisNode) return null;
+
+        // Find the parent scope (not a child of another scope)
+        // This ensures we show the full base path, not a child suffix
+        const parentScopeKey = scopeKeys.find(sk => !WAREHOUSE_TYPE_PARENTS[sk]) || scopeKeys[0];
+        const rootFolderPath = parentScopeKey ? scopeRootFolders[parentScopeKey] : null;
+
+        if (!rootFolderPath) return null;
+
+        return (
+          <div
+            className="text-[10px] text-muted-foreground font-mono"
+            style={{ paddingLeft: `${level * 16 + 28}px` }}
+          >
+            {rootFolderPath.replace(/\/+/g, '/').replace(/\/+$/, '')}
+          </div>
+        );
       })()}
 
       {/* Editing panel for any scope folder */}
@@ -2221,6 +2227,147 @@ export function StorageConfigTab() {
                   The backend uses <code className="bg-muted px-1 rounded">StorageConfiguration.root_folder_for(:scope)</code> to
                   resolve the full path, automatically combining parent base + child suffix.
                 </p>
+              </div>
+
+              {/* Available Tokens */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Settings className="h-4 w-4 text-cyan-500" />
+                  Available Tokens (Path Variables)
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Tokens are placeholders in folder paths that get resolved to actual values when documents are saved:
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {/* Job Tokens */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Job Tokens</h5>
+                      <div className="text-xs space-y-1">
+                        <div><code className="bg-muted px-1 rounded">{"{{JobCode}}"}</code> → <span className="text-muted-foreground">J-001</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{JobName}}"}</code> → <span className="text-muted-foreground">Smith Renovation</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{JobTitle}}"}</code> → <span className="text-muted-foreground">Kitchen Extension</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{JobStatus}}"}</code> → <span className="text-muted-foreground">Active</span></div>
+                      </div>
+                    </div>
+                    {/* Task Tokens */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Task Tokens</h5>
+                      <div className="text-xs space-y-1">
+                        <div><code className="bg-muted px-1 rounded">{"{{TaskId}}"}</code> → <span className="text-muted-foreground">1234</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{TaskName}}"}</code> → <span className="text-muted-foreground">Site Inspection</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{TaskStatus}}"}</code> → <span className="text-muted-foreground">Pending</span></div>
+                      </div>
+                    </div>
+                    {/* Contact Tokens */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact Tokens</h5>
+                      <div className="text-xs space-y-1">
+                        <div><code className="bg-muted px-1 rounded">{"{{ContactName}}"}</code> → <span className="text-muted-foreground">John Smith</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{CompanyName}}"}</code> → <span className="text-muted-foreground">Acme Corp</span></div>
+                      </div>
+                    </div>
+                    {/* Date/File Tokens */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date & File Tokens</h5>
+                      <div className="text-xs space-y-1">
+                        <div><code className="bg-muted px-1 rounded">{"{{Year}}"}</code> → <span className="text-muted-foreground">2026</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{Month}}"}</code> → <span className="text-muted-foreground">01</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{Date}}"}</code> → <span className="text-muted-foreground">2026-01-29</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{OriginalFileName}}"}</code> → <span className="text-muted-foreground">invoice.pdf</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Token Resolution Example */}
+                  <div className="mt-4 pt-3 border-t">
+                    <h5 className="text-xs font-medium mb-2">Example: Token Resolution</h5>
+                    <div className="rounded bg-muted/30 p-3 font-mono text-xs space-y-1">
+                      <div className="text-muted-foreground">Template: <span className="text-foreground">Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}/Attachments</span></div>
+                      <div className="text-muted-foreground">Context: <span className="text-foreground">TaskId=1234, TaskName=&quot;Site Inspection&quot;</span></div>
+                      <div className="border-t my-2 border-dashed" />
+                      <div className="text-green-600 dark:text-green-400">Resolved: Tasks/1234/Site Inspection/Attachments</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Blob Deduplication */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Database className="h-4 w-4 text-pink-500" />
+                  Blob Deduplication (StorageBlob)
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Files are stored <strong>once</strong> and referenced from <strong>multiple locations</strong>.
+                    This saves storage space and ensures consistency.
+                  </p>
+                  <div className="rounded-lg border bg-muted/20 p-4 font-mono text-xs space-y-3">
+                    {/* How it works */}
+                    <div className="space-y-1">
+                      <div className="font-medium text-foreground mb-2">How It Works:</div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">1</Badge>
+                        <span>File uploaded → SHA256 hash calculated</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">2</Badge>
+                        <span>If hash exists → reuse existing blob (no duplicate storage)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">3</Badge>
+                        <span>WarehouseDocument references the blob</span>
+                      </div>
+                    </div>
+                    {/* Visual diagram */}
+                    <div className="border-t pt-3">
+                      <div className="font-medium text-foreground mb-2">Example: Same invoice in 2 places</div>
+                      <div className="text-muted-foreground space-y-1">
+                        <div>📄 Jobs/J-001/Invoices/Invoice.pdf</div>
+                        <div>📄 Contacts/Acme Corp/Invoices/Invoice.pdf</div>
+                        <div className="border-t my-2 border-dashed" />
+                        <div className="flex items-center gap-2">
+                          <ArrowRight className="h-3 w-3" />
+                          <span className="text-pink-600 dark:text-pink-400">Both point to: StorageBlob #abc123 (stored once!)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid md:grid-cols-2 gap-3 text-xs">
+                    <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-medium">WarehouseDocument:</span>
+                        <span className="text-muted-foreground ml-1">
+                          Metadata (display_name, folder, documentable link)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-medium">StorageBlob:</span>
+                        <span className="text-muted-foreground ml-1">
+                          Physical file (content_hash, storage_path, size)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Maintenance Note */}
+              <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-4">
+                <h4 className="font-medium mb-2 flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="h-4 w-4" />
+                  Backend SSoT Reference
+                </h4>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <div><code className="bg-muted px-1 rounded text-xs">StorageConfiguration.instance</code> — The ONE source for all storage config</div>
+                  <div><code className="bg-muted px-1 rounded text-xs">WarehouseDocument</code> — Universal document metadata table</div>
+                  <div><code className="bg-muted px-1 rounded text-xs">StorageBlob</code> — Deduplicated file content (content-hash based)</div>
+                  <div><code className="bg-muted px-1 rounded text-xs">SendNameResolver</code> — Resolves tokens in download filenames</div>
+                </div>
               </div>
             </CardContent>
           </Card>
