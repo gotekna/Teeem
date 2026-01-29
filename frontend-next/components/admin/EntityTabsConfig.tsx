@@ -1193,18 +1193,20 @@ export function EntityTabsConfig({
             </Table>
           </div>
         )}
-        {/* Expanded children */}
-        {expandedItems.has(tab.tab_key) && tab.children && tab.children.length > 0 && (
-          <SortableList
-            items={tab.children}
-            onReorder={(newChildren) => handleChildReorder(tab, newChildren)}
-          >
-            <div className="space-y-1 mt-1">
-              {tab.children.map((child, childIndex) =>
-                renderTabWithChildren(child, childIndex, depth + 1)
-              )}
-            </div>
-          </SortableList>
+        {/* Expanded children - use CSS hiding to preserve state */}
+        {tab.children && tab.children.length > 0 && (
+          <div className={cn(!expandedItems.has(tab.tab_key) && "hidden")}>
+            <SortableList
+              items={tab.children}
+              onReorder={(newChildren) => handleChildReorder(tab, newChildren)}
+            >
+              <div className="space-y-1 mt-1">
+                {tab.children.map((child, childIndex) =>
+                  renderTabWithChildren(child, childIndex, depth + 1)
+                )}
+              </div>
+            </SortableList>
+          </div>
         )}
       </React.Fragment>
     );
@@ -1772,8 +1774,7 @@ export function EntityTabsConfig({
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     )}
                   </button>
-                  {expandedWarehouseSections.has('primary') && (
-                    <div className="space-y-3 mt-3">
+                  <div className={cn(!expandedWarehouseSections.has('primary') && "hidden", "space-y-3 mt-3")}>
                       {/* Base path from StorageConfiguration (read-only) */}
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
@@ -1863,7 +1864,7 @@ export function EntityTabsConfig({
                         </span>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Email Attachments Configuration (only for email scope) */}
@@ -1884,8 +1885,7 @@ export function EntityTabsConfig({
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       )}
                     </button>
-                    {expandedWarehouseSections.has('attachments') && (
-                      <div className="space-y-3 mt-3">
+                    <div className={cn(!expandedWarehouseSections.has('attachments') && "hidden", "space-y-3 mt-3")}>
                         {/* Base path for attachments */}
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
@@ -1962,7 +1962,7 @@ export function EntityTabsConfig({
                           </span>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 )}
 
