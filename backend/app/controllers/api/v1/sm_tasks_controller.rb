@@ -67,6 +67,12 @@ module Api
           @tasks = @tasks.for_user_roles(user) if user
         end
 
+        # Search filter - searches name and task_number
+        if params[:search].present?
+          search_term = "%#{params[:search].downcase}%"
+          @tasks = @tasks.where("LOWER(sm_tasks.name) LIKE ? OR CAST(sm_tasks.task_number AS TEXT) LIKE ?", search_term, search_term)
+        end
+
         # Apply limit before preloading
         tasks_to_render = @tasks.limit(500).to_a
 

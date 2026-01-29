@@ -44,6 +44,9 @@ import {
   ClipboardList,
   FolderHeart,
   Clock,
+  BookOpen,
+  ArrowRight,
+  Layers,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
@@ -244,7 +247,10 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
       // These have keys like 'email', 'warehouse', 'job', 'user', etc.
       // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
       const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate', 'corporate', 'user'].includes(key);
-      if (!isOverviewTab) return false;
+      // SSoT: Also keep child scopes (task_attachments, task_responses, etc.)
+      // They store suffix only (e.g., "Responses") and we compute full path later
+      const isChildScope = key in WAREHOUSE_TYPE_PARENTS;
+      if (!isOverviewTab && !isChildScope) return false;
     }
     return true;
   });
@@ -275,9 +281,22 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   filteredEntries.forEach(([key, path]) => {
     if (!path) return;
 
+    // SSoT: Child scopes (task_attachments, task_responses, etc.) only store suffix
+    // Need to combine with parent's base path for tree building
+    const parentKey = WAREHOUSE_TYPE_PARENTS[key];
+    let effectivePath = path;
+    if (parentKey) {
+      const parentPath = scopeFolders[parentKey];
+      if (parentPath) {
+        // Child scope: combine parent base + suffix
+        // e.g., "Tasks/{{TaskId}}/{{TaskName}}" + "Responses" = "Tasks/{{TaskId}}/{{TaskName}}/Responses"
+        effectivePath = `${parentPath}/${path}`.replace(/\/+/g, '/');
+      }
+    }
+
     // Split path but stop at first placeholder for folder building
     // e.g., "Tasks/{{TaskStatus}}/{{JobName}}" → only create "Tasks" folder
-    const allParts = path.split('/').filter(Boolean);
+    const allParts = effectivePath.split('/').filter(Boolean);
     const isMainScope = mainScopeKeys.includes(key);
 
     // For main scopes, only take parts before first placeholder
@@ -685,19 +704,25 @@ function TreeNode({
 
       {/* SSoT: Show warehouse_folders path pattern under folder name */}
       {(() => {
-        const scopeKey = node.scopeKey || node.scopeKeys?.[0];
-        const rootFolderPath = scopeKey ? scopeRootFolders[scopeKey] : null;
-        if (!isEditingThisNode && rootFolderPath) {
-          return (
-            <div
-              className="text-[10px] text-muted-foreground font-mono"
-              style={{ paddingLeft: `${level * 16 + 28}px` }}
-            >
-              {rootFolderPath?.replace(/\/+/g, '/').replace(/\/+$/, '')}
-            </div>
-          );
-        }
-        return null;
+        // Get ALL scope keys for this node
+        const scopeKeys = node.scopeKeys || (node.scopeKey ? [node.scopeKey] : []);
+        if (scopeKeys.length === 0 || isEditingThisNode) return null;
+
+        // Find the parent scope (not a child of another scope)
+        // This ensures we show the full base path, not a child suffix
+        const parentScopeKey = scopeKeys.find(sk => !WAREHOUSE_TYPE_PARENTS[sk]) || scopeKeys[0];
+        const rootFolderPath = parentScopeKey ? scopeRootFolders[parentScopeKey] : null;
+
+        if (!rootFolderPath) return null;
+
+        return (
+          <div
+            className="text-[10px] text-muted-foreground font-mono"
+            style={{ paddingLeft: `${level * 16 + 28}px` }}
+          >
+            {rootFolderPath.replace(/\/+/g, '/').replace(/\/+$/, '')}
+          </div>
+        );
       })()}
 
       {/* Editing panel for any scope folder */}
@@ -1918,9 +1943,13 @@ export function StorageConfigTab() {
         </Badge>
       </div>
 
-      {/* Tabs: Configuration vs Live Preview */}
+      {/* Tabs: Setup Info, Configuration, Live Preview */}
       <Tabs defaultValue="config" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+        <TabsList className="grid w-full grid-cols-3 max-w-xl">
+          <TabsTrigger value="setup" className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4" />
+            Setup Info
+          </TabsTrigger>
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             Configuration
@@ -1932,6 +1961,417 @@ export function StorageConfigTab() {
             Live Preview
           </TabsTrigger>
         </TabsList>
+
+        {/* Setup Info Tab - SSoT Documentation */}
+        <TabsContent value="setup" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Storage Configuration SSoT Guide
+              </CardTitle>
+              <CardDescription>
+                How folder paths are configured and where they&apos;re stored
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Overview */}
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-blue-500" />
+                  Overview
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  This page configures <strong>virtual folder paths</strong> for the File Warehouse.
+                  All settings save to <code className="bg-muted px-1 rounded">StorageConfiguration.warehouse_folders</code> (SSoT).
+                </p>
+              </div>
+
+              {/* Path Hierarchy */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <FolderTree className="h-4 w-4 text-amber-500" />
+                  Path Hierarchy
+                </h4>
+                <div className="grid gap-3">
+                  {/* Root Path */}
+                  <div className="rounded-lg border p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs">1</Badge>
+                      <span className="font-medium text-sm">Root Path</span>
+                      <Badge variant="secondary" className="text-xs">Read-only</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-6">
+                      Comes from Storage Provider config (e.g., <code className="bg-muted px-1 rounded">/</code> or <code className="bg-muted px-1 rounded">/Documents</code>).
+                      This is where your S3 bucket or SharePoint site root is.
+                    </p>
+                  </div>
+
+                  {/* Base Folder */}
+                  <div className="rounded-lg border p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs">2</Badge>
+                      <span className="font-medium text-sm">Base Folder</span>
+                      <Badge className="text-xs bg-blue-500">Parent Scope</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-6">
+                      The main folder path for each scope. Example: <code className="bg-muted px-1 rounded">Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}</code>.
+                      Child scopes inherit this automatically.
+                    </p>
+                  </div>
+
+                  {/* Folder Path */}
+                  <div className="rounded-lg border p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs">3</Badge>
+                      <span className="font-medium text-sm">Folder Path (Suffix)</span>
+                      <Badge className="text-xs bg-green-500">Child Scope</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-6">
+                      For child scopes, this is the suffix added to the parent&apos;s base folder.
+                      Example: <code className="bg-muted px-1 rounded">{"{{Attachments}}"}</code> or <code className="bg-muted px-1 rounded">{"{{Responses}}"}</code>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Example */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <ArrowRight className="h-4 w-4 text-green-500" />
+                  Example: Task Attachments
+                </h4>
+                <div className="rounded-lg border bg-muted/20 p-4 font-mono text-sm space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-24">Root Path:</span>
+                    <span>/</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-24">+ Base:</span>
+                    <span>Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}</span>
+                    <Badge variant="outline" className="text-xs">from Task scope</Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-24">+ Suffix:</span>
+                    <span>{"{{Attachments}}"}</span>
+                    <Badge variant="outline" className="text-xs">from Task Attachments</Badge>
+                  </div>
+                  <div className="border-t pt-2 mt-2">
+                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                      <span className="text-muted-foreground w-24">= Full Path:</span>
+                      <span>/Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}/{"{{Attachments}}"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SSoT Storage */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Database className="h-4 w-4 text-purple-500" />
+                  SSoT: Where It&apos;s Stored
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <div className="text-sm space-y-2">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Parent scopes</span>
+                        <span className="text-muted-foreground"> store full base path</span>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <code className="bg-muted px-1 rounded">warehouse_folders.task = &quot;Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}&quot;</code>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Child scopes</span>
+                        <span className="text-muted-foreground"> store suffix only</span>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <code className="bg-muted px-1 rounded">warehouse_folders.task_responses = &quot;Responses&quot;</code>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Parent-Child Relationships */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-orange-500" />
+                  Parent-Child Scope Relationships
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                  {Object.entries(WAREHOUSE_TYPE_PARENTS).map(([child, parent]) => (
+                    <div key={child} className="rounded border p-2 bg-card">
+                      <span className="text-muted-foreground">{parent}</span>
+                      <ArrowRight className="h-3 w-3 inline mx-1 text-muted-foreground" />
+                      <span className="font-medium">{child.replace(/_/g, ' ')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Root Path Source */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <HardDrive className="h-4 w-4 text-slate-500" />
+                  Where Root Path Comes From
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Root Path is configured in the <strong>Configuration</strong> tab under <strong>Storage Provider</strong>.
+                    It depends on which provider you&apos;re using:
+                  </p>
+                  <div className="grid gap-2 text-xs">
+                    <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+                      <Database className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-medium">Wasabi / S3:</span>
+                        <span className="text-muted-foreground ml-1">
+                          Root path is relative to your bucket (e.g., <code className="bg-muted px-1 rounded">/</code> for bucket root)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+                      <Cloud className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-medium">SharePoint:</span>
+                        <span className="text-muted-foreground ml-1">
+                          Root path is the folder within your SharePoint site/drive (e.g., <code className="bg-muted px-1 rounded">/Documents</code>)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+                      <HardDrive className="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-medium">Local Storage:</span>
+                        <span className="text-muted-foreground ml-1">
+                          Root path is the directory on the server (development only)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Document Types */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-indigo-500" />
+                  Document Types & Folder Structure
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Document Types add an extra layer of organization <strong>within</strong> each scope folder:
+                  </p>
+                  <div className="rounded-lg border bg-muted/20 p-4 font-mono text-xs space-y-1">
+                    <div className="text-muted-foreground">📁 Jobs/</div>
+                    <div className="text-muted-foreground ml-4">📁 J-001/</div>
+                    <div className="text-muted-foreground ml-8">📁 Plans/</div>
+                    <div className="text-indigo-600 dark:text-indigo-400 ml-12">📄 Floor Plan.pdf <span className="text-muted-foreground">← Doc Type: Plan</span></div>
+                    <div className="text-muted-foreground ml-8">📁 Invoices/</div>
+                    <div className="text-indigo-600 dark:text-indigo-400 ml-12">📄 Invoice-001.pdf <span className="text-muted-foreground">← Doc Type: Invoice</span></div>
+                    <div className="text-muted-foreground ml-8">📁 Contracts/</div>
+                    <div className="text-indigo-600 dark:text-indigo-400 ml-12">📄 Contract.pdf <span className="text-muted-foreground">← Doc Type: Contract</span></div>
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    <strong>Configure Document Types:</strong> Use the <strong>Document Types</strong> tab above to create and manage document types.
+                    Each type can specify which scopes it applies to (Jobs, Contacts, Corporate, etc.).
+                  </div>
+                </div>
+              </div>
+
+              {/* How It All Fits Together */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-emerald-500" />
+                  How It All Fits Together
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <div className="grid gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs w-6 justify-center">1</Badge>
+                      <span><strong>Storage Provider</strong> defines where files physically live (S3, SharePoint)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs w-6 justify-center">2</Badge>
+                      <span><strong>Root Path</strong> is the starting point within that provider</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs w-6 justify-center">3</Badge>
+                      <span><strong>Scope Folders</strong> (Jobs, Tasks, etc.) organize by entity type</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs w-6 justify-center">4</Badge>
+                      <span><strong>Document Types</strong> organize files within each entity</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs w-6 justify-center">5</Badge>
+                      <span><strong>File Warehouse</strong> displays this virtual structure to users</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* File Warehouse Integration */}
+              <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 p-4">
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <FileBox className="h-4 w-4 text-blue-500" />
+                  File Warehouse Integration
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  These virtual paths determine where documents appear in the <strong>File Warehouse</strong> tab.
+                  The backend uses <code className="bg-muted px-1 rounded">StorageConfiguration.root_folder_for(:scope)</code> to
+                  resolve the full path, automatically combining parent base + child suffix.
+                </p>
+              </div>
+
+              {/* Available Tokens */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Settings className="h-4 w-4 text-cyan-500" />
+                  Available Tokens (Path Variables)
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Tokens are placeholders in folder paths that get resolved to actual values when documents are saved:
+                  </p>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {/* Job Tokens */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Job Tokens</h5>
+                      <div className="text-xs space-y-1">
+                        <div><code className="bg-muted px-1 rounded">{"{{JobCode}}"}</code> → <span className="text-muted-foreground">J-001</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{JobName}}"}</code> → <span className="text-muted-foreground">Smith Renovation</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{JobTitle}}"}</code> → <span className="text-muted-foreground">Kitchen Extension</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{JobStatus}}"}</code> → <span className="text-muted-foreground">Active</span></div>
+                      </div>
+                    </div>
+                    {/* Task Tokens */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Task Tokens</h5>
+                      <div className="text-xs space-y-1">
+                        <div><code className="bg-muted px-1 rounded">{"{{TaskId}}"}</code> → <span className="text-muted-foreground">1234</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{TaskName}}"}</code> → <span className="text-muted-foreground">Site Inspection</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{TaskStatus}}"}</code> → <span className="text-muted-foreground">Pending</span></div>
+                      </div>
+                    </div>
+                    {/* Contact Tokens */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contact Tokens</h5>
+                      <div className="text-xs space-y-1">
+                        <div><code className="bg-muted px-1 rounded">{"{{ContactName}}"}</code> → <span className="text-muted-foreground">John Smith</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{CompanyName}}"}</code> → <span className="text-muted-foreground">Acme Corp</span></div>
+                      </div>
+                    </div>
+                    {/* Date/File Tokens */}
+                    <div className="space-y-2">
+                      <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date & File Tokens</h5>
+                      <div className="text-xs space-y-1">
+                        <div><code className="bg-muted px-1 rounded">{"{{Year}}"}</code> → <span className="text-muted-foreground">2026</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{Month}}"}</code> → <span className="text-muted-foreground">01</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{Date}}"}</code> → <span className="text-muted-foreground">2026-01-29</span></div>
+                        <div><code className="bg-muted px-1 rounded">{"{{OriginalFileName}}"}</code> → <span className="text-muted-foreground">invoice.pdf</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Token Resolution Example */}
+                  <div className="mt-4 pt-3 border-t">
+                    <h5 className="text-xs font-medium mb-2">Example: Token Resolution</h5>
+                    <div className="rounded bg-muted/30 p-3 font-mono text-xs space-y-1">
+                      <div className="text-muted-foreground">Template: <span className="text-foreground">Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}/Attachments</span></div>
+                      <div className="text-muted-foreground">Context: <span className="text-foreground">TaskId=1234, TaskName=&quot;Site Inspection&quot;</span></div>
+                      <div className="border-t my-2 border-dashed" />
+                      <div className="text-green-600 dark:text-green-400">Resolved: Tasks/1234/Site Inspection/Attachments</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Blob Deduplication */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Database className="h-4 w-4 text-pink-500" />
+                  Blob Deduplication (StorageBlob)
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Files are stored <strong>once</strong> and referenced from <strong>multiple locations</strong>.
+                    This saves storage space and ensures consistency.
+                  </p>
+                  <div className="rounded-lg border bg-muted/20 p-4 font-mono text-xs space-y-3">
+                    {/* How it works */}
+                    <div className="space-y-1">
+                      <div className="font-medium text-foreground mb-2">How It Works:</div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">1</Badge>
+                        <span>File uploaded → SHA256 hash calculated</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">2</Badge>
+                        <span>If hash exists → reuse existing blob (no duplicate storage)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">3</Badge>
+                        <span>WarehouseDocument references the blob</span>
+                      </div>
+                    </div>
+                    {/* Visual diagram */}
+                    <div className="border-t pt-3">
+                      <div className="font-medium text-foreground mb-2">Example: Same invoice in 2 places</div>
+                      <div className="text-muted-foreground space-y-1">
+                        <div>📄 Jobs/J-001/Invoices/Invoice.pdf</div>
+                        <div>📄 Contacts/Acme Corp/Invoices/Invoice.pdf</div>
+                        <div className="border-t my-2 border-dashed" />
+                        <div className="flex items-center gap-2">
+                          <ArrowRight className="h-3 w-3" />
+                          <span className="text-pink-600 dark:text-pink-400">Both point to: StorageBlob #abc123 (stored once!)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid md:grid-cols-2 gap-3 text-xs">
+                    <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-medium">WarehouseDocument:</span>
+                        <span className="text-muted-foreground ml-1">
+                          Metadata (display_name, folder, documentable link)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-medium">StorageBlob:</span>
+                        <span className="text-muted-foreground ml-1">
+                          Physical file (content_hash, storage_path, size)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Maintenance Note */}
+              <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-4">
+                <h4 className="font-medium mb-2 flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="h-4 w-4" />
+                  Backend SSoT Reference
+                </h4>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <div><code className="bg-muted px-1 rounded text-xs">StorageConfiguration.instance</code> — The ONE source for all storage config</div>
+                  <div><code className="bg-muted px-1 rounded text-xs">WarehouseDocument</code> — Universal document metadata table</div>
+                  <div><code className="bg-muted px-1 rounded text-xs">StorageBlob</code> — Deduplicated file content (content-hash based)</div>
+                  <div><code className="bg-muted px-1 rounded text-xs">SendNameResolver</code> — Resolves tokens in download filenames</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="config" className="space-y-6 mt-4">
       {/* Provider Selection */}

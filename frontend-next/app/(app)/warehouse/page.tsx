@@ -431,7 +431,7 @@ export default function AllDocumentsPage() {
   // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
   const [s3Folders, setS3Folders] = useState<Record<string, {
     folders: Array<{ name: string; path: string; count?: number; external_link?: string; mailbox_count?: number; expandable?: boolean }>;
-    files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string }>;
+    files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string; warehouse_document_id?: number }>;
     loading?: boolean;
     message?: string;
     progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
@@ -829,7 +829,7 @@ export default function AllDocumentsPage() {
           progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
           path: string;
           folders: Array<{ name: string; path: string }>;
-          files: Array<{ name: string; path: string; size: number; content_type: string; last_modified?: string; url?: string }>;
+          files: Array<{ name: string; path: string; size: number; content_type: string; last_modified?: string; url?: string; id?: number; warehouse_document_id?: number }>;
           count: { folders: number; files: number; total: number };
         }>(`/api/v1/documents/s3_folders?path=${encodeURIComponent(path)}`);
 
@@ -1227,7 +1227,9 @@ export default function AllDocumentsPage() {
         name: file.name,
         type: "file" as const,
         file: {
-          id: 0, // S3 files don't have database IDs
+          // SSoT (Jan 2026): Use WarehouseDocument ID from API for virtual folders
+          // This enables "Link to Task" for documents browsed in File Warehouse
+          id: file.id || file.warehouse_document_id || 0,
           source: "corporate" as const,
           fileName: file.name,
           displayName: file.name,
