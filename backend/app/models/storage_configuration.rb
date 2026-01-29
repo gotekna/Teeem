@@ -239,9 +239,11 @@ class StorageConfiguration < ApplicationRecord
     # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
     # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
     # Child types (task_attachments, task_responses) store SUFFIX ONLY - derived from 'task' base
-    'task' => 'Tasks/{{TaskId}}/{{TaskName}}',
-    'task_attachments' => 'Attachments',  # SSoT: Suffix only - base from 'task'
-    'task_responses' => 'Responses',      # SSoT: Suffix only - base from 'task'
+    # SSoT (Jan 2026): Task folder uses ID only - name is resolved at display time
+    # This prevents path breakage when task names change
+    'task' => 'Tasks/{{TaskId}}',
+    'task_attachments' => 'Attachments',  # SSoT: Suffix only - appended to 'task' base
+    'task_responses' => 'Responses',      # SSoT: Suffix only - appended to 'task' base
     # Case documents (Jan 2026)
     # SSoT: Virtual folder paths for File Warehouse - actual files in Blobs/{hash}.ext
     # Child types store SUFFIX ONLY - derived from 'case' base
