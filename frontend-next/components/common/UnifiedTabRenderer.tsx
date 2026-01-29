@@ -316,11 +316,11 @@ export function UnifiedTabRenderer({
     }
 
     // If tab has storage folder, render folder view
-    if (activeTab.has_sharepoint_folder && activeTab.full_sharepoint_path) {
+    if (activeTab.warehouse_enabled && activeTab.full_warehouse_path) {
       // TODO: Import StorageFolderView when extracted
       return (
         <div className="p-4 text-muted-foreground">
-          Storage folder: {activeTab.full_sharepoint_path}
+          Storage folder: {activeTab.full_warehouse_path}
         </div>
       );
     }

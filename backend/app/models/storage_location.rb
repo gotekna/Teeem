@@ -545,20 +545,8 @@ class StorageLocation < ApplicationRecord
           is_primary: join&.is_primary || false  # SSoT: Include primary/secondary flag
         }
       },
-      # Backwards compatibility aliases
-      scope: warehouse_type,
-      has_storage_folder: warehouse_enabled,
-      storage_folder_path: read_attribute(:warehouse_folder).presence || display_name,  # SSoT: Custom folder path
-      full_storage_path: full_warehouse_path,
-      storage_path_type: warehouse_type_override || 'corporate',
-      storage_base_path: warehouse_base_path,
-      effective_storage_path: effective_warehouse_path,
-      has_sharepoint_folder: warehouse_enabled,
-      sharepoint_folder_path: read_attribute(:warehouse_folder).presence || display_name,  # SSoT: Custom folder path
-      full_sharepoint_path: full_warehouse_path,
-      sharepoint_path_type: warehouse_type_override || 'corporate',
-      sharepoint_base_path: warehouse_base_path,
-      effective_sharepoint_path: effective_warehouse_path
+      # Legacy alias (scope only - SharePoint/storage aliases REMOVED Jan 2026, use warehouse_* instead)
+      scope: warehouse_type
     }
   end
 
