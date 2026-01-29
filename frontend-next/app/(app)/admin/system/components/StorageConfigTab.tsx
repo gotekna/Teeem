@@ -2108,6 +2108,108 @@ export function StorageConfigTab() {
                 </div>
               </div>
 
+              {/* Root Path Source */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <HardDrive className="h-4 w-4 text-slate-500" />
+                  Where Root Path Comes From
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Root Path is configured in the <strong>Configuration</strong> tab under <strong>Storage Provider</strong>.
+                    It depends on which provider you&apos;re using:
+                  </p>
+                  <div className="grid gap-2 text-xs">
+                    <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+                      <Database className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-medium">Wasabi / S3:</span>
+                        <span className="text-muted-foreground ml-1">
+                          Root path is relative to your bucket (e.g., <code className="bg-muted px-1 rounded">/</code> for bucket root)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+                      <Cloud className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-medium">SharePoint:</span>
+                        <span className="text-muted-foreground ml-1">
+                          Root path is the folder within your SharePoint site/drive (e.g., <code className="bg-muted px-1 rounded">/Documents</code>)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+                      <HardDrive className="h-4 w-4 text-slate-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-medium">Local Storage:</span>
+                        <span className="text-muted-foreground ml-1">
+                          Root path is the directory on the server (development only)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Document Types */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-indigo-500" />
+                  Document Types & Folder Structure
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Document Types add an extra layer of organization <strong>within</strong> each scope folder:
+                  </p>
+                  <div className="rounded-lg border bg-muted/20 p-4 font-mono text-xs space-y-1">
+                    <div className="text-muted-foreground">📁 Jobs/</div>
+                    <div className="text-muted-foreground ml-4">📁 J-001/</div>
+                    <div className="text-muted-foreground ml-8">📁 Plans/</div>
+                    <div className="text-indigo-600 dark:text-indigo-400 ml-12">📄 Floor Plan.pdf <span className="text-muted-foreground">← Doc Type: Plan</span></div>
+                    <div className="text-muted-foreground ml-8">📁 Invoices/</div>
+                    <div className="text-indigo-600 dark:text-indigo-400 ml-12">📄 Invoice-001.pdf <span className="text-muted-foreground">← Doc Type: Invoice</span></div>
+                    <div className="text-muted-foreground ml-8">📁 Contracts/</div>
+                    <div className="text-indigo-600 dark:text-indigo-400 ml-12">📄 Contract.pdf <span className="text-muted-foreground">← Doc Type: Contract</span></div>
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    <strong>Configure Document Types:</strong> Use the <strong>Document Types</strong> tab above to create and manage document types.
+                    Each type can specify which scopes it applies to (Jobs, Contacts, Corporate, etc.).
+                  </div>
+                </div>
+              </div>
+
+              {/* How It All Fits Together */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-emerald-500" />
+                  How It All Fits Together
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <div className="grid gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs w-6 justify-center">1</Badge>
+                      <span><strong>Storage Provider</strong> defines where files physically live (S3, SharePoint)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs w-6 justify-center">2</Badge>
+                      <span><strong>Root Path</strong> is the starting point within that provider</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs w-6 justify-center">3</Badge>
+                      <span><strong>Scope Folders</strong> (Jobs, Tasks, etc.) organize by entity type</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs w-6 justify-center">4</Badge>
+                      <span><strong>Document Types</strong> organize files within each entity</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs w-6 justify-center">5</Badge>
+                      <span><strong>File Warehouse</strong> displays this virtual structure to users</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* File Warehouse Integration */}
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 p-4">
                 <h4 className="font-medium mb-2 flex items-center gap-2">
