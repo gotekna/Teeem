@@ -19,11 +19,13 @@ module Api
 
       # SSoT: Setup document provider for provider-agnostic methods
       # Skip for SharePoint-specific admin actions (OAuth, site selection, etc.)
+      # Note: download and job_document_download excluded - they create providers directly
+      # and can be called without tenant context (public endpoints)
       before_action :setup_storage_provider, only: [
         :browse_folders, :create_root_folder, :validate_folder,
-        :folder_contents, :search, :download, :presigned_url,
+        :folder_contents, :search, :presigned_url,
         :download_url, :upload, :delete_file, :copy_files,
-        :job_all_files, :job_document_download, :job_document_url
+        :job_all_files, :job_document_url
       ]
 
       # Handle decryption errors gracefully - this happens when credentials were encrypted
