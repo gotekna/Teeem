@@ -247,7 +247,10 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
       // These have keys like 'email', 'warehouse', 'job', 'user', etc.
       // SSoT: 'people' merged into 'contact' (Jan 2026 consolidation)
       const isOverviewTab = ['email', 'warehouse', 'job', 'contact', 'task', 'corporate', 'corporate', 'user'].includes(key);
-      if (!isOverviewTab) return false;
+      // SSoT: Also keep child scopes (task_attachments, task_responses, etc.)
+      // They store suffix only (e.g., "Responses") and we compute full path later
+      const isChildScope = key in WAREHOUSE_TYPE_PARENTS;
+      if (!isOverviewTab && !isChildScope) return false;
     }
     return true;
   });
