@@ -1713,7 +1713,9 @@ module Api
 
         else
           # Level 2+: Show subfolders (Attachments/Responses) and files for selected task
-          task_identifier = path_segments[1]
+          # Frontend sends path WITHOUT "Tasks/" prefix: "2236/Responses"
+          # path_segments[0] = task ID, path_segments[1] = subfolder (if present)
+          task_identifier = path_segments[0]
 
           task = SmTask.find_by(task_number: task_identifier) || SmTask.find_by(id: task_identifier)
           return { folders: [], files: [] } unless task
@@ -1722,21 +1724,22 @@ module Api
           # SmTaskAttachment.attachable points to ORIGINAL doc, warehouse_document points to task folder entry
           base_folder = "Tasks/#{task_identifier}"
 
-          if path_segments.size == 2
-            # Show Attachments/Responses subfolders
+          if path_segments.size == 1
+            # Level 2: Show Attachments/Responses subfolders for this task
             subfolder_counts = WarehouseDocument.where("folder LIKE ?", "#{base_folder}/%")
                                                 .group(:folder)
                                                 .count
 
             folders = subfolder_counts.map do |folder, count|
-              name = folder.split("/").last
-              { name: name, path: folder, count: count }
+              subfolder_name = folder.sub("#{base_folder}/", "")
+              { name: subfolder_name, path: "#{task_identifier}/#{subfolder_name}", count: count }
             end
 
             { folders: folders, files: [] }
           else
-            # Level 3: Show files in subfolder (e.g., Tasks/2236/Responses)
-            full_path = path_segments.join("/")
+            # Level 3+: Show files in subfolder (e.g., path="2236/Responses")
+            subfolder = path_segments[1..-1].join("/")
+            full_path = "#{base_folder}/#{subfolder}"
             docs = WarehouseDocument.where(folder: full_path)
                                     .includes(:storage_blob)
 
