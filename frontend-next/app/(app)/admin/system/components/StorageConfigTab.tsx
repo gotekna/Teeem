@@ -421,7 +421,7 @@ function TreeNode({
   // Use editingKey when available, otherwise primary scopeKey
   const activeScopeKey = currentEditingScopeKey || node.scopeKey;
   const [folderTemplate, setFolderTemplate] = React.useState(
-    activeScopeKey ? scopeTemplates[activeScopeKey] || '{{TeeemXL}}' : '{{TeeemXL}}'
+    activeScopeKey ? scopeTemplates[activeScopeKey] || '' : ''
   );
   const [filenameTemplate, setFilenameTemplate] = React.useState(
     activeScopeKey ? fileNameTemplates[activeScopeKey] || '' : ''
@@ -556,7 +556,7 @@ function TreeNode({
       if (scopeActuallyChanged) {
         setEditValue(currentPath[currentEditingScopeKey] || node.path);
         setFolderTemplate(
-          scopeTemplates[currentEditingScopeKey] || '{{TeeemXL}}'
+          scopeTemplates[currentEditingScopeKey] || ''
         );
         setFilenameTemplate(
           fileNameTemplates[currentEditingScopeKey] || ''
@@ -896,7 +896,7 @@ function TreeNode({
                 // Collect all templates from all scopes sharing this path
                 const allTemplates: Array<{ scopeKey: string; template: string; filename: string }> = [];
                 for (const sk of node.scopeKeys) {
-                  const template = scopeTemplates[sk] || '{{TeeemXL}}';
+                  const template = scopeTemplates[sk] || '';
                   const filename = fileNameTemplates[sk] || '';
                   // Skip COMPLEX_SCOPES - they show via tabs section exclusively (job, contact, corporate)
                   // Skip scopes with config links (they show tabs instead)

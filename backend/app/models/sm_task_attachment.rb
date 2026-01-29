@@ -136,6 +136,11 @@ class SmTaskAttachment < ApplicationRecord
   # Create WarehouseDocument entry for this task attachment
   # Links to same StorageBlob as the attached document
   # SSoT: Sets linkable to SmTask for proper folder display in File Warehouse
+  #
+  # IMPORTANT: ALWAYS creates a new WarehouseDocument in the task folder,
+  # even when attachable is already a WarehouseDocument. This allows the
+  # same physical file (StorageBlob) to appear in multiple virtual folders.
+  # Example: A PDF in "Corporate/Finance" can ALSO appear in "Tasks/2236/Responses"
   def create_warehouse_entry
     blob = storage_blob
     unless blob
@@ -143,11 +148,34 @@ class SmTaskAttachment < ApplicationRecord
       return
     end
 
+    # Get display name from attachable
+    name = case attachable_type
+           when "WarehouseDocument"
+             attachable&.display_name || attachable&.original_filename || "Document"
+           when "SyncedEmail"
+             attachable&.subject || "Email"
+           else
+             "Attachment"
+           end
+
+    # Get original filename
+    filename = case attachable_type
+               when "WarehouseDocument"
+                 attachable&.original_filename || attachable&.display_name
+               when "SyncedEmail"
+                 "#{attachable&.subject || 'Email'}.eml"
+               else
+                 nil
+               end
+
+    # Compute the task folder path (e.g., "Tasks/2236/Responses")
+    folder = compute_task_folder_path
+
     create_warehouse_document!(
       source_type: "task",
-      folder: virtual_folder_path,
-      display_name: display_name,
-      original_filename: attachable&.try(:file_name) || attachable&.try(:filename) || attachable&.try(:original_filename),
+      folder: folder,
+      display_name: name,
+      original_filename: filename,
       storage_blob: blob,
       linkable_type: "SmTask",
       linkable_id: sm_task_id,
@@ -156,11 +184,39 @@ class SmTaskAttachment < ApplicationRecord
         task_name: sm_task&.name,
         category: category,
         attachable_type: attachable_type,
-        attachable_id: attachable_id
+        attachable_id: attachable_id,
+        original_warehouse_document_id: attachable_type == "WarehouseDocument" ? attachable_id : nil
       }
     )
   rescue StandardError => e
     Rails.logger.error("[SmTaskAttachment] ##{id}: Failed to create warehouse entry: #{e.message}")
     Rails.logger.error(e.backtrace.first(5).join("\n"))
+  end
+
+  # Compute the folder path for File Warehouse
+  # SSoT: Reads template from StorageConfiguration
+  # Default: Tasks/{{TaskId}}/{{TaskName}}/{{Category}}
+  def compute_task_folder_path
+    task = sm_task
+    return "Tasks/Unknown" unless task
+
+    config = StorageConfiguration.instance rescue nil
+
+    # Get template from config, with sensible default
+    # Config has: task_attachments and task_responses templates
+    folder_type = category == "response" ? :task_responses : :task_attachments
+
+    if config
+      # Use config template - resolves {{TaskId}}, {{TaskName}}, etc.
+      folder = config.resolve_virtual_path(folder_type, {
+        TaskId: task.id,
+        TaskName: task.name&.parameterize || "task-#{task.id}"
+      })
+      return folder if folder.present?
+    end
+
+    # Fallback if no config
+    subfolder = category == "response" ? "Responses" : "Attachments"
+    "Tasks/#{task.id}/#{task.name || 'Unknown'}/#{subfolder}"
   end
 end
