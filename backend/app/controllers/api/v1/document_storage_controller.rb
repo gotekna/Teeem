@@ -1154,6 +1154,14 @@ module Api
         begin
           # SSoT: Route by configured provider, not file_id format guessing
           # Check credentials to determine provider (no tenant context needed)
+          #
+          # For public downloads (preview=true, no auth), we need to set tenant context
+          # since S3Compatible provider requires StorageConfiguration which is tenant-scoped.
+          # Default to first tenant for public access (single-tenant system).
+          unless ActsAsTenant.current_tenant
+            ActsAsTenant.current_tenant = Tenant.first
+          end
+
           if S3CompatibleCredential.active.connected.exists?
             download_from_s3_by_key(file_id, is_preview)
           elsif MicrosoftCredential.sharepoint_credential&.connected?
