@@ -182,6 +182,71 @@ namespace :warehouse do
     WarehouseDocument.group(:source_type).count.each { |k, v| puts "  #{k}: #{v}" }
   end
 
+  desc "Fix task document linkage - sets linkable_id and corrects folder paths"
+  task fix_task_links: :environment do
+    puts "🔧 Fixing task document linkage..."
+    puts ""
+
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        config = StorageConfiguration.instance rescue nil
+        next unless config
+
+        puts "Tenant: #{tenant.name}"
+
+        fixed = 0
+        orphaned = 0
+        errors = 0
+
+        # Find task documents without linkable_id
+        WarehouseDocument.where(source_type: "task").where(linkable_id: nil).find_each do |doc|
+          begin
+            # Get the SmTaskAttachment
+            attachment = doc.documentable
+            unless attachment.is_a?(SmTaskAttachment)
+              orphaned += 1
+              next
+            end
+
+            # Get the task
+            task = attachment.sm_task
+            unless task
+              orphaned += 1
+              puts "  ⚠️  ##{doc.id}: SmTaskAttachment ##{attachment.id} has no task (orphaned)"
+              next
+            end
+
+            # Determine folder based on category
+            folder_type = case attachment.category
+                          when "response" then :task_responses
+                          else :task_attachments
+                          end
+
+            new_folder = config.resolve_virtual_path(folder_type, { TaskId: task.id })
+
+            # Update the document
+            doc.update!(
+              linkable_type: "SmTask",
+              linkable_id: task.id,
+              folder: new_folder
+            )
+
+            fixed += 1
+            puts "  ✅ ##{doc.id}: → Task ##{task.id}, folder: #{new_folder}"
+          rescue StandardError => e
+            errors += 1
+            puts "  ❌ ##{doc.id}: #{e.message}"
+          end
+        end
+
+        puts "  Fixed: #{fixed}, Orphaned: #{orphaned}, Errors: #{errors}"
+        puts ""
+      end
+    end
+
+    puts "Done!"
+  end
+
   desc "Full warehouse setup: link docs, sync attachments, refresh views, capture snapshot"
   task setup: :environment do
     puts "🚀 Running full warehouse setup..."
