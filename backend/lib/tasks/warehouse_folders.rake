@@ -123,7 +123,7 @@ namespace :warehouse do
                        end
 
       tokens = extract_tokens(doc)
-      config.resolve_path(warehouse_type, tokens)
+      config.resolve_virtual_path(warehouse_type, tokens)
     end
 
     def extract_tokens(doc)
