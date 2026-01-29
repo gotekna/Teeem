@@ -207,7 +207,11 @@ function buildFolderTree(scopeFolders: ScopeFolders): FolderTreeNode[] {
   const root: FolderTreeNode[] = [];
 
   // Sort entries by path for consistent tree building
-  const entries = Object.entries(scopeFolders).sort(([, a], [, b]) => a.localeCompare(b));
+  // SSoT FIX (Jan 2026): Filter out null values before sorting to prevent crash
+  // API may return null values for scopes that haven't been configured
+  const entries = Object.entries(scopeFolders)
+    .filter(([, path]) => path !== null && path !== undefined)
+    .sort(([, a], [, b]) => a.localeCompare(b));
 
   // Filter out paths that shouldn't be at root level:
   // 1. Paths that start with {{ (placeholder at root level)
