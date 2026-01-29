@@ -216,12 +216,18 @@ export function FuzzyMatchReviewSheet({
   };
 
   const handleTransfer = async (item: PendingReviewItem, targetContact: Contact) => {
+    console.log("Transfer clicked:", { item, targetContact });
     setProcessingId(item.id);
     try {
+      const url = `/api/v1/contacts/${item.contact_id}/xero_links/${item.id}/transfer`;
+      console.log("Transfer API call:", url, { target_contact_id: targetContact.id });
+
       const response = await api.post<{ success: boolean; error?: string; message?: string }>(
-        `/api/v1/contacts/${item.contact_id}/xero_links/${item.id}/transfer`,
+        url,
         { target_contact_id: targetContact.id }
       );
+
+      console.log("Transfer response:", response);
 
       if (response?.success) {
         toast.success(`Linked "${item.external_contact_name}" → "${targetContact.display_name}"`);
@@ -299,30 +305,32 @@ export function FuzzyMatchReviewSheet({
                           : "border-border bg-card"
                       }`}
                     >
-                      {/* Match visualization */}
+                      {/* Tenant header */}
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge variant="outline" className="text-xs">
+                          {item.tenant_name}
+                        </Badge>
+                        <Badge
+                          className={`text-xs ${
+                            isLowConfidence
+                              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                          }`}
+                        >
+                          {confidencePercent}%
+                        </Badge>
+                      </div>
+
+                      {/* Match visualization - Xero → TEEEM */}
                       <div className="flex items-center gap-2 mb-3">
                         <div className="flex-1 min-w-0">
                           <div className="text-xs text-muted-foreground mb-1">Xero</div>
                           <div className="font-medium text-sm truncate">
                             {item.external_contact_name}
                           </div>
-                          <Badge variant="outline" className="text-xs mt-1">
-                            {item.tenant_name}
-                          </Badge>
                         </div>
 
-                        <div className="flex flex-col items-center px-2">
-                          <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                          <Badge
-                            className={`text-xs mt-1 ${
-                              isLowConfidence
-                                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                                : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                            }`}
-                          >
-                            {confidencePercent}%
-                          </Badge>
-                        </div>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
 
                         <div className="flex-1 min-w-0 text-right">
                           <div className="text-xs text-muted-foreground mb-1">TEEEM</div>
