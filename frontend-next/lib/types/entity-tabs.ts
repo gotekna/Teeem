@@ -40,15 +40,15 @@ export interface EntityTab {
   // SSoT: Xero integration fields
   xero_scope: 'primary' | null;  // Which Xero account this tab uses
   xero_account_name: string | null;  // Resolved name (e.g., "Teeem Homes")
-  has_sharepoint_folder: boolean;
-  sharepoint_folder_path: string | null;
-  full_sharepoint_path: string | null;
+  warehouse_enabled: boolean;
+  warehouse_folder: string | null;
+  full_warehouse_path: string | null;
   // SSoT: Template inheritance fields
   uses_custom_path: boolean;
-  sharepoint_path_type: 'corporate' | 'contacts';
-  sharepoint_base_path: string | null;
-  effective_sharepoint_path: string | null;
-  folder_path: string | null;  // Alias for effective_sharepoint_path (frontend compatibility)
+  warehouse_type_override: 'corporate' | 'contacts';
+  warehouse_base_path: string | null;
+  effective_warehouse_path: string | null;
+  folder_path: string | null;  // Alias for effective_warehouse_path
   inherited_template: string | null;
   hierarchy_path: string;
   document_count: number;
@@ -97,10 +97,10 @@ export interface EntityTabCreateParams {
   enabled?: boolean;
   icon_name?: string;
   component_name?: string;
-  has_sharepoint_folder?: boolean;
-  sharepoint_folder_path?: string;
+  warehouse_enabled?: boolean;
+  warehouse_folder?: string;
   uses_custom_path?: boolean;  // SSoT: Template inheritance flag
-  sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
+  warehouse_type_override?: 'corporate' | 'contacts';  // SSoT: Path type
   document_type_ids?: number[];  // SSoT: Link document types to this tab
   is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
   is_cad_category?: boolean;  // SSoT: Show CAD/Revit file viewer
@@ -119,10 +119,10 @@ export interface EntityTabUpdateParams {
   enabled?: boolean;
   icon_name?: string;
   component_name?: string;
-  has_sharepoint_folder?: boolean;
-  sharepoint_folder_path?: string;
+  warehouse_enabled?: boolean;
+  warehouse_folder?: string;
   uses_custom_path?: boolean;  // SSoT: Template inheritance flag
-  sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
+  warehouse_type_override?: 'corporate' | 'contacts';  // SSoT: Path type
   document_type_ids?: number[];  // SSoT: Link document types to this tab
   is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
   is_cad_category?: boolean;  // SSoT: Show CAD/Revit file viewer
