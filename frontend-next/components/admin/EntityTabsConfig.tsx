@@ -1865,7 +1865,6 @@ export function EntityTabsConfig({
                       </div>
                     </div>
                   </div>
-                </div>
 
                 {/* Email Attachments Configuration (only for email scope) */}
                 {scope === 'email' && (
@@ -1961,7 +1960,6 @@ export function EntityTabsConfig({
                               .replace(/\{\{ContactName\}\}/g, "John Smith")}
                           </span>
                         </div>
-                      </div>
                     </div>
                   </div>
                 )}

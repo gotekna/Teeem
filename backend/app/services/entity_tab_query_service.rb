@@ -143,7 +143,7 @@ class EntityTabQueryService
 
   # SSoT: Get resolved warehouse path by substituting folder name into template
   # Template: StorageConfiguration.warehouse_folders (e.g., "Warehousing/{{TeeemXL}}")
-  # Folder name: display_name (warehouse_folder column was removed Jan 2026)
+  # Folder name: warehouse_folder if set, otherwise display_name
   def derive_warehouse_folder(tab)
     return nil unless tab.warehouse_enabled
 
@@ -153,8 +153,9 @@ class EntityTabQueryService
     template = @storage_config.dig(:warehouse_folders, warehouse_type)
     return nil unless template.present?
 
-    # SSoT: Use display_name for folder name (warehouse_folder column removed Jan 2026)
-    folder_name = tab.display_name.to_s
+    # SSoT: Use stored warehouse_folder if set, otherwise fall back to display_name
+    # warehouse_folder column EXISTS and stores the custom folder path/token
+    folder_name = tab.warehouse_folder.presence || tab.display_name.to_s
 
     # Substitute folder name into template
     template.gsub('{{TeeemXL}}', folder_name).gsub('{{TabName}}', folder_name)
@@ -200,7 +201,8 @@ class EntityTabQueryService
       visibility_rule: tab.visibility_rule,
       # New warehouse naming
       warehouse_enabled: tab.warehouse_enabled,
-      warehouse_folder: derived_folder,
+      # SSoT: Return raw stored warehouse_folder (fallback to display_name), NOT derived path
+      warehouse_folder: tab.warehouse_folder.presence || tab.display_name,
       full_warehouse_path: warehouse_data[:full_path],
       uses_custom_path: tab.uses_custom_path,
       warehouse_type_override: tab.warehouse_type_override || 'corporate',
@@ -208,19 +210,8 @@ class EntityTabQueryService
       effective_warehouse_path: warehouse_data[:effective_path],
       folder_path: warehouse_data[:upload_path],
       inherited_template: warehouse_data[:inherited_template],
-      # Legacy backwards compatibility aliases
-      has_storage_folder: tab.warehouse_enabled,
-      storage_folder_path: derived_folder,
-      full_storage_path: warehouse_data[:full_path],
-      storage_path_type: tab.warehouse_type_override || 'corporate',
-      storage_base_path: warehouse_data[:base_path],
-      effective_storage_path: warehouse_data[:effective_path],
-      has_sharepoint_folder: tab.warehouse_enabled,
-      sharepoint_folder_path: derived_folder,
-      full_sharepoint_path: warehouse_data[:full_path],
-      sharepoint_path_type: tab.warehouse_type_override || 'corporate',
-      sharepoint_base_path: warehouse_data[:base_path],
-      effective_sharepoint_path: warehouse_data[:effective_path],
+      # LIM: Legacy storage_*/sharepoint_* aliases REMOVED (Jan 2026)
+      # Frontend uses warehouse_* fields. Backend services use model methods.
       hierarchy_path: compute_hierarchy_path(tab, derived_folder),
       document_count: doc_count,
       is_photo_category: tab.is_photo_category,
