@@ -519,7 +519,7 @@ class StorageLocation < ApplicationRecord
       xero_scope: xero_scope,
       xero_account_name: xero_account_name,  # Resolved name (e.g., "Tekna Homes")
       warehouse_enabled: warehouse_enabled,
-      warehouse_folder: display_name,  # SSoT: warehouse_folder column removed (Jan 2026) - use display_name
+      warehouse_folder: read_attribute(:warehouse_folder).presence || display_name,  # SSoT: Custom folder path, falls back to display_name
       full_warehouse_path: full_warehouse_path,
       # SSoT: Template inheritance fields
       uses_custom_path: uses_custom_path,
@@ -548,13 +548,13 @@ class StorageLocation < ApplicationRecord
       # Backwards compatibility aliases
       scope: warehouse_type,
       has_storage_folder: warehouse_enabled,
-      storage_folder_path: display_name,  # SSoT: warehouse_folder column removed (Jan 2026)
+      storage_folder_path: read_attribute(:warehouse_folder).presence || display_name,  # SSoT: Custom folder path
       full_storage_path: full_warehouse_path,
       storage_path_type: warehouse_type_override || 'corporate',
       storage_base_path: warehouse_base_path,
       effective_storage_path: effective_warehouse_path,
       has_sharepoint_folder: warehouse_enabled,
-      sharepoint_folder_path: display_name,  # SSoT: warehouse_folder column removed (Jan 2026)
+      sharepoint_folder_path: read_attribute(:warehouse_folder).presence || display_name,  # SSoT: Custom folder path
       full_sharepoint_path: full_warehouse_path,
       sharepoint_path_type: warehouse_type_override || 'corporate',
       sharepoint_base_path: warehouse_base_path,
