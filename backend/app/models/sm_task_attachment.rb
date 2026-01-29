@@ -55,33 +55,10 @@ class SmTaskAttachment < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # SSoT: Reads from StorageConfiguration + respects exclude_sm_tasks checkbox
-  # - exclude_sm_tasks=true → SM tasks under job: Jobs/{{JobCode}}/Tasks/{{TaskId}}
-  # - exclude_sm_tasks=false → Standalone: Tasks/{{Category}}/{{TaskId}}
+  # SSoT: Reads from StorageConfiguration (full paths, no derivation)
+  # FRC (Jan 2026): No hardcoded fallbacks - uses same logic as compute_task_folder_path
   def virtual_folder_path
-    task = sm_task
-    return "Tasks/Unknown" unless task
-
-    config = StorageConfiguration.instance
-
-    # If exclude_sm_tasks is true, SM tasks go under job folder (use :task template)
-    if config.exclude_sm_linked_tasks? && task.job.present?
-      template = config.virtual_template_for(:task)
-      return "Tasks/Unknown" unless template
-
-      result = template.dup
-      result.gsub!("{{JobCode}}", task.job.job_code.to_s)
-      result.gsub!("{{TaskId}}", task.id.to_s)
-      result.gsub!("{{Category}}", category&.titleize || "Attachments")
-      # Clean up empty tokens
-      result.gsub!(/\{\{[^}]+\}\}/, "")
-      result.gsub!(%r{//+}, "/")
-      result
-    else
-      # Standalone tasks folder
-      cat = category&.titleize || "Attachments"
-      "Tasks/#{cat}/#{task.id}"
-    end
+    compute_task_folder_path
   end
 
   # Get the storage blob from the attached document
@@ -194,29 +171,35 @@ class SmTaskAttachment < ApplicationRecord
   end
 
   # Compute the folder path for File Warehouse
-  # SSoT: Reads template from StorageConfiguration
-  # Default: Tasks/{{TaskId}}/{{TaskName}}/{{Category}}
+  # SSoT: Reads template from StorageConfiguration (full paths, no derivation)
+  # Template: Tasks/{{TaskId}}/{{TaskName}}/Attachments (or Responses)
+  #
+  # FRC (Jan 2026): No hardcoded fallback - fail fast if config is wrong
+  # If path is blank, it's immediately visible in UI and can be fixed
   def compute_task_folder_path
     task = sm_task
     return "Tasks/Unknown" unless task
 
     config = StorageConfiguration.instance rescue nil
-
-    # Get template from config, with sensible default
-    # Config has: task_attachments and task_responses templates
-    folder_type = category == "response" ? :task_responses : :task_attachments
-
-    if config
-      # Use config template - resolves {{TaskId}}, {{TaskName}}, etc.
-      folder = config.resolve_virtual_path(folder_type, {
-        TaskId: task.id,
-        TaskName: task.name&.parameterize || "task-#{task.id}"
-      })
-      return folder if folder.present?
+    unless config
+      Rails.logger.warn("[SmTaskAttachment] ##{id}: No StorageConfiguration found")
+      return "Tasks/Unknown"
     end
 
-    # Fallback if no config
-    subfolder = category == "response" ? "Responses" : "Attachments"
-    "Tasks/#{task.id}/#{task.name || 'Unknown'}/#{subfolder}"
+    # SSoT: task_attachments and task_responses have FULL paths (Jan 2026 FRC fix)
+    folder_type = category == "response" ? :task_responses : :task_attachments
+
+    # Use config template - resolves {{TaskId}}, {{TaskName}}, etc.
+    folder = config.resolve_virtual_path(folder_type, {
+      TaskId: task.id,
+      TaskName: task.name&.parameterize || "task-#{task.id}"
+    })
+
+    if folder.blank?
+      Rails.logger.warn("[SmTaskAttachment] ##{id}: resolve_virtual_path returned blank for #{folder_type}")
+      return "Tasks/Unknown"
+    end
+
+    folder
   end
 end
