@@ -89,7 +89,7 @@ export default function LeadsPage() {
   // Parse tab from path: /leads/tab/pipeline → "pipeline", /leads → "leads"
   // Uses /leads/tab/ prefix to avoid conflicts with /leads/[id] detail routes
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/leads", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/leads", "").split("/").filter(Boolean);
     // Path format: /leads/tab/{tabname}
     if (parts[0] === "tab" && parts[1]) {
       return parts[1];

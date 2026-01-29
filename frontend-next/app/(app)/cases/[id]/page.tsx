@@ -233,7 +233,7 @@ export default function CaseDetailPage() {
   // URL is SSoT for tab state (path-based navigation)
   const activeTab = React.useMemo(() => {
     const basePath = `/cases/${caseId}`;
-    const pathSuffix = pathname.replace(basePath, "");
+    const pathSuffix = (pathname ?? "").replace(basePath, "");
     const parts = pathSuffix.split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname, caseId]);

@@ -73,6 +73,11 @@ class StorageBlob < ApplicationRecord
   # Parallel processing (e.g., email upload jobs) can cause two threads to
   # compute the same hash simultaneously. Both try find_or_create_by! and
   # one fails with RecordNotUnique on content_hash. We rescue and retry find.
+  #
+  # ⚠️ FRC (Jan 2026): MISSING FILE RECOVERY
+  # When reusing existing blob (deduplication), the original upload may have failed.
+  # We now verify file exists and re-upload if missing. This prevents "File not found"
+  # errors when accessing deduplicated content.
   def self.find_or_create_for_content!(content, filename: nil, content_type: nil)
     hash = compute_hash(content)
     was_new = false
@@ -94,9 +99,15 @@ class StorageBlob < ApplicationRecord
       upload_to_storage!(b, content)
     end
 
-    # FRC (Jan 2026): Mark as verified after successful upload
-    # This enables "HAS FILE" tracking in Data Warehouse
-    blob.mark_verified! if was_new && blob.verified_at.nil?
+    # FRC (Jan 2026): For existing blobs, verify file actually exists
+    # If original upload failed, the blob record exists but file doesn't
+    # We have the content NOW, so re-upload if missing
+    unless was_new
+      ensure_file_exists!(blob, content)
+    end
+
+    # Mark as verified after successful upload (new or recovered)
+    blob.mark_verified! if blob.verified_at.nil?
 
     blob
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
@@ -109,6 +120,25 @@ class StorageBlob < ApplicationRecord
       return retry_blob if retry_blob
     end
     raise # Re-raise if not a race condition we can handle
+  end
+
+  # FRC (Jan 2026): Verify file exists in storage, re-upload if missing
+  # This recovers from failed original uploads when deduplication finds existing blob
+  def self.ensure_file_exists!(blob, content)
+    return if blob.verified_at.present? # Already verified, skip check
+
+    provider = storage_provider
+    if provider.file_exists?(blob.storage_path)
+      Rails.logger.debug "[StorageBlob] File verified for blob #{blob.id}"
+    else
+      Rails.logger.warn "[StorageBlob] File missing for blob #{blob.id}, re-uploading..."
+      upload_to_storage!(blob, content)
+      Rails.logger.info "[StorageBlob] File recovered for blob #{blob.id}"
+    end
+  rescue StandardError => e
+    # Don't fail the entire operation if verification fails
+    # The presigned URL path still works for existing files
+    Rails.logger.error "[StorageBlob] File verification failed for blob #{blob.id}: #{e.message}"
   end
 
   # Compute SHA256 hash of content

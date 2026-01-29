@@ -491,7 +491,7 @@ export default function CorporateDashboardPage() {
 
   // Parse tab from path: /corporate/structure → "structure", /corporate → "groups"
   const activeTab = React.useMemo(() => {
-    const parts = pathname.replace("/corporate", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/corporate", "").split("/").filter(Boolean);
     // Valid tab values that map to TabsContent values
     // Note: /corporate/companies/123 (detail pages) have their own route files
     const VALID_TABS = ["groups", "companies", "memberships", "people", "shareholders", "beneficiaries", "structure"];

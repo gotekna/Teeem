@@ -59,7 +59,7 @@ export default function FinancialTransactionsPage() {
 
   // Path-based tab: /financial/transactions/xero, /financial/transactions/internal
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/financial/transactions", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/financial/transactions", "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname]);
 

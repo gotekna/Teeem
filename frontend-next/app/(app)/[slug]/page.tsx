@@ -82,7 +82,7 @@ function TablePageContent() {
   // URL is SSoT for tab state (path-based navigation)
   // Parse: /contacts/schema → tab = "schema"
   const tab = useMemo(() => {
-    const parts = pathname.replace(`/${cleanSlug}`, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(`/${cleanSlug}`, "").split("/").filter(Boolean);
     // Only return tab if it's a known tab name (not a record ID)
     const potentialTab = parts[0];
     if (potentialTab && ["data", "schema", "connections"].includes(potentialTab)) {

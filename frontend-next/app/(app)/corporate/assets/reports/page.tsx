@@ -169,7 +169,7 @@ export default function AssetReportsPage() {
 
   // URL is SSoT for tab state (path-based navigation)
   const activeTab = React.useMemo(() => {
-    const parts = pathname.replace("/corporate/assets/reports", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/corporate/assets/reports", "").split("/").filter(Boolean);
     return parts[0] || "summary";
   }, [pathname]);
 

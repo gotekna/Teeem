@@ -426,11 +426,19 @@ class BankStatementReport < ApplicationRecord
       documentable_id: id
     )
 
+    # SSoT: Folder path comes from StorageConfiguration template (warehouse_folders['bank_statement'])
+    folder_path = StorageConfiguration.instance.resolve_path(
+      :bank_statement,
+      {
+        CompanyGroup: corporate_company&.company_group.presence || "Default",
+        CompanyCode: corporate_company&.company_code
+      }
+    )
     doc.assign_attributes(
       source_type: "xero",
       display_name: display_name,
       original_filename: filename,
-      folder: "Corporate/#{corporate_company&.company_group.presence || 'Default'}/#{corporate_company&.company_code}/XERO/Bank",
+      folder: folder_path,
       storage_blob: blob,
       linkable: corporate_company,
       metadata: {

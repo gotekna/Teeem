@@ -72,7 +72,7 @@ export default function WorkflowsDashboardPage() {
 
   // Path-based tab: /workflows/tasks, /workflows/instances, /workflows/processes
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/workflows", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/workflows", "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname]);
 

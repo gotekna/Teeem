@@ -139,7 +139,7 @@ export default function BpmnProcessesPage() {
 
   // URL is SSoT for tab state (path-based navigation)
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/workflows/processes", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/workflows/processes", "").split("/").filter(Boolean);
     return parts[0] || "processes";
   }, [pathname]);
 

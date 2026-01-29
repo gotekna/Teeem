@@ -816,7 +816,7 @@ export default function JobDetailPage() {
   // Parse: /jobs/123/photo/site → { parent: "photo", child: "site" }
   const pathSegments = React.useMemo(() => {
     // Remove /jobs/{id} prefix and split remaining path
-    const parts = pathname.replace(/^\/jobs\/[^/]+/, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(/^\/jobs\/[^/]+/, "").split("/").filter(Boolean);
     // Skip "edit" as it's handled separately
     if (parts[0] === "edit") {
       return { parent: null, child: null };
@@ -1209,7 +1209,7 @@ export default function JobDetailPage() {
         loadLookupData();
       }
       // Clean up URL by removing /edit or ?edit=true
-      const cleanPath = pathname.replace(/\/edit$/, "");
+      const cleanPath = (pathname ?? "").replace(/\/edit$/, "");
       window.history.replaceState({}, "", cleanPath);
     }
   }, [pathname, job, loading, isEditing, jobTypes.length, loadLookupData]);

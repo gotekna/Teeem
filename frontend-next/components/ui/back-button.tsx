@@ -64,7 +64,7 @@ export interface BackButtonProps {
  */
 function getParentRoute(pathname: string): string {
   // Remove trailing slash if present
-  const cleanPath = pathname.replace(/\/$/, "");
+  const cleanPath = (pathname ?? "").replace(/\/$/, "");
 
   // Split into segments
   const segments = cleanPath.split("/").filter(Boolean);

@@ -214,7 +214,7 @@ export default function DesignSystemPage() {
 
   // Path-based tab navigation
   const activeTab = React.useMemo(() => {
-    const parts = pathname.replace("/design-system", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/design-system", "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname]);
 

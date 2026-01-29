@@ -24,4 +24,20 @@ namespace :xero do
     puts ""
     puts "Fixed #{fixed} links with incorrect confidence"
   end
+
+  desc "Auto-approve pending review links with 95%+ confidence"
+  task auto_approve_high_confidence: :environment do
+    approved = 0
+
+    ContactExternalLink.xero.pending_review.where("match_confidence >= 0.95").find_each do |link|
+      next unless link.contact.present?
+
+      puts "Auto-approving: #{link.external_name} -> #{link.contact.display_name} (#{(link.match_confidence * 100).round}%)"
+      link.update!(needs_review: false)
+      approved += 1
+    end
+
+    puts ""
+    puts "Auto-approved #{approved} high-confidence links"
+  end
 end

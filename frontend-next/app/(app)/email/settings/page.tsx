@@ -15,7 +15,7 @@ export default function EmailSettingsPage() {
 
   // URL is SSoT for tab state (path-based navigation)
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/email/settings", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/email/settings", "").split("/").filter(Boolean);
     return parts[0] || "blacklist";
   }, [pathname]);
 
