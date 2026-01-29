@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { resolveWithExamples, resolveSharePointPath, STORAGE_PLACEHOLDERS } from "@/lib/placeholders";
+import { resolveWithExamples, resolveStoragePath, STORAGE_PLACEHOLDERS } from "@/lib/placeholders";
 import { TokenBuilder } from "@/components/ui/tokens";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

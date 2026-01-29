@@ -476,18 +476,18 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "orange",
     description: "Task status",
   },
-  // Task folder suffix tokens (literal text for folder naming)
+  // Task folder suffix tokens (literal folder names)
   {
-    code: "{{Attachments}}",
+    code: "[[Attachments]]",
     example: "Attachments",
     color: "orange",
-    description: "Literal 'Attachments' folder name",
+    description: "Attachments folder (literal)",
   },
   {
-    code: "{{Responses}}",
+    code: "[[Responses]]",
     example: "Responses",
     color: "orange",
-    description: "Literal 'Responses' folder name",
+    description: "Responses folder (literal)",
   },
   // Task Attachments tokens
   {
@@ -545,47 +545,48 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "purple",
     description: "Company name (full)",
   },
+  // Literal folder names use [[...]] syntax (not dynamic placeholders)
   {
-    code: "{{TeeemXL}}",
+    code: "[[TeeemXL]]",
     example: "TeeemXL",
     color: "blue",
-    description: "TeeemXL (Excel files) folder",
+    description: "TeeemXL folder (literal)",
   },
   {
-    code: "{{TeeemDocs}}",
-    example: "Teeem Docs",
+    code: "[[TeeemDocs]]",
+    example: "TeeemDocs",
     color: "blue",
-    description: "Teeem Docs folder",
+    description: "TeeemDocs folder (literal)",
   },
   {
-    code: "{{TeeemNotes}}",
-    example: "Notes",
+    code: "[[TeeemNotes]]",
+    example: "TeeemNotes",
     color: "blue",
-    description: "Notes folder",
+    description: "TeeemNotes folder (literal)",
   },
   {
-    code: "{{TeeemWord}}",
-    example: "Word",
+    code: "[[TeeemWord]]",
+    example: "TeeemWord",
     color: "blue",
-    description: "Word documents folder",
+    description: "TeeemWord folder (literal)",
   },
   {
-    code: "{{TeeemPDF}}",
-    example: "PDF",
+    code: "[[TeeemPDF]]",
+    example: "TeeemPDF",
     color: "blue",
-    description: "PDF documents folder",
+    description: "TeeemPDF folder (literal)",
   },
   {
-    code: "{{TeeemPPT}}",
-    example: "PowerPoint",
+    code: "[[TeeemPPT]]",
+    example: "TeeemPPT",
     color: "blue",
-    description: "PowerPoint documents folder",
+    description: "TeeemPPT folder (literal)",
   },
   {
-    code: "{{TeeemTemplates}}",
-    example: "Templates",
+    code: "[[TeeemTemplates]]",
+    example: "TeeemTemplates",
     color: "blue",
-    description: "Templates folder",
+    description: "TeeemTemplates folder (literal)",
   },
   {
     code: "{{SubTabName}}",
@@ -896,7 +897,7 @@ function escapeRegex(str: string): string {
  * @param template - The SharePoint path template
  * @returns Resolved path with example values
  */
-export function resolveSharePointPath(template: string): string {
+export function resolveStoragePath(template: string): string {
   if (!template) return "";
 
   let result = template;
@@ -913,13 +914,14 @@ export function resolveSharePointPath(template: string): string {
     "{{CompanyGroup}}": "Teeem Group",
     "{{CompanyCode}}": "TH",
     "{{CompanyName}}": "Teeem Homes Pty Ltd",
-    "{{TeeemXL}}": "TeeemXL",
-    "{{TeeemDocs}}": "Teeem Docs",
-    "{{TeeemNotes}}": "Notes",
-    "{{TeeemWord}}": "Word",
-    "{{TeeemPDF}}": "PDF",
-    "{{TeeemPPT}}": "PowerPoint",
-    "{{TeeemTemplates}}": "Templates",
+    // Literal folder names [[...]] - strips brackets
+    "[[TeeemXL]]": "TeeemXL",
+    "[[TeeemDocs]]": "TeeemDocs",
+    "[[TeeemNotes]]": "TeeemNotes",
+    "[[TeeemWord]]": "TeeemWord",
+    "[[TeeemPDF]]": "TeeemPDF",
+    "[[TeeemPPT]]": "TeeemPPT",
+    "[[TeeemTemplates]]": "TeeemTemplates",
     "{{SubTabName}}": "Photos",
     "{{ContactName}}": "Robert Harder",
     "{{EntityName}}": "Teeem Homes Pty Ltd",
@@ -929,13 +931,14 @@ export function resolveSharePointPath(template: string): string {
     "{CategoryCode}": "ConD",
     "{JobName}": "Tulum Street Jimboomba",
     "{JobTitle}": "Tulum Street Jimboomba QLD",
-    "{TeeemXL}": "TeeemXL",
-    "{TeeemDocs}": "Teeem Docs",
-    "{TeeemNotes}": "Notes",
-    "{TeeemWord}": "Word",
-    "{TeeemPDF}": "PDF",
-    "{TeeemPPT}": "PowerPoint",
-    "{TeeemTemplates}": "Templates",
+    // Single bracket literal folder names
+    "[TeeemXL]": "TeeemXL",
+    "[TeeemDocs]": "TeeemDocs",
+    "[TeeemNotes]": "TeeemNotes",
+    "[TeeemWord]": "TeeemWord",
+    "[TeeemPDF]": "TeeemPDF",
+    "[TeeemPPT]": "TeeemPPT",
+    "[TeeemTemplates]": "TeeemTemplates",
     "{SubTabName}": "Photos",
     "{CompanyGroup}": "Teeem Group",
     "{CompanyCode}": "TH",
