@@ -1196,13 +1196,15 @@ export default function AllDocumentsPage() {
       const data = s3Folders[s3Path];
       if (!data) return [];
 
-      const folderNodes: TreeNode[] = data.folders.map(folder => {
+      const folderNodes: TreeNode[] = data.folders
+        .filter(folder => folder.path != null)  // Skip folders with null paths
+        .map(folder => {
         // Check if this subfolder has been loaded
         const subfolderData = s3Folders[folder.path];
         const subChildren = subfolderData ? s3FoldersToTreeWithIcons(folder.path) : undefined;
 
         return {
-          id: `s3-folder-${folder.path.replace(/\//g, "-")}`,
+          id: `s3-folder-${(folder.path || "").replace(/\//g, "-")}`,
           name: folder.name,
           type: "folder" as const,
           icon: getFolderIcon(folder.name),
@@ -1218,8 +1220,10 @@ export default function AllDocumentsPage() {
         };
       });
 
-      const fileNodes: TreeNode[] = data.files.map(file => ({
-        id: `s3-file-${file.path.replace(/\//g, "-")}`,
+      const fileNodes: TreeNode[] = data.files
+        .filter(file => file.path != null)  // Skip files with null paths
+        .map(file => ({
+        id: `s3-file-${(file.path || "").replace(/\//g, "-")}`,
         name: file.name,
         type: "file" as const,
         file: {

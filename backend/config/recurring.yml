@@ -256,6 +256,15 @@ warehouse_xero_attachments:
 # NOTE: XeroStorageUploadBackfillJob was removed in Jan 2026 refactor
 # Storage upload now happens inline in XeroAttachmentSyncService
 
+# Sync missing warehouse entries for task attachments
+# SSoT: SmTaskAttachment.after_create should create entries automatically,
+# but this catches any that slip through (race conditions, failed callbacks)
+# Runs weekly on Sundays at 5am (after backups, before work week)
+warehouse_sync_task_attachments:
+  class: SyncTaskAttachmentsJob
+  queue: low
+  schedule: every Sunday at 5am
+
 # SSoT Health Monitor - DISABLED (job removed, depends on unmigrated table)
 # xero_sync_health_monitor:
 #   class: XeroSyncHealthMonitorJob

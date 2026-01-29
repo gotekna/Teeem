@@ -135,16 +135,22 @@ class SmTaskAttachment < ApplicationRecord
 
   # Create WarehouseDocument entry for this task attachment
   # Links to same StorageBlob as the attached document
+  # SSoT: Sets linkable to SmTask for proper folder display in File Warehouse
   def create_warehouse_entry
     blob = storage_blob
-    return unless blob
+    unless blob
+      Rails.logger.warn("[SmTaskAttachment] ##{id}: No storage blob found for #{attachable_type}##{attachable_id}")
+      return
+    end
 
     create_warehouse_document!(
       source_type: "task",
       folder: virtual_folder_path,
       display_name: display_name,
-      original_filename: attachable&.try(:file_name) || attachable&.try(:filename),
+      original_filename: attachable&.try(:file_name) || attachable&.try(:filename) || attachable&.try(:original_filename),
       storage_blob: blob,
+      linkable_type: "SmTask",
+      linkable_id: sm_task_id,
       metadata: {
         task_id: sm_task_id,
         task_name: sm_task&.name,
@@ -154,6 +160,7 @@ class SmTaskAttachment < ApplicationRecord
       }
     )
   rescue StandardError => e
-    Rails.logger.error("[SmTaskAttachment] Failed to create warehouse entry: #{e.message}")
+    Rails.logger.error("[SmTaskAttachment] ##{id}: Failed to create warehouse entry: #{e.message}")
+    Rails.logger.error(e.backtrace.first(5).join("\n"))
   end
 end
