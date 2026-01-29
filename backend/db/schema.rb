@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_29_093309) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_29_101710) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3001,6 +3001,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_29_093309) do
     t.string "visibility_rule"
     t.bigint "tenant_id"
     t.string "send_name_template"
+    t.string "warehouse_folder"
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"

@@ -1119,6 +1119,16 @@ function TabNode({
               />
             </div>
 
+            {/* Root folder path (read-only) */}
+            <div className="space-y-1">
+              <span className="text-[11px] font-medium text-muted-foreground">Root Path</span>
+              <div className="bg-muted/50 border border-muted rounded px-2 py-1.5">
+                <span className="font-mono text-xs text-muted-foreground">
+                  {rootPath || '/'}
+                </span>
+              </div>
+            </div>
+
             {/* Folder Path - the folder name in storage */}
             <div className="space-y-1">
               <TokenBuilder
@@ -1161,7 +1171,10 @@ function TabNode({
             <div className="flex gap-2 pt-1">
               <Button
                 size="sm"
-                onClick={() => onSaveEdit(tab.id, editPath, editDisplayName, editSendName)}
+                onClick={() => {
+                  console.log('[TabNode Save] Clicked:', { tabId: tab.id, editPath, editDisplayName, editSendName });
+                  onSaveEdit(tab.id, editPath, editDisplayName, editSendName);
+                }}
                 className="h-7 text-xs"
               >
                 Save
@@ -1491,8 +1504,9 @@ export function StorageConfigTab() {
     displayName: string,
     sendNameTemplate: string
   ) => {
+    console.log('[saveTabFolderPath] Saving:', { tabId, folderPath, displayName, sendNameTemplate });
     try {
-      const response = await api.patch<{ success: boolean }>(
+      const response = await api.patch<{ success: boolean; error?: string }>(
         `/api/v1/entity_tabs/${tabId}`,
         {
           entity_tab: {
