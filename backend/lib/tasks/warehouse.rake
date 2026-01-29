@@ -136,6 +136,46 @@ namespace :warehouse do
     puts "Warehouse folder tree cache cleared"
   end
 
+  desc "Sync user-created documents (Excel, Word, PDF, PPT) to File Warehouse"
+  task sync_teeem_docs: :environment do
+    puts "🔄 Syncing Teeem documents to File Warehouse..."
+    puts ""
+
+    total = 0
+    success = 0
+    failed = 0
+
+    [TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf].each do |model|
+      count = model.count
+      next if count.zero?
+
+      puts "#{model.name}: #{count} documents"
+
+      model.find_each do |doc|
+        total += 1
+        begin
+          result = doc.sync_to_warehouse!
+          if result[:success]
+            success += 1
+            puts "  ✅ #{doc.name} (#{doc.id})"
+          else
+            failed += 1
+            puts "  ❌ #{doc.name} (#{doc.id}): #{result[:error]}"
+          end
+        rescue StandardError => e
+          failed += 1
+          puts "  ❌ #{doc.name} (#{doc.id}): #{e.message}"
+        end
+      end
+      puts ""
+    end
+
+    puts "Total: #{total}, Success: #{success}, Failed: #{failed}"
+    puts ""
+    puts "WarehouseDocument by source_type:"
+    WarehouseDocument.group(:source_type).count.each { |k, v| puts "  #{k}: #{v}" }
+  end
+
   desc "Full warehouse setup: link docs, sync attachments, refresh views, capture snapshot"
   task setup: :environment do
     puts "🚀 Running full warehouse setup..."
