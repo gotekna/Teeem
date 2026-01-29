@@ -41,34 +41,49 @@ module WarehouseSyncable
     end
   end
 
-  # Sync this document to S3 warehouse
+  # Sync this document to S3 warehouse AND create WarehouseDocument entry
   # @return [Hash] { success: true/false, path: "...", error: "..." }
+  #
+  # Phase 4 (Jan 2026): Now creates StorageBlob + WarehouseDocument entries
+  # so documents appear in File Warehouse UI, not just S3.
   def sync_to_warehouse!
     return { success: false, error: "No warehouse type defined" } unless warehouse_document_type
 
     content = generate_warehouse_content
     return { success: false, error: "No content to export" } unless content.present?
 
-    provider = warehouse_provider
-    return { success: false, error: "No S3 provider configured" } unless provider
-
-    # SSoT: Use model's warehouse_path which includes ID for uniqueness
+    # SSoT: Get filename and content type
     full_path = warehouse_path
-    folder_path = File.dirname(full_path)
     filename = File.basename(full_path)
     content_type = warehouse_content_type
 
     begin
-      provider.upload_file(
-        folder_path,
+      # Step 1: Create/update StorageBlob (handles deduplication + upload)
+      blob = StorageBlob.find_or_create_for_content!(
         content,
-        filename,
-        content_type: content_type,
-        overwrite: true
+        filename: filename,
+        content_type: content_type
       )
 
-      Rails.logger.info "[WarehouseSync] Synced #{self.class.name} #{id} to #{full_path}"
-      { success: true, path: full_path }
+      # Step 2: Link blob to this model (if model has storage_blob_id column)
+      if respond_to?(:storage_blob_id=) && respond_to?(:storage_blob_id)
+        old_blob_id = storage_blob_id
+        if old_blob_id != blob.id
+          # Decrement old blob reference, increment new
+          StorageBlob.find_by(id: old_blob_id)&.decrement_reference! if old_blob_id
+          blob.increment_reference!
+          update_column(:storage_blob_id, blob.id)
+        end
+      else
+        # For models without storage_blob_id column, just increment reference
+        blob.increment_reference!
+      end
+
+      # Step 3: Create/update WarehouseDocument entry
+      create_or_update_warehouse_document!(blob)
+
+      Rails.logger.info "[WarehouseSync] Synced #{self.class.name} #{id} to warehouse (blob: #{blob.id})"
+      { success: true, path: blob.storage_path, blob_id: blob.id }
     rescue StandardError => e
       Rails.logger.error "[WarehouseSync] Failed to sync #{self.class.name} #{id}: #{e.message}"
       { success: false, error: e.message }
@@ -290,5 +305,71 @@ module WarehouseSyncable
 
   def sync_to_warehouse
     sync_to_warehouse!
+  end
+
+  # Create or update the WarehouseDocument entry for this record
+  # SSoT: All warehouse-synced documents must have a WarehouseDocument to appear in File Warehouse
+  def create_or_update_warehouse_document!(blob)
+    return unless respond_to?(:warehouse_document)
+
+    doc = warehouse_document || build_warehouse_document
+
+    # Compute virtual folder path for File Warehouse display
+    folder = compute_virtual_folder_path
+
+    # Determine source_type based on document type
+    source = compute_source_type
+
+    # Get linkable (Job or nil)
+    linkable = respond_to?(:job) ? job : nil
+
+    doc.assign_attributes(
+      source_type: source,
+      folder: folder,
+      display_name: name,
+      original_filename: warehouse_filename,
+      storage_blob: blob,
+      linkable: linkable,
+      metadata: {
+        document_type: warehouse_document_type.to_s,
+        created_by_id: respond_to?(:user_id) ? user_id : nil,
+        created_by_name: respond_to?(:user) ? user&.name : nil,
+        job_code: linkable&.job_code
+      }.compact
+    )
+
+    doc.save!
+    Rails.logger.debug "[WarehouseSyncable] Created/updated WarehouseDocument #{doc.id} for #{self.class.name} #{id}"
+  end
+
+  # Compute virtual folder path for File Warehouse display
+  # Override in models for custom folder structure
+  def compute_virtual_folder_path
+    return virtual_folder_path if respond_to?(:virtual_folder_path)
+
+    # Default folder structure: Warehousing/{DocumentType}/{UserName}/{Year}
+    doc_type = warehouse_type_to_folder_name
+    user_name = respond_to?(:user) ? (user&.name || "Unknown") : "Unknown"
+    year = (created_at || Time.current).year.to_s
+
+    "Warehousing/#{doc_type}/#{user_name}/#{year}"
+  end
+
+  # Map warehouse_document_type to human-readable folder name
+  def warehouse_type_to_folder_name
+    case warehouse_document_type
+    when :xlsx then "Excel"
+    when :html then "Word"
+    when :pptx then "PowerPoint"
+    when :pdf then "PDF"
+    when :file then "Files"
+    else "Documents"
+    end
+  end
+
+  # Compute source_type for WarehouseDocument
+  # "warehouse" is the catch-all for user-created documents
+  def compute_source_type
+    "warehouse"
   end
 end
