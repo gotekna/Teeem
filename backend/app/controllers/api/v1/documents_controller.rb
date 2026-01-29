@@ -290,13 +290,22 @@ module Api
           }, status: :bad_request
         end
 
+        # SSoT: Prepend scope root folder if path doesn't already include it
+        # Task folders are stored as "Tasks/123/Attachments" but frontend sends "123/Attachments"
+        scope_root = scope_root_folder(scope)
+        full_path = if base_path.present? && scope_root.present? && !base_path.start_with?(scope_root)
+                      "#{scope_root}/#{base_path}"
+                    else
+                      base_path
+                    end
+
         # Query WarehouseDocument by source_type
         documents = WarehouseDocument.where(source_type: scope)
                                      .includes(:documentable, :storage_blob)
 
         # Filter by base path if provided
-        if base_path.present?
-          documents = documents.where("folder LIKE ?", "#{base_path}%")
+        if full_path.present?
+          documents = documents.where("folder LIKE ?", "#{full_path}%")
         end
 
         # Search filter
@@ -306,11 +315,11 @@ module Api
         end
 
         # Build folder tree from unique folder paths
-        folder_tree = build_virtual_folder_tree(documents, base_path)
+        folder_tree = build_virtual_folder_tree(documents, full_path)
 
-        # Get files at EXACTLY this level (folder matches base_path exactly)
-        files_at_level = if base_path.present?
-          documents.where(folder: base_path).limit(500)
+        # Get files at EXACTLY this level (folder matches full_path exactly)
+        files_at_level = if full_path.present?
+          documents.where(folder: full_path).limit(500)
         else
           documents.where(folder: [nil, ""]).limit(500)
         end
@@ -2244,6 +2253,20 @@ module Api
           verified_at: doc.meta("user_validated_at"),
           verified_by: doc.meta("user_validated_by")
         }
+      end
+
+      # SSoT: Get root folder for scope (used to expand paths in virtual_tree)
+      # Folders are stored with prefix (e.g., "Tasks/123") but frontend sends without prefix
+      def scope_root_folder(scope)
+        case scope.to_s
+        when "task" then "Tasks"
+        when "job" then "Jobs"
+        when "contact" then "Contacts"
+        when "corporate" then "Corporate"
+        when "email" then "Emails"
+        when "people" then "People"
+        else nil
+        end
       end
 
       # Phase 3: Serialize WarehouseDocument (universal format)
