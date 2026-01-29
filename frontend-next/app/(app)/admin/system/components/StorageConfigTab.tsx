@@ -62,6 +62,20 @@ const SIMPLE_SCOPES = ['email', 'warehouse', 'task', 'user', 'overview'];
 // SSoT: Complex scopes need separate tab (have document types, entity filters)
 const COMPLEX_SCOPES = ['corporate', 'job', 'contact'];
 
+// SSoT: Warehouse types that derive from a parent type (must match backend WAREHOUSE_TYPE_PARENTS)
+// These store only their suffix (e.g., "Attachments") and inherit the base from parent
+const WAREHOUSE_TYPE_PARENTS: Record<string, string> = {
+  'task_attachments': 'task',
+  'task_responses': 'task',
+  'case_documents': 'case',
+  'case_emails': 'case',
+  'email_body': 'email',
+  'email_attachments': 'email',
+  'asset_expenses': 'asset',
+  'asset_service': 'asset',
+  'asset_readings': 'asset',
+};
+
 // Human-readable labels for scope links
 const SCOPE_LABELS: Record<string, string> = {
   corporate: 'Corporate',
@@ -706,23 +720,43 @@ function TreeNode({
               </p>
             </div>
 
-            {/* Base Folder (editable) */}
+            {/* Base Folder - read-only for child types, editable for parent types */}
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Base Folder</label>
-              <div className="flex items-center gap-2">
-                <Input
-                  value={editValue}
-                  onChange={(e) => {
-                    setEditValue(e.target.value);
-                    hasModified.current = true;
-                  }}
-                  className="h-8 text-sm font-mono flex-1"
-                  placeholder="Emails"
-                />
-                <span className="text-muted-foreground">/</span>
-              </div>
+              <label className="text-xs font-medium text-muted-foreground">
+                Base Folder
+                {currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey] && (
+                  <span className="text-muted-foreground/70 ml-1">
+                    (inherited from {WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]?.replace('_', ' ')})
+                  </span>
+                )}
+              </label>
+              {currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey] ? (
+                // SSoT: Child types show parent's base folder as read-only
+                <div className="bg-muted/50 border border-muted rounded px-3 py-2">
+                  <span className="font-mono text-sm text-muted-foreground">
+                    {scopeRootFolders[WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]] || editValue}
+                  </span>
+                </div>
+              ) : (
+                // Parent types can edit their base folder
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={editValue}
+                    onChange={(e) => {
+                      setEditValue(e.target.value);
+                      hasModified.current = true;
+                    }}
+                    className="h-8 text-sm font-mono flex-1"
+                    placeholder="Emails"
+                  />
+                  <span className="text-muted-foreground">/</span>
+                </div>
+              )}
               <p className="text-[10px] text-muted-foreground">
-                Storage folder path. Use the same path for related types to group them on one row.
+                {currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]
+                  ? `Base path inherited from ${WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]?.replace('_', ' ')}. Edit the Folder Path below to set the suffix.`
+                  : 'Storage folder path. Use the same path for related types to group them on one row.'
+                }
               </p>
             </div>
 
@@ -739,10 +773,17 @@ function TreeNode({
             />
 
             {/* Full Path Preview - directly under Folder Path for immediate feedback */}
+            {/* SSoT: For child types, use parent's base folder instead of editValue */}
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-3 py-2 -mt-2">
               <span className="text-xs text-muted-foreground">Full Path: </span>
               <span className="font-mono text-sm text-green-700 dark:text-green-400">
-                {[rootPath, editValue, folderTemplate].filter(Boolean).join('/').replace(/\/+/g, '/')}
+                {[
+                  rootPath,
+                  currentEditingScopeKey && WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]
+                    ? scopeRootFolders[WAREHOUSE_TYPE_PARENTS[currentEditingScopeKey]] || editValue
+                    : editValue,
+                  folderTemplate
+                ].filter(Boolean).join('/').replace(/\/+/g, '/')}
               </span>
             </div>
 
@@ -1574,18 +1615,25 @@ export function StorageConfigTab() {
     configLink: string | null
   ) => {
     try {
-      // Combine baseFolder + folderTemplate into full path with normalized slashes
-      const fullPath = [baseFolder, folderTemplate]
-        .filter(Boolean)
-        .join('/')
-        .replace(/\/+/g, '/')  // Normalize double slashes
-        .replace(/\/+$/, '');  // Strip trailing slash for consistency
+      // SSoT: Child warehouse types store only their suffix (e.g., "Attachments" or "{{Attachments}}")
+      // The backend root_folder_for() combines parent base + suffix automatically
+      const isChildType = !!WAREHOUSE_TYPE_PARENTS[scopeKey];
+
+      // For child types: save just the folderTemplate (suffix)
+      // For parent types: combine baseFolder + folderTemplate
+      const warehouseFolderValue = isChildType
+        ? folderTemplate  // Just the suffix
+        : [baseFolder, folderTemplate]
+            .filter(Boolean)
+            .join('/')
+            .replace(/\/+/g, '/')  // Normalize double slashes
+            .replace(/\/+$/, '');  // Strip trailing slash for consistency
 
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
         "/api/v1/storage_configuration",
         {
           storage: {
-            warehouse_folders: { [scopeKey]: fullPath },
+            warehouse_folders: { [scopeKey]: warehouseFolderValue },
             warehouse_folder_templates: { [scopeKey]: folderTemplate },
             file_name_templates: { [scopeKey]: filenameTemplate },
             display_name_templates: { [scopeKey]: displayNameTemplate },
@@ -1604,7 +1652,7 @@ export function StorageConfigTab() {
           }
           return {
             ...prev,
-            warehouse_folders: { ...prev.warehouse_folders, [scopeKey]: fullPath },
+            warehouse_folders: { ...prev.warehouse_folders, [scopeKey]: warehouseFolderValue },
             warehouse_folder_templates: { ...prev.warehouse_folder_templates, [scopeKey]: folderTemplate },
             file_name_templates: { ...prev.file_name_templates, [scopeKey]: filenameTemplate },
             display_name_templates: { ...prev.display_name_templates, [scopeKey]: displayNameTemplate },
