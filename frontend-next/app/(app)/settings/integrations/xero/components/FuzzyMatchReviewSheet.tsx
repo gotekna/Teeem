@@ -216,12 +216,18 @@ export function FuzzyMatchReviewSheet({
   };
 
   const handleTransfer = async (item: PendingReviewItem, targetContact: Contact) => {
+    console.log("Transfer clicked:", { item, targetContact });
     setProcessingId(item.id);
     try {
+      const url = `/api/v1/contacts/${item.contact_id}/xero_links/${item.id}/transfer`;
+      console.log("Transfer API call:", url, { target_contact_id: targetContact.id });
+
       const response = await api.post<{ success: boolean; error?: string; message?: string }>(
-        `/api/v1/contacts/${item.contact_id}/xero_links/${item.id}/transfer`,
+        url,
         { target_contact_id: targetContact.id }
       );
+
+      console.log("Transfer response:", response);
 
       if (response?.success) {
         toast.success(`Linked "${item.external_contact_name}" → "${targetContact.display_name}"`);
