@@ -1152,12 +1152,18 @@ module Api
         end
 
         begin
-          # Route by file_id format, not just current provider.
-          # SharePoint item IDs are alphanumeric (e.g. "01P43HWV5GJTQ6IY66V5AKLYLFE7LSUORX").
-          # S3 keys have path separators or extensions (e.g. "Blobs/ab/abc123.pdf").
-          if sharepoint_item_id?(file_id)
+          # Route by provider availability, then file_id format
+          # SSoT: Prefer S3 if connected (most orgs use S3/Wasabi, not SharePoint)
+          # This avoids tenant context issues since S3 credentials are not tenant-scoped
+          s3_credential = S3CompatibleCredential.active.connected.first
+          if s3_credential
+            # S3 is connected - use S3 for all downloads
+            download_from_s3_by_key(file_id, is_preview)
+          elsif sharepoint_item_id?(file_id)
+            # No S3, but looks like SharePoint ID - try SharePoint
             download_from_sharepoint_by_id(file_id, is_preview)
           else
+            # No S3, doesn't look like SharePoint - try S3 anyway (will error with helpful message)
             download_from_s3_by_key(file_id, is_preview)
           end
 
