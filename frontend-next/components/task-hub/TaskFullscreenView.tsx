@@ -2825,10 +2825,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       const viewerFiles: { name: string; downloadUrl: string; openUrl: string }[] = [];
       const attIdToFileIndex = new Map<number, number>();
 
+      // SSoT: Use backend proxy for viewing to bypass S3 CORS issues
+      // The proxy endpoint streams content through Rails, avoiding CORS restrictions
+      // Format: /api/v1/documents/download?file_id={storage_key}&preview=true
+      const apiBase = getApiBaseUrl();
+
       for (const att of responseAttachments) {
         if (att.document) {
+          // Download URL: presigned S3 URL (direct navigation doesn't have CORS issues)
           const downloadUrl = att.document.storage_url || att.document.file_url;
-          const openUrl = att.document.storage_url_inline || att.document.storage_url || att.document.file_url;
+
+          // Open URL: Use backend proxy if storage_key available (bypasses CORS)
+          // Fallback to presigned URL for legacy documents without storage_key
+          const openUrl = att.document.storage_key
+            ? `${apiBase}/api/v1/documents/download?file_id=${encodeURIComponent(att.document.storage_key)}&preview=true`
+            : att.document.storage_url_inline || att.document.storage_url || att.document.file_url;
+
           if (downloadUrl && openUrl) {
             attIdToFileIndex.set(att.id, viewerFiles.length);
             viewerFiles.push({
