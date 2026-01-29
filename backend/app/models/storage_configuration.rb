@@ -238,20 +238,23 @@ class StorageConfiguration < ApplicationRecord
     # Task documents
     # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
     # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
+    # Child types (task_attachments, task_responses) store SUFFIX ONLY - derived from 'task' base
     'task' => 'Tasks/{{TaskId}}/{{TaskName}}',
-    'task_attachments' => 'Tasks/{{TaskId}}/{{TaskName}}/Attachments',
-    'task_responses' => 'Tasks/{{TaskId}}/{{TaskName}}/Responses',
+    'task_attachments' => 'Attachments',  # SSoT: Suffix only - base from 'task'
+    'task_responses' => 'Responses',      # SSoT: Suffix only - base from 'task'
     # Case documents (Jan 2026)
     # SSoT: Virtual folder paths for File Warehouse - actual files in Blobs/{hash}.ext
+    # Child types store SUFFIX ONLY - derived from 'case' base
     'case' => 'Cases/{{CaseId}}',
-    'case_documents' => 'Cases/{{CaseId}}/Documents',
-    'case_emails' => 'Cases/{{CaseId}}/Emails',
+    'case_documents' => 'Documents',      # SSoT: Suffix only - base from 'case'
+    'case_emails' => 'Emails',            # SSoT: Suffix only - base from 'case'
     # Asset documents (Jan 2026) - under Corporate since assets belong to corporate entities
     # For: asset_expense, asset_odometer_reading, asset_service_history
+    # Child types store SUFFIX ONLY - derived from 'asset' base
     'asset' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}',
-    'asset_expenses' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Expenses',
-    'asset_service' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Service',
-    'asset_readings' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/Assets/{{AssetName}}/Readings',
+    'asset_expenses' => 'Expenses',       # SSoT: Suffix only - base from 'asset'
+    'asset_service' => 'Service',         # SSoT: Suffix only - base from 'asset'
+    'asset_readings' => 'Readings',       # SSoT: Suffix only - base from 'asset'
     # Compliance documents (Jan 2026)
     # For: document_task (job compliance - permits, approvals, certifications)
     'compliance' => 'Jobs/{{JobCode}}/Compliance',
@@ -277,9 +280,10 @@ class StorageConfiguration < ApplicationRecord
     'plan' => 'Jobs/{{JobCode}}/Plans',
     # Email documents
     # SSoT: Consistent with Tasks pattern (task/task_responses/task_attachments)
+    # Child types store SUFFIX ONLY - derived from 'email' base
     'email' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}',
-    'email_body' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}/Body',
-    'email_attachments' => 'Emails/{{Mailbox}}/{{Year}}/{{Month}}/Attachments',
+    'email_body' => 'Body',              # SSoT: Suffix only - base from 'email'
+    'email_attachments' => 'Attachments', # SSoT: Suffix only - base from 'email'
     # Warehousing sub-types (all under Warehousing/ root)
     'warehouse' => 'Warehousing/{{TeeemXL}}',
     'chat' => 'Warehousing/Conversations/{{Context}}/{{Year}}/{{Month}}',
@@ -373,6 +377,21 @@ class StorageConfiguration < ApplicationRecord
     exclude_sm_tasks == true
   end
 
+  # SSoT: Warehouse types that derive from a parent type
+  # These store only their suffix (e.g., "Attachments") and inherit the base from parent
+  # Example: task_attachments stores "Attachments", derives base from task
+  WAREHOUSE_TYPE_PARENTS = {
+    'task_attachments' => 'task',
+    'task_responses' => 'task',
+    'case_documents' => 'case',
+    'case_emails' => 'case',
+    'email_body' => 'email',
+    'email_attachments' => 'email',
+    'asset_expenses' => 'asset',
+    'asset_service' => 'asset',
+    'asset_readings' => 'asset',
+  }.freeze
+
   # SSoT: warehouse_folders column is THE ONE source for warehouse roots
   #
   # @param warehouse_type [String, Symbol] The warehouse type name (job, contact, task, etc.)
@@ -381,20 +400,45 @@ class StorageConfiguration < ApplicationRecord
   # Supports key aliases (e.g., :corporate → :corporate_entity, :contacts → :contact)
   # See WAREHOUSE_KEY_ALIASES for all supported aliases.
   #
+  # SSoT: Child warehouse types (task_attachments, task_responses, etc.) derive from parent.
+  # They store only their suffix and inherit the base path from their parent type.
+  #
   # Examples:
-  #   root_folder_for(:job)       # => "Jobs/{{JobCode}}"
-  #   root_folder_for(:contact)   # => "Contacts/{{ContactName}}"
-  #   root_folder_for(:corporate) # => "Corporate/{{CompanyGroup}}" (via alias)
-  #   root_folder_for(:task)      # => nil (if disabled)
+  #   root_folder_for(:job)              # => "Jobs/{{JobCode}}"
+  #   root_folder_for(:task)             # => "Tasks/{{TaskId}}/{{TaskName}}"
+  #   root_folder_for(:task_attachments) # => "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (derived from :task)
   #
   def root_folder_for(warehouse_type)
     type_key = warehouse_type.to_s
     # SSoT: Normalize aliased keys (e.g., 'contacts' → 'contact')
     type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
-    # SSoT: Check database first, fall back to defaults for new warehouse types
-    path = warehouse_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
-    return nil if path.blank? || path == "DISABLED"
-    path
+
+    # SSoT: Check if this type derives from a parent
+    parent_type = WAREHOUSE_TYPE_PARENTS[type_key]
+    if parent_type
+      # Get parent base path
+      parent_path = root_folder_for(parent_type)
+      return nil if parent_path.blank?
+
+      # Get suffix for this type (e.g., "Attachments" for task_attachments)
+      suffix = warehouse_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
+
+      # If suffix is a full path (legacy), extract just the suffix
+      # Legacy: "Tasks/{{TaskId}}/{{TaskName}}/Attachments" → "Attachments"
+      if suffix&.include?(parent_path)
+        suffix = suffix.sub(parent_path, '').sub(/^\//, '')
+      end
+
+      return nil if suffix.blank? || suffix == "DISABLED"
+
+      # Combine parent base + suffix
+      "#{parent_path}/#{suffix}".gsub(%r{//+}, '/')
+    else
+      # SSoT: Check database first, fall back to defaults for new warehouse types
+      path = warehouse_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
+      return nil if path.blank? || path == "DISABLED"
+      path
+    end
   end
 
   # Legacy alias for backward compatibility
