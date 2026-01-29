@@ -652,7 +652,28 @@ module Api
 
           folders = subfolder_counts.map do |name, count|
             { name: name, path: "#{path}/#{name}", count: count }
-          end.sort_by { |f| f[:name].to_s.downcase }
+          end
+
+          # SSoT (Jan 2026): Enrich task folders with task names
+          # When browsing Tasks/, show "#7 Robert Harder" instead of just "2236"
+          if path == "Tasks"
+            task_ids = folders.map { |f| f[:name] }
+            tasks_by_id = SmTask.where(id: task_ids)
+                                .pluck(:id, :task_number, :name)
+                                .to_h { |id, num, name| [id.to_s, { number: num, name: name }] }
+
+            folders = folders.map do |f|
+              task_info = tasks_by_id[f[:name]]
+              if task_info
+                display = task_info[:number].present? ? "##{task_info[:number]} #{task_info[:name]}" : task_info[:name]
+                f.merge(name: display, taskId: f[:name].to_i)
+              else
+                f
+              end
+            end
+          end
+
+          folders = folders.sort_by { |f| f[:name].to_s.downcase }
 
           # Get files at this exact folder path (not in subfolders)
           # SQL: SELECT * WHERE folder = 'exact/path'
