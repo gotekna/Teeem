@@ -6,6 +6,11 @@ class TeeemPresentation < ApplicationRecord
 
   belongs_to :user
   belongs_to :job, optional: true
+  belongs_to :storage_blob, optional: true
+
+  # Phase 4: Universal warehouse metadata (SSoT for display_name, folder)
+  # User-created presentations appear in File Warehouse under Warehousing folder
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
 
   validates :name, presence: true, length: { maximum: 255 }
 
