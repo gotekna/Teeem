@@ -1712,33 +1712,51 @@ module Api
           { folders: folders, files: [] }
 
         else
-          # Level 2+: Show files for selected task
+          # Level 2+: Show subfolders (Attachments/Responses) and files for selected task
           task_identifier = path_segments[1]
 
           task = SmTask.find_by(task_number: task_identifier) || SmTask.find_by(id: task_identifier)
           return { folders: [], files: [] } unless task
 
-          attachments = SmTaskAttachment.where(sm_task_id: task.id, attachable_type: 'WarehouseDocument')
-                                        .includes(:attachable)
+          # SSoT: Query WarehouseDocument directly by folder path (not via SmTaskAttachment.attachable)
+          # SmTaskAttachment.attachable points to ORIGINAL doc, warehouse_document points to task folder entry
+          base_folder = "Tasks/#{task_identifier}"
 
-          files = attachments.map do |attachment|
-            doc = attachment.attachable
-            next unless doc
+          if path_segments.size == 2
+            # Show Attachments/Responses subfolders
+            subfolder_counts = WarehouseDocument.where("folder LIKE ?", "#{base_folder}/%")
+                                                .group(:folder)
+                                                .count
 
-            {
-              id: doc.id,
-              name: doc.display_name || doc.original_filename || "Untitled",
-              type: "task",
-              mimeType: doc.content_type || "application/octet-stream",
-              fileSize: doc.file_size || 0,
-              createdAt: doc.created_at&.iso8601,
-              taskId: task.id,
-              taskNumber: task.task_number,
-              url: doc.download_url
-            }
-          end.compact
+            folders = subfolder_counts.map do |folder, count|
+              name = folder.split("/").last
+              { name: name, path: folder, count: count }
+            end
 
-          { folders: [], files: files }
+            { folders: folders, files: [] }
+          else
+            # Level 3: Show files in subfolder (e.g., Tasks/2236/Responses)
+            full_path = path_segments.join("/")
+            docs = WarehouseDocument.where(folder: full_path)
+                                    .includes(:storage_blob)
+
+            files = docs.map do |doc|
+              {
+                id: doc.id,
+                name: doc.display_name || doc.original_filename || "Untitled",
+                type: "task",
+                mimeType: doc.content_type || doc.storage_blob&.content_type || "application/octet-stream",
+                fileSize: doc.file_size || doc.storage_blob&.file_size || 0,
+                createdAt: doc.created_at&.iso8601,
+                taskId: task.id,
+                taskNumber: task.task_number,
+                path: doc.folder,
+                url: doc.download_url
+              }
+            end
+
+            { folders: [], files: files }
+          end
         end
       end
 
