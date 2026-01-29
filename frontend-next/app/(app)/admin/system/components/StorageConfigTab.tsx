@@ -693,11 +693,23 @@ function TreeNode({
           style={{ marginLeft: `${level * 16 + 28}px` }}
         >
           <div className="space-y-4">
+            {/* Root Path (read-only greyed out) */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Root Path</label>
+              <div className="bg-muted/50 border border-muted rounded px-3 py-2">
+                <span className="font-mono text-sm text-muted-foreground">
+                  {rootPath || '/'}
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Storage provider root folder (configured in Storage Config).
+              </p>
+            </div>
+
             {/* Base Folder (editable) */}
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Base Folder</label>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-sm text-muted-foreground">{rootPath}/</span>
                 <Input
                   value={editValue}
                   onChange={(e) => {
