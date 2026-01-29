@@ -389,6 +389,70 @@ class MicrosoftAppGraphClient
     }
   end
 
+  # Batch fetch MIME content for multiple emails (up to 20 per batch)
+  # Returns hash of { "user_email:message_id" => mime_content_or_nil }
+  # FRC (Jan 2026): Reduces HTTP calls by ~95% (250 emails = 13 batch calls instead of 250)
+  def batch_get_email_mime_content(email_requests)
+    return {} if email_requests.empty?
+
+    # Microsoft Graph batch limit is 20 requests
+    results = {}
+
+    email_requests.each_slice(20) do |batch|
+      batch_results = execute_mime_batch(batch)
+      results.merge!(batch_results)
+    end
+
+    results
+  end
+
+  private
+
+  # Execute a single batch request for MIME content (max 20)
+  def execute_mime_batch(batch)
+    requests = batch.map.with_index do |req, idx|
+      {
+        id: idx.to_s,
+        method: "GET",
+        url: "/users/#{CGI.escape(req[:user_email])}/messages/#{req[:message_id]}/$value",
+        headers: { "Accept" => "message/rfc822" }
+      }
+    end
+
+    results = {}
+
+    with_retry(max_retries: 5) do
+      response = HTTP.auth("Bearer #{access_token}")
+                     .headers("Content-Type" => "application/json")
+                     .post("#{GRAPH_API_BASE}/$batch", json: { requests: requests })
+
+      unless response.status.success?
+        raise ApiError, "Batch request failed: #{response.status.code}"
+      end
+
+      batch_response = JSON.parse(response.body.to_s)
+
+      (batch_response["responses"] || []).each do |resp|
+        idx = resp["id"].to_i
+        req = batch[idx]
+        key = "#{req[:user_email]}:#{req[:message_id]}"
+
+        if resp["status"] == 200
+          # MIME content is in the body
+          results[key] = resp["body"]
+        else
+          error_msg = resp.dig("body", "error", "message") || "HTTP #{resp['status']}"
+          Rails.logger.warn "[MicrosoftAppGraph] Batch MIME failed for #{key}: #{error_msg}"
+          results[key] = { error: error_msg, status: resp["status"] }
+        end
+      end
+    end
+
+    results
+  end
+
+  public
+
   # Batch sync emails for multiple users (more efficient)
   def batch_get_emails(user_emails, folder: "inbox", top: 20)
     requests = user_emails.map.with_index do |email, idx|

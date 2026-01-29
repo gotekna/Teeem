@@ -10,7 +10,9 @@
 #   OrgEmailSyncJob.perform_later         # Queue for background processing
 
 class OrgEmailSyncJob < ApplicationJob
-  queue_as :low
+  # FRC (Jan 2026): Moved from :low to :default queue
+  # Email sync is user-visible and time-sensitive - shouldn't compete with background analytics
+  queue_as :default
 
   # Retry network errors up to 2 times with backoff, then discard
   # Runs every 15 minutes, so next scheduled run will try again

@@ -483,33 +483,30 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
   # POST /api/v1/synced_email/sync
   # Trigger manual email sync from Office 365
-  # FRC (Jan 2026): Changed from perform_later to perform_now for manual triggers
-  # Root cause: Job queue was backed up (80+ jobs), making manual sync useless.
-  # User clicks refresh expecting immediate results, not "queued behind 80 jobs".
-  # Synchronous sync takes ~30-60 seconds but gives real feedback.
+  # FRC (Jan 2026): Push to :default queue instead of perform_now or :low queue
+  # Root cause: perform_now blocks web worker causing cascading timeouts.
+  # Using :low queue puts it behind 80+ background jobs, useless for manual refresh.
+  # Solution: :default queue = highest priority, processes immediately, non-blocking.
   def sync
     # SSoT: Sync ALL connected MS365 organizations (not just one)
     connected_orgs = MicrosoftCredential.app_credentials.connected
 
-    total_synced = 0
-    errors = []
+    if connected_orgs.empty?
+      return render json: {
+        success: false,
+        message: "No connected email organizations found"
+      }
+    end
 
+    # Push to :default queue (high priority) so manual refresh jumps the queue
+    # Manual sync only fetches delta since last auto-sync (~few seconds of work)
     connected_orgs.each do |cred|
-      begin
-        # Run synchronously so user sees results immediately
-        result = OrgEmailSyncJob.perform_now("incremental", credential_id: cred.id)
-        total_synced += result[:total_synced] if result.is_a?(Hash)
-      rescue => e
-        Rails.logger.error "[SyncedEmails#sync] Error syncing #{cred.name}: #{e.message}"
-        errors << { org: cred.name, error: e.message }
-      end
+      OrgEmailSyncJob.set(queue: :default).perform_later("incremental", credential_id: cred.id)
     end
 
     render json: {
-      success: errors.empty?,
-      total_synced: total_synced,
-      message: "Synced #{total_synced} email#{total_synced == 1 ? '' : 's'} from #{connected_orgs.count} organization(s)",
-      errors: errors.presence
+      success: true,
+      message: "Email sync started for #{connected_orgs.count} organization(s). New emails will appear shortly."
     }
   end
 
