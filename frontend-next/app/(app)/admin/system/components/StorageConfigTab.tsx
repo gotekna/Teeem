@@ -1953,6 +1953,174 @@ export function StorageConfigTab() {
           </TabsTrigger>
         </TabsList>
 
+        {/* Setup Info Tab - SSoT Documentation */}
+        <TabsContent value="setup" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Storage Configuration SSoT Guide
+              </CardTitle>
+              <CardDescription>
+                How folder paths are configured and where they&apos;re stored
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Overview */}
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-blue-500" />
+                  Overview
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  This page configures <strong>virtual folder paths</strong> for the File Warehouse.
+                  All settings save to <code className="bg-muted px-1 rounded">StorageConfiguration.warehouse_folders</code> (SSoT).
+                </p>
+              </div>
+
+              {/* Path Hierarchy */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <FolderTree className="h-4 w-4 text-amber-500" />
+                  Path Hierarchy
+                </h4>
+                <div className="grid gap-3">
+                  {/* Root Path */}
+                  <div className="rounded-lg border p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs">1</Badge>
+                      <span className="font-medium text-sm">Root Path</span>
+                      <Badge variant="secondary" className="text-xs">Read-only</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-6">
+                      Comes from Storage Provider config (e.g., <code className="bg-muted px-1 rounded">/</code> or <code className="bg-muted px-1 rounded">/Documents</code>).
+                      This is where your S3 bucket or SharePoint site root is.
+                    </p>
+                  </div>
+
+                  {/* Base Folder */}
+                  <div className="rounded-lg border p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs">2</Badge>
+                      <span className="font-medium text-sm">Base Folder</span>
+                      <Badge className="text-xs bg-blue-500">Parent Scope</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-6">
+                      The main folder path for each scope. Example: <code className="bg-muted px-1 rounded">Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}</code>.
+                      Child scopes inherit this automatically.
+                    </p>
+                  </div>
+
+                  {/* Folder Path */}
+                  <div className="rounded-lg border p-3 bg-card">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs">3</Badge>
+                      <span className="font-medium text-sm">Folder Path (Suffix)</span>
+                      <Badge className="text-xs bg-green-500">Child Scope</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-6">
+                      For child scopes, this is the suffix added to the parent&apos;s base folder.
+                      Example: <code className="bg-muted px-1 rounded">{"{{Attachments}}"}</code> or <code className="bg-muted px-1 rounded">{"{{Responses}}"}</code>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Example */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <ArrowRight className="h-4 w-4 text-green-500" />
+                  Example: Task Attachments
+                </h4>
+                <div className="rounded-lg border bg-muted/20 p-4 font-mono text-sm space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-24">Root Path:</span>
+                    <span>/</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-24">+ Base:</span>
+                    <span>Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}</span>
+                    <Badge variant="outline" className="text-xs">from Task scope</Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-24">+ Suffix:</span>
+                    <span>{"{{Attachments}}"}</span>
+                    <Badge variant="outline" className="text-xs">from Task Attachments</Badge>
+                  </div>
+                  <div className="border-t pt-2 mt-2">
+                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                      <span className="text-muted-foreground w-24">= Full Path:</span>
+                      <span>/Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}/{"{{Attachments}}"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SSoT Storage */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Database className="h-4 w-4 text-purple-500" />
+                  SSoT: Where It&apos;s Stored
+                </h4>
+                <div className="rounded-lg border p-3 bg-card">
+                  <div className="text-sm space-y-2">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Parent scopes</span>
+                        <span className="text-muted-foreground"> store full base path</span>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <code className="bg-muted px-1 rounded">warehouse_folders.task = &quot;Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}&quot;</code>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5" />
+                      <div>
+                        <span className="font-medium">Child scopes</span>
+                        <span className="text-muted-foreground"> store suffix only</span>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          <code className="bg-muted px-1 rounded">warehouse_folders.task_responses = &quot;Responses&quot;</code>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Parent-Child Relationships */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-orange-500" />
+                  Parent-Child Scope Relationships
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                  {Object.entries(WAREHOUSE_TYPE_PARENTS).map(([child, parent]) => (
+                    <div key={child} className="rounded border p-2 bg-card">
+                      <span className="text-muted-foreground">{parent}</span>
+                      <ArrowRight className="h-3 w-3 inline mx-1 text-muted-foreground" />
+                      <span className="font-medium">{child.replace(/_/g, ' ')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* File Warehouse Integration */}
+              <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 p-4">
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <FileBox className="h-4 w-4 text-blue-500" />
+                  File Warehouse Integration
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  These virtual paths determine where documents appear in the <strong>File Warehouse</strong> tab.
+                  The backend uses <code className="bg-muted px-1 rounded">StorageConfiguration.root_folder_for(:scope)</code> to
+                  resolve the full path, automatically combining parent base + child suffix.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="config" className="space-y-6 mt-4">
       {/* Provider Selection */}
       <Card>
