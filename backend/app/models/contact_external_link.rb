@@ -139,12 +139,18 @@ class ContactExternalLink < ApplicationRecord
   end
 
   # Approve a fuzzy match review
+  # Recalculates match_confidence based on current names to fix stale values
   def approve_review!(reviewer_email = nil)
+    # Recalculate match confidence now that link is confirmed
+    new_confidence = calculate_match_confidence
+
     update!(
       needs_review: false,
       sync_enabled: true,
       reviewed_at: Time.current,
-      reviewed_by: reviewer_email
+      reviewed_by: reviewer_email,
+      match_confidence: new_confidence,
+      match_type: "manual"  # Mark as manually reviewed
     )
   end
 
@@ -164,6 +170,59 @@ class ContactExternalLink < ApplicationRecord
   end
 
   private
+
+  # Calculate match confidence between contact display_name and external_name
+  # Uses same algorithm as XeroContactSyncService for consistency
+  def calculate_match_confidence
+    return 1.0 unless contact && external_name.present? && contact.display_name.present?
+
+    name1 = external_name.to_s.downcase.gsub(/\s+/, " ").strip
+    name2 = contact.display_name.to_s.downcase.gsub(/\s+/, " ").strip
+
+    return 1.0 if name1 == name2
+
+    shorter, longer = [ name1, name2 ].sort_by(&:length)
+
+    # Prefix match: if shorter name is prefix of longer, high confidence
+    if longer.start_with?(shorter)
+      prefix_ratio = shorter.length.to_f / longer.length
+      return 0.85 + (prefix_ratio * 0.14)  # 85% to 99%
+    end
+
+    # Substring match
+    if longer.include?(shorter)
+      prefix_ratio = shorter.length.to_f / longer.length
+      return 0.70 + (prefix_ratio * 0.15)  # 70% to 85%
+    end
+
+    # Fall back to Levenshtein distance for fuzzy matching
+    distance = levenshtein_distance(name1, name2)
+    max_len = [ name1.length, name2.length ].max
+    return 1.0 if max_len.zero?
+
+    1.0 - (distance.to_f / max_len)
+  end
+
+  # Simple Levenshtein distance implementation
+  def levenshtein_distance(s1, s2)
+    m = s1.length
+    n = s2.length
+    return m if n.zero?
+    return n if m.zero?
+
+    d = Array.new(m + 1) { Array.new(n + 1) }
+    (0..m).each { |i| d[i][0] = i }
+    (0..n).each { |j| d[0][j] = j }
+
+    (1..m).each do |i|
+      (1..n).each do |j|
+        cost = s1[i - 1] == s2[j - 1] ? 0 : 1
+        d[i][j] = [ d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost ].min
+      end
+    end
+
+    d[m][n]
+  end
 
   # Update the contact's cached xero columns
   def update_contact_xero_cache
