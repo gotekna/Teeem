@@ -11,16 +11,21 @@ module Api
       # Skip auth for job_document_download - opened in new browser tab via window.open()
       skip_before_action :authorize_request, only: [ :callback, :download, :job_document_download ]
 
+      # Skip tenant for public download endpoints - tenant determined from storage key, not user
+      skip_before_action :set_tenant, only: [ :download, :job_document_download ], raise: false
+
       # Require admin for sensitive operations
       before_action :require_admin, only: [ :disconnect, :change_root_folder, :sync_corporate_documents ]
 
       # SSoT: Setup document provider for provider-agnostic methods
       # Skip for SharePoint-specific admin actions (OAuth, site selection, etc.)
+      # Note: download and job_document_download excluded - they create providers directly
+      # and can be called without tenant context (public endpoints)
       before_action :setup_storage_provider, only: [
         :browse_folders, :create_root_folder, :validate_folder,
-        :folder_contents, :search, :download, :presigned_url,
+        :folder_contents, :search, :presigned_url,
         :download_url, :upload, :delete_file, :copy_files,
-        :job_all_files, :job_document_download, :job_document_url
+        :job_all_files, :job_document_url
       ]
 
       # Handle decryption errors gracefully - this happens when credentials were encrypted
@@ -1147,13 +1152,14 @@ module Api
         end
 
         begin
-          # Route by file_id format, not just current provider.
-          # SharePoint item IDs are alphanumeric (e.g. "01P43HWV5GJTQ6IY66V5AKLYLFE7LSUORX").
-          # S3 keys have path separators or extensions (e.g. "Blobs/ab/abc123.pdf").
-          if sharepoint_item_id?(file_id)
+          # SSoT: Route by configured provider, not file_id format guessing
+          # Check credentials to determine provider (no tenant context needed)
+          if S3CompatibleCredential.active.connected.exists?
+            download_from_s3_by_key(file_id, is_preview)
+          elsif MicrosoftCredential.sharepoint_credential&.connected?
             download_from_sharepoint_by_id(file_id, is_preview)
           else
-            download_from_s3_by_key(file_id, is_preview)
+            raise DocumentProviders::NotConnectedError, "No storage provider configured"
           end
 
         rescue DocumentProviders::NotFoundError => e
