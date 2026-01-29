@@ -247,6 +247,108 @@ namespace :warehouse do
     puts "Done!"
   end
 
+  desc "Sync missing warehouse entries for task attachments (creates WarehouseDocument for linked docs)"
+  task sync_task_attachments: :environment do
+    puts "🔄 Syncing missing warehouse entries for task attachments..."
+    puts ""
+
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        config = StorageConfiguration.instance rescue nil
+        next unless config
+
+        puts "Tenant: #{tenant.name}"
+
+        created = 0
+        skipped = 0
+        errors = 0
+
+        # Find SmTaskAttachments without corresponding WarehouseDocument
+        SmTaskAttachment.includes(:sm_task, :attachable).find_each do |att|
+          # Skip if already has warehouse document
+          if att.warehouse_document.present?
+            skipped += 1
+            next
+          end
+
+          begin
+            task = att.sm_task
+            unless task
+              puts "  ⚠️  SmTaskAttachment ##{att.id}: No task found"
+              errors += 1
+              next
+            end
+
+            # Get the storage blob from the attachable
+            blob = nil
+            if att.attachable.is_a?(WarehouseDocument)
+              blob = att.attachable.storage_blob
+            elsif att.attachable.respond_to?(:storage_blob)
+              blob = att.attachable.storage_blob
+            elsif att.attachable&.warehouse_document&.storage_blob
+              blob = att.attachable.warehouse_document.storage_blob
+            end
+
+            unless blob
+              puts "  ⚠️  SmTaskAttachment ##{att.id}: No storage blob"
+              errors += 1
+              next
+            end
+
+            # Determine folder based on category
+            folder_type = case att.category
+                          when "response" then :task_responses
+                          else :task_attachments
+                          end
+
+            folder = config.resolve_virtual_path(folder_type, { TaskId: task.id })
+
+            # Get display name
+            display_name = if att.read_attribute(:display_name).present?
+                             att.read_attribute(:display_name)
+                           elsif att.attachable.respond_to?(:display_name)
+                             att.attachable.display_name
+                           elsif att.attachable.respond_to?(:subject)
+                             att.attachable.subject
+                           else
+                             "Attachment"
+                           end
+
+            # Create the warehouse document
+            wd = WarehouseDocument.create!(
+              documentable: att,
+              source_type: "task",
+              folder: folder,
+              display_name: display_name,
+              original_filename: att.attachable&.try(:original_filename) || att.attachable&.try(:file_name),
+              storage_blob: blob,
+              linkable_type: "SmTask",
+              linkable_id: task.id,
+              metadata: {
+                task_id: task.id,
+                task_name: task.name,
+                category: att.category,
+                attachable_type: att.attachable_type,
+                attachable_id: att.attachable_id
+              }
+            )
+
+            created += 1
+            puts "  ✅ SmTaskAttachment ##{att.id} → WarehouseDocument ##{wd.id} (#{display_name})"
+          rescue StandardError => e
+            errors += 1
+            puts "  ❌ SmTaskAttachment ##{att.id}: #{e.message}"
+          end
+        end
+
+        puts "  Created: #{created}, Skipped: #{skipped}, Errors: #{errors}"
+        puts ""
+      end
+    end
+
+    puts "Done!"
+  end
+
   desc "Full warehouse setup: link docs, sync attachments, refresh views, capture snapshot"
   task setup: :environment do
     puts "🚀 Running full warehouse setup..."
