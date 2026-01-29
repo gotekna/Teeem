@@ -34,6 +34,10 @@ class WarehouseDocument < ApplicationRecord
   # This ensures ALL creation points get tenant_id without manual assignment
   before_validation :set_tenant_from_documentable, on: :create
 
+  # SSoT: Auto-compute folder from StorageConfiguration template if not provided
+  # This ensures folder always matches current template configuration
+  before_validation :compute_folder_from_template, on: :create, if: -> { folder.blank? }
+
   # ========================================
   # Associations
   # ========================================
@@ -388,6 +392,86 @@ class WarehouseDocument < ApplicationRecord
     # Allow creation without tenant if can't be derived (legacy data)
     Rails.logger.debug "[WarehouseDocument] Could not derive tenant for new document"
     nil
+  end
+
+  # SSoT: Compute folder from StorageConfiguration template
+  # Maps source_type to warehouse_type and expands template with documentable context
+  def compute_folder_from_template
+    warehouse_type = source_type_to_warehouse_type
+    return unless warehouse_type
+
+    config = StorageConfiguration.instance rescue nil
+    return unless config
+
+    tokens = extract_folder_tokens
+    computed = config.resolve_path(warehouse_type.to_sym, tokens)
+    self.folder = computed if computed.present?
+  rescue StandardError => e
+    Rails.logger.debug "[WarehouseDocument] Could not compute folder: #{e.message}"
+  end
+
+  # Map source_type to warehouse template key
+  def source_type_to_warehouse_type
+    case source_type
+    when "task" then "task_attachments"
+    when "email" then "email"
+    when "email_attachment" then "email_attachments"
+    when "corporate" then "corporate"
+    when "job" then "job"
+    when "contact" then "contact"
+    when "xero" then "bank_statement"
+    when "case" then "case"
+    else source_type
+    end
+  end
+
+  # Extract token values for template expansion
+  def extract_folder_tokens
+    tokens = {}
+
+    # Task context
+    if source_type == "task" && documentable.present?
+      tokens[:TaskId] = documentable.id
+    end
+
+    # Job context
+    if documentable.respond_to?(:job) && documentable.job
+      tokens[:JobCode] = documentable.job.job_code
+    elsif documentable.respond_to?(:job_code)
+      tokens[:JobCode] = documentable.job_code
+    end
+
+    # Contact context
+    if documentable.respond_to?(:contact) && documentable.contact
+      tokens[:ContactName] = documentable.contact.display_name.presence || "Contact-#{documentable.contact.id}"
+    end
+
+    # Corporate company context
+    if documentable.respond_to?(:corporate_company) && documentable.corporate_company
+      cc = documentable.corporate_company
+      tokens[:CompanyCode] = cc.company_code
+      tokens[:CompanyGroup] = cc.company_group.presence || "Default"
+    end
+
+    # Case context
+    if documentable.respond_to?(:case_number)
+      tokens[:CaseId] = documentable.case_number
+    end
+
+    # Email context
+    if source_type.in?(%w[email email_attachment])
+      tokens[:Mailbox] = meta("mailbox") || "Unknown"
+      received_at = email_received_at || created_at || Time.current
+      tokens[:Year] = received_at.year.to_s
+      tokens[:Month] = received_at.strftime("%m")
+    end
+
+    # Date tokens (fallback)
+    date = created_at || Time.current
+    tokens[:Year] ||= date.year.to_s
+    tokens[:Month] ||= date.strftime("%m")
+
+    tokens
   end
 
   # Compute email legacy path if not stored

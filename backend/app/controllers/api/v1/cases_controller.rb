@@ -561,11 +561,13 @@ module Api
         when "replace"
           review.replace!(current_user)
         when "keep_both"
+          # SSoT: Folder path comes from StorageConfiguration template (warehouse_folders['case'])
+          folder_path = StorageConfiguration.instance.resolve_path(:case, { CaseId: @case.case_number })
           new_doc = WarehouseDocument.create!(
             display_name: review.new_file_name,
             original_filename: review.new_file_name,
             source_type: "corporate",
-            folder: "Cases/#{@case.case_number}",
+            folder: folder_path,
             content_type: Marcel::MimeType.for(name: review.new_file_name),
             file_size: review.new_file_size,
             documentable: @case.corporate_company
