@@ -284,11 +284,23 @@ namespace :warehouse do
               next
             end
 
-            # Compute folder path: Tasks/{{TaskNumber}}/{{Category}}
+            # Compute folder path from StorageConfiguration
             # SSoT: Same logic as SmTaskAttachment#compute_task_folder_path
-            task_identifier = task.task_number.presence || task.id.to_s
-            subfolder = att.category == "response" ? "Responses" : "Attachments"
-            folder = "Tasks/#{task_identifier}/#{subfolder}"
+            config = StorageConfiguration.instance rescue nil
+            folder_type = att.category == "response" ? :task_responses : :task_attachments
+
+            if config
+              folder = config.resolve_virtual_path(folder_type, {
+                TaskId: task.id,
+                TaskName: task.name&.parameterize || "task-#{task.id}"
+              })
+            end
+
+            # Fallback if no config
+            unless folder.present?
+              subfolder = att.category == "response" ? "Responses" : "Attachments"
+              folder = "Tasks/#{task.id}/#{task.name || 'Unknown'}/#{subfolder}"
+            end
 
             # Get display name from attachable
             display_name = case att.attachable_type

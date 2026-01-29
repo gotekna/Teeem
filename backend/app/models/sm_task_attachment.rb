@@ -193,21 +193,30 @@ class SmTaskAttachment < ApplicationRecord
     Rails.logger.error(e.backtrace.first(5).join("\n"))
   end
 
-  # Compute the folder path for File Warehouse: Tasks/{{TaskId}}/{{Category}}
-  # Category: "info" → "Attachments", "response" → "Responses"
+  # Compute the folder path for File Warehouse
+  # SSoT: Reads template from StorageConfiguration
+  # Default: Tasks/{{TaskId}}/{{TaskName}}/{{Category}}
   def compute_task_folder_path
     task = sm_task
     return "Tasks/Unknown" unless task
 
-    # Use task_number if available, otherwise task id
-    task_identifier = task.task_number.presence || task.id.to_s
+    config = StorageConfiguration.instance rescue nil
 
-    # Map category to folder name
-    subfolder = case category
-                when "response" then "Responses"
-                else "Attachments"
-                end
+    # Get template from config, with sensible default
+    # Config has: task_attachments and task_responses templates
+    folder_type = category == "response" ? :task_responses : :task_attachments
 
-    "Tasks/#{task_identifier}/#{subfolder}"
+    if config
+      # Use config template - resolves {{TaskId}}, {{TaskName}}, etc.
+      folder = config.resolve_virtual_path(folder_type, {
+        TaskId: task.id,
+        TaskName: task.name&.parameterize || "task-#{task.id}"
+      })
+      return folder if folder.present?
+    end
+
+    # Fallback if no config
+    subfolder = category == "response" ? "Responses" : "Attachments"
+    "Tasks/#{task.id}/#{task.name || 'Unknown'}/#{subfolder}"
   end
 end
