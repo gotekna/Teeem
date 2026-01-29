@@ -838,82 +838,6 @@ function TreeNode({
               defaultExpanded={false}
             />
 
-            {/* Phase 4: Virtual Folder Toggle */}
-            <div className="space-y-2 pt-2 border-t">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id={`virtual-${currentEditingScopeKey}`}
-                  checked={virtualScopes[currentEditingScopeKey || ''] ?? false}
-                  onCheckedChange={(checked) => {
-                    if (currentEditingScopeKey) {
-                      onToggleVirtual(currentEditingScopeKey, checked === true);
-                    }
-                  }}
-                />
-                <label
-                  htmlFor={`virtual-${currentEditingScopeKey}`}
-                  className="text-xs font-medium cursor-pointer flex items-center gap-1.5"
-                >
-                  <Database className="h-3.5 w-3.5" />
-                  Virtual Folder (Phase 4)
-                </label>
-              </div>
-              <p className="text-[10px] text-muted-foreground ml-6">
-                When enabled, folder tree renders from database instead of S3.
-                Reorganization is instant (bulk DB update). Physical storage stays at Blobs/&#123;hash&#125;.ext.
-              </p>
-            </div>
-
-            {/* Config Link - checkbox + URL */}
-            <div className="space-y-2 pt-2 border-t">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id={`config-link-${node.scopeKey}`}
-                  checked={hasConfigLink}
-                  onCheckedChange={(checked) => {
-                    setHasConfigLink(checked === true);
-                    hasModified.current = true;
-                  }}
-                />
-                <label
-                  htmlFor={`config-link-${node.scopeKey}`}
-                  className="text-xs font-medium cursor-pointer flex items-center gap-1.5"
-                >
-                  <Link2 className="h-3.5 w-3.5" />
-                  Link to configuration page
-                </label>
-              </div>
-              {hasConfigLink && (
-                <div className="ml-6 space-y-2">
-                  <Select
-                    value={configLinkUrl || ""}
-                    onValueChange={(value) => {
-                      setConfigLinkUrl(value);
-                      hasModified.current = true;
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Select target tab..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="/admin/system/entity-config/corporate">
-                        Corporate tab
-                      </SelectItem>
-                      <SelectItem value="/admin/system/entity-config/job">
-                        Jobs tab
-                      </SelectItem>
-                      <SelectItem value="/admin/system/entity-config/contact">
-                        Contacts tab
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[10px] text-muted-foreground">
-                    Shows &quot;Configure →&quot; link next to this scope
-                  </p>
-                </div>
-              )}
-            </div>
-
             {/* Auto-save status and close */}
             <div className="flex items-center justify-between pt-2 border-t mt-3">
               {/* Auto-save indicator */}
@@ -1191,7 +1115,7 @@ function TabNode({
                 showPreview={true}
                 separator=" "
                 placeholder="Name shown in UI..."
-                defaultExpanded={true}
+                defaultExpanded={false}
               />
             </div>
 
@@ -1205,7 +1129,7 @@ function TabNode({
                 showPreview={false}
                 separator="/"
                 placeholder="e.g. TeeemXL"
-                defaultExpanded={true}
+                defaultExpanded={false}
               />
               {/* Full path preview - basePath is the SSoT template with {{TeeemXL}} replaced by folder name */}
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded px-2 py-1">
@@ -1229,7 +1153,7 @@ function TabNode({
                 showPreview={true}
                 separator=" "
                 placeholder="e.g. {{OriginalFileName}}"
-                defaultExpanded={true}
+                defaultExpanded={false}
               />
             </div>
 
