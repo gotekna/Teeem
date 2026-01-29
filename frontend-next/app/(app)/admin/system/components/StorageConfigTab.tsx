@@ -67,9 +67,9 @@ const COMPLEX_SCOPES = ['corporate', 'job', 'contact'];
 
 // SSoT: Warehouse types that derive from a parent type (must match backend WAREHOUSE_TYPE_PARENTS)
 // These store only their suffix (e.g., "Attachments") and inherit the base from parent
+// Note: task_attachments and task_responses were removed (Jan 2026 FRC fix)
+// They now store FULL paths - no derivation needed
 const WAREHOUSE_TYPE_PARENTS: Record<string, string> = {
-  'task_attachments': 'task',
-  'task_responses': 'task',
   'case_documents': 'case',
   'case_emails': 'case',
   'email_body': 'email',
@@ -136,7 +136,10 @@ interface EntityTab {
   display_name: string;
   scope: string;
   parent_id: number | null;
-  has_storage_folder: boolean | null;
+  // SSoT: API returns warehouse_enabled (Jan 2026 rename)
+  // has_storage_folder kept for backwards compatibility
+  warehouse_enabled?: boolean | null;
+  has_storage_folder?: boolean | null;
   storage_folder_path: string | null;
   send_name_template: string | null;
   enabled: boolean;
@@ -1489,9 +1492,11 @@ export function StorageConfigTab() {
     };
 
     // Helper: Check if tab or any descendants have doc types AND warehouse enabled
+    // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
     const hasDescendantWithDocTypes = (tab: EntityTab): boolean => {
       // This tab has warehouse + doc types
-      if (tab.has_storage_folder && tabHasDocTypes(tab)) return true;
+      const isWarehouseEnabled = tab.warehouse_enabled ?? tab.has_storage_folder;
+      if (isWarehouseEnabled && tabHasDocTypes(tab)) return true;
       // Or any child has it
       if (tab.children && tab.children.length > 0) {
         return tab.children.some(child => hasDescendantWithDocTypes(child));
@@ -1517,9 +1522,10 @@ export function StorageConfigTab() {
     const SCOPES_WITHOUT_DOC_TYPES = ['email', 'task', 'warehouse', 'user', 'case'];
 
     // Helper: Filter tabs for scopes without doc types (just warehouse enabled)
+    // SSoT: Check warehouse_enabled (new) with fallback to has_storage_folder (legacy)
     const filterWarehouseEnabledTabs = (tabs: EntityTab[]): EntityTab[] => {
       return tabs
-        .filter(tab => tab.has_storage_folder === true)
+        .filter(tab => (tab.warehouse_enabled ?? tab.has_storage_folder) === true)
         .map(tab => ({
           ...tab,
           children: tab.children ? filterWarehouseEnabledTabs(tab.children) : []
@@ -2011,25 +2017,23 @@ export function StorageConfigTab() {
                   <div className="rounded-lg border p-3 bg-card">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge variant="outline" className="text-xs">2</Badge>
-                      <span className="font-medium text-sm">Base Folder</span>
-                      <Badge className="text-xs bg-blue-500">Parent Scope</Badge>
+                      <span className="font-medium text-sm">Folder Path</span>
                     </div>
                     <p className="text-xs text-muted-foreground ml-6">
-                      The main folder path for each scope. Example: <code className="bg-muted px-1 rounded">Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}</code>.
-                      Child scopes inherit this automatically.
+                      The folder path for each scope. Most scopes store <strong>full paths</strong> (e.g., <code className="bg-muted px-1 rounded">Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}/Attachments</code>).
+                      Some scopes (case, email, asset) use suffix derivation from a parent.
                     </p>
                   </div>
 
-                  {/* Folder Path */}
-                  <div className="rounded-lg border p-3 bg-card">
+                  {/* Child Scope Note */}
+                  <div className="rounded-lg border p-3 bg-card border-dashed">
                     <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="outline" className="text-xs">3</Badge>
-                      <span className="font-medium text-sm">Folder Path (Suffix)</span>
-                      <Badge className="text-xs bg-green-500">Child Scope</Badge>
+                      <Badge variant="outline" className="text-xs text-muted-foreground">Note</Badge>
+                      <span className="font-medium text-sm text-muted-foreground">Suffix Derivation (some scopes)</span>
                     </div>
                     <p className="text-xs text-muted-foreground ml-6">
-                      For child scopes, this is the suffix added to the parent&apos;s base folder.
-                      Example: <code className="bg-muted px-1 rounded">{"{{Attachments}}"}</code> or <code className="bg-muted px-1 rounded">{"{{Responses}}"}</code>.
+                      Case, email, and asset sub-scopes store only a suffix (e.g., <code className="bg-muted px-1 rounded">Documents</code>) and derive their base from the parent scope.
+                      Task scopes use full paths - no derivation needed.
                     </p>
                   </div>
                 </div>
@@ -2045,21 +2049,17 @@ export function StorageConfigTab() {
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground w-24">Root Path:</span>
                     <span>/</span>
+                    <Badge variant="outline" className="text-xs">S3 bucket root</Badge>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground w-24">+ Base:</span>
-                    <span>Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}</span>
-                    <Badge variant="outline" className="text-xs">from Task scope</Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground w-24">+ Suffix:</span>
-                    <span>{"{{Attachments}}"}</span>
-                    <Badge variant="outline" className="text-xs">from Task Attachments</Badge>
+                    <span className="text-muted-foreground w-24">+ Folder:</span>
+                    <span>Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}/Attachments</span>
+                    <Badge variant="outline" className="text-xs">full path stored</Badge>
                   </div>
                   <div className="border-t pt-2 mt-2">
                     <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                      <span className="text-muted-foreground w-24">= Full Path:</span>
-                      <span>/Tasks/{"{{TaskId}}"}/{"{{TaskName}}"}/{"{{Attachments}}"}</span>
+                      <span className="text-muted-foreground w-24">= Result:</span>
+                      <span>/Tasks/123/my-task/Attachments</span>
                     </div>
                   </div>
                 </div>
@@ -2101,8 +2101,12 @@ export function StorageConfigTab() {
               <div className="space-y-3">
                 <h4 className="font-medium flex items-center gap-2">
                   <Link2 className="h-4 w-4 text-orange-500" />
-                  Parent-Child Scope Relationships
+                  Scopes Using Suffix Derivation
                 </h4>
+                <p className="text-xs text-muted-foreground">
+                  These scopes store only a suffix and derive their base path from the parent.
+                  Task scopes use full paths instead (no derivation).
+                </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
                   {Object.entries(WAREHOUSE_TYPE_PARENTS).map(([child, parent]) => (
                     <div key={child} className="rounded border p-2 bg-card">

@@ -238,12 +238,11 @@ class StorageConfiguration < ApplicationRecord
     # Task documents
     # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
     # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
-    # Child types (task_attachments, task_responses) store SUFFIX ONLY - derived from 'task' base
-    # SSoT (Jan 2026): Task folder uses ID only - name is resolved at display time
-    # This prevents path breakage when task names change
-    'task' => 'Tasks/{{TaskId}}',
-    'task_attachments' => 'Attachments',  # SSoT: Suffix only - appended to 'task' base
-    'task_responses' => 'Responses',      # SSoT: Suffix only - appended to 'task' base
+    # SSoT (Jan 2026): Full paths for each type - no derivation, no hardcoding
+    # Each key has its complete path - fail fast if path is wrong (immediately visible in UI)
+    'task' => 'Tasks/{{TaskId}}/{{TaskName}}',
+    'task_attachments' => 'Tasks/{{TaskId}}/{{TaskName}}/Attachments',
+    'task_responses' => 'Tasks/{{TaskId}}/{{TaskName}}/Responses',
     # Case documents (Jan 2026)
     # SSoT: Virtual folder paths for File Warehouse - actual files in Blobs/{hash}.ext
     # Child types store SUFFIX ONLY - derived from 'case' base
@@ -381,10 +380,11 @@ class StorageConfiguration < ApplicationRecord
 
   # SSoT: Warehouse types that derive from a parent type
   # These store only their suffix (e.g., "Attachments") and inherit the base from parent
-  # Example: task_attachments stores "Attachments", derives base from task
+  # Example: case_documents stores "Documents", derives base from case
+  #
+  # Note: task_attachments and task_responses were removed (Jan 2026 FRC fix)
+  # They now store FULL paths in WAREHOUSE_ROOT_DEFAULTS - no derivation needed
   WAREHOUSE_TYPE_PARENTS = {
-    'task_attachments' => 'task',
-    'task_responses' => 'task',
     'case_documents' => 'case',
     'case_emails' => 'case',
     'email_body' => 'email',
@@ -402,13 +402,17 @@ class StorageConfiguration < ApplicationRecord
   # Supports key aliases (e.g., :corporate → :corporate_entity, :contacts → :contact)
   # See WAREHOUSE_KEY_ALIASES for all supported aliases.
   #
-  # SSoT: Child warehouse types (task_attachments, task_responses, etc.) derive from parent.
+  # SSoT: Some child warehouse types (case_documents, email_body, etc.) derive from parent.
   # They store only their suffix and inherit the base path from their parent type.
+  # See WAREHOUSE_TYPE_PARENTS for the full list.
+  #
+  # Note: task_attachments and task_responses store FULL paths (Jan 2026 FRC fix)
   #
   # Examples:
   #   root_folder_for(:job)              # => "Jobs/{{JobCode}}"
   #   root_folder_for(:task)             # => "Tasks/{{TaskId}}/{{TaskName}}"
-  #   root_folder_for(:task_attachments) # => "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (derived from :task)
+  #   root_folder_for(:task_attachments) # => "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (full path)
+  #   root_folder_for(:case_documents)   # => "Cases/{{CaseId}}/Documents" (derived from :case)
   #
   def root_folder_for(warehouse_type)
     type_key = warehouse_type.to_s
