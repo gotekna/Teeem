@@ -2818,6 +2818,83 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }
   };
 
+  // Open attachment in full viewer (same as what external users see with Q&A sidebar)
+  const openInFullViewer = async (clickedAttIndex: number) => {
+    try {
+      // Build files array from response attachments (documents only)
+      const viewerFiles: { name: string; downloadUrl: string; openUrl: string }[] = [];
+      const attIdToFileIndex = new Map<number, number>();
+
+      for (const att of responseAttachments) {
+        if (att.document) {
+          const downloadUrl = att.document.storage_url || att.document.file_url;
+          const openUrl = att.document.storage_url_inline || att.document.storage_url || att.document.file_url;
+          if (downloadUrl && openUrl) {
+            attIdToFileIndex.set(att.id, viewerFiles.length);
+            viewerFiles.push({
+              name: att.document.display_name || att.document.file_name || 'Document',
+              downloadUrl,
+              openUrl
+            });
+          }
+        }
+      }
+
+      if (viewerFiles.length === 0) {
+        toast.error('No documents to preview');
+        return;
+      }
+
+      // Build Q&A from questions with responses
+      const viewerQA = questionItems
+        .filter(q => q.include_in_response && (q.response || (q.attachments && q.attachments.length > 0)))
+        .map(q => {
+          const attachmentIndices: number[] = [];
+          if (q.attachments) {
+            for (const att of q.attachments) {
+              const fileIdx = attIdToFileIndex.get(att.id);
+              if (fileIdx !== undefined) {
+                attachmentIndices.push(fileIdx);
+              }
+            }
+          }
+          return {
+            question: q.text,
+            answer: q.response || undefined,
+            attachmentIndices: attachmentIndices.length > 0 ? attachmentIndices : undefined
+          };
+        });
+
+      // Get the file index for the clicked attachment
+      const clickedFileIndex = attIdToFileIndex.get(responseAttachments[clickedAttIndex]?.id) ?? 0;
+
+      // Create viewer context via API
+      const contextResponse = await api.post<{ success: boolean; id?: string; error?: string }>(
+        '/api/v1/viewer_contexts',
+        { context: { files: viewerFiles, allQA: viewerQA, currentIndex: clickedFileIndex } }
+      );
+
+      if (contextResponse?.success && contextResponse?.id) {
+        // Open the full viewer (same as external users see)
+        window.open(`/view/ctx/${contextResponse.id}?idx=${clickedFileIndex}`, '_blank');
+      } else {
+        // Fallback to simple viewer
+        const att = responseAttachments[clickedAttIndex];
+        if (att?.document) {
+          const openUrl = att.document.storage_url_inline || att.document.storage_url || att.document.file_url;
+          const fileName = att.document.display_name || att.document.file_name || 'Document';
+          if (openUrl) {
+            const viewerParams = new URLSearchParams({ url: openUrl, name: fileName });
+            window.open(`/view?${viewerParams.toString()}`, '_blank');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to open full viewer:', err);
+      toast.error('Failed to open viewer');
+    }
+  };
+
   // Get shareable link for an attachment (email or document) and copy to clipboard
   const handleCopyShareLink = async (attachmentId: number) => {
     try {
@@ -7136,7 +7213,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 <>
                 {responseAttachments.length > 0 ? (
                 <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10 mb-2">
-                  {responseAttachments.map((att) => {
+                  {responseAttachments.map((att, attIndex) => {
                     // SSoT: has_storage indicates share links can be created (even for legacy SharePoint docs)
                     const hasExternalStorage = att.document?.has_storage || att.document?.storage_url || att.document?.file_url;
                     const emailOption = attachmentEmailOptions[att.id] || 'link';
@@ -7149,20 +7226,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             if (att.email) {
                               setSelectedEmailId(att.email.id);
                             } else if (att.document) {
-                              // Single click = open external viewer (same as what EU sees)
-                              // SSoT: Use storage_url_inline for viewers (Content-Disposition: inline)
-                              const openUrl = att.document?.storage_url_inline || att.document?.storage_url || att.document?.file_url;
-                              const downloadUrl = att.document?.storage_url || att.document?.file_url;
-                              const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-                              if (openUrl) {
-                                // Open the same viewer that external users see
-                                const viewerParams = new URLSearchParams({
-                                  url: openUrl,
-                                  name: fileName,
-                                  ...(downloadUrl && downloadUrl !== openUrl ? { download: downloadUrl } : {})
-                                });
-                                window.open(`/view?${viewerParams.toString()}`, '_blank');
-                              }
+                              // Single click = open full viewer with Q&A sidebar (same as EU sees)
+                              openInFullViewer(attIndex);
                             }
                           }}
                           onDoubleClick={(e) => {
