@@ -128,6 +128,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // Wait until we've checked localStorage for token
     if (!tokenChecked) return;
 
+    // Skip auth checks for public routes (document viewer, login page)
+    // These routes should work without authentication and shouldn't trigger redirects
+    if (typeof window !== 'undefined') {
+      const publicPaths = ['/view', '/login', '/signup', '/forgot-password'];
+      const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path));
+      if (isPublicPath) {
+        setLoading(false);
+        return;
+      }
+    }
+
     // Auto-login in dev mode - skip API calls entirely
     if (devModeBypass) {
       devLogin();
