@@ -66,6 +66,11 @@ class StorageLocation < ApplicationRecord
   # - tenant_id: Specific Xero tenant (future use)
   XERO_SCOPES = %w[primary].freeze
 
+  # SSoT: Literal folder name pattern (Jan 2026)
+  # [[Name]] = literal folder name (strips brackets)
+  # {{Name}} = dynamic placeholder (resolved elsewhere)
+  LITERAL_FOLDER_PATTERN = /\A\[\[(.+)\]\]\z/.freeze
+
   # Legacy column aliases for backward compatibility
   # These allow queries like find_by(scope: "email") to work after migration
   alias_attribute :scope, :warehouse_type
@@ -350,7 +355,11 @@ class StorageLocation < ApplicationRecord
     return nil unless template.present?
 
     # Use stored warehouse_folder if set, otherwise default to display_name
-    folder_name = read_attribute(:warehouse_folder).presence || display_name.to_s
+    raw_folder = read_attribute(:warehouse_folder).presence || display_name.to_s
+
+    # SSoT: Resolve folder tokens to actual folder names (Jan 2026)
+    # Tokens in warehouse_folder map to physical folder names in storage
+    folder_name = resolve_folder_token(raw_folder)
 
     # SSoT: {{TeeemXL}} is the UI placeholder for folder name (Jan 2026)
     # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
@@ -374,6 +383,22 @@ class StorageLocation < ApplicationRecord
   # Legacy aliases for backwards compatibility
   alias_method :full_storage_path, :full_warehouse_path
   alias_method :full_sharepoint_path, :full_warehouse_path
+
+  # SSoT: Resolve folder tokens to physical folder names
+  # [[Name]] = literal folder name (strips brackets) - e.g., [[TeeemXL]] → "TeeemXL"
+  # {{Name}} = dynamic placeholder (left unchanged for template resolution)
+  # Other values returned as-is
+  def resolve_folder_token(value)
+    return display_name.to_s if value.blank?
+
+    # Check if it's a literal folder name [[Name]]
+    if (match = value.match(LITERAL_FOLDER_PATTERN))
+      match[1] # Return the name without brackets
+    else
+      # Return as-is (could be {{placeholder}} or plain text)
+      value
+    end
+  end
 
   # SSoT: Template Inheritance for SharePoint Paths
   # ================================================
