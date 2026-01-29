@@ -286,20 +286,25 @@ namespace :warehouse do
 
             # Compute folder path from StorageConfiguration
             # SSoT: Same logic as SmTaskAttachment#compute_task_folder_path
+            # FRC (Jan 2026): No hardcoded fallback - fail fast if config is wrong
             config = StorageConfiguration.instance rescue nil
-            folder_type = att.category == "response" ? :task_responses : :task_attachments
-
-            if config
-              folder = config.resolve_virtual_path(folder_type, {
-                TaskId: task.id,
-                TaskName: task.name&.parameterize || "task-#{task.id}"
-              })
+            unless config
+              puts "  ⚠️  SmTaskAttachment ##{att.id}: No StorageConfiguration found"
+              errors += 1
+              next
             end
 
-            # Fallback if no config
+            # SSoT: task_attachments and task_responses have FULL paths (Jan 2026 FRC fix)
+            folder_type = att.category == "response" ? :task_responses : :task_attachments
+            folder = config.resolve_virtual_path(folder_type, {
+              TaskId: task.id,
+              TaskName: task.name&.parameterize || "task-#{task.id}"
+            })
+
             unless folder.present?
-              subfolder = att.category == "response" ? "Responses" : "Attachments"
-              folder = "Tasks/#{task.id}/#{task.name || 'Unknown'}/#{subfolder}"
+              puts "  ⚠️  SmTaskAttachment ##{att.id}: resolve_virtual_path returned blank for #{folder_type}"
+              errors += 1
+              next
             end
 
             # Get display name from attachable
