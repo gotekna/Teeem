@@ -331,9 +331,9 @@ export function EntityTabsConfig({
   // Handles storage_path_type override (e.g., Corporate tab using 'people' path)
   const getTabFullPath = React.useCallback((tab: EntityTab, defaultScope: string): string => {
     // Determine which scope folder to use based on storage_path_type override
-    const pathScope = tab.sharepoint_path_type === 'corporate' ? 'people' : defaultScope;
+    const pathScope = tab.warehouse_type_override === 'corporate' ? 'people' : defaultScope;
     const basePath = getBasePath(pathScope);
-    const folderPath = tab.sharepoint_folder_path || tab.display_name;
+    const folderPath = tab.warehouse_folder || tab.display_name;
     // Combine and normalize: collapse multiple slashes, strip trailing
     const fullPath = [basePath, folderPath].filter(Boolean).join('/');
     return fullPath.replace(/\/+/g, '/').replace(/\/+$/, '');
@@ -654,7 +654,7 @@ export function EntityTabsConfig({
   }, [isAuthenticated]);
 
   // Form state for create/edit
-  const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams & { sharepoint_path_type?: 'corporate' | 'contacts'; display_mode?: TabDisplayMode; hidden_by_default?: boolean }>>({});
+  const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams & { warehouse_type_override?: 'corporate' | 'contacts'; display_mode?: TabDisplayMode; hidden_by_default?: boolean }>>({});
 
   // Convert entity types to MultipleSelector options
   const entityTypeOptions: Option[] = React.useMemo(() =>
@@ -845,9 +845,9 @@ export function EntityTabsConfig({
       tab_group: group || 'documents',  // Default to documents (most common use case)
       entity_filters: [],
       enabled: true,
-      has_sharepoint_folder: false,
-      sharepoint_folder_path: "",
-      sharepoint_path_type: 'corporate',  // SSoT: Default to corporate path
+      warehouse_enabled: false,
+      warehouse_folder: "",
+      warehouse_type_override: 'corporate',  // SSoT: Default to corporate path
       is_photo_category: false,  // SSoT: Explicit photo category flag
       is_cad_category: false,  // SSoT: Explicit CAD/Revit category flag
       display_mode: 'both',  // SSoT: Default display mode
@@ -860,7 +860,7 @@ export function EntityTabsConfig({
   // (Special config sheets are accessed via dedicated buttons, not the edit action)
   const openEditDialog = (tab: EntityTab) => {
     // Note: Both {{TabName}} (parent) and {{SubTabName}} (current) are valid for subtabs
-    const folderPath = tab.sharepoint_folder_path || "";
+    const folderPath = tab.warehouse_folder || "";
 
     // SSoT: Store original display_name for folder rename detection
     setOriginalDisplayName(tab.display_name);
@@ -874,10 +874,10 @@ export function EntityTabsConfig({
       entity_filters: tab.entity_filters,
       enabled: tab.enabled,
       icon_name: tab.icon_name || "",
-      has_sharepoint_folder: tab.has_sharepoint_folder,
-      sharepoint_folder_path: folderPath,
+      warehouse_enabled: tab.warehouse_enabled,
+      warehouse_folder: folderPath,
       uses_custom_path: tab.uses_custom_path || false,  // SSoT: Template inheritance flag
-      sharepoint_path_type: tab.sharepoint_path_type || 'corporate',  // SSoT: Path type for contacts
+      warehouse_type_override: tab.warehouse_type_override || 'corporate',  // SSoT: Path type for contacts
       // SSoT: Include linked document type IDs
       document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
       is_photo_category: tab.is_photo_category || false,  // SSoT: Explicit photo category flag
@@ -924,7 +924,7 @@ export function EntityTabsConfig({
       if (editingTab) {
         // SSoT: Detect display_name change for folder rename prompt
         const displayNameChanged = originalDisplayName && formData.display_name !== originalDisplayName;
-        const hasSharePointFolder = editingTab.has_sharepoint_folder || formData.has_sharepoint_folder;
+        const hasWarehouseEnabled = editingTab.warehouse_enabled || formData.warehouse_enabled;
 
         // Update existing
         const updateParams: EntityTabUpdateParams = {
@@ -937,10 +937,10 @@ export function EntityTabsConfig({
           entity_filters: formData.entity_filters,
           enabled: formData.enabled,
           icon_name: formData.icon_name,
-          has_sharepoint_folder: formData.has_sharepoint_folder,
-          sharepoint_folder_path: formData.sharepoint_folder_path,
+          warehouse_enabled: formData.warehouse_enabled,
+          warehouse_folder: formData.warehouse_folder,
           uses_custom_path: formData.uses_custom_path,  // SSoT: Template inheritance flag
-          sharepoint_path_type: formData.sharepoint_path_type,  // SSoT: Path type for contacts
+          warehouse_type_override: formData.warehouse_type_override,  // SSoT: Path type for contacts
           // SSoT: Include linked document type IDs
           document_type_ids: formData.document_type_ids,
           is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
@@ -953,7 +953,7 @@ export function EntityTabsConfig({
         refetchUsedIcons();
 
         // SSoT: Show folder rename confirmation if display_name changed and has SharePoint folder
-        if (displayNameChanged && hasSharePointFolder) {
+        if (displayNameChanged && hasWarehouseEnabled) {
           setFolderRenameDialog({
             open: true,
             oldName: originalDisplayName,
@@ -979,9 +979,9 @@ export function EntityTabsConfig({
           entity_filters: formData.entity_filters,
           enabled: formData.enabled ?? true,
           icon_name: formData.icon_name,
-          has_sharepoint_folder: formData.has_sharepoint_folder,
-          sharepoint_folder_path: formData.sharepoint_folder_path,
-          sharepoint_path_type: formData.sharepoint_path_type,  // SSoT: Path type for contacts
+          warehouse_enabled: formData.warehouse_enabled,
+          warehouse_folder: formData.warehouse_folder,
+          warehouse_type_override: formData.warehouse_type_override,  // SSoT: Path type for contacts
           is_photo_category: formData.is_photo_category,  // SSoT: Explicit photo category flag
           is_cad_category: formData.is_cad_category,  // SSoT: Explicit CAD/Revit category flag
           display_mode: formData.display_mode,  // SSoT: Display mode
@@ -1228,7 +1228,7 @@ export function EntityTabsConfig({
           "border rounded-lg",
           !tab.enabled && "opacity-50",
           // SSoT: Custom path tabs get orange tinted background as warning indicator
-          tab.uses_custom_path && tab.has_sharepoint_folder && "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800",
+          tab.uses_custom_path && tab.warehouse_enabled && "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800",
           // Parent tabs with children get a colored background (only if not custom path)
           depth === 0 && hasChildren && !tab.uses_custom_path && "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800",
           // Root tabs without children (only if not custom path)
@@ -1302,7 +1302,7 @@ export function EntityTabsConfig({
                 </TooltipProvider>
               )}
               {/* SSoT: Show folder path badge if tab has folder OR has children (children inherit parent path) */}
-              {(tab.has_sharepoint_folder || hasChildren) && (
+              {(tab.warehouse_enabled || hasChildren) && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -2386,7 +2386,7 @@ export function EntityTabsConfig({
                     // Sub-tabs: inherit from parent - read-only display
                     <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
                       <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                        {editingTab?.sharepoint_base_path || getBasePath(scope)}
+                        {editingTab?.warehouse_base_path || getBasePath(scope)}
                       </span>
                       <span className="text-muted-foreground">/</span>
                     </div>
@@ -2394,11 +2394,11 @@ export function EntityTabsConfig({
                     // Root contact tabs: can choose between /Contacts/ or /Corporate/People/
                     <div className="flex items-center gap-1">
                       <Select
-                        value={formData.sharepoint_path_type === 'corporate' ? 'people' : 'contact'}
+                        value={formData.warehouse_type_override === 'corporate' ? 'people' : 'contact'}
                         onValueChange={(value) =>
                           setFormData((prev) => ({
                             ...prev,
-                            sharepoint_path_type: value === 'people' ? 'corporate' : 'contacts',
+                            warehouse_type_override: value === 'people' ? 'corporate' : 'contacts',
                           }))
                         }
                       >
@@ -2421,7 +2421,7 @@ export function EntityTabsConfig({
                     // Other scopes: read-only display
                     <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
                       <span className="inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border bg-muted dark:bg-slate-800 text-foreground dark:text-muted-foreground border-border dark:border-border">
-                        {editingTab?.sharepoint_base_path || getBasePath(scope)}
+                        {editingTab?.warehouse_base_path || getBasePath(scope)}
                       </span>
                       <span className="text-muted-foreground">/</span>
                     </div>
@@ -2431,11 +2431,11 @@ export function EntityTabsConfig({
                 {/* Editable folder path (read-only for system tabs) */}
                 <TokenBuilder
                   label={editingTab?.is_system_tab ? "Folder Path (system-managed)" : "Folder Path (add placeholders)"}
-                  value={formData.sharepoint_folder_path ?? ""}
+                  value={formData.warehouse_folder ?? ""}
                   onChange={(value) =>
                     setFormData((prev) => ({
                       ...prev,
-                      sharepoint_folder_path: value,
+                      warehouse_folder: value,
                     }))
                   }
                   scope="storage"
@@ -2461,10 +2461,10 @@ export function EntityTabsConfig({
                 {(() => {
                   // SSoT: Get base path from StorageConfiguration scope_folders
                   const basePath = scope === "contact"
-                    ? (formData.sharepoint_path_type === 'corporate'
+                    ? (formData.warehouse_type_override === 'corporate'
                         ? getBasePath("people")
                         : getBasePath("contact"))
-                    : (editingTab?.sharepoint_base_path || getBasePath(scope));
+                    : (editingTab?.warehouse_base_path || getBasePath(scope));
 
                   // Get actual tab names for preview
                   const parentId = formData.parent_id || editingTab?.parent_id;
@@ -2484,7 +2484,7 @@ export function EntityTabsConfig({
                   const parentTabName = parentTab?.display_name || "";
 
                   // Resolve with ACTUAL values, not generic examples
-                  let folderPath = formData.sharepoint_folder_path || currentTabName;
+                  let folderPath = formData.warehouse_folder || currentTabName;
                   folderPath = folderPath
                     .replace(/\{\{SubTabName\}\}/g, currentTabName)
                     .replace(/\{\{TabName\}\}/g, parentTabName || currentTabName)
