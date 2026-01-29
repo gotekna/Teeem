@@ -2212,6 +2212,16 @@ export default function AllDocumentsPage() {
                       />
                     </>
                   )}
+                  {/* Link to Task button - available for ALL documents */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setShowLinkToTaskDialog(true)}
+                    title="Link to Task"
+                  >
+                    <Link2 className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -2606,7 +2616,7 @@ export default function AllDocumentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Link to Task Dialog (for orphaned documents) */}
+      {/* Link to Task Dialog - allows linking any document to a task */}
       <Dialog open={showLinkToTaskDialog} onOpenChange={setShowLinkToTaskDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -2618,7 +2628,9 @@ export default function AllDocumentsPage() {
 
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              This document is orphaned (original task was deleted). Search for a task to link it to.
+              {isOrphanedDocument(previewDocument)
+                ? "This document is orphaned (original task was deleted). Search for a task to link it to."
+                : "Search for a task to link this document to. It will appear in the task's attachments."}
             </p>
 
             <div className="relative">

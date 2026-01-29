@@ -136,7 +136,18 @@ class SmTaskAttachment < ApplicationRecord
   # Create WarehouseDocument entry for this task attachment
   # Links to same StorageBlob as the attached document
   # SSoT: Sets linkable to SmTask for proper folder display in File Warehouse
+  #
+  # Skip creating warehouse entry when attachable IS a WarehouseDocument
+  # because the link_to_task controller action already handles updating it
   def create_warehouse_entry
+    # If attachable is already a WarehouseDocument, it's being linked via the
+    # link_to_task endpoint which updates the existing WarehouseDocument directly.
+    # Creating another one would be a duplicate.
+    if attachable_type == "WarehouseDocument"
+      Rails.logger.info("[SmTaskAttachment] ##{id}: Skipping warehouse entry - attachable is already a WarehouseDocument")
+      return
+    end
+
     blob = storage_blob
     unless blob
       Rails.logger.warn("[SmTaskAttachment] ##{id}: No storage blob found for #{attachable_type}##{attachable_id}")
