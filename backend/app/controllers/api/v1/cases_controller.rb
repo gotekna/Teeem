@@ -39,7 +39,7 @@ module Api
             params[:search],
             columns: %w[title case_number],
             mode: params[:search_mode] || 'contains',
-            model: LegalCase
+            model: CaseRecord
           )
         end
 
