@@ -26,6 +26,9 @@
 class WarehouseDocument < ApplicationRecord
   include TenantResolvable
 
+  # SSoT: Tenant scoping - ensures all queries are scoped to current tenant
+  acts_as_tenant :tenant
+
   # ========================================
   # Callbacks
   # ========================================
@@ -41,6 +44,9 @@ class WarehouseDocument < ApplicationRecord
   # ========================================
   # Associations
   # ========================================
+
+  # SSoT: Tenant association for multi-tenancy
+  belongs_to :tenant
 
   # Polymorphic association to any document model (legacy - optional for new Phase 6 docs)
   belongs_to :documentable, polymorphic: true, optional: true
