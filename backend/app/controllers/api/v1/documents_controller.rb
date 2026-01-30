@@ -1081,10 +1081,13 @@ module Api
       # Original document stays in place (same blob, multiple folder entries)
       # Params:
       #   task_id: The SmTask ID to link to
+      #   action_item_id: (optional) Link to a specific question (sets category to "response")
       #   category: (optional) "info" (default) or "response"
       def link_to_task
         task_id = params[:task_id]
-        category = params[:category] || "info"
+        action_item_id = params[:action_item_id]
+        # If linking to a question, category is always "response"
+        category = action_item_id.present? ? "response" : (params[:category] || "info")
 
         unless task_id.present?
           return render json: { success: false, error: "Missing task_id parameter" }, status: :bad_request
@@ -1095,19 +1098,42 @@ module Api
           return render json: { success: false, error: "Task not found" }, status: :not_found
         end
 
+        # Validate action_item belongs to this task (if provided)
+        action_item = nil
+        if action_item_id.present?
+          action_item = TaskActionItem.find_by(id: action_item_id, sm_task_id: task.id)
+          unless action_item
+            return render json: { success: false, error: "Question not found on this task" }, status: :not_found
+          end
+        end
+
         begin
-          # Check if already attached to this task (avoid duplicates)
-          existing = SmTaskAttachment.find_by(
+          # Check if already attached to this task/question combo (avoid duplicates)
+          # For questions: check same document + same action_item_id
+          # For general attachments: check same document + no action_item_id
+          existing_scope = SmTaskAttachment.where(
             sm_task_id: task.id,
             attachable_type: "WarehouseDocument",
             attachable_id: @document.id
           )
 
-          if existing
-            return render json: {
-              success: false,
-              error: "Document is already attached to this task"
-            }, status: :unprocessable_entity
+          if action_item_id.present?
+            existing = existing_scope.find_by(action_item_id: action_item_id)
+            if existing
+              return render json: {
+                success: false,
+                error: "Document is already attached to this question"
+              }, status: :unprocessable_entity
+            end
+          else
+            # For general attachments, check if any non-question attachment exists
+            existing = existing_scope.where(action_item_id: nil).first
+            if existing
+              return render json: {
+                success: false,
+                error: "Document is already attached to this task"
+              }, status: :unprocessable_entity
+            end
           end
 
           # Create SmTaskAttachment pointing to this WarehouseDocument
@@ -1117,6 +1143,7 @@ module Api
             sm_task_id: task.id,
             attachable_type: "WarehouseDocument",
             attachable_id: @document.id,
+            action_item_id: action_item_id,
             category: category,
             attachment_type: "document",
             added_by: current_user,
