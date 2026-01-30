@@ -8,7 +8,7 @@
 #   - Virtual folders: WarehouseDocument.folder stores UI path (e.g., "inbox@tekna.com.au/2026/01")
 #   - Files NEVER move in S3 - only virtual folder paths change in database
 #
-# Provider-agnostic: Uses StorageConfiguration to determine Wasabi/S3 vs SharePoint
+# Provider-agnostic: Uses WarehouseProvider to determine Wasabi/S3 vs SharePoint
 # Parallel processing: 2 threads (Microsoft Graph API MailboxConcurrency limit)
 #
 # Usage:
@@ -27,7 +27,7 @@ class EmailStorageUploadService
     @tenant = tenant || ActsAsTenant.current_tenant
     raise ::TenantNotFoundError, "Tenant required for EmailStorageUploadService" unless @tenant
 
-    @storage_config = StorageConfiguration.for_tenant(@tenant)
+    @storage_config = WarehouseProvider.for_tenant(@tenant)
     @provider = get_storage_provider
     @stats = { uploaded: 0, skipped: 0, errors: [], total: 0 }
     @stats_mutex = Mutex.new

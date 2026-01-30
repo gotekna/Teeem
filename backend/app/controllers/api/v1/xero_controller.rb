@@ -1726,8 +1726,8 @@ module Api
           end
 
           # Stage 3 blocker info
-          # SSoT: Get storage provider name from StorageConfiguration
-          storage_provider_name = case StorageConfiguration.instance&.provider_type
+          # SSoT: Get storage provider name from WarehouseProvider
+          storage_provider_name = case WarehouseProvider.instance&.provider_type
                                   when "s3_compatible" then "Wasabi"
                                   when "sharepoint" then "SharePoint"
                                   when "local" then "Local Storage"
@@ -1781,16 +1781,16 @@ module Api
           end
 
           # Get SharePoint URL for Contacts folder (only for SharePoint provider)
-          # SSoT: Use StorageConfiguration for paths
+          # SSoT: Use WarehouseProvider for paths
           sharepoint_contacts_url = nil
           begin
-            storage_config = StorageConfiguration.instance
+            storage_config = WarehouseProvider.instance
             # Only build SharePoint URLs when using SharePoint provider
             if storage_config&.sharepoint?
               credential = MicrosoftCredential.sharepoint_credential
               if credential&.metadata&.dig("site_web_url")
                 contacts_folder = storage_config.path_for(:contacts)
-                # SSoT: root_path comes from StorageConfiguration (e.g., "Shared Documents" for SharePoint)
+                # SSoT: root_path comes from WarehouseProvider (e.g., "Shared Documents" for SharePoint)
                 root_path = storage_config.root_path&.sub(%r{^/}, "")
                 encoded_folder = ERB::Util.url_encode(contacts_folder)
                 encoded_root = ERB::Util.url_encode(root_path) if root_path.present?

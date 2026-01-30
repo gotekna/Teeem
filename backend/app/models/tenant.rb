@@ -58,7 +58,7 @@ class Tenant < ApplicationRecord
   has_many :organization_microsoft_app_credentials, dependent: :destroy
 
   # Storage configuration (absorbed from Organization)
-  has_one :storage_configuration, dependent: :destroy
+  has_one :warehouse_provider, dependent: :destroy
   has_one :backup_configuration, dependent: :destroy
   belongs_to :document_provider_credential, class_name: 'S3CompatibleCredential', optional: true
 
@@ -150,7 +150,7 @@ class Tenant < ApplicationRecord
 
   # Get or create storage configuration for this tenant
   def storage_config
-    storage_configuration || StorageConfiguration.for_tenant(self)
+    warehouse_provider || WarehouseProvider.for_tenant(self)
   end
 
   # Check if S3-compatible storage is enabled

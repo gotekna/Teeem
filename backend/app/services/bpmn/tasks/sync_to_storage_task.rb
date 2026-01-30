@@ -5,13 +5,13 @@ module Bpmn
     # SyncToStorageTask - Provider-agnostic document sync (SSoT compliant)
     #
     # ╔═══════════════════════════════════════════════════════════════════╗
-    # ║  SSoT: Uses DocumentStorageService → StorageConfiguration          ║
+    # ║  SSoT: Uses DocumentStorageService → WarehouseProvider          ║
     # ║  Works with Wasabi, S3, SharePoint, or Local storage              ║
     # ╚═══════════════════════════════════════════════════════════════════╝
     #
     # This task replaces the legacy SyncToSharepointTask which hardcoded SharePoint.
     # It uses DocumentStorageService to upload documents, respecting the tenant's
-    # configured storage provider (from StorageConfiguration.provider_type).
+    # configured storage provider (from WarehouseProvider.provider_type).
     #
     # Config:
     #   source:
@@ -36,7 +36,7 @@ module Bpmn
 
         log_info("Syncing documents to storage: #{destination_path}")
 
-        # SSoT: Setup provider from StorageConfiguration
+        # SSoT: Setup provider from WarehouseProvider
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e

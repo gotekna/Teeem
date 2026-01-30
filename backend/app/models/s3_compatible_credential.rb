@@ -22,8 +22,8 @@
 #   )
 #
 # SSoT (Jan 2026): This model stores AUTH credentials only.
-# Bucket is NO LONGER stored here - StorageConfiguration.bucket is THE ONE SSoT.
-# test_connection! reads bucket from StorageConfiguration or accepts a test bucket param.
+# Bucket is NO LONGER stored here - WarehouseProvider.bucket is THE ONE SSoT.
+# test_connection! reads bucket from WarehouseProvider or accepts a test bucket param.
 # DocumentProviders should NEVER read bucket from credential.
 #
 class S3CompatibleCredential < ApplicationRecord
@@ -44,7 +44,7 @@ class S3CompatibleCredential < ApplicationRecord
   validates :name, presence: true
   validates :provider_type, presence: true, inclusion: { in: PROVIDER_TYPES }
   validates :region, presence: true
-  # NOTE: bucket validation REMOVED (Jan 2026) - StorageConfiguration.bucket is SSoT
+  # NOTE: bucket validation REMOVED (Jan 2026) - WarehouseProvider.bucket is SSoT
   # The bucket column is kept for backward compatibility but is no longer required
   validates :access_key_id, presence: true
   validates :secret_access_key, presence: true
@@ -70,9 +70,9 @@ class S3CompatibleCredential < ApplicationRecord
   end
 
   # Get the full bucket URL for display
-  # SSoT (Jan 2026): Uses StorageConfiguration.bucket, not credential.bucket
+  # SSoT (Jan 2026): Uses WarehouseProvider.bucket, not credential.bucket
   def bucket_url
-    ssot_bucket = StorageConfiguration.instance&.bucket
+    ssot_bucket = WarehouseProvider.instance&.bucket
     return nil unless ssot_bucket.present?
 
     case provider_type
@@ -85,11 +85,11 @@ class S3CompatibleCredential < ApplicationRecord
     end
   end
 
-  # DEPRECATED: bucket now lives in StorageConfiguration (SSoT)
+  # DEPRECATED: bucket now lives in WarehouseProvider (SSoT)
   # This method is kept for backward compatibility but will be removed
   def bucket
-    Rails.logger.warn "[DEPRECATED] S3CompatibleCredential#bucket is deprecated. Use StorageConfiguration.instance.bucket instead."
-    StorageConfiguration.instance&.bucket || read_attribute(:bucket)
+    Rails.logger.warn "[DEPRECATED] S3CompatibleCredential#bucket is deprecated. Use WarehouseProvider.instance.bucket instead."
+    WarehouseProvider.instance&.bucket || read_attribute(:bucket)
   end
 
   # Build an AWS S3 client for this credential
@@ -119,12 +119,12 @@ class S3CompatibleCredential < ApplicationRecord
   # Test the connection
   # @param test_bucket [String, nil] Optional bucket to test (for form validation before StorageConfig exists)
   # @return [Boolean] True if connection successful
-  # SSoT (Jan 2026): Bucket comes from StorageConfiguration, not credential
+  # SSoT (Jan 2026): Bucket comes from WarehouseProvider, not credential
   def test_connection!(test_bucket = nil)
     client = build_client
 
-    # Use provided bucket, or fall back to StorageConfiguration SSoT
-    bucket_to_test = test_bucket.presence || StorageConfiguration.instance&.bucket
+    # Use provided bucket, or fall back to WarehouseProvider SSoT
+    bucket_to_test = test_bucket.presence || WarehouseProvider.instance&.bucket
     raise "No bucket configured. Set bucket in Storage Configuration first." unless bucket_to_test.present?
 
     client.head_bucket(bucket: bucket_to_test)
@@ -160,11 +160,11 @@ class S3CompatibleCredential < ApplicationRecord
     status == "connected" && is_active?
   end
 
-  # DEPRECATED: root_path now lives in StorageConfiguration (SSoT)
+  # DEPRECATED: root_path now lives in WarehouseProvider (SSoT)
   # This method is kept for backward compatibility but will be removed
   def root_path
-    Rails.logger.warn "[DEPRECATED] S3CompatibleCredential#root_path is deprecated. Use StorageConfiguration.instance.root_path instead."
-    StorageConfiguration.instance&.root_path || read_attribute(:root_path) || ""
+    Rails.logger.warn "[DEPRECATED] S3CompatibleCredential#root_path is deprecated. Use WarehouseProvider.instance.root_path instead."
+    WarehouseProvider.instance&.root_path || read_attribute(:root_path) || ""
   end
 
   private
@@ -172,7 +172,7 @@ class S3CompatibleCredential < ApplicationRecord
   def set_defaults
     self.status ||= "pending"
     self.metadata ||= {}
-    # NOTE: root_path column removed - now lives in StorageConfiguration (SSoT)
+    # NOTE: root_path column removed - now lives in WarehouseProvider (SSoT)
 
     # Auto-detect region from endpoint for Backblaze B2
     if provider_type == "backblaze_b2" && endpoint.present? && region.blank?

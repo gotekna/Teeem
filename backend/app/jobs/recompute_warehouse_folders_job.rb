@@ -2,11 +2,11 @@
 
 # RecomputeWarehouseFoldersJob - SSoT for folder path updates
 #
-# Triggered when StorageConfiguration.warehouse_folders templates change.
+# Triggered when WarehouseProvider.warehouse_folders templates change.
 # Updates all WarehouseDocument.folder values to match new templates.
 #
 # This ensures File Warehouse always reflects current template configuration,
-# making StorageConfiguration the TRUE SSoT for folder structure.
+# making WarehouseProvider the TRUE SSoT for folder structure.
 #
 # Usage:
 #   RecomputeWarehouseFoldersJob.perform_later(tenant_id, ["task", "task_attachments"])
@@ -30,7 +30,7 @@ class RecomputeWarehouseFoldersJob < ApplicationJob
   def perform(tenant_id, changed_warehouse_types)
     tenant = Tenant.find(tenant_id)
     ActsAsTenant.with_tenant(tenant) do
-      config = StorageConfiguration.instance
+      config = WarehouseProvider.instance
 
       changed_warehouse_types.each do |warehouse_type|
         recompute_folders_for_type(config, warehouse_type)

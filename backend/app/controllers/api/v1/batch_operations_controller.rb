@@ -140,7 +140,7 @@ module Api
         )
         operation.save!
 
-        # SSoT: Setup provider using StorageConfiguration
+        # SSoT: Setup provider using WarehouseProvider
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e

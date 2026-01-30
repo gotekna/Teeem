@@ -29,7 +29,7 @@ class TeeemSpreadsheet < ApplicationRecord
   scope :unattached, -> { where(job_id: nil) }
 
   # ========================================
-  # Warehouse Path (SSoT: StorageConfiguration)
+  # Warehouse Path (SSoT: WarehouseProvider)
   # ========================================
 
   # SSoT: Full warehouse path including filename
@@ -38,9 +38,9 @@ class TeeemSpreadsheet < ApplicationRecord
     "#{warehouse_folder_path}/#{safe_filename}_#{id}.xlsx".gsub(%r{/+}, "/")
   end
 
-  # SSoT: Folder path computed by StorageConfiguration
+  # SSoT: Folder path computed by WarehouseProvider
   def warehouse_folder_path
-    StorageConfiguration.instance.resolve_warehouse_path(self, scope: :excel_documents)
+    WarehouseProvider.instance.resolve_warehouse_path(self, scope: :excel_documents)
   end
 
   # Safe filename (remove special characters)

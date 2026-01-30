@@ -461,7 +461,7 @@ Rails.application.routes.draw do
       get "documents/corporate_folder_files", to: "documents#folder_files"
       # Warehouse files (TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf)
       get "documents/warehouse_files", to: "documents#warehouse_files"
-      # SSoT: Folder hierarchy matching StorageConfiguration.SCOPE_TEMPLATES
+      # SSoT: Folder hierarchy matching WarehouseProvider.SCOPE_TEMPLATES
       # Used by File Warehouse to build tree structure that mirrors storage paths
       get "documents/scope_hierarchy", to: "documents#scope_hierarchy"
       # SSoT: OneDrive-like S3 folder browser - lists actual S3/Wasabi folders
@@ -1589,7 +1589,7 @@ Rails.application.routes.draw do
 
       # Storage Configuration (Provider-agnostic SSoT)
       # SSoT: Use these endpoints for ALL storage providers (SharePoint, S3, Wasabi, local)
-      resource :storage_configuration, only: [:show, :update] do
+      resource :warehouse_provider, only: [:show, :update] do
         post :test, on: :collection, action: :test_connection
       end
 
@@ -1616,7 +1616,7 @@ Rails.application.routes.draw do
         get :document_paths, on: :collection
         patch :document_paths, on: :collection, action: :update_document_paths
 
-        # DEPRECATED: Use /api/v1/storage_configuration instead
+        # DEPRECATED: Use /api/v1/warehouse_provider instead
         # Kept for backward compatibility - redirects to new controller
         get :sharepoint, on: :collection
         patch :sharepoint, on: :collection, action: :update_sharepoint

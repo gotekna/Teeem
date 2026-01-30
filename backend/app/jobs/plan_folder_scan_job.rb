@@ -5,7 +5,7 @@
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
-# ║  Scans Wasabi, SharePoint, or S3 based on StorageConfiguration    ║
+# ║  Scans Wasabi, SharePoint, or S3 based on WarehouseProvider    ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 class PlanFolderScanJob < ApplicationJob
@@ -23,7 +23,7 @@ class PlanFolderScanJob < ApplicationJob
   end
 
   def perform(job_id: nil)
-    # SSoT: Setup document provider using StorageConfiguration
+    # SSoT: Setup document provider using WarehouseProvider
     begin
       setup_default_provider!
     rescue DocumentProviders::NotConnectedError => e
@@ -121,7 +121,7 @@ class PlanFolderScanJob < ApplicationJob
     [found_count, new_count]
   end
 
-  # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+  # SSoT: Use WarehouseProvider.job_path for consistent folder naming
   def build_job_folder_path(job)
     storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
   end

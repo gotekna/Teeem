@@ -40,14 +40,14 @@ module Api
       end
 
       # GET /api/v1/corporate_company_settings/document_paths
-      # SSoT: StorageConfiguration is THE ONE source for storage paths
-      # Deprecated: Use /api/v1/storage_configuration instead
+      # SSoT: WarehouseProvider is THE ONE source for storage paths
+      # Deprecated: Use /api/v1/warehouse_provider instead
       def document_paths
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
         render json: {
           success: true,
           data: {
-            # SSoT: StorageConfiguration is THE ONE source for storage paths
+            # SSoT: WarehouseProvider is THE ONE source for storage paths
             company_documents_base_path: storage_config&.path_for(:corporate) || "Corporate",
             people_documents_base_path: storage_config&.path_for(:people) || "People",
             job_documents_base_path: storage_config&.path_for(:job) || "Jobs"
@@ -56,12 +56,12 @@ module Api
       end
 
       # PATCH /api/v1/corporate_company_settings/document_paths
-      # SSoT: StorageConfiguration is THE ONE source for storage paths
-      # Deprecated: Use /api/v1/storage_configuration instead
+      # SSoT: WarehouseProvider is THE ONE source for storage paths
+      # Deprecated: Use /api/v1/warehouse_provider instead
       def update_document_paths
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
 
-        # SSoT: Update scope_root_folders in StorageConfiguration
+        # SSoT: Update scope_root_folders in WarehouseProvider
         update_attrs = {}
         new_scope_root_folders = storage_config.scope_root_folders&.dup || {}
 
@@ -99,20 +99,20 @@ module Api
       # ========================================
 
       # GET /api/v1/corporate_company_settings/sharepoint
-      # SSoT: Now uses StorageConfiguration for path/connection config
+      # SSoT: Now uses WarehouseProvider for path/connection config
       def sharepoint
         render json: {
           success: true,
-          data: StorageConfiguration.instance&.to_config_hash || {}
+          data: WarehouseProvider.instance&.to_config_hash || {}
         }
       end
 
       # PATCH /api/v1/corporate_company_settings/sharepoint
-      # SSoT: Updates StorageConfiguration directly (Jan 2026)
+      # SSoT: Updates WarehouseProvider directly (Jan 2026)
       def update_sharepoint
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
 
-        # Map frontend params to StorageConfiguration structure
+        # Map frontend params to WarehouseProvider structure
         sp = sharepoint_params
 
         # Get provider type (default to current or sharepoint)
@@ -135,7 +135,7 @@ module Api
         end
 
         # SSoT: Folder paths are managed by EntityTab (Entity Configurator)
-        # StorageConfiguration only handles CONNECTION config
+        # WarehouseProvider only handles CONNECTION config
         # paths/templates columns are deprecated and will be removed in future migration
 
         # Determine status based on provider and connection config
@@ -150,7 +150,7 @@ module Api
           "disconnected"
         end
 
-        # Update StorageConfiguration (connection + paths)
+        # Update WarehouseProvider (connection + paths)
         update_attrs = {
           provider_type: provider_type,
           connection_config: connection_config,
@@ -190,7 +190,7 @@ module Api
 
       # POST /api/v1/corporate_company_settings/sharepoint/test
       def test_sharepoint
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
 
         unless storage_config&.connected?
           return render json: {
@@ -421,7 +421,7 @@ module Api
           :twilio_enabled,
           :timezone,
           :contact_documents_path,
-          # SSoT: contact_folder_format removed - use StorageConfiguration.template_for(:contact)
+          # SSoT: contact_folder_format removed - use WarehouseProvider.template_for(:contact)
           working_days: [
             :monday,
             :tuesday,
@@ -458,8 +458,8 @@ module Api
           :s3_region,
           # Root path
           :sharepoint_root_path,
-          # SSoT: Scope folders from StorageConfiguration.effective_scope_folders
-          scope_folders: StorageConfiguration.instance.effective_scope_folders.keys.map(&:to_sym),
+          # SSoT: Scope folders from WarehouseProvider.effective_scope_folders
+          scope_folders: WarehouseProvider.instance.effective_scope_folders.keys.map(&:to_sym),
           # SSoT: File name templates (auto-saved from Entity Config)
           file_name_templates: {},
           # SSoT: Config links for scope folders (URL to external config page)

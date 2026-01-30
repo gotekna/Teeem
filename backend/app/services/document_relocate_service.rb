@@ -111,12 +111,12 @@ class DocumentRelocateService
   end
 
   # Build target folder path for company/folder combination
-  # SSoT: Uses StorageConfiguration for path building
+  # SSoT: Uses WarehouseProvider for path building
   def build_target_folder_path(company_id:, folder:)
     company = CorporateCompany.find_by(id: company_id)
     return nil unless company
 
-    storage_config = StorageConfiguration.instance
+    storage_config = WarehouseProvider.instance
     base_path = storage_config.path_for(:corporate)
     company_folder = company.document_folder_name || company.name
 

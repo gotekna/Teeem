@@ -31,7 +31,7 @@ module Api
         id = SecureRandom.urlsafe_base64(6) # 8 chars
 
         # FRC (Jan 2026): Use 7-day expiry to match typical presigned URL expiry
-        # Note: Can't use StorageConfiguration.instance here - this is a public endpoint without tenant context
+        # Note: Can't use WarehouseProvider.instance here - this is a public endpoint without tenant context
         # The viewer context just needs to outlive the presigned URLs it contains, which are typically 7 days
         Rails.cache.write("viewer_context:#{id}", context.to_json, expires_in: 7.days)
 

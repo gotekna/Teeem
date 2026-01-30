@@ -39,7 +39,7 @@ class PlanStagingCleanupJob < ApplicationJob
   private
 
   def cleanup_storage_staging_folder
-    # SSoT: Setup document provider using StorageConfiguration
+    # SSoT: Setup document provider using WarehouseProvider
     begin
       setup_default_provider!
     rescue DocumentProviders::NotConnectedError => e

@@ -20,7 +20,7 @@ class SyncTaskAttachmentsJob < ApplicationJob
 
     Tenant.find_each do |tenant|
       ActsAsTenant.with_tenant(tenant) do
-        config = StorageConfiguration.instance rescue nil
+        config = WarehouseProvider.instance rescue nil
         next unless config
 
         created, skipped, errors = sync_tenant_attachments(tenant, config)

@@ -41,14 +41,14 @@ module Api
 
       # GET /api/v1/documents/status
       # Check if organization has OneDrive connected
-      # SSoT: StorageConfiguration.provider_type determines THE ONE storage backend
+      # SSoT: WarehouseProvider.provider_type determines THE ONE storage backend
       # No fallback chains - one provider, one credential check
       def status
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
 
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
         provider = storage_config&.provider_type || "s3_compatible"
 
         case provider
@@ -104,7 +104,7 @@ module Api
               provider_type: provider,
               drive_id: storage_config&.drive_id,
               drive_name: storage_config&.drive_name,
-              root_folder_id: storage_config&.root_folder_id,  # SSoT: StorageConfiguration
+              root_folder_id: storage_config&.root_folder_id,  # SSoT: WarehouseProvider
               root_folder_path: storage_config&.root_path,
               connected_at: credential.created_at,
               connected_by: credential.connected_by&.as_json
@@ -212,8 +212,8 @@ module Api
               Rails.logger.error "Failed to get personal OneDrive info: #{e.message}"
             end
           else
-            # SSoT: Get SharePoint site name from StorageConfiguration (Jan 2026)
-            storage_config = StorageConfiguration.instance
+            # SSoT: Get SharePoint site name from WarehouseProvider (Jan 2026)
+            storage_config = WarehouseProvider.instance
             site_name = storage_config&.site_name.presence || CorporateCompanySetting.instance.company_name
             site_name_lower = site_name&.downcase || ""
 
@@ -234,7 +234,7 @@ module Api
             end
 
             # Create root folder for all jobs in the SharePoint site (SSoT)
-            jobs_folder_name = StorageConfiguration.instance.path_for(:jobs)
+            jobs_folder_name = WarehouseProvider.instance.path_for(:jobs)
             Rails.logger.info "Creating root folder '#{jobs_folder_name}'..."
             root_folder = client.create_jobs_root_folder(jobs_folder_name)
             Rails.logger.info "Root folder created successfully at: #{root_folder['webUrl']}"
@@ -356,8 +356,8 @@ module Api
             end
           end
 
-          # SSoT: Update StorageConfiguration with root folder info (not credential)
-          storage_config = StorageConfiguration.instance
+          # SSoT: Update WarehouseProvider with root folder info (not credential)
+          storage_config = WarehouseProvider.instance
           if storage_config
             storage_config.root_folder_id = current_folder["id"]
             storage_config.root_folder_path = sanitized_path
@@ -435,8 +435,8 @@ module Api
           # Get personal OneDrive info
           drive_info = client.get("/me/drive")
 
-          # SSoT: Update StorageConfiguration with new drive info
-          storage_config = StorageConfiguration.instance
+          # SSoT: Update WarehouseProvider with new drive info
+          storage_config = WarehouseProvider.instance
           if storage_config
             storage_config.update_connection(
               "drive_id" => drive_info["id"],
@@ -494,8 +494,8 @@ module Api
           client = MicrosoftGraphClient.new(credential)
           result = client.use_sharepoint_site(site_name)
 
-          # SSoT: Reset root folder in StorageConfiguration (not credential)
-          storage_config = StorageConfiguration.instance
+          # SSoT: Reset root folder in WarehouseProvider (not credential)
+          storage_config = WarehouseProvider.instance
           if storage_config
             storage_config.root_folder_id = nil
             storage_config.root_folder_path = nil
@@ -556,7 +556,7 @@ module Api
           if sharepoint_credential.credential_type == "app"
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
             client = sharepoint_client
-            storage_config = StorageConfiguration.instance
+            storage_config = WarehouseProvider.instance
 
             unless storage_config&.connected?
               return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
@@ -606,8 +606,8 @@ module Api
             # Delegated credentials use MicrosoftGraphClient with /me endpoints
             client = sharepoint_client
 
-            # SSoT: Get drive path from StorageConfiguration (Jan 2026)
-            config = StorageConfiguration.instance
+            # SSoT: Get drive path from WarehouseProvider (Jan 2026)
+            config = WarehouseProvider.instance
             drive_path = config&.drive_id.present? ? "/drives/#{config.drive_id}" : "/me/drive"
 
             # Get folders in the specified location
@@ -697,8 +697,8 @@ module Api
         begin
           client = MicrosoftGraphClient.new(credential)
 
-          # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
-          storage_drive_id = StorageConfiguration.instance&.drive_id
+          # SSoT: Get drive_id from WarehouseProvider (Jan 2026)
+          storage_drive_id = WarehouseProvider.instance&.drive_id
           folder = client.create_folder(folder_name, drive_id: storage_drive_id)
 
           render json: {
@@ -836,7 +836,7 @@ module Api
       def list_job_items
         job = Job.find(params[:job_id])
 
-        # SSoT: Setup provider using StorageConfiguration
+        # SSoT: Setup provider using WarehouseProvider
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
@@ -1156,7 +1156,7 @@ module Api
           # Check credentials to determine provider (no tenant context needed)
           #
           # For public downloads (preview=true, no auth), we need to set tenant context
-          # since S3Compatible provider requires StorageConfiguration which is tenant-scoped.
+          # since S3Compatible provider requires WarehouseProvider which is tenant-scoped.
           # Default to first tenant for public access (single-tenant system).
           unless ActsAsTenant.current_tenant
             ActsAsTenant.current_tenant = Tenant.first
@@ -1254,7 +1254,7 @@ module Api
 
         begin
           client = sharepoint_client
-          config = StorageConfiguration.instance
+          config = WarehouseProvider.instance
 
           # App credentials use different API methods than delegated
           if sharepoint_credential.credential_type == "app"
@@ -1318,7 +1318,7 @@ module Api
           if is_app_credential
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
             client = MicrosoftAppGraphClient.new(credential)
-            storage_config = StorageConfiguration.instance
+            storage_config = WarehouseProvider.instance
 
             unless storage_config&.connected?
               return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
@@ -1347,8 +1347,8 @@ module Api
           else
             # Delegated credentials use MicrosoftGraphClient with /me endpoints
             client = MicrosoftGraphClient.new(credential)
-            # SSoT: Get drive path from StorageConfiguration (Jan 2026)
-            storage_drive_id = StorageConfiguration.instance&.drive_id
+            # SSoT: Get drive path from WarehouseProvider (Jan 2026)
+            storage_drive_id = WarehouseProvider.instance&.drive_id
             drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
 
             # Fetch single item - this returns @microsoft.graph.downloadUrl
@@ -1437,7 +1437,7 @@ module Api
         begin
           client = sharepoint_client
           # SSoT: Get storage config for drive_id/root_folder_id (Jan 2026)
-          storage_config = StorageConfiguration.instance
+          storage_config = WarehouseProvider.instance
           storage_root_folder_id = storage_config&.root_folder_id
           storage_drive_id = storage_config&.drive_id
 
@@ -2348,8 +2348,8 @@ module Api
 
         begin
           client = MicrosoftGraphClient.new(credential)
-          # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
-          storage_drive_id = StorageConfiguration.instance&.drive_id
+          # SSoT: Get drive_id from WarehouseProvider (Jan 2026)
+          storage_drive_id = WarehouseProvider.instance&.drive_id
 
           # Rename the file in SharePoint (SSoT: use storage_reference from blob)
           storage_ref = document.storage_blob&.storage_path
@@ -2420,8 +2420,8 @@ module Api
         results = { approved: 0, failed: 0, errors: [] }
 
         client = MicrosoftGraphClient.new(credential)
-        # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
-        storage_drive_id = StorageConfiguration.instance&.drive_id
+        # SSoT: Get drive_id from WarehouseProvider (Jan 2026)
+        storage_drive_id = WarehouseProvider.instance&.drive_id
 
         documents.each do |doc|
           begin
@@ -2531,7 +2531,7 @@ module Api
 
         begin
           # SSoT: Only serve documents from current storage provider (no fallback)
-          storage_config = StorageConfiguration.instance
+          storage_config = WarehouseProvider.instance
           doc_provider = document.meta("storage_provider") || storage_config.provider_type || "sharepoint"
 
           unless storage_config.document_in_current_provider?(doc_provider)
@@ -2591,7 +2591,7 @@ module Api
 
         begin
           # SSoT: Only serve documents from current storage provider (no fallback)
-          storage_config = StorageConfiguration.instance
+          storage_config = WarehouseProvider.instance
           doc_provider = document.meta("storage_provider") || storage_config.provider_type || "sharepoint"
 
           unless storage_config.document_in_current_provider?(doc_provider)
@@ -2634,10 +2634,10 @@ module Api
 
       private
 
-      # Build job folder path using SSoT pattern from StorageConfiguration
+      # Build job folder path using SSoT pattern from WarehouseProvider
       # SSoT: Uses job_code ("J" + id), e.g., "J201"
       def build_job_folder_path(job)
-        # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+        # SSoT: Use WarehouseProvider.job_path for consistent folder naming
         storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
       end
 
@@ -2699,7 +2699,7 @@ module Api
         end
 
         client = sharepoint_client
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
 
         unless config&.connected?
           raise DocumentProviders::NotConnectedError, "SharePoint not configured"
@@ -2806,7 +2806,7 @@ module Api
         end
 
         client = sharepoint_client
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
 
         # Get file metadata and content
         # App credentials use different API methods than delegated
@@ -2887,7 +2887,7 @@ module Api
         end
 
         client = sharepoint_client
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
 
         # Get file metadata and content
         # App credentials use different API methods than delegated
@@ -2947,7 +2947,7 @@ module Api
         end
 
         client = sharepoint_client
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
 
         # Get download URL
         # App credentials use different API methods than delegated
@@ -2968,8 +2968,8 @@ module Api
       def change_root_folder_by_id(credential, folder_id)
         client = MicrosoftGraphClient.new(credential)
 
-        # SSoT: Get drive path from StorageConfiguration (Jan 2026)
-        storage_drive_id = StorageConfiguration.instance&.drive_id
+        # SSoT: Get drive path from WarehouseProvider (Jan 2026)
+        storage_drive_id = WarehouseProvider.instance&.drive_id
         drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
 
         # Get folder info from Graph API
@@ -2988,8 +2988,8 @@ module Api
           full_path = folder_name
         end
 
-        # SSoT: Update StorageConfiguration with root folder info (not credential)
-        storage_config = StorageConfiguration.instance
+        # SSoT: Update WarehouseProvider with root folder info (not credential)
+        storage_config = WarehouseProvider.instance
         if storage_config
           storage_config.root_folder_id = folder_response["id"]
           storage_config.root_folder_path = full_path
@@ -3212,13 +3212,13 @@ module Api
 
       # Recursively list all files in a job folder
       # Similar to JobDocumentMigrationService but for the job's own folder
-      # SSoT: Uses StorageConfiguration for drive_id (Jan 2026)
+      # SSoT: Uses WarehouseProvider for drive_id (Jan 2026)
       def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
         files = []
         folders_to_process = [ [ root_folder_id, 0, "" ] ] # [folder_id, depth, path]
         start_time = Time.now
-        # SSoT: Get drive_id from StorageConfiguration
-        storage_drive_id = StorageConfiguration.instance&.drive_id
+        # SSoT: Get drive_id from WarehouseProvider
+        storage_drive_id = WarehouseProvider.instance&.drive_id
 
         while folders_to_process.any?
           # Check if we've exceeded the time limit

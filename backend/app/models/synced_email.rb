@@ -408,7 +408,7 @@ class SyncedEmail < ApplicationRecord
   INVALID_FOLDER_CHARS = /[:\/*?"<>|\\]/
 
   # Compute virtual folder path for organizing emails
-  # Reads template from StorageConfiguration.virtual_template_for(:email)
+  # Reads template from WarehouseProvider.virtual_template_for(:email)
   # Default template: "{{Mailbox}}/Email Body/{{Year}}/{{Month}}"
   #
   # Available tokens:
@@ -436,13 +436,13 @@ class SyncedEmail < ApplicationRecord
 
   private
 
-  # Resolve virtual path using template from StorageConfiguration
+  # Resolve virtual path using template from WarehouseProvider
   # No fallback - if template is nil, that's a config error that should be fixed
   def resolve_virtual_path(scope)
-    # Get template from StorageConfiguration (SSoT)
-    config = StorageConfiguration.instance
+    # Get template from WarehouseProvider (SSoT)
+    config = WarehouseProvider.instance
     template = config&.virtual_template_for(scope)
-    raise "StorageConfiguration missing :#{scope} template - run rails warehouse:init" unless template
+    raise "WarehouseProvider missing :#{scope} template - run rails warehouse:init" unless template
 
     # Build substitution values
     mailbox_name = email_mailbox&.email_address || mailbox_owner_email || "Unknown"

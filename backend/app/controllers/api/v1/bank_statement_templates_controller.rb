@@ -201,7 +201,7 @@ module Api
       end
 
       def serve_sharepoint_reference
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
         unless storage_config&.connected?
           return render json: {
             success: false,

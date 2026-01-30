@@ -779,13 +779,13 @@ class Api::V1::MicrosoftAppController < ApplicationController
   end
 
   # POST /api/v1/microsoft_app/sync_to_storage
-  # Sync emails to SyncedEmail and upload to configured storage provider (SSoT: StorageConfiguration)
+  # Sync emails to SyncedEmail and upload to configured storage provider (SSoT: WarehouseProvider)
   def sync_to_storage
     unless current_user_admin?
       return render json: { error: "Only admins can trigger storage sync" }, status: :forbidden
     end
 
-    # Queue the storage upload job (respects StorageConfiguration provider)
+    # Queue the storage upload job (respects WarehouseProvider provider)
     UploadEmailsToStorageJob.perform_later(batch_size: 500)
 
     render json: {
@@ -909,11 +909,11 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "site_id and drive_id are required" }, status: :bad_request
     end
 
-    # SSoT: Update StorageConfiguration instead of MicrosoftCredential
-    # MicrosoftCredential only holds auth tokens, StorageConfiguration holds connection config
-    storage_config = StorageConfiguration.instance
+    # SSoT: Update WarehouseProvider instead of MicrosoftCredential
+    # MicrosoftCredential only holds auth tokens, WarehouseProvider holds connection config
+    storage_config = WarehouseProvider.instance
     unless storage_config
-      return render json: { error: "No StorageConfiguration found" }, status: :not_found
+      return render json: { error: "No WarehouseProvider found" }, status: :not_found
     end
 
     # Update the SharePoint connection config
@@ -962,7 +962,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Organization not connected" }, status: :not_found
     end
 
-    unless StorageConfiguration.instance&.connected?
+    unless WarehouseProvider.instance&.connected?
       return render json: { error: "Storage not configured. Please configure storage provider first." }, status: :unprocessable_entity
     end
 
@@ -1071,7 +1071,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
     return unless mc
 
     # Note: sharepoint_* columns removed from MicrosoftCredential in Phase 5
-    # SSoT: SharePoint config now lives in StorageConfiguration
+    # SSoT: SharePoint config now lives in WarehouseProvider
     mc.update!(
       access_token: old_credential.access_token,
       token_expires_at: old_credential.token_expires_at,

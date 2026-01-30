@@ -45,7 +45,7 @@ module Api
                   .order(:name)
 
         # SSoT: Only show photos from current storage provider (no fallback)
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
         valid_providers = storage_config.current_provider_storage_values
 
         # Build response grouped by supervisor

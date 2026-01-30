@@ -9,7 +9,7 @@ module Api
       # Returns file counts for the entire warehouse (fast)
       # Used by the File Warehouse page
       # SSoT: Counts ALL file types - documents, emails, attachments, tasks
-      # NOTE: Scope keys match StorageConfiguration.SCOPE_FOLDERS for consistency
+      # NOTE: Scope keys match WarehouseProvider.SCOPE_FOLDERS for consistency
       #
       # Phase 3: Now uses WarehouseDocument as SSoT for migrated documents
       def all
@@ -63,7 +63,7 @@ module Api
         warehousing_count = excel_count + word_count + powerpoint_count + pdf_count + notes_count
 
         # User files from S3 (MyDocs folder)
-        # SSoT: Path matches StorageConfiguration.SCOPE_FOLDERS["my_docs"] = "Users/MyDocs"
+        # SSoT: Path matches WarehouseProvider.SCOPE_FOLDERS["my_docs"] = "Users/MyDocs"
         # Note: list_folder returns an array of items directly, not a hash
         my_docs_count = begin
           # SSoT (Jan 2026): Use tenant for storage provider
@@ -224,8 +224,8 @@ module Api
         path = params[:path].to_s.strip.gsub(%r{^/+|/+$}, "")
         path_segments = path.present? ? path.split("/") : []
 
-        # Get template from StorageConfiguration
-        config = StorageConfiguration.instance
+        # Get template from WarehouseProvider
+        config = WarehouseProvider.instance
         template = config.template_for(scope) rescue nil
 
         # Build live folder tree based on scope
@@ -260,7 +260,7 @@ module Api
       # Phase 4: Virtual File Warehouse - Database-driven folder tree
       # Returns folder tree from WarehouseDocument.folder instead of S3
       #
-      # When a scope is marked as virtual in StorageConfiguration:
+      # When a scope is marked as virtual in WarehouseProvider:
       # - Folder tree renders from database (instant)
       # - Reorganization is instant (bulk DB update)
       # - Physical storage stays at Blobs/{hash}.ext (never moves)
@@ -279,7 +279,7 @@ module Api
         base_path = params[:path].to_s.strip.gsub(%r{^/+|/+$}, "")
 
         # Verify scope is virtual (configured in admin UI)
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
         unless config.virtual_scope?(scope)
           return render json: {
             success: false,
@@ -412,14 +412,14 @@ module Api
       # Params:
       #   file: The file to upload (multipart)
       #   folder: Optional folder path (default: "MyDocs")
-      # SSoT: Paths match StorageConfiguration.SCOPE_FOLDERS (Users/MyDocs, Users/Photos, etc.)
+      # SSoT: Paths match WarehouseProvider.SCOPE_FOLDERS (Users/MyDocs, Users/Photos, etc.)
       def create
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :bad_request
         end
 
         file = params[:file]
-        # SSoT: Folder names match StorageConfiguration.SCOPE_FOLDERS
+        # SSoT: Folder names match WarehouseProvider.SCOPE_FOLDERS
         folder = params[:folder].presence || "MyDocs"
         user = current_user
 
@@ -467,9 +467,9 @@ module Api
       # GET /api/v1/documents/user_files
       # Lists files in user folder from S3
       # Used by File Warehouse "MyDocs" section
-      # SSoT: Paths match StorageConfiguration.SCOPE_FOLDERS
+      # SSoT: Paths match WarehouseProvider.SCOPE_FOLDERS
       def user_files
-        # SSoT: Folder names match StorageConfiguration.SCOPE_FOLDERS
+        # SSoT: Folder names match WarehouseProvider.SCOPE_FOLDERS
         # Supports two modes:
         # 1. ?folder=MyDocs (legacy) -> Users/MyDocs
         # 2. ?path=Users/MyDocs (generic) -> exact path
@@ -529,7 +529,7 @@ module Api
       #
       # Params:
       #   path: The S3 path to list (e.g., "Jobs", "Jobs/J49", "Corporate/Group A")
-      #         Empty/nil returns root folders from StorageConfiguration.SCOPE_FOLDERS
+      #         Empty/nil returns root folders from WarehouseProvider.SCOPE_FOLDERS
       #
       # Returns:
       #   folders: Array of { name, path } for subfolders
@@ -578,14 +578,20 @@ module Api
         base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
         if path.blank?
-          # Root level: Get top-level folders with counts using indexed column
-          # SQL: SELECT split_part(folder, '/', 1), COUNT(*) GROUP BY 1
+          # SSoT (Jan 2026): Root folder structure comes from WarehouseFolder
+          # WarehouseFolder is THE ONE source for folder hierarchy
+          # Counts come from WarehouseDocument (to show how many files in each folder)
+          root_folders_from_config = WarehouseFolder.all_root_folders
+
+          # Get actual counts from WarehouseDocument for display
           folder_counts = base_scope
             .group(Arel.sql("split_part(folder, '/', 1)"))
             .count
 
-          folders = folder_counts.map do |name, count|
-            { name: name, path: name, count: count }
+          # Build folders array: all configured folders (even with 0 count) + any extras from documents
+          all_root_folders = (root_folders_from_config + folder_counts.keys).uniq
+          folders = all_root_folders.map do |name|
+            { name: name, path: name, count: folder_counts[name] || 0 }
           end
 
           # Add Emails folder as expandable - shows individual mailboxes when expanded
@@ -636,6 +642,106 @@ module Api
             }
           end.sort_by { |f| f[:name].to_s.downcase }
           files = []
+        elsif !path.include?("/") && WarehouseFolder.warehouse_type_for_root_folder(path)
+          # SSoT (Jan 2026): Root folder expanded - show tabs from WarehouseFolder
+          # e.g., "Jobs" → shows Plans, Site, Sales, Photo, etc.
+          tabs_from_config = WarehouseFolder.tabs_for_root_folder(path)
+
+          # Get actual document counts for each tab folder
+          subfolder_counts = base_scope
+            .where("folder LIKE ?", "#{sanitize_sql_like(path)}/%")
+            .group(Arel.sql("split_part(folder, '/', 2)"))
+            .count
+
+          # Enrich tabs with counts, include tabs even with 0 documents
+          folders = tabs_from_config.map do |tab|
+            tab[:count] = subfolder_counts[tab[:name]] || 0
+            tab
+          end
+
+          # Also add any document folders not in config (from existing documents)
+          config_folder_names = tabs_from_config.map { |t| t[:name] }
+          extra_folders = subfolder_counts.reject { |name, _| config_folder_names.include?(name) || name.blank? }
+          extra_folders.each do |name, count|
+            folders << { name: name, path: "#{path}/#{name}", count: count }
+          end
+
+          folders = folders.sort_by { |f| f[:name].to_s.downcase }
+          files = []
+        elsif path.include?("/") && WarehouseFolder.warehouse_type_for_root_folder(path.split("/").first)
+          # SSoT (Jan 2026): Subfolder with configured tabs - check for child tabs
+          # e.g., "Jobs/Photo" → shows Supervisor, Site, Client, etc.
+          child_tabs = WarehouseFolder.child_tabs_for_path(path)
+          path_depth = path.count("/") + 2
+
+          # Get actual document counts for subfolders
+          subfolder_counts = base_scope
+            .where("folder LIKE ?", "#{sanitize_sql_like(path)}/%")
+            .group(Arel.sql("split_part(folder, '/', #{path_depth})"))
+            .count
+
+          # Start with configured child tabs
+          if child_tabs.any?
+            folders = child_tabs.map do |tab|
+              tab[:count] = subfolder_counts[tab[:name]] || 0
+              tab
+            end
+
+            # Add any extra folders from documents not in config
+            config_folder_names = child_tabs.map { |t| t[:name] }
+            extra_folders = subfolder_counts.reject { |name, _| config_folder_names.include?(name) || name.blank? }
+            extra_folders.each do |name, count|
+              folders << { name: name, path: "#{path}/#{name}", count: count }
+            end
+          else
+            # No child tabs in config, use document-based folders
+            subfolder_counts.reject! { |name, _| name.blank? }
+            folders = subfolder_counts.map do |name, count|
+              { name: name, path: "#{path}/#{name}", count: count }
+            end
+          end
+
+          # SSoT: Enrich task folders with task names (for Tasks/*)
+          if path == "Tasks"
+            task_ids = folders.map { |f| f[:name] }
+            tasks_by_id = SmTask.where(id: task_ids)
+                                .pluck(:id, :name)
+                                .to_h { |id, name| [id.to_s, { id: id, name: name }] }
+
+            folders = folders.map do |f|
+              task_info = tasks_by_id[f[:name]]
+              if task_info
+                display = "##{task_info[:id]} #{task_info[:name]}"
+                f.merge(name: display, taskId: f[:name].to_i)
+              else
+                f
+              end
+            end
+          end
+
+          folders = folders.sort_by { |f| f[:name].to_s.downcase }
+
+          # Get files at this exact folder path
+          docs_at_path = base_scope
+            .where(folder: path)
+            .includes(:storage_blob)
+            .limit(500)
+
+          files = docs_at_path.map do |doc|
+            blob = doc.storage_blob
+            url = doc.download_url rescue nil
+
+            {
+              name: doc.display_name || doc.original_filename || "Document #{doc.id}",
+              path: blob&.storage_path,
+              size: doc.file_size || blob&.file_size || 0,
+              content_type: doc.content_type || blob&.content_type || "application/octet-stream",
+              last_modified: doc.updated_at&.iso8601,
+              url: url,
+              id: doc.id,
+              warehouse_document_id: doc.id
+            }
+          end.sort_by { |f| f[:name].to_s.downcase }
         else
           # Subfolder level: Get immediate subfolders and files at this exact path
           path_depth = path.count("/") + 2  # +2 because split_part is 1-indexed and we want next level
@@ -983,12 +1089,12 @@ module Api
       end
 
       # GET /api/v1/documents/scope_hierarchy
-      # SSoT: Returns folder hierarchy for a scope that matches StorageConfiguration.SCOPE_TEMPLATES
+      # SSoT: Returns folder hierarchy for a scope that matches WarehouseProvider.SCOPE_TEMPLATES
       # Used by File Warehouse to build tree structure that mirrors storage paths
       # Example: scope=corporate → CompanyGroup/CompanyCode/TabName hierarchy
       def scope_hierarchy
         scope = params[:scope]&.to_s || "corporate"
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
         template = config.template_for(scope)
 
         hierarchy = build_hierarchy_for_scope(scope, template)
@@ -1885,7 +1991,7 @@ module Api
         { folders: sorted_folders }
       end
 
-      # SSoT: Build folder hierarchy matching StorageConfiguration.SCOPE_TEMPLATES
+      # SSoT: Build folder hierarchy matching WarehouseProvider.SCOPE_TEMPLATES
       # Template tokens ({{CompanyGroup}}, {{CompanyCode}}, {{TabName}}) define the tree structure
       def build_hierarchy_for_scope(scope, template)
         case scope.to_s
@@ -2395,7 +2501,7 @@ module Api
           fileUrl: download_url,
           storagePath: blob&.storage_path,
           # Virtual folder - computed from CURRENT templates (no sync needed)
-          # Uses documentable's virtual_folder_path which reads current StorageConfiguration
+          # Uses documentable's virtual_folder_path which reads current WarehouseProvider
           folder: wd.computed_folder_path,
           # Timestamps
           createdAt: wd.created_at&.iso8601,

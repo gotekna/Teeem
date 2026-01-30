@@ -52,9 +52,9 @@ class MicrosoftGraphClient
   # Returns the correct drive path prefix based on credential type
   # If organization credential with drive_id: "/drives/{drive_id}"
   # If user token (no drive_id): "/me/drive"
-  # SSoT: StorageConfiguration is THE source for drive_id (Jan 2026)
+  # SSoT: WarehouseProvider is THE source for drive_id (Jan 2026)
   def drive_path
-    storage_drive_id = StorageConfiguration.instance&.drive_id
+    storage_drive_id = WarehouseProvider.instance&.drive_id
     if storage_drive_id.present?
       "/drives/#{storage_drive_id}"
     else
@@ -62,9 +62,9 @@ class MicrosoftGraphClient
     end
   end
 
-  # SSoT: Helper to get StorageConfiguration instance (cached per request)
+  # SSoT: Helper to get WarehouseProvider instance (cached per request)
   def storage_config
-    @storage_config ||= StorageConfiguration.instance
+    @storage_config ||= WarehouseProvider.instance
   end
 
   # OAuth Methods
@@ -277,20 +277,20 @@ class MicrosoftGraphClient
   end
 
   # Create root folder for all jobs (organization-level)
-  # SSoT: Default folder name comes from StorageConfiguration
+  # SSoT: Default folder name comes from WarehouseProvider
   def create_jobs_root_folder(folder_name = nil)
-    folder_name ||= StorageConfiguration.instance.path_for(:jobs)
+    folder_name ||= WarehouseProvider.instance.path_for(:jobs)
     # SSoT: Sanitize folder name - remove leading/trailing slashes (SharePoint doesn't allow "/" in names)
     folder_name = folder_name.to_s.gsub(%r{^/+|/+$}, "").presence || "Jobs"
 
-    # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
+    # SSoT: Get drive_id from WarehouseProvider (Jan 2026)
     config = storage_config
     current_drive_id = config&.drive_id
 
-    # Get the drive if we don't have it in StorageConfiguration
+    # Get the drive if we don't have it in WarehouseProvider
     unless current_drive_id.present?
       drive = get_default_drive
-      # SSoT: Update StorageConfiguration with drive info (not credential)
+      # SSoT: Update WarehouseProvider with drive info (not credential)
       if config
         config.update_connection(
           "drive_id" => drive["id"],
@@ -312,9 +312,9 @@ class MicrosoftGraphClient
       root_folder = create_folder_strict(folder_name, drive_id: current_drive_id)
     end
 
-    # SSoT: Save root folder info to StorageConfiguration (not credential)
-    # StorageConfiguration is THE ONE source for all storage config
-    config = StorageConfiguration.instance
+    # SSoT: Save root folder info to WarehouseProvider (not credential)
+    # WarehouseProvider is THE ONE source for all storage config
+    config = WarehouseProvider.instance
     if config
       config.root_folder_id = root_folder["id"]
       config.root_folder_path = folder_name
@@ -362,7 +362,7 @@ class MicrosoftGraphClient
   # Create folder structure for a specific construction/job
   # SSoT: Uses EntityTab hierarchy for folder names (no longer uses FolderTemplate)
   def create_job_folder_structure(construction, _template = nil)
-    # SSoT: Get root_folder_id from StorageConfiguration (Jan 2026)
+    # SSoT: Get root_folder_id from WarehouseProvider (Jan 2026)
     config = storage_config
     root_folder_id = config&.root_folder_id
 
@@ -372,7 +372,7 @@ class MicrosoftGraphClient
       root_folder_id = config&.reload&.root_folder_id
     end
 
-    # SSoT: Use StorageConfiguration.job_path for consistent folder naming (job_code = "J" + id)
+    # SSoT: Use WarehouseProvider.job_path for consistent folder naming (job_code = "J" + id)
     job_folder_path = config&.job_path(construction.job_code) || "/Jobs/#{construction.job_code}"
     job_folder_name = File.basename(job_folder_path)
     job_folder = create_folder(job_folder_name, parent_id: root_folder_id)
@@ -423,7 +423,7 @@ class MicrosoftGraphClient
 
   # List items in a folder
   # include_thumbnails: if true, expands thumbnails for image files
-  # SSoT: Uses StorageConfiguration for root_folder_id (Jan 2026)
+  # SSoT: Uses WarehouseProvider for root_folder_id (Jan 2026)
   def list_folder_items(folder_id = nil, include_thumbnails: false)
     folder_id = folder_id || storage_config&.root_folder_id
 
@@ -447,7 +447,7 @@ class MicrosoftGraphClient
 
   # Validate the root folder exists and check if it was renamed
   # Returns a hash with validation status and folder info
-  # SSoT: Uses StorageConfiguration for root_folder_id/path (Jan 2026)
+  # SSoT: Uses WarehouseProvider for root_folder_id/path (Jan 2026)
   def validate_root_folder
     config = storage_config
     root_folder_id = config&.root_folder_id
@@ -508,21 +508,21 @@ class MicrosoftGraphClient
 
   # Search for job folder by construction
   # Supports both exact match and fuzzy matching for legacy folder naming schemes
-  # SSoT: Uses StorageConfiguration for root_folder_id (Jan 2026)
+  # SSoT: Uses WarehouseProvider for root_folder_id (Jan 2026)
   def find_job_folder(construction)
     config = storage_config
 
-    # SSoT: Use StorageConfiguration.job_path for consistent folder naming (job_code = "J" + id)
+    # SSoT: Use WarehouseProvider.job_path for consistent folder naming (job_code = "J" + id)
     job_folder_path = config&.job_path(construction.job_code) || "/Jobs/#{construction.job_code}"
     expected_name = File.basename(job_folder_path)
 
     # Normalize title for fuzzy matching (remove common prefixes like "Lot", lowercase, etc.)
     normalized_title = construction.title.to_s.downcase.gsub(/^lot\s+/i, "").strip
 
-    # SSoT: Get jobs folder name from StorageConfiguration
+    # SSoT: Get jobs folder name from WarehouseProvider
     jobs_folder_name = config&.path_for(:jobs) || "Jobs"
 
-    # SSoT: Determine where to search - use root_folder_id from StorageConfiguration
+    # SSoT: Determine where to search - use root_folder_id from WarehouseProvider
     search_folder_id = config&.root_folder_id
 
     # If no root folder set, try to find the jobs folder in the drive root

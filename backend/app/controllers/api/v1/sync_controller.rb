@@ -672,9 +672,9 @@ module Api
         end
       end
 
-      # SSoT: Uses StorageConfiguration for base paths
+      # SSoT: Uses WarehouseProvider for base paths
       def folder_json(entity, type)
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
         case type
         when "Job"
           base = config.path_for(:job)

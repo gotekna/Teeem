@@ -1,22 +1,22 @@
 module Api
   module V1
-    # StorageConfigurationsController - Provider-agnostic storage configuration
+    # WarehouseProvidersController - Provider-agnostic storage configuration
     #
-    # SSoT: This controller manages StorageConfiguration settings for ANY storage provider
+    # SSoT: This controller manages WarehouseProvider settings for ANY storage provider
     # (SharePoint, S3, Wasabi, local). Use this instead of the legacy sharepoint endpoints.
     #
     # Replaces: /api/v1/corporate_company_settings/sharepoint
-    # New endpoint: /api/v1/storage_configuration
-    class StorageConfigurationsController < ApplicationController
+    # New endpoint: /api/v1/warehouse_provider
+    class WarehouseProvidersController < ApplicationController
       before_action :require_admin, only: %i[update test_connection]
 
-      # GET /api/v1/storage_configuration
+      # GET /api/v1/warehouse_provider
       # Returns storage configuration for the current provider
       def show
         config_hash = begin
-          StorageConfiguration.instance&.to_config_hash || {}
+          WarehouseProvider.instance&.to_config_hash || {}
         rescue TenantNotFoundError => e
-          Rails.logger.warn "[StorageConfiguration] No tenant context: #{e.message}"
+          Rails.logger.warn "[WarehouseProvider] No tenant context: #{e.message}"
           {}
         end
 
@@ -26,10 +26,10 @@ module Api
         }
       end
 
-      # PATCH /api/v1/storage_configuration
+      # PATCH /api/v1/warehouse_provider
       # Updates storage configuration (provider-agnostic)
       def update
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
 
         unless storage_config
           return render json: {
@@ -83,7 +83,7 @@ module Api
         }
         update_attrs[:root_path] = sp[:root_path] if sp.key?(:root_path)
         # NOTE: scope_folders column was removed - EntityTab is now SSoT for tab paths
-        # Only warehouse_folders is stored on StorageConfiguration
+        # Only warehouse_folders is stored on WarehouseProvider
 
         # SSoT: warehouse_folders column is THE ONE source (no merging, just replace)
         # Accept both old and new param names for backwards compatibility
@@ -158,10 +158,10 @@ module Api
         end
       end
 
-      # POST /api/v1/storage_configuration/test
+      # POST /api/v1/warehouse_provider/test
       # Test connection to the configured storage provider
       def test_connection
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
 
         unless storage_config&.connected?
           return render json: {
@@ -189,7 +189,7 @@ module Api
 
       def storage_params
         # Get permitted warehouse folder keys - safely handle nil instance
-        warehouse_folder_keys = StorageConfiguration.instance&.effective_warehouse_folders&.keys&.map(&:to_sym) || []
+        warehouse_folder_keys = WarehouseProvider.instance&.effective_warehouse_folders&.keys&.map(&:to_sym) || []
 
         params.require(:storage).permit(
           :provider_type,
