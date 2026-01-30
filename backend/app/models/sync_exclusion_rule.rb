@@ -228,7 +228,7 @@ class SyncExclusionRule < ApplicationRecord
     config = WarehouseProvider.instance
 
     FOLDER_SCOPES.map do |key, scope|
-      folder_path = config.root_folder_for(scope[:warehouse_type])
+      folder_path = config.path_for(scope[:warehouse_type])
       {
         key: key.to_s,
         name: scope[:name],

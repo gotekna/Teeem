@@ -226,7 +226,7 @@ module Api
 
         # Get template from WarehouseProvider
         config = WarehouseProvider.instance
-        template = config.template_for(scope) rescue nil
+        template = config.path_for(scope) rescue nil
 
         # Build live folder tree based on scope
         result = build_live_folder_tree(scope, path_segments)
@@ -280,7 +280,7 @@ module Api
 
         # Verify scope is virtual (configured in admin UI)
         config = WarehouseProvider.instance
-        unless config.virtual_scope?(scope)
+        unless config.virtual_warehouse?(scope)
           return render json: {
             success: false,
             error: "Scope '#{scope}' is not configured as virtual",
@@ -1095,7 +1095,7 @@ module Api
       def scope_hierarchy
         scope = params[:scope]&.to_s || "corporate"
         config = WarehouseProvider.instance
-        template = config.template_for(scope)
+        template = config.path_for(scope)
 
         hierarchy = build_hierarchy_for_scope(scope, template)
 

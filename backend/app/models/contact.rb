@@ -1397,10 +1397,10 @@ class Contact < ApplicationRecord
   end
 
   # Class method to generate folder name for a contact
-  # SSoT: WarehouseProvider.template_for(:contact) is THE ONE source
+  # SSoT: WarehouseProvider.path_for(:contact) is THE ONE source
   # @example Template "{{ContactId}} - {{ContactName}}" => "123 - ABC Supplies"
   def self.generate_folder_name(contact_id:, display_name:)
-    template = WarehouseProvider.instance&.template_for(:contact) || "{{ContactId}} - {{ContactName}}"
+    template = WarehouseProvider.instance&.path_for(:contact) || "{{ContactId}} - {{ContactName}}"
     sanitized_name = SharePoint::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
 
     result = template.dup

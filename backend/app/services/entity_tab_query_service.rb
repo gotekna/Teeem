@@ -115,11 +115,11 @@ class EntityTabQueryService
       root_path: config.root_path.presence || "",
       # SSoT: warehouse_folders contains full path patterns including identifier
       paths: {
-        job: config.root_folder_for(:job),
-        task: config.root_folder_for(:task),
-        people: config.root_folder_for(:people),
-        company: config.root_folder_for(:corporate),
-        contacts: config.root_folder_for(:contacts)
+        job: config.path_for(:job),
+        task: config.path_for(:task),
+        people: config.path_for(:people),
+        company: config.path_for(:corporate),
+        contacts: config.path_for(:contacts)
       },
       # SSoT: Store full warehouse_folders for path derivation
       warehouse_folders: config.effective_warehouse_folders

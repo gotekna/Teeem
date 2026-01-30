@@ -100,7 +100,7 @@ class UserDocument < ApplicationRecord
   # @return [String] Virtual folder path like "Users/Robert Harder/Projects"
   def virtual_folder_path
     config = WarehouseProvider.instance
-    template = config&.virtual_template_for(:user)
+    template = config&.path_for(:user)
     raise "WarehouseProvider missing :user template - run rails warehouse:init" unless template
 
     result = template.dup

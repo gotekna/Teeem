@@ -505,7 +505,7 @@ export default function AllDocumentsPage() {
             scope_folders?: ScopeFolders;
             scope_templates?: Record<string, string>;
             root_path?: string;
-            virtual_scopes?: Record<string, boolean>;  // Phase 4
+            virtual_warehouses?: Record<string, boolean>;  // Phase 4
           };
         }>("/api/v1/storage_configuration");
         if (response?.success && response.data) {
@@ -519,9 +519,9 @@ export default function AllDocumentsPage() {
           if (response.data.root_path) {
             setRootPath(response.data.root_path);
           }
-          // Phase 4: Virtual scopes from WarehouseProvider
-          if (response.data.virtual_scopes) {
-            setVirtualScopes(response.data.virtual_scopes);
+          // Phase 4: Virtual warehouses from WarehouseProvider
+          if (response.data.virtual_warehouses) {
+            setVirtualScopes(response.data.virtual_warehouses);
           }
         }
       } catch (err) {
@@ -787,10 +787,11 @@ export default function AllDocumentsPage() {
       if (isVirtual && scope) {
         // Phase 5: Use live_folder_tree - computes folder structure from DB relationships
         // Benefits: Instant template changes, always accurate, single GROUP BY query per level
-        const scopeFolder = scopeFolders[scope] || '';
-        const relativePath = path.startsWith(scopeFolder + '/')
-          ? path.slice(scopeFolder.length + 1)
-          : (path === scopeFolder ? '' : path);
+        // LIM (Jan 2026): scopeFolders now contains simple root folders (e.g., "Contacts")
+        const scopeRootFolder = scopeFolders[scope] || '';
+        const relativePath = path.startsWith(scopeRootFolder + '/')
+          ? path.slice(scopeRootFolder.length + 1)
+          : (path === scopeRootFolder ? '' : path);
 
         const response = await api.get<{
           success: boolean;
@@ -814,18 +815,19 @@ export default function AllDocumentsPage() {
 
         if (response?.success) {
           // Map live_folder_tree response to s3_folders format for UI compatibility
+          // FRC (Jan 2026): Use scopeRootFolder for path building, not full template
           setS3Folders(prev => ({
             ...prev,
             [path]: {
               folders: (response.folders || []).map(f => ({
                 name: f.name,
-                // Prepend scope folder to make full path
-                path: scopeFolder ? `${scopeFolder}/${f.path}` : f.path,
+                // Prepend scope ROOT folder to make full path (e.g., "Contacts/2Code Fire & Build/Licenses")
+                path: scopeRootFolder ? `${scopeRootFolder}/${f.path}` : f.path,
                 count: f.count,
               })),
               files: (response.files || []).map(f => ({
                 name: f.name,
-                path: relativePath ? `${scopeFolder}/${relativePath}/${f.name}` : `${scopeFolder}/${f.name}`,
+                path: relativePath ? `${scopeRootFolder}/${relativePath}/${f.name}` : `${scopeRootFolder}/${f.name}`,
                 size: f.fileSize || 0,
                 content_type: f.mimeType || 'application/octet-stream',
                 url: f.url,

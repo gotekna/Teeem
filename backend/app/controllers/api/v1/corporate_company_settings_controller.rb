@@ -56,42 +56,13 @@ module Api
       end
 
       # PATCH /api/v1/corporate_company_settings/document_paths
-      # SSoT: WarehouseProvider is THE ONE source for storage paths
-      # Deprecated: Use /api/v1/warehouse_provider instead
+      # LIM (Jan 2026): DEAD CODE - Not used by frontend, endpoint broken
+      # Keep for now to avoid route errors, but should be removed
       def update_document_paths
-        storage_config = WarehouseProvider.instance
-
-        # SSoT: Update scope_root_folders in WarehouseProvider
-        update_attrs = {}
-        new_scope_root_folders = storage_config.scope_root_folders&.dup || {}
-
-        if params.dig(:settings, :company_documents_base_path)
-          new_scope_root_folders['corporate'] = params.dig(:settings, :company_documents_base_path)
-        end
-        if params.dig(:settings, :people_documents_base_path)
-          new_scope_root_folders['people'] = params.dig(:settings, :people_documents_base_path)
-        end
-        if params.dig(:settings, :job_documents_base_path)
-          new_scope_root_folders['job'] = params.dig(:settings, :job_documents_base_path)
-        end
-
-        update_attrs[:scope_root_folders] = new_scope_root_folders if new_scope_root_folders.present?
-
-        if update_attrs.empty? || storage_config.update(update_attrs)
-          render json: {
-            success: true,
-            data: {
-              company_documents_base_path: storage_config.path_for(:corporate) || "Corporate",
-              people_documents_base_path: storage_config.path_for(:people) || "People",
-              job_documents_base_path: storage_config.path_for(:job) || "Jobs"
-            }
-          }
-        else
-          render json: {
-            success: false,
-            errors: storage_config.errors.full_messages
-          }, status: :unprocessable_entity
-        end
+        render json: {
+          success: false,
+          error: "Deprecated endpoint - use /api/v1/warehouse_provider instead"
+        }, status: :gone
       end
 
       # ========================================
@@ -421,7 +392,7 @@ module Api
           :twilio_enabled,
           :timezone,
           :contact_documents_path,
-          # SSoT: contact_folder_format removed - use WarehouseProvider.template_for(:contact)
+          # SSoT: contact_folder_format removed - use WarehouseProvider.path_for(:contact)
           working_days: [
             :monday,
             :tuesday,
@@ -458,8 +429,8 @@ module Api
           :s3_region,
           # Root path
           :sharepoint_root_path,
-          # SSoT: Scope folders from WarehouseProvider.effective_scope_folders
-          scope_folders: WarehouseProvider.instance.effective_scope_folders.keys.map(&:to_sym),
+          # SSoT: Scope keys from WarehouseProvider.scope_root_folders
+          scope_folders: WarehouseProvider.instance.scope_root_folders.keys.map(&:to_sym),
           # SSoT: File name templates (auto-saved from Entity Config)
           file_name_templates: {},
           # SSoT: Config links for scope folders (URL to external config page)

@@ -344,10 +344,10 @@ class XeroAttachmentSyncService
     return nil unless entity_tab
 
     # SSoT: Derive template from WarehouseProvider.warehouse_folders
-    # root_folder_for already handles alias normalization (e.g., 'corporate_entity' → 'corporate')
+    # path_for already handles alias normalization (e.g., 'corporate_entity' → 'corporate')
     warehouse_type = entity_tab.warehouse_type || 'corporate'
     config = WarehouseProvider.instance
-    template = config.root_folder_for(warehouse_type)
+    template = config.path_for(warehouse_type)
     return nil unless template.present?
 
     # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)

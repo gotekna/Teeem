@@ -207,8 +207,7 @@ module Api
           display_name_templates: {},
           config_links: {},
           document_routing: {},  # SSoT: Which model to use for each document source
-          virtual_warehouses: {},  # Phase 4: Virtual File Warehouse - which warehouse types render from DB
-          virtual_scopes: {},      # Legacy backwards compat
+          virtual_warehouses: {},   # Phase 4: Virtual File Warehouse - which warehouse types render from DB
           scope_options: {}        # Legacy backwards compat
         )
       end
