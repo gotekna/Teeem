@@ -116,14 +116,18 @@ class SmTaskAttachment < ApplicationRecord
   # Links to same StorageBlob as the attached document
   # SSoT: Sets linkable to SmTask for proper folder display in File Warehouse
   #
-  # FRC (Jan 2026): Email handling:
-  # - Emails with category "response" → appear in Responses folder
-  # - Emails with category "info" (default) → skip (already in Emails/ folder)
+  # FRC (Jan 2026): Email handling - "Response" means:
+  # - category == "response" (explicitly marked as response)
+  # - OR action_item_id is set (linked to a question/action item)
+  # Both conditions mean the email is part of the response workflow
+  #
+  # - "Response" emails → appear in Tasks/{id}/Responses folder
+  # - "Info" emails (category="info" AND no action_item) → skip (already in Emails/ folder)
   # - Documents → always appear in appropriate folder
   def create_warehouse_entry
     # Skip info emails - they appear in Emails/ folder, not Tasks/Attachments
-    # Response emails DO appear in Tasks/{id}/Responses
-    if attachable_type == "SyncedEmail" && category != "response"
+    # Response emails (category="response" OR linked to action item) DO appear in Tasks/{id}/Responses
+    if attachable_type == "SyncedEmail" && !is_response_attachment?
       return
     end
 
@@ -240,6 +244,15 @@ class SmTaskAttachment < ApplicationRecord
     Rails.logger.error("[SmTaskAttachment] ##{id}: Failed to cascade delete auto-attached documents: #{e.message}")
   end
 
+  # Helper: Determine if this attachment should be treated as a "response" attachment
+  # SSoT (Jan 2026): "Response" means one of:
+  # - category == "response" (explicitly marked)
+  # - action_item_id is present (linked to a question/action item)
+  # Matches frontend logic in TaskFullscreenView.tsx (responseDocuments, responseEmails)
+  def is_response_attachment?
+    category == "response" || action_item_id.present?
+  end
+
   # Compute the folder path for File Warehouse
   # SSoT: Reads template from StorageConfiguration (full paths, no derivation)
   # Template: Tasks/{{TaskId}}/{{TaskName}}/Attachments (or Responses)
@@ -263,7 +276,8 @@ class SmTaskAttachment < ApplicationRecord
     end
 
     # SSoT: task_attachments and task_responses have FULL paths (Jan 2026 FRC fix)
-    folder_type = category == "response" ? :task_responses : :task_attachments
+    # FRC: "Response" = category="response" OR has action_item_id (linked to question)
+    folder_type = is_response_attachment? ? :task_responses : :task_attachments
 
     # Use config template - resolves {{TaskId}} only
     # FRC (Jan 2026): NO TaskName - UI already displays task name as folder label
