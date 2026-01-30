@@ -186,6 +186,7 @@ export interface SmTask {
   attachments_count?: number;
   unread_email_count?: number; // SSoT: Count of unread emails for task card indicator
   attachments?: TaskAttachment[];
+  auto_attach_email_files?: boolean; // Toggle for auto-attaching email file attachments to task
 
   // Privacy
   is_private?: boolean;

@@ -2755,6 +2755,7 @@ module Api
           :searchable,
           :is_private,
           :email_keywords,
+          :auto_attach_email_files,
 
           # Workflow triggers
           :start_workflow_enabled, :start_workflow_id,
