@@ -655,17 +655,20 @@ module Api
           end
 
           # SSoT (Jan 2026): Enrich task folders with task names
-          # When browsing Tasks/, show "#7 Robert Harder" instead of just "2236"
+          # When browsing Tasks/, show "#2236 Robert Harder" (using TaskId, not task_number)
+          # FRC: Display must match folder path which uses {{TaskId}} (database ID)
+          # task_number is NOT unique (manual tasks all get #0, templates share numbers)
           if path == "Tasks"
             task_ids = folders.map { |f| f[:name] }
             tasks_by_id = SmTask.where(id: task_ids)
-                                .pluck(:id, :task_number, :name)
-                                .to_h { |id, num, name| [id.to_s, { number: num, name: name }] }
+                                .pluck(:id, :name)
+                                .to_h { |id, name| [id.to_s, { id: id, name: name }] }
 
             folders = folders.map do |f|
               task_info = tasks_by_id[f[:name]]
               if task_info
-                display = task_info[:number].present? ? "##{task_info[:number]} #{task_info[:name]}" : task_info[:name]
+                # SSoT: Use TaskId (database ID) - matches folder path and is always unique
+                display = "##{task_info[:id]} #{task_info[:name]}"
                 f.merge(name: display, taskId: f[:name].to_i)
               else
                 f
@@ -1766,14 +1769,17 @@ module Api
 
         when 1
           # Level 1: Show tasks with attachments
+          # SSoT: Use task ID (database ID) for both path and display - matches folder structure
+          # FRC: task_number is NOT unique (manual tasks all get #0)
           tasks = SmTaskAttachment.where(attachable_type: 'WarehouseDocument')
                                   .joins(:sm_task)
-                                  .group("sm_tasks.task_number", "sm_tasks.id", "sm_tasks.name")
+                                  .group("sm_tasks.id", "sm_tasks.name")
                                   .count
 
-          folders = tasks.map do |(task_number, task_id, task_name), count|
-            display = task_number.present? ? "#{task_number} - #{task_name}" : task_name
-            { name: display || "Task #{task_id}", path: "Tasks/#{task_number || task_id}", count: count, taskId: task_id }
+          folders = tasks.map do |(task_id, task_name), count|
+            # SSoT: Display shows #TaskId (database ID) - same as folder path uses {{TaskId}}
+            display = "##{task_id} #{task_name}"
+            { name: display, path: "Tasks/#{task_id}", count: count, taskId: task_id }
           end.sort_by { |f| f[:name].to_s.downcase }
 
           { folders: folders, files: [] }
