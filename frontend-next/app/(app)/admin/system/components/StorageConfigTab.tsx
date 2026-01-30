@@ -1508,7 +1508,7 @@ function TabNode({
                 size="sm"
                 onClick={() => {
                   // Use tab.display_name as fallback if editDisplayName is empty
-                  const displayNameToSave = editDisplayName.trim() || tab.display_name || tab.name || 'Untitled';
+                  const displayNameToSave = editDisplayName.trim() || tab.display_name || 'Untitled';
                   console.log('[TabNode Save] Clicked:', { tabId: tab.id, editPath, displayNameToSave, editSendName });
                   onSaveEdit(tab.id, editPath, displayNameToSave, editSendName);
                 }}
