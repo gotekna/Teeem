@@ -427,7 +427,8 @@ class StorageConfiguration < ApplicationRecord
       return nil if parent_path.blank?
 
       # Get suffix for this type (e.g., "Attachments" for task_attachments)
-      suffix = warehouse_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
+      # LIM: No fallback - database is SSoT, fail fast if not configured
+      suffix = warehouse_folders&.dig(type_key)
 
       # If suffix is a full path (legacy), extract just the suffix
       # Legacy: "Tasks/{{TaskId}}/{{TaskName}}/Attachments" → "Attachments"
@@ -440,8 +441,8 @@ class StorageConfiguration < ApplicationRecord
       # Combine parent base + suffix
       "#{parent_path}/#{suffix}".gsub(%r{//+}, '/')
     else
-      # SSoT: Check database first, fall back to defaults for new warehouse types
-      path = warehouse_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
+      # SSoT: Database only - no fallback, fail fast if not configured
+      path = warehouse_folders&.dig(type_key)
       return nil if path.blank? || path == "DISABLED"
       path
     end
