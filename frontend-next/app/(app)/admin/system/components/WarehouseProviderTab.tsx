@@ -1706,7 +1706,7 @@ function TabNode({
   );
 }
 
-export function StorageConfigTab() {
+export function WarehouseProviderTab() {
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);

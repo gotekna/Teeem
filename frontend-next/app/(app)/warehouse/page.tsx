@@ -494,7 +494,7 @@ export default function AllDocumentsPage() {
   const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
 
   // SSoT: Fetch storage config from WarehouseProvider (scope folders, templates, root path)
-  // This uses the same endpoint as StorageConfigTab to ensure consistency
+  // This uses the same endpoint as WarehouseProviderTab to ensure consistency
   // NOTE: Endpoint name "sharepoint" is legacy - it returns provider-agnostic config from WarehouseProvider
   useEffect(() => {
     const fetchStorageConfig = async () => {
