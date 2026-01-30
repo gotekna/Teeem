@@ -3,7 +3,7 @@
 # S3PathCleanupJob - Renames S3 objects to clean, human-readable paths
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)  ║
+# ║  SSoT: WarehouseProvider.instance.path_for(:scope) (Jan 2026)  ║
 # ║  - path_for(:jobs) → default "Jobs" (with job.job_code prefix)    ║
 # ║  - path_for(:corporate) → default "Corporate"                     ║
 # ║  - path_for(:people) → default "People"                           ║
@@ -43,12 +43,12 @@ class S3PathCleanupJob < ApplicationJob
   end
 
   # Check if path uses SSoT folder structure (TitleCase, proper prefixes)
-  # SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)
+  # SSoT: WarehouseProvider.instance.path_for(:scope) (Jan 2026)
   def self.clean_path?(path)
     return true if path.blank?
 
-    # Get configured folder names from StorageConfiguration
-    config = StorageConfiguration.instance
+    # Get configured folder names from WarehouseProvider
+    config = WarehouseProvider.instance
     jobs_folder = config&.path_for(:jobs) || "Jobs"
     corporate_folder = config&.path_for(:corporate) || "Corporate"
     people_folder = config&.path_for(:people) || "People"
@@ -108,7 +108,7 @@ class S3PathCleanupJob < ApplicationJob
       force_path_style: true
     )
 
-    bucket = StorageConfiguration.bucket
+    bucket = WarehouseProvider.bucket
 
     begin
       # Step 1: Copy object to new key
@@ -151,11 +151,11 @@ class S3PathCleanupJob < ApplicationJob
 
   private
 
-  # Build clean path for document using SSoT from StorageConfiguration
+  # Build clean path for document using SSoT from WarehouseProvider
   # SSoT (Jan 2026): Uses WarehouseDocument source_type to determine path structure
   def build_clean_path(document)
-    config = StorageConfiguration.instance
-    raise ArgumentError, "StorageConfiguration required for path generation" unless config
+    config = WarehouseProvider.instance
+    raise ArgumentError, "WarehouseProvider required for path generation" unless config
 
     source_type = document.source_type
     filename = clean_filename(document.original_filename || document.display_name || "untitled")

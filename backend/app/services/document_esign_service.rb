@@ -164,8 +164,8 @@ class DocumentEsignService
 
   def build_job_folder_path
     # Build path like: "Jobs/123 - Smith Residence/Documents"
-    # SSoT: EntityTab owns folder names, StorageConfiguration owns base path
-    base_path = StorageConfiguration.instance.path_for(:jobs)
+    # SSoT: EntityTab owns folder names, WarehouseProvider owns base path
+    base_path = WarehouseProvider.instance.path_for(:jobs)
     job_folder = "#{job.id} - #{job.name}"
 
     # SSoT: Use EntityTab for folder name instead of hardcoding
@@ -176,8 +176,8 @@ class DocumentEsignService
   end
 
   def create_esign_request(uploaded_file, document_filename)
-    # SSoT: Use StorageConfiguration for site/drive IDs
-    storage_config = StorageConfiguration.instance
+    # SSoT: Use WarehouseProvider for site/drive IDs
+    storage_config = WarehouseProvider.instance
 
     request = ESignatureRequest.new(
       title: options[:title] || "#{template_name} - #{job.name}",

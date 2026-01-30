@@ -43,7 +43,7 @@ class XeroAttachmentSyncService
     @xero_tenant_name = @xero_credential&.tenant_name  # Xero org name (e.g., "Tekna Homes")
     @tenant = find_teeem_tenant_from_xero_tenant_id(external_invoice.tenant_id)
     @organization = @tenant&.organizations&.where(is_active: true)&.first
-    @storage_config = @tenant ? StorageConfiguration.for_tenant(@tenant) : nil
+    @storage_config = @tenant ? WarehouseProvider.for_tenant(@tenant) : nil
     @results = { pdf: nil, attachments: [], errors: [], skipped: false }
   end
 
@@ -64,7 +64,7 @@ class XeroAttachmentSyncService
     return error_result("No external_id on invoice") unless external_invoice.external_id.present?
     return error_result("No tenant_id on invoice") unless external_invoice.tenant_id.present?
     return error_result("Tenant not found for tenant_id #{external_invoice.tenant_id}") unless @tenant
-    return error_result("StorageConfiguration not found for tenant #{@tenant.name}") unless @storage_config
+    return error_result("WarehouseProvider not found for tenant #{@tenant.name}") unless @storage_config
 
     # SSoT: Wrap entire sync in tenant context
     ActsAsTenant.with_tenant(@tenant) do
@@ -338,15 +338,15 @@ class XeroAttachmentSyncService
   # ========================================
 
   # Compute folder path from DocumentType's primary EntityTab
-  # SSoT: Derives folder from StorageConfiguration.warehouse_folders (not EntityTab.warehouse_folder)
+  # SSoT: Derives folder from WarehouseProvider.warehouse_folders (not EntityTab.warehouse_folder)
   def compute_folder_from_document_type(document_type)
     entity_tab = document_type.primary_entity_tab
     return nil unless entity_tab
 
-    # SSoT: Derive template from StorageConfiguration.warehouse_folders
+    # SSoT: Derive template from WarehouseProvider.warehouse_folders
     # root_folder_for already handles alias normalization (e.g., 'corporate_entity' → 'corporate')
     warehouse_type = entity_tab.warehouse_type || 'corporate'
-    config = StorageConfiguration.instance
+    config = WarehouseProvider.instance
     template = config.root_folder_for(warehouse_type)
     return nil unless template.present?
 

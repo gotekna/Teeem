@@ -155,7 +155,7 @@ class TenantProvisioningService
   def setup_dedicated_storage
     bucket_name = "teeem-#{@tenant.slug}"
 
-    StorageConfiguration.create!(
+    WarehouseProvider.create!(
       corporate_group: @tenant,
       provider_type: default_storage_provider,
       bucket_name: bucket_name,
@@ -169,7 +169,7 @@ class TenantProvisioningService
   end
 
   def setup_shared_storage
-    StorageConfiguration.create!(
+    WarehouseProvider.create!(
       corporate_group: @tenant,
       provider_type: default_storage_provider,
       bucket_name: "teeem-shared",

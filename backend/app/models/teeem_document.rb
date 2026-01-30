@@ -33,7 +33,7 @@ class TeeemDocument < ApplicationRecord
   scope :unattached, -> { where(job_id: nil) }
 
   # ========================================
-  # Warehouse Path (SSoT: StorageConfiguration)
+  # Warehouse Path (SSoT: WarehouseProvider)
   # ========================================
 
   # SSoT: Full warehouse path including filename
@@ -42,9 +42,9 @@ class TeeemDocument < ApplicationRecord
     "#{warehouse_folder_path}/#{safe_filename}_#{id}.html".gsub(%r{/+}, "/")
   end
 
-  # SSoT: Folder path computed by StorageConfiguration
+  # SSoT: Folder path computed by WarehouseProvider
   def warehouse_folder_path
-    StorageConfiguration.instance.resolve_warehouse_path(self, scope: :word_documents)
+    WarehouseProvider.instance.resolve_warehouse_path(self, scope: :word_documents)
   end
 
   # Safe filename (remove special characters)

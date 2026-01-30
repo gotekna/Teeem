@@ -29,7 +29,7 @@ module DocumentProviders
   def self.for_tenant(tenant)
     raise ::TenantNotFoundError, "Tenant required for DocumentProviders.for_tenant" unless tenant
 
-    config = StorageConfiguration.for_tenant(tenant)
+    config = WarehouseProvider.for_tenant(tenant)
     provider_type = config.provider_type
 
     case provider_type.to_s
@@ -46,7 +46,7 @@ module DocumentProviders
 
   # DEPRECATED: Use for_tenant instead
   # Factory method to get the appropriate provider for an organization
-  # SSoT: StorageConfiguration.provider_type determines which provider to use
+  # SSoT: WarehouseProvider.provider_type determines which provider to use
   # @param organization [Organization] The organization
   # @return [DocumentProviders::Base] The configured provider
   def self.for_organization(organization)

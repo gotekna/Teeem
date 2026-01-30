@@ -26,12 +26,12 @@ class UserDocument < ApplicationRecord
 
   # ActiveStorage has_one_attached :file was REMOVED (Jan 2026) - it violated SSoT by
   # duplicating storage location. Files now stored via StorageBlob (belongs_to :storage_blob)
-  # which deduplicates via content_hash and uses StorageConfiguration for provider-agnostic paths.
+  # which deduplicates via content_hash and uses WarehouseProvider for provider-agnostic paths.
 
   # Phase 3: Universal warehouse metadata (SSoT for display_name, send_name, folder)
   has_one :warehouse_document, as: :documentable, dependent: :destroy
 
-  # SSoT: Categories map to storage scopes in StorageConfiguration
+  # SSoT: Categories map to storage scopes in WarehouseProvider
   CATEGORIES = {
     "photos" => :user_photos,      # /Users/Photos/
     "contracts" => :user_contracts, # /Users/Contracts/
@@ -72,7 +72,7 @@ class UserDocument < ApplicationRecord
     (file_size.to_f / 1024 / 1024).round(2)
   end
 
-  # SSoT: Map category to storage scope from StorageConfiguration
+  # SSoT: Map category to storage scope from WarehouseProvider
   # This determines which folder path is used
   def effective_storage_scope
     CATEGORIES[category] || :users
@@ -95,13 +95,13 @@ class UserDocument < ApplicationRecord
   # ========================================
 
   # SSoT: Virtual folder path for File Warehouse display
-  # Uses StorageConfiguration template: Users/{{UserName}}/{{Folder}}
+  # Uses WarehouseProvider template: Users/{{UserName}}/{{Folder}}
   #
   # @return [String] Virtual folder path like "Users/Robert Harder/Projects"
   def virtual_folder_path
-    config = StorageConfiguration.instance
+    config = WarehouseProvider.instance
     template = config&.virtual_template_for(:user)
-    raise "StorageConfiguration missing :user template - run rails warehouse:init" unless template
+    raise "WarehouseProvider missing :user template - run rails warehouse:init" unless template
 
     result = template.dup
     result.gsub!("{{UserName}}", sanitize_path_component(user&.name.to_s))

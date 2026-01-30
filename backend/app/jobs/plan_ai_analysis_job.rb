@@ -24,7 +24,7 @@ class PlanAiAnalysisJob < ApplicationJob
 
     Rails.logger.info "[PlanAiAnalysisJob] Analyzing plan #{job_plan_id}: #{plan.display_name}"
 
-    # SSoT: Setup document provider using StorageConfiguration
+    # SSoT: Setup document provider using WarehouseProvider
     begin
       setup_default_provider!
     rescue DocumentProviders::NotConnectedError => e

@@ -1,7 +1,8 @@
-// StorageLocation types - SSoT for folder/storage configuration
-// Renamed from EntityTab → StorageLocation (Jan 2026)
-// "StorageLocation" is clearer - it's a folder configuration, not a UI tab
-// Legacy name "EntityTab" kept as alias for backward compatibility
+// WarehouseFolder types - SSoT for folder/storage configuration
+// Renamed: EntityTab → StorageLocation → WarehouseFolder (Jan 2026)
+// Backend model is "WarehouseFolder" (table: warehouse_folders)
+// Frontend keeps "EntityTab" as interface name for UI tab rendering
+// "WarehouseFolder" and "StorageLocation" are aliases for backward compatibility
 
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
 export type EntityTabScope = 'corporate_entity' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
@@ -162,9 +163,10 @@ export const GROUP_LABELS: Record<TabGroup, string> = {
 // See: GET /api/v1/entity_tabs/entity_types
 
 // ============================================================================
-// SSoT Rename (Jan 2026): EntityTab → StorageLocation
-// "StorageLocation" is clearer - it's a folder configuration, not a UI tab
-// These aliases allow gradual migration to new naming while maintaining compatibility
+// SSoT Rename (Jan 2026): EntityTab → StorageLocation → WarehouseFolder
+// Backend: WarehouseFolder model (table: warehouse_folders)
+// Frontend: EntityTab interface (for UI rendering)
+// These aliases allow backward compatibility
 // ============================================================================
 export type StorageLocationScope = EntityTabScope;
 export type StorageLocation = EntityTab;
@@ -173,3 +175,12 @@ export type StorageLocationsResponse = EntityTabsResponse;
 export type StorageLocationResponse = EntityTabResponse;
 export type StorageLocationCreateParams = EntityTabCreateParams;
 export type StorageLocationUpdateParams = EntityTabUpdateParams;
+
+// New naming (Jan 2026) - backend model is WarehouseFolder
+export type WarehouseFolderScope = EntityTabScope;
+export type WarehouseFolder = EntityTab;
+export type WarehouseFolderDocumentType = EntityTabDocumentType;
+export type WarehouseFoldersResponse = EntityTabsResponse;
+export type WarehouseFolderResponse = EntityTabResponse;
+export type WarehouseFolderCreateParams = EntityTabCreateParams;
+export type WarehouseFolderUpdateParams = EntityTabUpdateParams;

@@ -147,14 +147,14 @@ class BillInbox < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # SSoT: Reads from StorageConfiguration.virtual_template_for(:bill_inbox)
+  # SSoT: Reads from WarehouseProvider.virtual_template_for(:bill_inbox)
   # Configure at: /settings/company/entity-config → Storage Config
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
     tenant = resolve_tenant_for_config
     return "Warehousing/BillInbox/Unknown" unless tenant
 
-    config = StorageConfiguration.for_tenant(tenant) rescue nil
+    config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.virtual_template_for(:bill_inbox)
     return "Warehousing/BillInbox/Unknown" unless template
 
@@ -227,7 +227,7 @@ class BillInbox < ApplicationRecord
 
   private
 
-  # Resolve tenant for StorageConfiguration access
+  # Resolve tenant for WarehouseProvider access
   # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
   # Derive tenant from: corporate_company → group → tenant, or approved_by → tenant
   def resolve_tenant_for_config

@@ -16,7 +16,7 @@ class DocumentMigrationService
     def migration_status
       {
         in_progress: false,
-        current_provider: StorageConfiguration.instance&.provider_type || "none",
+        current_provider: WarehouseProvider.instance&.provider_type || "none",
         migrated_count: 0,
         failed_count: 0,
         total_count: 0,

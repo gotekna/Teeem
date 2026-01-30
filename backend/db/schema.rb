@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_30_164743) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_30_180753) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2958,60 +2958,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_30_164743) do
     t.index ["user_id", "is_starred"], name: "idx_email_user_states_starred", where: "(is_starred = true)"
     t.index ["user_id", "remind_at"], name: "idx_email_user_states_reminders", where: "((remind_at IS NOT NULL) AND (reminder_sent = false))"
     t.index ["user_id"], name: "index_email_user_states_on_user_id"
-  end
-
-  create_table "entity_tab_document_types", force: :cascade do |t|
-    t.bigint "storage_location_id", null: false
-    t.bigint "document_type_id", null: false
-    t.boolean "is_primary", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["document_type_id", "is_primary"], name: "idx_entity_tab_doc_types_primary"
-    t.index ["document_type_id"], name: "index_entity_tab_document_types_on_document_type_id"
-    t.index ["storage_location_id", "document_type_id"], name: "idx_entity_tab_doc_types_unique", unique: true
-    t.index ["storage_location_id"], name: "index_entity_tab_document_types_on_storage_location_id"
-  end
-
-  create_table "entity_tabs", force: :cascade do |t|
-    t.string "warehouse_type", null: false
-    t.string "tab_key", null: false
-    t.string "display_name", null: false
-    t.text "description"
-    t.string "tab_group"
-    t.bigint "parent_id"
-    t.bigint "job_id"
-    t.string "entity_filters", default: [], array: true
-    t.integer "order_position", default: 0
-    t.boolean "enabled", default: true
-    t.string "icon_name"
-    t.string "component_name"
-    t.boolean "is_system_tab", default: false
-    t.boolean "warehouse_enabled", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "display_code", limit: 3
-    t.boolean "uses_custom_path", default: false, null: false
-    t.string "warehouse_type_override", default: "corporate"
-    t.boolean "is_photo_category", default: false, null: false
-    t.string "display_mode", default: "both", null: false
-    t.boolean "hidden_by_default", default: false, null: false
-    t.string "storage_folder_id"
-    t.boolean "is_cad_category"
-    t.string "xero_scope"
-    t.string "visibility_rule"
-    t.bigint "tenant_id"
-    t.string "send_name_template"
-    t.string "warehouse_folder"
-    t.index ["enabled"], name: "index_entity_tabs_on_enabled"
-    t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
-    t.index ["job_id"], name: "index_entity_tabs_on_job_id"
-    t.index ["parent_id"], name: "index_entity_tabs_on_parent_id"
-    t.index ["storage_folder_id"], name: "index_entity_tabs_on_storage_folder_id"
-    t.index ["tenant_id"], name: "index_entity_tabs_on_tenant_id"
-    t.index ["warehouse_type", "enabled"], name: "index_entity_tabs_on_warehouse_type_and_enabled"
-    t.index ["warehouse_type", "tab_group"], name: "index_entity_tabs_on_warehouse_type_and_tab_group"
-    t.index ["warehouse_type", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
-    t.index ["warehouse_type"], name: "index_entity_tabs_on_warehouse_type"
   end
 
   create_table "estimate_line_items", force: :cascade do |t|
@@ -9088,30 +9034,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_30_164743) do
     t.index ["verified_at"], name: "index_storage_blobs_on_verified_at"
   end
 
-  create_table "storage_configurations", force: :cascade do |t|
-    t.bigint "organization_id"
-    t.string "provider_type", default: "sharepoint", null: false
-    t.string "status", default: "disconnected", null: false
-    t.jsonb "connection_config", default: {}, null: false
-    t.string "root_path", default: "/Shared Documents", null: false
-    t.string "credential_type"
-    t.bigint "credential_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.jsonb "file_name_templates", default: {}, null: false
-    t.jsonb "config_links", default: {}, null: false
-    t.jsonb "document_routing", default: {}, null: false
-    t.jsonb "virtual_warehouses", default: {}, null: false
-    t.jsonb "warehouse_folders", default: {}, null: false
-    t.boolean "exclude_sm_tasks", default: false, null: false
-    t.bigint "tenant_id", null: false
-    t.jsonb "display_name_templates", default: {}
-    t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
-    t.index ["organization_id"], name: "index_storage_configurations_on_organization_id", unique: true
-    t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id"
-    t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id_unique", unique: true
-  end
-
   create_table "stripe_configurations", force: :cascade do |t|
     t.bigint "organization_id"
     t.boolean "enabled", default: false, null: false
@@ -10032,6 +9954,84 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_30_164743) do
     t.index ["version_group_id", "is_latest_version"], name: "idx_warehouse_docs_version_group"
   end
 
+  create_table "warehouse_folder_document_types", force: :cascade do |t|
+    t.bigint "warehouse_folder_id", null: false
+    t.bigint "document_type_id", null: false
+    t.boolean "is_primary", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_type_id", "is_primary"], name: "idx_entity_tab_doc_types_primary"
+    t.index ["document_type_id"], name: "index_warehouse_folder_document_types_on_document_type_id"
+    t.index ["warehouse_folder_id", "document_type_id"], name: "idx_entity_tab_doc_types_unique", unique: true
+    t.index ["warehouse_folder_id"], name: "index_warehouse_folder_document_types_on_warehouse_folder_id"
+  end
+
+  create_table "warehouse_folders", force: :cascade do |t|
+    t.string "warehouse_type", null: false
+    t.string "tab_key", null: false
+    t.string "display_name", null: false
+    t.text "description"
+    t.string "tab_group"
+    t.bigint "parent_id"
+    t.bigint "job_id"
+    t.string "entity_filters", default: [], array: true
+    t.integer "order_position", default: 0
+    t.boolean "enabled", default: true
+    t.string "icon_name"
+    t.string "component_name"
+    t.boolean "is_system_tab", default: false
+    t.boolean "warehouse_enabled", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "display_code", limit: 3
+    t.boolean "uses_custom_path", default: false, null: false
+    t.string "warehouse_type_override", default: "corporate"
+    t.boolean "is_photo_category", default: false, null: false
+    t.string "display_mode", default: "both", null: false
+    t.boolean "hidden_by_default", default: false, null: false
+    t.string "storage_folder_id"
+    t.boolean "is_cad_category"
+    t.string "xero_scope"
+    t.string "visibility_rule"
+    t.bigint "tenant_id"
+    t.string "send_name_template"
+    t.string "warehouse_folder"
+    t.index ["enabled"], name: "index_warehouse_folders_on_enabled"
+    t.index ["entity_filters"], name: "index_warehouse_folders_on_entity_filters", using: :gin
+    t.index ["job_id"], name: "index_warehouse_folders_on_job_id"
+    t.index ["parent_id"], name: "index_warehouse_folders_on_parent_id"
+    t.index ["storage_folder_id"], name: "index_warehouse_folders_on_storage_folder_id"
+    t.index ["tenant_id"], name: "index_warehouse_folders_on_tenant_id"
+    t.index ["warehouse_type", "enabled"], name: "index_warehouse_folders_on_warehouse_type_and_enabled"
+    t.index ["warehouse_type", "tab_group"], name: "index_warehouse_folders_on_warehouse_type_and_tab_group"
+    t.index ["warehouse_type", "tab_key", "job_id", "parent_id"], name: "idx_entity_tabs_unique_key", unique: true
+    t.index ["warehouse_type"], name: "index_warehouse_folders_on_warehouse_type"
+  end
+
+  create_table "warehouse_providers", force: :cascade do |t|
+    t.bigint "organization_id"
+    t.string "provider_type", default: "sharepoint", null: false
+    t.string "status", default: "disconnected", null: false
+    t.jsonb "connection_config", default: {}, null: false
+    t.string "root_path", default: "/Shared Documents", null: false
+    t.string "credential_type"
+    t.bigint "credential_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "file_name_templates", default: {}, null: false
+    t.jsonb "config_links", default: {}, null: false
+    t.jsonb "document_routing", default: {}, null: false
+    t.jsonb "virtual_warehouses", default: {}, null: false
+    t.jsonb "warehouse_folders", default: {}, null: false
+    t.boolean "exclude_sm_tasks", default: false, null: false
+    t.bigint "tenant_id", null: false
+    t.jsonb "display_name_templates", default: {}
+    t.index ["credential_type", "credential_id"], name: "index_storage_configurations_on_credential"
+    t.index ["organization_id"], name: "index_warehouse_providers_on_organization_id", unique: true
+    t.index ["tenant_id"], name: "index_storage_configurations_on_tenant_id_unique", unique: true
+    t.index ["tenant_id"], name: "index_warehouse_providers_on_tenant_id"
+  end
+
   create_table "whs_action_items", force: :cascade do |t|
     t.string "actionable_type", null: false
     t.bigint "actionable_id", null: false
@@ -10817,11 +10817,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_30_164743) do
   add_foreign_key "email_templates", "users"
   add_foreign_key "email_user_states", "synced_emails", column: "email_warehouse_id"
   add_foreign_key "email_user_states", "users"
-  add_foreign_key "entity_tab_document_types", "document_types"
-  add_foreign_key "entity_tab_document_types", "entity_tabs", column: "storage_location_id"
-  add_foreign_key "entity_tabs", "entity_tabs", column: "parent_id"
-  add_foreign_key "entity_tabs", "jobs"
-  add_foreign_key "entity_tabs", "tenants"
   add_foreign_key "estimate_line_items", "estimates"
   add_foreign_key "estimate_reviews", "estimates"
   add_foreign_key "estimates", "jobs"
@@ -11444,8 +11439,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_30_164743) do
   add_foreign_key "specification_templates", "job_types"
   add_foreign_key "storage_blobs", "organizations"
   add_foreign_key "storage_blobs", "tenants"
-  add_foreign_key "storage_configurations", "organizations"
-  add_foreign_key "storage_configurations", "tenants"
   add_foreign_key "stripe_configurations", "organizations"
   add_foreign_key "stripe_payments", "contacts"
   add_foreign_key "stripe_payments", "external_invoices", column: "invoice_id"
@@ -11529,6 +11522,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_30_164743) do
   add_foreign_key "vip_senders", "users"
   add_foreign_key "warehouse_documents", "storage_blobs"
   add_foreign_key "warehouse_documents", "warehouse_documents", column: "parent_document_id", on_delete: :nullify, validate: false
+  add_foreign_key "warehouse_folder_document_types", "document_types"
+  add_foreign_key "warehouse_folder_document_types", "warehouse_folders"
+  add_foreign_key "warehouse_folders", "jobs"
+  add_foreign_key "warehouse_folders", "tenants"
+  add_foreign_key "warehouse_folders", "warehouse_folders", column: "parent_id"
+  add_foreign_key "warehouse_providers", "organizations"
+  add_foreign_key "warehouse_providers", "tenants"
   add_foreign_key "whs_action_items", "sm_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"

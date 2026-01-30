@@ -108,9 +108,9 @@ class EntityTabQueryService
   end
 
   # Load storage config once (eliminates 192 queries)
-  # SSoT: Uses StorageConfiguration (not CorporateCompanySetting)
+  # SSoT: Uses WarehouseProvider (not CorporateCompanySetting)
   def load_storage_config
-    config = StorageConfiguration.instance
+    config = WarehouseProvider.instance
     {
       root_path: config.root_path.presence || "",
       # SSoT: warehouse_folders contains full path patterns including identifier
@@ -142,14 +142,14 @@ class EntityTabQueryService
   end
 
   # SSoT: Get resolved warehouse path by substituting folder name into template
-  # Template: StorageConfiguration.warehouse_folders (e.g., "Warehousing/{{TeeemXL}}")
+  # Template: WarehouseProvider.warehouse_folders (e.g., "Warehousing/{{TeeemXL}}")
   # Folder name: warehouse_folder if set, otherwise display_name
   def derive_warehouse_folder(tab)
     return nil unless tab.warehouse_enabled
 
     # Get template from SSoT
     warehouse_type = tab.warehouse_type || 'corporate'
-    warehouse_type = StorageConfiguration::WAREHOUSE_KEY_ALIASES[warehouse_type] || warehouse_type
+    warehouse_type = WarehouseProvider::WAREHOUSE_KEY_ALIASES[warehouse_type] || warehouse_type
     template = @storage_config.dig(:warehouse_folders, warehouse_type)
     return nil unless template.present?
 
@@ -258,7 +258,7 @@ class EntityTabQueryService
   end
 
   # Compute all warehouse-related paths
-  # SSoT: derived_folder comes from StorageConfiguration.warehouse_folders (not EntityTab.warehouse_folder)
+  # SSoT: derived_folder comes from WarehouseProvider.warehouse_folders (not EntityTab.warehouse_folder)
   def compute_warehouse_data(tab, derived_folder)
     return {} unless tab.warehouse_enabled
 
@@ -297,7 +297,7 @@ class EntityTabQueryService
   end
 
   # Compute effective warehouse path (handles parent inheritance)
-  # SSoT: derived_folder comes from StorageConfiguration.warehouse_folders
+  # SSoT: derived_folder comes from WarehouseProvider.warehouse_folders
   def compute_effective_path(tab, template, derived_folder = nil)
     return nil unless tab.warehouse_enabled
 
@@ -346,7 +346,7 @@ class EntityTabQueryService
   end
 
   # Compute hierarchy path
-  # SSoT: derived_folder comes from StorageConfiguration.warehouse_folders
+  # SSoT: derived_folder comes from WarehouseProvider.warehouse_folders
   def compute_hierarchy_path(tab, derived_folder = nil)
     return derived_folder if derived_folder.present?
 

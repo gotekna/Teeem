@@ -363,7 +363,7 @@ class BankStatementReport < ApplicationRecord
 
   # Upload file content to storage using SSoT folder structure from DocumentType system
   # Path: /Shared Documents/00 TEEEM PRIVATE/{CompanyGroup}/{CompanyCode}/BANK/{filename}
-  # SSoT: Uses EntityTab.storage_folder_path for path resolution (StorageConfiguration for base)
+  # SSoT: Uses EntityTab.storage_folder_path for path resolution (WarehouseProvider for base)
   def upload_to_storage(content, filename)
     # SSoT: EntityTab (xero-bank-statement) → storage_folder_path is THE ONE source
     # Path defined in Admin > Entity Tabs > Bank Statement tab
@@ -426,9 +426,9 @@ class BankStatementReport < ApplicationRecord
       documentable_id: id
     )
 
-    # SSoT: Folder path comes from StorageConfiguration template (warehouse_folders['bank_statement'])
+    # SSoT: Folder path comes from WarehouseProvider template (warehouse_folders['bank_statement'])
     # Use resolve_virtual_path for WarehouseDocument.folder (UI display), not resolve_path (storage)
-    folder_path = StorageConfiguration.instance.resolve_virtual_path(
+    folder_path = WarehouseProvider.instance.resolve_virtual_path(
       :bank_statement,
       {
         CompanyGroup: corporate_company&.company_group.presence || "Default",

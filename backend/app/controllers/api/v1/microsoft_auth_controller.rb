@@ -450,9 +450,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     Rails.logger.info "[Microsoft Auth] Created org credential ID: #{credential.id}"
 
-    # SSoT: Get SharePoint site name from StorageConfiguration or company settings (Jan 2026)
+    # SSoT: Get SharePoint site name from WarehouseProvider or company settings (Jan 2026)
     # No hardcoded org names - tenant configures their own site name
-    storage_config = StorageConfiguration.instance
+    storage_config = WarehouseProvider.instance
     site_name = storage_config&.site_name.presence || CorporateCompanySetting.instance.company_name
     site_name_lower = site_name&.downcase || ""
 
@@ -684,10 +684,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       Rails.logger.warn "[Connections] Failed to get SharePoint auth user: #{e.message}"
     end
 
-    # SSoT: Get SharePoint config from StorageConfiguration
-    storage_config = StorageConfiguration.instance
+    # SSoT: Get SharePoint config from WarehouseProvider
+    storage_config = WarehouseProvider.instance
     site_url = storage_config&.site_url.presence
-    # SSoT: drive_name comes from StorageConfiguration - no hardcoded fallback
+    # SSoT: drive_name comes from WarehouseProvider - no hardcoded fallback
     drive_name = storage_config&.drive_name.presence
     documents_url = (site_url && drive_name) ? "#{site_url}/#{drive_name.gsub(' ', '%20')}" : nil
 
@@ -713,8 +713,8 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     if user_email.present?
       # Get the tenant prefix from SharePoint site URL (e.g., "gotekna" from "gotekna.sharepoint.com")
-      # SSoT: Use StorageConfiguration for site URL
-      site_url = StorageConfiguration.instance.site_url
+      # SSoT: Use WarehouseProvider for site URL
+      site_url = WarehouseProvider.instance.site_url
       tenant_prefix = site_url&.match(/https?:\/\/([^.]+)\.sharepoint\.com/)&.[](1)
 
       if tenant_prefix.present?

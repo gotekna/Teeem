@@ -170,10 +170,10 @@ module Api
       # GET /api/v1/entity_tabs/document_type_counts
       # Returns count of document types linked per warehouse type + total document types
       def document_type_counts
-        counts = StorageLocation::WAREHOUSE_TYPES.each_with_object({}) do |warehouse_type, hash|
-          hash[warehouse_type] = StorageLocationDocumentType
-            .joins(:storage_location)
-            .where(entity_tabs: { warehouse_type: warehouse_type })
+        counts = WarehouseFolder::WAREHOUSE_TYPES.each_with_object({}) do |warehouse_type, hash|
+          hash[warehouse_type] = WarehouseFolderDocumentType
+            .joins(:warehouse_folder)
+            .where(warehouse_folders: { warehouse_type: warehouse_type })
             .distinct
             .count(:document_type_id)
         end

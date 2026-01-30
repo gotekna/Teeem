@@ -27,12 +27,12 @@ class SyncSubscription < ApplicationRecord
   delegate :user, :organization, to: :desktop_client
 
   # Get the remote path for this subscription based on syncable type
-  # SSoT: Uses StorageConfiguration for base paths
+  # SSoT: Uses WarehouseProvider for base paths
   def remote_path
-    config = StorageConfiguration.instance
+    config = WarehouseProvider.instance
     case syncable_type
     when "Job"
-      # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+      # SSoT: Use WarehouseProvider.job_path for consistent folder naming
       job = syncable
       config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
     when "CorporateCompany"

@@ -145,7 +145,7 @@ type ViewMode = "tree" | "list" | "gallery";
 type TreeDisplayMode = "list" | "gallery";
 
 // SSoT: Scope hierarchy item from /api/v1/documents/scope_hierarchy
-// Matches StorageConfiguration.SCOPE_TEMPLATES structure
+// Matches WarehouseProvider.SCOPE_TEMPLATES structure
 interface ScopeHierarchyItem {
   id: string;
   name: string;
@@ -207,7 +207,7 @@ interface SyncSubscription {
   lastSyncAt?: string;
 }
 
-// SSoT: Scope folder names from StorageConfiguration
+// SSoT: Scope folder names from WarehouseProvider
 interface ScopeFolders {
   job?: string;
   corporate?: string;
@@ -228,7 +228,7 @@ interface EntityTabFolder {
   children?: EntityTabFolder[];
 }
 
-// Icon mapping for all storage scopes - matches StorageConfiguration.SCOPE_FOLDERS
+// Icon mapping for all storage scopes - matches WarehouseProvider.SCOPE_FOLDERS
 const SCOPE_ICONS: Record<string, React.ReactNode> = {
   job: <Briefcase className="h-4 w-4" />,
   jobs: <Briefcase className="h-4 w-4" />,
@@ -261,7 +261,7 @@ const SCOPE_ICONS: Record<string, React.ReactNode> = {
   contracts: <PenTool className="h-4 w-4" />,
 };
 
-// SSoT: Build hierarchical tree from StorageConfiguration.scope_folders
+// SSoT: Build hierarchical tree from WarehouseProvider.scope_folders
 // This matches the tree structure shown in SharePointTab (Storage Configurator)
 // Both components use the same backend data source for consistency
 // Note: rootPath is provider-agnostic - "/" for S3/Wasabi, "/Shared Documents" for SharePoint
@@ -376,7 +376,7 @@ export default function AllDocumentsPage() {
     people: DocumentItem[];
     tasks: DocumentItem[];
   }>({ jobs: [], corporate: [], people: [], tasks: [] });
-  // Counts for all scopes - matches StorageConfiguration.SCOPE_FOLDERS
+  // Counts for all scopes - matches WarehouseProvider.SCOPE_FOLDERS
   const [counts, setCounts] = useState<Record<string, number>>({
     jobs: 0, corporate: 0, people: 0, contacts: 0,
     emails: 0, attachments: 0, email_attachments: 0,
@@ -413,14 +413,14 @@ export default function AllDocumentsPage() {
   } | null>(null);
   const [isLoadingTaskQuestions, setIsLoadingTaskQuestions] = useState(false);
 
-  // SSoT: Scope folder names from StorageConfiguration
-  // Start empty - API will provide all scopes from StorageConfiguration.SCOPE_FOLDERS
+  // SSoT: Scope folder names from WarehouseProvider
+  // Start empty - API will provide all scopes from WarehouseProvider.SCOPE_FOLDERS
   const [scopeFolders, setScopeFolders] = useState<ScopeFolders>({});
 
   // SSoT: Folder path templates from Entity Config
   const [scopeTemplates, setScopeTemplates] = useState<Record<string, string>>({});
 
-  // SSoT: Root path from StorageConfiguration
+  // SSoT: Root path from WarehouseProvider
   // Default to empty string - will be populated from API
   // For S3: "/" (bucket root), for SharePoint: "/Shared Documents"
   const [rootPath, setRootPath] = useState<string>("");
@@ -435,7 +435,7 @@ export default function AllDocumentsPage() {
   }>({ job: [], corporate: [], contact: [] });
 
   // SSoT: Scope hierarchies from /api/v1/documents/scope_hierarchy
-  // These match StorageConfiguration.SCOPE_TEMPLATES ({{CompanyGroup}}/{{CompanyCode}}/{{TabName}})
+  // These match WarehouseProvider.SCOPE_TEMPLATES ({{CompanyGroup}}/{{CompanyCode}}/{{TabName}})
   const [scopeHierarchies, setScopeHierarchies] = useState<{
     corporate: ScopeHierarchyItem[];
     job: ScopeHierarchyItem[];
@@ -493,9 +493,9 @@ export default function AllDocumentsPage() {
   const [folderFiles, setFolderFiles] = useState<Record<string, DocumentItem[]>>({});
   const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
 
-  // SSoT: Fetch storage config from StorageConfiguration (scope folders, templates, root path)
+  // SSoT: Fetch storage config from WarehouseProvider (scope folders, templates, root path)
   // This uses the same endpoint as StorageConfigTab to ensure consistency
-  // NOTE: Endpoint name "sharepoint" is legacy - it returns provider-agnostic config from StorageConfiguration
+  // NOTE: Endpoint name "sharepoint" is legacy - it returns provider-agnostic config from WarehouseProvider
   useEffect(() => {
     const fetchStorageConfig = async () => {
       try {
@@ -509,7 +509,7 @@ export default function AllDocumentsPage() {
           };
         }>("/api/v1/storage_configuration");
         if (response?.success && response.data) {
-          // SSoT: Use scope_folders from StorageConfiguration.SCOPE_FOLDERS
+          // SSoT: Use scope_folders from WarehouseProvider.SCOPE_FOLDERS
           if (response.data.scope_folders) {
             setScopeFolders(response.data.scope_folders);
           }
@@ -519,7 +519,7 @@ export default function AllDocumentsPage() {
           if (response.data.root_path) {
             setRootPath(response.data.root_path);
           }
-          // Phase 4: Virtual scopes from StorageConfiguration
+          // Phase 4: Virtual scopes from WarehouseProvider
           if (response.data.virtual_scopes) {
             setVirtualScopes(response.data.virtual_scopes);
           }
@@ -555,7 +555,7 @@ export default function AllDocumentsPage() {
   }, []);
 
   // SSoT: Fetch scope hierarchies from /api/v1/documents/scope_hierarchy
-  // These hierarchies match StorageConfiguration.SCOPE_TEMPLATES
+  // These hierarchies match WarehouseProvider.SCOPE_TEMPLATES
   // Structure: CompanyGroup → CompanyCode → TabName (for corporate)
   useEffect(() => {
     const fetchScopeHierarchies = async () => {
@@ -1703,7 +1703,7 @@ export default function AllDocumentsPage() {
       }
 
       // Helper to strip root path prefix from a path
-      // SSoT: rootPath comes from StorageConfiguration (e.g., "/" for S3, "/Shared Documents" for SharePoint)
+      // SSoT: rootPath comes from WarehouseProvider (e.g., "/" for S3, "/Shared Documents" for SharePoint)
       const stripRootPath = (path: string): string => {
         if (!path) return path;
         const normalizedPath = path.replace(/^\/+/, '');  // Remove leading slashes

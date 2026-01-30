@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-# StorageConfiguration - SSoT for storage CONNECTION configuration
+# WarehouseProvider - SSoT for storage CONNECTION configuration
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  SSoT: Tenant-Level Storage Configuration (Jan 2026)              ║
 # ║                                                                   ║
-# ║  StorageConfiguration belongs to TENANT (not Organization)        ║
+# ║  WarehouseProvider belongs to TENANT (not Organization)        ║
 # ║  One storage config per tenant = one S3 bucket per customer       ║
 # ║                                                                   ║
 # ║  provider_type column IS THE ONE - no detection/fallbacks         ║
@@ -21,21 +21,21 @@
 # Each EntityTab defines its own warehouse_folder template.
 #
 # SSoT Hierarchy (Jan 2026 fix):
-#   Tenant       → StorageConfiguration (one per tenant)
+#   Tenant       → WarehouseProvider (one per tenant)
 #   Organization → Credentials (Microsoft, S3, etc. - per SPV)
 #
 # Usage (SSoT - use for_tenant):
-#   config = StorageConfiguration.for_tenant(tenant)
+#   config = WarehouseProvider.for_tenant(tenant)
 #   config.provider_type  # => "s3_compatible"
 #   config.root_path      # => "/"
 #   config.bucket         # => "teeem-docs"
 #
 # Deprecated (use for_tenant instead):
-#   config = StorageConfiguration.for_organization(org)  # -> for_tenant(org.tenant)
+#   config = WarehouseProvider.for_organization(org)  # -> for_tenant(org.tenant)
 #
-class StorageConfiguration < ApplicationRecord
+class WarehouseProvider < ApplicationRecord
   # Associations
-  # SSoT: StorageConfiguration belongs to TENANT (Jan 2026 fix)
+  # SSoT: WarehouseProvider belongs to TENANT (Jan 2026 fix)
   # Organization association deprecated but kept for backward compatibility
   belongs_to :tenant
   belongs_to :organization, optional: true  # DEPRECATED: Use tenant instead
@@ -75,7 +75,7 @@ class StorageConfiguration < ApplicationRecord
   # Note: scope_options was deleted and replaced with exclude_sm_tasks boolean
 
   # Validations
-  # SSoT: StorageConfiguration validates TENANT (not organization) - Jan 2026 fix
+  # SSoT: WarehouseProvider validates TENANT (not organization) - Jan 2026 fix
   # Note: provider_type is now DERIVED from active credentials (SSoT)
   # The stored column is just a fallback default, so we validate it exists but don't require it to be "correct"
   validates :tenant, presence: true, uniqueness: true
@@ -105,7 +105,7 @@ class StorageConfiguration < ApplicationRecord
 
   def invalidate_warehouse_folder_cache
     Rails.cache.delete("warehouse_folder_tree_v2")
-    Rails.logger.info "[StorageConfiguration] Cleared warehouse folder tree cache after template change"
+    Rails.logger.info "[WarehouseProvider] Cleared warehouse folder tree cache after template change"
   end
 
   def queue_folder_recomputation
@@ -113,7 +113,7 @@ class StorageConfiguration < ApplicationRecord
     changed_types = warehouse_folders_change_affected_types
     return if changed_types.empty?
 
-    Rails.logger.info "[StorageConfiguration] Template changed for: #{changed_types.join(', ')} - queuing folder recomputation"
+    Rails.logger.info "[WarehouseProvider] Template changed for: #{changed_types.join(', ')} - queuing folder recomputation"
     RecomputeWarehouseFoldersJob.perform_later(tenant_id, changed_types)
   end
 
@@ -141,7 +141,7 @@ class StorageConfiguration < ApplicationRecord
                else "/" # S3, Wasabi, s3_compatible, local all use bucket root
                end
     self.root_path = new_root
-    Rails.logger.info "[StorageConfiguration] Auto-synced root_path to '#{new_root}' for provider '#{provider_type}'"
+    Rails.logger.info "[WarehouseProvider] Auto-synced root_path to '#{new_root}' for provider '#{provider_type}'"
   end
 
   # Scopes
@@ -156,7 +156,7 @@ class StorageConfiguration < ApplicationRecord
   # This is THE ONE way to get storage config
   #
   # @param tenant [Tenant] The tenant to get storage config for
-  # @return [StorageConfiguration] The storage configuration
+  # @return [WarehouseProvider] The storage configuration
   def self.for_tenant(tenant)
     raise ::TenantNotFoundError, "Tenant required for storage configuration" unless tenant
 
@@ -166,7 +166,7 @@ class StorageConfiguration < ApplicationRecord
   # DEPRECATED: Use for_tenant instead
   # Get storage configuration via organization (delegates to for_tenant)
   def self.for_organization(org)
-    Rails.logger.warn "[DEPRECATED] StorageConfiguration.for_organization - use for_tenant instead"
+    Rails.logger.warn "[DEPRECATED] WarehouseProvider.for_organization - use for_tenant instead"
     return nil unless org
 
     # Delegate to for_tenant
@@ -177,7 +177,7 @@ class StorageConfiguration < ApplicationRecord
   # Raises TenantNotFoundError if no tenant context (fail-fast)
   def self.instance
     tenant = ActsAsTenant.current_tenant
-    raise ::TenantNotFoundError, "Tenant context required for StorageConfiguration.instance - use for_tenant(tenant) or set ActsAsTenant.current_tenant" unless tenant
+    raise ::TenantNotFoundError, "Tenant context required for WarehouseProvider.instance - use for_tenant(tenant) or set ActsAsTenant.current_tenant" unless tenant
 
     for_tenant(tenant)
   end
@@ -210,7 +210,7 @@ class StorageConfiguration < ApplicationRecord
 
   # DEPRECATED: Use create_default_for_tenant instead
   def self.create_default_for(org)
-    Rails.logger.warn "[DEPRECATED] StorageConfiguration.create_default_for(org) - use create_default_for_tenant(tenant) instead"
+    Rails.logger.warn "[DEPRECATED] WarehouseProvider.create_default_for(org) - use create_default_for_tenant(tenant) instead"
     return nil unless org
 
     create_default_for_tenant(org.tenant)
@@ -715,7 +715,7 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # Class method for easy access without instance
-  # Usage: StorageConfiguration.bucket or StorageConfiguration.bucket(tenant)
+  # Usage: WarehouseProvider.bucket or WarehouseProvider.bucket(tenant)
   def self.bucket(tenant = nil)
     config = tenant ? for_tenant(tenant) : instance
     config&.bucket
@@ -749,14 +749,14 @@ class StorageConfiguration < ApplicationRecord
         status: credential.connected? ? "connected" : "disconnected"
       )
     when S3CompatibleCredential
-      # SSoT (Jan 2026): bucket is stored in StorageConfiguration only, NOT synced from credential
+      # SSoT (Jan 2026): bucket is stored in WarehouseProvider only, NOT synced from credential
       # Credential stores auth only (endpoint, region for client init)
       update!(
         provider_type: "s3_compatible",
         connection_config: connection_config.merge(
           "endpoint" => credential.endpoint,
           "region" => credential.region
-          # bucket intentionally NOT synced - StorageConfiguration.connection_config['bucket'] is SSoT
+          # bucket intentionally NOT synced - WarehouseProvider.connection_config['bucket'] is SSoT
         ).compact,
         status: credential.status == "connected" ? "connected" : "disconnected"
       )
@@ -781,12 +781,12 @@ class StorageConfiguration < ApplicationRecord
         "drive_name" => credential.respond_to?(:drive_name) ? credential.drive_name : nil
       }.compact
     when S3CompatibleCredential
-      # SSoT (Jan 2026): bucket comes from StorageConfiguration only
+      # SSoT (Jan 2026): bucket comes from WarehouseProvider only
       # This fallback only returns auth-related config, not bucket
       {
         "endpoint" => credential.endpoint,
         "region" => credential.region
-        # bucket intentionally omitted - must be set in StorageConfiguration
+        # bucket intentionally omitted - must be set in WarehouseProvider
       }.compact
     else
       {}
@@ -954,7 +954,7 @@ class StorageConfiguration < ApplicationRecord
       job_path(job.job_code, effective_tab_name)
     else
       # Standalone: Use warehousing folder structure
-      # SSoT: StorageConfiguration.resolve_path with warehouse_folders
+      # SSoT: WarehouseProvider.resolve_path with warehouse_folders
       resolve_path(scope, {
         UserName: effective_user&.name || "Unknown",
         Year: created_at&.year&.to_s || Time.current.year.to_s,
@@ -1003,7 +1003,7 @@ class StorageConfiguration < ApplicationRecord
     model_name = routing["model"]
     model_name.constantize
   rescue NameError
-    Rails.logger.warn("[StorageConfiguration] Unknown model '#{model_name}' for source '#{source}', falling back to WarehouseDocument")
+    Rails.logger.warn("[WarehouseProvider] Unknown model '#{model_name}' for source '#{source}', falling back to WarehouseDocument")
     WarehouseDocument
   end
 

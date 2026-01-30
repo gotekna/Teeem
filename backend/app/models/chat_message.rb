@@ -77,21 +77,21 @@ class ChatMessage < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # SSoT: Reads from StorageConfiguration.virtual_template_for(:chat)
+  # SSoT: Reads from WarehouseProvider.virtual_template_for(:chat)
   # Configure at: /settings/company/entity-config → Storage Config
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
     tenant = resolve_tenant_for_config
     return "Warehousing/Chat/Unknown" unless tenant
 
-    config = StorageConfiguration.for_tenant(tenant) rescue nil
+    config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.virtual_template_for(:chat)
     return "Warehousing/Chat/Unknown" unless template
 
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)
 
-    # SSoT: Determine context folder using StorageConfiguration paths (Jan 2026)
+    # SSoT: Determine context folder using WarehouseProvider paths (Jan 2026)
     context = if job_id.present?
                 jobs_folder = config&.path_for(:jobs) || "Jobs"
                 "#{jobs_folder}/#{job&.job_code || job_id}"
@@ -160,7 +160,7 @@ class ChatMessage < ApplicationRecord
 
   private
 
-  # Resolve tenant for StorageConfiguration access
+  # Resolve tenant for WarehouseProvider access
   # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
   # Derive tenant from: user → tenant, or job → tenant, or contact → tenant
   def resolve_tenant_for_config

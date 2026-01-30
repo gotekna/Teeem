@@ -80,10 +80,10 @@ class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCam
     cred = MicrosoftCredential.sharepoint_credential
     return nil unless cred
 
-    # Verify StorageConfiguration has drive_id (SSoT)
-    storage_config = StorageConfiguration.instance
+    # Verify WarehouseProvider has drive_id (SSoT)
+    storage_config = WarehouseProvider.instance
     unless storage_config&.drive_id.present?
-      Rails.logger.error "[SharePointMigration] StorageConfiguration missing drive_id"
+      Rails.logger.error "[SharePointMigration] WarehouseProvider missing drive_id"
       return nil
     end
 
@@ -209,8 +209,8 @@ class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCam
   def upload_to_wasabi(email, content)
     year = email.received_at&.year || email.created_at.year
     month = (email.received_at || email.created_at).strftime("%m")
-    # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
-    emails_folder = StorageConfiguration.instance&.path_for(:emails) || "Emails"
+    # SSoT: Uses WarehouseProvider for base folder (Jan 2026)
+    emails_folder = WarehouseProvider.instance&.path_for(:emails) || "Emails"
     folder_path = "#{emails_folder}/eml/#{year}/#{month}"
     filename = "#{email.id}.eml"
 

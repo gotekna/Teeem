@@ -8,9 +8,9 @@ class CaseFolderService
     @case = case_record
   end
 
-  # SSoT: Get case info path from StorageConfiguration
+  # SSoT: Get case info path from WarehouseProvider
   def case_info_path
-    @case_info_path ||= "#{StorageConfiguration.instance.path_for(:corporate)}/Case Info"
+    @case_info_path ||= "#{WarehouseProvider.instance.path_for(:corporate)}/Case Info"
   end
 
   # Create a dedicated folder for this case in storage

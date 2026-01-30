@@ -1195,8 +1195,8 @@ module Api
         blob.increment_reference!
 
         # SSoT (Jan 2026): Create WarehouseDocument record for the uploaded file
-        # Folder path comes from StorageConfiguration template (warehouse_folders['task_attachments'])
-        folder_path = StorageConfiguration.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
+        # Folder path comes from WarehouseProvider template (warehouse_folders['task_attachments'])
+        folder_path = WarehouseProvider.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
         doc = WarehouseDocument.create!(
           display_name: file.original_filename,
           storage_blob: blob,
@@ -1304,8 +1304,8 @@ module Api
           provider.delete_file(key) rescue nil
 
           # SSoT (Jan 2026): Create WarehouseDocument record
-          # Folder path comes from StorageConfiguration template (warehouse_folders['task_attachments'])
-          folder_path = StorageConfiguration.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
+          # Folder path comes from WarehouseProvider template (warehouse_folders['task_attachments'])
+          folder_path = WarehouseProvider.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
           doc = WarehouseDocument.create!(
             display_name: filename,
             storage_blob: blob,

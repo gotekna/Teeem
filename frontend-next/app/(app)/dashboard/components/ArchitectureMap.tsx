@@ -1363,7 +1363,7 @@ export default function JobsPage() {
               <div className="mt-4 p-3 rounded-lg bg-muted">
                 <p className="text-xs text-muted-foreground">
                   <strong>SSoT:</strong> Scope paths are configured in{" "}
-                  <code className="bg-background px-1 rounded">StorageConfiguration.warehouse_folders</code>.
+                  <code className="bg-background px-1 rounded">WarehouseProvider.warehouse_folders</code>.
                   Configure at: Settings → Company → Entity Config → Storage Config
                 </p>
               </div>
@@ -1495,7 +1495,7 @@ export default function JobsPage() {
                       <td className="py-2">Deduplicated content storage</td>
                     </tr>
                     <tr className="border-b">
-                      <td className="py-2 pr-4 font-semibold">StorageConfiguration</td>
+                      <td className="py-2 pr-4 font-semibold">WarehouseProvider</td>
                       <td className="py-2 pr-4 text-muted-foreground">app/models/storage_configuration.rb</td>
                       <td className="py-2">Provider config & folder paths</td>
                     </tr>
@@ -1603,7 +1603,7 @@ export default function JobsPage() {
                     />
                     <SSoTRow
                       category="Storage Paths"
-                      location="StorageConfiguration model"
+                      location="WarehouseProvider model"
                       notHere="Hardcoded path strings"
                     />
                     <SSoTRow
@@ -2026,7 +2026,7 @@ export default function JobsPage() {
                 <div className="flex items-start gap-3 p-3 rounded bg-red-50 dark:bg-red-950/30">
                   <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
                   <div>
-                    <p className="font-medium">StorageConfiguration at Organization level</p>
+                    <p className="font-medium">WarehouseProvider at Organization level</p>
                     <p className="text-xs text-muted-foreground">Should be at Tenant level - one bucket per customer</p>
                   </div>
                 </div>

@@ -37,7 +37,7 @@ class DirectorDocumentUploadService
   def get_share_link(file_id_or_path)
     # For SharePoint, we can create share links
     # For S3/Wasabi, the URL is already accessible (or use presigned URLs)
-    storage_config = StorageConfiguration.instance
+    storage_config = WarehouseProvider.instance
     return nil unless storage_config.provider_type == "sharepoint"
 
     # SharePoint-specific share link creation

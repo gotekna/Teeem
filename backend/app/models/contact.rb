@@ -1390,17 +1390,17 @@ class Contact < ApplicationRecord
   end
 
   # Generate folder name for this contact
-  # SSoT: Uses StorageConfiguration.templates["contact"] for format
+  # SSoT: Uses WarehouseProvider.templates["contact"] for format
   # @return [String] folder name (e.g., "123 - ABC Supplies")
   def document_folder_name
     self.class.generate_folder_name(contact_id: id, display_name: display_name)
   end
 
   # Class method to generate folder name for a contact
-  # SSoT: StorageConfiguration.template_for(:contact) is THE ONE source
+  # SSoT: WarehouseProvider.template_for(:contact) is THE ONE source
   # @example Template "{{ContactId}} - {{ContactName}}" => "123 - ABC Supplies"
   def self.generate_folder_name(contact_id:, display_name:)
-    template = StorageConfiguration.instance&.template_for(:contact) || "{{ContactId}} - {{ContactName}}"
+    template = WarehouseProvider.instance&.template_for(:contact) || "{{ContactId}} - {{ContactName}}"
     sanitized_name = SharePoint::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
 
     result = template.dup

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
-# DEPRECATED: Use StorageLocationDocumentType instead
+# DEPRECATED: Use WarehouseFolderDocumentType instead
 # This alias exists for backward compatibility during migration
-EntityTabDocumentType = StorageLocationDocumentType
+EntityTabDocumentType = WarehouseFolderDocumentType
+StorageLocationDocumentType = WarehouseFolderDocumentType

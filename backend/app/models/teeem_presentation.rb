@@ -45,7 +45,7 @@ class TeeemPresentation < ApplicationRecord
   scope :unattached, -> { where(job_id: nil) }
 
   # ========================================
-  # Warehouse Path (SSoT: StorageConfiguration)
+  # Warehouse Path (SSoT: WarehouseProvider)
   # ========================================
 
   # SSoT: Full warehouse path including filename
@@ -54,9 +54,9 @@ class TeeemPresentation < ApplicationRecord
     "#{warehouse_folder_path}/#{safe_filename}_#{id}.pptx".gsub(%r{/+}, "/")
   end
 
-  # SSoT: Folder path computed by StorageConfiguration
+  # SSoT: Folder path computed by WarehouseProvider
   def warehouse_folder_path
-    StorageConfiguration.instance.resolve_warehouse_path(self, scope: :powerpoint_documents)
+    WarehouseProvider.instance.resolve_warehouse_path(self, scope: :powerpoint_documents)
   end
 
   # Safe filename (remove special characters)
