@@ -12,6 +12,7 @@ import { SmartTextField } from '@/components/ui/smart-text-field';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Dialog,
@@ -6349,6 +6350,30 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     </Badge>
                   )}
                 </Button>
+
+                {/* Auto-attach email files toggle */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className="flex items-center gap-1.5 ml-auto pl-2 border-l border-border cursor-pointer"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Paperclip className="h-3 w-3 text-muted-foreground" />
+                        <Switch
+                          checked={task.auto_attach_email_files !== false}
+                          onCheckedChange={async (checked) => {
+                            await updateTask(task.id, { auto_attach_email_files: checked });
+                          }}
+                          className="h-4 w-7 data-[state=checked]:bg-blue-500"
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[200px]">
+                      <p className="text-xs">Auto-attach files from emails when emails are added to this task</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               {!emailsCollapsed && (

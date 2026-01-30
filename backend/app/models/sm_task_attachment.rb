@@ -26,6 +26,8 @@ class SmTaskAttachment < ApplicationRecord
   # Callbacks
   after_create :auto_populate_keywords
   after_create :create_warehouse_entry
+  after_create :attach_email_file_attachments, if: -> { attachable_type == 'SyncedEmail' }
+  before_destroy :remove_auto_attached_documents
 
   # Soft delete support - deleted attachments won't be re-created by auto-attach
   # SSoT: Use deleted_at to track user-removed attachments
@@ -171,6 +173,65 @@ class SmTaskAttachment < ApplicationRecord
   rescue StandardError => e
     Rails.logger.error("[SmTaskAttachment] ##{id}: Failed to create warehouse entry: #{e.message}")
     Rails.logger.error(e.backtrace.first(5).join("\n"))
+  end
+
+  # Auto-attach file attachments from an email when the email is attached to a task
+  # SSoT: Uses SyncedEmail#attachment_documents (WarehouseDocument) for email files
+  #
+  # Behavior:
+  # - Only runs when attachable_type is 'SyncedEmail'
+  # - Respects sm_task.auto_attach_email_files setting (toggle per-task)
+  # - Skips if document already attached or was previously deleted
+  # - Tracks source_email_attachment_id for cascade delete
+  def attach_email_file_attachments
+    return unless sm_task.auto_attach_email_files?
+    return unless attachable.respond_to?(:attachment_documents)
+
+    # Use document_attachments to exclude small signature images
+    docs = attachable.respond_to?(:document_attachments) ? attachable.document_attachments : attachable.attachment_documents
+
+    docs.each do |doc|
+      # Skip if already attached (active or soft-deleted)
+      next if SmTaskAttachment.with_deleted.exists?(
+        sm_task_id: sm_task_id,
+        attachable_type: 'WarehouseDocument',
+        attachable_id: doc.id
+      )
+
+      SmTaskAttachment.create!(
+        sm_task_id: sm_task_id,
+        attachable: doc,
+        attachment_type: 'document',
+        category: category, # Inherit from email (info/response)
+        added_by_id: added_by_id,
+        auto_attached: true,
+        source_email_attachment_id: id # Track which email triggered this
+      )
+    end
+  rescue StandardError => e
+    Rails.logger.error("[SmTaskAttachment] ##{id}: Failed to attach email file attachments: #{e.message}")
+    Rails.logger.error(e.backtrace.first(5).join("\n"))
+  end
+
+  # Cascade delete auto-attached documents when their source email is removed
+  # SSoT: Uses source_email_attachment_id to find documents that were auto-added
+  def remove_auto_attached_documents
+    return unless attachable_type == 'SyncedEmail'
+
+    # Find all auto-attached documents that came from this email
+    auto_docs = SmTaskAttachment.where(
+      sm_task_id: sm_task_id,
+      auto_attached: true,
+      source_email_attachment_id: id
+    )
+
+    count = auto_docs.count
+    if count > 0
+      Rails.logger.info("[SmTaskAttachment] ##{id}: Cascade deleting #{count} auto-attached documents")
+      auto_docs.destroy_all
+    end
+  rescue StandardError => e
+    Rails.logger.error("[SmTaskAttachment] ##{id}: Failed to cascade delete auto-attached documents: #{e.message}")
   end
 
   # Compute the folder path for File Warehouse
