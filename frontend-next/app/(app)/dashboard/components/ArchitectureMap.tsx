@@ -1414,7 +1414,7 @@ export default function JobsPage() {
               </div>
 
               <div className="p-3 rounded-lg bg-muted">
-                <p className="text-xs font-semibold mb-2">Send Name Templates</p>
+                <p className="text-xs font-semibold mb-2">Download Name Templates</p>
                 <div className="grid md:grid-cols-2 gap-2 text-xs font-mono">
                   <div><span className="text-muted-foreground">email →</span> {"{Subject} - {ReceivedDate}.eml"}</div>
                   <div><span className="text-muted-foreground">job →</span> {"{JobCode} {DocTypeName} {Date}"}</div>

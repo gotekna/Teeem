@@ -383,7 +383,7 @@ module Api
 
       def all_available_tabs
         # SSoT: Get all document tabs from EntityTab (replaces old DocumentFolder)
-        EntityTab.for_scope('corporate_entity')
+        EntityTab.for_scope('corporate')
                  .for_group('documents')
                  .enabled
                  .root_tabs

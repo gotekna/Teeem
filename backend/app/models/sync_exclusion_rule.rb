@@ -43,7 +43,7 @@ class SyncExclusionRule < ApplicationRecord
       name: "Corporate",
       description: "Company and entity documents",
       icon: "building",
-      warehouse_type: "corporate_entity"
+      warehouse_type: "corporate"
     },
     contacts: {
       name: "Contacts",

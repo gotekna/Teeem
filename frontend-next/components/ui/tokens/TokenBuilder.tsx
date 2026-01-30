@@ -89,6 +89,8 @@ export interface TokenBuilderProps {
   defaultExpanded?: boolean;
   /** Separator between tokens. Use "/" for folder paths, " " for text. Default: " " */
   separator?: string;
+  /** Read-only prefix value (inherited tokens shown greyed out before editable tokens) */
+  prefixValue?: string;
 }
 
 // Token item with unique ID for drag-and-drop
@@ -191,6 +193,20 @@ function DragOverlayToken({ item }: { item: TokenItem }) {
   );
 }
 
+// Read-only token (for inherited/prefix values - greyed out, non-removable)
+function ReadOnlyToken({ item }: { item: TokenItem }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center font-mono text-xs px-2 py-1 rounded-none border",
+        "bg-muted/50 text-muted-foreground border-muted-foreground/30 opacity-60"
+      )}
+    >
+      <span className="truncate">{item.value}</span>
+    </span>
+  );
+}
+
 export function TokenBuilder({
   value,
   onChange,
@@ -207,6 +223,7 @@ export function TokenBuilder({
   helpText,
   defaultExpanded = false,
   separator = " ",
+  prefixValue,
 }: TokenBuilderProps) {
   const [customText, setCustomText] = React.useState("");
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -247,6 +264,22 @@ export function TokenBuilder({
       id: `token-${index}-${token.value}`,
     }));
   }, [value, isFolderPathMode]);
+
+  // Parse prefix value into read-only tokens (for inherited values)
+  const prefixTokens: TokenItem[] = React.useMemo(() => {
+    if (!prefixValue) return [];
+    const parsed = parseTemplate(prefixValue);
+
+    // In folder path mode, filter out separator-only text tokens
+    const filtered = isFolderPathMode
+      ? parsed.filter(token => !(token.type === "text" && token.value.trim() === "/"))
+      : parsed;
+
+    return filtered.map((token, index) => ({
+      ...token,
+      id: `prefix-${index}-${token.value}`,
+    }));
+  }, [prefixValue, isFolderPathMode]);
 
   // Find active item for drag overlay
   const activeItem = React.useMemo(
@@ -352,8 +385,21 @@ export function TokenBuilder({
           disabled && "opacity-50 cursor-not-allowed"
         )}
       >
-        {tokens.length === 0 ? (
+        {/* Prefix tokens (read-only, inherited) */}
+        {prefixTokens.map((token) => (
+          <ReadOnlyToken key={token.id} item={token} />
+        ))}
+
+        {/* Separator between prefix and editable tokens */}
+        {prefixTokens.length > 0 && tokens.length > 0 && (
+          <span className="text-muted-foreground/50 mx-0.5">/</span>
+        )}
+
+        {/* Editable tokens with drag-and-drop */}
+        {tokens.length === 0 && prefixTokens.length === 0 ? (
           <span className="text-sm text-muted-foreground">{placeholder}</span>
+        ) : tokens.length === 0 ? (
+          <span className="text-sm text-muted-foreground italic">+ add suffix</span>
         ) : (
           <DndContext
             sensors={sensors}

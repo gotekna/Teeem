@@ -3,7 +3,8 @@
 # Works with EntityTab to allow users to personalize their tab experience
 class UserEntityTabPreference < ApplicationRecord
   # Valid scopes (must match EntityTab::SCOPES)
-  SCOPES = %w[corporate_entity people job document contact].freeze
+  # SSoT: 'corporate' is THE ONE for corporate entities (Jan 2026 - 'corporate_entity' renamed)
+  SCOPES = %w[corporate people job document contact].freeze
 
   # Associations
   belongs_to :user
