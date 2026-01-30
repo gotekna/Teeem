@@ -365,10 +365,11 @@ class SyncedEmail < ApplicationRecord
   end
 
   # SSoT: Get attachment documents for this email via WarehouseDocument (Jan 2026)
-  # Returns WarehouseDocument records with source_type='email_attachment' linked to this email
+  # Returns WarehouseDocument records linked to this email
+  # FRC (Jan 2026): Fixed to query correct source_type='email' and metadata key 'parent_email_id'
   def attachment_documents
-    WarehouseDocument.where(source_type: 'email_attachment')
-                     .where("metadata->>'synced_email_id' = ?", id.to_s)
+    WarehouseDocument.where(source_type: 'email')
+                     .where("metadata->>'parent_email_id' = ?", id.to_s)
   end
 
   # Get document attachments (exclude small signature images, keep large photos)
