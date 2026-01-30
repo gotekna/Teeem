@@ -66,7 +66,7 @@ module Api
         new_scope_root_folders = storage_config.scope_root_folders&.dup || {}
 
         if params.dig(:settings, :company_documents_base_path)
-          new_scope_root_folders['corporate_entity'] = params.dig(:settings, :company_documents_base_path)
+          new_scope_root_folders['corporate'] = params.dig(:settings, :company_documents_base_path)
         end
         if params.dig(:settings, :people_documents_base_path)
           new_scope_root_folders['people'] = params.dig(:settings, :people_documents_base_path)

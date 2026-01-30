@@ -1622,11 +1622,11 @@ function GoldDocumentTypeEditor() {
             </div>
 
             <div className="flex gap-4">
-              {/* Send Name / Display Name builders */}
+              {/* Download Name / Display Name builders */}
               <div className="flex-1 space-y-4">
-                {/* Send Name */}
+                {/* Download Name */}
                 <div className="space-y-2">
-                  <Label>Send Name</Label>
+                  <Label>Download Name</Label>
                   <div
                     className={cn(
                       "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
@@ -1679,7 +1679,7 @@ function GoldDocumentTypeEditor() {
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <Checkbox checked={displayNameSameAsFileName} onCheckedChange={(c) => setDisplayNameSameAsFileName(!!c)} />
-                        <span className="text-muted-foreground">Same as Send Name</span>
+                        <span className="text-muted-foreground">Same as Download Name</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <Checkbox checked={showFullDescription} onCheckedChange={(c) => setShowFullDescription(!!c)} />

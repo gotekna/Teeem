@@ -100,6 +100,15 @@ class SmTaskAttachment < ApplicationRecord
     end
   end
 
+  # Helper: Determine if this attachment should be treated as a "response" attachment
+  # SSoT (Jan 2026): "Response" means one of:
+  # - category == "response" (explicitly marked)
+  # - action_item_id is present (linked to a question/action item)
+  # Matches frontend logic in TaskFullscreenView.tsx (responseDocuments, responseEmails)
+  def is_response_attachment?
+    category == "response" || action_item_id.present?
+  end
+
   private
 
   # Auto-populate task keywords from email subject when first email is attached
@@ -116,13 +125,20 @@ class SmTaskAttachment < ApplicationRecord
   # Links to same StorageBlob as the attached document
   # SSoT: Sets linkable to SmTask for proper folder display in File Warehouse
   #
-  # FRC (Jan 2026): Only create warehouse entries for DOCUMENTS, not emails.
-  # Emails already have their own warehouse entry in Emails/ folder.
-  # Task attachments in File Warehouse should only show document files.
+  # FRC (Jan 2026): Email handling - "Response" means:
+  # - category == "response" (explicitly marked as response)
+  # - OR action_item_id is set (linked to a question/action item)
+  # Both conditions mean the email is part of the response workflow
+  #
+  # - "Response" emails → appear in Tasks/{id}/Responses folder
+  # - "Info" emails (category="info" AND no action_item) → skip (already in Emails/ folder)
+  # - Documents → always appear in appropriate folder
   def create_warehouse_entry
-    # Skip emails - they have their own warehouse entry in Emails/ folder
-    # Only documents should appear in Tasks/{id}/Attachments
-    return if attachable_type == "SyncedEmail"
+    # Skip info emails - they appear in Emails/ folder, not Tasks/Attachments
+    # Response emails (category="response" OR linked to action item) DO appear in Tasks/{id}/Responses
+    if attachable_type == "SyncedEmail" && !is_response_attachment?
+      return
+    end
 
     blob = storage_blob
     unless blob
@@ -259,13 +275,14 @@ class SmTaskAttachment < ApplicationRecord
       return "Tasks/Unknown"
     end
 
-    # SSoT: task_attachments and task_responses have FULL paths (Jan 2026 FRC fix)
-    folder_type = category == "response" ? :task_responses : :task_attachments
+    # SSoT: task_attachments/task_responses inherit from task parent (WAREHOUSE_TYPE_PARENTS)
+    # FRC: "Response" = category="response" OR has action_item_id (linked to question)
+    folder_type = is_response_attachment? ? :task_responses : :task_attachments
 
-    # Use config template - resolves {{TaskId}} only
-    # FRC (Jan 2026): NO TaskName - UI already displays task name as folder label
+    # Use config template - resolves {{TaskId}} and {{TaskName}}
     folder = config.resolve_virtual_path(folder_type, {
-      TaskId: task.id
+      TaskId: task.id,
+      TaskName: task.name&.parameterize || "task-#{task.id}"
     })
 
     if folder.blank?

@@ -42,7 +42,7 @@ class DocumentType < ApplicationRecord
   # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
   def derived_scope
     case primary_storage_location&.warehouse_type
-    when 'corporate_entity' then 'company'
+    when 'corporate' then 'company'
     when 'job' then 'job'
     when 'contact' then 'contacts'
     else 'company'

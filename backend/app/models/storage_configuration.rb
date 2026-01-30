@@ -229,12 +229,12 @@ class StorageConfiguration < ApplicationRecord
   WAREHOUSE_ROOT_DEFAULTS = {
     # User personal documents (Teeem Docs feature - Jan 2026)
     'user' => 'Teeem Docs/{{UserName}}/{{Folder}}',
-    # Job documents - {{TeeemXL}} resolves to tab's display_name
-    'job' => 'Jobs/{{JobCode}}/{{TeeemXL}}',
+    # Job documents - {{TabName}} resolves to tab's folder name (e.g., "Invoices", "Plans")
+    'job' => 'Jobs/{{JobCode}}/{{TabName}}',
     # Contact documents (SSoT for all individuals - Jan 2026 'people' merged into 'contact')
-    'contact' => 'Contacts/{{ContactName}}/{{TeeemXL}}',
+    'contact' => 'Contacts/{{ContactName}}/{{TabName}}',
     # Corporate documents (SSoT: 'corporate' is THE ONE - Jan 2026 consolidation)
-    'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TeeemXL}}',
+    'corporate' => 'Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}',
     # Task documents
     # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
     # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
@@ -286,7 +286,7 @@ class StorageConfiguration < ApplicationRecord
     'email_body' => 'Body',              # SSoT: Suffix only - base from 'email'
     'email_attachments' => 'Attachments', # SSoT: Suffix only - base from 'email'
     # Warehousing sub-types (all under Warehousing/ root)
-    'warehouse' => 'Warehousing/{{TeeemXL}}',
+    'warehouse' => 'Warehousing/{{TabName}}',
     'chat' => 'Warehousing/Conversations/{{Context}}/{{Year}}/{{Month}}',
     'bill_inbox' => 'Warehousing/Bill Inbox/{{Status}}/{{Year}}/{{Month}}',
     'notebook' => 'Warehousing/Notebooks/{{UserName}}/{{NotebookName}}/{{Year}}'
@@ -379,11 +379,11 @@ class StorageConfiguration < ApplicationRecord
   end
 
   # SSoT: Warehouse types that derive from a parent type
-  # These store only their suffix (e.g., "Attachments") and inherit the base from parent
+  # These store only their suffix (e.g., "Documents") and inherit the base from parent
   # Example: case_documents stores "Documents", derives base from case
   #
-  # Note: task_attachments and task_responses were removed (Jan 2026 FRC fix)
-  # They now store FULL paths in WAREHOUSE_ROOT_DEFAULTS - no derivation needed
+  # Note: task_attachments and task_responses store FULL paths (SSoT in warehouse_folders)
+  # They are NOT in this list - the frontend shows greyed-out prefix as UI hint only
   WAREHOUSE_TYPE_PARENTS = {
     'case_documents' => 'case',
     'case_emails' => 'case',
@@ -399,19 +399,20 @@ class StorageConfiguration < ApplicationRecord
   # @param warehouse_type [String, Symbol] The warehouse type name (job, contact, task, etc.)
   # @return [String, nil] The root folder name for that warehouse type, or nil if disabled
   #
-  # Supports key aliases (e.g., :corporate → :corporate_entity, :contacts → :contact)
+  # Supports key aliases (e.g., :corporate_entity → :corporate, :contacts → :contact)
   # See WAREHOUSE_KEY_ALIASES for all supported aliases.
   #
-  # SSoT: Some child warehouse types (case_documents, email_body, etc.) derive from parent.
+  # SSoT: Some child warehouse types derive from a parent type.
   # They store only their suffix and inherit the base path from their parent type.
   # See WAREHOUSE_TYPE_PARENTS for the full list.
   #
-  # Note: task_attachments and task_responses store FULL paths (Jan 2026 FRC fix)
+  # Note: task_attachments and task_responses store FULL paths directly (not derived).
+  # The frontend shows greyed-out parent tokens as a UI hint, but SSoT is the full path.
   #
   # Examples:
   #   root_folder_for(:job)              # => "Jobs/{{JobCode}}"
   #   root_folder_for(:task)             # => "Tasks/{{TaskId}}/{{TaskName}}"
-  #   root_folder_for(:task_attachments) # => "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (full path)
+  #   root_folder_for(:task_attachments) # => "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (full path, SSoT)
   #   root_folder_for(:case_documents)   # => "Cases/{{CaseId}}/Documents" (derived from :case)
   #
   def root_folder_for(warehouse_type)
@@ -981,8 +982,8 @@ class StorageConfiguration < ApplicationRecord
   # Default routing configuration (fallback when database doesn't have it)
   # SSoT: WarehouseDocument is now THE ONE table for all document metadata
   DEFAULT_DOCUMENT_ROUTING = {
-    "sharepoint_scan" => { "model" => "WarehouseDocument", "warehouse_type" => "corporate_entity", "description" => "SharePoint scanned documents" },
-    "email_attachment" => { "model" => "WarehouseDocument", "warehouse_type" => "corporate_entity", "description" => "Email attachments" }
+    "sharepoint_scan" => { "model" => "WarehouseDocument", "warehouse_type" => "corporate", "description" => "SharePoint scanned documents" },
+    "email_attachment" => { "model" => "WarehouseDocument", "warehouse_type" => "corporate", "description" => "Email attachments" }
   }.freeze
 
   # SSoT: Get routing configuration for a document source
@@ -1008,10 +1009,10 @@ class StorageConfiguration < ApplicationRecord
 
   # SSoT: Get the EntityTab warehouse type for a source
   # @param source [String, Symbol] The document source
-  # @return [String] The warehouse type name (contact, corporate_entity, etc.)
+  # @return [String] The warehouse type name (contact, corporate, etc.)
   def document_warehouse_type_for(source)
     routing = routing_for(source)
-    routing&.dig("warehouse_type") || routing&.dig("scope") || "corporate_entity"
+    routing&.dig("warehouse_type") || routing&.dig("scope") || "corporate"
   end
 
   # Legacy alias

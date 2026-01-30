@@ -1907,8 +1907,8 @@ module Api
       # SSoT: Corporate hierarchy follows template {{CompanyGroup}}/{{CompanyCode}}/{{TabName}}
       # SSoT (Jan 2026): Uses WarehouseDocument for document counts
       def build_corporate_hierarchy
-        # Get document tabs for corporate scope
-        tabs = EntityTab.for_scope("corporate_entity")
+        # Get document tabs for corporate scope (SSoT: 'corporate' is THE ONE - Jan 2026)
+        tabs = EntityTab.for_scope("corporate")
                         .where(tab_group: "documents")
                         .enabled
                         .ordered

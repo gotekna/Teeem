@@ -67,7 +67,7 @@ class CorporateSharePointProvisionerService
       company_folder_id = root_folder["id"]
 
       # SSoT: Get folder structure from EntityTab (falls back to FOLDER_STRUCTURE constant)
-      folder_structure = self.class.folder_structure_from_entity_tabs("corporate_entity")
+      folder_structure = self.class.folder_structure_from_entity_tabs("corporate")
 
       # Create subfolders
       folder_structure.each do |parent_folder, subfolders|
@@ -546,7 +546,7 @@ class CorporateSharePointProvisionerService
 
   # SSoT: Get folder structure from EntityTab instead of hardcoded constant
   # Returns hash of { folder_name => [subfolders] } for tabs with storage folders
-  def self.folder_structure_from_entity_tabs(scope = "corporate_entity")
+  def self.folder_structure_from_entity_tabs(scope = "corporate")
     tabs = EntityTab.where(scope: scope, has_storage_folder: true, parent_id: nil)
     structure = {}
 

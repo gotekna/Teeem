@@ -5,7 +5,7 @@ module Api
     class EntityTabsController < ApplicationController
       before_action :set_entity_tab, only: [:show, :update, :destroy]
 
-      # GET /api/v1/entity_tabs?warehouse_type=corporate_entity
+      # GET /api/v1/entity_tabs?warehouse_type=corporate
       # Also accepts ?scope= for backwards compatibility
       # Use include_disabled=true for admin views to show all tabs
       #

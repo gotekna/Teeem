@@ -489,6 +489,19 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "orange",
     description: "Responses folder (literal)",
   },
+  // Email folder suffix tokens (literal folder names)
+  {
+    code: "[[Email Body]]",
+    example: "Email Body",
+    color: "blue",
+    description: "Email Body folder (literal)",
+  },
+  {
+    code: "[[Email Attachments]]",
+    example: "Email Attachments",
+    color: "blue",
+    description: "Email Attachments folder (literal)",
+  },
   // Task Attachments tokens
   {
     code: "{{AttachmentName}}",
@@ -666,6 +679,24 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     example: "14-30",
     color: "green",
     description: "Time email was received (HH-MM)",
+  },
+  {
+    code: "{{SenderName}}",
+    example: "John Smith",
+    color: "blue",
+    description: "Email sender's display name",
+  },
+  {
+    code: "{{SenderEmail}}",
+    example: "john@example.com",
+    color: "blue",
+    description: "Email sender's address",
+  },
+  {
+    code: "{{ReceivedDate}}",
+    example: "2026-01-30",
+    color: "green",
+    description: "Date email was received (YYYY-MM-DD)",
   },
   // Case tokens
   {
@@ -922,6 +953,10 @@ export function resolveStoragePath(template: string): string {
     "[[TeeemPDF]]": "TeeemPDF",
     "[[TeeemPPT]]": "TeeemPPT",
     "[[TeeemTemplates]]": "TeeemTemplates",
+    "[[Attachments]]": "Attachments",
+    "[[Responses]]": "Responses",
+    "[[Email Body]]": "Email Body",
+    "[[Email Attachments]]": "Email Attachments",
     "{{SubTabName}}": "Photos",
     "{{ContactName}}": "Robert Harder",
     "{{EntityName}}": "Teeem Homes Pty Ltd",
