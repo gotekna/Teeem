@@ -275,14 +275,14 @@ class SmTaskAttachment < ApplicationRecord
       return "Tasks/Unknown"
     end
 
-    # SSoT: task_attachments and task_responses have FULL paths (Jan 2026 FRC fix)
+    # SSoT: task_attachments/task_responses inherit from task parent (WAREHOUSE_TYPE_PARENTS)
     # FRC: "Response" = category="response" OR has action_item_id (linked to question)
     folder_type = is_response_attachment? ? :task_responses : :task_attachments
 
-    # Use config template - resolves {{TaskId}} only
-    # FRC (Jan 2026): NO TaskName - UI already displays task name as folder label
+    # Use config template - resolves {{TaskId}} and {{TaskName}}
     folder = config.resolve_virtual_path(folder_type, {
-      TaskId: task.id
+      TaskId: task.id,
+      TaskName: task.name&.parameterize || "task-#{task.id}"
     })
 
     if folder.blank?

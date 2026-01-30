@@ -1833,9 +1833,9 @@ export function EntityTabsConfig({
                         );
                       })()}
 
-                      {/* Send Name template */}
+                      {/* Download Name template */}
                       <TokenBuilder
-                        label={labelWithStatus("Send Name")}
+                        label={labelWithStatus("Download Name")}
                         value={fileNameTemplate}
                         onChange={setFileNameTemplate}
                         scope="storage"
@@ -1932,9 +1932,9 @@ export function EntityTabsConfig({
                           );
                         })()}
 
-                        {/* Send Name template for attachments */}
+                        {/* Download Name template for attachments */}
                         <TokenBuilder
-                          label={labelWithStatus("Send Name")}
+                          label={labelWithStatus("Download Name")}
                           value={attachmentsFileNameTemplate}
                           onChange={setAttachmentsFileNameTemplate}
                           scope="storage"
@@ -2036,9 +2036,9 @@ export function EntityTabsConfig({
                                   <span className="text-green-700 dark:text-green-300">{basePath}{template ? `/${previewPath}` : ''}</span>
                                 </div>
 
-                                {/* Send Name Template */}
+                                {/* Download Name Template */}
                                 <TokenBuilder
-                                  label={labelWithStatus("Send Name")}
+                                  label={labelWithStatus("Download Name")}
                                   value={fileNameTpl}
                                   onChange={(val) => setWarehouseScopeFileNameTemplate(config.id, val)}
                                   scope="storage"
@@ -2427,8 +2427,9 @@ export function EntityTabsConfig({
                 </div>
 
                 {/* Editable folder path (read-only for system tabs) */}
+                {/* SSoT: Show inherited base path as greyed-out prefix, then editable tab folder */}
                 <TokenBuilder
-                  label={editingTab?.is_system_tab ? "Folder Path (system-managed)" : "Folder Path (add placeholders)"}
+                  label={editingTab?.is_system_tab ? "Folder Path (system-managed)" : "Folder Path"}
                   value={formData.warehouse_folder ?? ""}
                   onChange={(value) =>
                     setFormData((prev) => ({
@@ -2437,6 +2438,15 @@ export function EntityTabsConfig({
                     }))
                   }
                   scope="storage"
+                  // SSoT: Show inherited base path as greyed prefix
+                  prefixValue={
+                    scope === "contact"
+                      ? (formData.warehouse_type_override === 'corporate'
+                          ? getBasePath("people")
+                          : getBasePath("contact"))
+                      : (editingTab?.warehouse_base_path || getBasePath(scope))
+                  }
+                  separator="/"
                   // SSoT: Filter placeholders based on tab hierarchy
                   // - Root tabs: show {{TabName}} only (no subtab)
                   // - Subtabs: show BOTH {{TabName}} (parent) and {{SubTabName}} (current)
@@ -2450,8 +2460,8 @@ export function EntityTabsConfig({
                       return p.code !== "{{SubTabName}}";
                     }
                   })}
-                  showPreview={true}
-                  placeholder="Click tokens to add..."
+                  showPreview={false}
+                  placeholder="Enter folder name or click tokens..."
                   disabled={editingTab?.is_system_tab}
                 />
 

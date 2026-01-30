@@ -5,7 +5,7 @@
 # - Jobs
 # - Document Folders
 #
-# Xero tabs are children of the Xero tab in corporate_entity warehouse_type (SSoT)
+# Xero tabs are children of the Xero tab in corporate warehouse_type (SSoT)
 #
 #           XeroFeatureTab, UserJobTabConfig
 #
@@ -19,7 +19,7 @@ class StorageLocation < ApplicationRecord
   # All StorageLocations have company_group_id=NULL by design.
   # The uniqueness validation still includes company_group_id for future per-tenant customization.
   #
-  # Valid warehouse types (xero tabs are children of corporate_entity/xero tab)
+  # Valid warehouse types (xero tabs are children of corporate/xero tab)
   # System warehouse types (email, warehouse, task, task_attachments, task_responses, user, case) are read-only in UI - is_system_tab: true
   # SSoT: 'contact' is THE ONE warehouse_type for all individuals (Jan 2026 - 'people' merged into 'contact')
   # SSoT: 'user' added for Teeem Docs personal user documents (Jan 2026)
@@ -30,7 +30,7 @@ class StorageLocation < ApplicationRecord
   # SSoT: 'payment' added for subcontractor payment docs (Jan 2026)
   # SSoT: 'bank_statement', 'template', 'esignature', 'plan' added (Jan 2026)
   WAREHOUSE_TYPES = %w[
-    corporate_entity job document contact email warehouse
+    corporate job document contact email warehouse
     task task_attachments task_responses
     case case_documents case_emails
     asset asset_expenses asset_service asset_readings
@@ -147,12 +147,12 @@ class StorageLocation < ApplicationRecord
 
   # Scopes
   scope :for_warehouse_type, ->(t) { where(warehouse_type: t) }
-  scope :for_corporate, -> { for_warehouse_type('corporate_entity') }
+  scope :for_corporate, -> { for_warehouse_type('corporate') }
   scope :for_contacts, -> { for_warehouse_type('contact') }
   scope :for_people, -> { for_warehouse_type('contact') }  # DEPRECATED: Use for_contacts (Jan 2026)
   scope :for_jobs, -> { for_warehouse_type('job') }
   scope :for_documents, -> { for_warehouse_type('document') }
-  # Note: Xero tabs are children of corporate_entity/xero tab, not a separate warehouse_type
+  # Note: Xero tabs are children of corporate/xero tab, not a separate warehouse_type
 
   # Legacy aliases
   scope :for_scope, ->(s) { for_warehouse_type(s) }
@@ -167,7 +167,7 @@ class StorageLocation < ApplicationRecord
   scope :for_job, ->(job_id) { where(job_id: job_id) }
   scope :with_xero_scope, -> { where.not(xero_scope: nil) }
 
-  # Filter by entity type (for corporate_entity warehouse_type)
+  # Filter by entity type (for corporate warehouse_type)
   scope :for_entity_type, ->(entity_type) {
     where("entity_filters @> ARRAY[?]::varchar[] OR entity_filters = '{}'", entity_type)
   }
@@ -216,7 +216,7 @@ class StorageLocation < ApplicationRecord
   # SSoT: Get folder name for a tab by key
   # Use this instead of hardcoding folder names like "04 Plans" or "Documents"
   #
-  # @param warehouse_type [String] The warehouse type (job, corporate_entity, etc.)
+  # @param warehouse_type [String] The warehouse type (job, corporate, etc.)
   # @param tab_key [String] The tab key (plans, documents, photos, etc.)
   # @param fallback [String] Fallback if tab not found (optional)
   # @return [String] The display_name to use as folder name
@@ -336,7 +336,7 @@ class StorageLocation < ApplicationRecord
   public
 
   # SSoT: Get the full warehouse path by substituting folder name into template
-  # Template comes from StorageConfiguration.warehouse_folders (e.g., "Warehousing/{{TeeemXL}}")
+  # Template comes from StorageConfiguration.warehouse_folders (e.g., "Jobs/{{JobCode}}/{{TabName}}")
   # Folder name comes from: warehouse_folder column (if set) OR display_name (default)
   def resolved_warehouse_path
     return nil unless warehouse_enabled
@@ -349,7 +349,7 @@ class StorageLocation < ApplicationRecord
     end
 
     wt = warehouse_type || 'corporate'
-    # SSoT: Normalize aliased keys (e.g., 'corporate_entity' → 'corporate')
+    # SSoT: Normalize aliased keys (legacy 'corporate_entity' → 'corporate')
     wt = StorageConfiguration::WAREHOUSE_KEY_ALIASES[wt] || wt
     template = config.warehouse_folders&.dig(wt)
     return nil unless template.present?
@@ -361,9 +361,9 @@ class StorageLocation < ApplicationRecord
     # Tokens in warehouse_folder map to physical folder names in storage
     folder_name = resolve_folder_token(raw_folder)
 
-    # SSoT: {{TeeemXL}} is the UI placeholder for folder name (Jan 2026)
-    # Support both {{TeeemXL}} and legacy {{TabName}} for backwards compatibility
-    template.gsub('{{TeeemXL}}', folder_name).gsub('{{TabName}}', folder_name)
+    # SSoT: {{TabName}} is the placeholder for folder name (Jan 2026)
+    # Also support legacy {{TeeemXL}} for backwards compatibility
+    template.gsub('{{TabName}}', folder_name).gsub('{{TeeemXL}}', folder_name)
   end
 
   # Alias for backwards compatibility
@@ -419,7 +419,7 @@ class StorageLocation < ApplicationRecord
     # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
     case warehouse_type
     when 'job' then :job
-    when 'corporate_entity' then :corporate
+    when 'corporate' then :corporate
     when 'contact' then :contact
     when 'email' then :email
     when 'warehouse' then :warehouse
@@ -493,8 +493,9 @@ class StorageLocation < ApplicationRecord
   # Build hierarchy path - SSoT: Static path first, then dynamic tokens
   def hierarchy_path
     # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
+    # SSoT: 'corporate' is THE ONE for corporate entities (Jan 2026 - 'corporate_entity' renamed)
     prefix = case warehouse_type
-    when 'corporate_entity' then 'Corporate'
+    when 'corporate' then 'Corporate'
     when 'contact' then 'Contacts'
     when 'job' then 'Jobs'
     when 'document' then 'Documents'
@@ -659,7 +660,7 @@ class StorageLocation < ApplicationRecord
   # Base folder: "Corporate" (stored on root tab)
   private_class_method def self.seed_corporate_storage_locations!
     # Root tab - defines the base folder for this warehouse_type
-    find_or_create_by!(warehouse_type: 'corporate_entity', tab_key: 'root') do |tab|
+    find_or_create_by!(warehouse_type: 'corporate', tab_key: 'root') do |tab|
       tab.display_name = 'Root'
       tab.tab_group = 'system'
       tab.order_position = -1
@@ -683,7 +684,7 @@ class StorageLocation < ApplicationRecord
     ]
 
     overview_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'corporate_entity', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'corporate', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'overview'
         tab.entity_filters = attrs[:entity_filters]
@@ -698,7 +699,7 @@ class StorageLocation < ApplicationRecord
 
     document_tabs.each_with_index do |name, idx|
       tab_key = name.downcase.gsub(/\s+/, '-')
-      find_or_create_by!(warehouse_type: 'corporate_entity', tab_key: tab_key) do |tab|
+      find_or_create_by!(warehouse_type: 'corporate', tab_key: tab_key) do |tab|
         tab.display_name = name
         tab.tab_group = 'documents'
         tab.entity_filters = %w[Company Trust Superfund Charity]
@@ -718,7 +719,7 @@ class StorageLocation < ApplicationRecord
     ]
 
     feature_tabs.each_with_index do |attrs, idx|
-      find_or_create_by!(warehouse_type: 'corporate_entity', tab_key: attrs[:tab_key]) do |tab|
+      find_or_create_by!(warehouse_type: 'corporate', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
         tab.tab_group = 'overview'
         tab.entity_filters = %w[Company Trust Superfund Charity]

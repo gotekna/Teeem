@@ -1731,7 +1731,7 @@ export default function DocumentTypeDetailPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="file_name">Send Name</Label>
+                <Label htmlFor="file_name">Download Name</Label>
             <div
               className={cn(
                 "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
@@ -1894,7 +1894,7 @@ export default function DocumentTypeDetailPage() {
                       htmlFor="same-as-file-name"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      Same as Send Name
+                      Same as Download Name
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2047,7 +2047,7 @@ export default function DocumentTypeDetailPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               {displayNameSameAsFileName
-                ? "Display Name matches Send Name automatically"
+                ? "Display Name matches Download Name automatically"
                 : "Drag placeholders to customize"}
             </p>
           </div>
