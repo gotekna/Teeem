@@ -116,11 +116,14 @@ class SmTaskAttachment < ApplicationRecord
   # Links to same StorageBlob as the attached document
   # SSoT: Sets linkable to SmTask for proper folder display in File Warehouse
   #
-  # IMPORTANT: ALWAYS creates a new WarehouseDocument in the task folder,
-  # even when attachable is already a WarehouseDocument. This allows the
-  # same physical file (StorageBlob) to appear in multiple virtual folders.
-  # Example: A PDF in "Corporate/Finance" can ALSO appear in "Tasks/2236/Responses"
+  # FRC (Jan 2026): Only create warehouse entries for DOCUMENTS, not emails.
+  # Emails already have their own warehouse entry in Emails/ folder.
+  # Task attachments in File Warehouse should only show document files.
   def create_warehouse_entry
+    # Skip emails - they have their own warehouse entry in Emails/ folder
+    # Only documents should appear in Tasks/{id}/Attachments
+    return if attachable_type == "SyncedEmail"
+
     blob = storage_blob
     unless blob
       Rails.logger.warn("[SmTaskAttachment] ##{id}: No storage blob found for #{attachable_type}##{attachable_id}")

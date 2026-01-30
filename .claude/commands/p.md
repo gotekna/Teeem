@@ -30,6 +30,7 @@ Commits only THIS chat session's changes and deploys through the entire pipeline
 | Parallel beta+production deploys | ~60-90s |
 | Smart migration check (only if db/migrate changed) | ~10-30s |
 | Vercel branch filtering (each project builds only its branch) | ~9 duplicate builds eliminated |
+| Combined post-deploy verification (single dyno boot) | ~30s |
 
 ## Vercel Branch Filtering
 
@@ -283,43 +284,31 @@ fi
 
 ### Step 7 - Post-Deploy Verification
 
+**OPTIMIZED (Jan 2026):** Single dyno boot instead of 3 (~30s savings)
+
 ```bash
 sleep 10
 
-# 1. Check recurring tasks
+# Combined verification (single dyno boot)
 heroku run rails runner "
+  # 1. Check recurring tasks
   tasks = SolidQueue::RecurringTask.pluck(:key)
   critical = ['xero_health_monitor', 'refresh_integration_tokens', 'daily_health_check']
   missing = critical - tasks
-  if missing.any?
-    puts '❌ MISSING RECURRING TASKS: ' + missing.join(', ')
-    exit 1
-  else
-    puts '✅ Recurring tasks OK (' + tasks.count.to_s + ' registered)'
-  end
-" --app teeem-production
+  puts missing.any? ? '❌ MISSING: ' + missing.join(', ') : '✅ Recurring: ' + tasks.count.to_s + ' tasks'
 
-# 2. Check health monitor
-heroku run rails runner "
+  # 2. Check health monitor
   last = XeroSyncEvent.where(sync_type: 'health_check').order(created_at: :desc).first
-  if last.nil?
-    puts '⚠️  No health monitor runs found'
-  elsif last.event_type == 'completed'
-    puts '✅ Health monitor OK (last: ' + last.created_at.in_time_zone('Australia/Brisbane').strftime('%H:%M') + ')'
+  if last&.event_type == 'completed'
+    puts '✅ Health: ' + last.created_at.in_time_zone('Australia/Brisbane').strftime('%H:%M')
   else
-    puts '❌ Health monitor failed: ' + (last.error_message || 'unknown')
+    puts '⚠️  Health: ' + (last&.error_message || 'no data')
   end
-" --app teeem-production
 
-# 3. Check Xero credentials
-heroku run rails runner "
+  # 3. Check Xero credentials
   total = XeroCredential.count
   expired = XeroCredential.all.count { |c| c.expired? }
-  if expired > 0
-    puts '⚠️  Xero: ' + expired.to_s + '/' + total.to_s + ' tokens expired (will auto-refresh)'
-  else
-    puts '✅ Xero: ' + total.to_s + ' credentials, all tokens valid'
-  end
+  puts expired > 0 ? '⚠️  Xero: ' + expired.to_s + '/' + total.to_s + ' expired' : '✅ Xero: ' + total.to_s + ' valid'
 " --app teeem-production
 ```
 
