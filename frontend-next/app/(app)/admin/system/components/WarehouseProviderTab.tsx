@@ -2325,7 +2325,7 @@ export function WarehouseProviderTab() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
-                Storage Configuration SSoT Guide
+                WarehouseProvider SSoT Guide
               </CardTitle>
               <CardDescription>
                 How folder paths are configured and where they&apos;re stored
@@ -2718,7 +2718,8 @@ export function WarehouseProviderTab() {
                   Backend SSoT Reference
                 </h4>
                 <div className="text-sm text-muted-foreground space-y-1">
-                  <div><code className="bg-muted px-1 rounded text-xs">WarehouseProvider.instance</code> — The ONE source for all storage config</div>
+                  <div><code className="bg-muted px-1 rounded text-xs">WarehouseProvider.instance</code> — The ONE source for storage provider config (Wasabi/SharePoint/Local)</div>
+                  <div><code className="bg-muted px-1 rounded text-xs">WarehouseFolder</code> — Folder hierarchy configuration (table: warehouse_folders)</div>
                   <div><code className="bg-muted px-1 rounded text-xs">WarehouseDocument</code> — Universal document metadata table</div>
                   <div><code className="bg-muted px-1 rounded text-xs">StorageBlob</code> — Deduplicated file content (content-hash based)</div>
                   <div><code className="bg-muted px-1 rounded text-xs">SendNameResolver</code> — Resolves tokens in download filenames</div>
