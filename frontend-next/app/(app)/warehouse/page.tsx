@@ -1746,6 +1746,9 @@ export default function AllDocumentsPage() {
     // Check if S3 folder data is loaded for this path
     const s3Data = folderPath ? s3Folders[folderPath] : null;
     const hasS3Data = s3Data && (s3Data.folders.length > 0 || s3Data.files.length > 0);
+    // FRC (Jan 2026): Also check if folder was LOADED (even if empty)
+    // This ensures "No files in this folder" renders for empty folders
+    const s3DataLoaded = folderPath ? s3Folders[folderPath] !== undefined : false;
 
     return (
       <div key={node.id}>
@@ -1804,7 +1807,7 @@ export default function AllDocumentsPage() {
           )}
         </div>
 
-        {isExpanded && (hasChildren || hasLoadedFiles || hasS3Data || isLoading) && (
+        {isExpanded && (hasChildren || hasLoadedFiles || hasS3Data || s3DataLoaded || isLoading) && (
           <div className={cn(depth > 0 && "border-l border-muted ml-6")}>
             {isLoading ? (
               // Loading state
