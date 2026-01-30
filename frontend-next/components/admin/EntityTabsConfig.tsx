@@ -315,7 +315,7 @@ export function EntityTabsConfig({
     fetchStorageConfig();
   }, []);
 
-  // SSoT: Get base path for a scope from StorageConfiguration
+  // SSoT: Get base path for a scope from WarehouseProvider
   // warehouse_folders contains full template like "Jobs/{{JobCode}}/{{TabName}}"
   const getBasePath = React.useCallback((scopeKey: string): string => {
     const rootPath = storageConfig?.root_path || "";
@@ -340,7 +340,7 @@ export function EntityTabsConfig({
   }, [getBasePath]);
 
   // SSoT: Get default folder path template for a scope
-  // These match StorageConfiguration::SCOPE_TEMPLATES in the backend
+  // These match WarehouseProvider::SCOPE_TEMPLATES in the backend
   const getDefaultTemplate = React.useCallback((scopeKey: string): string => {
     const templates: Record<string, string> = {
       task: "{{TaskId}}/{{Category}}",
@@ -1775,7 +1775,7 @@ export function EntityTabsConfig({
                     )}
                   </button>
                   <div className={cn(!expandedWarehouseSections.has('primary') && "hidden", "space-y-3 mt-3")}>
-                      {/* Base path from StorageConfiguration (read-only) */}
+                      {/* Base path from WarehouseProvider (read-only) */}
                       <div className="space-y-1">
                         <Label className="text-xs text-muted-foreground">Base Path (from Admin → System → Storage Config)</Label>
                         <div className="flex items-center gap-1 p-2 border rounded bg-muted/30">
@@ -2371,7 +2371,7 @@ export function EntityTabsConfig({
             {/* Storage Folder Path */}
             {showSharePointPaths && (
               <div className="space-y-3">
-                {/* Base path from StorageConfiguration - SSoT for scope folders */}
+                {/* Base path from WarehouseProvider - SSoT for scope folders */}
                 {/* SSoT: Sub-tabs inherit base path from parent - not editable */}
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">
@@ -2467,7 +2467,7 @@ export function EntityTabsConfig({
 
                 {/* Full path preview - uses ACTUAL tab names, not generic examples */}
                 {(() => {
-                  // SSoT: Get base path from StorageConfiguration scope_folders
+                  // SSoT: Get base path from WarehouseProvider scope_folders
                   const basePath = scope === "contact"
                     ? (formData.warehouse_type_override === 'corporate'
                         ? getBasePath("people")
