@@ -238,11 +238,11 @@ class StorageConfiguration < ApplicationRecord
     # Task documents
     # SSoT: Virtual folder paths for File Warehouse display (SmTaskAttachment.virtual_folder_path)
     # Actual files stored in Blobs/{hash}.ext - these paths are for UI organization only
-    # SSoT (Jan 2026): Full paths for each type - no derivation, no hardcoding
-    # Each key has its complete path - fail fast if path is wrong (immediately visible in UI)
-    'task' => 'Tasks/{{TaskId}}/{{TaskName}}',
-    'task_attachments' => 'Tasks/{{TaskId}}/{{TaskName}}/Attachments',
-    'task_responses' => 'Tasks/{{TaskId}}/{{TaskName}}/Responses',
+    # FRC (Jan 2026): NO {{TaskName}} - UI already displays task name as folder label
+    # Same pattern as 'case' which uses just {{CaseId}}
+    'task' => 'Tasks/{{TaskId}}',
+    'task_attachments' => 'Tasks/{{TaskId}}/Attachments',
+    'task_responses' => 'Tasks/{{TaskId}}/Responses',
     # Case documents (Jan 2026)
     # SSoT: Virtual folder paths for File Warehouse - actual files in Blobs/{hash}.ext
     # Child types store SUFFIX ONLY - derived from 'case' base
@@ -427,7 +427,8 @@ class StorageConfiguration < ApplicationRecord
       return nil if parent_path.blank?
 
       # Get suffix for this type (e.g., "Attachments" for task_attachments)
-      suffix = warehouse_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
+      # LIM: No fallback - database is SSoT, fail fast if not configured
+      suffix = warehouse_folders&.dig(type_key)
 
       # If suffix is a full path (legacy), extract just the suffix
       # Legacy: "Tasks/{{TaskId}}/{{TaskName}}/Attachments" → "Attachments"
@@ -440,8 +441,8 @@ class StorageConfiguration < ApplicationRecord
       # Combine parent base + suffix
       "#{parent_path}/#{suffix}".gsub(%r{//+}, '/')
     else
-      # SSoT: Check database first, fall back to defaults for new warehouse types
-      path = warehouse_folders&.dig(type_key) || WAREHOUSE_ROOT_DEFAULTS[type_key]
+      # SSoT: Database only - no fallback, fail fast if not configured
+      path = warehouse_folders&.dig(type_key)
       return nil if path.blank? || path == "DISABLED"
       path
     end
