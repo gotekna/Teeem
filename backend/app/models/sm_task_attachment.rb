@@ -100,6 +100,15 @@ class SmTaskAttachment < ApplicationRecord
     end
   end
 
+  # Helper: Determine if this attachment should be treated as a "response" attachment
+  # SSoT (Jan 2026): "Response" means one of:
+  # - category == "response" (explicitly marked)
+  # - action_item_id is present (linked to a question/action item)
+  # Matches frontend logic in TaskFullscreenView.tsx (responseDocuments, responseEmails)
+  def is_response_attachment?
+    category == "response" || action_item_id.present?
+  end
+
   private
 
   # Auto-populate task keywords from email subject when first email is attached
@@ -242,15 +251,6 @@ class SmTaskAttachment < ApplicationRecord
     end
   rescue StandardError => e
     Rails.logger.error("[SmTaskAttachment] ##{id}: Failed to cascade delete auto-attached documents: #{e.message}")
-  end
-
-  # Helper: Determine if this attachment should be treated as a "response" attachment
-  # SSoT (Jan 2026): "Response" means one of:
-  # - category == "response" (explicitly marked)
-  # - action_item_id is present (linked to a question/action item)
-  # Matches frontend logic in TaskFullscreenView.tsx (responseDocuments, responseEmails)
-  def is_response_attachment?
-    category == "response" || action_item_id.present?
   end
 
   # Compute the folder path for File Warehouse
