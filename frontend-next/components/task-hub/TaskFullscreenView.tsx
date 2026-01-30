@@ -97,6 +97,7 @@ import {
   Send,
   Target,
   Trash2,
+  Upload,
   User,
   Users,
   X,
@@ -1126,6 +1127,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     label?: string;     // Display label for the filter
   }>({ type: 'all' });
 
+  // Document source filter - filter documents by source (email attachment vs uploaded)
+  const [documentSourceFilter, setDocumentSourceFilter] = useState<'all' | 'email' | 'uploaded'>('all');
+
   // Bulk email linking state
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinkOptions, setBulkLinkOptions] = useState<{
@@ -1781,12 +1785,49 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     return totalMonths > 0 && collapsedEmailMonths.size >= totalMonths;
   }, [emailsByMonthPerCategory, collapsedEmailMonths]);
 
-  const documentAttachments = localAttachments.filter(a => a.document && !a.email);
+  const allDocumentAttachments = localAttachments.filter(a => a.document && !a.email);
+
+  // Compute set of content hashes from email attachments (for filtering documents by source)
+  const emailAttachmentHashes = useMemo(() => {
+    const hashes = new Set<string>();
+    allEmailAttachments.forEach(att => {
+      (att.email?.attachment_content_hashes || []).forEach(h => hashes.add(h));
+    });
+    return hashes;
+  }, [allEmailAttachments]);
+
+  // Filter documents based on source filter
+  const documentAttachments = useMemo(() => {
+    if (documentSourceFilter === 'all') return allDocumentAttachments;
+    if (documentSourceFilter === 'email') {
+      // Documents from email attachments (content_hash matches an email attachment)
+      return allDocumentAttachments.filter(a =>
+        a.document?.content_hash && emailAttachmentHashes.has(a.document.content_hash)
+      );
+    }
+    // 'uploaded' - documents NOT from email attachments
+    return allDocumentAttachments.filter(a =>
+      !a.document?.content_hash || !emailAttachmentHashes.has(a.document.content_hash)
+    );
+  }, [allDocumentAttachments, emailAttachmentHashes, documentSourceFilter]);
+
+  // Count documents by source for filter badges
+  const documentCountBySource = useMemo(() => {
+    const fromEmail = allDocumentAttachments.filter(a =>
+      a.document?.content_hash && emailAttachmentHashes.has(a.document.content_hash)
+    ).length;
+    return {
+      all: allDocumentAttachments.length,
+      email: fromEmail,
+      uploaded: allDocumentAttachments.length - fromEmail
+    };
+  }, [allDocumentAttachments, emailAttachmentHashes]);
 
   // All document attachments are available via the Attachments panel (Documents section)
   // Response documents are those linked to questions OR with category 'response'
   // SSoT: Same logic as emails - action_item_id means linked to a question
-  const responseDocuments = documentAttachments.filter(a => a.action_item_id || a.category === 'response');
+  // Note: Use allDocumentAttachments (not filtered) for response docs
+  const responseDocuments = allDocumentAttachments.filter(a => a.action_item_id || a.category === 'response');
 
   // Emails linked to questions OR with category 'response' are response items
   // FRC (Jan 2026): EXCLUDE source emails AND sent emails from response attachments
@@ -7060,37 +7101,72 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
             {/* Documents Section (All document attachments) */}
             <div className="rounded-lg border overflow-hidden">
-              <div className="flex items-center gap-2 p-2 border-b">
-                <div
-                  className="flex items-center gap-2 cursor-pointer flex-1 hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
-                  onClick={() => setDocumentsCollapsed(!documentsCollapsed)}
-                >
-                  {documentsCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">Documents</span>
-                  <Badge variant="secondary" className="text-xs">{documentAttachments.length}</Badge>
+              <div className="flex flex-col gap-1 p-2 border-b">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="flex items-center gap-2 cursor-pointer flex-1 hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
+                    onClick={() => setDocumentsCollapsed(!documentsCollapsed)}
+                  >
+                    {documentsCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Documents</span>
+                    <Badge variant="secondary" className="text-xs">{documentAttachments.length}</Badge>
+                  </div>
+                  {/* Bulk actions when documents selected */}
+                  {selectedDocIds.size > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">{selectedDocIds.size} selected</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                        onClick={handleBulkDeleteDocs}
+                        disabled={attachmentLoading}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Delete
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={clearDocSelection}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                {/* Bulk actions when documents selected */}
-                {selectedDocIds.size > 0 && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">{selectedDocIds.size} selected</span>
+                {/* Source filter toggle - only show when we have documents from different sources */}
+                {!documentsCollapsed && documentCountBySource.email > 0 && documentCountBySource.uploaded > 0 && (
+                  <div className="flex items-center gap-1 ml-6">
                     <Button
-                      variant="ghost"
+                      variant={documentSourceFilter === 'all' ? 'secondary' : 'ghost'}
                       size="sm"
-                      className="h-6 px-2 text-xs text-destructive hover:text-destructive"
-                      onClick={handleBulkDeleteDocs}
-                      disabled={attachmentLoading}
+                      className="h-5 px-2 text-[10px]"
+                      onClick={() => setDocumentSourceFilter('all')}
                     >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Delete
+                      All ({documentCountBySource.all})
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant={documentSourceFilter === 'email' ? 'secondary' : 'ghost'}
                       size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={clearDocSelection}
+                      className="h-5 px-2 text-[10px]"
+                      onClick={() => setDocumentSourceFilter('email')}
+                      title="Documents from email attachments"
                     >
-                      Clear
+                      <Mail className="h-3 w-3 mr-1" />
+                      Email ({documentCountBySource.email})
+                    </Button>
+                    <Button
+                      variant={documentSourceFilter === 'uploaded' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-5 px-2 text-[10px]"
+                      onClick={() => setDocumentSourceFilter('uploaded')}
+                      title="Documents uploaded directly"
+                    >
+                      <Upload className="h-3 w-3 mr-1" />
+                      Uploaded ({documentCountBySource.uploaded})
                     </Button>
                   </div>
                 )}
@@ -7135,18 +7211,26 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           />
                           <div
                             className="flex items-center gap-2 flex-1 min-w-0"
-                            onClick={() => handleDownloadAttachment(att)}
-                            onDoubleClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleOpenAttachmentInNewWindow(att);
-                            }}
-                            title="Click to download, double-click to open in new window"
+                            onClick={() => handleOpenAttachmentInNewWindow(att)}
+                            title="Click to preview"
                           >
-                            {downloadingAttachmentId === att.id ? (
-                              <Loader2 className="h-3 w-3 text-muted-foreground shrink-0 animate-spin" />
-                            ) : (
-                              <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                            {/* Download button - separate from preview */}
+                            {(att.document?.has_storage || att.document?.storage_url || att.document?.file_url) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownloadAttachment(att);
+                                }}
+                                className="text-muted-foreground hover:text-foreground"
+                                title="Download"
+                              >
+                                {downloadingAttachmentId === att.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Download className="h-3 w-3" />
+                                )}
+                              </button>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="font-medium truncate">
