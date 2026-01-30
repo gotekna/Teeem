@@ -512,7 +512,7 @@ module DocumentProviders
     # SSoT: Create subfolders from EntityTab hierarchy
     def create_subfolders_from_entity_tabs(parent_path)
       root_tabs = EntityTab.for_jobs
-                           .where(has_storage_folder: true)
+                           .where(warehouse_enabled: true)
                            .enabled
                            .root_tabs
                            .ordered
@@ -530,7 +530,7 @@ module DocumentProviders
 
       Rails.logger.info "[EntityTab SSoT] Created S3 folder: #{folder_path}"
 
-      tab.children.where(has_storage_folder: true).enabled.ordered.each do |child|
+      tab.children.where(warehouse_enabled: true).enabled.ordered.each do |child|
         create_entity_tab_folder_recursive(child, folder_path)
       end
     end

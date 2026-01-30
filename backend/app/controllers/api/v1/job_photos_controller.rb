@@ -26,7 +26,7 @@ module Api
         folder_path = params[:folder_path] || "06 Photo"
 
         # SSoT: Strip {{JobCode}} placeholder if present
-        # The folder_path comes from EntityTab.effective_sharepoint_path which may contain {{JobCode}}
+        # The folder_path comes from WarehouseFolder.effective_warehouse_path which may contain {{JobCode}}
         # Since we're already navigating inside the job folder, strip the {{JobCode}} prefix entirely
         # e.g., "{{JobCode}}/Site Photo" becomes "Site Photo"
         folder_path = folder_path.gsub(/\{\{JobCode\}\}\s*\/?/, "").gsub(/^\/+/, "")

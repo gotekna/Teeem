@@ -71,15 +71,6 @@ class WarehouseFolder < ApplicationRecord
   # {{Name}} = dynamic placeholder (resolved elsewhere)
   LITERAL_FOLDER_PATTERN = /\A\[\[(.+)\]\]\z/.freeze
 
-  # Legacy column aliases for backward compatibility
-  # These allow queries like find_by(scope: "email") to work after migration
-  alias_attribute :scope, :warehouse_type
-  alias_attribute :has_storage_folder, :warehouse_enabled
-  alias_attribute :has_sharepoint_folder, :warehouse_enabled  # Extra legacy alias
-  # storage_folder_path and sharepoint_folder_path aliases removed - column dropped
-  # Now use derived_warehouse_folder method instead
-  alias_attribute :storage_path_type, :warehouse_type_override
-  alias_attribute :sharepoint_path_type, :warehouse_type_override  # Extra legacy alias
 
   # Associations
   belongs_to :parent, class_name: 'WarehouseFolder', optional: true
@@ -90,9 +81,6 @@ class WarehouseFolder < ApplicationRecord
   # Document type links (SSoT for tab-to-document-type associations)
   has_many :warehouse_folder_document_types, dependent: :destroy
   has_many :document_types, through: :warehouse_folder_document_types
-
-  # Legacy aliases for backward compatibility
-  alias_method :warehouse_folder_document_types, :warehouse_folder_document_types
 
   # SSoT: Auto-inherit warehouse folder flag from parent when document types assigned
   before_save :inherit_warehouse_from_parent
@@ -467,9 +455,6 @@ class WarehouseFolder < ApplicationRecord
     template.gsub('{{TabName}}', folder_name).gsub('{{TeeemXL}}', folder_name)
   end
 
-  # Alias for backwards compatibility
-  alias_method :derived_warehouse_folder, :resolved_warehouse_path
-
   # Get the full storage path for this tab
   # SSoT: root_path + resolved warehouse path (template with folder substituted)
   def full_warehouse_path
@@ -480,10 +465,6 @@ class WarehouseFolder < ApplicationRecord
     root = config&.root_path || ''
     "#{root}/#{path}".gsub(%r{//+}, '/')
   end
-
-  # Legacy aliases for backwards compatibility
-  alias_method :full_storage_path, :full_warehouse_path
-  alias_method :full_sharepoint_path, :full_warehouse_path
 
   # SSoT: Resolve folder tokens to physical folder names
   # [[Name]] = literal folder name (strips brackets) - e.g., [[TeeemXL]] → "TeeemXL"
@@ -532,9 +513,6 @@ class WarehouseFolder < ApplicationRecord
     end
   end
 
-  # Legacy alias
-  alias_method :scope_for_template, :effective_warehouse_type
-
   # Get the folder name for this tab
   # SSoT: warehouse_folders has full path pattern, tab just provides folder name
   def inherited_template
@@ -576,10 +554,6 @@ class WarehouseFolder < ApplicationRecord
       display_name
     end
   end
-
-  # Legacy aliases for backwards compatibility
-  alias_method :effective_storage_path, :effective_warehouse_path
-  alias_method :effective_sharepoint_path, :effective_warehouse_path
 
   # Get the folder path for actual uploads
   # SSoT: effective_warehouse_path now returns just the tab's folder (e.g., "Plans")
@@ -1242,9 +1216,6 @@ class WarehouseFolder < ApplicationRecord
       Rails.logger.info "[WarehouseFolder] Auto-inherited warehouse_enabled from parent '#{parent.display_name}' for tab '#{display_name}'"
     end
   end
-
-  # Legacy alias
-  alias_method :inherit_storage_from_parent, :inherit_warehouse_from_parent
 
   # SSoT: Only auto-generate tab_key for NEW records when tab_key is blank
   # display_name is now used for file display name templates (e.g., {{OriginalFileName}})

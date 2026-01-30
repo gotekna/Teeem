@@ -16,7 +16,7 @@ client = MicrosoftGraphClient.new
 
 # Constants
 # SSoT: Fetch folder names from EntityTab (replaces DocumentFolder)
-PRIMARY_FOLDERS = EntityTab.where(scope: 'corporate_entity', tab_group: 'documents')
+PRIMARY_FOLDERS = EntityTab.where(warehouse_type: 'corporate_entity', tab_group: 'documents')
                            .where(parent_id: nil)
                            .enabled
                            .order(:order_position)
