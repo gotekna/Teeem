@@ -2325,7 +2325,7 @@ export function StorageConfigTab() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
-                Storage Configuration SSoT Guide
+                WarehouseProvider SSoT Guide
               </CardTitle>
               <CardDescription>
                 How folder paths are configured and where they&apos;re stored
