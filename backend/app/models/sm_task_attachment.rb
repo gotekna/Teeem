@@ -116,9 +116,17 @@ class SmTaskAttachment < ApplicationRecord
   # Links to same StorageBlob as the attached document
   # SSoT: Sets linkable to SmTask for proper folder display in File Warehouse
   #
-  # Task attachments appear in Tasks/{id}/Attachments or Tasks/{id}/Responses
-  # This includes BOTH emails and documents - user wants all attachments visible
+  # FRC (Jan 2026): Email handling:
+  # - Emails with category "response" → appear in Responses folder
+  # - Emails with category "info" (default) → skip (already in Emails/ folder)
+  # - Documents → always appear in appropriate folder
   def create_warehouse_entry
+    # Skip info emails - they appear in Emails/ folder, not Tasks/Attachments
+    # Response emails DO appear in Tasks/{id}/Responses
+    if attachable_type == "SyncedEmail" && category != "response"
+      return
+    end
+
     blob = storage_blob
     unless blob
       Rails.logger.warn("[SmTaskAttachment] ##{id}: No storage blob found for #{attachable_type}##{attachable_id}")
