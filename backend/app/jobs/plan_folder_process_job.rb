@@ -23,7 +23,7 @@ class PlanFolderProcessJob < ApplicationJob
     begin
       job = scan.job
 
-      # SSoT: Setup document provider using StorageConfiguration
+      # SSoT: Setup document provider using WarehouseProvider
       setup_default_provider!
 
       # Download the file - SSoT: use storage_reference

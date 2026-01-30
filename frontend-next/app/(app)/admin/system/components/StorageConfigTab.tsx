@@ -100,7 +100,7 @@ const SCOPE_LABELS: Record<string, string> = {
   template_pdf_fields: 'PDF Fields',
 };
 
-// SSoT: Provider types match StorageConfiguration.PROVIDER_TYPES
+// SSoT: Provider types match WarehouseProvider.PROVIDER_TYPES
 // Backend consolidates wasabi/s3 into s3_compatible
 type ProviderType = "sharepoint" | "s3_compatible" | "local";
 
@@ -122,9 +122,9 @@ function normalizeProviderType(apiValue: string | null | undefined): ProviderTyp
   return "s3_compatible"; // Fallback
 }
 
-// SSoT: StorageConfiguration handles CONNECTION + root path + scope folders
-// Individual tab folder paths are managed in EntityTab (Entity Configurator)
-// SSoT: Dynamic scope folders from StorageConfiguration.SCOPE_FOLDERS
+// SSoT: WarehouseProvider handles CONNECTION + root path + scope folders
+// Individual tab folder paths are managed in WarehouseFolder (Entity Configurator)
+// SSoT: Dynamic scope folders from WarehouseProvider.SCOPE_FOLDERS
 // Keys and values come from the backend API
 type ScopeFolders = Record<string, string>;
 
@@ -223,7 +223,7 @@ interface FolderTreeNode {
 }
 
 // SSoT: Known scope root folder names (first segment of paths that should appear at root)
-// These match WAREHOUSE_ROOT_DEFAULTS in StorageConfiguration (Jan 2026 consolidation)
+// These match WAREHOUSE_ROOT_DEFAULTS in WarehouseProvider (Jan 2026 consolidation)
 // Note: 'People' merged into 'Contacts'
 // Note: 'Users' added for Teeem Docs (personal user documents - Jan 2026)
 const KNOWN_ROOT_FOLDERS = [
@@ -2145,13 +2145,13 @@ export function StorageConfigTab() {
           // SSoT: warehouse_folders is THE ONE source for warehouse type roots
           // warehouse_folders REMOVED (Jan 2026 SSoT fix)
           warehouse_folders: response.data.warehouse_folders || {},
-          // SSoT: Templates from StorageConfiguration
+          // SSoT: Templates from WarehouseProvider
           warehouse_folder_templates: response.data.warehouse_folder_templates || {},
           file_name_templates: response.data.file_name_templates || {},
           display_name_templates: response.data.display_name_templates || {},
-          // SSoT: Config links from StorageConfiguration
+          // SSoT: Config links from WarehouseProvider
           config_links: response.data.config_links || {},
-          // Phase 4: Virtual warehouses from StorageConfiguration
+          // Phase 4: Virtual warehouses from WarehouseProvider
           virtual_warehouses: response.data.virtual_warehouses || {},
           // SM task exclusion setting
           exclude_sm_tasks: response.data.exclude_sm_tasks ?? false,
@@ -2340,7 +2340,7 @@ export function StorageConfigTab() {
                 </h4>
                 <p className="text-sm text-muted-foreground">
                   This page configures <strong>virtual folder paths</strong> for the File Warehouse.
-                  All settings save to <code className="bg-muted px-1 rounded">StorageConfiguration.warehouse_folders</code> (SSoT).
+                  All settings save to <code className="bg-muted px-1 rounded">WarehouseProvider.warehouse_folders</code> (SSoT).
                 </p>
               </div>
 
@@ -2579,7 +2579,7 @@ export function StorageConfigTab() {
                 </h4>
                 <p className="text-sm text-muted-foreground">
                   These virtual paths determine where documents appear in the <strong>File Warehouse</strong> tab.
-                  The backend uses <code className="bg-muted px-1 rounded">StorageConfiguration.root_folder_for(:scope)</code> to
+                  The backend uses <code className="bg-muted px-1 rounded">WarehouseProvider.root_folder_for(:scope)</code> to
                   resolve the full path, automatically combining parent base + child suffix.
                 </p>
               </div>
@@ -2718,7 +2718,7 @@ export function StorageConfigTab() {
                   Backend SSoT Reference
                 </h4>
                 <div className="text-sm text-muted-foreground space-y-1">
-                  <div><code className="bg-muted px-1 rounded text-xs">StorageConfiguration.instance</code> — The ONE source for all storage config</div>
+                  <div><code className="bg-muted px-1 rounded text-xs">WarehouseProvider.instance</code> — The ONE source for all storage config</div>
                   <div><code className="bg-muted px-1 rounded text-xs">WarehouseDocument</code> — Universal document metadata table</div>
                   <div><code className="bg-muted px-1 rounded text-xs">StorageBlob</code> — Deduplicated file content (content-hash based)</div>
                   <div><code className="bg-muted px-1 rounded text-xs">SendNameResolver</code> — Resolves tokens in download filenames</div>

@@ -2,11 +2,11 @@
 
 # DocumentStorageService - THE ONE SSoT for document storage operations
 #
-# Uses StorageConfiguration to determine paths and provider.
+# Uses WarehouseProvider to determine paths and provider.
 # Works with ANY document model that has a storage_path column.
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: StorageConfiguration determines WHERE files go             ║
+# ║  SSoT: WarehouseProvider determines WHERE files go             ║
 # ║  This service is THE ONE way to upload AND download documents     ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
@@ -39,7 +39,7 @@
 #   result = service.download_url(job_document)
 #   # => { success: true, url: "https://..." }
 #
-# Supported scopes (from StorageConfiguration):
+# Supported scopes (from WarehouseProvider):
 #   :job, :corporate, :people, :contact, :task, :email, :email_attachments, etc.
 #
 class DocumentStorageService
@@ -51,7 +51,7 @@ class DocumentStorageService
     @tenant = tenant || ActsAsTenant.current_tenant
     raise ::TenantNotFoundError, "Tenant required for DocumentStorageService" unless @tenant
 
-    @storage_config = StorageConfiguration.for_tenant(@tenant)
+    @storage_config = WarehouseProvider.for_tenant(@tenant)
     @provider = get_storage_provider
   end
 
@@ -72,7 +72,7 @@ class DocumentStorageService
   # @return [Hash] { success: true/false, path: "...", blob_id: ..., deduplicated: true/false }
   def upload(scope:, record:, file:, tokens: {}, filename: nil, content_type: nil)
     unless @provider
-      return error_result("No storage provider configured. Check StorageConfiguration.")
+      return error_result("No storage provider configured. Check WarehouseProvider.")
     end
 
     # Get file content and metadata
@@ -96,7 +96,7 @@ class DocumentStorageService
       storage_path = existing_blob.storage_path
       blob = existing_blob
     else
-      # Build the storage path using StorageConfiguration
+      # Build the storage path using WarehouseProvider
       # SSoT: Pass record so we can use its EntityTab.storage_folder_path template
       folder_path = build_folder_path(scope, tokens, record: record)
       full_path = "#{folder_path}/#{sanitize_filename(file_name)}"
@@ -362,13 +362,13 @@ class DocumentStorageService
   # Build folder path from scope and tokens
   # SSoT Priority:
   # 1. Record's storage_folder_template (from EntityTab.storage_folder_path - database)
-  # 2. StorageConfiguration.template_for(scope) (fallback)
+  # 2. WarehouseProvider.template_for(scope) (fallback)
   def build_folder_path(scope, tokens, record: nil)
-    # Get base path from StorageConfiguration
+    # Get base path from WarehouseProvider
     base_path = @storage_config.path_for(scope)
 
     # SSoT: Try to get template from record's EntityTab first (database-stored)
-    # Falls back to StorageConfiguration constant if not available
+    # Falls back to WarehouseProvider constant if not available
     template = if record&.respond_to?(:storage_folder_template) && record.storage_folder_template.present?
       record.storage_folder_template
     else
@@ -654,7 +654,7 @@ class DocumentStorageService
     else
       # Other documents use org's SharePoint
       credential = MicrosoftCredential.sharepoint_credential
-      drive_id = StorageConfiguration.instance&.drive_id
+      drive_id = WarehouseProvider.instance&.drive_id
       [credential, drive_id]
     end
   end

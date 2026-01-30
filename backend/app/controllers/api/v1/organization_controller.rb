@@ -6,22 +6,22 @@ module Api
       before_action :require_admin, only: %i[microsoft_org_stats data_stats]
 
       # GET /api/v1/organization_settings
-      # SSoT: Returns folder templates from StorageConfiguration
+      # SSoT: Returns folder templates from WarehouseProvider
       def settings
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
 
         render json: {
           success: true,
-          # SSoT: Use StorageConfiguration.template_for for folder templates
+          # SSoT: Use WarehouseProvider.template_for for folder templates
           job_folder_template: config&.template_for(:job) || "{{JobCode}}/{{TabName}}",
           contact_folder_template: config&.template_for(:contact) || "{{ContactId}} - {{ContactName}}"
         }
       end
 
       # PATCH /api/v1/organization_settings
-      # SSoT: Updates folder templates in StorageConfiguration
+      # SSoT: Updates folder templates in WarehouseProvider
       def update_settings
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
         templates = config.templates || {}
 
         templates["job"] = params[:job_folder_template] if params[:job_folder_template].present?
@@ -148,7 +148,7 @@ module Api
               doc_by_provider = { "s3_compatible" => 0, "sharepoint" => 0 }
               # Group WarehouseDocuments by storage provider in metadata
               WarehouseDocument.joins(:storage_blob).find_each do |wd|
-                provider = wd.meta("storage_provider") || StorageConfiguration.instance&.provider_type || "sharepoint"
+                provider = wd.meta("storage_provider") || WarehouseProvider.instance&.provider_type || "sharepoint"
                 normalized = case provider
                              when "s3_compatible", "wasabi", "s3" then "s3_compatible"
                              when "sharepoint", nil then "sharepoint"
@@ -306,13 +306,13 @@ module Api
         end
 
         # Get available S3 credentials for dropdown
-        # SSoT (Jan 2026): bucket removed - StorageConfiguration.bucket is SSoT
+        # SSoT (Jan 2026): bucket removed - WarehouseProvider.bucket is SSoT
         s3_credentials = S3CompatibleCredential.active.order(:name).map do |cred|
           {
             id: cred.id,
             name: cred.name,
             provider_type: cred.provider_type,
-            # bucket removed - StorageConfiguration.bucket is SSoT
+            # bucket removed - WarehouseProvider.bucket is SSoT
             status: cred.status,
             connected: cred.status == "connected"
           }
@@ -656,8 +656,8 @@ module Api
         end
 
         # Storage stats (provider-agnostic: SharePoint, S3, Wasabi, local)
-        # SSoT: Auto-detect from active credentials, not just StorageConfiguration
-        storage_config = StorageConfiguration.instance rescue nil
+        # SSoT: Auto-detect from active credentials, not just WarehouseProvider
+        storage_config = WarehouseProvider.instance rescue nil
 
         # Auto-detect actual provider from credentials (SSoT: credentials are source of truth)
         s3_credential = S3CompatibleCredential.active.first rescue nil
@@ -800,7 +800,7 @@ module Api
             with_file_count = with_file_by_source[source_type] || 0
             results << {
               source_type: source_type,
-              label: StorageConfiguration.label_for(source_type),  # SSoT: Use centralized labels
+              label: WarehouseProvider.label_for(source_type),  # SSoT: Use centralized labels
               total: total,
               with_blob: with_storage,
               with_file: with_file_count,
@@ -960,7 +960,7 @@ module Api
 
       private
 
-      # SSoT: Connection info - bucket from StorageConfiguration (Jan 2026)
+      # SSoT: Connection info - bucket from WarehouseProvider (Jan 2026)
       def storage_connection_info_for(provider_type, s3_credential, ms_credential, storage_config)
         case provider_type
         when "s3_compatible"
@@ -976,7 +976,7 @@ module Api
             site_url: ms_credential.site_url || "https://#{ms_credential.tenant_id}.sharepoint.com",
             site_id: storage_config&.site_id,
             drive_id: storage_config&.drive_id,
-            # SSoT: drive_name comes from StorageConfiguration - no hardcoded fallback
+            # SSoT: drive_name comes from WarehouseProvider - no hardcoded fallback
             drive_name: storage_config&.drive_name
           }
         when "local"

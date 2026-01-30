@@ -4,7 +4,7 @@
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
-# ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
+# ║  Uploads to Wasabi, SharePoint, or S3 based on WarehouseProvider║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 class FinancialTransactionStorageUploadJob < ApplicationJob
@@ -20,7 +20,7 @@ class FinancialTransactionStorageUploadJob < ApplicationJob
 
     Rails.logger.info("[FinancialTransactionUpload] Uploading receipt for Transaction #{transaction_id}")
 
-    # SSoT: Setup document provider using StorageConfiguration
+    # SSoT: Setup document provider using WarehouseProvider
     begin
       setup_default_provider!
     rescue DocumentProviders::NotConnectedError => e

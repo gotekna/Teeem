@@ -94,19 +94,19 @@ class CorporateCompanySetting < ApplicationRecord
 
   # ========================================
   # Document Base Path Convenience Methods
-  # SSoT: StorageConfiguration is THE ONE source for storage paths
+  # SSoT: WarehouseProvider is THE ONE source for storage paths
   # ========================================
 
   def self.company_documents_base_path
-    StorageConfiguration.instance&.path_for(:corporate) || "Corporate"
+    WarehouseProvider.instance&.path_for(:corporate) || "Corporate"
   end
 
   def self.people_documents_base_path
-    StorageConfiguration.instance&.path_for(:people) || "People"
+    WarehouseProvider.instance&.path_for(:people) || "People"
   end
 
   def self.job_documents_base_path
-    StorageConfiguration.instance&.path_for(:job) || "Jobs"
+    WarehouseProvider.instance&.path_for(:job) || "Jobs"
   end
 
   # ========================================

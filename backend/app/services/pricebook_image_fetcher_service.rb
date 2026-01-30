@@ -19,9 +19,9 @@ class PricebookImageFetcherService
   GOOGLE_CX = ENV["GOOGLE_CX"]
   ANTHROPIC_API_KEY = ENV["ANTHROPIC_API_KEY"]
 
-  # SSoT: Get test folder from StorageConfiguration (falls back to pricebook path)
+  # SSoT: Get test folder from WarehouseProvider (falls back to pricebook path)
   def self.storage_test_folder
-    StorageConfiguration.instance.path_for(:pricebook_photos)
+    WarehouseProvider.instance.path_for(:pricebook_photos)
   end
 
   # Maximum file size for compressed images

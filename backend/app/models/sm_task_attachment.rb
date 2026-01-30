@@ -57,7 +57,7 @@ class SmTaskAttachment < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # SSoT: Reads from StorageConfiguration (full paths, no derivation)
+  # SSoT: Reads from WarehouseProvider (full paths, no derivation)
   # FRC (Jan 2026): No hardcoded fallbacks - uses same logic as compute_task_folder_path
   def virtual_folder_path
     compute_task_folder_path
@@ -254,7 +254,7 @@ class SmTaskAttachment < ApplicationRecord
   end
 
   # Compute the folder path for File Warehouse
-  # SSoT: Reads template from StorageConfiguration (full paths, no derivation)
+  # SSoT: Reads template from WarehouseProvider (full paths, no derivation)
   # Template: Tasks/{{TaskId}}/{{TaskName}}/Attachments (or Responses)
   #
   # FRC (Jan 2026): No hardcoded fallback - fail fast if config is wrong
@@ -269,9 +269,9 @@ class SmTaskAttachment < ApplicationRecord
 
     # FRC: Use for_tenant with explicit tenant from task, not instance
     # (model callbacks don't have ActsAsTenant.current_tenant set)
-    config = StorageConfiguration.for_tenant(task.tenant) rescue nil
+    config = WarehouseProvider.for_tenant(task.tenant) rescue nil
     unless config
-      Rails.logger.warn("[SmTaskAttachment] ##{id}: No StorageConfiguration found for tenant #{task.tenant_id}")
+      Rails.logger.warn("[SmTaskAttachment] ##{id}: No WarehouseProvider found for tenant #{task.tenant_id}")
       return "Tasks/Unknown"
     end
 

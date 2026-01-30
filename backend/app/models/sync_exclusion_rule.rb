@@ -225,7 +225,7 @@ class SyncExclusionRule < ApplicationRecord
     user_rules = for_user(user).include_rules.where(rule_type: "folder_scope").pluck(:value)
 
     # Get storage configuration for folder paths
-    config = StorageConfiguration.instance
+    config = WarehouseProvider.instance
 
     FOLDER_SCOPES.map do |key, scope|
       folder_path = config.root_folder_for(scope[:warehouse_type])

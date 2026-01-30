@@ -5,7 +5,7 @@
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
-# ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
+# ║  Uploads to Wasabi, SharePoint, or S3 based on WarehouseProvider║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 class BillInboxStorageUploadJob < ApplicationJob
@@ -21,7 +21,7 @@ class BillInboxStorageUploadJob < ApplicationJob
 
     Rails.logger.info("[BillInboxUpload] Uploading file for BillInbox #{bill_inbox_id}")
 
-    # SSoT: Setup document provider using StorageConfiguration
+    # SSoT: Setup document provider using WarehouseProvider
     begin
       setup_default_provider!
     rescue DocumentProviders::NotConnectedError => e
@@ -66,7 +66,7 @@ class BillInboxStorageUploadJob < ApplicationJob
   private
 
   def build_folder_path(bill)
-    # SSoT: Get base path from StorageConfiguration
+    # SSoT: Get base path from WarehouseProvider
     base_folder = scope_folder_path(:bill_inbox)
     date = bill.created_at || Time.current
     year_month = date.strftime("%Y-%m")

@@ -275,10 +275,10 @@ class CorporateCompany < ApplicationRecord
     group_name = corporate_group.name
     company_folder_name = "#{code.presence || name[0..2].upcase} - #{name}"
 
-    # SSoT: Get paths from StorageConfiguration (Jan 2026)
-    storage_config = StorageConfiguration.instance
+    # SSoT: Get paths from WarehouseProvider (Jan 2026)
+    storage_config = WarehouseProvider.instance
     company_folder_path = storage_config.path_for(:corporate)
-    # SSoT: Use root_path from StorageConfiguration (SharePoint: "/Shared Documents", S3: "/")
+    # SSoT: Use root_path from WarehouseProvider (SharePoint: "/Shared Documents", S3: "/")
     root_path_encoded = ERB::Util.url_encode(storage_config.root_path.to_s.delete_prefix("/"))
 
     # URL encode the path components

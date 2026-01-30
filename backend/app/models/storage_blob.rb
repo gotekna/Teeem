@@ -5,7 +5,7 @@
 # Purpose: Store files ONCE based on content_hash, link from multiple records
 #
 # Architecture:
-#   StorageConfiguration (determines provider: wasabi, s3, sharepoint, azure)
+#   WarehouseProvider (determines provider: wasabi, s3, sharepoint, azure)
 #      ↓
 #   StorageBlob (one per unique file)
 #   ├── content_hash: SHA256 of file content (unique)

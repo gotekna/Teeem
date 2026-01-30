@@ -16,10 +16,10 @@
 # This automatically:
 # - Creates has_one :warehouse_document association
 # - Creates WarehouseDocument entry on create (if storage_blob present)
-# - Computes folder path from StorageConfiguration templates
+# - Computes folder path from WarehouseProvider templates
 # - Computes display name from model attributes
 #
-# Supported warehouse types (must match StorageConfiguration::WAREHOUSE_ROOT_DEFAULTS keys):
+# Supported warehouse types (must match WarehouseProvider::WAREHOUSE_ROOT_DEFAULTS keys):
 #   :asset           - Asset expenses, odometer readings, service
 #   :financial       - Financial transactions
 #   :compliance      - Document tasks (permits, certifications)
@@ -158,7 +158,7 @@ module WarehouseDocumentable
   end
 
   # ========================================
-  # Folder Path Computation (SSoT: StorageConfiguration)
+  # Folder Path Computation (SSoT: WarehouseProvider)
   # ========================================
 
   def compute_folder_path_for_self
@@ -171,14 +171,14 @@ module WarehouseDocumentable
       end
     end
 
-    # SSoT: Compute from StorageConfiguration
+    # SSoT: Compute from WarehouseProvider
     # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance - callbacks don't have ActsAsTenant context
     if warehouse_source_type.present?
       begin
         tenant = resolve_tenant_for_documentable
         return nil unless tenant
 
-        config = StorageConfiguration.for_tenant(tenant)
+        config = WarehouseProvider.for_tenant(tenant)
         config.compute_folder_path(
           source_type: warehouse_source_type,
           documentable: self
@@ -190,7 +190,7 @@ module WarehouseDocumentable
     end
   end
 
-  # Resolve tenant for StorageConfiguration access
+  # Resolve tenant for WarehouseProvider access
   # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
   # Try multiple strategies to derive tenant from the including model
   def resolve_tenant_for_documentable

@@ -12,7 +12,7 @@ module Api
       def upload
         job = Job.find(params[:job_id])
 
-        # SSoT: Setup provider using StorageConfiguration
+        # SSoT: Setup provider using WarehouseProvider
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
@@ -100,11 +100,11 @@ module Api
 
       private
 
-      # Build job folder path using SSoT pattern from StorageConfiguration
+      # Build job folder path using SSoT pattern from WarehouseProvider
       # SSoT: Uses job_number (job_code), NOT job.id
       def build_job_folder_path(job)
         storage_config&.job_path(job.job_code) || begin
-          # Fallback: Build manually (should not happen if StorageConfiguration is set up)
+          # Fallback: Build manually (should not happen if WarehouseProvider is set up)
           base_folder = scope_folder_path(:job)
           job_folder_name = job.job_code
           "/#{base_folder}/#{job_folder_name}"

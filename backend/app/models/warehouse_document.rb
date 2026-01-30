@@ -37,7 +37,7 @@ class WarehouseDocument < ApplicationRecord
   # This ensures ALL creation points get tenant_id without manual assignment
   before_validation :set_tenant_from_documentable, on: :create
 
-  # SSoT: Auto-compute folder from StorageConfiguration template if not provided
+  # SSoT: Auto-compute folder from WarehouseProvider template if not provided
   # This ensures folder always matches current template configuration
   before_validation :compute_folder_from_template, on: :create, if: -> { folder.blank? }
 
@@ -160,7 +160,7 @@ class WarehouseDocument < ApplicationRecord
   # Computed Folder Path (Runtime Resolution)
   # ========================================
   #
-  # SSoT: Returns the folder path computed from CURRENT StorageConfiguration templates.
+  # SSoT: Returns the folder path computed from CURRENT WarehouseProvider templates.
   # This ensures folder paths update INSTANTLY when templates change in admin UI,
   # without needing any background sync jobs.
   #
@@ -400,14 +400,14 @@ class WarehouseDocument < ApplicationRecord
     nil
   end
 
-  # SSoT: Compute folder from StorageConfiguration template
+  # SSoT: Compute folder from WarehouseProvider template
   # Maps source_type to warehouse_type and expands template with documentable context
   # Uses resolve_virtual_path (not resolve_path) for UI display folder without root_path prefix
   def compute_folder_from_template
     warehouse_type = source_type_to_warehouse_type
     return unless warehouse_type
 
-    config = StorageConfiguration.instance rescue nil
+    config = WarehouseProvider.instance rescue nil
     return unless config
 
     tokens = extract_folder_tokens
@@ -487,25 +487,25 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # Compute email legacy path if not stored
-  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
+  # SSoT: Uses WarehouseProvider for base folder (Jan 2026)
   def compute_email_legacy_path(email)
     return nil unless email.id.present?
 
-    emails_folder = StorageConfiguration.instance&.path_for(:emails) || "Emails"
+    emails_folder = WarehouseProvider.instance&.path_for(:emails) || "Emails"
     year = email.received_at&.year || Time.current.year
     month = format("%02d", email.received_at&.month || 1)
     "#{emails_folder}/Email Body/#{year}/#{month}/#{email.id}.eml"
   end
 
   # Compute attachment legacy path if not stored
-  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
+  # SSoT: Uses WarehouseProvider for base folder (Jan 2026)
   def compute_attachment_legacy_path(att)
     return nil unless att.id.present? && att.filename.present?
 
     email = att.email_warehouse
     return nil unless email
 
-    emails_folder = StorageConfiguration.instance&.path_for(:emails) || "Emails"
+    emails_folder = WarehouseProvider.instance&.path_for(:emails) || "Emails"
     year = email.received_at&.year || Time.current.year
     month = format("%02d", email.received_at&.month || 1)
     safe_filename = att.filename.gsub(/[<>:"|?*\\\/]/, "_")
@@ -513,14 +513,14 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # Compute job document legacy path if not stored
-  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
+  # SSoT: Uses WarehouseProvider for base folder (Jan 2026)
   def compute_job_document_legacy_path(doc)
     return nil unless doc.id.present?
 
     job = doc.job
     return nil unless job
 
-    jobs_folder = StorageConfiguration.instance&.path_for(:jobs) || "Jobs"
+    jobs_folder = WarehouseProvider.instance&.path_for(:jobs) || "Jobs"
     doc_type = doc.document_type&.name || "Documents"
     filename = doc.filename.presence || "#{doc.id}"
     safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")

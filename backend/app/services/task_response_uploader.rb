@@ -16,7 +16,7 @@
 # Original purpose:
 # TaskResponseUploader - Uploads task files to document storage (SharePoint, S3, etc.)
 #
-# SSoT: StorageConfiguration defines ALL folder paths via resolve_path():
+# SSoT: WarehouseProvider defines ALL folder paths via resolve_path():
 #   - :task_responses scope → /Tasks/{TaskId}/Responses/{filename}
 #   - :task_attachments scope → /Tasks/{TaskId}/Attachments/{filename}
 #
@@ -48,7 +48,7 @@ class TaskResponseUploader
   # @param file [ActionDispatch::Http::UploadedFile] The file to upload
   # @return [Hash] { success: true, sharepoint_url: "...", file_id: "...", filename: "..." }
   def upload(file)
-    config = StorageConfiguration.for_tenant(@tenant)
+    config = WarehouseProvider.for_tenant(@tenant)
 
     # Check if task storage scope is enabled
     unless config.scope_enabled?(:task)
@@ -148,7 +148,7 @@ class TaskResponseUploader
     DocumentProviders.for_tenant(@tenant)
   end
 
-  # Scope based on category - determines which StorageConfiguration path to use
+  # Scope based on category - determines which WarehouseProvider path to use
   def storage_scope
     category == "response" ? :task_responses : :task_attachments
   end
@@ -160,16 +160,16 @@ class TaskResponseUploader
 
   # Normalize storage provider type to valid WarehouseDocument values
   # SSoT: Only 3 provider types - sharepoint, s3_compatible, local
-  # StorageConfiguration.provider_type already normalizes legacy values
+  # WarehouseProvider.provider_type already normalizes legacy values
   def normalized_storage_provider
-    StorageConfiguration.instance.provider_type
+    WarehouseProvider.instance.provider_type
   end
 
   # Target folder path for task files
-  # SSoT: StorageConfiguration.resolve_path() with scope defines ALL paths
+  # SSoT: WarehouseProvider.resolve_path() with scope defines ALL paths
   # No hardcoded folder names - reads from SCOPE_TEMPLATES
   def target_folder_path
-    config = StorageConfiguration.for_organization(organization)
+    config = WarehouseProvider.for_organization(organization)
     # Pass all task + job substitutions for flexible path templates
     # Tasks belong to jobs, so include job context for paths like:
     # "Jobs/{{JobCode}}/Tasks/{{TaskNumber}} - {{TaskName}}"

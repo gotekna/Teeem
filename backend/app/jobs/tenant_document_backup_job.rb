@@ -127,7 +127,7 @@ class TenantDocumentBackupJob < ApplicationJob
 
   def download_document(doc)
     # Get the appropriate storage provider for downloading
-    storage_config = StorageConfiguration.instance
+    storage_config = WarehouseProvider.instance
 
     case storage_config.provider_type
     when "sharepoint"
@@ -148,7 +148,7 @@ class TenantDocumentBackupJob < ApplicationJob
     return nil unless credential
 
     client = MicrosoftAppGraphClient.new(credential)
-    storage_config = StorageConfiguration.instance
+    storage_config = WarehouseProvider.instance
 
     # Build the full path
     full_path = File.join(storage_config.root_path, doc.storage_path)
@@ -157,7 +157,7 @@ class TenantDocumentBackupJob < ApplicationJob
   end
 
   def download_from_s3(doc)
-    storage_config = StorageConfiguration.instance
+    storage_config = WarehouseProvider.instance
     client = S3StorageClient.new(storage_config)
     client.download(doc.storage_path)
   end

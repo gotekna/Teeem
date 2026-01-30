@@ -588,7 +588,7 @@ interface S3Provider {
   help_url: string | null;
 }
 
-// SSoT (Jan 2026): bucket removed - StorageConfiguration.bucket is SSoT
+// SSoT (Jan 2026): bucket removed - WarehouseProvider.bucket is SSoT
 interface S3Credential {
   id: number;
   name: string;
@@ -596,7 +596,7 @@ interface S3Credential {
   provider_display_name: string;
   endpoint: string | null;
   region: string;
-  // bucket removed - StorageConfiguration.bucket is SSoT
+  // bucket removed - WarehouseProvider.bucket is SSoT
   root_path: string;
   is_active: boolean;
   status: string;
@@ -655,7 +655,7 @@ function S3StorageConnection() {
   const [showForm, setShowForm] = React.useState(false);
   const [testResult, setTestResult] = React.useState<{ success: boolean; message: string } | null>(null);
 
-  // SSoT (Jan 2026): bucket removed - StorageConfiguration.bucket is SSoT
+  // SSoT (Jan 2026): bucket removed - WarehouseProvider.bucket is SSoT
   const [formData, setFormData] = React.useState({
     name: "",
     endpoint: "",
@@ -791,7 +791,7 @@ function S3StorageConnection() {
                   </Badge>
                   <div>
                     <p className="font-medium text-sm">{cred.name}</p>
-                    {/* bucket removed - StorageConfiguration.bucket is SSoT */}
+                    {/* bucket removed - WarehouseProvider.bucket is SSoT */}
                     <p className="text-xs text-muted-foreground">{cred.region}</p>
                   </div>
                 </div>
@@ -931,7 +931,7 @@ function S3StorageConnection() {
 }
 
 // Organization document provider config type
-// SSoT (Jan 2026): bucket removed - StorageConfiguration.bucket is SSoT
+// SSoT (Jan 2026): bucket removed - WarehouseProvider.bucket is SSoT
 interface OrgDocumentProvider {
   document_provider: string;
   document_provider_credential_id: number | null;
@@ -940,7 +940,7 @@ interface OrgDocumentProvider {
     id: number;
     name: string;
     provider_type: string;
-    // bucket removed - StorageConfiguration.bucket is SSoT
+    // bucket removed - WarehouseProvider.bucket is SSoT
     status: string;
     connected: boolean;
   }>;
@@ -1239,7 +1239,7 @@ function DocumentStorageProvider() {
                     {cred.status}
                   </Badge>
                   <span className="text-sm">{cred.name}</span>
-                  {/* bucket removed - StorageConfiguration.bucket is SSoT */}
+                  {/* bucket removed - WarehouseProvider.bucket is SSoT */}
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => handleDelete(cred)} className="h-6 w-6 p-0 text-red-600 dark:text-red-400">
                   <Trash2 className="h-3 w-3" />

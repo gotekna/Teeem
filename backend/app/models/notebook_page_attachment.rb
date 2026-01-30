@@ -68,7 +68,7 @@ class NotebookPageAttachment < ApplicationRecord
   end
 
   # ========================================
-  # Warehouse Path (SSoT: StorageConfiguration)
+  # Warehouse Path (SSoT: WarehouseProvider)
   # ========================================
 
   # SSoT: Full warehouse path including filename
@@ -80,28 +80,28 @@ class NotebookPageAttachment < ApplicationRecord
     "#{warehouse_folder_path}/#{base}_#{id}#{ext}".gsub(%r{/+}, "/")
   end
 
-  # SSoT: Folder path computed by StorageConfiguration
+  # SSoT: Folder path computed by WarehouseProvider
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   # Model callbacks run without ActsAsTenant context set
   def warehouse_folder_path
     tenant = resolve_tenant_for_config
     return "Warehousing/Notes/Unknown" unless tenant
 
-    config = StorageConfiguration.for_tenant(tenant) rescue nil
+    config = WarehouseProvider.for_tenant(tenant) rescue nil
     return "Warehousing/Notes/Unknown" unless config
 
     config.resolve_warehouse_path(self, scope: :notes)
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # SSoT: Reads from StorageConfiguration.virtual_template_for(:notebook)
+  # SSoT: Reads from WarehouseProvider.virtual_template_for(:notebook)
   # Configure at: /settings/company/entity-config → Storage Config
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
     tenant = resolve_tenant_for_config
     return "Warehousing/Notes/Unknown" unless tenant
 
-    config = StorageConfiguration.for_tenant(tenant) rescue nil
+    config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.virtual_template_for(:notebook)
     return "Warehousing/Notes/Unknown" unless template
 
@@ -147,7 +147,7 @@ class NotebookPageAttachment < ApplicationRecord
 
   private
 
-  # Resolve tenant for StorageConfiguration access
+  # Resolve tenant for WarehouseProvider access
   # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
   # Derive tenant from: uploaded_by → tenant, or notebook → owner → tenant
   def resolve_tenant_for_config

@@ -194,7 +194,7 @@ module Api
           :bank_account_name,
           # API Environment (production backend is the "router")
           :api_environment,
-          # NOTE: link_expiry_days is managed via Storage Config (storage_configurations_controller)
+          # NOTE: link_expiry_days is managed via Storage Config (warehouse_providers_controller)
           # It's returned in settings_json for reading but not editable via this endpoint
           working_days: [ :monday, :tuesday, :wednesday, :thursday, :friday, :saturday, :sunday ],
           team_email_domains: []

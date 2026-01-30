@@ -24,8 +24,8 @@ class JobDocumentMigrationService
     end
 
     @client = MicrosoftGraphClient.new(@credential) if @credential
-    # SSoT: Cache drive_id from StorageConfiguration (Jan 2026)
-    @storage_drive_id = StorageConfiguration.instance&.drive_id
+    # SSoT: Cache drive_id from WarehouseProvider (Jan 2026)
+    @storage_drive_id = WarehouseProvider.instance&.drive_id
     @stats = {
       matched: 0,
       unmatched: 0,
@@ -38,7 +38,7 @@ class JobDocumentMigrationService
     }
   end
 
-  # SSoT: Helper to get drive_id from StorageConfiguration
+  # SSoT: Helper to get drive_id from WarehouseProvider
   def drive_id
     @storage_drive_id
   end
@@ -556,9 +556,9 @@ class JobDocumentMigrationService
   end
 
   # Get or create the root folder for job documents
-  # SSoT: Uses StorageConfiguration for path
+  # SSoT: Uses WarehouseProvider for path
   def get_or_create_jobs_root_folder
-    root_folder_name = StorageConfiguration.instance.path_for(:jobs)
+    root_folder_name = WarehouseProvider.instance.path_for(:jobs)
 
     result = @client.get("/drives/#{drive_id}/root/children")
     folder = result["value"]&.find { |item| item["name"] == root_folder_name && item["folder"].present? }

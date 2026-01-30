@@ -138,9 +138,9 @@ module Api
         VALID_SCOPES.include?(scope)
       end
 
-      # SSoT: Uses StorageConfiguration for base folders (Jan 2026)
+      # SSoT: Uses WarehouseProvider for base folders (Jan 2026)
       def build_folder_path(scope, metadata)
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
 
         case scope
         when "documents"

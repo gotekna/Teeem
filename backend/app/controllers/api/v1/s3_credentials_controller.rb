@@ -28,7 +28,7 @@ class Api::V1::S3CredentialsController < ApplicationController
 
   # POST /api/v1/s3_credentials
   # Add a new S3 credential
-  # SSoT (Jan 2026): bucket comes from params for initial test, then from StorageConfiguration
+  # SSoT (Jan 2026): bucket comes from params for initial test, then from WarehouseProvider
   def create
     credential = S3CompatibleCredential.new(credential_params)
 
@@ -36,8 +36,8 @@ class Api::V1::S3CredentialsController < ApplicationController
     if credential.valid?
       begin
         client = credential.build_client
-        # Use bucket from params for testing (SSoT bucket will be in StorageConfiguration)
-        test_bucket = params.dig(:s3_credential, :bucket).presence || StorageConfiguration.instance&.bucket
+        # Use bucket from params for testing (SSoT bucket will be in WarehouseProvider)
+        test_bucket = params.dig(:s3_credential, :bucket).presence || WarehouseProvider.instance&.bucket
         raise "No bucket configured. Set bucket in Storage Configuration first." unless test_bucket.present?
         client.head_bucket(bucket: test_bucket)
         credential.status = "connected"
@@ -95,7 +95,7 @@ class Api::V1::S3CredentialsController < ApplicationController
 
   # POST /api/v1/s3_credentials/:id/test_connection
   # Test the S3 connection
-  # SSoT (Jan 2026): bucket comes from StorageConfiguration or params
+  # SSoT (Jan 2026): bucket comes from WarehouseProvider or params
   def test_connection
     begin
       test_bucket = params[:bucket].presence
@@ -104,7 +104,7 @@ class Api::V1::S3CredentialsController < ApplicationController
           success: true,
           message: "Connection successful",
           data: {
-            # bucket removed - StorageConfiguration.bucket is SSoT
+            # bucket removed - WarehouseProvider.bucket is SSoT
             region: @credential.region,
             provider: @credential.provider_display_name
           }
@@ -143,8 +143,8 @@ class Api::V1::S3CredentialsController < ApplicationController
 
     begin
       client = credential.build_client
-      # Use bucket from params for testing (SSoT bucket will be in StorageConfiguration)
-      test_bucket = params.dig(:s3_credential, :bucket).presence || StorageConfiguration.instance&.bucket
+      # Use bucket from params for testing (SSoT bucket will be in WarehouseProvider)
+      test_bucket = params.dig(:s3_credential, :bucket).presence || WarehouseProvider.instance&.bucket
       raise "No bucket configured. Provide bucket in request or set in Storage Configuration." unless test_bucket.present?
       client.head_bucket(bucket: test_bucket)
 
@@ -152,7 +152,7 @@ class Api::V1::S3CredentialsController < ApplicationController
         success: true,
         message: "Connection successful",
         data: {
-          # bucket removed from response - StorageConfiguration.bucket is SSoT
+          # bucket removed from response - WarehouseProvider.bucket is SSoT
           region: credential.region,
           provider: credential.provider_display_name
         }
@@ -232,7 +232,7 @@ class Api::V1::S3CredentialsController < ApplicationController
 
   # GET /api/v1/s3_credentials/status
   # Get overall S3 storage status
-  # SSoT (Jan 2026): bucket comes from StorageConfiguration, not credential
+  # SSoT (Jan 2026): bucket comes from WarehouseProvider, not credential
   def status
     credential = S3CompatibleCredential.active.connected.first
 
@@ -243,8 +243,8 @@ class Api::V1::S3CredentialsController < ApplicationController
         data: {
           name: credential.name,
           provider: credential.provider_display_name,
-          # bucket comes from StorageConfiguration SSoT
-          bucket: StorageConfiguration.instance&.bucket,
+          # bucket comes from WarehouseProvider SSoT
+          bucket: WarehouseProvider.instance&.bucket,
           region: credential.region,
           status: credential.status
         }
@@ -286,14 +286,14 @@ class Api::V1::S3CredentialsController < ApplicationController
     @credential = S3CompatibleCredential.find(params[:id])
   end
 
-  # SSoT (Jan 2026): bucket removed from params - StorageConfiguration.bucket is SSoT
+  # SSoT (Jan 2026): bucket removed from params - WarehouseProvider.bucket is SSoT
   def credential_params
     params.require(:s3_credential).permit(
       :name,
       :provider_type,
       :endpoint,
       :region,
-      # bucket removed - StorageConfiguration.bucket is SSoT
+      # bucket removed - WarehouseProvider.bucket is SSoT
       :access_key_id,
       :secret_access_key,
       :root_path,
@@ -302,7 +302,7 @@ class Api::V1::S3CredentialsController < ApplicationController
   end
 
   # SSoT (Jan 2026): bucket removed from credential response
-  # Bucket is now in StorageConfiguration only - not credential
+  # Bucket is now in WarehouseProvider only - not credential
   def credential_json(credential, include_sensitive: false)
     json = {
       id: credential.id,
@@ -311,7 +311,7 @@ class Api::V1::S3CredentialsController < ApplicationController
       provider_display_name: credential.provider_display_name,
       endpoint: credential.endpoint,
       region: credential.region,
-      # bucket removed - StorageConfiguration.bucket is SSoT
+      # bucket removed - WarehouseProvider.bucket is SSoT
       root_path: credential.root_path,
       is_active: credential.is_active,
       status: credential.status,

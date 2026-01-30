@@ -6,7 +6,7 @@ module Api
     #
     # SSoT: UserDocument model with WarehouseDocument for universal metadata
     # Storage: Uses StorageBlob for content-hash deduplication
-    # Folder structure: Users/{{UserName}}/{{Folder}} via StorageConfiguration
+    # Folder structure: Users/{{UserName}}/{{Folder}} via WarehouseProvider
     class UserDocumentsController < ApplicationController
       before_action :set_document, only: [:show, :update, :destroy, :download, :save_to_job]
 
@@ -92,7 +92,7 @@ module Api
           category: "my_docs",
           folder: folder,
           storage_blob: blob,
-          storage_provider: StorageConfiguration.instance.storage_provider_for_new_documents
+          storage_provider: WarehouseProvider.instance.storage_provider_for_new_documents
         )
 
         if document.save

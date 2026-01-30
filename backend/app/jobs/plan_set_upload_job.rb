@@ -5,7 +5,7 @@
 # =============================================================================
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
-# ║  Uploads to Wasabi, SharePoint, or S3 based on StorageConfiguration║
+# ║  Uploads to Wasabi, SharePoint, or S3 based on WarehouseProvider║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 # This job is THE SSoT for plan PDF processing.
@@ -33,7 +33,7 @@ class PlanSetUploadJob < ApplicationJob
 
     Rails.logger.info "[PlanSetUploadJob] Starting upload #{plan_upload_id} for job #{@job.id}"
 
-    # SSoT: Setup document provider using StorageConfiguration
+    # SSoT: Setup document provider using WarehouseProvider
     begin
       setup_default_provider!
     rescue DocumentProviders::NotConnectedError => e

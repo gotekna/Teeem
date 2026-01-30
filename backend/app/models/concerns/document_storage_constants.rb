@@ -21,7 +21,7 @@ module DocumentStorageConstants
   # ═══════════════════════════════════════════════════════════════
   # STORAGE PROVIDERS (THE ONE definition)
   # ═══════════════════════════════════════════════════════════════
-  # These match StorageConfiguration.provider_type values
+  # These match WarehouseProvider.provider_type values
   # sharepoint    = Microsoft SharePoint/OneDrive
   # s3_compatible = AWS S3, Wasabi, MinIO, or any S3-compatible storage
   # wasabi        = Wasabi Cloud Storage (legacy alias for s3_compatible)

@@ -7,7 +7,7 @@
 # - Self-hosted deployments without cloud storage
 # - Air-gapped environments
 #
-# Root path is configured in StorageConfiguration.root_path
+# Root path is configured in WarehouseProvider.root_path
 # Default: Rails.root.join("storage/documents")
 #
 module DocumentProviders
@@ -17,14 +17,14 @@ module DocumentProviders
 
     # SSoT: Factory method to create provider for a tenant (Jan 2026 fix)
     def self.for_tenant(tenant)
-      config = StorageConfiguration.for_tenant(tenant)
+      config = WarehouseProvider.for_tenant(tenant)
       new(config, tenant: tenant)
     end
 
     # DEPRECATED: Use for_tenant instead
     def self.for_organization(organization)
       Rails.logger.warn "[DEPRECATED] Local.for_organization - use for_tenant instead"
-      config = StorageConfiguration.for_organization(organization)
+      config = WarehouseProvider.for_organization(organization)
       new(config, tenant: organization&.tenant)
     end
 
