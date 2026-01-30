@@ -259,10 +259,10 @@ class SmTaskAttachment < ApplicationRecord
     # SSoT: task_attachments and task_responses have FULL paths (Jan 2026 FRC fix)
     folder_type = category == "response" ? :task_responses : :task_attachments
 
-    # Use config template - resolves {{TaskId}}, {{TaskName}}, etc.
+    # Use config template - resolves {{TaskId}} only
+    # FRC (Jan 2026): NO TaskName - UI already displays task name as folder label
     folder = config.resolve_virtual_path(folder_type, {
-      TaskId: task.id,
-      TaskName: task.name&.parameterize || "task-#{task.id}"
+      TaskId: task.id
     })
 
     if folder.blank?
