@@ -1016,11 +1016,25 @@ module Api
 
       # DELETE /api/v1/sm_tasks/:id/attachments/:attachment_id
       # SSoT: Uses soft delete to prevent email sync from re-creating deleted attachments
+      #
+      # Params:
+      #   from_responses_only: true - Only remove from Response Files section, keep email in Emails
+      #                        (changes category from "response" to "info" instead of soft deleting)
+      #
+      # FRC (Jan 2026): User expected delete from Response Files to only remove from that section,
+      # not delete the email entirely. Root cause was single delete behavior for two different contexts.
       def remove_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
-        attachment.soft_delete!(current_user)
 
-        render json: { success: true, message: "Attachment removed" }
+        if params[:from_responses_only].present? && attachment.category == "response"
+          # Remove from Response Files only - keep email in Emails section
+          attachment.update!(category: "info")
+          render json: { success: true, message: "Removed from responses" }
+        else
+          # Full soft delete
+          attachment.soft_delete!(current_user)
+          render json: { success: true, message: "Attachment removed" }
+        end
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Attachment not found" }, status: :not_found
       end
