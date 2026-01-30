@@ -148,7 +148,10 @@ class SmTaskAttachment < ApplicationRecord
     # Compute the task folder path (e.g., "Tasks/2236/Responses")
     folder = compute_task_folder_path
 
+    # FRC (Jan 2026): Must set tenant explicitly - model callbacks don't have
+    # ActsAsTenant context, and WarehouseDocument validates tenant presence
     create_warehouse_document!(
+      tenant_id: sm_task.tenant_id,
       source_type: "task",
       folder: folder,
       display_name: name,
@@ -176,13 +179,19 @@ class SmTaskAttachment < ApplicationRecord
   #
   # FRC (Jan 2026): No hardcoded fallback - fail fast if config is wrong
   # If path is blank, it's immediately visible in UI and can be fixed
+  #
+  # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
+  # Model callbacks run without ActsAsTenant context set, so instance raises
+  # TenantNotFoundError. Always get tenant from sm_task association.
   def compute_task_folder_path
     task = sm_task
     return "Tasks/Unknown" unless task
 
-    config = StorageConfiguration.instance rescue nil
+    # FRC: Use for_tenant with explicit tenant from task, not instance
+    # (model callbacks don't have ActsAsTenant.current_tenant set)
+    config = StorageConfiguration.for_tenant(task.tenant) rescue nil
     unless config
-      Rails.logger.warn("[SmTaskAttachment] ##{id}: No StorageConfiguration found")
+      Rails.logger.warn("[SmTaskAttachment] ##{id}: No StorageConfiguration found for tenant #{task.tenant_id}")
       return "Tasks/Unknown"
     end
 

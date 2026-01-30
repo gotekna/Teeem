@@ -2570,6 +2570,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setAttachmentLoading(false);
   };
 
+  // Remove from Response Files section only (keeps email in Emails section)
+  // FRC (Jan 2026): User expected delete from Response Files to only remove from that section,
+  // not delete the email entirely. This changes category from "response" to "info".
+  const handleRemoveFromResponses = async (attachmentId: number) => {
+    setAttachmentLoading(true);
+    try {
+      await api.delete(`/api/v1/sm_tasks/${task.id}/attachments/${attachmentId}?from_responses_only=true`);
+      // Update local state: change category to "info" so it moves out of responses
+      setLocalAttachments(prev => prev.map(a =>
+        a.id === attachmentId ? { ...a, category: 'info' } : a
+      ));
+    } catch (err) {
+      console.error('Failed to remove from responses:', err);
+    }
+    setAttachmentLoading(false);
+  };
+
   // Fetch suggested emails (related emails not yet attached, grouped by category)
   const fetchSuggestedEmails = async () => {
     setSuggestedEmailsLoading(true);
@@ -7365,9 +7382,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRemoveAttachment(att.id);
+                              handleRemoveFromResponses(att.id);
                             }}
-                            title="Delete attachment"
+                            title="Remove from responses"
                           >
                             <X className="h-3 w-3" />
                           </Button>
