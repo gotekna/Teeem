@@ -57,6 +57,8 @@ class S3CompatibleCredential < ApplicationRecord
   scope :active, -> { where(is_active: true) }
   scope :connected, -> { where(status: "connected") }
   scope :for_organization, ->(org) { where(organization_id: org.id) }
+  # Filter to only credentials that can be decrypted (used to skip key mismatches)
+  scope :decryptable, -> { all.select(&:decryptable?) }
 
   # Callbacks
   before_validation :set_defaults
@@ -94,10 +96,21 @@ class S3CompatibleCredential < ApplicationRecord
 
   # Build an AWS S3 client for this credential
   # @return [Aws::S3::Client]
+  # @raise [ActiveRecord::Encryption::Errors::Decryption] If credentials cannot be decrypted
   def build_client
+    # Use safe accessors to detect decryption issues early
+    key_id = safe_access_key_id
+    secret = safe_secret_access_key
+
+    unless key_id && secret
+      raise ActiveRecord::Encryption::Errors::Decryption,
+        "Cannot decrypt S3 credentials (id=#{id}). This usually means the RAILS_MASTER_KEY " \
+        "doesn't match the key used to encrypt the data. Try re-creating the credential."
+    end
+
     options = {
-      access_key_id: access_key_id,
-      secret_access_key: secret_access_key,
+      access_key_id: key_id,
+      secret_access_key: secret,
       region: region
     }
 
@@ -158,6 +171,29 @@ class S3CompatibleCredential < ApplicationRecord
   # Check if connection is active and verified
   def connected?
     status == "connected" && is_active?
+  end
+
+  # Safe accessor for encrypted access_key_id (handles decryption errors)
+  # Returns nil if decryption fails (key mismatch between environments)
+  def safe_access_key_id
+    access_key_id
+  rescue ActiveRecord::Encryption::Errors::Decryption
+    Rails.logger.warn "[S3CompatibleCredential] Decryption failed for access_key_id (id=#{id})"
+    nil
+  end
+
+  # Safe accessor for encrypted secret_access_key (handles decryption errors)
+  # Returns nil if decryption fails (key mismatch between environments)
+  def safe_secret_access_key
+    secret_access_key
+  rescue ActiveRecord::Encryption::Errors::Decryption
+    Rails.logger.warn "[S3CompatibleCredential] Decryption failed for secret_access_key (id=#{id})"
+    nil
+  end
+
+  # Check if credentials can be decrypted (useful for detecting key mismatches)
+  def decryptable?
+    safe_access_key_id.present? && safe_secret_access_key.present?
   end
 
   # DEPRECATED: root_path now lives in WarehouseProvider (SSoT)
