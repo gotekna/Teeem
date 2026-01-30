@@ -602,6 +602,12 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     description: "TeeemTemplates folder (literal)",
   },
   {
+    code: "{{TabName}}",
+    example: "Plans",
+    color: "orange",
+    description: "Tab/folder name (parent category)",
+  },
+  {
     code: "{{SubTabName}}",
     example: "Photos",
     color: "blue",
@@ -957,6 +963,7 @@ export function resolveStoragePath(template: string): string {
     "[[Responses]]": "Responses",
     "[[Email Body]]": "Email Body",
     "[[Email Attachments]]": "Email Attachments",
+    "{{TabName}}": "Plans",
     "{{SubTabName}}": "Photos",
     "{{ContactName}}": "Robert Harder",
     "{{EntityName}}": "Teeem Homes Pty Ltd",
@@ -974,6 +981,7 @@ export function resolveStoragePath(template: string): string {
     "[TeeemPDF]": "TeeemPDF",
     "[TeeemPPT]": "TeeemPPT",
     "[TeeemTemplates]": "TeeemTemplates",
+    "{TabName}": "Plans",
     "{SubTabName}": "Photos",
     "{CompanyGroup}": "Teeem Group",
     "{CompanyCode}": "TH",
