@@ -2012,7 +2012,7 @@ export function WarehouseProviderTab() {
             .replace(/\/+$/, '');  // Strip trailing slash for consistency
 
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/storage_configuration",
+        "/api/v1/warehouse_provider",
         {
           storage: {
             warehouse_folders: { [scopeKey]: warehouseFolderValue },
@@ -2059,7 +2059,7 @@ export function WarehouseProviderTab() {
   const toggleVirtualScope = React.useCallback(async (scopeKey: string, isVirtual: boolean) => {
     try {
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/storage_configuration",
+        "/api/v1/warehouse_provider",
         {
           storage: {
             virtual_warehouses: { [scopeKey]: isVirtual },
@@ -2124,7 +2124,7 @@ export function WarehouseProviderTab() {
     try {
       setLoading(true);
       const response = await api.get<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/storage_configuration"
+        "/api/v1/warehouse_provider"
       );
       if (response?.success && response.data) {
         setConfig(response.data);
@@ -2176,7 +2176,7 @@ export function WarehouseProviderTab() {
       setSaving(true);
       // Include provider_type and S3/Wasabi fields in save
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/storage_configuration",
+        "/api/v1/warehouse_provider",
         {
           storage: {
             provider_type: formData.provider_type,
@@ -2228,7 +2228,7 @@ export function WarehouseProviderTab() {
     try {
       setTesting(true);
       const response = await api.post<{ success: boolean; message?: string; error?: string; provider?: string; details?: { name?: string; web_url?: string } }>(
-        "/api/v1/storage_configuration/test"
+        "/api/v1/warehouse_provider/test"
       );
       if (response?.success) {
         toast({

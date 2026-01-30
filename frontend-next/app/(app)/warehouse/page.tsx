@@ -507,7 +507,7 @@ export default function AllDocumentsPage() {
             root_path?: string;
             virtual_warehouses?: Record<string, boolean>;  // Phase 4
           };
-        }>("/api/v1/storage_configuration");
+        }>("/api/v1/warehouse_provider");
         if (response?.success && response.data) {
           // SSoT: Use scope_folders from WarehouseProvider.SCOPE_FOLDERS
           if (response.data.scope_folders) {
