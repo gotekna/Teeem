@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_30_080510) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_30_102258) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8583,6 +8583,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_30_080510) do
     t.boolean "is_source", default: false, null: false
     t.datetime "deleted_at"
     t.bigint "deleted_by_id"
+    t.boolean "auto_attached", default: false, null: false
+    t.bigint "source_email_attachment_id"
     t.index ["action_item_id"], name: "index_sm_task_attachments_on_action_item_id"
     t.index ["added_by_id"], name: "index_sm_task_attachments_on_added_by_id"
     t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"
@@ -8590,6 +8592,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_30_080510) do
     t.index ["deleted_at"], name: "index_sm_task_attachments_on_deleted_at"
     t.index ["sm_task_id", "attachable_type", "attachable_id"], name: "idx_sm_task_attachments_unique", unique: true
     t.index ["sm_task_id"], name: "index_sm_task_attachments_on_sm_task_id"
+    t.index ["source_email_attachment_id"], name: "index_sm_task_attachments_on_source_email_attachment_id"
   end
 
   create_table "sm_task_document_types", force: :cascade do |t|
@@ -8783,6 +8786,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_30_080510) do
     t.string "response_zip_fingerprint"
     t.string "response_zip_path"
     t.datetime "response_zip_created_at"
+    t.boolean "auto_attach_email_files", default: true, null: false
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
