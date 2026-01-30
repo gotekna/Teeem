@@ -127,7 +127,14 @@ module WarehouseDocumentable
   def create_warehouse_document!
     return nil unless storage_blob_id.present?
 
+    tenant = resolve_tenant_for_documentable
+    unless tenant
+      Rails.logger.warn "[WarehouseDocumentable] #{self.class.name} ##{id}: No tenant found, skipping warehouse entry"
+      return nil
+    end
+
     create_warehouse_document!(
+      tenant_id: tenant.id,
       source_type: warehouse_source_type,
       storage_blob_id: storage_blob_id,
       display_name: warehouse_display_name,
@@ -165,9 +172,14 @@ module WarehouseDocumentable
     end
 
     # SSoT: Compute from StorageConfiguration
+    # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance - callbacks don't have ActsAsTenant context
     if warehouse_source_type.present?
       begin
-        StorageConfiguration.instance.compute_folder_path(
+        tenant = resolve_tenant_for_documentable
+        return nil unless tenant
+
+        config = StorageConfiguration.for_tenant(tenant)
+        config.compute_folder_path(
           source_type: warehouse_source_type,
           documentable: self
         )
@@ -176,5 +188,35 @@ module WarehouseDocumentable
         nil
       end
     end
+  end
+
+  # Resolve tenant for StorageConfiguration access
+  # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
+  # Try multiple strategies to derive tenant from the including model
+  def resolve_tenant_for_documentable
+    # 1. Direct tenant association
+    if respond_to?(:tenant) && tenant.present?
+      return tenant
+    end
+
+    # 2. tenant_id column
+    if respond_to?(:tenant_id) && tenant_id.present?
+      return Tenant.find_by(id: tenant_id)
+    end
+
+    # 3. Common associations that typically have tenant
+    %i[user job contact project corporate_company].each do |assoc|
+      if respond_to?(assoc) && send(assoc)&.respond_to?(:tenant) && send(assoc).tenant.present?
+        return send(assoc).tenant
+      end
+    end
+
+    # 4. Try associations with nested tenant path
+    if respond_to?(:corporate_company) && corporate_company&.corporate_group&.respond_to?(:tenant)
+      return corporate_company.corporate_group.tenant if corporate_company.corporate_group.tenant.present?
+    end
+
+    # 5. Fall back to ActsAsTenant if available
+    ActsAsTenant.current_tenant
   end
 end
