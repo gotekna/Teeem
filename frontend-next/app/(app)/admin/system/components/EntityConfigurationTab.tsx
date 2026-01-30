@@ -4,7 +4,7 @@ import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
-import { StorageConfigTab } from "./StorageConfigTab";
+import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncTab } from "./ConfigSyncTab";
 import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw } from "lucide-react";
@@ -216,7 +216,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
                   compact={true}
                 />
               ) : "isStorageConfig" in scope && scope.isStorageConfig ? (
-                <StorageConfigTab />
+                <WarehouseProviderTab />
               ) : "isEmailConfig" in scope && scope.isEmailConfig ? (
                 <EmailConfigTab />
               ) : "isConfigSync" in scope && scope.isConfigSync ? (

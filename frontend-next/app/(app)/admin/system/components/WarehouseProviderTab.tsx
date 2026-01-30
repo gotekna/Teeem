@@ -1706,7 +1706,7 @@ function TabNode({
   );
 }
 
-export function StorageConfigTab() {
+export function WarehouseProviderTab() {
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -2325,7 +2325,7 @@ export function StorageConfigTab() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
-                WarehouseProvider SSoT Guide
+                Storage Configuration SSoT Guide
               </CardTitle>
               <CardDescription>
                 How folder paths are configured and where they&apos;re stored
