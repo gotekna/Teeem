@@ -547,13 +547,13 @@ class CorporateSharePointProvisionerService
   # SSoT: Get folder structure from EntityTab instead of hardcoded constant
   # Returns hash of { folder_name => [subfolders] } for tabs with storage folders
   def self.folder_structure_from_entity_tabs(scope = "corporate")
-    tabs = EntityTab.where(scope: scope, has_storage_folder: true, parent_id: nil)
+    tabs = EntityTab.where(warehouse_type: scope, warehouse_enabled: true, parent_id: nil)
     structure = {}
 
     tabs.each do |tab|
       folder_name = tab.display_name
       # Get children with storage folders
-      children = tab.children.where(has_storage_folder: true).pluck(:display_name)
+      children = tab.children.where(warehouse_enabled: true).pluck(:display_name)
       structure[folder_name] = children
     end
 
