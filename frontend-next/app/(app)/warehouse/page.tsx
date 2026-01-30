@@ -53,6 +53,8 @@ import {
   Pencil,
   AlertTriangle,
   Link2,
+  ArrowLeft,
+  MessageSquare,
 } from "lucide-react";
 import {
   Dialog,
@@ -397,6 +399,19 @@ export default function AllDocumentsPage() {
   const [linkToTaskSearch, setLinkToTaskSearch] = useState("");
   const [linkToTaskResults, setLinkToTaskResults] = useState<Array<{ id: number; name: string; task_number: number }>>([]);
   const [isLinkingToTask, setIsLinkingToTask] = useState(false);
+  // Two-step flow: selected task and its questions
+  const [selectedTaskForLink, setSelectedTaskForLink] = useState<{
+    id: number;
+    name: string;
+    task_number: number;
+    action_items: Array<{
+      id: number;
+      text: string;
+      item_type: string;
+      attachments: Array<{ attachable_id: number }>;
+    }>;
+  } | null>(null);
+  const [isLoadingTaskQuestions, setIsLoadingTaskQuestions] = useState(false);
 
   // SSoT: Scope folder names from StorageConfiguration
   // Start empty - API will provide all scopes from StorageConfiguration.SCOPE_FOLDERS
@@ -1431,21 +1446,102 @@ export default function AllDocumentsPage() {
     }
   }, []);
 
-  // Link document to task
-  const handleLinkToTask = useCallback(async (taskId: number) => {
-    if (!previewDocument) return;
+  // Step 1: Select task and load its questions
+  const handleSelectTaskForLink = useCallback(async (task: { id: number; name: string; task_number: number }) => {
+    setIsLoadingTaskQuestions(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        sm_task: {
+          id: number;
+          name: string;
+          task_number: number;
+          action_items: Array<{
+            id: number;
+            text: string;
+            item_type: string;
+            attachments: Array<{ attachable_id: number }>;
+          }>;
+        };
+      }>(`/api/v1/sm_tasks/${task.id}`);
+
+      if (response.success && response.sm_task) {
+        setSelectedTaskForLink({
+          id: response.sm_task.id,
+          name: response.sm_task.name,
+          task_number: response.sm_task.task_number,
+          action_items: response.sm_task.action_items || [],
+        });
+        // Clear search results since we're moving to step 2
+        setLinkToTaskSearch("");
+        setLinkToTaskResults([]);
+      }
+    } catch (error) {
+      console.error("Failed to load task questions:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load task questions",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingTaskQuestions(false);
+    }
+  }, [toast]);
+
+  // Check if document is already attached to this task/question
+  const isAlreadyAttachedTo = useCallback((actionItemId: number | null): boolean => {
+    if (!previewDocument || !selectedTaskForLink) return false;
+
+    if (actionItemId === null) {
+      // Check general attachments - look for any attachment without action_item
+      // Since we don't have full attachment data here, we'll let the backend handle this
+      return false;
+    }
+
+    // Check if this document is already attached to this specific question
+    const actionItem = selectedTaskForLink.action_items.find(ai => ai.id === actionItemId);
+    if (!actionItem) return false;
+
+    return actionItem.attachments.some(att => att.attachable_id === previewDocument.id);
+  }, [previewDocument, selectedTaskForLink]);
+
+  // Step 2: Link document to selected task/question
+  const handleLinkToTask = useCallback(async (actionItemId: number | null) => {
+    if (!previewDocument || !selectedTaskForLink) return;
+
+    // Client-side duplicate check for questions
+    if (actionItemId !== null && isAlreadyAttachedTo(actionItemId)) {
+      toast({
+        title: "Already attached",
+        description: "This document is already attached to this question",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsLinkingToTask(true);
     try {
-      const response = await api.patch<{ success: boolean; document: DocumentItem; task: { id: number; name: string; task_number: number }; error?: string }>(
+      const response = await api.patch<{
+        success: boolean;
+        document: DocumentItem;
+        task: { id: number; name: string; task_number: number };
+        error?: string;
+      }>(
         `/api/v1/documents/${previewDocument.id}/link_to_task`,
-        { task_id: taskId }
+        {
+          task_id: selectedTaskForLink.id,
+          action_item_id: actionItemId,
+          category: actionItemId ? "response" : "info",
+        }
       );
 
       if (response.success) {
+        const locationName = actionItemId
+          ? selectedTaskForLink.action_items.find(ai => ai.id === actionItemId)?.text?.substring(0, 50) || "question"
+          : "Attachments";
         toast({
           title: "Document linked",
-          description: `Linked to Task #${response.task.task_number}: ${response.task.name}`,
+          description: `Linked to Task #${response.task.task_number} → ${locationName}`,
         });
         // Update the preview document with new task info
         setPreviewDocument({
@@ -1454,9 +1550,11 @@ export default function AllDocumentsPage() {
           taskName: response.task.name,
           taskNumber: response.task.task_number,
         });
+        // Reset dialog state
         setShowLinkToTaskDialog(false);
         setLinkToTaskSearch("");
         setLinkToTaskResults([]);
+        setSelectedTaskForLink(null);
         // Refresh the file list to update folder structure
         fetchDocuments();
       } else {
@@ -1475,7 +1573,7 @@ export default function AllDocumentsPage() {
     } finally {
       setIsLinkingToTask(false);
     }
-  }, [previewDocument, toast, fetchDocuments]);
+  }, [previewDocument, selectedTaskForLink, toast, fetchDocuments, isAlreadyAttachedTo]);
 
   // Render tree node recursively
   const renderTreeNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
@@ -2618,64 +2716,165 @@ export default function AllDocumentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Link to Task Dialog - allows linking any document to a task */}
-      <Dialog open={showLinkToTaskDialog} onOpenChange={setShowLinkToTaskDialog}>
+      {/* Link to Task Dialog - two-step flow: 1) Select task 2) Select question/location */}
+      <Dialog
+        open={showLinkToTaskDialog}
+        onOpenChange={(open) => {
+          setShowLinkToTaskDialog(open);
+          if (!open) {
+            // Reset state when dialog closes
+            setSelectedTaskForLink(null);
+            setLinkToTaskSearch("");
+            setLinkToTaskResults([]);
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
+              {selectedTaskForLink && (
+                <button
+                  onClick={() => setSelectedTaskForLink(null)}
+                  className="p-1 -ml-1 hover:bg-accent rounded"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              )}
               <Link2 className="h-5 w-5" />
-              Link to Task
+              {selectedTaskForLink
+                ? `Task #${selectedTaskForLink.task_number}`
+                : "Link to Task"}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {isOrphanedDocument(previewDocument)
-                ? "This document is orphaned (original task was deleted). Search for a task to link it to."
-                : "Search for a task to link this document to. It will appear in the task's attachments."}
-            </p>
+            {/* Step 1: Search and select task */}
+            {!selectedTaskForLink && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {isOrphanedDocument(previewDocument)
+                    ? "This document is orphaned (original task was deleted). Search for a task to link it to."
+                    : "Search for a task to link this document to."}
+                </p>
 
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search tasks by name or number..."
-                value={linkToTaskSearch}
-                onChange={(e) => {
-                  setLinkToTaskSearch(e.target.value);
-                  searchTasksForLink(e.target.value);
-                }}
-                className="pl-9"
-              />
-            </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search tasks by name or number..."
+                    value={linkToTaskSearch}
+                    onChange={(e) => {
+                      setLinkToTaskSearch(e.target.value);
+                      searchTasksForLink(e.target.value);
+                    }}
+                    className="pl-9"
+                  />
+                </div>
 
-            {linkToTaskResults.length > 0 && (
-              <div className="border rounded-md max-h-60 overflow-auto">
-                {linkToTaskResults.map((task) => (
+                {linkToTaskResults.length > 0 && (
+                  <div className="border rounded-md max-h-60 overflow-auto">
+                    {linkToTaskResults.map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => handleSelectTaskForLink(task)}
+                        disabled={isLoadingTaskQuestions}
+                        className="w-full text-left px-3 py-2 hover:bg-accent flex items-center justify-between group border-b last:border-b-0"
+                      >
+                        <div>
+                          <p className="font-medium text-sm">#{task.task_number} {task.name}</p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {linkToTaskSearch && linkToTaskResults.length === 0 && !isLoadingTaskQuestions && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No tasks found matching &quot;{linkToTaskSearch}&quot;
+                  </p>
+                )}
+
+                {isLoadingTaskQuestions && (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Step 2: Select question or general attachments */}
+            {selectedTaskForLink && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Where should this document go?
+                </p>
+
+                <div className="border rounded-md max-h-72 overflow-auto">
+                  {/* General Attachments option */}
                   <button
-                    key={task.id}
-                    onClick={() => handleLinkToTask(task.id)}
+                    onClick={() => handleLinkToTask(null)}
                     disabled={isLinkingToTask}
-                    className="w-full text-left px-3 py-2 hover:bg-accent flex items-center justify-between group border-b last:border-b-0"
+                    className="w-full text-left px-3 py-3 hover:bg-accent flex items-center justify-between group border-b"
                   >
-                    <div>
-                      <p className="font-medium text-sm">#{task.task_number} {task.name}</p>
+                    <div className="flex items-center gap-2">
+                      <Paperclip className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium text-sm">General Attachments</p>
+                        <p className="text-xs text-muted-foreground">Attach to task without linking to a question</p>
+                      </div>
                     </div>
                     <Link2 className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
-                ))}
-              </div>
-            )}
 
-            {linkToTaskSearch && linkToTaskResults.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No tasks found matching &quot;{linkToTaskSearch}&quot;
-              </p>
-            )}
+                  {/* Questions from the task */}
+                  {selectedTaskForLink.action_items
+                    .filter(item => item.item_type === "question")
+                    .map((item) => {
+                      const isAttached = isAlreadyAttachedTo(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleLinkToTask(item.id)}
+                          disabled={isLinkingToTask || isAttached}
+                          className={cn(
+                            "w-full text-left px-3 py-3 flex items-center justify-between group border-b last:border-b-0",
+                            isAttached
+                              ? "opacity-50 cursor-not-allowed bg-muted/50"
+                              : "hover:bg-accent"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate">{item.text}</p>
+                              {isAttached && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400">Already attached</p>
+                              )}
+                            </div>
+                          </div>
+                          {isAttached ? (
+                            <Check className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                          ) : (
+                            <Link2 className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
 
-            {isLinkingToTask && (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+                  {/* No questions message */}
+                  {selectedTaskForLink.action_items.filter(item => item.item_type === "question").length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4 px-3">
+                      This task has no questions. Use General Attachments above.
+                    </p>
+                  )}
+                </div>
+
+                {isLinkingToTask && (
+                  <div className="flex items-center justify-center py-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </>
             )}
           </div>
         </DialogContent>
