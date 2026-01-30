@@ -380,10 +380,12 @@ class Contact < ApplicationRecord
       existing.email = value
     else
       # Build new email record (will be saved when contact is saved)
+      # SSoT: label must be from ContactEmail::ALLOWED_LABELS (work, personal, login, other)
+      # FRC (Jan 2026): "Primary" was invalid - use "work" as default for new emails
       contact_emails.build(
         email: value,
         is_primary: true,
-        label: 'Primary',
+        label: 'work',
         position: 0
       )
     end

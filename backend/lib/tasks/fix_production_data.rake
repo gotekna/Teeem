@@ -160,8 +160,90 @@ namespace :fix do
     puts "Errors: #{total_errors}"
   end
 
+  desc "Backfill missing warehouse_documents for SmTaskAttachments"
+  task backfill_task_attachments: :environment do
+    ActsAsTenant.current_tenant = Tenant.find(2)
+
+    # Find SmTaskAttachments without warehouse_document
+    missing = SmTaskAttachment.unscoped
+      .left_joins(:warehouse_document)
+      .where(warehouse_documents: { id: nil })
+
+    puts "SmTaskAttachments without warehouse_document: #{missing.count}"
+
+    created = 0
+    errors = 0
+    skipped = 0
+
+    missing.find_each do |attachment|
+      task = attachment.sm_task
+      unless task
+        puts "  Skip ##{attachment.id}: No sm_task found"
+        skipped += 1
+        next
+      end
+
+      # Get storage blob from attachable
+      blob = if attachment.attachable.respond_to?(:storage_blob) && attachment.attachable.storage_blob
+               attachment.attachable.storage_blob
+             elsif attachment.attachable&.warehouse_document&.storage_blob
+               attachment.attachable.warehouse_document.storage_blob
+             end
+
+      unless blob
+        puts "  Skip ##{attachment.id}: No storage_blob"
+        skipped += 1
+        next
+      end
+
+      # Create warehouse document
+      begin
+        folder = attachment.virtual_folder_path rescue "Tasks/Unknown"
+
+        name = case attachment.attachable_type
+               when "WarehouseDocument"
+                 attachment.attachable&.display_name || attachment.attachable&.original_filename || "Document"
+               when "SyncedEmail"
+                 attachment.attachable&.subject || "Email"
+               else
+                 "Attachment"
+               end
+
+        attachment.create_warehouse_document!(
+          tenant_id: task.tenant_id,
+          source_type: "task",
+          folder: folder,
+          display_name: name,
+          original_filename: blob.original_filename,
+          storage_blob: blob,
+          linkable_type: "SmTask",
+          linkable_id: task.id,
+          metadata: {
+            task_id: task.id,
+            task_name: task.name,
+            category: attachment.category,
+            attachable_type: attachment.attachable_type,
+            attachable_id: attachment.attachable_id
+          }
+        )
+
+        puts "  Created WD for SmTaskAttachment##{attachment.id}"
+        created += 1
+      rescue => e
+        puts "  Error ##{attachment.id}: #{e.message}"
+        errors += 1
+      end
+    end
+
+    puts ""
+    puts "=" * 60
+    puts "Created: #{created} WarehouseDocuments"
+    puts "Skipped: #{skipped}"
+    puts "Errors: #{errors}"
+  end
+
   desc "Run all production fixes"
-  task all: [:fix_jobs_linkable, :fix_orphaned_attachments] do
+  task all: [:fix_jobs_linkable, :fix_orphaned_attachments, :backfill_task_attachments] do
     puts ""
     puts "All production fixes complete!"
   end

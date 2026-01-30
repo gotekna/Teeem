@@ -149,8 +149,12 @@ class BillInbox < ApplicationRecord
   # Phase 4: Virtual folder path for File Warehouse
   # SSoT: Reads from StorageConfiguration.virtual_template_for(:bill_inbox)
   # Configure at: /settings/company/entity-config → Storage Config
+  # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
-    config = StorageConfiguration.instance
+    tenant = resolve_tenant_for_config
+    return "Warehousing/BillInbox/Unknown" unless tenant
+
+    config = StorageConfiguration.for_tenant(tenant) rescue nil
     template = config&.virtual_template_for(:bill_inbox)
     return "Warehousing/BillInbox/Unknown" unless template
 
@@ -223,11 +227,38 @@ class BillInbox < ApplicationRecord
 
   private
 
+  # Resolve tenant for StorageConfiguration access
+  # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
+  # Derive tenant from: corporate_company → group → tenant, or approved_by → tenant
+  def resolve_tenant_for_config
+    # Try corporate_company → corporate_group → tenant
+    if corporate_company&.corporate_group&.respond_to?(:tenant) && corporate_company.corporate_group.tenant.present?
+      return corporate_company.corporate_group.tenant
+    end
+
+    # Try approved_by user
+    if approved_by&.respond_to?(:tenant) && approved_by.tenant.present?
+      return approved_by.tenant
+    end
+
+    # Fall back to ActsAsTenant if available
+    ActsAsTenant.current_tenant
+  end
+
   # Create WarehouseDocument entry for this bill inbox item
+  # ⚠️ FRC (Jan 2026): Must set tenant_id explicitly - model callbacks don't have
+  # ActsAsTenant context, and WarehouseDocument validates tenant presence
   def create_warehouse_entry
     return unless storage_blob
 
+    tenant = resolve_tenant_for_config
+    unless tenant
+      Rails.logger.warn("[BillInbox] ##{id}: No tenant found, skipping warehouse entry")
+      return
+    end
+
     create_warehouse_document!(
+      tenant_id: tenant.id,
       source_type: "warehouse",
       folder: virtual_folder_path,
       display_name: display_name,
@@ -242,7 +273,7 @@ class BillInbox < ApplicationRecord
       }
     )
   rescue StandardError => e
-    Rails.logger.error("[BillInbox] Failed to create warehouse entry: #{e.message}")
+    Rails.logger.error("[BillInbox] ##{id}: Failed to create warehouse entry: #{e.message}")
   end
 
   def set_defaults
