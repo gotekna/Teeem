@@ -20,7 +20,15 @@ class EmailToTaskService
   end
 
   # Main entry point - creates task directly from email
+  # FRC (Jan 2026): Added duplicate prevention - returns existing task if email already has one
   def create_task
+    # Check for existing task created from this email (prevents duplicate clicks)
+    existing_task = find_existing_task_for_email
+    if existing_task
+      Rails.logger.info "[EmailToTaskService] Task already exists for email #{@email.id}: Task ##{existing_task.id}"
+      return existing_task
+    end
+
     ActiveRecord::Base.transaction do
       # 1. Create the task
       task = build_task
@@ -44,10 +52,10 @@ class EmailToTaskService
       # This enables automatic matching of future related emails
       extract_auto_match_keywords(task)
 
-      # 7. DON'T auto-attach related emails (Jan 2026 change)
-      # Related emails are now shown as suggestions in the UI, user can choose to add them.
-      # The find_related_emails method is still used by the suggested_emails API endpoint.
-      # REMOVED: find_and_attach_related_emails(task)
+      # 7. Auto-attach related emails from same conversation
+      # FRC (Jan 2026): Re-enabled per user request - attach conversation emails on creation,
+      # user can remove unwanted ones. Additional emails shown as suggestions in UI.
+      find_and_attach_related_emails(task)
 
       # 8. Add email participants as task contacts
       add_email_participants_as_contacts(task)
@@ -395,5 +403,35 @@ class EmailToTaskService
     )
   rescue StandardError => e
     Rails.logger.warn "[EmailToTaskService] Failed to log activity: #{e.message}"
+  end
+
+  # FRC (Jan 2026): Find existing task created from this email
+  # Multiple checks to prevent duplicates from rapid clicks or page refreshes:
+  # 1. Check SmTaskAttachment with is_source: true (canonical method)
+  # 2. Check SmTaskAttachment with same email (any attachment)
+  # 3. Check for task with matching name created in last 5 minutes (fallback)
+  def find_existing_task_for_email
+    # Method 1: Check for source attachment (canonical)
+    source_attachment = SmTaskAttachment.find_by(
+      attachable: @email,
+      is_source: true
+    )
+    return source_attachment.sm_task if source_attachment
+
+    # Method 2: Check for any attachment linking this email to a task
+    any_attachment = SmTaskAttachment.find_by(attachable: @email)
+    return any_attachment.sm_task if any_attachment
+
+    # Method 3: Check for task with same name created recently (race condition guard)
+    # This catches rapid clicks before the first transaction commits
+    expected_name = sanitize_task_name(@email.subject)
+    recent_task = SmTask
+      .where(name: expected_name)
+      .where("created_at > ?", 5.minutes.ago)
+      .order(created_at: :desc)
+      .first
+    return recent_task if recent_task
+
+    nil
   end
 end
