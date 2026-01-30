@@ -1103,8 +1103,10 @@ class StorageConfiguration < ApplicationRecord
       # Link expiry days for presigned URLs (from CorporateCompanySetting - SSoT)
       link_expiry_days: CorporateCompanySetting.link_expiry_days,
 
-      # SSoT: Legacy aliases REMOVED (Jan 2026 cleanup)
-      # Use warehouse_folders, warehouse_folders, virtual_warehouses, exclude_sm_tasks
+      # Legacy aliases for frontend compatibility
+      # FRC (Jan 2026): Frontend still expects these keys - keep for backwards compat
+      scope_folders: effective_warehouse_folders,
+      virtual_scopes: effective_virtual_warehouses
     }
   end
 end
