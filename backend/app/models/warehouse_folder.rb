@@ -208,6 +208,13 @@ class WarehouseFolder < ApplicationRecord
     ROOT_FOLDER_TO_WAREHOUSE_TYPE[root_folder]
   end
 
+  # Get root folder for a warehouse_type (inverse lookup)
+  # @param warehouse_type [String] e.g., "job", "contact", "corporate"
+  # @return [String, nil] e.g., "Jobs", "Contacts", "Corporate"
+  def self.root_folder_for_warehouse_type(warehouse_type)
+    ROOT_FOLDER_TO_WAREHOUSE_TYPE.key(warehouse_type.to_s)
+  end
+
   # Get all root folders (for File Warehouse root level)
   def self.all_root_folders
     ROOT_FOLDER_TO_WAREHOUSE_TYPE.keys

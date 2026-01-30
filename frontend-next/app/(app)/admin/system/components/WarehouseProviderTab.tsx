@@ -2012,7 +2012,7 @@ export function WarehouseProviderTab() {
             .replace(/\/+$/, '');  // Strip trailing slash for consistency
 
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/storage_configuration",
+        "/api/v1/warehouse_provider",
         {
           storage: {
             warehouse_folders: { [scopeKey]: warehouseFolderValue },
@@ -2059,7 +2059,7 @@ export function WarehouseProviderTab() {
   const toggleVirtualScope = React.useCallback(async (scopeKey: string, isVirtual: boolean) => {
     try {
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/storage_configuration",
+        "/api/v1/warehouse_provider",
         {
           storage: {
             virtual_warehouses: { [scopeKey]: isVirtual },
@@ -2124,7 +2124,7 @@ export function WarehouseProviderTab() {
     try {
       setLoading(true);
       const response = await api.get<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/storage_configuration"
+        "/api/v1/warehouse_provider"
       );
       if (response?.success && response.data) {
         setConfig(response.data);
@@ -2176,7 +2176,7 @@ export function WarehouseProviderTab() {
       setSaving(true);
       // Include provider_type and S3/Wasabi fields in save
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/storage_configuration",
+        "/api/v1/warehouse_provider",
         {
           storage: {
             provider_type: formData.provider_type,
@@ -2228,7 +2228,7 @@ export function WarehouseProviderTab() {
     try {
       setTesting(true);
       const response = await api.post<{ success: boolean; message?: string; error?: string; provider?: string; details?: { name?: string; web_url?: string } }>(
-        "/api/v1/storage_configuration/test"
+        "/api/v1/warehouse_provider/test"
       );
       if (response?.success) {
         toast({
@@ -2572,17 +2572,46 @@ export function WarehouseProviderTab() {
               </div>
 
               {/* File Warehouse Integration */}
-              <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 p-4">
-                <h4 className="font-medium mb-2 flex items-center gap-2">
+              <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 p-4 space-y-4">
+                <h4 className="font-medium flex items-center gap-2">
                   <FileBox className="h-4 w-4 text-blue-500" />
                   File Warehouse Integration
                 </h4>
-                <p className="text-sm text-muted-foreground">
-                  These virtual paths determine where documents appear in the <strong>File Warehouse</strong> tab.
-                  The backend uses <code className="bg-muted px-1 rounded">WarehouseFolder.all_root_folders</code> for
-                  folder structure and <code className="bg-muted px-1 rounded">WarehouseFolder.tabs_for_root_folder()</code> for
-                  tab hierarchy. Document paths are stored in <code className="bg-muted px-1 rounded">WarehouseDocument.folder</code>.
-                </p>
+
+                {/* SSoT Architecture */}
+                <div className="space-y-3">
+                  <div className="text-sm space-y-2">
+                    <div className="flex items-start gap-2">
+                      <span className="bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded font-medium shrink-0">SSoT</span>
+                      <span><code className="bg-muted px-1 rounded text-xs">WarehouseDocument</code> is the single source of truth for ALL document metadata. It stores display names, folder paths, file info, and links to the actual file content via <code className="bg-muted px-1 rounded text-xs">StorageBlob</code>.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="bg-green-500 text-white text-xs px-1.5 py-0.5 rounded font-medium shrink-0">Structure</span>
+                      <span><code className="bg-muted px-1 rounded text-xs">WarehouseFolder</code> defines the visual folder hierarchy (this config). The File Warehouse tree combines configured folders with actual documents.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="bg-purple-500 text-white text-xs px-1.5 py-0.5 rounded font-medium shrink-0">Virtual</span>
+                      <span>Folder paths are <strong>virtual</strong> - stored in <code className="bg-muted px-1 rounded text-xs">WarehouseDocument.folder</code>, not as actual S3/storage folders. Moving documents is instant (just update the path).</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* How the Tree is Built */}
+                <div className="border-t pt-3">
+                  <h5 className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wide">How the Folder Tree is Built</h5>
+                  <div className="text-xs space-y-1.5 text-muted-foreground">
+                    <div><strong className="text-foreground">Root folders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.all_root_folders</code> (Jobs, Contacts, Tasks, etc.)</div>
+                    <div><strong className="text-foreground">Subfolders</strong> → from <code className="bg-muted px-1 rounded">WarehouseFolder.tabs_for_root_folder()</code> + <code className="bg-muted px-1 rounded">GROUP BY</code> on <code className="bg-muted px-1 rounded">WarehouseDocument.folder</code></div>
+                    <div><strong className="text-foreground">Files</strong> → from <code className="bg-muted px-1 rounded">WarehouseDocument</code> records at that folder path</div>
+                  </div>
+                </div>
+
+                {/* Key Insight */}
+                <div className="border-t pt-3">
+                  <div className="text-xs bg-amber-100 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded p-2">
+                    <strong className="text-amber-700 dark:text-amber-400">Key insight:</strong> <span className="text-amber-800 dark:text-amber-300">Source models (JobDocument, ContactDocument, etc.) are legacy. WarehouseDocument contains all metadata needed - the polymorphic <code className="bg-amber-200/50 dark:bg-amber-900/50 px-1 rounded">documentable</code> reference is only for historical linking, not for browsing.</span>
+                  </div>
+                </div>
               </div>
 
               {/* Available Tokens */}
