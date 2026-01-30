@@ -2549,7 +2549,7 @@ export function WarehouseProviderTab() {
                   <div className="grid gap-2 text-sm">
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs w-6 justify-center">1</Badge>
-                      <span><strong>Storage Provider</strong> defines where files physically live (S3, SharePoint)</span>
+                      <span><strong>WarehouseProvider</strong> defines storage provider (S3/SharePoint/Local) + connection</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs w-6 justify-center">2</Badge>
@@ -2557,15 +2557,15 @@ export function WarehouseProviderTab() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs w-6 justify-center">3</Badge>
-                      <span><strong>Scope Folders</strong> (Jobs, Tasks, etc.) organize by entity type</span>
+                      <span><strong>WarehouseFolder</strong> (SSoT) defines folder hierarchy: scopes → tabs → document types</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs w-6 justify-center">4</Badge>
-                      <span><strong>Document Types</strong> organize files within each entity</span>
+                      <span><strong>WarehouseDocument</strong> stores virtual folder path for each document</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="text-xs w-6 justify-center">5</Badge>
-                      <span><strong>File Warehouse</strong> displays this virtual structure to users</span>
+                      <span><strong>File Warehouse</strong> builds tree from WarehouseFolder config + WarehouseDocument data</span>
                     </div>
                   </div>
                 </div>
@@ -2579,8 +2579,9 @@ export function WarehouseProviderTab() {
                 </h4>
                 <p className="text-sm text-muted-foreground">
                   These virtual paths determine where documents appear in the <strong>File Warehouse</strong> tab.
-                  The backend uses <code className="bg-muted px-1 rounded">WarehouseProvider.root_folder_for(:scope)</code> to
-                  resolve the full path, automatically combining parent base + child suffix.
+                  The backend uses <code className="bg-muted px-1 rounded">WarehouseFolder.all_root_folders</code> for
+                  folder structure and <code className="bg-muted px-1 rounded">WarehouseFolder.tabs_for_root_folder()</code> for
+                  tab hierarchy. Document paths are stored in <code className="bg-muted px-1 rounded">WarehouseDocument.folder</code>.
                 </p>
               </div>
 

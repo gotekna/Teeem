@@ -47,7 +47,7 @@ class RecomputeWarehouseFoldersJob < ApplicationJob
     source_types = SOURCE_TYPE_TO_WAREHOUSE_TYPE.select { |_, v| v == warehouse_type }.keys
     source_types << warehouse_type if source_types.empty?  # Fallback to same name
 
-    template = config.root_folder_for(warehouse_type)
+    template = config.path_for(warehouse_type)
     return unless template.present?
 
     updated_count = 0
