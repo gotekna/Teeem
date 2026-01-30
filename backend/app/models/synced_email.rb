@@ -408,7 +408,7 @@ class SyncedEmail < ApplicationRecord
   INVALID_FOLDER_CHARS = /[:\/*?"<>|\\]/
 
   # Compute virtual folder path for organizing emails
-  # Reads template from WarehouseProvider.virtual_template_for(:email)
+  # Reads template from WarehouseProvider.path_for(:email)
   # Default template: "{{Mailbox}}/Email Body/{{Year}}/{{Month}}"
   #
   # Available tokens:
@@ -441,7 +441,7 @@ class SyncedEmail < ApplicationRecord
   def resolve_virtual_path(scope)
     # Get template from WarehouseProvider (SSoT)
     config = WarehouseProvider.instance
-    template = config&.virtual_template_for(scope)
+    template = config&.path_for(scope)
     raise "WarehouseProvider missing :#{scope} template - run rails warehouse:init" unless template
 
     # Build substitution values

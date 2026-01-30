@@ -217,7 +217,7 @@ class DocumentStorageService
       provider: @storage_config.provider_type,
       connected: @storage_config.connected?,
       root_path: @storage_config.root_path,
-      available_scopes: @storage_config.effective_scope_folders.keys
+      available_scopes: @storage_config.scope_root_folders.keys
     }
   end
 
@@ -362,7 +362,7 @@ class DocumentStorageService
   # Build folder path from scope and tokens
   # SSoT Priority:
   # 1. Record's storage_folder_template (from EntityTab.storage_folder_path - database)
-  # 2. WarehouseProvider.template_for(scope) (fallback)
+  # 2. WarehouseProvider.path_for(scope) (fallback)
   def build_folder_path(scope, tokens, record: nil)
     # Get base path from WarehouseProvider
     base_path = @storage_config.path_for(scope)
@@ -372,7 +372,7 @@ class DocumentStorageService
     template = if record&.respond_to?(:storage_folder_template) && record.storage_folder_template.present?
       record.storage_folder_template
     else
-      @storage_config.template_for(scope)
+      @storage_config.path_for(scope)
     end
 
     # Expand template with tokens

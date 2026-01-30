@@ -94,7 +94,7 @@ class NotebookPageAttachment < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # SSoT: Reads from WarehouseProvider.virtual_template_for(:notebook)
+  # SSoT: Reads from WarehouseProvider.path_for(:notebook)
   # Configure at: /settings/company/entity-config → Storage Config
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
@@ -102,7 +102,7 @@ class NotebookPageAttachment < ApplicationRecord
     return "Warehousing/Notes/Unknown" unless tenant
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
-    template = config&.virtual_template_for(:notebook)
+    template = config&.path_for(:notebook)
     return "Warehousing/Notes/Unknown" unless template
 
     year = (created_at || Time.current).year.to_s

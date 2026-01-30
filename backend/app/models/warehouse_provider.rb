@@ -68,10 +68,7 @@ class WarehouseProvider < ApplicationRecord
     xero user
   ].freeze
 
-  # Legacy column aliases for backward compatibility
-  # These allow code referencing old column names to continue working
-  alias_attribute :scope_root_folders, :warehouse_folders
-  alias_attribute :virtual_scopes, :virtual_warehouses
+  # LIM (Jan 2026): scope_root_folders is now a method that returns simple mapping
   # Note: scope_options was deleted and replaced with exclude_sm_tasks boolean
 
   # Validations
@@ -292,9 +289,6 @@ class WarehouseProvider < ApplicationRecord
     'notebook' => 'Warehousing/Notebooks/{{UserName}}/{{NotebookName}}/{{Year}}'
   }.freeze
 
-  # Legacy alias for backward compatibility
-  SCOPE_ROOT_DEFAULTS = WAREHOUSE_ROOT_DEFAULTS
-
   # SSoT: Key aliases for warehouse types
   # Maps common variations to canonical warehouse type keys
   # Fixes root cause of files going to wrong folders (Jan 2026)
@@ -355,20 +349,17 @@ class WarehouseProvider < ApplicationRecord
     self.warehouse_folders = WAREHOUSE_ROOT_DEFAULTS.merge(warehouse_folders || {})
   end
 
-  # Legacy alias
-  alias_method :ensure_scope_root_folders, :ensure_warehouse_folders
+  # LIM (Jan 2026): Removed unused legacy alias ensure_scope_root_folders
 
   # Get root folder for a warehouse type
   # Check if a warehouse type is enabled (not "DISABLED")
   # @param warehouse_type [String, Symbol] The warehouse type name
   # @return [Boolean] true if warehouse type has storage enabled
   def warehouse_enabled?(warehouse_type)
-    path = root_folder_for(warehouse_type)
+    path = path_for(warehouse_type)
     path.present? && path != "DISABLED"
   end
 
-  # Legacy alias
-  alias_method :scope_enabled?, :warehouse_enabled?
 
   # Check if SM-linked tasks should be excluded from task storage
   # When true, tasks with sm_schedule_master_id use PO storage instead
@@ -394,83 +385,51 @@ class WarehouseProvider < ApplicationRecord
     'asset_readings' => 'asset',
   }.freeze
 
-  # SSoT: warehouse_folders column is THE ONE source for warehouse roots
-  #
-  # @param warehouse_type [String, Symbol] The warehouse type name (job, contact, task, etc.)
-  # @return [String, nil] The root folder name for that warehouse type, or nil if disabled
-  #
-  # Supports key aliases (e.g., :corporate_entity → :corporate, :contacts → :contact)
-  # See WAREHOUSE_KEY_ALIASES for all supported aliases.
-  #
-  # SSoT: Some child warehouse types derive from a parent type.
-  # They store only their suffix and inherit the base path from their parent type.
-  # See WAREHOUSE_TYPE_PARENTS for the full list.
-  #
-  # Note: task_attachments and task_responses store FULL paths directly (not derived).
-  # The frontend shows greyed-out parent tokens as a UI hint, but SSoT is the full path.
+  # SSoT: Returns the path template for a warehouse type
+  # @param warehouse_type [String, Symbol] The warehouse type (job, contact, task, etc.)
+  # @return [String, nil] Path template like "Jobs/{{JobCode}}" or nil if disabled
   #
   # Examples:
-  #   root_folder_for(:job)              # => "Jobs/{{JobCode}}"
-  #   root_folder_for(:task)             # => "Tasks/{{TaskId}}/{{TaskName}}"
-  #   root_folder_for(:task_attachments) # => "Tasks/{{TaskId}}/{{TaskName}}/Attachments" (full path, SSoT)
-  #   root_folder_for(:case_documents)   # => "Cases/{{CaseId}}/Documents" (derived from :case)
+  #   path_for(:job)              # => "Jobs/{{JobCode}}"
+  #   path_for(:task)             # => "Tasks/{{TaskId}}/{{TaskName}}"
+  #   path_for(:task_attachments) # => "Tasks/{{TaskId}}/{{TaskName}}/Attachments"
   #
-  def root_folder_for(warehouse_type)
+  def path_for(warehouse_type)
     type_key = warehouse_type.to_s
-    # SSoT: Normalize aliased keys (e.g., 'contacts' → 'contact')
     type_key = WAREHOUSE_KEY_ALIASES[type_key] || type_key
 
-    # SSoT: Check if this type derives from a parent
     parent_type = WAREHOUSE_TYPE_PARENTS[type_key]
     if parent_type
-      # Get parent base path
-      parent_path = root_folder_for(parent_type)
+      parent_path = path_for(parent_type)
       return nil if parent_path.blank?
 
-      # Get suffix for this type (e.g., "Attachments" for task_attachments)
-      # LIM: No fallback - database is SSoT, fail fast if not configured
       suffix = warehouse_folders&.dig(type_key)
-
-      # If suffix is a full path (legacy), extract just the suffix
-      # Legacy: "Tasks/{{TaskId}}/{{TaskName}}/Attachments" → "Attachments"
-      if suffix&.include?(parent_path)
-        suffix = suffix.sub(parent_path, '').sub(/^\//, '')
-      end
-
+      suffix = suffix.sub(parent_path, '').sub(/^\//, '') if suffix&.include?(parent_path)
       return nil if suffix.blank? || suffix == "DISABLED"
 
-      # Combine parent base + suffix
       "#{parent_path}/#{suffix}".gsub(%r{//+}, '/')
     else
-      # SSoT: Database only - no fallback, fail fast if not configured
       path = warehouse_folders&.dig(type_key)
       return nil if path.blank? || path == "DISABLED"
       path
     end
   end
 
-  # Legacy alias for backward compatibility
-  alias_method :path_for, :root_folder_for
-
-  # SSoT: template_for returns the folder template pattern with tokens (e.g., "Jobs/{{JobCode}}")
-  # This is an alias for root_folder_for since warehouse_folders stores the full template
-  alias_method :template_for, :root_folder_for
-
-  # SSoT: virtual_template_for returns folder template for virtual warehouse paths
-  # Used by Phase 4 Virtual File Warehouse for organizing documents by virtual folder
-  # Falls back to root_folder_for since templates are stored in warehouse_folders
-  alias_method :virtual_template_for, :root_folder_for
-
-  # Get all warehouse folders
+  # Get all warehouse folders (full templates with tokens)
   # SSoT: warehouse_folders column is THE ONE source (no merging with EntityTab)
   # EntityTab.warehouse_folder is DEPRECATED - all paths derived from warehouse_folders
   def effective_warehouse_folders
     warehouse_folders || {}
   end
 
-  # Legacy aliases
-  alias_method :effective_scope_root_folders, :effective_warehouse_folders
-  alias_method :effective_scope_folders, :effective_warehouse_folders
+  # LIM (Jan 2026): Simple root folder mapping for frontend
+  # Frontend only needs scope → root folder (e.g., "contact" → "Contacts")
+  # Full templates are only used by backend for path resolution
+  def scope_root_folders
+    (warehouse_folders || {}).transform_values { |template| template.to_s.split('/').first }
+  end
+
+  # LIM (Jan 2026): Removed effective_scope_folders alias - use scope_root_folders.keys
 
   # ========================================
   # Path Building Helpers
@@ -509,7 +468,7 @@ class WarehouseProvider < ApplicationRecord
   #   # => "/Emails/inbox/2026/01"
   #
   def resolve_path(warehouse_type, substitutions = {}, subfolder = nil)
-    base_folder = root_folder_for(warehouse_type)
+    base_folder = path_for(warehouse_type)
 
     # Return nil if warehouse type is disabled or not configured
     return nil if base_folder.nil?
@@ -536,7 +495,7 @@ class WarehouseProvider < ApplicationRecord
   # @return [String] Virtual folder path (e.g., "Tasks/123/Attachments")
   #
   def resolve_virtual_path(warehouse_type, substitutions = {})
-    base_folder = root_folder_for(warehouse_type)
+    base_folder = path_for(warehouse_type)
     return nil if base_folder.nil?
 
     resolved = base_folder.dup
@@ -570,7 +529,7 @@ class WarehouseProvider < ApplicationRecord
   #   # => "Assets/Toyota Hilux/Expenses"
   #
   def compute_folder_path(source_type:, documentable:)
-    template = virtual_template_for(source_type.to_sym)
+    template = path_for(source_type.to_sym)
     return nil unless template
 
     tokens = extract_tokens_from(documentable)
@@ -1015,9 +974,6 @@ class WarehouseProvider < ApplicationRecord
     routing&.dig("warehouse_type") || routing&.dig("scope") || "corporate"
   end
 
-  # Legacy alias
-  alias_method :document_scope_for, :document_warehouse_type_for
-
   # Get effective document routing (database + defaults)
   def effective_document_routing
     DEFAULT_DOCUMENT_ROUTING.merge(document_routing || {})
@@ -1054,16 +1010,10 @@ class WarehouseProvider < ApplicationRecord
     (virtual_warehouses || {})[warehouse_type.to_s] == true
   end
 
-  # Legacy alias
-  alias_method :virtual_scope?, :virtual_warehouse?
-
   # Get all virtual warehouses (for UI display)
   def effective_virtual_warehouses
     virtual_warehouses || {}
   end
-
-  # Legacy alias
-  alias_method :effective_virtual_scopes, :effective_virtual_warehouses
 
   # ========================================
   # Configuration Export (for API/UI)
@@ -1105,10 +1055,9 @@ class WarehouseProvider < ApplicationRecord
       # Link expiry days for presigned URLs (from CorporateCompanySetting - SSoT)
       link_expiry_days: CorporateCompanySetting.link_expiry_days,
 
-      # Legacy aliases for frontend compatibility
-      # FRC (Jan 2026): Frontend still expects these keys - keep for backwards compat
-      scope_folders: effective_warehouse_folders,
-      virtual_scopes: effective_virtual_warehouses
+      # LIM (Jan 2026): Frontend only needs simple root folder mapping
+      # scope_folders: { contact: "Contacts", job: "Jobs", ... } - NOT full templates
+      scope_folders: scope_root_folders
     }
   end
 end

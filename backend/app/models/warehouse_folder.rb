@@ -215,17 +215,9 @@ class WarehouseFolder < ApplicationRecord
     'Templates' => 'template'
   }.freeze
 
-  # Reverse mapping: warehouse_type to root folder name
-  WAREHOUSE_TYPE_TO_ROOT_FOLDER = ROOT_FOLDER_TO_WAREHOUSE_TYPE.invert.freeze
-
   # Get warehouse_type for a root folder
   def self.warehouse_type_for_root_folder(root_folder)
     ROOT_FOLDER_TO_WAREHOUSE_TYPE[root_folder]
-  end
-
-  # Get root folder name for a warehouse_type
-  def self.root_folder_for_warehouse_type(warehouse_type)
-    WAREHOUSE_TYPE_TO_ROOT_FOLDER[warehouse_type]
   end
 
   # Get all root folders (for File Warehouse root level)
@@ -556,15 +548,12 @@ class WarehouseFolder < ApplicationRecord
     return nil unless warehouse_enabled
     config = WarehouseProvider.instance
     return nil unless config
-    File.join(config.root_path, config.root_folder_for(effective_warehouse_type))
+    File.join(config.root_path, config.path_for(effective_warehouse_type))
   rescue => e
     Rails.logger.warn "[WarehouseFolder] Failed to get base path: #{e.message}"
     nil
   end
 
-  # Legacy aliases for backwards compatibility
-  alias_method :storage_base_path, :warehouse_base_path
-  alias_method :sharepoint_base_path, :warehouse_base_path
 
   # Get the EFFECTIVE warehouse path for this tab (for UI display)
   # SSoT: WarehouseFolder owns folder paths. Child tabs INHERIT from parent.
@@ -706,9 +695,9 @@ class WarehouseFolder < ApplicationRecord
   # 1. By warehouse_type: { "email" => "Emails", "job" => "Jobs", ... } (from overview/root tabs)
   # 2. By tab_key: { "users" => "Users", "user_photos" => "Users/Photos", ... } (from all warehouse tabs)
   #
-  # This allows WarehouseProvider.root_folder_for to work with both:
-  # - root_folder_for("email") => "Emails" (warehouse_type lookup)
-  # - root_folder_for("users") => "Users" (tab_key lookup for legacy storage keys)
+  # This allows WarehouseProvider.path_for to work with both:
+  # - path_for("email") => "Emails" (warehouse_type lookup)
+  # - path_for("users") => "Users" (tab_key lookup for legacy storage keys)
   #
   # Note: Legacy scope_folders used underscores (user_photos), but WarehouseFolder tab_key uses hyphens (user-photos).
   # This method adds both underscore and hyphen versions for backward compatibility.
@@ -722,10 +711,6 @@ class WarehouseFolder < ApplicationRecord
     {}
   end
 
-  # Legacy alias
-  def self.scope_base_folders
-    warehouse_base_folders
-  end
 
   # Seed task tabs only (callable individually)
   def self.seed_task_tabs_only!

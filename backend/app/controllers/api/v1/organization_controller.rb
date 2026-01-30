@@ -12,9 +12,9 @@ module Api
 
         render json: {
           success: true,
-          # SSoT: Use WarehouseProvider.template_for for folder templates
-          job_folder_template: config&.template_for(:job) || "{{JobCode}}/{{TabName}}",
-          contact_folder_template: config&.template_for(:contact) || "{{ContactId}} - {{ContactName}}"
+          # SSoT: Use WarehouseProvider.path_for for folder templates
+          job_folder_template: config&.path_for(:job) || "{{JobCode}}/{{TabName}}",
+          contact_folder_template: config&.path_for(:contact) || "{{ContactId}} - {{ContactName}}"
         }
       end
 
