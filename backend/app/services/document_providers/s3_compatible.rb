@@ -51,6 +51,7 @@ module DocumentProviders
     end
 
     # Find credential for tenant (SSoT: Jan 2026 fix)
+    # Skips credentials that can't be decrypted (key mismatch)
     def self.find_credential_for_tenant(tenant)
       return nil unless defined?(S3CompatibleCredential)
       return nil unless tenant
@@ -60,26 +61,27 @@ module DocumentProviders
 
       # Try tenant's org-specific credentials first
       if org_ids.any?
-        cred = S3CompatibleCredential.active.connected.where(organization_id: org_ids).first
+        cred = S3CompatibleCredential.active.connected.where(organization_id: org_ids).find { |c| c.decryptable? }
         return cred if cred
       end
 
       # Fall back to global credential (no org)
-      S3CompatibleCredential.active.connected.where(organization_id: nil).first
+      S3CompatibleCredential.active.connected.where(organization_id: nil).find { |c| c.decryptable? }
     end
 
     # Find credential for organization (legacy)
+    # Skips credentials that can't be decrypted (key mismatch)
     def self.find_credential_for_organization(organization)
       return nil unless defined?(S3CompatibleCredential)
 
       # Try org-specific credential first
       if organization&.id
-        cred = S3CompatibleCredential.active.connected.where(organization_id: organization.id).first
+        cred = S3CompatibleCredential.active.connected.where(organization_id: organization.id).find { |c| c.decryptable? }
         return cred if cred
       end
 
       # Fall back to global credential (no org)
-      S3CompatibleCredential.active.connected.where(organization_id: nil).first
+      S3CompatibleCredential.active.connected.where(organization_id: nil).find { |c| c.decryptable? }
     end
 
     def initialize(credential, tenant: nil)

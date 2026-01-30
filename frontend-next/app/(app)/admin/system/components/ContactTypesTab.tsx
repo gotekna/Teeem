@@ -381,7 +381,7 @@ export function ContactTypesTab() {
       setContactDocPath(settings.contact_documents_path || "");
 
       // SSoT: Load folder format from WarehouseProvider templates
-      const storageConfig = await api.get<{ success: boolean; data: any }>("/api/v1/storage_configuration");
+      const storageConfig = await api.get<{ success: boolean; data: any }>("/api/v1/warehouse_provider");
       const contactTemplate = storageConfig.data?.scope_templates?.contact || "{{ContactId}} - {{ContactName}}";
       setContactFolderFormat(templateToFormat(contactTemplate));
     } catch (error) {
@@ -408,7 +408,7 @@ export function ContactTypesTab() {
     setContactFolderFormat(format);
     try {
       // SSoT: Save to WarehouseProvider templates
-      await api.patch("/api/v1/storage_configuration", {
+      await api.patch("/api/v1/warehouse_provider", {
         storage: { scope_templates: { contact: formatToTemplate[format] } },
       });
       toast({

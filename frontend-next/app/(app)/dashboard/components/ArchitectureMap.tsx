@@ -1496,7 +1496,7 @@ export default function JobsPage() {
                     </tr>
                     <tr className="border-b">
                       <td className="py-2 pr-4 font-semibold">WarehouseProvider</td>
-                      <td className="py-2 pr-4 text-muted-foreground">app/models/storage_configuration.rb</td>
+                      <td className="py-2 pr-4 text-muted-foreground">app/models/warehouse_provider.rb</td>
                       <td className="py-2">Provider config & folder paths</td>
                     </tr>
                     <tr className="border-b">

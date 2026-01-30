@@ -9,11 +9,14 @@ class ApplicationRecord < ActiveRecord::Base
   # Handle renamed polymorphic class names (legacy data compatibility)
   # EmailWarehouse was renamed to SyncedEmail in Jan 2026
   # EmailAttachment was removed in Jan 2026 - attachments now in WarehouseDocument
+  # ContactDocument was removed in Jan 2026 - documents now in WarehouseDocument (SSoT)
   def self.polymorphic_class_for(name)
     case name
     when "EmailWarehouse"
       SyncedEmail
-    when "EmailAttachment"
+    when "EmailAttachment", "ContactDocument"
+      # SSoT (Jan 2026): All documents are now in WarehouseDocument
+      # These polymorphic references still exist in legacy data
       WarehouseDocument
     else
       super
