@@ -1954,7 +1954,7 @@ To: ${email.to_emails?.join(", ") || ""}
         className="bg-muted/30 flex flex-col"
       >
         <div className="p-2 border-b flex items-center gap-1">
-          <Button className="flex-1" size="sm" onClick={handleCompose}>
+          <Button className="flex-1" size="sm" onClick={handleCompose} data-tour="email-compose">
             <Plus className="h-4 w-4 mr-1" />
             New
           </Button>
@@ -2117,7 +2117,7 @@ To: ${email.to_emails?.join(", ") || ""}
           <div className="border-b my-2" />
 
           {/* Mailbox list - show favorites or all based on toggle */}
-          <div className="px-1 mb-2">
+          <div className="px-1 mb-2" data-tour="email-accounts">
             <div className="flex items-center justify-between px-0.5 py-1">
               <span className="text-xs text-muted-foreground font-medium">
                 {showAllMailboxes ? "All Mailboxes" : "Favorites"}
@@ -2209,7 +2209,7 @@ To: ${email.to_emails?.join(", ") || ""}
                   </div>
 
                   {/* Folders */}
-                  <div className="mt-1">
+                  <div className="mt-1" data-tour="email-folders">
                     {account.needs_mailbox_config ? (
                       <div className="px-3 py-2 text-xs text-muted-foreground">
                         <p>Mailbox not configured</p>
@@ -2284,6 +2284,7 @@ To: ${email.to_emails?.join(", ") || ""}
           minSize="250px"
           maxSize={readingPanePosition === "off" ? undefined : "600px"}
           className="flex flex-col border-r min-w-0 overflow-hidden"
+          data-tour="email-list"
         >
         {/* Header - View toggle and search */}
         <div className="flex items-center gap-2 px-2 py-1.5 border-b shrink-0 bg-background">
@@ -2291,7 +2292,7 @@ To: ${email.to_emails?.join(", ") || ""}
 
           {/* Search - Only in folder mode */}
           {viewMode === "folders" && (
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0" data-tour="email-search">
               <EmailSearchFilters
                 filters={emailFilters.filters}
                 setFilter={emailFilters.setFilter}
