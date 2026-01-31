@@ -290,7 +290,8 @@ module Api
       # Returns the organization's current document storage provider configuration
       def document_provider
         # SSoT (Jan 2026): Derive from tenant, not Organization.first
-        organization = current_organization
+        # Auto-create Organization if it doesn't exist for the tenant
+        organization = current_organization || create_organization_for_tenant
 
         if organization.nil?
           return render json: {
@@ -342,12 +343,13 @@ module Api
       # Updates the organization's document storage provider
       def update_document_provider
         # SSoT (Jan 2026): Derive from tenant, not Organization.first
-        organization = current_organization
+        # Auto-create Organization if it doesn't exist for the tenant
+        organization = current_organization || create_organization_for_tenant
 
         if organization.nil?
           return render json: {
             success: false,
-            error: "No organization found"
+            error: "No organization found and could not create one"
           }, status: :not_found
         end
 
@@ -959,6 +961,21 @@ module Api
       end
 
       private
+
+      # Auto-create Organization for current tenant if it doesn't exist
+      # SSoT (Jan 2026): Organization is needed for document_provider settings
+      def create_organization_for_tenant
+        return nil unless current_tenant
+
+        Organization.create!(
+          tenant: current_tenant,
+          name: current_tenant.name || "Organization",
+          document_provider: "s3_compatible"
+        )
+      rescue ActiveRecord::RecordInvalid => e
+        Rails.logger.error "[OrganizationController] Failed to create Organization for tenant: #{e.message}"
+        nil
+      end
 
       # SSoT: Connection info - bucket from WarehouseProvider (Jan 2026)
       def storage_connection_info_for(provider_type, s3_credential, ms_credential, storage_config)
