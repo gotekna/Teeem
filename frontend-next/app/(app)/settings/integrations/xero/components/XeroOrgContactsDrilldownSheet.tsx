@@ -382,7 +382,7 @@ export function XeroOrgContactsDrilldownSheet({
   return (
     <>
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent side="right-wide" className="p-0 flex flex-col">
+        <SheetContent side="right-95" className="p-0 flex flex-col">
           <SheetHeader className="p-6 pb-4 border-b shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
