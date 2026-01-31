@@ -9,13 +9,29 @@ module Api
         # GET /api/v1/admin/trial_invitations
         # List all trial invitations (most recent first)
         def index
-          invitations = TrialInvitation.includes(:invited_by, :tenant)
+          invitations = TrialInvitation.includes(:invited_by, :sent_from, :tenant)
                                        .order(created_at: :desc)
                                        .limit(100)
 
           render json: {
             success: true,
             data: invitations.map { |i| invitation_json(i) }
+          }
+        end
+
+        # GET /api/v1/admin/trial_invitations/available_senders
+        # Returns list of TEEEM staff users who can be selected as "Send From"
+        def available_senders
+          # Get TEEEM staff users (those with teeem_staff role or admin access)
+          users = User.joins(:roles)
+                      .where(roles: { name: ['teeem_staff', 'admin'] })
+                      .distinct
+                      .order(:name)
+                      .pluck(:id, :name, :email)
+
+          render json: {
+            success: true,
+            data: users.map { |id, name, email| { id: id, name: name, email: email } }
           }
         end
 
@@ -88,7 +104,7 @@ module Api
         end
 
         def invitation_params
-          params.require(:invitation).permit(:email, :name, :company_name, :personal_message)
+          params.require(:invitation).permit(:email, :name, :company_name, :personal_message, :sent_from_user_id)
         end
 
         def invitation_json(invitation)
@@ -100,6 +116,12 @@ module Api
             status: invitation.status,
             personal_message: invitation.personal_message,
             invited_by: invitation.invited_by&.name,
+            sent_from_user_id: invitation.sent_from_user_id,
+            sent_from_name: invitation.sent_from&.name,
+            sent_from_email: invitation.sent_from&.email,
+            # Effective sender (who email appears to come from)
+            sender_name: invitation.sender_name,
+            sender_email: invitation.sender_email,
             created_at: invitation.created_at.iso8601,
             expires_at: invitation.expires_at.iso8601,
             accepted_at: invitation.accepted_at&.iso8601,

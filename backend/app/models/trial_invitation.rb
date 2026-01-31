@@ -18,6 +18,7 @@ class TrialInvitation < ApplicationRecord
   # Associations
   # =============================================================================
   belongs_to :invited_by, class_name: 'User', foreign_key: 'invited_by_user_id', optional: true
+  belongs_to :sent_from, class_name: 'User', foreign_key: 'sent_from_user_id', optional: true
   belongs_to :tenant, optional: true
 
   # =============================================================================
@@ -82,6 +83,22 @@ class TrialInvitation < ApplicationRecord
   def signup_url
     frontend_url = ENV['FRONTEND_URL'] || 'http://localhost:3000'
     "#{frontend_url}/get-started?invite=#{token}"
+  end
+
+  # Get the effective sender (who the email appears to come from)
+  # Falls back to invited_by if sent_from not specified
+  def effective_sender
+    sent_from || invited_by
+  end
+
+  # Get the sender's display name for email FROM field
+  def sender_name
+    effective_sender&.name || 'TEEEM'
+  end
+
+  # Get the sender's email for email FROM field
+  def sender_email
+    effective_sender&.email || ENV['SMTP_USERNAME'] || 'hello@teeem.com.au'
   end
 
   private

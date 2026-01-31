@@ -12,6 +12,8 @@ import {
   ChevronRight,
   AlertTriangle,
   CheckCircle,
+  Eye,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +36,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
@@ -81,6 +91,13 @@ interface InviteForm {
   email: string;
   company_name: string;
   personal_message: string;
+  sent_from_user_id: number | null;
+}
+
+interface AvailableSender {
+  id: number;
+  name: string;
+  email: string;
 }
 
 export default function AdminTenantsPage() {
@@ -94,8 +111,12 @@ export default function AdminTenantsPage() {
     email: "",
     company_name: "",
     personal_message: "",
+    sent_from_user_id: null,
   });
   const [sending, setSending] = useState(false);
+  const [availableSenders, setAvailableSenders] = useState<AvailableSender[]>([]);
+  const [loadingSenders, setLoadingSenders] = useState(false);
+  const [previewTab, setPreviewTab] = useState<"form" | "preview">("form");
 
   const loadData = useCallback(async () => {
     try {
@@ -118,6 +139,28 @@ export default function AdminTenantsPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load available senders when invite dialog opens
+  useEffect(() => {
+    if (inviteOpen && availableSenders.length === 0 && !loadingSenders) {
+      setLoadingSenders(true);
+      api
+        .get<{ success: boolean; data: AvailableSender[] }>(
+          "/api/v1/admin/trial_invitations/available_senders"
+        )
+        .then((res) => {
+          if (res?.success) {
+            setAvailableSenders(res.data);
+            // Default to first sender (current user or first in list)
+            if (res.data.length > 0 && !inviteForm.sent_from_user_id) {
+              setInviteForm((f) => ({ ...f, sent_from_user_id: res.data[0].id }));
+            }
+          }
+        })
+        .catch(console.error)
+        .finally(() => setLoadingSenders(false));
+    }
+  }, [inviteOpen, availableSenders.length, loadingSenders, inviteForm.sent_from_user_id]);
 
   const handleSendInvite = async () => {
     if (!inviteForm.name || !inviteForm.email || !inviteForm.company_name) {
@@ -146,7 +189,9 @@ export default function AdminTenantsPage() {
           email: "",
           company_name: "",
           personal_message: "",
+          sent_from_user_id: availableSenders[0]?.id || null,
         });
+        setPreviewTab("form");
       }
     } catch (err) {
       console.error("Failed to send invitation:", err);
@@ -178,6 +223,11 @@ export default function AdminTenantsPage() {
       });
     }
   };
+
+  // Get the selected sender for preview
+  const selectedSender = availableSenders.find(
+    (s) => s.id === inviteForm.sent_from_user_id
+  );
 
   const getStatusBadge = (status: string, daysRemaining: number | null) => {
     if (status === "active" && daysRemaining !== null && daysRemaining <= 7) {
@@ -245,73 +295,214 @@ export default function AdminTenantsPage() {
                   <Plus className="h-4 w-4 mr-2" /> Invite Trial Customer
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>Invite New Trial Customer</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div>
-                    <Label>Contact Name *</Label>
-                    <Input
-                      value={inviteForm.name}
-                      onChange={(e) =>
-                        setInviteForm((f) => ({ ...f, name: e.target.value }))
-                      }
-                      placeholder="John Smith"
-                    />
-                  </div>
-                  <div>
-                    <Label>Email Address *</Label>
-                    <Input
-                      type="email"
-                      value={inviteForm.email}
-                      onChange={(e) =>
-                        setInviteForm((f) => ({ ...f, email: e.target.value }))
-                      }
-                      placeholder="john@company.com"
-                    />
-                  </div>
-                  <div>
-                    <Label>Company Name *</Label>
-                    <Input
-                      value={inviteForm.company_name}
-                      onChange={(e) =>
-                        setInviteForm((f) => ({
-                          ...f,
-                          company_name: e.target.value,
-                        }))
-                      }
-                      placeholder="Smith Builders Pty Ltd"
-                    />
-                  </div>
-                  <div>
-                    <Label>Personal Message (optional)</Label>
-                    <Textarea
-                      value={inviteForm.personal_message}
-                      onChange={(e) =>
-                        setInviteForm((f) => ({
-                          ...f,
-                          personal_message: e.target.value,
-                        }))
-                      }
-                      placeholder="Add a personal note to the invitation..."
-                      rows={3}
-                    />
-                  </div>
-                  <Button
-                    className="w-full"
-                    onClick={handleSendInvite}
-                    disabled={
-                      sending ||
-                      !inviteForm.name ||
-                      !inviteForm.email ||
-                      !inviteForm.company_name
-                    }
-                  >
-                    <Mail className="h-4 w-4 mr-2" />
-                    {sending ? "Sending..." : "Send Invitation"}
-                  </Button>
-                </div>
+                <Tabs value={previewTab} onValueChange={(v) => setPreviewTab(v as "form" | "preview")}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="form">
+                      <Mail className="h-4 w-4 mr-2" />
+                      Compose
+                    </TabsTrigger>
+                    <TabsTrigger value="preview">
+                      <Eye className="h-4 w-4 mr-2" />
+                      Preview Email
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="form" className="space-y-4 pt-4">
+                    {/* Send From dropdown */}
+                    <div>
+                      <Label>Send From</Label>
+                      <Select
+                        value={inviteForm.sent_from_user_id?.toString() || ""}
+                        onValueChange={(v) =>
+                          setInviteForm((f) => ({
+                            ...f,
+                            sent_from_user_id: v ? parseInt(v) : null,
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingSenders ? "Loading..." : "Select sender..."} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableSenders.map((sender) => (
+                            <SelectItem key={sender.id} value={sender.id.toString()}>
+                              {sender.name} ({sender.email})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        The invitation will appear to come from this person
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label>Contact Name *</Label>
+                      <Input
+                        value={inviteForm.name}
+                        onChange={(e) =>
+                          setInviteForm((f) => ({ ...f, name: e.target.value }))
+                        }
+                        placeholder="John Smith"
+                      />
+                    </div>
+                    <div>
+                      <Label>Email Address *</Label>
+                      <Input
+                        type="email"
+                        value={inviteForm.email}
+                        onChange={(e) =>
+                          setInviteForm((f) => ({ ...f, email: e.target.value }))
+                        }
+                        placeholder="john@company.com"
+                      />
+                    </div>
+                    <div>
+                      <Label>Company Name *</Label>
+                      <Input
+                        value={inviteForm.company_name}
+                        onChange={(e) =>
+                          setInviteForm((f) => ({
+                            ...f,
+                            company_name: e.target.value,
+                          }))
+                        }
+                        placeholder="Smith Builders Pty Ltd"
+                      />
+                    </div>
+                    <div>
+                      <Label>Personal Message (optional)</Label>
+                      <Textarea
+                        value={inviteForm.personal_message}
+                        onChange={(e) =>
+                          setInviteForm((f) => ({
+                            ...f,
+                            personal_message: e.target.value,
+                          }))
+                        }
+                        placeholder="Add a personal note to the invitation..."
+                        rows={3}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setPreviewTab("preview")}
+                        disabled={!inviteForm.name || !inviteForm.email || !inviteForm.company_name}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Preview
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={handleSendInvite}
+                        disabled={
+                          sending ||
+                          !inviteForm.name ||
+                          !inviteForm.email ||
+                          !inviteForm.company_name
+                        }
+                      >
+                        <Send className="h-4 w-4 mr-2" />
+                        {sending ? "Sending..." : "Send Invitation"}
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="preview" className="pt-4">
+                    {/* Email Preview */}
+                    <div className="border rounded-lg overflow-hidden">
+                      {/* Email header */}
+                      <div className="bg-muted/50 p-4 border-b space-y-2">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium w-16">From:</span>
+                          <span className="text-muted-foreground">
+                            {selectedSender
+                              ? `${selectedSender.name} <${selectedSender.email}>`
+                              : "TEEEM <hello@teeem.com.au>"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium w-16">To:</span>
+                          <span className="text-muted-foreground">
+                            {inviteForm.email || "recipient@example.com"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium w-16">Subject:</span>
+                          <span>You&apos;re invited to try TEEEM free for 30 days</span>
+                        </div>
+                      </div>
+
+                      {/* Email body preview */}
+                      <div className="p-6 bg-white dark:bg-gray-900">
+                        <div className="max-w-lg mx-auto space-y-4">
+                          <h2 className="text-xl font-bold">
+                            You&apos;re Invited to Try TEEEM!
+                          </h2>
+                          <p>
+                            Hi {inviteForm.name || "[Contact Name]"},
+                          </p>
+                          <p>
+                            {selectedSender?.name || "The TEEEM team"} has invited you to try TEEEM
+                            for your company, <strong>{inviteForm.company_name || "[Company Name]"}</strong>.
+                          </p>
+                          <p>
+                            TEEEM is a complete project management platform for builders. Start your
+                            <strong> 30-day free trial</strong> today - no credit card required.
+                          </p>
+
+                          {inviteForm.personal_message && (
+                            <div className="bg-muted/30 p-4 rounded-lg border-l-4 border-primary">
+                              <p className="italic">&ldquo;{inviteForm.personal_message}&rdquo;</p>
+                              <p className="text-sm text-muted-foreground mt-2">
+                                — {selectedSender?.name || "The TEEEM Team"}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="pt-4">
+                            <div className="inline-block bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium">
+                              Start Your Free Trial →
+                            </div>
+                          </div>
+
+                          <p className="text-sm text-muted-foreground">
+                            This invitation expires in 7 days.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => setPreviewTab("form")}
+                      >
+                        Back to Edit
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={handleSendInvite}
+                        disabled={
+                          sending ||
+                          !inviteForm.name ||
+                          !inviteForm.email ||
+                          !inviteForm.company_name
+                        }
+                      >
+                        <Send className="h-4 w-4 mr-2" />
+                        {sending ? "Sending..." : "Send Invitation"}
+                      </Button>
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </DialogContent>
             </Dialog>
           </div>

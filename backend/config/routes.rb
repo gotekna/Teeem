@@ -4283,11 +4283,15 @@ Rails.application.routes.draw do
         end
 
         # Trial Invitations (TEEEM staff only)
-        # GET    /api/v1/admin/trial_invitations          -> List all invitations
-        # POST   /api/v1/admin/trial_invitations          -> Send new invitation
-        # POST   /api/v1/admin/trial_invitations/:id/resend -> Resend invitation
-        # DELETE /api/v1/admin/trial_invitations/:id      -> Cancel invitation
+        # GET    /api/v1/admin/trial_invitations                   -> List all invitations
+        # GET    /api/v1/admin/trial_invitations/available_senders -> Users who can be "Send From"
+        # POST   /api/v1/admin/trial_invitations                   -> Send new invitation
+        # POST   /api/v1/admin/trial_invitations/:id/resend        -> Resend invitation
+        # DELETE /api/v1/admin/trial_invitations/:id               -> Cancel invitation
         resources :trial_invitations, only: [:index, :create, :destroy] do
+          collection do
+            get :available_senders
+          end
           member do
             post :resend
           end
