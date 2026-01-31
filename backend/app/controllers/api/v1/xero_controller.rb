@@ -96,9 +96,10 @@ module Api
 
       # GET /api/v1/xero/status
       # Returns the current Xero connection status
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def status
         begin
-          client = XeroApiClient.new
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
           status = client.connection_status
 
           render json: {
@@ -129,8 +130,17 @@ module Api
       # SSoT: Backend computes token status - frontend should NOT calculate from expires_at
       # Use status_display and expires_in_human instead of client-side Date calculations
       #
+      # GET /api/v1/xero/tenants
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def tenants
-        tenants = XeroCredential.all.map do |cred|
+        # Filter credentials by TEEEM tenant
+        credentials = if current_tenant&.master_tenant?
+                        XeroCredential.all
+                      else
+                        XeroCredential.for_teeem_tenant(current_tenant)
+                      end
+
+        tenants = credentials.map do |cred|
           {
             id: cred.id,
             tenant_id: cred.tenant_id,
@@ -1964,10 +1974,16 @@ module Api
       # GET /api/v1/xero/sync_stats
       # Returns comprehensive sync statistics for the Xero dashboard
       # Includes per-tenant stats, global stats, and cross-tenant matching info
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def sync_stats
         begin
-          # Get all Xero credentials (tenants)
-          credentials = XeroCredential.all
+          # Get Xero credentials filtered by tenant
+          # Master tenant sees all; other tenants only see their own Xero orgs
+          credentials = if current_tenant&.master_tenant?
+                          XeroCredential.all
+                        else
+                          XeroCredential.for_teeem_tenant(current_tenant)
+                        end
 
           # Per-tenant statistics
           tenant_stats = credentials.map do |cred|
@@ -2156,13 +2172,21 @@ module Api
 
       # GET /api/v1/xero/common_contacts
       # Returns contacts linked to multiple Xero organizations
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def common_contacts
         begin
-          credentials = XeroCredential.all
+          # Filter credentials by TEEEM tenant
+          credentials = if current_tenant&.master_tenant?
+                          XeroCredential.all
+                        else
+                          XeroCredential.for_teeem_tenant(current_tenant)
+                        end
+          tenant_ids = credentials.pluck(:tenant_id)
 
-          # Find contacts linked to 2+ Xero tenants
+          # Find contacts linked to 2+ Xero tenants (within visible tenants)
           contact_ids_with_multiple_links = ContactExternalLink
             .xero
+            .where(tenant_id: tenant_ids)
             .group(:contact_id)
             .having("COUNT(DISTINCT tenant_id) >= 2")
             .count
