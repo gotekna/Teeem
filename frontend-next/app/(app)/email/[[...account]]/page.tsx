@@ -948,6 +948,9 @@ export default function EmailPage() {
 
   const handleSyncCompleted = useCallback((stats: { new_count: number; updated_count: number; duration_seconds: number }) => {
     setSyncing(false);
+    // FRC (Jan 2026): Refresh accounts when WebSocket reports sync complete
+    // This updates the "Last sync" timestamps shown in the UI
+    fetchAccounts();
     if (stats.new_count > 0) {
       toast({
         title: "Sync complete",
@@ -1527,8 +1530,10 @@ export default function EmailPage() {
         toast({ title: "No new emails" });
       }
 
-      // Refresh the email list
+      // Refresh the email list and account timestamps
+      // FRC (Jan 2026): Must refresh accounts to update "Last sync" timestamps in UI
       fetchEmails();
+      fetchAccounts();
     } catch (error) {
       console.error("Failed to sync:", error);
       toast({ title: "Sync failed", variant: "destructive" });
@@ -1562,8 +1567,10 @@ export default function EmailPage() {
         toast({ title: "No new emails" });
       }
 
-      // Refresh the split inbox
+      // Refresh the split inbox and account timestamps
+      // FRC (Jan 2026): Must refresh accounts to update "Last sync" timestamps in UI
       splitInbox.refresh();
+      fetchAccounts();
     } catch (error) {
       console.error("Failed to sync:", error);
       toast({ title: "Sync failed", variant: "destructive" });
