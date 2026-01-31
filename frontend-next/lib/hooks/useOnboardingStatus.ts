@@ -48,7 +48,7 @@ export interface OnboardingStatus {
 }
 
 async function fetchOnboardingStatus(): Promise<OnboardingStatus> {
-  const response = await api.get('/onboarding/status');
+  const response = await api.get('/api/v1/onboarding/status');
   if (!response.success) {
     throw new Error(response.error || 'Failed to fetch onboarding status');
   }
@@ -57,7 +57,7 @@ async function fetchOnboardingStatus(): Promise<OnboardingStatus> {
 
 export function useOnboardingStatus() {
   const { data, error, isLoading, mutate } = useSWR<OnboardingStatus>(
-    '/onboarding/status',
+    '/api/v1/onboarding/status',
     fetchOnboardingStatus,
     {
       revalidateOnFocus: false,
@@ -71,28 +71,29 @@ export function useOnboardingStatus() {
     isLoading,
     error,
     refresh: mutate,
-    isComplete: data?.completed_at !== null,
+    // Only consider complete if data is loaded AND completed_at is set
+    isComplete: data !== undefined && data.completed_at !== null,
     progress: data?.progress,
     requiredComplete: data?.progress?.required_complete === data?.progress?.required_total,
   };
 }
 
 export async function assignStep(stepKey: string, userId: number): Promise<void> {
-  const response = await api.post(`/onboarding/steps/${stepKey}/assign`, { user_id: userId });
+  const response = await api.post(`/api/v1/onboarding/steps/${stepKey}/assign`, { user_id: userId });
   if (!response.success) {
     throw new Error(response.error || 'Failed to assign step');
   }
 }
 
 export async function skipStep(stepKey: string): Promise<void> {
-  const response = await api.post(`/onboarding/steps/${stepKey}/skip`);
+  const response = await api.post(`/api/v1/onboarding/steps/${stepKey}/skip`);
   if (!response.success) {
     throw new Error(response.error || 'Failed to skip step');
   }
 }
 
 export async function completeOnboarding(): Promise<void> {
-  const response = await api.post('/onboarding/complete');
+  const response = await api.post('/api/v1/onboarding/complete');
   if (!response.success) {
     throw new Error(response.error || 'Failed to complete onboarding');
   }
@@ -146,7 +147,7 @@ export async function previewImport(
     formData.append(key, String(value));
   });
 
-  const response = await api.post('/onboarding/import/preview', formData, {
+  const response = await api.post('/api/v1/onboarding/import/preview', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   if (!response.success) {
@@ -175,7 +176,7 @@ export async function executeImport(
     formData.append(key, String(value));
   });
 
-  const response = await api.post('/onboarding/import/execute', formData, {
+  const response = await api.post('/api/v1/onboarding/import/execute', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   if (!response.success) {

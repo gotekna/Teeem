@@ -168,7 +168,7 @@ export default function ImportWizardPage() {
     <div className="container mx-auto py-8 px-4 max-w-4xl">
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <BackButton href="/onboarding" />
+        <BackButton fallbackHref="/onboarding" />
         <div>
           <h1 className="text-2xl font-bold">{config.title}</h1>
           <p className="text-muted-foreground">{config.description}</p>

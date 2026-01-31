@@ -64,7 +64,11 @@ class XeroSyncStatus < ApplicationRecord
     # - bank_transactions: every 6 hours → stale after 8 hours
     # Using conservative defaults here; UI can check next_sync_at for accuracy
     def health_summary(tenant_id: nil)
+      # FRC (Jan 2026): Must order by last_synced_at DESC to get MOST RECENT sync per type
+      # Bug: Using .find on unordered collection returned oldest records (by ID), causing
+      # false "stale" warnings when recent syncs existed for other tenants.
       statuses = tenant_id ? for_tenant(tenant_id) : all
+      statuses = statuses.order(last_synced_at: :desc)
 
       # SSoT: Thresholds should be > expected sync interval
       # Most syncs run every 30 min, so stale = 45 min, critical = 90 min
@@ -75,6 +79,7 @@ class XeroSyncStatus < ApplicationRecord
       health_statuses = []
 
       SYNC_TYPES.each do |sync_type|
+        # Get the most recent sync status for this type (already ordered DESC)
         status = statuses.find { |s| s.sync_type == sync_type }
 
         if status
