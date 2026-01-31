@@ -227,11 +227,11 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
   React.useEffect(() => {
     fetchStatus();
     fetchRateLimits();
-    // Auto-refresh every 30 seconds (5 seconds was hitting rate limits with 10+ tenants)
+    // Auto-refresh every 10 seconds (rate limiting is now per-tenant, so safe with 10+ tenants)
     const refreshInterval = setInterval(() => {
       fetchStatus();
       fetchRateLimits();
-    }, 30000);
+    }, 10000);
     return () => {
       clearInterval(refreshInterval);
     };
