@@ -1,0 +1,23 @@
+<%= @days_remaining == 1 ? "Your Trial Expires Tomorrow!" : "#{@days_remaining} Days Left on Your Trial" %>
+===============================================
+
+Hi <%= @user.first_name || @user.name %>,
+
+<%= @days_remaining %> <%= @days_remaining == 1 ? 'day' : 'days' %> remaining
+Trial expires: <%= @trial_ends_at.strftime('%d %B %Y') %>
+
+Your TEEEM trial for <%= @tenant.name %> is coming to an end. To keep using TEEEM and access all your data, upgrade to a paid plan before your trial expires.
+
+WHAT HAPPENS WHEN YOUR TRIAL ENDS?
+----------------------------------
+- Your account will switch to read-only mode
+- You can view existing data but cannot create or edit
+- Your data will be preserved for 30 days
+- Upgrade anytime to restore full access
+
+Upgrade Now: <%= @upgrade_url %>
+
+Have questions about pricing or need more time to evaluate? Reply to this email and we'll be happy to help.
+
+---
+(c) <%= Time.current.year %> Tekna. All rights reserved.

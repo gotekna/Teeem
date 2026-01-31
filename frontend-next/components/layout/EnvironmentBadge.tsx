@@ -18,6 +18,10 @@ export function EnvironmentBadge() {
     setEnvironment(getEnvironment());
   }, [getEnvironment]);
 
+  // Environment is now shown inline in sidebar next to company name
+  // This fixed badge is no longer needed
+  return null;
+
   // Don't render on production or if not yet loaded
   if (!environment || environment === "production") {
     return null;

@@ -2029,11 +2029,18 @@ module Api
             # Rate limit status for this tenant
             rate_usage = XeroRateLimitTracker.usage_for(tenant_id) rescue nil
 
+            # SSoT: Sync health status per sync type for this tenant
+            # This shows when each sync type last ran and its health status
+            tenant_sync_health = XeroSyncStatus.health_summary(tenant_id: tenant_id)
+
             {
               tenant_id: tenant_id,
               tenant_name: cred.tenant_name,
               status: cred.status,
               is_primary: cred.is_primary,
+              # SSoT: Per-sync-type health for this tenant (Jan 2026)
+              sync_health: tenant_sync_health[:sync_types],
+              overall_sync_health: tenant_sync_health[:overall_health],
               contacts: {
                 total_links: links_count,
                 sync_enabled: enabled_count,

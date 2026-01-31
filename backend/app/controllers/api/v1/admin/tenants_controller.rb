@@ -109,6 +109,53 @@ module Api
           }
         end
 
+        # GET /api/v1/admin/tenants/dashboard
+        # Returns all tenants with usage stats for admin dashboard
+        def dashboard
+          tenants = Tenant.active.includes(:tenant_setting).order(created_at: :desc)
+
+          render json: {
+            success: true,
+            data: {
+              summary: {
+                total: tenants.count,
+                on_trial: tenants.on_trial.count,
+                trial_expiring_7_days: tenants.trials_expiring_soon(7).count,
+                trial_expired: tenants.trial_expired.count,
+                converted: tenants.converted.count,
+                active_today: active_tenants_today_count
+              },
+              tenants: tenants.map { |t| tenant_dashboard_json(t) }
+            }
+          }
+        end
+
+        # POST /api/v1/admin/tenants/:id/extend_trial
+        # Extend a tenant's trial period
+        def extend_trial
+          tenant = Tenant.find(params[:id])
+          days = params[:days].to_i.clamp(1, 90)
+
+          new_end_date = tenant.extend_trial!(days: days)
+
+          render json: {
+            success: true,
+            message: "Trial extended by #{days} days until #{new_end_date.strftime('%d %b %Y')}"
+          }
+        end
+
+        # POST /api/v1/admin/tenants/:id/convert_to_paid
+        # Convert a trial tenant to paid customer
+        def convert_to_paid
+          tenant = Tenant.find(params[:id])
+          tenant.convert_to_paid!
+
+          render json: {
+            success: true,
+            message: "#{tenant.name} converted to paid customer"
+          }
+        end
+
         # PATCH /api/v1/admin/tenants/environment
         # Update current tenant's environment (staging/beta/production)
         # SSoT: Uses Tenant model (not CorporateGroup)
@@ -153,6 +200,38 @@ module Api
             success: false,
             error: "Unauthorized. TEEEM staff access required."
           }, status: :forbidden
+        end
+
+        def active_tenants_today_count
+          Tenant.joins(:users)
+                .where('users.last_login_at > ?', 24.hours.ago)
+                .distinct
+                .count
+        end
+
+        def tenant_dashboard_json(tenant)
+          usage = tenant.usage_stats
+
+          {
+            id: tenant.id,
+            name: tenant.name,
+            slug: tenant.slug,
+            company_name: tenant.tenant_setting&.company_name,
+            tier: tenant.tier,
+            trial_status: tenant.trial_status || 'none',
+            trial_days_remaining: tenant.trial_days_remaining,
+            trial_ends_at: tenant.trial_ends_at&.iso8601,
+            created_at: tenant.created_at.iso8601,
+            onboarding_complete: tenant.onboarding_completed_at.present?,
+            usage: {
+              total_users: usage[:total_users],
+              active_today: usage[:active_users_today],
+              active_week: usage[:active_users_week],
+              last_activity: usage[:last_activity]&.iso8601,
+              jobs_count: usage[:jobs_count],
+              contacts_count: usage[:contacts_count]
+            }
+          }
         end
 
         def current_tenant_json

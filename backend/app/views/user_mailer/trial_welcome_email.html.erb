@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta content='text/html; charset=UTF-8' http-equiv='Content-Type' />
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background-color: #4f46e5; color: white; padding: 20px; text-align: center; }
+      .content { background-color: #f9fafb; padding: 30px; }
+      .credentials { background-color: #white; border: 2px solid #4f46e5; padding: 20px; margin: 20px 0; border-radius: 8px; }
+      .trial-info { background-color: #ecfdf5; border: 2px solid #10b981; padding: 20px; margin: 20px 0; border-radius: 8px; }
+      .button { display: inline-block; padding: 16px 32px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; font-size: 16px; font-weight: bold; }
+      .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Welcome to TEEEM!</h1>
+        <p>Your <%= @trial_days %>-Day Trial Has Started</p>
+      </div>
+
+      <div class="content">
+        <h2>Hi <%= @user.first_name || @user.name %>,</h2>
+
+        <p>Congratulations! Your TEEEM account for <strong><%= @tenant.name %></strong> is ready to go.</p>
+
+        <div class="trial-info">
+          <h3>Your Trial Period</h3>
+          <p><strong>Trial ends:</strong> <%= @trial_ends_at.strftime('%d %B %Y') %></p>
+          <p><strong>Days remaining:</strong> <%= @trial_days %> days</p>
+          <p>You have full access to all TEEEM features during your trial. No credit card required!</p>
+        </div>
+
+        <div class="credentials">
+          <h3>Your Login Credentials:</h3>
+          <p><strong>Email:</strong> <%= @user.email %></p>
+          <p><strong>Temporary Password:</strong> <code><%= @temp_password %></code></p>
+        </div>
+
+        <p><strong>Important:</strong> Please change your password after your first login for security.</p>
+
+        <div style="text-align: center;">
+          <a href="<%= @onboarding_url %>" class="button">Get Started with Onboarding</a>
+        </div>
+
+        <h3>What to do first:</h3>
+        <ol>
+          <li><strong>Complete onboarding</strong> - Set up your company details and preferences</li>
+          <li><strong>Import your data</strong> - Bring in your existing jobs and contacts</li>
+          <li><strong>Invite your team</strong> - Add team members to collaborate</li>
+          <li><strong>Connect Xero</strong> - Sync your accounting data</li>
+        </ol>
+
+        <p>Need help? Our support team is here for you throughout your trial. Just reply to this email or use the help button in the app.</p>
+      </div>
+
+      <div class="footer">
+        <p>&copy; <%= Time.current.year %> Tekna. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

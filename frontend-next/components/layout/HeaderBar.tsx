@@ -36,7 +36,6 @@ import {
 } from "@/components/ui/popover";
 import { InspiringBanner } from "./InspiringBanner";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
-import { HeaderDebugTools } from "@/components/debug/HeaderDebugTools";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { CreateTaskDialog } from "@/components/task-hub/CreateTaskDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -260,7 +259,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     : user?.email?.[0]?.toUpperCase() || "U";
 
   return (
-    <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-border bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-background dark:shadow-none transition-all duration-300">
+    <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-border bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-background dark:shadow-none transition-all duration-300 overflow-hidden">
       {/* Logo - always visible */}
       <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
         <div className="w-7 h-7 bg-primary text-primary-foreground flex items-center justify-center text-sm">
@@ -285,8 +284,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         <Menu className="h-5 w-5" />
       </button>
 
-      <div className="flex flex-1 gap-x-2 self-stretch lg:gap-x-3">
-        <div className="flex flex-1 items-center gap-x-1 lg:gap-x-2">
+      <div className="flex flex-1 gap-x-2 self-stretch lg:gap-x-3 min-w-0 overflow-hidden">
+        <div className="flex flex-1 items-center gap-x-1 lg:gap-x-2 min-w-0">
           {/* Quick Create Task */}
           <button
             onClick={() => setShowCreateTask(true)}
@@ -503,35 +502,32 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* Help Button */}
           <FloatingHelpButton inline={true} />
 
-          {/* Debug Tools - dev/staging only */}
-          <HeaderDebugTools />
-
           {/* Separator */}
           <div
             aria-hidden="true"
-            className="hidden lg:block lg:h-5 lg:w-px lg:bg-muted dark:lg:bg-white/10"
+            className="hidden xl:block xl:h-5 xl:w-px xl:bg-muted dark:xl:bg-white/10"
           />
 
           {/* Profile dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1.5">
-                <Avatar className="h-7 w-7">
+              <button className="flex items-center gap-1.5 shrink min-w-0">
+                <Avatar className="h-7 w-7 shrink-0">
                   <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
                 </Avatar>
-                <span className="hidden lg:flex lg:items-center">
-                  <span className="text-sm font-medium text-foreground dark:text-white">
+                <span className="hidden 2xl:flex 2xl:items-center min-w-0">
+                  <span className="text-sm font-medium text-foreground dark:text-white truncate max-w-[100px]">
                     {user?.name || user?.email || "Guest"}
                   </span>
                   {(() => {
                     const role = user?.role;
                     return typeof role === "string" && role ? (
-                      <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+                      <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 shrink-0">
                         {role}
                       </Badge>
                     ) : null;
                   })()}
-                  <ChevronDown className="ml-1 h-4 w-4 text-muted-foreground" />
+                  <ChevronDown className="ml-1 h-4 w-4 text-muted-foreground shrink-0" />
                 </span>
               </button>
             </DropdownMenuTrigger>

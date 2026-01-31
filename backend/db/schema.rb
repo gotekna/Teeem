@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_31_100429) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_31_110002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9672,14 +9672,44 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_100429) do
     t.datetime "onboarding_started_at"
     t.datetime "onboarding_completed_at"
     t.bigint "onboarding_job_id"
+    t.datetime "trial_starts_at"
+    t.datetime "trial_ends_at"
+    t.string "trial_status", default: "none"
+    t.integer "trial_days", default: 30
+    t.datetime "converted_at"
+    t.bigint "invited_by_user_id"
     t.index ["active"], name: "index_tenants_on_active"
     t.index ["billing_company_id"], name: "index_tenants_on_billing_company_id"
     t.index ["environment"], name: "index_tenants_on_environment"
+    t.index ["invited_by_user_id"], name: "index_tenants_on_invited_by_user_id"
     t.index ["is_master_tenant"], name: "index_tenants_on_is_master_tenant"
     t.index ["name"], name: "index_tenants_on_name", unique: true
     t.index ["onboarding_job_id"], name: "index_tenants_on_onboarding_job_id"
     t.index ["slug"], name: "index_tenants_on_slug", unique: true
     t.index ["tier"], name: "index_tenants_on_tier"
+    t.index ["trial_ends_at"], name: "index_tenants_on_trial_ends_at"
+    t.index ["trial_status"], name: "index_tenants_on_trial_status"
+  end
+
+  create_table "trial_invitations", force: :cascade do |t|
+    t.string "email", null: false
+    t.string "name", null: false
+    t.string "company_name", null: false
+    t.string "token", null: false
+    t.string "status", default: "pending"
+    t.bigint "invited_by_user_id"
+    t.bigint "tenant_id"
+    t.datetime "accepted_at"
+    t.datetime "expires_at", null: false
+    t.text "personal_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email"], name: "index_trial_invitations_on_email"
+    t.index ["expires_at"], name: "index_trial_invitations_on_expires_at"
+    t.index ["invited_by_user_id"], name: "index_trial_invitations_on_invited_by_user_id"
+    t.index ["status"], name: "index_trial_invitations_on_status"
+    t.index ["tenant_id"], name: "index_trial_invitations_on_tenant_id"
+    t.index ["token"], name: "index_trial_invitations_on_token", unique: true
   end
 
   create_table "trinities", force: :cascade do |t|
@@ -11532,6 +11562,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_100429) do
   add_foreign_key "tenant_settings", "tenants"
   add_foreign_key "tenants", "corporate_companies", column: "billing_company_id"
   add_foreign_key "tenants", "jobs", column: "onboarding_job_id", on_delete: :nullify
+  add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
+  add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"
   add_foreign_key "unreal_measurements", "jobs"
