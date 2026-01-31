@@ -17,6 +17,14 @@ import { BreadcrumbTrail, BREADCRUMB_BAR_HEIGHT } from "@/components/navigation/
 import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import consoleCapture from "@/utils/consoleCapture";
+
+// Initialize console capture immediately to catch ALL errors from the start
+// This ensures the error count badge in the sidebar matches DevTools
+if (typeof window !== "undefined") {
+  consoleCapture.initialize();
+}
+
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const { sidebarWidth } = useSidebar();
