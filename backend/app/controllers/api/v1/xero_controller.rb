@@ -2041,9 +2041,9 @@ module Api
           end
 
           # Global statistics (across all tenants)
-          # SSoT: Use .active scope to match Stage 1 sync count (excludes voided/deleted)
+          # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
           all_xero_links = ContactExternalLink.xero
-          all_invoices = ExternalInvoice.xero.active
+          all_invoices = ExternalInvoice.xero.active.where.not(status: "draft")
 
           # Total pending reviews
           total_pending_reviews = all_xero_links.pending_review.count
