@@ -186,6 +186,47 @@ grep -n "COLUMN_NAME\|similar_name" backend/db/schema.rb
 
 **Mantra:** "One concept, one column, one table."
 
+## 🔴 CRITICAL: Multi-Tenancy Scoping
+
+**EVERY API endpoint that returns data MUST be tenant-scoped.**
+
+### How acts_as_tenant Works
+
+The system uses `acts_as_tenant` which auto-scopes models that directly `belongs_to :tenant`. But many models are **indirectly** related:
+
+| Model | Relationship | Auto-Scoped? | Manual Filter Required |
+|-------|-------------|--------------|------------------------|
+| `Job`, `Contact` | `belongs_to :tenant` | ✅ Yes | No |
+| `MicrosoftCredential` | → `Organization` → `Tenant` | ❌ No | `where(organization_id: current_tenant.organizations.pluck(:id))` |
+| `ImapCredential` | → `User` → `Tenant` | ❌ No | `where(user_id: current_tenant.users.pluck(:id))` |
+| `S3CompatibleCredential` | → `Organization` → `Tenant` | ❌ No | Filter by organization |
+
+### Before Writing ANY API Endpoint
+
+```ruby
+# ❌ WRONG - Returns data from ALL tenants
+MicrosoftCredential.app_credentials.all
+
+# ✅ CORRECT - Scoped to current tenant
+tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
+MicrosoftCredential.app_credentials.where(organization_id: tenant_org_ids)
+```
+
+### SSoT Helpers
+
+```ruby
+current_tenant        # The user's tenant (from ActsAsTenant)
+current_organization  # First organization in tenant (for credential lookups)
+```
+
+### Red Flags - Audit These Patterns
+
+- `Model.all` or `Model.where(...)` without tenant filter on indirectly-related models
+- Any endpoint returning credentials, settings, or config without tenant scoping
+- Queries on `Organization`, `MicrosoftCredential`, `ImapCredential`, `S3CompatibleCredential`
+
+**Mantra:** "If it's not auto-scoped, filter by tenant manually."
+
 ## 🔴 SSoT - Foundation API
 
 **Foundation API is THE SSoT for all record queries.**
