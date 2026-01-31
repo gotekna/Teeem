@@ -964,13 +964,18 @@ module Api
 
       # Auto-create Organization for current tenant if it doesn't exist
       # SSoT (Jan 2026): Organization is needed for document_provider settings
+      # Default: Wasabi (s3_compatible) with shared bucket credential
       def create_organization_for_tenant
         return nil unless current_tenant
+
+        # Find the active Wasabi/S3 credential to use as default
+        default_credential = S3CompatibleCredential.active.where(status: "connected").first
 
         Organization.create!(
           tenant: current_tenant,
           name: current_tenant.name || "Organization",
-          document_provider: "s3_compatible"
+          document_provider: "s3_compatible",
+          document_provider_credential_id: default_credential&.id
         )
       rescue ActiveRecord::RecordInvalid => e
         Rails.logger.error "[OrganizationController] Failed to create Organization for tenant: #{e.message}"
