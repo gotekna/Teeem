@@ -50,11 +50,14 @@ interface LayoutModeContextType {
 const LayoutModeContext = React.createContext<LayoutModeContextType | undefined>(undefined);
 
 // Compute classes based on layout mode
+// Note: These are now the ONLY source of overflow behavior (no hardcoded overflow in layout)
 function getContainerClassName(mode: LayoutMode): string {
   switch (mode) {
     case "padded":
+      // Padded mode: container scrolls
       return "h-full overflow-auto";
     case "full-height":
+      // Full-height: container clips, content manages own scroll
       return "h-full overflow-hidden";
     case "edge-to-edge":
       return "h-full overflow-hidden";
@@ -68,15 +71,17 @@ function getContainerClassName(mode: LayoutMode): string {
 function getContentClassName(mode: LayoutMode): string {
   switch (mode) {
     case "padded":
-      return "h-full pt-6 pb-0 px-4 flex flex-col";
+      // Padded mode: standard padding, content flows naturally (container scrolls)
+      return "pt-6 pb-0 px-4 flex flex-col";
     case "full-height":
-      return "h-full pt-4 pb-0 px-4 flex flex-col";
+      // Full-height: content fills available space, manages own scroll
+      return "h-full pt-4 pb-0 px-4 flex flex-col overflow-auto";
     case "edge-to-edge":
-      return "h-full flex flex-col";
+      return "h-full flex flex-col overflow-auto";
     case "fullscreen":
-      return "h-full flex flex-col";
+      return "h-full flex flex-col overflow-auto";
     default:
-      return "h-full pt-6 pb-0 px-4 flex flex-col";
+      return "pt-6 pb-0 px-4 flex flex-col";
   }
 }
 
