@@ -346,6 +346,50 @@ You're a craftsman, an artist, an engineer who thinks like a designer. Every lin
 
 **Deprecated:** `combobox.tsx`, `loader.tsx`, `drawer.tsx`, `data-table.tsx`, `router.back()`
 
+## 🔴 SSoT - Page Help Content
+
+**SSoT:** `frontend-next/lib/page-help.json`
+
+The contextual help system shows page-specific help when users click the ? button in the header.
+
+### When to Update page-help.json
+
+**Update page-help.json whenever:**
+- Adding a new page/route
+- Changing what a page does
+- Adding new features to a page
+- Renaming or reorganizing pages
+
+### JSON Structure
+
+```json
+{
+  "/route/path": {
+    "title": "Page Title",
+    "description": "What this page is for (1-2 sentences)",
+    "tips": ["Tip 1", "Tip 2", "Tip 3"],
+    "tasks": ["Task 1", "Task 2", "Task 3"]
+  }
+}
+```
+
+### Dynamic Routes
+
+Use `[id]` pattern for dynamic routes:
+- `/jobs/[id]` matches `/jobs/123`, `/jobs/456`, etc.
+- Falls back to parent path if no exact match
+
+### Quick Update Checklist
+
+| Change | Action |
+|--------|--------|
+| New page | Add entry to page-help.json |
+| Page renamed | Update route key in page-help.json |
+| Feature added | Update tips/tasks in page-help.json |
+| Page removed | Remove entry from page-help.json |
+
+**Rule:** When creating/modifying pages, check if page-help.json needs updating.
+
 ## 🔴 SSoT - Settings Navigation Structure
 
 **All settings are under `/settings/` with URL-based tab state.**

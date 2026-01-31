@@ -1,0 +1,383 @@
+{
+  "_meta": {
+    "description": "SSoT for contextual page help. Claude updates this when screens change.",
+    "lastUpdated": "2026-01-31",
+    "format": "Each page has: title, description, tips (array), tasks (array)"
+  },
+  "pages": {
+    "/dashboard": {
+      "title": "Dashboard",
+      "description": "Your home base showing key metrics, recent activity, and quick access to important items.",
+      "tips": [
+        "Click any metric card to drill down into details",
+        "Recent items show your last 10 accessed records",
+        "Use the quick actions bar for common tasks"
+      ],
+      "tasks": [
+        "View overdue tasks and upcoming deadlines",
+        "Check recent job updates",
+        "Access frequently used pages"
+      ]
+    },
+    "/tasks": {
+      "title": "Task Hub",
+      "description": "Manage all your tasks, to-dos, and action items in one place.",
+      "tips": [
+        "Use filters to show only your tasks or all team tasks",
+        "Click a task to view details and add comments",
+        "Drag tasks to reorder priority"
+      ],
+      "tasks": [
+        "Create new tasks with the + button",
+        "Assign tasks to team members",
+        "Set due dates and reminders",
+        "Mark tasks complete with the checkbox"
+      ]
+    },
+    "/email": {
+      "title": "Email",
+      "description": "Unified inbox showing emails from all connected accounts (IMAP and Microsoft 365).",
+      "tips": [
+        "Emails are automatically linked to jobs and contacts",
+        "Use the search bar to find specific emails",
+        "Star important emails for quick access"
+      ],
+      "tasks": [
+        "Compose and send emails",
+        "Link emails to jobs or contacts",
+        "Archive or delete emails",
+        "Manage email folders"
+      ]
+    },
+    "/jobs": {
+      "title": "Jobs",
+      "description": "Central hub for all construction jobs and projects.",
+      "tips": [
+        "Use filters to find jobs by status, type, or date",
+        "Click a job code to open job details",
+        "The status column shows current workflow stage"
+      ],
+      "tasks": [
+        "Create a new job",
+        "Update job status",
+        "View job schedule and Gantt",
+        "Access job documents and emails"
+      ]
+    },
+    "/jobs/[id]": {
+      "title": "Job Details",
+      "description": "Complete view of a single job including all tabs, documents, and related data.",
+      "tips": [
+        "Use tabs to navigate between Overview, Documents, Emails, Schedule, etc.",
+        "The breadcrumb shows your location - click to go back",
+        "Changes save automatically"
+      ],
+      "tasks": [
+        "Update job information",
+        "Upload documents",
+        "View linked emails",
+        "Access Gantt chart"
+      ]
+    },
+    "/contacts": {
+      "title": "Contacts",
+      "description": "Directory of all people and companies you work with.",
+      "tips": [
+        "Search by name, email, or company",
+        "Click to view full contact details",
+        "Use filters to show only suppliers, clients, etc."
+      ],
+      "tasks": [
+        "Add new contacts",
+        "Link contacts to companies",
+        "View contact history",
+        "Send email to contact"
+      ]
+    },
+    "/estimates": {
+      "title": "Estimates",
+      "description": "Create and manage job estimates and quotes.",
+      "tips": [
+        "Use templates for faster estimate creation",
+        "Items pull from your pricebook automatically",
+        "Convert approved estimates to jobs"
+      ],
+      "tasks": [
+        "Create new estimate",
+        "Add line items from pricebook",
+        "Send estimate to client",
+        "Convert to job when approved"
+      ]
+    },
+    "/purchase_orders": {
+      "title": "Purchase Orders",
+      "description": "Manage supplier purchase orders and track deliveries.",
+      "tips": [
+        "POs link to jobs and suppliers automatically",
+        "Track delivery status with the status column",
+        "Export POs to PDF for sending"
+      ],
+      "tasks": [
+        "Create purchase order",
+        "Link to job and supplier",
+        "Track delivery status",
+        "Mark as received"
+      ]
+    },
+    "/warehouse": {
+      "title": "File Warehouse",
+      "description": "Central document storage for all files across jobs, contacts, and emails.",
+      "tips": [
+        "Browse by folder structure (Jobs, Contacts, Emails, etc.)",
+        "Search across all documents",
+        "Preview PDFs and images inline"
+      ],
+      "tasks": [
+        "Upload documents",
+        "Organize into folders",
+        "Search for files",
+        "Download or share documents"
+      ]
+    },
+    "/corporate": {
+      "title": "Corporate",
+      "description": "Manage company groups, subsidiaries, and corporate compliance.",
+      "tips": [
+        "View company hierarchy in the tree view",
+        "Track compliance deadlines",
+        "Store ASIC and director information"
+      ],
+      "tasks": [
+        "Add company to group",
+        "Track compliance dates",
+        "Manage directors",
+        "Store corporate documents"
+      ]
+    },
+    "/settings": {
+      "title": "Settings",
+      "description": "Configure your account and organization settings.",
+      "tips": [
+        "Personal settings affect only your account",
+        "Organization settings require admin access",
+        "Changes take effect immediately"
+      ],
+      "tasks": [
+        "Update profile information",
+        "Change notification preferences",
+        "Manage users and permissions",
+        "Configure integrations"
+      ]
+    },
+    "/settings/system": {
+      "title": "System Settings",
+      "description": "Advanced system configuration for administrators.",
+      "tips": [
+        "Navigation Manager controls sidebar menu",
+        "AI Agents configure automated processing",
+        "Scheduled Jobs show background task status"
+      ],
+      "tasks": [
+        "Manage navigation items",
+        "Configure AI processing",
+        "View scheduled job status",
+        "Check system health"
+      ]
+    },
+    "/settings/system/navigation": {
+      "title": "Navigation Manager",
+      "description": "Control sidebar navigation items, ordering, and visibility.",
+      "tips": [
+        "Drag items to reorder",
+        "Click position numbers to jump",
+        "Use the visibility toggle to show/hide items"
+      ],
+      "tasks": [
+        "Add new navigation items",
+        "Reorder menu items",
+        "Create nested submenus",
+        "Hide unused sections"
+      ]
+    },
+    "/settings/users": {
+      "title": "User Management",
+      "description": "Manage team members, roles, and permissions.",
+      "tips": [
+        "Invite users via email",
+        "Assign roles to control access",
+        "Deactivate users to revoke access without deleting"
+      ],
+      "tasks": [
+        "Invite new user",
+        "Change user role",
+        "Reset user password",
+        "Deactivate user"
+      ]
+    },
+    "/settings/roles": {
+      "title": "Access Control",
+      "description": "Configure roles, permissions, and access groups.",
+      "tips": [
+        "Roles define what users can see and do",
+        "Groups allow bulk permission assignment",
+        "Test permissions with the preview feature"
+      ],
+      "tasks": [
+        "Create custom role",
+        "Assign permissions",
+        "Add users to groups",
+        "Test role access"
+      ]
+    },
+    "/settings/company": {
+      "title": "Company Settings",
+      "description": "Configure organization-wide settings and branding.",
+      "tips": [
+        "Brand colors affect buttons and accents throughout the app",
+        "Document templates use company letterhead",
+        "Holidays affect scheduling calculations"
+      ],
+      "tasks": [
+        "Update company information",
+        "Configure brand colors",
+        "Manage document templates",
+        "Set public holidays"
+      ]
+    },
+    "/settings/connections": {
+      "title": "Connections",
+      "description": "Manage integrations with external services (Storage, Email, Xero).",
+      "tips": [
+        "Storage provider syncs documents to cloud",
+        "Email integration syncs your inbox",
+        "Xero connects accounting data"
+      ],
+      "tasks": [
+        "Connect storage provider",
+        "Add email account",
+        "Link Xero organization",
+        "Test connections"
+      ]
+    },
+    "/settings/connections/provider": {
+      "title": "Storage Provider",
+      "description": "Configure cloud storage for documents (SharePoint, S3/Wasabi, Local).",
+      "tips": [
+        "Only one storage provider can be active at a time",
+        "Path templates control folder structure",
+        "Test connection before saving"
+      ],
+      "tasks": [
+        "Select storage provider",
+        "Configure connection settings",
+        "Set folder path templates",
+        "Test and verify connection"
+      ]
+    },
+    "/settings/integrations/xero": {
+      "title": "Xero Integration",
+      "description": "Connect to Xero for accounting sync (contacts, invoices, bills).",
+      "tips": [
+        "Xero syncs via webhooks automatically",
+        "Review pending contacts before syncing",
+        "Check sync status in the dashboard"
+      ],
+      "tasks": [
+        "Connect Xero organization",
+        "Review pending contacts",
+        "Configure sync settings",
+        "View sync history"
+      ]
+    },
+    "/settings/integrations/microsoft": {
+      "title": "Microsoft 365 Integration",
+      "description": "Connect Microsoft 365 for email and OneDrive/SharePoint sync.",
+      "tips": [
+        "Admin consent is required for organization-wide access",
+        "Configure which mailboxes to sync",
+        "SharePoint folders appear in File Warehouse"
+      ],
+      "tasks": [
+        "Grant admin consent",
+        "Configure mailbox access",
+        "Set up SharePoint connection",
+        "Test email sync"
+      ]
+    },
+    "/chat": {
+      "title": "Team Chat",
+      "description": "Real-time messaging with team members.",
+      "tips": [
+        "Use @mentions to notify specific people",
+        "Attach files directly in chat",
+        "Search chat history"
+      ],
+      "tasks": [
+        "Send message to team",
+        "Share files",
+        "Search conversations",
+        "Manage notifications"
+      ]
+    },
+    "/training": {
+      "title": "Training",
+      "description": "Access training materials and learning resources.",
+      "tips": [
+        "Watch video tutorials",
+        "Complete training modules",
+        "Track your progress"
+      ],
+      "tasks": [
+        "Start a training module",
+        "Watch tutorial videos",
+        "Take quizzes",
+        "View completion certificates"
+      ]
+    },
+    "/notebooks": {
+      "title": "Notes",
+      "description": "Create and organize personal and shared notes.",
+      "tips": [
+        "Notes can be linked to jobs or contacts",
+        "Use markdown for formatting",
+        "Share notes with team members"
+      ],
+      "tasks": [
+        "Create new note",
+        "Link note to job",
+        "Share with team",
+        "Search notes"
+      ]
+    },
+    "/data-warehouse": {
+      "title": "Data Warehouse",
+      "description": "Advanced data management and reporting tools.",
+      "tips": [
+        "Run custom queries on your data",
+        "Export reports to Excel",
+        "Schedule automated reports"
+      ],
+      "tasks": [
+        "Run data query",
+        "Export to Excel",
+        "Create scheduled report",
+        "View data statistics"
+      ]
+    },
+    "/system-health": {
+      "title": "System Health",
+      "description": "Monitor system status, background jobs, and performance.",
+      "tips": [
+        "Green indicators mean healthy",
+        "Yellow indicates warnings",
+        "Red requires immediate attention"
+      ],
+      "tasks": [
+        "Check overall system status",
+        "View background job queue",
+        "Monitor API performance",
+        "Check storage usage"
+      ]
+    }
+  }
+}
