@@ -37,7 +37,7 @@ class SmRolloverJob < ApplicationJob
     @batch_id = SecureRandom.uuid
     @timestamp = Time.current
     @settings = SmSetting.instance
-    @calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    @calendar = WorkingDaysCalculator.new(TenantSetting.instance)
 
     unless @settings.rollover_enabled?
       Rails.logger.info "[SmRolloverJob] Rollover disabled in settings, skipping"

@@ -201,7 +201,7 @@ class SmTaskCompletionService
   end
 
   def spawn_document_get_tasks
-    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    calendar = WorkingDaysCalculator.new(TenantSetting.instance)
 
     task.sm_task_document_types.includes(:document_type).each do |doc_type_link|
       doc_type = doc_type_link.document_type

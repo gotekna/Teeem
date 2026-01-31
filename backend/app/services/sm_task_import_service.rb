@@ -104,7 +104,7 @@ class SmTaskImportService
     @created_dependencies = []
     @task_number_to_task = {} # Maps imported task_number to created SmTask
     @supplier_cache = {} # Cache for supplier lookups
-    @calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    @calendar = WorkingDaysCalculator.new(TenantSetting.instance)
   end
 
   def execute

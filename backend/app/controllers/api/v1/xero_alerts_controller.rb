@@ -66,8 +66,8 @@ module Api
 
         # SSoT: Calculate reset time (midnight UTC = 10:00 AM Brisbane)
         # Next reset is: today 10 AM if before 10 AM Brisbane, tomorrow 10 AM if after
-        # SSoT: Use CorporateCompanySetting for timezone
-        now_brisbane = CorporateCompanySetting.now
+        # SSoT: Use TenantSetting for timezone
+        now_brisbane = TenantSetting.now
         brisbane_10am_today = now_brisbane.change(hour: 10, min: 0, sec: 0)
 
         resets_at_display = if now_brisbane < brisbane_10am_today

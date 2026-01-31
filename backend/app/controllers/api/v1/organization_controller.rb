@@ -543,7 +543,7 @@ module Api
         end
 
         # Get company settings for organization name
-        company_setting = CorporateCompanySetting.instance
+        company_setting = TenantSetting.instance
 
         # Document statistics - SSoT (Jan 2026): WarehouseDocument is THE ONE source
         warehouse_docs = WarehouseDocument.all

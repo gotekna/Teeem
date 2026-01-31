@@ -32,8 +32,8 @@ class WHSActionItem < ApplicationRecord
   scope :critical, -> { where(priority: "critical") }
   scope :high_priority, -> { where(priority: [ "critical", "high" ]) }
   scope :assigned_to, ->(user) { where(assigned_to_user: user) }
-  scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", CorporateCompanySetting.today, [ "completed", "cancelled" ]) }
-  scope :due_soon, ->(days = 7) { where("due_date <= ? AND due_date >= ? AND status NOT IN (?)", CorporateCompanySetting.today + days.days, CorporateCompanySetting.today, [ "completed", "cancelled" ]) }
+  scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", TenantSetting.today, [ "completed", "cancelled" ]) }
+  scope :due_soon, ->(days = 7) { where("due_date <= ? AND due_date >= ? AND status NOT IN (?)", TenantSetting.today + days.days, TenantSetting.today, [ "completed", "cancelled" ]) }
 
   # State machine methods
   def can_start?
@@ -68,21 +68,21 @@ class WHSActionItem < ApplicationRecord
     return false unless due_date.present?
     return false if completed? || cancelled?
 
-    due_date < CorporateCompanySetting.today
+    due_date < TenantSetting.today
   end
 
   def due_soon?(days = 7)
     return false unless due_date.present?
     return false if completed? || cancelled?
 
-    due_date <= CorporateCompanySetting.today + days.days && due_date >= CorporateCompanySetting.today
+    due_date <= TenantSetting.today + days.days && due_date >= TenantSetting.today
   end
 
   def days_until_due
     return nil unless due_date.present?
     return 0 if overdue?
 
-    (due_date - CorporateCompanySetting.today).to_i
+    (due_date - TenantSetting.today).to_i
   end
 
   def completed?
@@ -137,9 +137,9 @@ class WHSActionItem < ApplicationRecord
       stage: source_type,
       status: status_for_sm_task,
       assigned_user: assigned_to_user,
-      start_date: CorporateCompanySetting.today,
-      end_date: due_date || CorporateCompanySetting.today + 7.days,
-      duration_days: due_date ? [(due_date - CorporateCompanySetting.today).to_i, 1].max : 7,
+      start_date: TenantSetting.today,
+      end_date: due_date || TenantSetting.today + 7.days,
+      duration_days: due_date ? [(due_date - TenantSetting.today).to_i, 1].max : 7,
       created_by: created_by
     )
     update_column(:sm_task_id, task.id)

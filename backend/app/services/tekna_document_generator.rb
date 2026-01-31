@@ -391,7 +391,7 @@ class TeknaDocumentGenerator
   end
 
   def build_company_context
-    settings = CorporateCompanySetting.instance
+    settings = TenantSetting.instance
     address_parts = parse_address(settings.address)
 
     {

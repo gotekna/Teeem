@@ -108,10 +108,10 @@ class Form43CertificateGenerator
       licensee_licence_number: supervisor.qbcc_licence_number,
       licensee_licence_class: supervisor.qbcc_licence_class,
       licensee_signature_data_url: supervisor.signature_data_url,
-      # SSoT: Use CorporateCompanySetting for company details
-      licensee_business_name: CorporateCompanySetting.instance.company_name,
-      licensee_address: CorporateCompanySetting.instance.address,
-      licensee_phone: supervisor.mobile_phone || CorporateCompanySetting.instance.phone,
+      # SSoT: Use TenantSetting for company details
+      licensee_business_name: TenantSetting.instance.company_name,
+      licensee_address: TenantSetting.instance.address,
+      licensee_phone: supervisor.mobile_phone || TenantSetting.instance.phone,
       licensee_email: supervisor.email,
 
       # Certification details

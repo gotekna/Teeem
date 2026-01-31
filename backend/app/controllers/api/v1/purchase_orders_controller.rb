@@ -78,7 +78,7 @@ module Api
 
       # GET /api/v1/purchase_orders/:id
       def show
-        company_setting = CorporateCompanySetting.instance
+        company_setting = TenantSetting.instance
 
         # Build sm_tasks array for frontend (backwards compatibility)
         sm_tasks_json = @purchase_order.sm_tasks.map do |task|

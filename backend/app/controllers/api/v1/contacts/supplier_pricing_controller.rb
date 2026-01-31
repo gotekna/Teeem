@@ -70,7 +70,7 @@ module Api
           source_id = params[:source_id]
           categories_param = params[:categories] # Optional array of categories to filter by
           set_as_default = params[:set_as_default] != false # Default to true unless explicitly false
-          effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : CorporateCompanySetting.today
+          effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : TenantSetting.today
 
           # Which price to copy: 'active' (default), 'latest', or 'oldest'
           copy_mode = params[:copy_mode].presence || "active"
@@ -272,7 +272,7 @@ module Api
               item_id = update[:item_id]
               new_price = update[:new_price].to_f
               change_reason = update[:change_reason].presence || "bulk_update"
-              date_effective = update[:date_effective].present? ? Date.parse(update[:date_effective].to_s) : CorporateCompanySetting.today
+              date_effective = update[:date_effective].present? ? Date.parse(update[:date_effective].to_s) : TenantSetting.today
 
               # Validate item exists
               item = PricebookItem.find_by(id: item_id)

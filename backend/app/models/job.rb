@@ -202,7 +202,7 @@ class Job < ApplicationRecord
       project_code: "PROJ-#{id}",
       project_manager: project_manager,
       status: "planning",
-      start_date: CorporateCompanySetting.today
+      start_date: TenantSetting.today
     )
   end
 

@@ -22,7 +22,7 @@ class SplitInboxService
     # Pre-load VIP data for performance
     @vip_addresses = Set.new(VipSender.for_user(user).pluck(:email_address))
     @team_vip_addresses = Set.new(VipSender.for_user(user).by_category("team").pluck(:email_address))
-    @team_domains = Set.new(CorporateCompanySetting.team_email_domains.map(&:downcase))
+    @team_domains = Set.new(TenantSetting.team_email_domains.map(&:downcase))
   end
 
   # Get overview with counts and preview emails for each category

@@ -31,8 +31,8 @@ class WHSInspection < ApplicationRecord
   scope :requires_action, -> { where(status: "requires_action") }
   scope :for_construction, ->(job_id) { where(job_id: job_id) }  # Kept for backward compatibility
   scope :by_type, ->(type) { where(inspection_type: type) }
-  scope :overdue, -> { where("scheduled_date < ? AND status NOT IN (?)", CorporateCompanySetting.today, [ "completed", "cancelled" ]) }
-  scope :upcoming, -> { where("scheduled_date >= ?", CorporateCompanySetting.today).order(:scheduled_date) }
+  scope :overdue, -> { where("scheduled_date < ? AND status NOT IN (?)", TenantSetting.today, [ "completed", "cancelled" ]) }
+  scope :upcoming, -> { where("scheduled_date >= ?", TenantSetting.today).order(:scheduled_date) }
   scope :with_critical_issues, -> { where(critical_issues_found: true) }
 
   # State machine methods
@@ -69,7 +69,7 @@ class WHSInspection < ApplicationRecord
 
   # Helper methods
   def overdue?
-    scheduled_date < CorporateCompanySetting.today && !completed? && status != "cancelled"
+    scheduled_date < TenantSetting.today && !completed? && status != "cancelled"
   end
 
   def completed?
@@ -97,7 +97,7 @@ class WHSInspection < ApplicationRecord
   def generate_inspection_number
     return if inspection_number.present?
 
-    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
+    date_str = TenantSetting.today.strftime("%Y%m%d")
     last_inspection = WhsInspection.where("inspection_number LIKE ?", "INSP-#{date_str}-%")
                                     .order(:inspection_number).last
 

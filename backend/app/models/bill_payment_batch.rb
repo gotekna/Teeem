@@ -171,7 +171,7 @@ class BillPaymentBatch < ApplicationRecord
   def generate_batch_reference
     return if batch_reference.present?
 
-    date_str = (payment_date || CorporateCompanySetting.today).strftime("%Y%m%d")
+    date_str = (payment_date || TenantSetting.today).strftime("%Y%m%d")
     company_code = corporate_company&.code || "XXX"
     sequence = SecureRandom.hex(3).upcase
     self.batch_reference = "PAY-#{company_code}-#{date_str}-#{sequence}"
@@ -191,7 +191,7 @@ class BillPaymentBatch < ApplicationRecord
   end
 
   def payment_date_not_in_past
-    if payment_date.present? && payment_date < CorporateCompanySetting.today
+    if payment_date.present? && payment_date < TenantSetting.today
       errors.add(:payment_date, "cannot be in the past")
     end
   end

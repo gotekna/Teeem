@@ -36,7 +36,7 @@ class MaintenanceRequest < ApplicationRecord
   scope :by_construction, ->(construction_id) { where(construction_id: construction_id) }
   scope :by_priority, ->(priority) { where(priority: priority) }
   scope :warranty_claims, -> { where(warranty_claim: true) }
-  scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", CorporateCompanySetting.today, %w[resolved closed]) }
+  scope :overdue, -> { where("due_date < ? AND status NOT IN (?)", TenantSetting.today, %w[resolved closed]) }
   scope :recent, -> { order(created_at: :desc) }
 
   # Instance methods
@@ -57,7 +57,7 @@ class MaintenanceRequest < ApplicationRecord
   end
 
   def overdue?
-    due_date.present? && due_date < CorporateCompanySetting.today && !completed?
+    due_date.present? && due_date < TenantSetting.today && !completed?
   end
 
   def completed?
@@ -74,7 +74,7 @@ class MaintenanceRequest < ApplicationRecord
   def mark_resolved!(notes: nil, actual_cost: nil)
     update!(
       status: "resolved",
-      resolved_date: CorporateCompanySetting.today,
+      resolved_date: TenantSetting.today,
       resolution_notes: notes || resolution_notes,
       actual_cost: actual_cost || self.actual_cost
     )
@@ -99,7 +99,7 @@ class MaintenanceRequest < ApplicationRecord
     if completed? && resolved_date
       (resolved_date - reported_date).to_i
     else
-      (CorporateCompanySetting.today - reported_date).to_i
+      (TenantSetting.today - reported_date).to_i
     end
   end
 
@@ -135,7 +135,7 @@ class MaintenanceRequest < ApplicationRecord
   def generate_request_number
     return if request_number.present?
 
-    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
+    date_str = TenantSetting.today.strftime("%Y%m%d")
     last_request = MaintenanceRequest.where("request_number LIKE ?", "MR-#{date_str}-%").order(:request_number).last
 
     if last_request
@@ -149,6 +149,6 @@ class MaintenanceRequest < ApplicationRecord
   end
 
   def set_reported_date
-    self.reported_date ||= CorporateCompanySetting.today
+    self.reported_date ||= TenantSetting.today
   end
 end

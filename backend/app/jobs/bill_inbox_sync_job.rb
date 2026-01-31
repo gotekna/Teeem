@@ -2,7 +2,7 @@
 
 # Monitors Pay@ mailbox for incoming invoices
 # Scheduled to run every 15 minutes via Solid Queue
-# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_pay
+# SSoT: Mailbox address configured in TenantSetting.monitored_mailbox_pay
 #
 class BillInboxSyncJob < ApplicationJob
   queue_as :default

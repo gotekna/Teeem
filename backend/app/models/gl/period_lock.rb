@@ -68,7 +68,7 @@ module Gl
       )
 
       # Update company setting for quick lookup
-      CorporateCompanySetting.find_or_create_by(corporate_company_id: company_id).update!(
+      TenantSetting.find_or_create_by(corporate_company_id: company_id).update!(
         gl_lock_date: period_end
       )
 
@@ -153,7 +153,7 @@ module Gl
                         .order(period_end: :desc)
                         .first
 
-      CorporateCompanySetting.find_by(corporate_company_id: corporate_company_id)&.update!(
+      TenantSetting.find_by(corporate_company_id: corporate_company_id)&.update!(
         gl_lock_date: latest_lock&.period_end
       )
     end
