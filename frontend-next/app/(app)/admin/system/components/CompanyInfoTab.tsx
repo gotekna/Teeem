@@ -495,6 +495,19 @@ export default function CompanyInfoTab() {
         </div>
 
         <div className="space-y-2">
+          <Label>Date Format</Label>
+          <p className="text-sm text-muted-foreground">
+            Dates throughout the app are displayed in Australian format.
+          </p>
+          <div className="p-3 bg-muted/50 rounded-md">
+            <p className="text-sm font-mono">DD/MM/YYYY</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Example: {new Date().toLocaleDateString("en-AU")} (today)
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
           <Label>Working Days</Label>
           <p className="text-sm text-muted-foreground">
             Select which days are considered working days. Tasks will be
