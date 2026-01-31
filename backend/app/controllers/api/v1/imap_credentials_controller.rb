@@ -16,12 +16,16 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # GET /api/v1/imap_credentials/org_status
-  # Returns org-wide email health status (for header indicator)
+  # Returns TENANT-SCOPED email health status (for header indicator)
   # Shows breakdown by provider type for user clarity
-  # FRC (Jan 2026): Header needs to show ALL org accounts' health, not just user's accessible accounts
+  # FRC (Jan 2026): Header needs to show accounts' health for current TENANT only
   def org_status
-    # Get ALL active IMAP credentials (org-wide)
-    all_imap = ImapCredential.where(is_active: true)
+    # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
+    tenant = current_tenant
+
+    # Get IMAP credentials for users in this tenant
+    tenant_user_ids = tenant&.users&.pluck(:id) || []
+    all_imap = ImapCredential.where(is_active: true, user_id: tenant_user_ids)
 
     # Count by status
     total_imap = all_imap.count
@@ -29,8 +33,11 @@ class Api::V1::ImapCredentialsController < ApplicationController
     error_imap = all_imap.where.not(last_sync_error: [nil, '']).count
     syncing_imap = all_imap.where(last_sync_status: 'syncing').count
 
-    # Get MS365 org credentials with details
-    ms365_credentials = MicrosoftCredential.app_credentials.order(is_primary: :desc, name: :asc)
+    # Get MS365 org credentials for THIS TENANT's organizations only
+    tenant_org_ids = tenant&.organizations&.pluck(:id) || []
+    ms365_credentials = MicrosoftCredential.app_credentials
+                                            .where(organization_id: tenant_org_ids)
+                                            .order(is_primary: :desc, name: :asc)
     total_ms365 = ms365_credentials.count
     connected_ms365 = ms365_credentials.where(status: 'connected').count
 
@@ -353,7 +360,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # GET /api/v1/imap_credentials/all_accounts
-  # List ALL email accounts (IMAP + connected Microsoft 365 tenants)
+  # List email accounts (IMAP + connected Microsoft 365) for CURRENT TENANT
   # SSoT: Uses same ordering as navigation (email_nav_positions)
   def all_accounts
     accounts = []
@@ -363,11 +370,17 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # SSoT: Get user's favorite mailbox IDs
     favorite_ids = EmailMailboxFavorite.favorited_account_ids(current_user.id)
 
-    # Add connected Microsoft 365 organization accounts
+    # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
+    tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
+
+    # Add connected Microsoft 365 organization accounts FOR THIS TENANT ONLY
     # These use Application permissions to access mailboxes
     # SSoT: Use MicrosoftCredential for app credentials
     # SSoT: Order by is_primary DESC so primary tenancy comes first
-    ms365_credentials = MicrosoftCredential.app_credentials.connected.order(is_primary: :desc, name: :asc)
+    ms365_credentials = MicrosoftCredential.app_credentials
+                                            .connected
+                                            .where(organization_id: tenant_org_ids)
+                                            .order(is_primary: :desc, name: :asc)
 
     ms365_credentials.each do |org_cred|
       # SSoT: User automatically gets access to their own mailbox
