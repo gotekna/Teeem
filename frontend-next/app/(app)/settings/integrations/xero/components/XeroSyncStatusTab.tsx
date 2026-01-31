@@ -150,7 +150,11 @@ function TenantSyncCard({ tenant }: { tenant: TenantStats }) {
               const status = tenant.sync_health?.[key];
               const health = status?.health_status || "red";
               const age = status?.age_minutes;
+              const hasError = !!status?.last_error;
               const shortLabel = key === "invoices" ? "I" : key === "contacts" ? "C" : key === "pdfs" ? "P" : "B";
+              const tooltipText = hasError
+                ? `${label}: ${status?.last_error}`
+                : `${label}: ${formatAge(age ?? null)} ago`;
 
               return (
                 <div
@@ -161,10 +165,14 @@ function TenantSyncCard({ tenant }: { tenant: TenantStats }) {
                     health === "yellow" && "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
                     health === "red" && "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
                   )}
-                  title={`${label}: ${formatAge(age ?? null)} ago`}
+                  title={tooltipText}
                 >
                   <span>{shortLabel}</span>
-                  <span className="opacity-75">{formatAge(age ?? null)}</span>
+                  {hasError ? (
+                    <AlertTriangle className="h-3 w-3" />
+                  ) : (
+                    <span className="opacity-75">{formatAge(age ?? null)}</span>
+                  )}
                 </div>
               );
             })}
