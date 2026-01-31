@@ -109,7 +109,7 @@ namespace :warehouse do
             blob = StorageBlob.create!(
               storage_path: s3_key,
               content_hash: nil,  # Legacy record - no hash without download
-              filename: file_name,
+              original_filename: file_name,
               file_size: file_size.to_i,
               content_type: content_type,
               tenant_id: tenant_id,
