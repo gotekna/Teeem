@@ -60,14 +60,17 @@ class Rack::Attack
 
   # Throttle Xero API requests (per tenant ID)
   # Each tenant gets its own 60/minute limit, so 10 tenants = 600 total requests/minute
+  # Status endpoints (no tenant_id) are excluded - they use the general rate limit instead
   throttle("xero/tenant", limit: 60, period: 1.minute) do |req|
     if req.path =~ %r{^/api/v1/xero/}
-      # Extract tenant ID from query params, path, or fall back to IP
+      # Extract tenant ID from query params, path, or fall back to nil
       tenant_id = req.params["tenant_id"] ||
                   req.path.match(%r{/tenants/([^/]+)})&.[](1) ||
                   req.env["rack.session"]&.dig("xero_tenant_id")
-      # Use tenant_id + IP to rate limit per-tenant per-user
-      tenant_id ? "#{req.ip}:#{tenant_id}" : req.ip
+      # Only apply this throttle when tenant_id is present
+      # Status endpoints (connection_status, tenants, sync_stats, etc.) without tenant_id
+      # fall through to the general rate limit (1500/5min) which is more generous
+      tenant_id ? "#{req.ip}:#{tenant_id}" : nil
     end
   end
 
