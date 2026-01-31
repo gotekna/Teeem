@@ -953,7 +953,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   def credential_params
-    params.require(:imap_credential).permit(
+    permitted = params.require(:imap_credential).permit(
       :name,
       :email_address,
       :provider,
@@ -967,8 +967,19 @@ class Api::V1::ImapCredentialsController < ApplicationController
       :password,
       :sync_interval_minutes,
       :is_active,
-      :email_signature
+      :email_signature,
+      :email_aliases  # Accepts comma-separated string from frontend
     )
+
+    # Convert comma-separated string to array for email_aliases
+    if permitted[:email_aliases].is_a?(String)
+      permitted[:email_aliases] = permitted[:email_aliases]
+        .split(",")
+        .map(&:strip)
+        .reject(&:blank?)
+    end
+
+    permitted
   end
 
   def credential_json(credential, include_folders: false)
