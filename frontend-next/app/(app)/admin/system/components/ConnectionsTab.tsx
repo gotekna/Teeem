@@ -931,7 +931,7 @@ function S3StorageConnection() {
 }
 
 // Organization document provider config type
-// SSoT (Jan 2026): bucket removed - WarehouseProvider.bucket is SSoT
+// SSoT (Jan 2026): bucket is from WarehouseProvider, visible on BOTH screens
 interface OrgDocumentProvider {
   document_provider: string;
   document_provider_credential_id: number | null;
@@ -940,12 +940,17 @@ interface OrgDocumentProvider {
     id: number;
     name: string;
     provider_type: string;
-    // bucket removed - WarehouseProvider.bucket is SSoT
     status: string;
     connected: boolean;
   }>;
   sharepoint_configured: boolean;
   can_switch: boolean;
+  // SSoT (Jan 2026): bucket from WarehouseProvider - visible on both screens
+  bucket?: string;
+  // Connection status info
+  connection_status?: string;
+  last_error?: string;
+  warehouse_provider_updated_at?: string;
 }
 
 // Document Storage Provider Selection (SSoT)
@@ -959,6 +964,23 @@ function DocumentStorageProvider() {
   const [orgConfig, setOrgConfig] = React.useState<OrgDocumentProvider | null>(null);
   const [s3Credentials, setS3Credentials] = React.useState<S3Credential[]>([]);
   const [savingProvider, setSavingProvider] = React.useState(false);
+  // SSoT (Jan 2026): bucket from WarehouseProvider - visible on both screens
+  const [bucket, setBucket] = React.useState<string>("");
+  // Connection test state
+  const [testingConnection, setTestingConnection] = React.useState(false);
+  const [connectionTestResult, setConnectionTestResult] = React.useState<{
+    success: boolean;
+    message: string;
+    testedAt: Date;
+  } | null>(null);
+  // Storage stats state
+  const [loadingStats, setLoadingStats] = React.useState(false);
+  const [storageStats, setStorageStats] = React.useState<{
+    total_objects: number;
+    total_size_bytes: number;
+    total_size_display: string;
+    sampled?: boolean;
+  } | null>(null);
 
   // S3 form state
   // SSoT (Jan 2026): bucket removed - set in Storage Configuration instead
@@ -985,6 +1007,8 @@ function DocumentStorageProvider() {
       if (response.data) {
         setOrgConfig(response.data);
         setSelectedCredentialId(response.data.document_provider_credential_id);
+        // SSoT (Jan 2026): bucket from WarehouseProvider - visible on both screens
+        setBucket(response.data.bucket || "");
 
         // SSoT Fix (Jan 2026): Map "s3_compatible" to actual provider type from credential
         // Backend returns generic "s3_compatible", but dropdown needs specific provider (wasabi, backblaze_b2, etc.)
@@ -1027,6 +1051,8 @@ function DocumentStorageProvider() {
         {
           document_provider: selectedProvider === "sharepoint" ? "sharepoint" : "s3_compatible",
           document_provider_credential_id: selectedProvider !== "sharepoint" ? selectedCredentialId : null,
+          // SSoT (Jan 2026): bucket from WarehouseProvider - visible on both screens
+          bucket: bucket || undefined,
         }
       );
       if (response.success) {
@@ -1040,6 +1066,76 @@ function DocumentStorageProvider() {
       toast({ title: "Error", description: err?.response?.data?.error || "Failed to update provider", variant: "destructive" });
     } finally {
       setSavingProvider(false);
+    }
+  };
+
+  // Fetch storage stats handler
+  const handleFetchStorageStats = async () => {
+    setLoadingStats(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        stats?: {
+          total_objects: number;
+          total_size_bytes: number;
+          total_size_display: string;
+          sampled?: boolean;
+        };
+        error?: string;
+      }>("/api/v1/warehouse_provider/storage_stats");
+
+      if (response?.success && response.stats) {
+        setStorageStats(response.stats);
+      } else {
+        toast({ title: "Error", description: response?.error || "Failed to fetch storage stats", variant: "destructive" });
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast({ title: "Error", description: err?.response?.data?.error || "Failed to fetch storage stats", variant: "destructive" });
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  // Test connection handler
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setConnectionTestResult(null);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        message?: string;
+        error?: string;
+        provider?: string;
+        details?: Record<string, unknown>;
+      }>("/api/v1/warehouse_provider/test");
+
+      const isSuccess = response?.success ?? false;
+      const successMessage = response?.message || "Connection successful";
+      const errorMessage = response?.error || "Connection failed";
+
+      setConnectionTestResult({
+        success: isSuccess,
+        message: isSuccess ? successMessage : errorMessage,
+        testedAt: new Date(),
+      });
+
+      if (isSuccess) {
+        toast({ title: "Connection Test", description: successMessage });
+      } else {
+        toast({ title: "Connection Test Failed", description: errorMessage, variant: "destructive" });
+      }
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      const errorMessage = err?.response?.data?.error || "Failed to test connection";
+      setConnectionTestResult({
+        success: false,
+        message: errorMessage,
+        testedAt: new Date(),
+      });
+      toast({ title: "Connection Test Failed", description: errorMessage, variant: "destructive" });
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -1118,10 +1214,12 @@ function DocumentStorageProvider() {
   const preset = selectedProvider !== "sharepoint" ? PROVIDER_PRESETS[selectedProvider] : null;
 
   // Check if the selection has changed from org config
+  // SSoT (Jan 2026): Also check bucket changes
   const hasChanges = orgConfig && (
     (selectedProvider === "sharepoint" && orgConfig.document_provider !== "sharepoint") ||
     (selectedProvider !== "sharepoint" && orgConfig.document_provider === "sharepoint") ||
-    (selectedProvider !== "sharepoint" && selectedCredentialId !== orgConfig.document_provider_credential_id)
+    (selectedProvider !== "sharepoint" && selectedCredentialId !== orgConfig.document_provider_credential_id) ||
+    (selectedProvider !== "sharepoint" && bucket !== (orgConfig.bucket || ""))
   );
 
   if (loading) {
@@ -1148,10 +1246,17 @@ function DocumentStorageProvider() {
             </div>
           </div>
           {/* Current Active Provider Badge */}
-          <Badge variant={orgConfig?.document_provider === "s3_compatible" ? "outline" : "default"}>
-            <Check className="h-3 w-3 mr-1" />
-            Active: {orgConfig?.document_provider === "s3_compatible" ? "S3/Wasabi" : orgConfig?.document_provider === "sharepoint" ? "SharePoint" : "Cloud Storage"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {orgConfig?.bucket && orgConfig?.document_provider === "s3_compatible" && (
+              <Badge variant="secondary" className="text-xs">
+                {orgConfig.bucket}
+              </Badge>
+            )}
+            <Badge variant={orgConfig?.document_provider === "s3_compatible" ? "outline" : "default"}>
+              <Check className="h-3 w-3 mr-1" />
+              Active: {orgConfig?.document_provider === "s3_compatible" ? "S3/Wasabi" : orgConfig?.document_provider === "sharepoint" ? "SharePoint" : "Cloud Storage"}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -1203,6 +1308,158 @@ function DocumentStorageProvider() {
           </div>
         )}
 
+        {/* SSoT (Jan 2026): Bucket field - visible on both Storage Config and Storage Provider pages */}
+        {/* WarehouseProvider.bucket is SSoT, this just mirrors it for visibility */}
+        {selectedProvider !== "sharepoint" && selectedCredentialId && (
+          <div className="space-y-2">
+            <Label>Bucket Name</Label>
+            <Input
+              value={bucket}
+              onChange={(e) => setBucket(e.target.value)}
+              placeholder="your-bucket-name"
+              className="h-9"
+            />
+            <p className="text-xs text-muted-foreground">
+              S3 bucket where files are stored. Also editable in{" "}
+              <Link href="/settings/company/entity-config/storage_config" className="text-primary hover:underline">
+                Storage Config
+              </Link>
+            </p>
+          </div>
+        )}
+
+        {/* Connection Status & Test Button */}
+        {orgConfig && orgConfig.document_provider !== "sharepoint" && selectedCredentialId && bucket && (
+          <div className="p-3 rounded-lg border bg-muted/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Connection Status</span>
+                {orgConfig.connection_status === "connected" ? (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800">
+                    <Check className="h-3 w-3 mr-1" />
+                    Connected
+                  </Badge>
+                ) : orgConfig.connection_status === "error" ? (
+                  <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800">
+                    <X className="h-3 w-3 mr-1" />
+                    Error
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800">
+                    Unknown
+                  </Badge>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleTestConnection}
+                disabled={testingConnection}
+              >
+                {testingConnection ? (
+                  <>
+                    <Spinner size={14} className="mr-1" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                    Test Connection
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Last test result */}
+            {connectionTestResult && (
+              <div className={cn(
+                "p-2 rounded text-sm",
+                connectionTestResult.success
+                  ? "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-300"
+                  : "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300"
+              )}>
+                <div className="flex items-center gap-2">
+                  {connectionTestResult.success ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
+                  <span>{connectionTestResult.message}</span>
+                </div>
+                <p className="text-xs mt-1 opacity-70">
+                  Tested {connectionTestResult.testedAt.toLocaleTimeString()}
+                </p>
+              </div>
+            )}
+
+            {/* Last error from credential */}
+            {orgConfig.last_error && !connectionTestResult && (
+              <div className="p-2 rounded bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-300 text-sm">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>Last error: {orgConfig.last_error}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Storage Usage Stats */}
+            <div className="pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Storage Usage</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleFetchStorageStats}
+                  disabled={loadingStats}
+                >
+                  {loadingStats ? (
+                    <>
+                      <Spinner size={14} className="mr-1" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                      Refresh
+                    </>
+                  )}
+                </Button>
+              </div>
+              {storageStats ? (
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <div className="p-2 rounded bg-muted/50">
+                    <p className="text-xs text-muted-foreground">Total Size</p>
+                    <p className="text-lg font-semibold">{storageStats.total_size_display}</p>
+                  </div>
+                  <div className="p-2 rounded bg-muted/50">
+                    <p className="text-xs text-muted-foreground">Total Objects</p>
+                    <p className="text-lg font-semibold">
+                      {storageStats.total_objects.toLocaleString()}
+                      {storageStats.sampled && <span className="text-xs text-muted-foreground ml-1">+</span>}
+                    </p>
+                  </div>
+                  {storageStats.sampled && (
+                    <p className="col-span-2 text-xs text-muted-foreground">
+                      * Large bucket - showing first 10,000 objects
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Click Refresh to load storage usage statistics
+                </p>
+              )}
+            </div>
+
+            {/* Last updated */}
+            {orgConfig.warehouse_provider_updated_at && (
+              <p className="text-xs text-muted-foreground pt-2 border-t">
+                Configuration last updated: {new Date(orgConfig.warehouse_provider_updated_at).toLocaleDateString()} at {new Date(orgConfig.warehouse_provider_updated_at).toLocaleTimeString()}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Save Provider Selection Button */}
         {hasChanges && (
           <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
@@ -1214,7 +1471,7 @@ function DocumentStorageProvider() {
               <Button
                 size="sm"
                 onClick={handleSaveProviderSelection}
-                disabled={savingProvider || (selectedProvider !== "sharepoint" && !selectedCredentialId)}
+                disabled={savingProvider || (selectedProvider !== "sharepoint" && (!selectedCredentialId || !bucket))}
               >
                 {savingProvider ? (
                   <Spinner size={16} className="mr-1" />

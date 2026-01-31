@@ -65,6 +65,12 @@ class Tenant < ApplicationRecord
   # Template packs (for sharing configuration between tenants)
   has_many :template_packs, foreign_key: :source_tenant_id, dependent: :destroy
 
+  # Onboarding - internal job used for tracking onboarding progress
+  belongs_to :onboarding_job, class_name: 'Job', optional: true
+
+  # Import audit logs - track data import history
+  has_many :import_audit_logs, dependent: :destroy
+
   # =============================================================================
   # Validations
   # =============================================================================
@@ -161,6 +167,39 @@ class Tenant < ApplicationRecord
   # Check if SharePoint storage is enabled (default)
   def sharepoint_storage_enabled?
     document_provider == 'sharepoint' || document_provider.nil?
+  end
+
+  # =============================================================================
+  # Onboarding Methods
+  # =============================================================================
+
+  # Check if onboarding has been started
+  def onboarding_started?
+    onboarding_started_at.present?
+  end
+
+  # Check if onboarding is complete
+  def onboarding_complete?
+    onboarding_completed_at.present?
+  end
+
+  # Check if tenant is currently in onboarding
+  def onboarding_in_progress?
+    onboarding_started? && !onboarding_complete?
+  end
+
+  # Start onboarding process
+  def start_onboarding!
+    return if onboarding_started?
+
+    update!(onboarding_started_at: Time.current)
+  end
+
+  # Complete onboarding process
+  def complete_onboarding!
+    return if onboarding_complete?
+
+    update!(onboarding_completed_at: Time.current)
   end
 
   private
