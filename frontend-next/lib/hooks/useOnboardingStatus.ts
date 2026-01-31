@@ -47,12 +47,18 @@ export interface OnboardingStatus {
   };
 }
 
+interface ApiResponse {
+  success: boolean;
+  data?: OnboardingStatus;
+  error?: string;
+}
+
 async function fetchOnboardingStatus(): Promise<OnboardingStatus> {
-  const response = await api.get('/api/v1/onboarding/status');
+  const response = await api.get('/api/v1/onboarding/status') as ApiResponse;
   if (!response.success) {
     throw new Error(response.error || 'Failed to fetch onboarding status');
   }
-  return response.data;
+  return response.data as OnboardingStatus;
 }
 
 export function useOnboardingStatus() {
@@ -79,21 +85,21 @@ export function useOnboardingStatus() {
 }
 
 export async function assignStep(stepKey: string, userId: number): Promise<void> {
-  const response = await api.post(`/api/v1/onboarding/steps/${stepKey}/assign`, { user_id: userId });
+  const response = await api.post(`/api/v1/onboarding/steps/${stepKey}/assign`, { user_id: userId }) as ApiResponse;
   if (!response.success) {
     throw new Error(response.error || 'Failed to assign step');
   }
 }
 
 export async function skipStep(stepKey: string): Promise<void> {
-  const response = await api.post(`/api/v1/onboarding/steps/${stepKey}/skip`);
+  const response = await api.post(`/api/v1/onboarding/steps/${stepKey}/skip`) as ApiResponse;
   if (!response.success) {
     throw new Error(response.error || 'Failed to skip step');
   }
 }
 
 export async function completeOnboarding(): Promise<void> {
-  const response = await api.post('/api/v1/onboarding/complete');
+  const response = await api.post('/api/v1/onboarding/complete') as ApiResponse;
   if (!response.success) {
     throw new Error(response.error || 'Failed to complete onboarding');
   }
@@ -147,13 +153,11 @@ export async function previewImport(
     formData.append(key, String(value));
   });
 
-  const response = await api.post('/api/v1/onboarding/import/preview', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const response = await api.postFormData('/api/v1/onboarding/import/preview', formData) as { success: boolean; data?: ImportPreviewResult; error?: string };
   if (!response.success) {
     throw new Error(response.error || 'Failed to preview import');
   }
-  return response.data;
+  return response.data as ImportPreviewResult;
 }
 
 export interface ImportResult {
@@ -176,11 +180,9 @@ export async function executeImport(
     formData.append(key, String(value));
   });
 
-  const response = await api.post('/api/v1/onboarding/import/execute', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const response = await api.postFormData('/api/v1/onboarding/import/execute', formData) as { success: boolean; data?: ImportResult; error?: string };
   if (!response.success) {
     throw new Error(response.error || 'Failed to execute import');
   }
-  return response.data;
+  return response.data as ImportResult;
 }
