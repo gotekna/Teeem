@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/accordion";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { formatDateTimeForDisplay } from "@/lib/timezone-utils";
 import { cn } from "@/lib/utils";
 import { StorageCostTab } from "./StorageCostTab";
 import { Progress } from "@/components/ui/progress";
@@ -1454,7 +1455,7 @@ function DocumentStorageProvider() {
             {/* Last updated */}
             {orgConfig.warehouse_provider_updated_at && (
               <p className="text-xs text-muted-foreground pt-2 border-t">
-                Configuration last updated: {new Date(orgConfig.warehouse_provider_updated_at).toLocaleDateString()} at {new Date(orgConfig.warehouse_provider_updated_at).toLocaleTimeString()}
+                Configuration last updated: {formatDateTimeForDisplay(orgConfig.warehouse_provider_updated_at)}
               </p>
             )}
           </div>
