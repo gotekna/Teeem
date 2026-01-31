@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { HelpCircle, BookOpen, Lightbulb, CheckSquare, ExternalLink, Play } from "lucide-react";
 import {
   Popover,
@@ -9,8 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { ContextualHelpModal } from "./ContextualHelpModal";
-import { getHelpForPage, getPageHelp, type PageHelp } from "@/lib/helpMapping";
+import { getHelpForPage, getPageHelp } from "@/lib/helpMapping";
 import { getTourForRoute } from "@/lib/tours/tour-definitions";
 import { usePageTour } from "./PageTour";
 import { cn } from "@/lib/utils";
@@ -34,7 +33,7 @@ interface FloatingHelpButtonProps {
 
 export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) {
   const pathname = usePathname();
-  const [showHelpModal, setShowHelpModal] = React.useState(false);
+  const router = useRouter();
   const [isOpen, setIsOpen] = React.useState(false);
   const [isHovered, setIsHovered] = React.useState(false);
   const [hoverOnly, setHoverOnly] = React.useState(false);
@@ -55,6 +54,16 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
   const handleStartTour = () => {
     setIsOpen(false); // Close popover
     setTimeout(() => startTour(), 100); // Small delay for popover to close
+  };
+
+  const handleOpenDocs = () => {
+    setIsOpen(false);
+    // Navigate to /docs with chapter if available
+    if (helpInfo?.chapter !== undefined) {
+      router.push(`/docs?chapter=${helpInfo.chapter}`);
+    } else {
+      router.push("/docs");
+    }
   };
 
   // Determine if button should be visible
@@ -150,7 +159,7 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
-                  onClick={() => setShowHelpModal(true)}
+                  onClick={handleOpenDocs}
                 >
                   <BookOpen className="h-4 w-4 mr-2" />
                   Open Full Documentation
@@ -186,7 +195,7 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={() => setShowHelpModal(true)}
+                onClick={handleOpenDocs}
               >
                 <BookOpen className="h-4 w-4 mr-2" />
                 Open Documentation
@@ -195,14 +204,6 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
           )}
         </PopoverContent>
       </Popover>
-
-      {/* Contextual Help Modal - Full Documentation */}
-      <ContextualHelpModal
-        isOpen={showHelpModal}
-        onClose={() => setShowHelpModal(false)}
-        chapter={helpInfo?.chapter ?? null}
-        section={helpInfo?.section}
-      />
     </>
   );
 }
