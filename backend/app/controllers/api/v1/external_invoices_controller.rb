@@ -5,7 +5,7 @@ module Api
       # GET /api/v1/external_invoices
       # List invoices with optional filtering
       def index
-        invoices = ExternalInvoice.active.includes(:job)
+        invoices = ExternalInvoice.active.includes(:job, :warehouse_documents)
 
         # Filter by source
         invoices = invoices.where(source: params[:source]) if params[:source].present?
@@ -96,7 +96,7 @@ module Api
         job = Job.find(params[:job_id])
 
         invoices = ExternalInvoice.active
-                                  .includes(:job)
+                                  .includes(:job, :warehouse_documents)
                                   .where(job_id: job.id)
                                   .order(invoice_date: :desc)
 
@@ -168,10 +168,10 @@ module Api
 
         if job
           # Use job_id for fast lookup
-          invoices = ExternalInvoice.active.includes(:job).where(job_id: job.id)
+          invoices = ExternalInvoice.active.includes(:job, :warehouse_documents).where(job_id: job.id)
         else
           # Fall back to searching tracking_data JSON (slower but works for unlinked)
-          invoices = ExternalInvoice.active.includes(:job).with_tracking(tracking_option_name)
+          invoices = ExternalInvoice.active.includes(:job, :warehouse_documents).with_tracking(tracking_option_name)
         end
 
         invoices = invoices.order(invoice_date: :desc)
@@ -205,7 +205,7 @@ module Api
         contact = Contact.find(params[:contact_id])
 
         invoices = ExternalInvoice.active
-                                  .includes(:job)
+                                  .includes(:job, :warehouse_documents)
                                   .where(contact_id: contact.id)
                                   .order(invoice_date: :desc)
 
@@ -643,7 +643,9 @@ module Api
           # Xero-compatible fields for frontend backwards compatibility
           xero_invoice_id: invoice.external_id,
           xero_type: invoice.xero_type,
-          xero_status: invoice.xero_status
+          xero_status: invoice.xero_status,
+          # PDF sync status - true if a WarehouseDocument with storage_blob exists
+          has_pdf: invoice.warehouse_documents.any? { |wd| wd.storage_blob_id.present? }
         }
 
         if include_details
