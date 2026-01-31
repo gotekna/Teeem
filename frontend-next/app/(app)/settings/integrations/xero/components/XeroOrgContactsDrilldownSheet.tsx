@@ -95,8 +95,8 @@ export function XeroOrgContactsDrilldownSheet({
   // Selected tenant for drilldown (null = show org list)
   const [selectedTenant, setSelectedTenant] = React.useState<TenantStats | null>(null);
 
-  // Quick filter for the table
-  const [quickFilter, setQuickFilter] = React.useState<"all" | "unlinked" | "low-match">("unlinked");
+  // Quick filter for the table - default to "all" to see all contacts with match %
+  const [quickFilter, setQuickFilter] = React.useState<"all" | "unlinked" | "low-match">("all");
 
   // State for Xero link management sheet
   const [showLinkSheet, setShowLinkSheet] = React.useState(false);
