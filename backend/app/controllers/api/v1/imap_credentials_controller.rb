@@ -17,7 +17,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   # GET /api/v1/imap_credentials/org_status
   # Returns org-wide email health status (for header indicator)
-  # Shows aggregate health without exposing individual account details
+  # Shows breakdown by provider type for user clarity
   # FRC (Jan 2026): Header needs to show ALL org accounts' health, not just user's accessible accounts
   def org_status
     # Get ALL active IMAP credentials (org-wide)
@@ -29,10 +29,19 @@ class Api::V1::ImapCredentialsController < ApplicationController
     error_imap = all_imap.where.not(last_sync_error: [nil, '']).count
     syncing_imap = all_imap.where(last_sync_status: 'syncing').count
 
-    # Get MS365 org credentials status
-    ms365_credentials = MicrosoftCredential.app_credentials
+    # Get MS365 org credentials with details
+    ms365_credentials = MicrosoftCredential.app_credentials.order(is_primary: :desc, name: :asc)
     total_ms365 = ms365_credentials.count
     connected_ms365 = ms365_credentials.where(status: 'connected').count
+
+    # Build MS365 orgs list with status
+    ms365_orgs = ms365_credentials.map do |cred|
+      {
+        name: cred.name,
+        status: cred.status == 'connected' ? 'connected' : 'disconnected',
+        is_primary: cred.is_primary
+      }
+    end
 
     # Calculate overall status
     total = total_imap + total_ms365
@@ -61,8 +70,15 @@ class Api::V1::ImapCredentialsController < ApplicationController
         errors: error_imap,
         syncing: syncing_imap,
         overall_status: overall_status,
-        # Summary for tooltip
-        summary: "#{connected}/#{total} accounts connected"
+        summary: "#{connected}/#{total} accounts connected",
+        # Detailed breakdown for popover
+        ms365_orgs: ms365_orgs,
+        imap: {
+          total: total_imap,
+          connected: connected_imap,
+          errors: error_imap,
+          syncing: syncing_imap
+        }
       }
     }
   end
