@@ -63,6 +63,8 @@ class TenantSetting < ApplicationRecord
       setting.timezone ||= "Australia/Brisbane"
       setting.locale ||= "en-AU"
       setting.currency ||= "AUD"
+      # corporate_group_id is NOT NULL in schema, derive from tenant
+      setting.corporate_group_id ||= tenant.corporate_groups.first&.id
     end
   end
 
@@ -75,7 +77,10 @@ class TenantSetting < ApplicationRecord
     else
       # Fallback for contexts without tenant (e.g., console, migrations)
       first_or_create! do |setting|
-        setting.tenant_id ||= Tenant.first&.id
+        fallback_tenant = Tenant.first
+        setting.tenant_id ||= fallback_tenant&.id
+        # corporate_group_id is NOT NULL in schema
+        setting.corporate_group_id ||= fallback_tenant&.corporate_groups&.first&.id || CorporateGroup.first&.id
         setting.timezone ||= "Australia/Brisbane"
         setting.locale ||= "en-AU"
         setting.currency ||= "AUD"
