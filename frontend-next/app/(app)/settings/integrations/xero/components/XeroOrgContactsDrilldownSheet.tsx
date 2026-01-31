@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useSetAtom } from "jotai";
 import {
   Sheet,
   SheetContent,
@@ -29,6 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 import { XeroLinkToContactSheet } from "./XeroLinkToContactSheet";
 import { clearCachedRecords } from "@/lib/records-cache";
+import { searchQueryAtom } from "@/lib/table-atoms";
 
 // TenantStats interface matching XeroSyncStats
 interface TenantContactStats {
@@ -88,6 +90,7 @@ export function XeroOrgContactsDrilldownSheet({
   onLinkChanged,
 }: XeroOrgContactsDrilldownSheetProps) {
   const router = useRouter();
+  const setSearchQuery = useSetAtom(searchQueryAtom);
 
   // Selected tenant for drilldown (null = show org list)
   const [selectedTenant, setSelectedTenant] = React.useState<TenantStats | null>(null);
@@ -108,8 +111,14 @@ export function XeroOrgContactsDrilldownSheet({
       setSelectedTenant(null);
       setShowLinkSheet(false);
       setSelectedRow(null);
+      setSearchQuery(""); // Clear search when sheet closes
     }
-  }, [isOpen]);
+  }, [isOpen, setSearchQuery]);
+
+  // Clear search when switching tenants (prevents stale search from previous org)
+  React.useEffect(() => {
+    setSearchQuery("");
+  }, [selectedTenant, setSearchQuery]);
 
   // Handle back button
   const handleBack = () => {
