@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_31_230001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_01_010001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9702,9 +9702,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_230001) do
     t.text "personal_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "sent_from_user_id"
     t.index ["email"], name: "index_trial_invitations_on_email"
     t.index ["expires_at"], name: "index_trial_invitations_on_expires_at"
     t.index ["invited_by_user_id"], name: "index_trial_invitations_on_invited_by_user_id"
+    t.index ["sent_from_user_id"], name: "index_trial_invitations_on_sent_from_user_id"
     t.index ["status"], name: "index_trial_invitations_on_status"
     t.index ["tenant_id"], name: "index_trial_invitations_on_tenant_id"
     t.index ["token"], name: "index_trial_invitations_on_token", unique: true
@@ -11563,6 +11565,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_230001) do
   add_foreign_key "tenants", "jobs", column: "onboarding_job_id", on_delete: :nullify
   add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
+  add_foreign_key "trial_invitations", "users", column: "sent_from_user_id", on_delete: :nullify
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"
   add_foreign_key "unreal_measurements", "jobs"

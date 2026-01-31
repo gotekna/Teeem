@@ -971,6 +971,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
       :email_aliases  # Accepts comma-separated string from frontend
     )
 
+    # FRC (Jan 2026): Don't update password if blank - preserves existing password during edits
+    # Frontend sends password: "" for security (doesn't prefill existing password)
+    permitted.delete(:password) if permitted[:password].blank?
+
     # Convert comma-separated string to array for email_aliases
     if permitted[:email_aliases].is_a?(String)
       permitted[:email_aliases] = permitted[:email_aliases]
