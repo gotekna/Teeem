@@ -1,5 +1,5 @@
 class UserMailer < ApplicationMailer
-  default from: "TEEEM <noreply@teeem.app>"
+  # Inherits from: address from ApplicationMailer (uses SMTP_USERNAME env var)
 
   def welcome_email(user, temp_password)
     @user = user

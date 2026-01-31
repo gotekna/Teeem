@@ -1924,7 +1924,7 @@ export default function AllDocumentsPage() {
     >
       {/* Drag-and-drop overlay */}
       {isDragging && (
-        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center">
+        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center" data-tour="warehouse-upload">
           <div className="text-center">
             <Download className="h-12 w-12 text-primary mx-auto mb-2" />
             <p className="text-lg font-medium text-primary">Drop files to upload</p>
@@ -1960,7 +1960,7 @@ export default function AllDocumentsPage() {
 
           <div className="flex items-center gap-2">
             {/* Search */}
-            <div className="relative w-64">
+            <div className="relative w-64" data-tour="warehouse-search">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search documents..."
@@ -2093,7 +2093,7 @@ export default function AllDocumentsPage() {
         <div className={cn(
           "flex-1 overflow-auto px-4 py-4 border-r",
           previewDocument && "max-w-[50%]"
-        )}>
+        )} data-tour="warehouse-files">
           {loading ? (
             <div className="space-y-2">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -2102,7 +2102,7 @@ export default function AllDocumentsPage() {
             </div>
           ) : viewMode === "tree" ? (
             // Tree View
-            <div className="space-y-1">
+            <div className="space-y-1" data-tour="warehouse-folders">
               {treeData.map(node => renderTreeNode(node, 0))}
             </div>
           ) : viewMode === "list" ? (

@@ -139,5 +139,15 @@
     "sharp": "^0.34.5",
     "typescript": "^5",
     "vitest": "^4.0.16"
+  },
+  "overrides": {
+    "react-joyride": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    },
+    "react-floater": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
   }
 }
