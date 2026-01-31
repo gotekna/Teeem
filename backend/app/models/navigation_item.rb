@@ -18,6 +18,12 @@ class NavigationItem < ApplicationRecord
   }
 
   def visible_to?(user)
+    # Check tenant visibility first (if restricted)
+    if visible_to_tenant_ids.present?
+      return false unless visible_to_tenant_ids.include?(user.tenant_id)
+    end
+
+    # Then check role visibility (if restricted)
     return true if visible_to_roles.blank?
     # SSoT: Check against user_roles join table, not legacy role column
     (visible_to_roles & user.role_names).any?

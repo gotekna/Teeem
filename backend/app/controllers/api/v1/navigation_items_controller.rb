@@ -89,7 +89,7 @@ module Api
 
       def item_params
         params.require(:navigation_item).permit(
-          :name, :href, :icon, :badge_key, :navigation_group_id, :parent_id, :is_active, :position, :is_collapsed_default, visible_to_roles: []
+          :name, :href, :icon, :badge_key, :navigation_group_id, :parent_id, :is_active, :position, :is_collapsed_default, visible_to_roles: [], visible_to_tenant_ids: []
         )
       end
 
@@ -106,6 +106,7 @@ module Api
           is_active: item.is_active,
           is_collapsed_default: item.is_collapsed_default,
           visible_to_roles: item.visible_to_roles,
+          visible_to_tenant_ids: item.visible_to_tenant_ids,
           has_children: item.children.exists?,
           children_count: item.children.count,
           created_at: item.created_at,

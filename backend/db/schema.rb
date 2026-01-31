@@ -6786,6 +6786,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_132456) do
     t.boolean "is_collapsed_default", default: true
     t.datetime "created_at", default: -> { "now()" }, null: false
     t.datetime "updated_at", default: -> { "now()" }, null: false
+    t.bigint "visible_to_tenant_ids", default: [], array: true
+    t.index ["visible_to_tenant_ids"], name: "index_navigation_items_on_visible_to_tenant_ids", using: :gin
   end
 
   create_table "ndis_addendums", force: :cascade do |t|
