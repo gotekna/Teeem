@@ -24,10 +24,11 @@ class XeroApiClient
     "https://teeemrob.vercel.app"
   ].freeze
 
-  def initialize(redirect_uri: nil)
+  def initialize(redirect_uri: nil, teeem_tenant: nil)
     @client_id = ENV["XERO_CLIENT_ID"]
     @client_secret = ENV["XERO_CLIENT_SECRET"]
     @redirect_uri = redirect_uri || ENV["XERO_REDIRECT_URI"]
+    @teeem_tenant = teeem_tenant
 
     raise AuthenticationError, "Missing Xero credentials in environment" unless credentials_present?
   end
@@ -70,7 +71,10 @@ class XeroApiClient
 
   # Exchange authorization code for access token
   # Creates XeroCredential records for ALL authorized organizations
-  def exchange_code_for_token(code)
+  #
+  # @param code [String] OAuth authorization code
+  # @param teeem_tenant [Tenant] Optional TEEEM tenant to associate credentials with (for multi-tenancy)
+  def exchange_code_for_token(code, teeem_tenant: nil)
     begin
       client = oauth_client
       token = client.auth_code.get_token(code, redirect_uri: @redirect_uri)
@@ -92,7 +96,8 @@ class XeroApiClient
           refresh_token: token.refresh_token,
           expires_at: Time.current + token.expires_in.seconds,
           tenant_name: tenant["tenantName"],
-          tenant_type: tenant["tenantType"]
+          tenant_type: tenant["tenantType"],
+          teeem_tenant_id: teeem_tenant&.id || credential.teeem_tenant_id
         )
         credential.save!
 
@@ -299,7 +304,15 @@ class XeroApiClient
   # Check connection status across all Xero credentials
   # SSoT: Uses XeroConnectionHealth service for individual credential health
   def connection_status
-    all_credentials = XeroCredential.all
+    # Multi-tenancy: Filter by TEEEM tenant
+    # Master tenant sees all; other tenants only see their own Xero orgs
+    all_credentials = if @teeem_tenant&.master_tenant?
+                        XeroCredential.all
+                      elsif @teeem_tenant
+                        XeroCredential.for_teeem_tenant(@teeem_tenant)
+                      else
+                        XeroCredential.all  # Fallback for backward compatibility
+                      end
 
     if all_credentials.empty?
       return {

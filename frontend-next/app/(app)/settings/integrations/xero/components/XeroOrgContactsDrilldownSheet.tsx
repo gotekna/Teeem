@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useSetAtom } from "jotai";
 import {
   Sheet,
   SheetContent,
@@ -18,6 +19,7 @@ import {
   Building2,
   Check,
   ChevronRight,
+  ExternalLink,
   FileText,
   Link2Off,
   Percent,
@@ -25,10 +27,13 @@ import {
   Users,
   X,
   AlertTriangle,
+  FileCheck,
+  FileX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { XeroLinkToContactSheet } from "./XeroLinkToContactSheet";
 import { clearCachedRecords } from "@/lib/records-cache";
+import { searchQueryAtom } from "@/lib/table-atoms";
 
 // TenantStats interface matching XeroSyncStats
 interface TenantContactStats {
@@ -88,12 +93,13 @@ export function XeroOrgContactsDrilldownSheet({
   onLinkChanged,
 }: XeroOrgContactsDrilldownSheetProps) {
   const router = useRouter();
+  const setSearchQuery = useSetAtom(searchQueryAtom);
 
   // Selected tenant for drilldown (null = show org list)
   const [selectedTenant, setSelectedTenant] = React.useState<TenantStats | null>(null);
 
-  // Quick filter for the table
-  const [quickFilter, setQuickFilter] = React.useState<"all" | "unlinked" | "low-match">("unlinked");
+  // Quick filter for the table - default to "all" to see all contacts with match %
+  const [quickFilter, setQuickFilter] = React.useState<"all" | "unlinked" | "low-match">("all");
 
   // State for Xero link management sheet
   const [showLinkSheet, setShowLinkSheet] = React.useState(false);
@@ -108,8 +114,14 @@ export function XeroOrgContactsDrilldownSheet({
       setSelectedTenant(null);
       setShowLinkSheet(false);
       setSelectedRow(null);
+      setSearchQuery(""); // Clear search when sheet closes
     }
-  }, [isOpen]);
+  }, [isOpen, setSearchQuery]);
+
+  // Clear search when switching tenants (prevents stale search from previous org)
+  React.useEffect(() => {
+    setSearchQuery("");
+  }, [selectedTenant, setSearchQuery]);
 
   // Handle back button
   const handleBack = () => {
@@ -338,6 +350,52 @@ export function XeroOrgContactsDrilldownSheet({
         );
       }
 
+      // Blob health - clickable checkmark to view contact documents
+      if (columnKey === "blobs_healthy") {
+        const blobsHealthy = entry.blobs_healthy as boolean | null;
+        const blobsValid = (entry.blobs_valid as number) || 0;
+        const blobsInvalid = (entry.blobs_invalid as number) || 0;
+        const contactId = entry.contact_id as number | null;
+
+        // No PDFs at all
+        if (blobsHealthy === null || (blobsValid === 0 && blobsInvalid === 0)) {
+          return <span className="text-muted-foreground">-</span>;
+        }
+
+        // All blobs healthy - green checkmark, clickable to view contact docs
+        if (blobsHealthy) {
+          return (
+            <button
+              className="flex items-center gap-1 text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (contactId) {
+                  // Navigate to contact page documents tab
+                  router.push(`/contacts/${contactId}?tab=documents`);
+                }
+              }}
+              title={`${blobsValid} valid PDF${blobsValid !== 1 ? "s" : ""} - Click to view`}
+            >
+              <FileCheck className="h-4 w-4" />
+              <span className="text-xs font-medium">{blobsValid}</span>
+            </button>
+          );
+        }
+
+        // Some blobs invalid - amber/red warning
+        return (
+          <div
+            className="flex items-center gap-1 text-amber-600 dark:text-amber-400"
+            title={`${blobsInvalid} invalid blob${blobsInvalid !== 1 ? "s" : ""} (missing content hash)`}
+          >
+            <FileX className="h-4 w-4" />
+            <span className="text-xs font-medium">
+              {blobsValid}/{blobsValid + blobsInvalid}
+            </span>
+          </div>
+        );
+      }
+
       return null; // Use default rendering
     },
     [router]
@@ -373,7 +431,7 @@ export function XeroOrgContactsDrilldownSheet({
   return (
     <>
       <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <SheetContent side="right-wide" className="p-0 flex flex-col">
+        <SheetContent side="right-95" className="p-0 flex flex-col">
           <SheetHeader className="p-6 pb-4 border-b shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">

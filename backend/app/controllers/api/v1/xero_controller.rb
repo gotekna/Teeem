@@ -55,7 +55,8 @@ module Api
           Rails.logger.info("[Xero] callback request from origin: #{origin}, redirect_uri: #{redirect_uri || 'using default'}")
 
           client = XeroApiClient.new(redirect_uri: redirect_uri)
-          result = client.exchange_code_for_token(code)
+          # Pass current tenant for multi-tenancy scoping
+          result = client.exchange_code_for_token(code, teeem_tenant: current_tenant)
 
           # Trigger sync restart immediately after reconnection
           # This resumes syncing without waiting for scheduled jobs
@@ -95,9 +96,10 @@ module Api
 
       # GET /api/v1/xero/status
       # Returns the current Xero connection status
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def status
         begin
-          client = XeroApiClient.new
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
           status = client.connection_status
 
           render json: {
@@ -128,8 +130,17 @@ module Api
       # SSoT: Backend computes token status - frontend should NOT calculate from expires_at
       # Use status_display and expires_in_human instead of client-side Date calculations
       #
+      # GET /api/v1/xero/tenants
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def tenants
-        tenants = XeroCredential.all.map do |cred|
+        # Filter credentials by TEEEM tenant
+        credentials = if current_tenant&.master_tenant?
+                        XeroCredential.all
+                      else
+                        XeroCredential.for_teeem_tenant(current_tenant)
+                      end
+
+        tenants = credentials.map do |cred|
           {
             id: cred.id,
             tenant_id: cred.tenant_id,
@@ -1963,10 +1974,16 @@ module Api
       # GET /api/v1/xero/sync_stats
       # Returns comprehensive sync statistics for the Xero dashboard
       # Includes per-tenant stats, global stats, and cross-tenant matching info
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def sync_stats
         begin
-          # Get all Xero credentials (tenants)
-          credentials = XeroCredential.all
+          # Get Xero credentials filtered by tenant
+          # Master tenant sees all; other tenants only see their own Xero orgs
+          credentials = if current_tenant&.master_tenant?
+                          XeroCredential.all
+                        else
+                          XeroCredential.for_teeem_tenant(current_tenant)
+                        end
 
           # Per-tenant statistics
           tenant_stats = credentials.map do |cred|
@@ -1979,9 +1996,16 @@ module Api
             pending_review_count = tenant_links.pending_review.count
             with_errors_count = tenant_links.with_errors.count
 
+            # Unlinked = Links where TEEEM contact is inactive or deleted
+            # These Xero contacts won't sync properly until re-linked
+            unlinked_count = tenant_links
+              .joins("LEFT JOIN contacts c ON contact_external_links.contact_id = c.id AND (c.is_active = true OR c.is_active IS NULL)")
+              .where("c.id IS NULL")
+              .count
+
             # Count invoices/bills for this tenant
-            # SSoT: Use .active scope to match Stage 1 sync count (excludes voided/deleted)
-            tenant_invoices = ExternalInvoice.xero.active.where(tenant_id: tenant_id)
+            # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
+            tenant_invoices = ExternalInvoice.xero.active.where(tenant_id: tenant_id).where.not(status: "draft")
             invoices_count = tenant_invoices.sales_invoices.count
             bills_count = tenant_invoices.bills.count
             quotes_count = tenant_invoices.quotes.count
@@ -2015,6 +2039,7 @@ module Api
                 sync_enabled: enabled_count,
                 pending_review: pending_review_count,
                 with_errors: with_errors_count,
+                unlinked: unlinked_count,
                 cross_tenant_matches: cross_tenant_count,
                 last_synced_at: last_contact_sync
               },
@@ -2041,9 +2066,9 @@ module Api
           end
 
           # Global statistics (across all tenants)
-          # SSoT: Use .active scope to match Stage 1 sync count (excludes voided/deleted)
+          # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
           all_xero_links = ContactExternalLink.xero
-          all_invoices = ExternalInvoice.xero.active
+          all_invoices = ExternalInvoice.xero.active.where.not(status: "draft")
 
           # Total pending reviews
           total_pending_reviews = all_xero_links.pending_review.count
@@ -2147,13 +2172,21 @@ module Api
 
       # GET /api/v1/xero/common_contacts
       # Returns contacts linked to multiple Xero organizations
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def common_contacts
         begin
-          credentials = XeroCredential.all
+          # Filter credentials by TEEEM tenant
+          credentials = if current_tenant&.master_tenant?
+                          XeroCredential.all
+                        else
+                          XeroCredential.for_teeem_tenant(current_tenant)
+                        end
+          tenant_ids = credentials.pluck(:tenant_id)
 
-          # Find contacts linked to 2+ Xero tenants
+          # Find contacts linked to 2+ Xero tenants (within visible tenants)
           contact_ids_with_multiple_links = ContactExternalLink
             .xero
+            .where(tenant_id: tenant_ids)
             .group(:contact_id)
             .having("COUNT(DISTINCT tenant_id) >= 2")
             .count
