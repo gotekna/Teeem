@@ -289,8 +289,27 @@ class Api::V1::UsersController < ApplicationController
       qbcc_licence_class: user.qbcc_licence_class,
       can_sign_certificates: user.can_sign_certificates?,
       # Email signature style preference (Jan 2026)
-      # Fallback chain: User preference → Company default → 'modern-dark'
-      email_signature_style: user.email_signature_style || TenantSetting.instance.default_email_signature_style || 'modern-dark'
+      # If company forces a signature, use it; otherwise fallback chain
+      email_signature_style: resolve_user_signature_style(user),
+      # Force mode info for frontend
+      email_signature_forced: TenantSetting.instance.force_email_signature || false,
+      forced_signature_style: TenantSetting.instance.forced_signature_style,
+      # Custom company signature (if exists)
+      custom_email_signature_html: TenantSetting.instance.custom_email_signature_html,
+      custom_email_signature_name: TenantSetting.instance.custom_email_signature_name
     )
+  end
+
+  # Resolve the email signature style for a user
+  # If company forces a signature, use it regardless of user preference
+  def resolve_user_signature_style(user)
+    settings = TenantSetting.instance
+    if settings.force_email_signature && settings.forced_signature_style.present?
+      settings.forced_signature_style
+    else
+      user.email_signature_style ||
+        settings.default_email_signature_style ||
+        'modern-dark'
+    end
   end
 end

@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, HardHat, Building2, LayoutGrid, PenTool, X, Check, History, FileText, ExternalLink } from "lucide-react";
+import { Upload, HardHat, Building2, LayoutGrid, PenTool, X, Check, History, FileText, ExternalLink, Mail } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { HelpIcon, FieldLabel } from "@/components/help/HelpTooltip";
 import { api } from "@/lib/api";
@@ -43,6 +43,11 @@ import {
   getStoredPersona,
   setStoredPersona,
 } from "@/lib/personas";
+import {
+  SIGNATURE_STYLES,
+  type SignatureStyleId,
+  DEFAULT_SIGNATURE_STYLE,
+} from "@/lib/email-signature";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // QBCC Licence Classes relevant for Form 43 certificates
@@ -99,6 +104,10 @@ export default function ProfileSettingsPage() {
   const [signatureUsages, setSignatureUsages] = React.useState<SignatureUsage[]>([]);
   const [loadingHistory, setLoadingHistory] = React.useState(false);
   const [showHistory, setShowHistory] = React.useState(false);
+
+  // Email signature style state
+  const [emailSignatureStyle, setEmailSignatureStyle] = React.useState<SignatureStyleId>(DEFAULT_SIGNATURE_STYLE);
+  const [savingSignatureStyle, setSavingSignatureStyle] = React.useState(false);
 
   // Load persona from localStorage on mount
   React.useEffect(() => {

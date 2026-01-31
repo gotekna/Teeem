@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_31_210000) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_31_230001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9584,7 +9584,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_210000) do
   end
 
   create_table "tenant_settings", force: :cascade do |t|
-    t.bigint "corporate_group_id", null: false
+    t.bigint "corporate_group_id"
     t.string "company_name"
     t.string "abn"
     t.string "acn"
@@ -9640,6 +9640,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_210000) do
     t.jsonb "corporate_entity_types"
     t.jsonb "job_cascade_sort"
     t.string "postcode"
+    t.string "default_email_signature_style", default: "modern-dark"
+    t.text "custom_email_signature_html"
+    t.string "custom_email_signature_name", default: "Company Custom"
+    t.boolean "force_email_signature", default: false
+    t.string "forced_signature_style"
     t.index ["corporate_group_id"], name: "index_tenant_settings_on_corporate_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"
