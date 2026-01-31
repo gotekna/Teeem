@@ -70,18 +70,17 @@ module Api
         doc_id = params[:id]
         chapter = params[:chapter]
 
-        file_path = case doc_id
-        when "bible"
-                      Rails.root.join("..", "TEEEM_DOCS", "TEEEM_BIBLE.md")
-        when "teacher"
-                      Rails.root.join("..", "TEEEM_DOCS", "TEEEM_TEACHER.md")
-        when "lexicon"
-                      Rails.root.join("..", "TEEEM_DOCS", "TEEEM_LEXICON.md")
-        when "user-manual"
-                      Rails.root.join("..", "TEEEM_DOCS", "TEEEM_USER_MANUAL.md")
+        filename = case doc_id
+        when "bible" then "TEEEM_BIBLE.md"
+        when "teacher" then "TEEEM_TEACHER.md"
+        when "lexicon" then "TEEEM_LEXICON.md"
+        when "user-manual" then "TEEEM_USER_MANUAL.md"
         else
-                      return render json: { success: false, error: "Documentation not found" }, status: :not_found
+          return render json: { success: false, error: "Documentation not found" }, status: :not_found
         end
+
+        # Try multiple paths: local dev (../TEEEM_DOCS) and Heroku (TEEEM_DOCS in app root)
+        file_path = find_docs_file(filename)
 
         # If markdown file doesn't exist and it's Bible, generate from database
         if !File.exist?(file_path) && doc_id == "bible"
@@ -120,12 +119,11 @@ module Api
         end
 
         results = []
-        docs_path = Rails.root.join("..", "TEEEM_DOCS")
 
         # Search in Trinity+1 files
         [ "TEEEM_BIBLE.md", "TEEEM_TEACHER.md", "TEEEM_LEXICON.md", "TEEEM_USER_MANUAL.md" ].each do |filename|
-          file_path = docs_path.join(filename)
-          next unless File.exist?(file_path)
+          file_path = find_docs_file(filename)
+          next unless file_path && File.exist?(file_path)
 
           content = File.read(file_path)
           doc_type = filename.gsub("TEEEM_", "").gsub(".md", "").downcase
@@ -270,6 +268,18 @@ module Api
         chapter_end ||= lines.length
 
         lines[chapter_start...chapter_end].join("\n")
+      end
+
+      def find_docs_file(filename)
+        # Try multiple paths in order of preference:
+        # 1. Local dev: ../TEEEM_DOCS (relative to backend/)
+        # 2. Heroku: TEEEM_DOCS in Rails root (copied during deploy)
+        paths = [
+          Rails.root.join("..", "TEEEM_DOCS", filename),  # Local dev
+          Rails.root.join("TEEEM_DOCS", filename)          # Heroku deploy
+        ]
+
+        paths.find { |p| File.exist?(p) } || paths.first
       end
     end
   end
