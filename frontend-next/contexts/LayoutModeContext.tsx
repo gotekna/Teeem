@@ -52,19 +52,15 @@ const LayoutModeContext = React.createContext<LayoutModeContextType | undefined>
 // Compute classes based on layout mode
 // Note: These are now the ONLY source of overflow behavior (no hardcoded overflow in layout)
 function getContainerClassName(mode: LayoutMode): string {
+  // Container ALWAYS clips - the inner content div handles scrolling
+  // Having overflow-auto on BOTH causes scroll conflicts
   switch (mode) {
     case "padded":
-      // Padded mode: container scrolls
-      return "h-full overflow-auto";
     case "full-height":
-      // Full-height: container clips, content manages own scroll
-      return "h-full overflow-hidden";
     case "edge-to-edge":
-      return "h-full overflow-hidden";
     case "fullscreen":
-      return "h-full overflow-hidden";
     default:
-      return "h-full overflow-auto";
+      return "h-full overflow-hidden";
   }
 }
 
