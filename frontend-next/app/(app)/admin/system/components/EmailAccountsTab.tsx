@@ -87,6 +87,8 @@ interface ImapCredential {
   shared_with_user_ids: number[];
   shared_with_users: { id: number; name: string }[];
   user_id: number;
+  owner_name?: string; // Name of the credential owner
+  is_shared?: boolean; // True if current user is not the owner
 }
 
 interface Provider {
@@ -1303,68 +1305,104 @@ export function EmailAccountsTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Share2 className="h-5 w-5" />
-              Share Email Access
+              {sharingCredential?.is_shared ? "Email Access Details" : "Share Email Access"}
             </DialogTitle>
             <DialogDescription>
               {sharingCredential && (
-                <>
-                  Grant other team members access to view emails from{" "}
-                  <strong>{sharingCredential.email_address}</strong>
-                </>
+                sharingCredential.is_shared ? (
+                  <div className="space-y-1">
+                    <div>
+                      Viewing emails from{" "}
+                      <strong>{sharingCredential.email_address}</strong>
+                    </div>
+                    <div className="text-sm">
+                      Shared by{" "}
+                      <span className="font-medium text-foreground">
+                        {sharingCredential.owner_name || "Unknown"}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    Grant other team members access to view emails from{" "}
+                    <strong>{sharingCredential.email_address}</strong>
+                  </>
+                )
               )}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4 space-y-3 max-h-[400px] overflow-y-auto">
-            {shareableUsers.length === 0 ? (
-              <div className="flex items-center justify-center py-8">
-                <Spinner />
+          {sharingCredential?.is_shared ? (
+            // Viewing shared credential - show info only
+            <div className="py-4">
+              <div className="p-4 rounded-lg bg-muted/50 border">
+                <p className="text-sm text-muted-foreground">
+                  You have been granted access to view emails from this account.
+                  Only the owner can modify sharing settings.
+                </p>
               </div>
-            ) : (
-              shareableUsers
-                .filter((user) => user.id !== sharingCredential?.user_id) // Exclude owner
-                .map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                  >
-                    <Checkbox
-                      checked={selectedSharedUsers.includes(user.id)}
-                      onCheckedChange={() => handleToggleUserAccess(user.id)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{user.name}</div>
-                      <div className="text-sm text-muted-foreground truncate">
-                        {user.email}
+            </div>
+          ) : (
+            // Owner view - show sharing controls
+            <div className="py-4 space-y-3 max-h-[400px] overflow-y-auto">
+              {shareableUsers.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <Spinner />
+                </div>
+              ) : (
+                shareableUsers
+                  .filter((user) => user.id !== sharingCredential?.user_id) // Exclude owner
+                  .map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <Checkbox
+                        checked={selectedSharedUsers.includes(user.id)}
+                        onCheckedChange={() => handleToggleUserAccess(user.id)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{user.name}</div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {user.email}
+                        </div>
                       </div>
+                      {user.email === sharingCredential?.email_address && (
+                        <Badge variant="secondary" className="text-xs">
+                          Email owner
+                        </Badge>
+                      )}
                     </div>
-                    {user.email === sharingCredential?.email_address && (
-                      <Badge variant="secondary" className="text-xs">
-                        Email owner
-                      </Badge>
-                    )}
-                  </div>
-                ))
-            )}
-          </div>
+                  ))
+              )}
+            </div>
+          )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveSharing} disabled={savingSharing}>
-              {savingSharing ? (
-                <>
-                  <Spinner className="h-4 w-4 mr-2" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save
-                </>
-              )}
-            </Button>
+            {sharingCredential?.is_shared ? (
+              <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveSharing} disabled={savingSharing}>
+                  {savingSharing ? (
+                    <>
+                      <Spinner className="h-4 w-4 mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
