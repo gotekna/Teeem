@@ -105,6 +105,7 @@ export default function XeroIntegrationPage() {
   const [pdfSyncHealth, setPdfSyncHealth] = React.useState<PdfSyncHealth | null>(null);
   const [showConnectionsPopup, setShowConnectionsPopup] = React.useState(showConnectionsParam === "true");
   const [companyConnections, setCompanyConnections] = React.useState<CompanyXeroConnection[]>([]);
+  const [isMasterTenant, setIsMasterTenant] = React.useState(false);
   const [settingPrimary, setSettingPrimary] = React.useState<string | null>(null);
   const [organizationsExpanded, setOrganizationsExpanded] = React.useState<boolean | null>(null);
 
@@ -142,10 +143,11 @@ export default function XeroIntegrationPage() {
           const [tenantsResponse, pdfSyncResponse, connectionsResponse] = await Promise.all([
             api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
             api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
-            api.get<{ success: boolean; companies: CompanyXeroConnection[] }>("/api/v1/company_xero_connections"),
+            api.get<{ success: boolean; companies: CompanyXeroConnection[]; is_master_tenant?: boolean }>("/api/v1/company_xero_connections"),
           ]);
           setTenants(tenantsResponse.tenants || []);
           setCompanyConnections(connectionsResponse.companies || []);
+          setIsMasterTenant(connectionsResponse.is_master_tenant || false);
 
           // Extract health data from PDF sync response
           if (pdfSyncResponse.success && pdfSyncResponse.data) {
@@ -418,10 +420,13 @@ export default function XeroIntegrationPage() {
             <CardContent>
               {status?.connected ? (
                 <div className="flex items-center gap-2">
-                  <Button onClick={() => setShowConnectionsPopup(true)}>
-                    <Link2 className="h-4 w-4 mr-2" />
-                    Manage Company Connections
-                  </Button>
+                  {/* Only show Manage Company Connections for master tenant (admin) */}
+                  {isMasterTenant && (
+                    <Button onClick={() => setShowConnectionsPopup(true)}>
+                      <Link2 className="h-4 w-4 mr-2" />
+                      Manage Company Connections
+                    </Button>
+                  )}
                   <Button variant="outline" onClick={handleConnect} disabled={connecting}>
                     <RefreshCw className={`h-4 w-4 mr-2 ${connecting ? "animate-spin" : ""}`} />
                     Reconnect

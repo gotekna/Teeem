@@ -4,13 +4,22 @@ module Api
       before_action :set_connection, only: [ :show, :disconnect, :sync_accounts ]
 
       # GET /api/v1/company_xero_connections
-      # Returns ALL Xero organizations (credentials) and their linked TEEEM companies
+      # Returns Xero organizations for the current tenant (multi-tenancy isolation)
       #
       # SSoT: Uses XeroConnectionHealth service for unified status computation.
       # This ensures the status shown here matches XeroConnectionCard on company pages.
+      #
+      # Multi-tenancy:
+      # - Master tenant sees ALL Xero orgs (admin view)
+      # - Customer tenants only see their own Xero orgs
       def index
-        # Get all Xero credentials (organizations)
-        all_credentials = XeroCredential.all.order(created_at: :desc)
+        # Multi-tenancy: Filter Xero credentials by tenant
+        # Master tenant can see all; other tenants only see their own
+        all_credentials = if current_tenant&.master_tenant?
+                            XeroCredential.all.order(created_at: :desc)
+                          else
+                            XeroCredential.for_teeem_tenant(current_tenant).order(created_at: :desc)
+                          end
 
         # Get all company connections
         all_connections = CorporateCompanyXeroConnection.includes(:corporate_company).all
@@ -63,7 +72,9 @@ module Api
           success: true,
           organizations: organizations,
           total_organizations: organizations.count,
-          connected_organizations: organizations.count { |o| o[:connected] }
+          connected_organizations: organizations.count { |o| o[:connected] },
+          # Multi-tenancy: Tell frontend if this is the master tenant (admin view)
+          is_master_tenant: current_tenant&.master_tenant? || false
         }
       end
 

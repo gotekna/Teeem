@@ -55,7 +55,8 @@ module Api
           Rails.logger.info("[Xero] callback request from origin: #{origin}, redirect_uri: #{redirect_uri || 'using default'}")
 
           client = XeroApiClient.new(redirect_uri: redirect_uri)
-          result = client.exchange_code_for_token(code)
+          # Pass current tenant for multi-tenancy scoping
+          result = client.exchange_code_for_token(code, teeem_tenant: current_tenant)
 
           # Trigger sync restart immediately after reconnection
           # This resumes syncing without waiting for scheduled jobs

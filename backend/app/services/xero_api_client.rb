@@ -70,7 +70,10 @@ class XeroApiClient
 
   # Exchange authorization code for access token
   # Creates XeroCredential records for ALL authorized organizations
-  def exchange_code_for_token(code)
+  #
+  # @param code [String] OAuth authorization code
+  # @param teeem_tenant [Tenant] Optional TEEEM tenant to associate credentials with (for multi-tenancy)
+  def exchange_code_for_token(code, teeem_tenant: nil)
     begin
       client = oauth_client
       token = client.auth_code.get_token(code, redirect_uri: @redirect_uri)
@@ -92,7 +95,8 @@ class XeroApiClient
           refresh_token: token.refresh_token,
           expires_at: Time.current + token.expires_in.seconds,
           tenant_name: tenant["tenantName"],
-          tenant_type: tenant["tenantType"]
+          tenant_type: tenant["tenantType"],
+          teeem_tenant_id: teeem_tenant&.id || credential.teeem_tenant_id
         )
         credential.save!
 

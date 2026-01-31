@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_31_073044) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_31_075132) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10497,10 +10497,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_073044) do
     t.datetime "token_poisoned_at"
     t.string "poisoned_reason"
     t.integer "lock_version", default: 0, null: false
+    t.bigint "teeem_tenant_id"
     t.index ["circuit_state"], name: "index_xero_credentials_on_circuit_state"
     t.index ["is_primary"], name: "index_xero_credentials_on_is_primary"
     t.index ["last_successful_api_call_at"], name: "index_xero_credentials_on_last_successful_api_call_at"
     t.index ["status"], name: "index_xero_credentials_on_status"
+    t.index ["teeem_tenant_id"], name: "index_xero_credentials_on_teeem_tenant_id"
     t.index ["tenant_id"], name: "index_xero_credentials_on_tenant_id"
   end
 
@@ -11561,6 +11563,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_073044) do
   add_foreign_key "xero_alerts", "xero_credentials"
   add_foreign_key "xero_bank_transactions", "contacts"
   add_foreign_key "xero_chart_of_accounts", "tenants"
+  add_foreign_key "xero_credentials", "tenants", column: "teeem_tenant_id"
   add_foreign_key "xero_duplicate_items", "contacts"
   add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"
   add_foreign_key "xero_feature_tabs", "document_folders"
