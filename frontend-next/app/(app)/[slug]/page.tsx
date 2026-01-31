@@ -29,6 +29,7 @@ const STATIC_ROUTE_PREFIXES = [
   "settings",
   "admin",
   "corporate", // Has dedicated pages in /corporate/*
+  "onboarding", // Has dedicated onboarding hub pages
   // Note: Don't add foundation slugs here (jobs, contacts, etc.)
   // Those are intentionally handled by this [slug] route
 ];
