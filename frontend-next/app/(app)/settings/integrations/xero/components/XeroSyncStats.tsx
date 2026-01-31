@@ -205,9 +205,22 @@ export function XeroSyncStats() {
 
   const fetchData = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: SyncStatsData }>("/api/v1/xero/sync_stats");
+      // Fetch sync_stats and global pdf_sync_status in parallel
+      const [response, globalPdfResponse] = await Promise.all([
+        api.get<{ success: boolean; data: SyncStatsData }>("/api/v1/xero/sync_stats"),
+        api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"), // No tenant_id = global
+      ]);
+
       if (response.success) {
-        // Enrich tenant data with PDF sync stats and data sync stats
+        // Extract global totals and blob health (single call, not aggregated)
+        let globalTotals: TotalsSummary | undefined;
+        let globalBlobHealth: BlobHealth | undefined;
+        if (globalPdfResponse.success && globalPdfResponse.data) {
+          globalTotals = globalPdfResponse.data.totals_summary;
+          globalBlobHealth = globalPdfResponse.data.blob_health;
+        }
+
+        // Enrich tenant data with PDF sync stats (per-tenant for detailed view)
         const enrichedTenants = await Promise.all(
           response.data.tenants.map(async (tenant) => {
             try {
@@ -217,8 +230,6 @@ export function XeroSyncStats() {
               if (pdfResponse.success && pdfResponse.data) {
                 const stage1 = pdfResponse.data.stage1_data_sync;
                 const stage2 = pdfResponse.data.stage2_pdf_download || pdfResponse.data;
-                const totals = pdfResponse.data.totals_summary;
-                const blobHealth = pdfResponse.data.blob_health;
                 return {
                   ...tenant,
                   data_sync: stage1 ? {
@@ -241,8 +252,6 @@ export function XeroSyncStats() {
                     blocker: stage2.blocker || null,
                     breakdown: stage2.breakdown || null,
                   },
-                  totals_summary: totals || undefined,
-                  blob_health: blobHealth || undefined,
                 };
               }
             } catch (e) {
@@ -251,6 +260,17 @@ export function XeroSyncStats() {
             return tenant;
           })
         );
+
+        // Store global totals on the first tenant (for the overview card to access)
+        // This is a workaround - ideally we'd have a separate state for global stats
+        if (enrichedTenants.length > 0 && globalTotals) {
+          enrichedTenants[0] = {
+            ...enrichedTenants[0],
+            totals_summary: globalTotals,
+            blob_health: globalBlobHealth,
+          };
+        }
+
         setData({ ...response.data, tenants: enrichedTenants });
         setError(null);
       } else {
@@ -507,42 +527,24 @@ export function XeroSyncStats() {
         </Card>
       </div>
 
-      {/* Sync Status & Storage Health - Aggregated from all tenants */}
+      {/* Sync Status & Storage Health - Global stats (single API call) */}
       {(() => {
-        // Aggregate totals and blob health from all tenants
-        const aggregatedTotals = tenants.reduce((acc, t) => {
-          if (t.totals_summary) {
-            acc.total_all += t.totals_summary.total_all || 0;
-            acc.active += t.totals_summary.active || 0;
-            acc.voided_deleted += t.totals_summary.voided_deleted || 0;
-            acc.synced += t.totals_summary.synced || 0;
-            acc.pending += t.totals_summary.pending || 0;
-          }
-          return acc;
-        }, { total_all: 0, active: 0, voided_deleted: 0, synced: 0, pending: 0 });
-
-        const aggregatedBlobHealth = tenants.reduce((acc, t) => {
-          if (t.blob_health) {
-            acc.total_blobs += t.blob_health.total_blobs || 0;
-            acc.validated += t.blob_health.validated || 0;
-            acc.missing_hash += t.blob_health.missing_hash || 0;
-            acc.file_missing += t.blob_health.file_missing || 0;
-          }
-          return acc;
-        }, { total_blobs: 0, validated: 0, missing_hash: 0, file_missing: 0 });
-
-        const blobHealthPct = aggregatedBlobHealth.total_blobs > 0
-          ? Math.round((aggregatedBlobHealth.validated / aggregatedBlobHealth.total_blobs) * 100)
-          : 100;
-        const blobStatus = aggregatedBlobHealth.file_missing > 0 ? "files_missing"
-          : aggregatedBlobHealth.missing_hash > 0 ? "needs_validation"
-          : "healthy";
-        const syncPct = aggregatedTotals.active > 0
-          ? Math.round((aggregatedTotals.synced / aggregatedTotals.active) * 100)
-          : 0;
+        // Use global stats from first tenant (stored there by fetchData)
+        const globalTotals = tenants[0]?.totals_summary;
+        const globalBlobHealth = tenants[0]?.blob_health;
 
         // Only show if we have data
-        if (aggregatedTotals.total_all === 0 && aggregatedBlobHealth.total_blobs === 0) return null;
+        if (!globalTotals && !globalBlobHealth) return null;
+
+        const blobHealthPct = globalBlobHealth?.total_blobs && globalBlobHealth.total_blobs > 0
+          ? Math.round((globalBlobHealth.validated / globalBlobHealth.total_blobs) * 100)
+          : 100;
+        const blobStatus = globalBlobHealth?.file_missing && globalBlobHealth.file_missing > 0 ? "files_missing"
+          : globalBlobHealth?.missing_hash && globalBlobHealth.missing_hash > 0 ? "needs_validation"
+          : "healthy";
+        const syncPct = globalTotals?.active && globalTotals.active > 0
+          ? Math.round(((globalTotals.synced || 0) / globalTotals.active) * 100)
+          : 0;
 
         return (
           <Card className="border-cyan-200 dark:border-cyan-800 bg-cyan-50/50 dark:bg-cyan-950/20">
@@ -552,22 +554,22 @@ export function XeroSyncStats() {
                   <HardDrive className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
                 </div>
                 <CardTitle className="text-base">Sync Overview & Storage Health</CardTitle>
-                {blobStatus === "healthy" && aggregatedBlobHealth.total_blobs > 0 && (
+                {blobStatus === "healthy" && globalBlobHealth && globalBlobHealth.total_blobs > 0 && (
                   <Badge className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
                     <CheckCircle2 className="h-3 w-3 mr-1" />
                     All Blobs Validated
                   </Badge>
                 )}
-                {blobStatus === "needs_validation" && (
+                {blobStatus === "needs_validation" && globalBlobHealth && (
                   <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
                     <AlertTriangle className="h-3 w-3 mr-1" />
-                    {aggregatedBlobHealth.missing_hash} Need Validation
+                    {globalBlobHealth.missing_hash} Need Validation
                   </Badge>
                 )}
-                {blobStatus === "files_missing" && (
+                {blobStatus === "files_missing" && globalBlobHealth && (
                   <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">
                     <AlertTriangle className="h-3 w-3 mr-1" />
-                    {aggregatedBlobHealth.file_missing} Files Missing
+                    {globalBlobHealth.file_missing} Files Missing
                   </Badge>
                 )}
               </div>
@@ -576,30 +578,30 @@ export function XeroSyncStats() {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {/* Total All */}
                 <div className="text-center p-3 bg-white dark:bg-background rounded border">
-                  <div className="text-2xl font-bold">{aggregatedTotals.total_all.toLocaleString()}</div>
+                  <div className="text-2xl font-bold">{(globalTotals?.total_all || 0).toLocaleString()}</div>
                   <div className="text-xs text-muted-foreground">Total (All)</div>
                 </div>
                 {/* Active */}
                 <div className="text-center p-3 bg-white dark:bg-background rounded border">
-                  <div className="text-2xl font-bold">{aggregatedTotals.active.toLocaleString()}</div>
+                  <div className="text-2xl font-bold">{(globalTotals?.active || 0).toLocaleString()}</div>
                   <div className="text-xs text-muted-foreground">Active</div>
-                  {aggregatedTotals.voided_deleted > 0 && (
+                  {globalTotals && globalTotals.voided_deleted > 0 && (
                     <div className="text-[10px] text-muted-foreground mt-1">
-                      ({aggregatedTotals.voided_deleted} voided/deleted)
+                      ({globalTotals.voided_deleted} voided/deleted)
                     </div>
                   )}
                 </div>
                 {/* Synced */}
                 <div className="text-center p-3 bg-white dark:bg-background rounded border">
-                  <div className="text-2xl font-bold text-green-600">{aggregatedTotals.synced.toLocaleString()}</div>
+                  <div className="text-2xl font-bold text-green-600">{(globalTotals?.synced || 0).toLocaleString()}</div>
                   <div className="text-xs text-muted-foreground">Synced</div>
                   <Progress value={syncPct} className="h-1 mt-1 [&>div]:bg-green-500" />
                   <div className="text-[10px] text-muted-foreground mt-1">{syncPct}%</div>
                 </div>
                 {/* Pending */}
                 <div className="text-center p-3 bg-white dark:bg-background rounded border">
-                  <div className={`text-2xl font-bold ${aggregatedTotals.pending > 0 ? "text-blue-600" : "text-green-600"}`}>
-                    {aggregatedTotals.pending.toLocaleString()}
+                  <div className={`text-2xl font-bold ${(globalTotals?.pending || 0) > 0 ? "text-blue-600" : "text-green-600"}`}>
+                    {(globalTotals?.pending || 0).toLocaleString()}
                   </div>
                   <div className="text-xs text-muted-foreground">Pending</div>
                 </div>
@@ -617,7 +619,7 @@ export function XeroSyncStats() {
                   </div>
                   <div className="text-xs text-muted-foreground">Blobs Validated</div>
                   <div className="text-[10px] text-muted-foreground mt-1">
-                    {aggregatedBlobHealth.validated}/{aggregatedBlobHealth.total_blobs}
+                    {globalBlobHealth?.validated || 0}/{globalBlobHealth?.total_blobs || 0}
                   </div>
                 </div>
               </div>

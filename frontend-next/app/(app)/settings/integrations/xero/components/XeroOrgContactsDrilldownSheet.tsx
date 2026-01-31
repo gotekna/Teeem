@@ -120,33 +120,28 @@ export function XeroOrgContactsDrilldownSheet({
   const initialFilters = React.useMemo(() => {
     if (!selectedTenant) return [];
 
-    const filters = [
-      {
-        id: "tenant-filter",
-        column: "xero_tenant_id",
-        operator: "=" as const,
-        value: selectedTenant.tenant_id,
-      },
-    ];
+    const tenantFilter = {
+      id: "tenant-filter",
+      column: "xero_tenant_id",
+      operator: "=" as const,
+      value: selectedTenant.tenant_id,
+    };
 
-    // Add quick filter
+    // Return combined filters based on quick filter selection
     if (quickFilter === "unlinked") {
-      filters.push({
-        id: "unlinked-filter",
-        column: "synced",
-        operator: "=" as const,
-        value: false,
-      });
+      return [
+        tenantFilter,
+        { id: "unlinked-filter", column: "synced", operator: "=" as const, value: false },
+      ];
     } else if (quickFilter === "low-match") {
-      filters.push({
-        id: "low-match-filter",
-        column: "match_confidence",
-        operator: "<" as const,
-        value: 0.8,
-      });
+      return [
+        tenantFilter,
+        { id: "low-match-filter", column: "match_confidence", operator: "<" as const, value: 0.8 },
+      ];
     }
 
-    return filters;
+    // "all" - just tenant filter
+    return [tenantFilter];
   }, [selectedTenant, quickFilter]);
 
   // Custom cell renderer for the contact table
