@@ -59,10 +59,15 @@ class Rack::Attack
   end
 
   # Throttle Xero API requests (per tenant ID)
+  # Each tenant gets its own 60/minute limit, so 10 tenants = 600 total requests/minute
   throttle("xero/tenant", limit: 60, period: 1.minute) do |req|
     if req.path =~ %r{^/api/v1/xero/}
-      # Extract tenant ID from session or headers
-      req.env["rack.session"]&.dig("xero_tenant_id") || req.ip
+      # Extract tenant ID from query params, path, or fall back to IP
+      tenant_id = req.params["tenant_id"] ||
+                  req.path.match(%r{/tenants/([^/]+)})&.[](1) ||
+                  req.env["rack.session"]&.dig("xero_tenant_id")
+      # Use tenant_id + IP to rate limit per-tenant per-user
+      tenant_id ? "#{req.ip}:#{tenant_id}" : req.ip
     end
   end
 
