@@ -232,8 +232,14 @@ module Api
             default_theme_from_role: @current_user.default_theme_from_role,
             sidebar_collapsed_by_default: @current_user.sidebar_collapsed_by_default?,
             # Email signature style preference (Jan 2026)
-            # Fallback chain: User preference → Company default → 'modern-dark'
-            email_signature_style: @current_user.email_signature_style || TenantSetting.instance.default_email_signature_style || 'modern-dark'
+            # If company forces a signature, use it; otherwise fallback chain
+            email_signature_style: resolve_email_signature_style,
+            # Force mode info for frontend
+            email_signature_forced: TenantSetting.instance.force_email_signature || false,
+            forced_signature_style: TenantSetting.instance.forced_signature_style,
+            # Custom company signature (if exists)
+            custom_email_signature_html: TenantSetting.instance.custom_email_signature_html,
+            custom_email_signature_name: TenantSetting.instance.custom_email_signature_name
           },
           # Environment info for auto-login redirect check
           api_url: env_config[:api_url],
@@ -243,6 +249,20 @@ module Api
       end
 
       private
+
+      # Resolve the email signature style to use
+      # If company forces a signature, use it regardless of user preference
+      # Otherwise: User preference → Company default → 'modern-dark'
+      def resolve_email_signature_style
+        settings = TenantSetting.instance
+        if settings.force_email_signature && settings.forced_signature_style.present?
+          settings.forced_signature_style
+        else
+          @current_user.email_signature_style ||
+            settings.default_email_signature_style ||
+            'modern-dark'
+        end
+      end
 
       def dev_mode_enabled?
         ENV["DEV_MODE_AUTH_BYPASS"] == "true"

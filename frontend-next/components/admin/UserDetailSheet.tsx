@@ -14,7 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2 } from "lucide-react";
+import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock } from "lucide-react";
+import { SIGNATURE_STYLES, type SignatureStyleId, DEFAULT_SIGNATURE_STYLE, CUSTOM_SIGNATURE_ID } from "@/lib/email-signature";
 import {
   Select,
   SelectContent,
@@ -48,6 +49,8 @@ interface UserData {
   preferred_theme?: string;
   // Primary role (Jan 2026)
   primary_role_id?: number | null;
+  // Email signature style (Jan 2026)
+  email_signature_style?: string;
   [key: string]: unknown;
 }
 
@@ -66,7 +69,13 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  // Load available roles AND full user data when sheet opens
+  // Signature force mode state (Jan 2026)
+  const [signatureForced, setSignatureForced] = useState(false);
+  const [forcedSignatureStyle, setForcedSignatureStyle] = useState<string>("");
+  const [customSignatureName, setCustomSignatureName] = useState<string>("Company Custom");
+  const [hasCustomSignature, setHasCustomSignature] = useState(false);
+
+  // Load available roles, full user data, and company settings when sheet opens
   // SSoT: /api/v1/users/:id returns role_ids, Foundation API doesn't
   useEffect(() => {
     const loadData = async () => {
@@ -74,10 +83,16 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
 
       setLoading(true);
       try {
-        // Fetch roles and full user data in parallel
-        const [rolesResponse, userResponse] = await Promise.all([
+        // Fetch roles, user data, and company settings in parallel
+        const [rolesResponse, userResponse, companyResponse] = await Promise.all([
           api.get<Array<{ id: number; value: string; label: string }>>("/api/v1/roles"),
           api.get<UserData>(`/api/v1/users/${user.id}`),
+          api.get<{ success: boolean; data?: {
+            force_email_signature?: boolean;
+            forced_signature_style?: string;
+            custom_email_signature_html?: string;
+            custom_email_signature_name?: string;
+          } }>("/api/v1/company_settings"),
         ]);
 
         // SSoT: RolesController#index returns array of { id, value, label }
@@ -92,6 +107,14 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         // SSoT: UsersController#show returns full user with role_ids
         if (userResponse) {
           setFullUserData(userResponse);
+        }
+
+        // Company signature settings (Jan 2026)
+        if (companyResponse?.success && companyResponse.data) {
+          setSignatureForced(companyResponse.data.force_email_signature || false);
+          setForcedSignatureStyle(companyResponse.data.forced_signature_style || "");
+          setHasCustomSignature(!!companyResponse.data.custom_email_signature_html);
+          setCustomSignatureName(companyResponse.data.custom_email_signature_name || "Company Custom");
         }
       } catch (err) {
         console.error("Failed to load data:", err);
@@ -120,6 +143,8 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         preferred_theme: userData.preferred_theme || "light",
         // Primary role (Jan 2026)
         primary_role_id: userData.primary_role_id || null,
+        // Email signature style (Jan 2026)
+        email_signature_style: userData.email_signature_style || DEFAULT_SIGNATURE_STYLE,
       });
     }
   }, [fullUserData, user]);
@@ -146,6 +171,8 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             preferred_theme: editData.preferred_theme,
             // Primary role (Jan 2026)
             primary_role_id: editData.primary_role_id,
+            // Email signature style (Jan 2026)
+            email_signature_style: editData.email_signature_style,
           },
         }
       );
@@ -354,6 +381,53 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Email Signature Style (Jan 2026) */}
+          <div className="space-y-1">
+            <Label className="flex items-center gap-1.5 text-sm">
+              {signatureForced ? (
+                <Lock className="h-3.5 w-3.5 text-amber-500" />
+              ) : (
+                <PenLine className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              Email Signature
+              {signatureForced && (
+                <Badge variant="outline" className="ml-2 text-xs bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400">
+                  Company Required
+                </Badge>
+              )}
+            </Label>
+            {signatureForced ? (
+              <div className="h-9 px-3 py-2 rounded-md border bg-muted/50 text-sm text-muted-foreground flex items-center">
+                {forcedSignatureStyle === CUSTOM_SIGNATURE_ID
+                  ? customSignatureName
+                  : SIGNATURE_STYLES.find(s => s.id === forcedSignatureStyle)?.name || "Company Signature"}
+              </div>
+            ) : (
+              <Select
+                value={editData.email_signature_style || DEFAULT_SIGNATURE_STYLE}
+                onValueChange={(value) => setEditData({ ...editData, email_signature_style: value })}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Select signature style" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Custom company signature (if exists) - shown first */}
+                  {hasCustomSignature && (
+                    <SelectItem value={CUSTOM_SIGNATURE_ID}>
+                      {customSignatureName}
+                    </SelectItem>
+                  )}
+                  {/* Built-in styles */}
+                  {SIGNATURE_STYLES.map((style) => (
+                    <SelectItem key={style.id} value={style.id}>
+                      {style.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Read-only info - compact single line */}
