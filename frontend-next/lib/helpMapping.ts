@@ -122,13 +122,52 @@ export const PAGE_HELP_MAPPING: Record<string, HelpInfo> = {
   '/custom-tables': { chapter: 18, section: 'overview' },
   '/settings/custom-tables': { chapter: 18, section: 'setup' },
 
-  // Corporate Module (Chapter 19)
+  // Corporate Module (Chapter 19) - Basic corporate pages
   '/corporate': { chapter: 19, section: 'overview' },
   '/corporate/health-report': { chapter: 19, section: 'health-report' },
-  '/corporate/directors': { chapter: 19, section: 'directors' },
-  '/corporate/compliance-calendar': { chapter: 19, section: 'compliance' },
-  '/corporate/asic-logins': { chapter: 19, section: 'asic' },
-  '/corporate/minute-templates': { chapter: 19, section: 'minutes' },
+
+  // Corporate Module Extended (Chapter 20)
+  '/corporate/directors': { chapter: 20, section: 'directors' },
+  '/corporate/shareholders': { chapter: 20, section: 'shareholders' },
+  '/corporate/beneficiaries': { chapter: 20, section: 'beneficiaries' },
+  '/corporate/compliance-calendar': { chapter: 20, section: 'compliance' },
+  '/corporate/asic-logins': { chapter: 20, section: 'asic' },
+  '/corporate/minute-templates': { chapter: 20, section: 'minutes' },
+  '/settings/corporate': { chapter: 20, section: 'settings' },
+
+  // Work Health & Safety (Chapter 21)
+  '/whs': { chapter: 21, section: 'overview' },
+  '/whs/incidents': { chapter: 21, section: 'incidents' },
+  '/whs/inspections': { chapter: 21, section: 'inspections' },
+  '/whs/inductions': { chapter: 21, section: 'inductions' },
+  '/whs/swms': { chapter: 21, section: 'swms' },
+  '/whs/action-items': { chapter: 21, section: 'action-items' },
+
+  // Customer Portal (Chapter 22)
+  '/portal': { chapter: 22, section: 'overview' },
+  '/portal/access': { chapter: 22, section: 'access' },
+  '/portal/quotes': { chapter: 22, section: 'quotes' },
+  '/portal/invoices': { chapter: 22, section: 'invoices' },
+  '/portal/payments': { chapter: 22, section: 'payments' },
+  '/portal/messages': { chapter: 22, section: 'messages' },
+
+  // File Warehouse (Chapter 23)
+  '/warehouse': { chapter: 23, section: 'overview' },
+  '/warehouse/folders': { chapter: 23, section: 'folders' },
+  '/warehouse/documents': { chapter: 23, section: 'documents' },
+  '/settings/connections': { chapter: 23, section: 'storage' },
+
+  // E-Signatures (Chapter 24)
+  '/signatures': { chapter: 24, section: 'overview' },
+  '/signatures/send': { chapter: 24, section: 'send' },
+  '/signatures/pending': { chapter: 24, section: 'pending' },
+  '/signatures/completed': { chapter: 24, section: 'completed' },
+
+  // Data Warehouse & Reports (Chapter 25)
+  '/reports': { chapter: 25, section: 'overview' },
+  '/reports/builder': { chapter: 25, section: 'builder' },
+  '/reports/scheduled': { chapter: 25, section: 'scheduled' },
+  '/data-warehouse': { chapter: 25, section: 'data-warehouse' },
 
   // Documentation Page
   '/documentation': { chapter: 0, section: 'overview' },
@@ -184,6 +223,12 @@ export function getChapterName(chapterNumber: number): string {
     17: 'Workflows & Automation',
     18: 'Custom Tables & Formulas',
     19: 'Corporate Module',
+    20: 'Corporate Module Extended',
+    21: 'Work Health & Safety',
+    22: 'Customer Portal',
+    23: 'File Warehouse',
+    24: 'E-Signatures',
+    25: 'Data Warehouse & Reports',
   };
 
   return chapterNames[chapterNumber] || 'Help';

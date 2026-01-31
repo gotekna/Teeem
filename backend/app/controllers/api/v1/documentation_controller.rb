@@ -57,7 +57,7 @@ module Api
             icon: "📘",
             audience: "End Users",
             path: "TEEEM_USER_MANUAL.md",
-            chapters: 20
+            chapters: 26
           }
         ]
 
