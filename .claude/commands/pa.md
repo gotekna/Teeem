@@ -150,9 +150,10 @@ echo "✅ Frontend branches merged"
 
 ### Step 7 - Deploy Backend (OPTIMIZED - Single Directory, Parallel Deploys)
 
-**Check if backend files were in the commit:**
+**Check if backend files changed in recent commits (last 10):**
 ```bash
-git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip"
+# Check last 10 commits for backend changes - catches committed-but-undeployed changes
+git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip"
 ```
 
 **If backend changed, use optimized deploy:**
@@ -231,7 +232,7 @@ echo "✅ All backend deploys complete"
 **Only run migration check if commit includes db/migrate files:**
 
 ```bash
-if git diff --name-only HEAD~1 HEAD | grep -q "^backend/db/migrate/"; then
+if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/db/migrate/"; then
   echo "🔄 Migrations detected - verifying..."
 
   # Check all 3 environments

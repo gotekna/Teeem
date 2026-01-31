@@ -156,7 +156,7 @@ echo "✅ Frontend branch merged"
 ### Step 4.6 - Verify Backend Changes Were Committed
 **CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
 ```bash
-git diff --name-only HEAD~1 HEAD | grep backend/
+git diff --name-only HEAD~10 HEAD 2>/dev/null | grep backend/
 ```
 **If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
 
@@ -164,7 +164,7 @@ git diff --name-only HEAD~1 HEAD | grep backend/
 
 **Check if backend files were in the commit:**
 ```bash
-git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
+git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
 ```
 
 **If backend changed, use optimized deploy:**
@@ -229,7 +229,7 @@ echo "✅ All backend deploys complete"
 **Only run migration check if commit includes db/migrate files:**
 
 ```bash
-if git diff --name-only HEAD~1 HEAD | grep -q "^backend/db/migrate/"; then
+if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/db/migrate/"; then
   echo "🔄 Migrations detected - verifying..."
 
   echo "Checking Staging migrations..."
@@ -252,7 +252,7 @@ fi
 BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
 COMMIT_HASH=$(git rev-parse --short HEAD)
 COMMIT_MSG=$(git log -1 --pretty=%s)
-BACKEND_DEPLOYED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "deployed" || echo "skipped")
+BACKEND_DEPLOYED=$(git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "deployed" || echo "skipped")
 ```
 
 **Output format:**

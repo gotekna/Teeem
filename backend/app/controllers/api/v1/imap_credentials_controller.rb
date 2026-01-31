@@ -713,8 +713,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   # GET /api/v1/imap_credentials/shareable_users
   # List users who can be granted access to email credentials
+  # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
   def shareable_users
-    users = User.order(:name).map do |user|
+    tenant_user_ids = current_tenant&.users&.pluck(:id) || []
+    users = User.where(id: tenant_user_ids).order(:name).map do |user|
       {
         id: user.id,
         name: user.name,
