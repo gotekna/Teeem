@@ -157,6 +157,14 @@ module Api
         # Company-wide default email signature style (users can override)
         base[:default_email_signature_style] = settings.default_email_signature_style || 'modern-dark'
 
+        # Custom company signature (Jan 2026)
+        base[:custom_email_signature_html] = settings.custom_email_signature_html
+        base[:custom_email_signature_name] = settings.custom_email_signature_name || 'Company Custom'
+
+        # Force signature on all users (Jan 2026)
+        base[:force_email_signature] = settings.force_email_signature || false
+        base[:forced_signature_style] = settings.forced_signature_style
+
         base
       end
 
@@ -199,6 +207,12 @@ module Api
           :api_environment,
           # Company-wide default email signature style
           :default_email_signature_style,
+          # Custom company signature (Jan 2026)
+          :custom_email_signature_html,
+          :custom_email_signature_name,
+          # Force signature on all users (Jan 2026)
+          :force_email_signature,
+          :forced_signature_style,
           # NOTE: link_expiry_days is managed via Storage Config (warehouse_providers_controller)
           # It's returned in settings_json for reading but not editable via this endpoint
           working_days: [ :monday, :tuesday, :wednesday, :thursday, :friday, :saturday, :sunday ],

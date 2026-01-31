@@ -91,7 +91,10 @@ export const SIGNATURE_STYLES = [
   },
 ] as const;
 
-export type SignatureStyleId = (typeof SIGNATURE_STYLES)[number]["id"];
+// Custom company signature (added dynamically when company has one)
+export const CUSTOM_SIGNATURE_ID = "custom" as const;
+
+export type SignatureStyleId = (typeof SIGNATURE_STYLES)[number]["id"] | typeof CUSTOM_SIGNATURE_ID;
 
 export const DEFAULT_SIGNATURE_STYLE: SignatureStyleId = "modern-dark";
 
@@ -101,13 +104,20 @@ export const DEFAULT_SIGNATURE_STYLE: SignatureStyleId = "modern-dark";
 
 /**
  * Generates HTML email signature based on the selected style
+ * For custom signatures, pass customHtml parameter
  */
 export function generateSignatureByStyle(
   style: SignatureStyleId,
   user: SignatureUserData,
-  company?: SignatureCompanyData
+  company?: SignatureCompanyData,
+  customHtml?: string
 ): string {
   if (!user?.name || style === "none") return "";
+
+  // Handle custom company signature
+  if (style === "custom" && customHtml) {
+    return expandCustomSignature(customHtml, user, company);
+  }
 
   switch (style) {
     case "modern-dark":
@@ -131,6 +141,34 @@ export function generateSignatureByStyle(
     default:
       return generateModernDark(user, company);
   }
+}
+
+/**
+ * Expand custom signature HTML with user/company tokens
+ * Tokens: {{name}}, {{email}}, {{job_title}}, {{mobile}}, {{company}}, {{website}}, {{address}}
+ */
+function expandCustomSignature(
+  html: string,
+  user: SignatureUserData,
+  company?: SignatureCompanyData
+): string {
+  let result = html;
+
+  // User tokens
+  result = result.replace(/\{\{name\}\}/gi, user.name || "");
+  result = result.replace(/\{\{email\}\}/gi, user.email || "");
+  result = result.replace(/\{\{job_title\}\}/gi, user.job_title || "");
+  result = result.replace(/\{\{mobile\}\}/gi, user.mobile_phone || "");
+
+  // Company tokens
+  result = result.replace(/\{\{company\}\}/gi, company?.name || "");
+  result = result.replace(/\{\{website\}\}/gi, company?.website || "");
+  result = result.replace(/\{\{address\}\}/gi, company?.address || "");
+  result = result.replace(/\{\{phone\}\}/gi, company?.phone || "");
+  result = result.replace(/\{\{logo\}\}/gi, company?.logo_light || company?.logo_dark || "");
+
+  // Add signature marker for detection
+  return `${SIGNATURE_MARKER}\n<br><br>\n${result}`;
 }
 
 /**
