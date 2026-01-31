@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_31_132456) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_31_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1893,49 +1893,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_132456) do
     t.datetime "updated_at", null: false
     t.index ["corporate_company_id", "month"], name: "idx_company_monthly_pl_unique", unique: true
     t.index ["corporate_company_id"], name: "index_corporate_company_monthly_pls_on_corporate_company_id"
-  end
-
-  create_table "corporate_company_settings", force: :cascade do |t|
-    t.string "company_name"
-    t.string "abn"
-    t.string "gst_number"
-    t.string "email"
-    t.string "phone"
-    t.text "address"
-    t.string "logo_url"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "twilio_account_sid"
-    t.string "twilio_auth_token"
-    t.string "twilio_phone_number"
-    t.boolean "twilio_enabled", default: false
-    t.string "timezone", default: "Australia/Brisbane"
-    t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>false, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}, null: false
-    t.jsonb "job_cascade_sort"
-    t.string "qbcc_license"
-    t.string "logo_mobile"
-    t.string "logo_dark"
-    t.string "website"
-    t.string "postcode"
-    t.jsonb "corporate_entity_types", default: ["Company", "Trust", "Superfund", "Charity", "Corporate Trustee", "Sole Trader"], null: false
-    t.date "gl_lock_date"
-    t.text "team_email_domains", default: [], array: true
-    t.string "bank_name"
-    t.string "bank_bsb"
-    t.string "bank_account_number"
-    t.string "bank_account_name"
-    t.string "internal_email_domains", default: "tekna.com.au,teeem.au,teeem.com", comment: "Comma-separated list of internal email domains"
-    t.string "monitored_mailbox_pay", default: "Pay@tekna.com.au", comment: "Mailbox for incoming invoices/bills"
-    t.string "monitored_mailbox_newtask", default: "newtask@tekna.com.au", comment: "Mailbox for creating new tasks from emails"
-    t.string "monitored_mailbox_newjob", default: "newjob@tekna.com.au", comment: "Mailbox for creating new jobs from emails"
-    t.string "monitored_mailbox_newcase", default: "newcase@tekna.com.au", comment: "Mailbox for creating new cases from emails"
-    t.string "brand_color_primary"
-    t.string "brand_color_primary_foreground"
-    t.string "brand_color_secondary"
-    t.string "brand_color_muted"
-    t.string "brand_color_accent"
-    t.string "api_environment", default: "production"
-    t.integer "link_expiry_days", default: 7, null: false, comment: "Days before presigned download URLs expire (default: 7)"
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|
@@ -9667,6 +9624,22 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_132456) do
     t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>true, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}
     t.jsonb "team_email_domains", default: []
     t.bigint "tenant_id"
+    t.string "internal_email_domains"
+    t.string "monitored_mailbox_pay"
+    t.string "monitored_mailbox_newtask"
+    t.string "monitored_mailbox_newjob"
+    t.string "monitored_mailbox_newcase"
+    t.string "brand_color_primary"
+    t.string "brand_color_primary_foreground"
+    t.string "brand_color_secondary"
+    t.string "brand_color_muted"
+    t.string "brand_color_accent"
+    t.string "api_environment", default: "production"
+    t.integer "link_expiry_days", default: 7, null: false
+    t.date "gl_lock_date"
+    t.jsonb "corporate_entity_types"
+    t.jsonb "job_cascade_sort"
+    t.string "postcode"
     t.index ["corporate_group_id"], name: "index_tenant_settings_on_corporate_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"

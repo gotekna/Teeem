@@ -1613,26 +1613,21 @@ Rails.application.routes.draw do
         end
       end
 
-      # Corporate Company Settings (document paths, Email SSoT)
-      resource :corporate_company_settings, only: [] do
-        get :document_paths, on: :collection
-        patch :document_paths, on: :collection, action: :update_document_paths
-
-        # DEPRECATED: Use /api/v1/warehouse_provider instead
-        # Kept for backward compatibility - redirects to new controller
-        get :sharepoint, on: :collection
-        patch :sharepoint, on: :collection, action: :update_sharepoint
-        post "sharepoint/test", on: :collection, action: :test_sharepoint
-
-        # Email SSoT Configuration
-        get :email_config, on: :collection
-        patch :email_config, on: :collection, action: :update_email_config
-
-        # Brand Colors SSoT Configuration
-        get :brand, on: :collection
-        patch :brand, on: :collection, action: :update_brand
-        post "brand/detect", on: :collection, action: :detect_brand
-        post "brand/apply", on: :collection, action: :apply_brand
+      # Tenant Settings - SSoT for all tenant configuration
+      resource :tenant_settings, only: [:show, :update] do
+        collection do
+          post :test_twilio
+          get :document_paths
+          get :sharepoint
+          patch :sharepoint, action: :update_sharepoint
+          post "sharepoint/test", action: :test_sharepoint
+          get :email_config
+          patch :email_config, action: :update_email_config
+          get :brand
+          patch :brand, action: :update_brand
+          post "brand/detect", action: :detect_brand
+          post "brand/apply", action: :apply_brand
+        end
       end
 
       # NOTE: folder_templates routes removed - SSoT: EntityTab is now the source of truth for folder structure
