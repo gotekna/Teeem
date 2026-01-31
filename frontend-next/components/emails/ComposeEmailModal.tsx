@@ -648,26 +648,36 @@ export function ComposeEmailModal({
             Save Draft
           </Button>
 
-          {/* From Account - native select for reliability inside dialogs */}
+          {/* From Account - shows main email + aliases for selected account */}
           {accounts.length > 0 && (
             <select
-              value={formData.credential_id}
+              value={`${formData.credential_id}:${formData.from_address}`}
               onChange={(e) => {
-                const account = accounts.find(a => String(a.id) === e.target.value);
+                const [credId, fromAddr] = e.target.value.split(':');
+                const account = accounts.find(a => String(a.id) === credId);
                 if (account) {
                   setFormData({
                     ...formData,
-                    credential_id: String(account.id),
-                    from_address: account.email_address || "",
+                    credential_id: credId,
+                    from_address: fromAddr || account.email_address,
                   });
                 }
               }}
-              className="h-9 px-3 text-sm border rounded-md bg-background max-w-[250px]"
+              className="h-9 px-3 text-sm border rounded-md bg-background max-w-[300px]"
             >
               {accounts.map((account) => (
-                <option key={account.id} value={String(account.id)}>
-                  {account.email_address}
-                </option>
+                <optgroup key={account.id} label={account.name || account.email_address}>
+                  {/* Main email address */}
+                  <option value={`${account.id}:${account.email_address}`}>
+                    {account.email_address}
+                  </option>
+                  {/* Aliases (if any) */}
+                  {account.email_aliases?.map((alias) => (
+                    <option key={alias} value={`${account.id}:${alias}`}>
+                      {alias} (alias)
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           )}
