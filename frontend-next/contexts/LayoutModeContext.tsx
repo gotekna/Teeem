@@ -71,17 +71,17 @@ function getContainerClassName(mode: LayoutMode): string {
 function getContentClassName(mode: LayoutMode): string {
   switch (mode) {
     case "padded":
-      // Padded mode: standard padding, content flows naturally (container scrolls)
-      return "pt-6 pb-0 px-4 flex flex-col";
+      // Padded mode: inner div scrolls (layout adds h-full, we add overflow-auto)
+      return "pt-6 pb-0 px-4 flex flex-col overflow-auto";
     case "full-height":
       // Full-height: content fills available space, manages own scroll
-      return "h-full pt-4 pb-0 px-4 flex flex-col overflow-auto";
+      return "pt-4 pb-0 px-4 flex flex-col overflow-auto";
     case "edge-to-edge":
-      return "h-full flex flex-col overflow-auto";
+      return "flex flex-col overflow-auto";
     case "fullscreen":
-      return "h-full flex flex-col overflow-auto";
+      return "flex flex-col overflow-auto";
     default:
-      return "pt-6 pb-0 px-4 flex flex-col";
+      return "pt-6 pb-0 px-4 flex flex-col overflow-auto";
   }
 }
 
