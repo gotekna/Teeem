@@ -84,16 +84,8 @@ export function PageTour({ forceShow = false, onTourEnd }: PageTourProps) {
     const currentTour = getTourForRoute(pathname);
     setTour(currentTour);
     setStepIndex(0);
-
-    // Auto-start tour for new users (not completed yet)
-    if (currentTour && (forceShow || !isTourCompleted(currentTour.id))) {
-      // Small delay to let page render
-      const timer = setTimeout(() => {
-        setRun(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [pathname, forceShow]);
+    setRun(false); // Don't auto-start - only run when user clicks "Take a Tour"
+  }, [pathname]);
 
   // Handle tour callbacks
   const handleJoyrideCallback = (data: CallBackProps) => {
