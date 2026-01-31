@@ -1,4 +1,5 @@
 class ApplicationMailer < ActionMailer::Base
-  default from: "TEEEM <noreply@teeem.app>"
+  # From address must match SMTP_USERNAME for PolarisMail authentication
+  default from: -> { "TEEEM <#{ENV.fetch('SMTP_USERNAME', 'robert@teeem.com.au')}>" }
   layout "mailer"
 end

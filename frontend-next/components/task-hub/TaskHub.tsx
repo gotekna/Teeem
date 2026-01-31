@@ -120,7 +120,7 @@ export function TaskHub() {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-tour="tasks-list">
       {/* Compact Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -147,7 +147,7 @@ export function TaskHub() {
           <Button variant="ghost" size="sm" onClick={refresh} className="h-8 w-8 p-0">
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
-          <Button size="sm" onClick={() => setCreateDialogOpen(true)} className="h-8">
+          <Button size="sm" onClick={() => setCreateDialogOpen(true)} className="h-8" data-tour="tasks-add">
             <Plus className="h-3.5 w-3.5 mr-1" />
             Add
           </Button>
@@ -172,7 +172,7 @@ export function TaskHub() {
       )}
 
       {/* Filter & View Mode Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4" data-tour="tasks-filters">
         {/* Filter: Mine / All */}
         <div className="flex items-center bg-muted rounded-md p-0.5">
           <button
@@ -255,7 +255,7 @@ export function TaskHub() {
         <div className="w-px h-6 bg-border" />
 
         {/* View Mode: List / Board / Gantt */}
-        <div className="flex items-center bg-muted rounded-md p-0.5">
+        <div className="flex items-center bg-muted rounded-md p-0.5" data-tour="tasks-views">
           <button
             onClick={() => setActiveView('list')}
             className={cn(

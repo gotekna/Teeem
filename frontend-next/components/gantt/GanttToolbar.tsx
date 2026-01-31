@@ -153,7 +153,7 @@ export function GanttToolbar({
   return (
     <div className="flex items-center justify-between gap-2 px-2 py-1.5 border-b bg-muted/30">
       {/* Left Group: Zoom & Navigation */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1" data-tour="gantt-zoom">
         <Button
           variant="ghost"
           size="icon"
@@ -304,6 +304,7 @@ export function GanttToolbar({
           onClick={onToggleDependencies}
           title={showDependencies ? 'Hide Dependencies' : 'Show Dependencies'}
           className="h-8 w-8"
+          data-tour="gantt-dependencies"
         >
           <GitBranch className="h-4 w-4" />
         </Button>
