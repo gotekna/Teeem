@@ -9,8 +9,29 @@ module Api
       # POST /api/v1/signup
       # Create a new tenant (self-service signup)
       def create
+        # Check for invitation token
+        invitation = nil
+        if params[:invite_token].present?
+          invitation = TrialInvitation.valid.find_by(token: params[:invite_token])
+          if invitation.nil?
+            return render json: {
+              success: false,
+              error: "Invalid or expired invitation"
+            }, status: :unprocessable_entity
+          end
+        end
+
+        # Use invitation data as defaults if available
+        effective_params = signup_params.to_h
+        if invitation
+          effective_params[:company_name] ||= invitation.company_name
+          effective_params[:admin_email] ||= invitation.email
+          effective_params[:admin_first_name] ||= invitation.name.split.first
+          effective_params[:admin_last_name] ||= invitation.name.split[1..].join(' ')
+        end
+
         # Validate required params
-        missing = required_params - signup_params.keys.select { |k| signup_params[k].present? }
+        missing = required_params - effective_params.keys.select { |k| effective_params[k].present? }
         if missing.any?
           return render json: {
             success: false,
@@ -19,7 +40,7 @@ module Api
         end
 
         # Check if company name/slug already exists
-        slug = signup_params[:company_name].to_s.parameterize
+        slug = effective_params[:company_name].to_s.parameterize
         if CorporateGroup.exists?(slug: slug)
           return render json: {
             success: false,
@@ -28,19 +49,28 @@ module Api
         end
 
         # Check if admin email already exists
-        if User.exists?(email: signup_params[:admin_email])
+        if User.exists?(email: effective_params[:admin_email])
           return render json: {
             success: false,
             error: "An account with this email already exists"
           }, status: :unprocessable_entity
         end
 
-        # Provision the tenant
-        service = TenantProvisioningService.new(signup_params.to_h)
+        # Provision the tenant with trial if from invitation
+        provision_params = effective_params.merge(
+          start_trial: invitation.present?,
+          trial_days: 30,
+          invited_by: invitation&.invited_by
+        )
+        service = TenantProvisioningService.new(provision_params)
         result = service.provision!
 
         if result[:success]
           tenant = result[:tenant]
+
+          # Mark invitation as accepted if present
+          invitation&.accept!(tenant)
+
           render json: {
             success: true,
             message: "Account created successfully",
@@ -48,7 +78,8 @@ module Api
               id: tenant.id,
               name: tenant.name,
               slug: tenant.slug,
-              login_url: "https://#{tenant.slug}.teeem.com.au"
+              login_url: "https://#{tenant.slug}.teeem.com.au",
+              trial_ends_at: tenant.trial_ends_at&.iso8601
             },
             admin_user: {
               id: result[:admin_user].id,

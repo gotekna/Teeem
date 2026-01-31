@@ -5,9 +5,11 @@
 # - invoices (ExternalInvoiceSyncService - every 30 min)
 # - contacts (XeroContactSyncService - every 30 min)
 # - pdfs (XeroAttachmentSyncService - every 2 hours)
-# - payments (future)
+# - payments (future - NOT IMPLEMENTED)
 class XeroSyncStatus < ApplicationRecord
-  SYNC_TYPES = %w[invoices contacts pdfs payments bank_transactions].freeze
+  # Only include implemented sync types. "payments" was never implemented and causes
+  # false "red" health status because it has no records.
+  SYNC_TYPES = %w[invoices contacts pdfs bank_transactions].freeze
   STATUSES = %w[success failed in_progress].freeze
 
   validates :sync_type, presence: true, inclusion: { in: SYNC_TYPES }
@@ -70,10 +72,14 @@ class XeroSyncStatus < ApplicationRecord
       statuses = tenant_id ? for_tenant(tenant_id) : all
       statuses = statuses.order(last_synced_at: :desc)
 
-      # SSoT: Thresholds should be > expected sync interval
-      # Most syncs run every 30 min, so stale = 45 min, critical = 90 min
-      stale_threshold = 45.minutes
-      critical_threshold = 90.minutes
+      # SSoT: Per-sync-type thresholds based on ACTUAL schedules from recurring.yml
+      # FRC (Jan 2026): Single 45-min threshold was wrong for pdfs (2hr) and bank_transactions (6hr)
+      sync_thresholds = {
+        "invoices" => { stale: 10.minutes, critical: 20.minutes },           # runs every 5 min
+        "contacts" => { stale: 60.minutes, critical: 120.minutes },          # webhook-driven
+        "pdfs" => { stale: 3.hours, critical: 4.hours },                     # runs every 2 hours
+        "bank_transactions" => { stale: 8.hours, critical: 10.hours }        # runs every 6 hours
+      }
 
       result = {}
       health_statuses = []
@@ -81,6 +87,7 @@ class XeroSyncStatus < ApplicationRecord
       SYNC_TYPES.each do |sync_type|
         # Get the most recent sync status for this type (already ordered DESC)
         status = statuses.find { |s| s.sync_type == sync_type }
+        thresholds = sync_thresholds[sync_type] || { stale: 45.minutes, critical: 90.minutes }
 
         if status
           # Calculate freshness
@@ -88,18 +95,18 @@ class XeroSyncStatus < ApplicationRecord
           age_seconds = last_synced ? (Time.current - last_synced).to_i : nil
           age_minutes = age_seconds ? (age_seconds / 60.0).round(1) : nil
 
-          # Determine health status: green (< 5 min), yellow (5-10 min), red (> 10 min)
+          # Determine health status based on sync-type-specific thresholds
           health_status = if age_seconds.nil?
             "red"
-          elsif age_seconds <= stale_threshold
+          elsif age_seconds <= thresholds[:stale]
             "green"
-          elsif age_seconds <= critical_threshold
+          elsif age_seconds <= thresholds[:critical]
             "yellow"
           else
             "red"
           end
 
-          is_stale = age_seconds.nil? || age_seconds > stale_threshold
+          is_stale = age_seconds.nil? || age_seconds > thresholds[:stale]
 
           health_statuses << health_status
 

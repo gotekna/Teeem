@@ -1,0 +1,31 @@
+You're Invited to Try TEEEM!
+==============================
+
+Hi <%= @invitation.name %>,
+
+<%= @invited_by&.name || 'The TEEEM team' %> has invited you to try TEEEM for your company, <%= @invitation.company_name %>.
+
+TEEEM is a complete project management platform for builders. Start your 30-day free trial today - no credit card required.
+
+What you'll get:
+- Complete job & project management
+- Estimates, purchase orders & invoicing
+- Document management & storage
+- Team collaboration tools
+- Xero integration
+- Unlimited support during your trial
+
+Start Your Free Trial: <%= @signup_url %>
+
+This invitation expires on <%= @expires_at.strftime('%d %B %Y') %>.
+
+<% if @invitation.personal_message.present? %>
+Personal message from <%= @invited_by&.name %>:
+"<%= @invitation.personal_message %>"
+<% end %>
+
+If you have any questions before signing up, just reply to this email.
+
+---
+(c) <%= Time.current.year %> Tekna. All rights reserved.
+You received this email because <%= @invited_by&.name || 'someone' %> invited you to try TEEEM.

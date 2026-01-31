@@ -16,8 +16,17 @@ import {
   Users,
   Briefcase,
   Package,
-  ListTodo,
   Plus,
+  MoreHorizontal,
+  FileText,
+  FileSpreadsheet,
+  Presentation,
+  StickyNote,
+  Mail,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +45,6 @@ import {
 } from "@/components/ui/popover";
 import { InspiringBanner } from "./InspiringBanner";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
-import { HeaderDebugTools } from "@/components/debug/HeaderDebugTools";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { CreateTaskDialog } from "@/components/task-hub/CreateTaskDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -73,7 +81,16 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [unreadCount, setUnreadCount] = React.useState(0);
-  const [workflowTaskCount, setWorkflowTaskCount] = React.useState(0);
+  const [emailAccounts, setEmailAccounts] = React.useState<Array<{
+    id: number;
+    name: string;
+    email: string;
+    type: 'imap' | 'microsoft';
+    status: 'connected' | 'error' | 'syncing' | 'disconnected';
+    lastSyncedAt: string | null;
+    error: string | null;
+  }>>([]);
+  const [emailOverallStatus, setEmailOverallStatus] = React.useState<ConnectionStatus>('disconnected');
   const [xeroStatus, setXeroStatus] = React.useState<ConnectionStatus>('disconnected');
   const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
@@ -97,17 +114,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         }
       } catch (error) {
         console.debug("Failed to fetch unread count:", error);
-      }
-    };
-
-    const fetchWorkflowTaskCount = async () => {
-      try {
-        const response = await api.get<{ total: number; success: boolean }>("/api/v1/bpmn_tasks");
-        if (response?.success && response?.total !== undefined) {
-          setWorkflowTaskCount(response.total);
-        }
-      } catch (error) {
-        console.debug("Failed to fetch workflow task count:", error);
       }
     };
 
@@ -206,6 +212,97 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         setOffice365Status('disconnected');
         setOffice365Tooltip('Microsoft 365: Not Connected');
       }
+
+      // Fetch email account statuses (IMAP + Microsoft)
+      const accounts: typeof emailAccounts = [];
+
+      // 1. Fetch IMAP credentials
+      try {
+        const imapResponse = await api.get<{
+          success: boolean;
+          data: Array<{
+            id: number;
+            name: string;
+            email_address: string;
+            last_sync_status: string | null;
+            last_synced_at: string | null;
+            last_sync_error: string | null;
+            is_active: boolean;
+          }>;
+        }>("/api/v1/imap_credentials");
+
+        if (imapResponse?.success && imapResponse?.data) {
+          imapResponse.data.forEach(cred => {
+            if (cred.is_active) {
+              let status: 'connected' | 'error' | 'syncing' | 'disconnected' = 'disconnected';
+              if (cred.last_sync_status === 'syncing') {
+                status = 'syncing';
+              } else if (cred.last_sync_error) {
+                status = 'error';
+              } else if (cred.last_synced_at) {
+                status = 'connected';
+              }
+              accounts.push({
+                id: cred.id,
+                name: cred.name || cred.email_address,
+                email: cred.email_address,
+                type: 'imap',
+                status,
+                lastSyncedAt: cred.last_synced_at,
+                error: cred.last_sync_error,
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.debug("Failed to fetch IMAP credentials:", error);
+      }
+
+      // 2. Add Microsoft orgs that have email sync configured
+      try {
+        const msOrgsResponse = await api.get<{
+          success: boolean;
+          organizations: Array<{
+            id: number;
+            name: string;
+            status: string;
+            mailboxes?: string[];
+          }>;
+        }>("/api/v1/microsoft_app/status");
+
+        if (msOrgsResponse?.success && msOrgsResponse?.organizations) {
+          msOrgsResponse.organizations.forEach(org => {
+            if (org.status === 'connected') {
+              accounts.push({
+                id: org.id,
+                name: org.name,
+                email: `${org.name} (Microsoft 365)`,
+                type: 'microsoft',
+                status: 'connected',
+                lastSyncedAt: null, // MS doesn't track this the same way
+                error: null,
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.debug("Failed to fetch Microsoft orgs for email status:", error);
+      }
+
+      setEmailAccounts(accounts);
+
+      // Calculate overall email status
+      if (accounts.length === 0) {
+        setEmailOverallStatus('disconnected');
+      } else if (accounts.some(a => a.status === 'error')) {
+        setEmailOverallStatus('error');
+      } else if (accounts.every(a => a.status === 'connected')) {
+        setEmailOverallStatus('connected');
+      } else if (accounts.some(a => a.status === 'syncing')) {
+        setEmailOverallStatus('degraded'); // Use degraded for "syncing" state
+      } else {
+        setEmailOverallStatus('degraded');
+      }
     };
 
     // Prevent duplicate fetches on React StrictMode double-mount
@@ -213,13 +310,11 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     fetchingRef.current = true;
 
     fetchUnreadCount();
-    fetchWorkflowTaskCount();
     fetchIntegrationStatus();
 
-    // Poll every 30 seconds for unread count and workflow tasks
+    // Poll every 30 seconds for unread count
     const interval = setInterval(() => {
       fetchUnreadCount();
-      fetchWorkflowTaskCount();
     }, 30000);
     return () => {
       clearInterval(interval);
@@ -260,7 +355,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     : user?.email?.[0]?.toUpperCase() || "U";
 
   return (
-    <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-border bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-background dark:shadow-none transition-all duration-300">
+    <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-border bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-background dark:shadow-none transition-all duration-300 overflow-hidden">
       {/* Logo - always visible */}
       <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
         <div className="w-7 h-7 bg-primary text-primary-foreground flex items-center justify-center text-sm">
@@ -285,8 +380,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         <Menu className="h-5 w-5" />
       </button>
 
-      <div className="flex flex-1 gap-x-2 self-stretch lg:gap-x-3">
-        <div className="flex flex-1 items-center gap-x-1 lg:gap-x-2">
+      <div className="flex flex-1 gap-x-2 self-stretch lg:gap-x-3 min-w-0 overflow-hidden">
+        <div className="flex flex-1 items-center gap-x-1 lg:gap-x-2 min-w-0">
           {/* Quick Create Task */}
           <button
             onClick={() => setShowCreateTask(true)}
@@ -323,94 +418,142 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             <GraduationCap className="h-4 w-4" />
           </Link>
 
-          {/* Notes Icon */}
-          <Link prefetch={false}
-            href="/notebooks"
-            className="p-1.5 text-muted-foreground hover:text-amber-500 dark:hover:text-amber-400 rounded-md"
-            title="Notes"
-          >
-            <span className="sr-only">Notes</span>
-            <div className="h-4 w-4 flex items-center justify-center font-bold text-xs border border-current rounded">
-              N
-            </div>
-          </Link>
-
-          {/* TeeemXL - Excel Tools (opens in new tab, fullscreen) */}
-          <a
-            href="/admin/system/teeem-xl"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-1.5 text-muted-foreground hover:text-green-500 dark:text-green-400 dark:hover:text-green-400 rounded-md"
-            title="TeeemXL - New Spreadsheet (opens in new tab)"
-          >
-            <span className="sr-only">TeeemXL</span>
-            <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
-              XL
-            </div>
-          </a>
-
-          {/* TeeemWord - Word Documents (opens in new tab, fullscreen) */}
-          <a
-            href="/admin/system/teeem-word"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-1.5 text-muted-foreground hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-400 rounded-md"
-            title="TeeemWord - New Document (opens in new tab)"
-          >
-            <span className="sr-only">TeeemWord</span>
-            <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
-              W
-            </div>
-          </a>
-
-          {/* TeeemPowerPoint - Presentations (opens in new tab, fullscreen) */}
-          <a
-            href="/admin/system/teeem-powerpoint"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-1.5 text-muted-foreground hover:text-orange-500 dark:text-orange-400 dark:hover:text-orange-400 rounded-md"
-            title="TeeemPowerPoint - New Presentation (opens in new tab)"
-          >
-            <span className="sr-only">TeeemPowerPoint</span>
-            <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
-              PP
-            </div>
-          </a>
-
-          {/* TeeemPDF - PDF Editor (opens in new tab, fullscreen) */}
-          <a
-            href="/admin/system/teeem-pdf"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-1.5 text-muted-foreground hover:text-red-500 dark:text-red-400 dark:hover:text-red-400 rounded-md"
-            title="TeeemPDF - New PDF Document (opens in new tab)"
-          >
-            <span className="sr-only">TeeemPDF</span>
-            <div className="h-4 w-4 flex items-center justify-center font-bold text-[8px] border border-current rounded bg-current/5">
-              PDF
-            </div>
-          </a>
-
-          {/* Workflow Tasks */}
-          <Link prefetch={false}
-            href="/tasks/workflow"
-            className="relative p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md"
-            title={workflowTaskCount > 0 ? `${workflowTaskCount} pending workflow task${workflowTaskCount !== 1 ? 's' : ''}` : 'Workflow Tasks'}
-          >
-            <span className="sr-only">Workflow Tasks</span>
-            <ListTodo className="h-4 w-4" />
-            {workflowTaskCount > 0 && (
-              <Badge
-                variant="default"
-                className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center p-0 text-[10px] bg-blue-500"
+          {/* File Tools Menu (Notes, Excel, Word, PowerPoint, PDF) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="p-1.5 text-muted-foreground hover:text-foreground dark:hover:text-white rounded-md"
+                title="Create New..."
               >
-                {workflowTaskCount > 9 ? "9+" : workflowTaskCount}
-              </Badge>
-            )}
-          </Link>
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuItem asChild>
+                <Link href="/notebooks" className="flex items-center">
+                  <StickyNote className="mr-2 h-4 w-4 text-amber-500" />
+                  Notes
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href="/admin/system/teeem-xl" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                  <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
+                  New Spreadsheet
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="/admin/system/teeem-word" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                  <FileText className="mr-2 h-4 w-4 text-blue-500" />
+                  New Document
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="/admin/system/teeem-powerpoint" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                  <Presentation className="mr-2 h-4 w-4 text-orange-500" />
+                  New Presentation
+                </a>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <a href="/admin/system/teeem-pdf" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                  <FileText className="mr-2 h-4 w-4 text-red-500" />
+                  New PDF
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Notifications */}
           <NotificationBell />
+
+          {/* Email Status - shows all email accounts (IMAP + Microsoft) */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className={cn(
+                  "relative p-1.5 rounded-md transition-colors",
+                  getStatusColors(emailOverallStatus)
+                )}
+                title={`Email: ${emailAccounts.length} account${emailAccounts.length !== 1 ? 's' : ''}`}
+              >
+                <Mail className="h-4 w-4" />
+                {/* Status indicator dot */}
+                {emailOverallStatus === 'connected' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-border" />
+                )}
+                {emailOverallStatus === 'degraded' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-border" />
+                )}
+                {emailOverallStatus === 'disconnected' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-muted-foreground border border-white dark:border-border" />
+                )}
+                {emailOverallStatus === 'error' && (
+                  <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-border" />
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-0">
+              <div className="p-3 border-b border-border">
+                <h4 className="font-medium text-sm">Email Accounts</h4>
+                <p className="text-xs text-muted-foreground">
+                  {emailAccounts.length === 0
+                    ? "No email accounts configured"
+                    : `${emailAccounts.filter(a => a.status === 'connected').length}/${emailAccounts.length} syncing`}
+                </p>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {emailAccounts.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No email accounts connected</p>
+                    <Link href="/settings/connections" className="text-primary hover:underline text-xs">
+                      Add email account
+                    </Link>
+                  </div>
+                ) : (
+                  emailAccounts.map(account => (
+                    <div key={`${account.type}-${account.id}`} className="px-3 py-2 border-b border-border last:border-0 hover:bg-muted/50">
+                      <div className="flex items-start gap-2">
+                        <div className="mt-0.5">
+                          {account.status === 'connected' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                          {account.status === 'syncing' && <Clock className="h-4 w-4 text-orange-500 animate-pulse" />}
+                          {account.status === 'error' && <XCircle className="h-4 w-4 text-red-500" />}
+                          {account.status === 'disconnected' && <AlertCircle className="h-4 w-4 text-muted-foreground" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{account.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{account.email}</p>
+                          {account.lastSyncedAt && (
+                            <p className="text-[10px] text-muted-foreground">
+                              Last sync: {new Date(account.lastSyncedAt).toLocaleString('en-AU', {
+                                day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+                              })}
+                            </p>
+                          )}
+                          {account.error && (
+                            <p className="text-[10px] text-red-500 truncate" title={account.error}>
+                              {account.error}
+                            </p>
+                          )}
+                        </div>
+                        <Badge variant="outline" className="text-[9px] shrink-0">
+                          {account.type === 'microsoft' ? 'M365' : 'IMAP'}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="p-2 border-t border-border bg-muted/30">
+                <Link
+                  href="/settings/connections"
+                  className="block text-center text-xs text-primary hover:underline"
+                >
+                  Manage Email Accounts
+                </Link>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           {/* Office 365 Status */}
           <Link prefetch={false}
@@ -503,35 +646,32 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           {/* Help Button */}
           <FloatingHelpButton inline={true} />
 
-          {/* Debug Tools - dev/staging only */}
-          <HeaderDebugTools />
-
           {/* Separator */}
           <div
             aria-hidden="true"
-            className="hidden lg:block lg:h-5 lg:w-px lg:bg-muted dark:lg:bg-white/10"
+            className="hidden xl:block xl:h-5 xl:w-px xl:bg-muted dark:xl:bg-white/10"
           />
 
           {/* Profile dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1.5">
-                <Avatar className="h-7 w-7">
+              <button className="flex items-center gap-1.5 shrink min-w-0">
+                <Avatar className="h-7 w-7 shrink-0">
                   <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
                 </Avatar>
-                <span className="hidden lg:flex lg:items-center">
-                  <span className="text-sm font-medium text-foreground dark:text-white">
+                <span className="hidden 2xl:flex 2xl:items-center min-w-0">
+                  <span className="text-sm font-medium text-foreground dark:text-white truncate max-w-[100px]">
                     {user?.name || user?.email || "Guest"}
                   </span>
                   {(() => {
                     const role = user?.role;
                     return typeof role === "string" && role ? (
-                      <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+                      <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 shrink-0">
                         {role}
                       </Badge>
                     ) : null;
                   })()}
-                  <ChevronDown className="ml-1 h-4 w-4 text-muted-foreground" />
+                  <ChevronDown className="ml-1 h-4 w-4 text-muted-foreground shrink-0" />
                 </span>
               </button>
             </DropdownMenuTrigger>
