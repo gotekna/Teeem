@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { HelpCircle, BookOpen, Lightbulb, CheckSquare, ExternalLink } from "lucide-react";
+import { HelpCircle, BookOpen, Lightbulb, CheckSquare, ExternalLink, Play } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -11,6 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { ContextualHelpModal } from "./ContextualHelpModal";
 import { getHelpForPage, getPageHelp, type PageHelp } from "@/lib/helpMapping";
+import { getTourForRoute } from "@/lib/tours/tour-definitions";
+import { usePageTour } from "./PageTour";
 import { cn } from "@/lib/utils";
 
 interface FloatingHelpButtonProps {
@@ -20,15 +22,25 @@ interface FloatingHelpButtonProps {
 export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) {
   const pathname = usePathname();
   const [showHelpModal, setShowHelpModal] = React.useState(false);
+  const [isOpen, setIsOpen] = React.useState(false);
+  const { startTour } = usePageTour();
 
   // Get contextual help for current page
   const helpInfo = getHelpForPage(pathname);
   const pageHelp = getPageHelp(pathname);
 
+  // Check if tour exists for this page
+  const hasTour = getTourForRoute(pathname) !== null;
+
+  const handleStartTour = () => {
+    setIsOpen(false); // Close popover
+    setTimeout(() => startTour(), 100); // Small delay for popover to close
+  };
+
   return (
     <>
       {/* Help Button with Popover */}
-      <Popover>
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <button
             className={cn(
@@ -92,8 +104,21 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
                 </div>
               )}
 
-              {/* Footer - Full Documentation Link */}
-              <div className="p-3 bg-muted/30">
+              {/* Footer - Tour & Documentation Links */}
+              <div className="p-3 bg-muted/30 space-y-2">
+                {/* Take Tour Button - only show if tour exists */}
+                {hasTour && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                    onClick={handleStartTour}
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Take a Tour of This Page
+                  </Button>
+                )}
+
                 <Button
                   variant="ghost"
                   size="sm"
@@ -116,6 +141,20 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
               <p className="text-sm text-muted-foreground mb-4">
                 No specific help available for this page yet.
               </p>
+
+              {/* Take Tour Button - only show if tour exists */}
+              {hasTour && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full mb-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  onClick={handleStartTour}
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Take a Tour of This Page
+                </Button>
+              )}
+
               <Button
                 variant="outline"
                 size="sm"

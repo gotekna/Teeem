@@ -12,6 +12,8 @@ class XeroBankTransactionSyncJob < ApplicationJob
   include XeroJobBase
   queue_as :default
 
+  # FRC (Jan 2026): Updated to sync ALL connected XeroCredentials, not just primary
+  # Bug: Was only syncing primary + CorporateCompanyXeroConnection, missing 9 of 10 orgs
   def perform(options = {})
     options = options.with_indifferent_access if options.is_a?(Hash)
     Rails.logger.info("Starting XeroBankTransactionSyncJob")
@@ -29,50 +31,36 @@ class XeroBankTransactionSyncJob < ApplicationJob
 
     client = XeroApiClient.new
 
-    # 1. Sync from main XeroCredential (existing behavior)
-    main_credential = XeroCredential.current
-    if main_credential.present?
-      # Pre-flight lockout check
-      if XeroRateLimitTracker.current_lockout(tenant_id: main_credential.tenant_id).present?
-        lockout_remaining = XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: main_credential.tenant_id)
-        Rails.logger.warn("[BankTransactionSync] Main tenant locked out for #{lockout_remaining}s, scheduling retry")
-        result[:tenants_skipped_lockout] += 1
-        schedule_retry(options, lockout_remaining + 60)
-      else
-        tenant_result = sync_tenant_with_rate_limiting(client, main_credential.tenant_id, result, options)
-        result[:tenants_synced] += 1 if tenant_result[:success]
+    # SSoT: Sync ALL connected Xero credentials (same pattern as XeroInvoiceSyncJob)
+    credentials = XeroCredential.where(status: %w[connected degraded])
 
-        # If rate limited, don't continue to other tenants
-        if tenant_result[:rate_limited]
-          result[:rate_limited] = true
-          Rails.logger.info("XeroBankTransactionSyncJob completed (rate limited): #{result.inspect}")
-          return result
-        end
-      end
-    else
-      Rails.logger.warn("[BankTransactionSync] No main Xero credential found")
+    if credentials.empty?
+      Rails.logger.warn("[BankTransactionSync] No connected Xero credentials")
+      return result
     end
 
-    # 2. Sync from ALL connected corporate company Xero connections
-    CorporateCompanyXeroConnection.with_credential.includes(:xero_credential, :corporate_company).each do |connection|
-      next unless connection.connected?
-      next if connection.xero_tenant_id == main_credential&.tenant_id  # Skip if same as main
+    Rails.logger.info("[BankTransactionSync] Syncing #{credentials.count} connected tenants")
+
+    credentials.each do |credential|
+      tenant_id = credential.tenant_id
 
       # Pre-flight lockout check for each tenant
-      if XeroRateLimitTracker.current_lockout(tenant_id: connection.xero_tenant_id).present?
-        Rails.logger.warn("[BankTransactionSync] Tenant #{connection.xero_tenant_id} locked out, skipping")
+      if XeroRateLimitTracker.current_lockout(tenant_id: tenant_id).present?
+        lockout_remaining = XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: tenant_id)
+        Rails.logger.warn("[BankTransactionSync] Tenant #{credential.tenant_name} locked out for #{lockout_remaining}s, skipping")
         result[:tenants_skipped_lockout] += 1
         next
       end
 
-      Rails.logger.info("[BankTransactionSync] Syncing corporate company: #{connection.corporate_company&.name} (tenant: #{connection.xero_tenant_id})")
-      tenant_result = sync_tenant_with_rate_limiting(client, connection.xero_tenant_id, result, options)
+      Rails.logger.info("[BankTransactionSync] Syncing: #{credential.tenant_name} (#{tenant_id})")
+      tenant_result = sync_tenant_with_rate_limiting(client, tenant_id, result, options)
       result[:tenants_synced] += 1 if tenant_result[:success]
 
-      # If rate limited, stop processing other tenants
+      # FRC (Jan 2026): Use `next` not `break` for multi-tenant isolation
+      # If one tenant hits rate limit, continue to others
       if tenant_result[:rate_limited]
-        result[:rate_limited] = true
-        break
+        result[:errors] << { tenant_id: tenant_id, error: "Rate limited" }
+        next
       end
     end
 
