@@ -1510,6 +1510,7 @@ Rails.application.routes.draw do
           post :test
           get :providers
           get :all_accounts
+          get :org_status  # Org-wide email health status for header indicator
           post :send_email
           post :schedule_email
           get :scheduled_emails

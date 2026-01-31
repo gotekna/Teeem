@@ -42,6 +42,12 @@
       "tips": ["Monitor AI task progress in real-time", "Review AI-generated results before applying", "Retry failed tasks if needed"],
       "tasks": ["View agent task queue", "Review completed tasks", "Retry failed tasks", "Configure agent settings"]
     },
+    "/email": {
+      "title": "Email",
+      "description": "Unified inbox showing emails from all connected accounts. View, compose, and manage emails linked to jobs and contacts.",
+      "tips": ["Switch between mailboxes using the sidebar", "Emails are automatically linked to jobs and contacts", "Use keyboard shortcuts: j/k to navigate, c to compose, r to reply"],
+      "tasks": ["Read and reply to emails", "Compose new emails", "Link emails to jobs or contacts", "Search across all mailboxes"]
+    },
     "/email/[mailbox]": {
       "title": "Email",
       "description": "Unified inbox showing emails from all connected accounts (IMAP and Microsoft 365).",
