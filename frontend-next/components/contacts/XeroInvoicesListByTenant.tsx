@@ -11,6 +11,8 @@ import {
   ClipboardList,
   ChevronRight,
   ChevronDown,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,6 +86,7 @@ interface ExternalInvoice {
   job_id: number | null;
   job_title: string | null;
   tenant_id?: string;
+  has_pdf?: boolean;
   line_items?: Array<{
     description: string;
     quantity: number;
@@ -450,6 +453,7 @@ export function XeroInvoicesListByTenant({
                               <TableHeader>
                                 <UITableRow>
                                   <TableHead className="pl-12 w-[100px]">Number</TableHead>
+                                  <TableHead className="w-[40px] text-center" title="PDF Downloaded">PDF</TableHead>
                                   <TableHead className="w-[100px]">Reference</TableHead>
                                   {showTenantColumn && <TableHead className="w-[150px]">Company</TableHead>}
                                   <TableHead className="w-[100px]">Date</TableHead>
@@ -470,6 +474,15 @@ export function XeroInvoicesListByTenant({
                                   >
                                     <TableCell className="pl-12 font-medium">
                                       {invoice.invoice_number}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      <span title={invoice.has_pdf ? "PDF downloaded" : "PDF not downloaded"}>
+                                        {invoice.has_pdf ? (
+                                          <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 mx-auto" />
+                                        ) : (
+                                          <XCircle className="h-4 w-4 text-red-400 dark:text-red-500 mx-auto" />
+                                        )}
+                                      </span>
                                     </TableCell>
                                     <TableCell className="text-sm text-muted-foreground">
                                       {invoice.reference || "-"}

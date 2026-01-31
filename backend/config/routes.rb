@@ -3125,6 +3125,7 @@ Rails.application.routes.draw do
           post :sync_accounts
           get :status
           delete :disconnect
+          patch :assign_tenant  # Multi-tenancy: Assign Xero org to tenant
         end
       end
 

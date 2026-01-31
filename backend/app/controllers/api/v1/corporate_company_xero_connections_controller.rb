@@ -4,13 +4,22 @@ module Api
       before_action :set_connection, only: [ :show, :disconnect, :sync_accounts ]
 
       # GET /api/v1/company_xero_connections
-      # Returns ALL Xero organizations (credentials) and their linked TEEEM companies
+      # Returns Xero organizations for the current tenant (multi-tenancy isolation)
       #
       # SSoT: Uses XeroConnectionHealth service for unified status computation.
       # This ensures the status shown here matches XeroConnectionCard on company pages.
+      #
+      # Multi-tenancy:
+      # - Master tenant sees ALL Xero orgs (admin view)
+      # - Customer tenants only see their own Xero orgs
       def index
-        # Get all Xero credentials (organizations)
-        all_credentials = XeroCredential.all.order(created_at: :desc)
+        # Multi-tenancy: Filter Xero credentials by tenant
+        # Master tenant can see all; other tenants only see their own
+        all_credentials = if current_tenant&.master_tenant?
+                            XeroCredential.all.order(created_at: :desc)
+                          else
+                            XeroCredential.for_teeem_tenant(current_tenant).order(created_at: :desc)
+                          end
 
         # Get all company connections
         all_connections = CorporateCompanyXeroConnection.includes(:corporate_company).all
@@ -23,9 +32,16 @@ module Api
           # Find all companies linked to this Xero org
           linked_companies = all_connections.select { |conn| conn.xero_tenant_id == credential.tenant_id }
 
+          # Get the assigned TEEEM tenant info
+          assigned_tenant = credential.teeem_tenant
+
           {
+            id: credential.id,  # For updating tenant assignment
             tenant_id: credential.tenant_id,
             tenant_name: credential.tenant_name,
+            # Multi-tenancy: Which TEEEM tenant owns this Xero org
+            teeem_tenant_id: credential.teeem_tenant_id,
+            teeem_tenant_name: assigned_tenant&.name || "Unassigned",
             # SSoT: Unified status from XeroConnectionHealth
             connected: health.connected,
             display_status: health.display_status,
@@ -37,7 +53,7 @@ module Api
             degraded: credential.degraded?,
             expires_at: credential.expires_at,
             expired: credential.expired?,
-            companies: linked_companies.map do |conn|
+            companies: linked_companies.select { |conn| conn.corporate_company.present? }.map do |conn|
               # SSoT: Company status derived from credential health
               company_health = XeroConnectionHealth.for_company(conn.corporate_company)
               {
@@ -59,12 +75,49 @@ module Api
           }
         end
 
+        # Build tenants list for dropdown (master tenant only)
+        available_tenants = if current_tenant&.master_tenant?
+                              Tenant.all.order(:name).map { |t| { id: t.id, name: t.name, is_master: t.master_tenant? } }
+                            else
+                              []
+                            end
+
         render json: {
           success: true,
           organizations: organizations,
           total_organizations: organizations.count,
-          connected_organizations: organizations.count { |o| o[:connected] }
+          connected_organizations: organizations.count { |o| o[:connected] },
+          # Multi-tenancy: Tell frontend if this is the master tenant (admin view)
+          is_master_tenant: current_tenant&.master_tenant? || false,
+          # Available tenants for assignment dropdown (master only)
+          available_tenants: available_tenants
         }
+      end
+
+      # PATCH /api/v1/company_xero_connections/:id/assign_tenant
+      # Assigns a Xero credential to a TEEEM tenant (master tenant only)
+      def assign_tenant
+        unless current_tenant&.master_tenant?
+          return render json: { success: false, error: "Only master tenant can assign Xero organizations" }, status: :forbidden
+        end
+
+        credential = XeroCredential.find(params[:id])
+        tenant = Tenant.find(params[:teeem_tenant_id])
+
+        credential.update!(teeem_tenant_id: tenant.id)
+
+        render json: {
+          success: true,
+          message: "#{credential.tenant_name} assigned to #{tenant.name}",
+          credential: {
+            id: credential.id,
+            tenant_name: credential.tenant_name,
+            teeem_tenant_id: tenant.id,
+            teeem_tenant_name: tenant.name
+          }
+        }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: e.message }, status: :not_found
       end
 
       # GET /api/v1/company_xero_connections/:id
