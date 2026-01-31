@@ -13,14 +13,25 @@ class UserMailer < ApplicationMailer
   end
 
   # Invitation email sent to prospects to start a free trial
+  # Uses sent_from user's email if specified, otherwise falls back to invited_by
   def trial_invitation_email(invitation)
     @invitation = invitation
     @signup_url = invitation.signup_url
     @expires_at = invitation.expires_at
     @invited_by = invitation.invited_by
+    @sender = invitation.effective_sender
+
+    # Personalize the FROM address if a sender is specified
+    from_address = if invitation.effective_sender.present?
+      "#{invitation.sender_name} <#{invitation.sender_email}>"
+    else
+      default_params[:from]
+    end
 
     mail(
       to: invitation.email,
+      from: from_address,
+      reply_to: invitation.sender_email,
       subject: "You're invited to try TEEEM free for 30 days"
     )
   end
