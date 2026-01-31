@@ -1931,7 +1931,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
             emails: overview[:other][:emails].map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) }
           }
         },
-        team_domains: CorporateCompanySetting.team_email_domains
+        team_domains: TenantSetting.team_email_domains
       }
     }
   end

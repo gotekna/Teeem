@@ -119,8 +119,8 @@ class BillInbox < ApplicationRecord
   end
 
   def internal_sender?
-    # SSoT: Use CorporateCompanySetting for internal domains
-    CorporateCompanySetting.internal_email_domains.include?(sender_domain)
+    # SSoT: Use TenantSetting for internal domains
+    TenantSetting.internal_email_domains.include?(sender_domain)
   end
 
   def variance_percent

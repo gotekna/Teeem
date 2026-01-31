@@ -17,7 +17,7 @@ module Api
       # Returns available entity types for filtering
       def entity_types
         # Use configured entity types or defaults
-        types = CorporateCompanySetting.corporate_entity_types rescue ENTITY_TYPES
+        types = TenantSetting.corporate_entity_types rescue ENTITY_TYPES
 
         render json: {
           success: true,

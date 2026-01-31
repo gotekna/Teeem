@@ -1671,8 +1671,8 @@ module Api
           estimated_remaining_minutes = (estimated_remaining_seconds / 60.0).round(0)
 
           # Calculate next scheduled sync times (in company timezone)
-          # SSoT: Use CorporateCompanySetting for timezone
-          now_brisbane = CorporateCompanySetting.now
+          # SSoT: Use TenantSetting for timezone
+          now_brisbane = TenantSetting.now
 
           # Invoice sync runs every 5 minutes
           next_invoice_sync = calculate_next_run(now_brisbane, 5, 0)

@@ -1446,7 +1446,7 @@ module Api
 
           if provider && can_use_cached_zip?(fingerprint, provider)
             # Fingerprint matches and file exists - return fresh presigned URL
-            download_url = provider.download_url(@task.response_zip_path, expires_in: CorporateCompanySetting.link_expiry_seconds)
+            download_url = provider.download_url(@task.response_zip_path, expires_in: TenantSetting.link_expiry_seconds)
             Rails.logger.info "[SmTasksController] Using cached zip for task #{@task.id} (fingerprint: #{fingerprint[0..7]})"
 
             return render json: {
@@ -1455,7 +1455,7 @@ module Api
               share_url: download_url,
               filename: File.basename(@task.response_zip_path).sub(/^\d{8}_\d{6}_/, ""),
               file_count: document_attachments.size,
-              expiry_days: CorporateCompanySetting.link_expiry_days,
+              expiry_days: TenantSetting.link_expiry_days,
               cached: true
             }
           end
@@ -1524,7 +1524,7 @@ module Api
             Rails.logger.info "[SmTasksController] Created new zip for task #{@task.id} (fingerprint: #{fingerprint[0..7]})"
 
             # Get presigned download URL (expiry from company settings - SSoT)
-            download_url = provider.download_url(upload_result[:path], expires_in: CorporateCompanySetting.link_expiry_seconds)
+            download_url = provider.download_url(upload_result[:path], expires_in: TenantSetting.link_expiry_seconds)
 
             render json: {
               success: true,
@@ -1532,7 +1532,7 @@ module Api
               share_url: download_url,
               filename: zip_filename,
               file_count: document_attachments.size,
-              expiry_days: CorporateCompanySetting.link_expiry_days,
+              expiry_days: TenantSetting.link_expiry_days,
               cached: false
             }
           else
@@ -3039,8 +3039,8 @@ module Api
 
       # Find the first non-internal email address involved in an email
       def find_external_party_email(email)
-        internal_domain_patterns = CorporateCompanySetting.internal_domain_patterns
-        newtask_address = CorporateCompanySetting.monitored_mailbox_newtask&.downcase
+        internal_domain_patterns = TenantSetting.internal_domain_patterns
+        newtask_address = TenantSetting.monitored_mailbox_newtask&.downcase
 
         # Check from
         if email.from_email.present?
@@ -3160,7 +3160,7 @@ module Api
         deps = task.active_predecessor_dependencies
         return if deps.empty?
 
-        calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+        calendar = WorkingDaysCalculator.new(TenantSetting.instance)
 
         # Calculate the earliest valid start based on all predecessors
         earliest_start = deps.map do |dep|

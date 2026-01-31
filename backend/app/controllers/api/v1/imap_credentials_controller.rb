@@ -401,7 +401,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
         # 1. Graph API call to get domains was too slow (30+ sec)
         # 2. Multiple tenants exist with different domains
         known_domains = {
-          "Tekna" => CorporateCompanySetting.internal_email_domains,
+          "Tekna" => TenantSetting.internal_email_domains,
           "100xBestLife" => ["100xbestlife.com"],
           "Homes of Hope" => ["homesofhope.org.au"],
           "Love Your World" => ["loveyourworld.org"]

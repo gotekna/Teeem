@@ -172,7 +172,7 @@ module Api
         end
 
         def current_company_lock_date
-          CorporateCompanySetting.find_by(corporate_company_id: current_company.id)&.gl_lock_date
+          TenantSetting.find_by(corporate_company_id: current_company.id)&.gl_lock_date
         end
 
         def available_periods

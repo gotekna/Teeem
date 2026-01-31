@@ -214,7 +214,7 @@ module Api
           else
             # SSoT: Get SharePoint site name from WarehouseProvider (Jan 2026)
             storage_config = WarehouseProvider.instance
-            site_name = storage_config&.site_name.presence || CorporateCompanySetting.instance.company_name
+            site_name = storage_config&.site_name.presence || TenantSetting.instance.company_name
             site_name_lower = site_name&.downcase || ""
 
             Rails.logger.info "Switching to #{site_name} SharePoint site..."

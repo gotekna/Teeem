@@ -33,7 +33,7 @@ class SmScheduleMasterTemplateCopyService
     @tasks_needing_pos = [] # Tasks where template row had create_po_on_job_start but no supplier configured
     @task_number_map = {} # Maps template row task_number to created SmTask
     @row_map = {}         # Maps template row id to SmScheduleMaster
-    @calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    @calendar = WorkingDaysCalculator.new(TenantSetting.instance)
   end
 
   def execute

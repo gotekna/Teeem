@@ -9,7 +9,7 @@
 # Key optimizations:
 # 1. Pre-fetch all tabs in single query
 # 2. Batch load document counts via GROUP BY
-# 3. Memoize CorporateCompanySetting (1 call total)
+# 3. Memoize TenantSetting (1 call total)
 # 4. Build tree in Ruby memory (no recursive queries)
 #
 class EntityTabQueryService
@@ -108,7 +108,7 @@ class EntityTabQueryService
   end
 
   # Load storage config once (eliminates 192 queries)
-  # SSoT: Uses WarehouseProvider (not CorporateCompanySetting)
+  # SSoT: Uses WarehouseProvider (not TenantSetting)
   def load_storage_config
     config = WarehouseProvider.instance
     {

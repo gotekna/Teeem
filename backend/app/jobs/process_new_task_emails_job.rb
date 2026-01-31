@@ -7,14 +7,14 @@
 # 2. Create tasks from each email using EmailToTaskService
 # 3. Notify the assigned user
 #
-# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_newtask
+# SSoT: Mailbox address configured in TenantSetting.monitored_mailbox_newtask
 #
 class ProcessNewTaskEmailsJob < ApplicationJob
   queue_as :default
 
   def perform
     # SSoT: Get the monitored mailbox from configuration
-    newtask_address = CorporateCompanySetting.monitored_mailbox_newtask
+    newtask_address = TenantSetting.monitored_mailbox_newtask
 
     # Find emails sent to the monitored mailbox that haven't been processed
     # A processed email has an SmTaskAttachment with the "Source email" notes

@@ -1052,8 +1052,8 @@ class WarehouseProvider < ApplicationRecord
       virtual_warehouses: effective_virtual_warehouses,
       # SM task exclusion setting
       exclude_sm_tasks: exclude_sm_tasks,
-      # Link expiry days for presigned URLs (from CorporateCompanySetting - SSoT)
-      link_expiry_days: CorporateCompanySetting.link_expiry_days,
+      # Link expiry days for presigned URLs (from TenantSetting - SSoT)
+      link_expiry_days: TenantSetting.link_expiry_days,
 
       # LIM (Jan 2026): Frontend only needs simple root folder mapping
       # scope_folders: { contact: "Contacts", job: "Jobs", ... } - NOT full templates

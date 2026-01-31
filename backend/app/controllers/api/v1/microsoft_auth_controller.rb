@@ -453,7 +453,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     # SSoT: Get SharePoint site name from WarehouseProvider or company settings (Jan 2026)
     # No hardcoded org names - tenant configures their own site name
     storage_config = WarehouseProvider.instance
-    site_name = storage_config&.site_name.presence || CorporateCompanySetting.instance.company_name
+    site_name = storage_config&.site_name.presence || TenantSetting.instance.company_name
     site_name_lower = site_name&.downcase || ""
 
     begin
@@ -670,7 +670,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
   def build_sharepoint_connection_info(org_credential)
     # SSoT: Use company name from settings, not hardcoded (Jan 2026)
-    company_name = CorporateCompanySetting.instance.company_name
+    company_name = TenantSetting.instance.company_name
     display_name = "#{company_name} SharePoint"
     return { connected: false, name: display_name, auth_type: "organization" } unless org_credential
 

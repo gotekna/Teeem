@@ -247,8 +247,8 @@ module Engines
       data = extra_data.symbolize_keys
 
       if job
-        # Company/builder info (SSoT: CorporateCompanySetting)
-        settings = ::CorporateCompanySetting.instance
+        # Company/builder info (SSoT: TenantSetting)
+        settings = ::TenantSetting.instance
         data[:builder_name] ||= settings.company_name
         data[:builder_abn] ||= format_abn(settings.abn)
         data[:builder_qbcc] ||= settings.qbcc_license

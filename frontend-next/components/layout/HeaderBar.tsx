@@ -27,7 +27,10 @@ import {
   AlertCircle,
   XCircle,
   Clock,
+  Moon,
+  Sun,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -80,6 +83,7 @@ type ConnectionStatus = 'connected' | 'disconnected' | 'error' | 'degraded' | 'r
 export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [emailAccounts, setEmailAccounts] = React.useState<Array<{
     id: number;
@@ -680,6 +684,21 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.preventDefault();
+                  setTheme(resolvedTheme === "dark" ? "light" : "dark");
+                }}
+                className="flex items-center"
+              >
+                {resolvedTheme === "dark" ? (
+                  <Sun className="mr-2 h-4 w-4" />
+                ) : (
+                  <Moon className="mr-2 h-4 w-4" />
+                )}
+                {resolvedTheme === "dark" ? "Light Mode" : "Dark Mode"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="flex items-center">

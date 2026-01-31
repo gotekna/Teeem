@@ -252,9 +252,9 @@ module Api
             loginUrl: tenant.login_url,
             logoUrl: tenant.settings&.logo_url,
             primaryColor: tenant.settings&.primary_color,
-            # SSoT: CorporateCompanySetting environment URL constants
-            frontendUrl: CorporateCompanySetting::FRONTEND_ENVIRONMENT_URLS[env],
-            apiUrl: CorporateCompanySetting::API_ENVIRONMENT_URLS[env]
+            # SSoT: TenantSetting environment URL constants
+            frontendUrl: TenantSetting::FRONTEND_ENVIRONMENT_URLS[env],
+            apiUrl: TenantSetting::API_ENVIRONMENT_URLS[env]
           }
 
           if include_stats

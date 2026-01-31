@@ -1,4 +1,4 @@
-# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_newjob
+# SSoT: Mailbox address configured in TenantSetting.monitored_mailbox_newjob
 class ProcessNewJobEmailsJob < ApplicationJob
   queue_as :default
 
@@ -7,7 +7,7 @@ class ProcessNewJobEmailsJob < ApplicationJob
 
   def perform
     # SSoT: Get the monitored mailbox from configuration
-    newjob_address = CorporateCompanySetting.monitored_mailbox_newjob
+    newjob_address = TenantSetting.monitored_mailbox_newjob
 
     # Find emails sent to newjob@ mailbox OR in "A - New Job" folder
     # that don't have proposals yet

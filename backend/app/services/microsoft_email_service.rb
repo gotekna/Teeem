@@ -114,8 +114,8 @@ class MicrosoftEmailService
       me = client.get("/me")
       me["mail"] || me["userPrincipalName"]
     rescue
-      # SSoT: Fallback to company email from CorporateCompanySetting
-      CorporateCompanySetting.instance.email
+      # SSoT: Fallback to company email from TenantSetting
+      TenantSetting.instance.email
     end
   end
 end

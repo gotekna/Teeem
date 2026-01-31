@@ -173,7 +173,7 @@ class WHSSWMS < ApplicationRecord
   def generate_swms_number
     return if swms_number.present?
 
-    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
+    date_str = TenantSetting.today.strftime("%Y%m%d")
     last_swms = WHSSWMS.where("swms_number LIKE ?", "SWMS-#{date_str}-%")
                         .order(:swms_number).last
 
@@ -234,8 +234,8 @@ class WHSSWMS < ApplicationRecord
       stage: "SWMS Approval",
       status: status_for_sm_task,
       assigned_user: wphs_appointee,
-      start_date: CorporateCompanySetting.today,
-      end_date: CorporateCompanySetting.today + 2.days,
+      start_date: TenantSetting.today,
+      end_date: TenantSetting.today + 2.days,
       duration_days: 1,
       created_by: created_by
     )

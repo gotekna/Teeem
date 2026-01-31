@@ -1,18 +1,20 @@
 module Api
   module V1
+    # SSoT (Jan 2026): This controller uses TenantSetting as the single source of truth.
+    # Route kept as /corporate_company_settings for backward compatibility.
     class CorporateCompanySettingsController < ApplicationController
       # Security: Require admin for all mutating actions
       before_action :require_admin, only: %i[update update_sharepoint test_twilio test_sharepoint update_brand apply_brand]
 
       # GET /api/v1/company_settings
       def show
-        @company_setting = CorporateCompanySetting.instance
+        @company_setting = TenantSetting.instance
         render json: @company_setting
       end
 
       # PATCH/PUT /api/v1/company_settings
       def update
-        @company_setting = CorporateCompanySetting.instance
+        @company_setting = TenantSetting.instance
 
         if @company_setting.update(company_setting_params)
           render json: @company_setting
@@ -210,11 +212,11 @@ module Api
         render json: {
           success: true,
           data: {
-            colors: CorporateCompanySetting.brand_colors,
-            website_url: CorporateCompanySetting.instance.website,
-            logo_url: CorporateCompanySetting.instance.logo_url,
-            logo_mobile: CorporateCompanySetting.instance.logo_mobile,
-            logo_dark: CorporateCompanySetting.instance.logo_dark
+            colors: TenantSetting.brand_colors,
+            website_url: TenantSetting.instance.website,
+            logo_url: TenantSetting.instance.logo_url,
+            logo_mobile: TenantSetting.instance.logo_mobile,
+            logo_dark: TenantSetting.instance.logo_dark
           }
         }
       end
@@ -222,13 +224,13 @@ module Api
       # PATCH /api/v1/corporate_company_settings/brand
       # Update brand colors (accepts either HSL or hex values)
       def update_brand
-        settings = CorporateCompanySetting.instance
+        settings = TenantSetting.instance
 
         if settings.update(brand_params)
           render json: {
             success: true,
             data: {
-              colors: CorporateCompanySetting.brand_colors,
+              colors: TenantSetting.brand_colors,
               website_url: settings.website,
               logo_url: settings.logo_url
             }
@@ -253,7 +255,7 @@ module Api
           # Convert hex colors to HSL for storage
           hsl_colors = {}
           result[:colors].each do |key, hex|
-            hsl_colors[key] = CorporateCompanySetting.hex_to_hsl(hex) if hex.present?
+            hsl_colors[key] = TenantSetting.hex_to_hsl(hex) if hex.present?
           end
 
           render json: {
@@ -292,13 +294,13 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        settings = CorporateCompanySetting.instance
+        settings = TenantSetting.instance
         applied = []
         skipped = []
 
         # Only apply colors if not already set (enhance, don't overwrite)
         if settings.brand_color_primary.blank?
-          CorporateCompanySetting.update_brand_colors_from_hex(result[:colors])
+          TenantSetting.update_brand_colors_from_hex(result[:colors])
           applied << "colors"
         else
           skipped << "colors (already set)"
@@ -339,7 +341,7 @@ module Api
           success: true,
           message: message_parts.join(". "),
           data: {
-            colors: CorporateCompanySetting.brand_colors,
+            colors: TenantSetting.brand_colors,
             logo_url: settings.logo_url,
             website_url: settings.website
           }
@@ -354,18 +356,18 @@ module Api
       def email_config
         render json: {
           success: true,
-          data: CorporateCompanySetting.email_config
+          data: TenantSetting.email_config
         }
       end
 
       # PATCH /api/v1/corporate_company_settings/email_config
       def update_email_config
-        settings = CorporateCompanySetting.instance
+        settings = TenantSetting.instance
 
         if settings.update(email_config_params)
           render json: {
             success: true,
-            data: CorporateCompanySetting.email_config
+            data: TenantSetting.email_config
           }
         else
           render json: {

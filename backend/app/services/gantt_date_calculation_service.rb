@@ -26,7 +26,7 @@ class GanttDateCalculationService
     return {} if @records.empty?
 
     @start_date = Date.current
-    @calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    @calendar = WorkingDaysCalculator.new(TenantSetting.instance)
     @start_date = @calendar.next_working_day(@start_date) unless @calendar.working_day?(@start_date)
 
     @rows_by_task = @records.index_by(&:task_number)

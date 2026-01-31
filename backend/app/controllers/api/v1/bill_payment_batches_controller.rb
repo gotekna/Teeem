@@ -60,7 +60,7 @@ module Api
 
         @batch = @corporate_company.bill_payment_batches.build(
           bank_account: bank_account,
-          payment_date: params[:payment_date] || CorporateCompanySetting.today + 1.day,
+          payment_date: params[:payment_date] || TenantSetting.today + 1.day,
           processing_description: params[:description],
           created_by: current_user
         )

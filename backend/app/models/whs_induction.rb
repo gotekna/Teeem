@@ -27,7 +27,7 @@ class WHSInduction < ApplicationRecord
   scope :expired, -> { where(status: "expired") }
   scope :expiring_soon, ->(days = 30) {
     where(status: "valid")
-      .where("expiry_date IS NOT NULL AND expiry_date <= ?", CorporateCompanySetting.today + days.days)
+      .where("expiry_date IS NOT NULL AND expiry_date <= ?", TenantSetting.today + days.days)
   }
   scope :for_construction, ->(job_id) { where(job_id: job_id) }  # Kept for backward compatibility
   scope :by_type, ->(type) { where(induction_type: type) }
@@ -36,21 +36,21 @@ class WHSInduction < ApplicationRecord
 
   # Helper methods
   def expired?
-    status == "expired" || (expiry_date.present? && expiry_date < CorporateCompanySetting.today)
+    status == "expired" || (expiry_date.present? && expiry_date < TenantSetting.today)
   end
 
   def expiring_soon?(days = 30)
     return false unless expiry_date.present?
     return false if expired?
 
-    expiry_date <= CorporateCompanySetting.today + days.days
+    expiry_date <= TenantSetting.today + days.days
   end
 
   def days_until_expiry
     return nil unless expiry_date.present?
     return 0 if expired?
 
-    (expiry_date - CorporateCompanySetting.today).to_i
+    (expiry_date - TenantSetting.today).to_i
   end
 
   def has_quiz?
@@ -84,7 +84,7 @@ class WHSInduction < ApplicationRecord
   def generate_certificate_number
     return if certificate_number.present?
 
-    date_str = CorporateCompanySetting.today.strftime("%Y%m%d")
+    date_str = TenantSetting.today.strftime("%Y%m%d")
     last_induction = WhsInduction.where("certificate_number LIKE ?", "IND-#{date_str}-%")
                                   .order(:certificate_number).last
 
@@ -100,7 +100,7 @@ class WHSInduction < ApplicationRecord
   end
 
   def check_expiry_status
-    if expiry_date.present? && expiry_date < CorporateCompanySetting.today && status == "valid"
+    if expiry_date.present? && expiry_date < TenantSetting.today && status == "valid"
       self.status = "expired"
     end
   end

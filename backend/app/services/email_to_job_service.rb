@@ -271,8 +271,8 @@ class EmailToJobService
   # When AI fails, try to extract customer name from email subject
   # Don't use internal senders as customers
   def extract_customer_from_subject_fallback
-    # SSoT: Get internal domains from CorporateCompanySetting
-    internal_domain_patterns = CorporateCompanySetting.internal_domain_patterns
+    # SSoT: Get internal domains from TenantSetting
+    internal_domain_patterns = TenantSetting.internal_domain_patterns
     sender_is_internal = internal_domain_patterns.any? { |d| @email.from_email&.downcase&.include?(d) }
 
     # Try to extract name from subject patterns like "Quote for [Name]" or "... for [Name]"
@@ -978,8 +978,8 @@ class EmailToJobService
     end
 
     # Internal sales: Prefer email sender if internal, otherwise the user who extracted
-    # SSoT: Get internal domains from CorporateCompanySetting
-    internal_domain_patterns = CorporateCompanySetting.internal_domain_patterns
+    # SSoT: Get internal domains from TenantSetting
+    internal_domain_patterns = TenantSetting.internal_domain_patterns
     sender_is_internal = internal_domain_patterns.any? { |d| @email.from_email&.downcase&.include?(d) }
 
     if sender_is_internal

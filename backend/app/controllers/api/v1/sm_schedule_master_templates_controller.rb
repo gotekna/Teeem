@@ -546,7 +546,7 @@ module Api
       # Headers don't exist for scheduling - build schedule without headers, then add header spans
       def validate_dates
         start_date = params[:start_date].present? ? Date.parse(params[:start_date]) : Date.current
-        calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+        calendar = WorkingDaysCalculator.new(TenantSetting.instance)
 
         # Ensure start_date is a working day
         start_date = calendar.next_working_day(start_date) unless calendar.working_day?(start_date)
@@ -851,7 +851,7 @@ module Api
       # SSoT: GanttDateCalculationService is now the single source for date calculation
       def calculate_template_date_map_DEPRECATED(rows)
         start_date = Date.current
-        calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+        calendar = WorkingDaysCalculator.new(TenantSetting.instance)
         start_date = calendar.next_working_day(start_date) unless calendar.working_day?(start_date)
 
         rows_by_task = rows.index_by(&:task_number)

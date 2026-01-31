@@ -63,8 +63,8 @@ class EmailSubscriptionInvoice < ApplicationRecord
   def create_gl_invoice!
     return gl_invoice if gl_invoice.present?
 
-    # Look up billing company from CorporateCompanySetting or find by company name
-    company_name = CorporateCompanySetting.instance.company_name
+    # Look up billing company from TenantSetting or find by company name
+    company_name = TenantSetting.instance.company_name
     billing_company = CorporateCompany.find_by("name ILIKE ?", "%#{company_name}%") ||
                       CorporateCompany.first
     raise "Billing company not found - please configure in Settings" unless billing_company

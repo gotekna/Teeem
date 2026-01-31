@@ -145,7 +145,7 @@ module Api
       def entity_types
         render json: {
           success: true,
-          data: CorporateCompanySetting.corporate_entity_types
+          data: TenantSetting.corporate_entity_types
         }
       end
 
@@ -158,11 +158,11 @@ module Api
           return render json: { success: false, error: "entity_types must be an array of strings" }, status: :unprocessable_entity
         end
 
-        CorporateCompanySetting.update_corporate_entity_types(types)
+        TenantSetting.update_corporate_entity_types(types)
 
         render json: {
           success: true,
-          data: CorporateCompanySetting.corporate_entity_types,
+          data: TenantSetting.corporate_entity_types,
           message: "Entity types updated"
         }
       end

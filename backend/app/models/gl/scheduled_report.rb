@@ -119,7 +119,7 @@ module Gl
     end
 
     def calculate_next_send_at
-      now = CorporateCompanySetting.now
+      now = TenantSetting.now
       send_time = send_at || Time.zone.parse("08:00")
 
       base_time = now.change(hour: send_time.hour, min: send_time.min)

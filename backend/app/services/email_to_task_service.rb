@@ -9,7 +9,7 @@
 # - CC recipients → auto-followers
 # - Attaches source email and related emails
 #
-# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_newtask
+# SSoT: Mailbox address configured in TenantSetting.monitored_mailbox_newtask
 #
 class EmailToTaskService
   class TaskCreationError < StandardError; end
@@ -273,7 +273,7 @@ class EmailToTaskService
     end
 
     # 3. Emails with same external party (not internal domains)
-    # SSoT: Internal domains checked via CorporateCompanySetting.internal_domain_patterns
+    # SSoT: Internal domains checked via TenantSetting.internal_domain_patterns
     # FRC: Extended to 90 days to match subject matching window
     external_email = find_external_party
     if external_email.present? && emails.size < 10
@@ -306,9 +306,9 @@ class EmailToTaskService
 
   def find_external_party
     # Find the first non-internal email address involved
-    # SSoT: Get internal domains from CorporateCompanySetting
-    internal_domain_patterns = CorporateCompanySetting.internal_domain_patterns
-    newtask_address = CorporateCompanySetting.monitored_mailbox_newtask.downcase
+    # SSoT: Get internal domains from TenantSetting
+    internal_domain_patterns = TenantSetting.internal_domain_patterns
+    newtask_address = TenantSetting.monitored_mailbox_newtask.downcase
 
     # Check from
     if @email.from_email.present?
@@ -338,8 +338,8 @@ class EmailToTaskService
     @email.to_emails&.each do |email_addr|
       next if email_addr.blank?
       next if email_addr.downcase == @email.from_email&.downcase
-      # SSoT: Use CorporateCompanySetting for monitored mailbox
-      next if email_addr.downcase == CorporateCompanySetting.monitored_mailbox_newtask.downcase
+      # SSoT: Use TenantSetting for monitored mailbox
+      next if email_addr.downcase == TenantSetting.monitored_mailbox_newtask.downcase
 
       add_participant(task, email_addr, "participant")
     end

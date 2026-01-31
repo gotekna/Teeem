@@ -277,7 +277,7 @@ namespace :tenants do
     end
     puts "  ✓ TEEEM tenant settings created"
 
-    # Create Tekna settings - try to copy from existing CorporateCompanySetting if available
+    # Create Tekna settings - try to copy from existing TenantSetting if available
     TenantSetting.find_or_create_by!(corporate_group: tekna) do |ts|
       ts.company_name = "Tekna Homes"
       ts.timezone = "Australia/Brisbane"
@@ -285,8 +285,8 @@ namespace :tenants do
       ts.currency = "AUD"
 
       # Try to copy from existing settings if available
-      if defined?(CorporateCompanySetting) && CorporateCompanySetting.table_exists?
-        old_setting = CorporateCompanySetting.first
+      if defined?(TenantSetting) && TenantSetting.table_exists?
+        old_setting = TenantSetting.first
         if old_setting
           ts.abn = old_setting.abn if old_setting.respond_to?(:abn)
           ts.qbcc_license = old_setting.qbcc_license if old_setting.respond_to?(:qbcc_license)
@@ -294,7 +294,7 @@ namespace :tenants do
           ts.phone = old_setting.phone if old_setting.respond_to?(:phone)
           ts.website = old_setting.website if old_setting.respond_to?(:website)
           ts.address = old_setting.address if old_setting.respond_to?(:address)
-          puts "  ✓ Tekna settings copied from CorporateCompanySetting"
+          puts "  ✓ Tekna settings copied from TenantSetting"
         end
       end
     end

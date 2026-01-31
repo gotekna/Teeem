@@ -8,7 +8,7 @@ class PublicHoliday < ApplicationRecord
 
   scope :for_region, ->(region) { where(region: region) }
   scope :for_year, ->(year) { where("EXTRACT(YEAR FROM date) = ?", year) }
-  scope :upcoming, -> { where("date >= ?", CorporateCompanySetting.today).order(date: :asc) }
+  scope :upcoming, -> { where("date >= ?", TenantSetting.today).order(date: :asc) }
 
   # Seed QLD public holidays for 2025-2027
   def self.seed_qld_holidays

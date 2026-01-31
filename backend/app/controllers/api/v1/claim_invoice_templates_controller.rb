@@ -68,8 +68,8 @@ module Api
       def preview
         template = ClaimInvoiceTemplate.find(params[:id])
 
-        # SSoT: Use real company data from CorporateCompanySetting
-        company_settings = CorporateCompanySetting.instance
+        # SSoT: Use real company data from TenantSetting
+        company_settings = TenantSetting.instance
 
         # Optionally fetch real job data
         job = params[:job_id].present? ? Job.find_by(id: params[:job_id]) : nil
@@ -121,7 +121,7 @@ module Api
           total_amount: total_amount,
           previous_claims: 0,
           balance_remaining: (contract_price - claim_amount).round(2),
-          # SSoT: Bank details from CorporateCompanySetting
+          # SSoT: Bank details from TenantSetting
           bank_name: company_settings.bank_name.presence || "Commonwealth Bank",
           bsb: company_settings.bank_bsb.presence || "064-000",
           account_number: company_settings.bank_account_number.presence || "1234 5678",
@@ -383,8 +383,8 @@ module Api
 
         style = centered ? "text-align: center;" : ""
 
-        # SSoT: Use actual company logo from CorporateCompanySetting
-        company_settings = CorporateCompanySetting.instance
+        # SSoT: Use actual company logo from TenantSetting
+        company_settings = TenantSetting.instance
         logo_url = company_settings&.logo_url
 
         if logo_url.present?
