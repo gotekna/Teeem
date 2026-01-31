@@ -313,6 +313,32 @@ export default function PreferencesPage() {
                 disabled={savingAi}
               />
             </div>
+
+            {/* Help Button Visibility */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Label>Help Button on Hover Only</Label>
+                  <HelpCircle className="h-4 w-4 text-indigo-500" />
+                  <HelpIcon
+                    content="When enabled, the floating help button (bottom-right corner) will be nearly invisible until you hover over it."
+                    tips={[
+                      "The button fades to 10% opacity when not hovered",
+                      "Hover over the bottom-right corner to reveal it",
+                      "Great for reducing visual clutter"
+                    ]}
+                    size="sm"
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Hide the help button until you hover over it
+                </p>
+              </div>
+              <Switch
+                checked={helpButtonHoverOnly}
+                onCheckedChange={handleHelpButtonHoverOnlyChange}
+              />
+            </div>
           </CardContent>
         </Card>
       </section>
