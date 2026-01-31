@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta content='text/html; charset=UTF-8' http-equiv='Content-Type' />
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background-color: #f59e0b; color: white; padding: 20px; text-align: center; }
+      .content { background-color: #f9fafb; padding: 30px; }
+      .countdown { background-color: #fef3c7; border: 2px solid #f59e0b; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center; }
+      .countdown-number { font-size: 48px; font-weight: bold; color: #d97706; }
+      .button { display: inline-block; padding: 16px 32px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; font-size: 16px; font-weight: bold; }
+      .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1><%= @days_remaining == 1 ? "Your Trial Expires Tomorrow!" : "#{@days_remaining} Days Left on Your Trial" %></h1>
+      </div>
+
+      <div class="content">
+        <h2>Hi <%= @user.first_name || @user.name %>,</h2>
+
+        <div class="countdown">
+          <div class="countdown-number"><%= @days_remaining %></div>
+          <p><%= @days_remaining == 1 ? 'day' : 'days' %> remaining</p>
+          <p>Trial expires: <%= @trial_ends_at.strftime('%d %B %Y') %></p>
+        </div>
+
+        <p>Your TEEEM trial for <strong><%= @tenant.name %></strong> is coming to an end. To keep using TEEEM and access all your data, upgrade to a paid plan before your trial expires.</p>
+
+        <h3>What happens when your trial ends?</h3>
+        <ul>
+          <li>Your account will switch to read-only mode</li>
+          <li>You can view existing data but cannot create or edit</li>
+          <li>Your data will be preserved for 30 days</li>
+          <li>Upgrade anytime to restore full access</li>
+        </ul>
+
+        <div style="text-align: center;">
+          <a href="<%= @upgrade_url %>" class="button">Upgrade Now</a>
+        </div>
+
+        <p>Have questions about pricing or need more time to evaluate? Reply to this email and we'll be happy to help.</p>
+      </div>
+
+      <div class="footer">
+        <p>&copy; <%= Time.current.year %> Tekna. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,35 @@
+Welcome to TEEEM!
+=================
+Your <%= @trial_days %>-Day Trial Has Started
+
+Hi <%= @user.first_name || @user.name %>,
+
+Congratulations! Your TEEEM account for <%= @tenant.name %> is ready to go.
+
+YOUR TRIAL PERIOD
+-----------------
+Trial ends: <%= @trial_ends_at.strftime('%d %B %Y') %>
+Days remaining: <%= @trial_days %> days
+
+You have full access to all TEEEM features during your trial. No credit card required!
+
+YOUR LOGIN CREDENTIALS
+----------------------
+Email: <%= @user.email %>
+Temporary Password: <%= @temp_password %>
+
+IMPORTANT: Please change your password after your first login for security.
+
+Get Started: <%= @onboarding_url %>
+
+WHAT TO DO FIRST
+----------------
+1. Complete onboarding - Set up your company details and preferences
+2. Import your data - Bring in your existing jobs and contacts
+3. Invite your team - Add team members to collaborate
+4. Connect Xero - Sync your accounting data
+
+Need help? Our support team is here for you throughout your trial. Just reply to this email or use the help button in the app.
+
+---
+(c) <%= Time.current.year %> Tekna. All rights reserved.

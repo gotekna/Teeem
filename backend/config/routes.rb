@@ -4265,18 +4265,35 @@ Rails.application.routes.draw do
         # Tenant Management (multi-tenancy)
         # GET    /api/v1/admin/tenants          -> List all tenants (TEEEM staff only)
         # GET    /api/v1/admin/tenants/current  -> Current tenant info (all users)
+        # GET    /api/v1/admin/tenants/dashboard -> Dashboard with usage stats (TEEEM staff only)
         # GET    /api/v1/admin/tenants/:id      -> Single tenant details
         # POST   /api/v1/admin/tenants/:id/switch -> Switch to tenant (TEEEM staff only)
+        # POST   /api/v1/admin/tenants/:id/extend_trial -> Extend tenant trial (TEEEM staff only)
+        # POST   /api/v1/admin/tenants/:id/convert_to_paid -> Convert to paid (TEEEM staff only)
         # DELETE /api/v1/admin/tenants/switch   -> Clear tenant override
         # PATCH  /api/v1/admin/tenants/environment -> Update tenant environment (all users)
         resources :tenants, only: [:index, :show] do
           collection do
             get :current
+            get :dashboard
             patch :environment, action: :update_environment
             delete :switch, action: :clear_switch
           end
           member do
             post :switch
+            post :extend_trial
+            post :convert_to_paid
+          end
+        end
+
+        # Trial Invitations (TEEEM staff only)
+        # GET    /api/v1/admin/trial_invitations          -> List all invitations
+        # POST   /api/v1/admin/trial_invitations          -> Send new invitation
+        # POST   /api/v1/admin/trial_invitations/:id/resend -> Resend invitation
+        # DELETE /api/v1/admin/trial_invitations/:id      -> Cancel invitation
+        resources :trial_invitations, only: [:index, :create, :destroy] do
+          member do
+            post :resend
           end
         end
 

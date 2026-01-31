@@ -31,6 +31,7 @@ class TenantProvisioningService
   def provision!
     ActiveRecord::Base.transaction do
       create_tenant
+      start_trial if @params[:start_trial]
       create_tenant_setting
       create_admin_user
       import_starter_templates
@@ -152,6 +153,21 @@ class TenantProvisioningService
     end
   end
 
+  def start_trial
+    trial_days = @params[:trial_days] || 30
+    @tenant.update!(
+      trial_starts_at: Time.current,
+      trial_ends_at: trial_days.days.from_now,
+      trial_days: trial_days,
+      trial_status: 'active',
+      invited_by_user_id: @params[:invited_by]&.id
+    )
+    Rails.logger.info "[TenantProvisioning] Started #{trial_days}-day trial for #{@tenant.name}"
+  rescue ActiveRecord::RecordInvalid => e
+    @errors << "Failed to start trial: #{e.message}"
+    raise ActiveRecord::Rollback
+  end
+
   def setup_dedicated_storage
     bucket_name = "teeem-#{@tenant.slug}"
 
@@ -218,11 +234,16 @@ class TenantProvisioningService
   def send_welcome_email
     return unless @admin_user
 
-    TenantMailer.welcome(
-      @tenant,
-      @admin_user,
-      temp_password: @admin_user.instance_variable_get(:@temp_password)
-    ).deliver_later
+    temp_password = @admin_user.instance_variable_get(:@temp_password)
+
+    # Use trial welcome email if tenant is on trial, otherwise standard welcome
+    if @params[:start_trial] && @tenant.trial_active?
+      UserMailer.trial_welcome_email(@admin_user, temp_password, @tenant).deliver_later
+    else
+      UserMailer.welcome_email(@admin_user, temp_password).deliver_later
+    end
+
+    Rails.logger.info "[TenantProvisioning] Welcome email queued for #{@admin_user.email}"
   rescue StandardError => e
     Rails.logger.warn "[TenantProvisioning] Welcome email failed: #{e.message}"
     # Don't fail for email errors

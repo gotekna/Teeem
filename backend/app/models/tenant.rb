@@ -86,11 +86,29 @@ class Tenant < ApplicationRecord
   before_validation :generate_slug, on: :create
 
   # =============================================================================
+  # Trial Status Constants
+  # =============================================================================
+  TRIAL_STATUSES = %w[none active expired converted cancelled].freeze
+
+  # =============================================================================
+  # Validations
+  # =============================================================================
+  validates :trial_status, inclusion: { in: TRIAL_STATUSES }, allow_nil: true
+
+  # =============================================================================
   # Scopes
   # =============================================================================
   scope :active, -> { where(active: true) }
   scope :master_tenant, -> { where(is_master_tenant: true) }
   scope :customer_tenants, -> { where(is_master_tenant: false) }
+
+  # Trial scopes
+  scope :on_trial, -> { where(trial_status: 'active') }
+  scope :trial_expired, -> { where(trial_status: 'expired') }
+  scope :trials_expiring_soon, ->(days) {
+    on_trial.where('trial_ends_at <= ?', days.days.from_now)
+  }
+  scope :converted, -> { where(trial_status: 'converted') }
 
   # =============================================================================
   # Class Methods
@@ -143,6 +161,68 @@ class Tenant < ApplicationRecord
   # Get or create tenant settings
   def settings
     tenant_setting || build_tenant_setting
+  end
+
+  # =============================================================================
+  # Trial Methods
+  # =============================================================================
+
+  # Check if trial is currently active
+  def trial_active?
+    trial_status == 'active' && trial_ends_at&.future?
+  end
+
+  # Check if trial has expired
+  def trial_expired?
+    trial_status == 'expired' || (trial_status == 'active' && trial_ends_at&.past?)
+  end
+
+  # Get days remaining in trial
+  def trial_days_remaining
+    return nil unless trial_ends_at
+    [(trial_ends_at.to_date - Date.current).to_i, 0].max
+  end
+
+  # Start a trial period
+  def start_trial!(days: 30)
+    update!(
+      trial_starts_at: Time.current,
+      trial_ends_at: days.days.from_now,
+      trial_days: days,
+      trial_status: 'active'
+    )
+  end
+
+  # Extend an existing trial
+  def extend_trial!(days:)
+    new_end_date = (trial_ends_at || Time.current) + days.days
+    update!(trial_ends_at: new_end_date, trial_status: 'active')
+    new_end_date
+  end
+
+  # Mark trial as expired
+  def expire_trial!
+    update!(trial_status: 'expired')
+  end
+
+  # Convert to paid customer
+  def convert_to_paid!
+    update!(
+      trial_status: 'converted',
+      converted_at: Time.current
+    )
+  end
+
+  # Usage metrics aggregation for dashboard
+  def usage_stats
+    {
+      total_users: users.count,
+      active_users_today: users.where('last_login_at > ?', 24.hours.ago).count,
+      active_users_week: users.where('last_login_at > ?', 7.days.ago).count,
+      last_activity: users.maximum(:last_login_at),
+      jobs_count: Job.where(tenant_id: id).count,
+      contacts_count: Contact.where(tenant_id: id).count
+    }
   end
 
   # =============================================================================

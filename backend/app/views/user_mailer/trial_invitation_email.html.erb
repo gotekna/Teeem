@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta content='text/html; charset=UTF-8' http-equiv='Content-Type' />
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background-color: #4f46e5; color: white; padding: 20px; text-align: center; }
+      .content { background-color: #f9fafb; padding: 30px; }
+      .highlight { background-color: #white; border: 2px solid #4f46e5; padding: 20px; margin: 20px 0; border-radius: 8px; }
+      .button { display: inline-block; padding: 16px 32px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; font-size: 16px; font-weight: bold; }
+      .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+      .quote { border-left: 4px solid #4f46e5; padding-left: 16px; margin: 20px 0; font-style: italic; color: #555; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>You're Invited to Try TEEEM!</h1>
+      </div>
+
+      <div class="content">
+        <h2>Hi <%= @invitation.name %>,</h2>
+
+        <p><%= @invited_by&.name || 'The TEEEM team' %> has invited you to try TEEEM for your company, <strong><%= @invitation.company_name %></strong>.</p>
+
+        <p>TEEEM is a complete project management platform for builders. Start your <strong>30-day free trial</strong> today - no credit card required.</p>
+
+        <div class="highlight">
+          <h3>What you'll get:</h3>
+          <ul>
+            <li>Complete job & project management</li>
+            <li>Estimates, purchase orders & invoicing</li>
+            <li>Document management & storage</li>
+            <li>Team collaboration tools</li>
+            <li>Xero integration</li>
+            <li>Unlimited support during your trial</li>
+          </ul>
+        </div>
+
+        <div style="text-align: center;">
+          <a href="<%= @signup_url %>" class="button">Start Your Free Trial</a>
+        </div>
+
+        <p style="text-align: center; color: #666;">This invitation expires on <%= @expires_at.strftime('%d %B %Y') %>.</p>
+
+        <% if @invitation.personal_message.present? %>
+          <div class="quote">
+            <p>"<%= @invitation.personal_message %>"</p>
+            <p>- <%= @invited_by&.name %></p>
+          </div>
+        <% end %>
+
+        <p>If you have any questions before signing up, just reply to this email.</p>
+      </div>
+
+      <div class="footer">
+        <p>&copy; <%= Time.current.year %> Tekna. All rights reserved.</p>
+        <p>You received this email because <%= @invited_by&.name || 'someone' %> invited you to try TEEEM.</p>
+      </div>
+    </div>
+  </body>
+</html>
