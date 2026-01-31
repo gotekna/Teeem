@@ -1,4 +1,6 @@
 class UserMailer < ApplicationMailer
+  default from: "TEEEM <noreply@teeem.app>"
+
   def welcome_email(user, temp_password)
     @user = user
     @temp_password = temp_password

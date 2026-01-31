@@ -54,6 +54,9 @@ export function getPageHelp(pathname: string): PageHelp | null {
 }
 
 export const PAGE_HELP_MAPPING: Record<string, HelpInfo> = {
+  // Getting Started (Chapter 0)
+  '/dashboard': { chapter: 0, section: 'dashboard' },
+
   // Authentication & Users (Chapter 1)
   '/login': { chapter: 1, section: 'login' },
   '/signup': { chapter: 1, section: 'signup' },
@@ -69,6 +72,8 @@ export const PAGE_HELP_MAPPING: Record<string, HelpInfo> = {
   // Contacts & Relationships (Chapter 3)
   '/contacts': { chapter: 3, section: 'overview' },
   '/contacts/new': { chapter: 3, section: 'creating' },
+  '/leads': { chapter: 3, section: 'leads' },
+  '/cases': { chapter: 3, section: 'cases' },
 
   // Price Books & Suppliers (Chapter 4)
   '/settings/pricebooks': { chapter: 4, section: 'overview' },
@@ -97,16 +102,21 @@ export const PAGE_HELP_MAPPING: Record<string, HelpInfo> = {
 
   // Weather & Public Holidays (Chapter 11)
   '/weather': { chapter: 11, section: 'overview' },
+  '/calendar': { chapter: 11, section: 'calendar' },
 
   // OneDrive Integration (Chapter 12)
   '/files': { chapter: 12, section: 'overview' },
   '/settings/onedrive': { chapter: 12, section: 'setup' },
 
   // Outlook/Email Integration (Chapter 13)
+  '/email': { chapter: 13, section: 'overview' },
+  '/email/rules': { chapter: 13, section: 'rules' },
+  '/email/settings': { chapter: 13, section: 'settings' },
   '/settings/outlook': { chapter: 13, section: 'setup' },
 
   // Chat & Communications (Chapter 14)
   '/chat': { chapter: 14, section: 'overview' },
+  '/meetings': { chapter: 14, section: 'meetings' },
 
   // Xero Accounting Integration (Chapter 15)
   '/xero': { chapter: 15, section: 'overview' },
@@ -114,6 +124,7 @@ export const PAGE_HELP_MAPPING: Record<string, HelpInfo> = {
 
   // Payments & Financials (Chapter 16)
   '/payments': { chapter: 16, section: 'overview' },
+  '/finance': { chapter: 16, section: 'finance' },
 
   // Workflows & Automation (Chapter 17)
   '/settings/workflows': { chapter: 17, section: 'overview' },
@@ -125,6 +136,7 @@ export const PAGE_HELP_MAPPING: Record<string, HelpInfo> = {
   // Corporate Module (Chapter 19) - Basic corporate pages
   '/corporate': { chapter: 19, section: 'overview' },
   '/corporate/health-report': { chapter: 19, section: 'health-report' },
+  '/assets': { chapter: 19, section: 'assets' },
 
   // Corporate Module Extended (Chapter 20)
   '/corporate/directors': { chapter: 20, section: 'directors' },
