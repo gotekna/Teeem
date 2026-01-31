@@ -5,8 +5,13 @@ module Api
 
       # GET /api/v1/email_job_proposals
       # List proposals with filtering
+      # SSoT (Jan 2026): Tenant scoping via SyncedEmail join
       def index
+        # EmailJobProposal doesn't have acts_as_tenant, so we scope via SyncedEmail
+        # SyncedEmail has acts_as_tenant which auto-filters to current_tenant
+        tenant_synced_email_ids = SyncedEmail.pluck(:id)
         proposals = EmailJobProposal
+          .where(email_warehouse_id: tenant_synced_email_ids)
           .includes(:synced_email, :created_by_user, :approved_by_user, :job)
 
         # Filter by status (default: pending)
@@ -248,7 +253,9 @@ module Api
       private
 
       def set_proposal
-        @proposal = EmailJobProposal.find(params[:id])
+        # SSoT (Jan 2026): Tenant scoping via SyncedEmail join
+        tenant_synced_email_ids = SyncedEmail.pluck(:id)
+        @proposal = EmailJobProposal.where(email_warehouse_id: tenant_synced_email_ids).find(params[:id])
       end
 
       def serialize_proposal(proposal, include_full_email: false)

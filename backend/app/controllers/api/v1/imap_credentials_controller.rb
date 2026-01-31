@@ -989,6 +989,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       last_sync_error: credential.last_sync_error,
       created_at: credential.created_at,
       email_signature: credential.email_signature,
+      email_aliases: credential.email_aliases || [],  # Send-from aliases
       # Sharing fields
       user_id: credential.user_id,
       owner_name: credential.user&.name,
