@@ -90,6 +90,9 @@
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
 
+    /* System Column Background (for auto-generated columns like ID, created_at) */
+    --system-column-bg: 47, 100%, 96%;       /* Light yellow tint */
+
     /* Chart colors */
     --chart-grid-stroke: #e6e6e6;
     --chart-axis-text: #707070;
@@ -159,6 +162,9 @@
     --border: 0, 0%, 11%;
     --input: 0, 0%, 11%;
     --ring: 240 4.9% 83.9%;
+
+    /* System Column Background - Dark variant */
+    --system-column-bg: 47, 60%, 12%;        /* Dark yellow tint */
 
     /* Chart colors */
     --chart-grid-stroke: #1d1d1d;
