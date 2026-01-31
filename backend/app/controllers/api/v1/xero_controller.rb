@@ -1980,8 +1980,8 @@ module Api
             with_errors_count = tenant_links.with_errors.count
 
             # Count invoices/bills for this tenant
-            # SSoT: Use .active scope to match Stage 1 sync count (excludes voided/deleted)
-            tenant_invoices = ExternalInvoice.xero.active.where(tenant_id: tenant_id)
+            # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
+            tenant_invoices = ExternalInvoice.xero.active.where(tenant_id: tenant_id).where.not(status: "draft")
             invoices_count = tenant_invoices.sales_invoices.count
             bills_count = tenant_invoices.bills.count
             quotes_count = tenant_invoices.quotes.count
