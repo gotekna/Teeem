@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Check, Mail } from "lucide-react";
+import { Check, Mail, Building2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
@@ -26,6 +26,7 @@ import {
  * Allows users to choose from 10 pre-designed email signature styles.
  * Shows live previews with the user's actual data.
  * Saves the preference to the user's profile.
+ * Admin can also set company-wide default.
  *
  * SSoT: Signature styles defined in lib/email-signature.ts
  */
@@ -38,45 +39,56 @@ interface UserWithSignature {
   mobile_phone?: string;
   job_title?: string;
   email_signature_style?: string;
+  permissions?: string[];
+}
+
+interface CompanySettingsResponse {
+  company_name?: string;
+  logo_dark?: string;
+  logo_url?: string;
+  address?: string;
+  website?: string;
+  phone?: string;
+  brand_colors?: {
+    primary?: string;
+    primaryForeground?: string;
+  };
+  default_email_signature_style?: string;
 }
 
 export function EmailSignaturesTab() {
   const { user, refreshUser } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [savingCompanyDefault, setSavingCompanyDefault] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState<SignatureStyleId>(DEFAULT_SIGNATURE_STYLE);
+  const [companyDefaultStyle, setCompanyDefaultStyle] = useState<SignatureStyleId>(DEFAULT_SIGNATURE_STYLE);
   const [companySettings, setCompanySettings] = useState<SignatureCompanyData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Check if user is admin
+  const userWithSig = user as UserWithSignature;
+  const isAdmin = userWithSig?.permissions?.includes('admin') ||
+                  userWithSig?.permissions?.includes('manage_settings');
 
   // Load company settings for signature previews
   useEffect(() => {
     const loadCompanySettings = async () => {
       try {
-        interface CompanySettingsResponse {
-          company_name?: string;
-          logo_dark?: string;
-          logo_url?: string;
-          address?: string;
-          website?: string;
-          phone?: string;
-          brand_colors?: {
-            primary?: string;
-            primaryForeground?: string;
-          };
-        }
         const response = await api.get<{ success: boolean; data?: CompanySettingsResponse }>("/api/v1/company_settings");
         if (response?.success && response.data) {
-          // Map API response to SignatureCompanyData
           const data = response.data;
           setCompanySettings({
             name: data.company_name,
             logo_dark: data.logo_dark,
-            logo_light: data.logo_url, // Use logo_url as light logo
+            logo_light: data.logo_url,
             address: data.address,
             website: data.website,
             phone: data.phone,
             brand_color: data.brand_colors?.primary,
             brand_color_foreground: data.brand_colors?.primaryForeground,
           });
+          // Set company default
+          setCompanyDefaultStyle((data.default_email_signature_style as SignatureStyleId) || DEFAULT_SIGNATURE_STYLE);
         }
       } catch (error) {
         console.error("Failed to load company settings:", error);
@@ -91,7 +103,6 @@ export function EmailSignaturesTab() {
   // Initialize selected style from user preference
   useEffect(() => {
     if (user) {
-      const userWithSig = user as UserWithSignature;
       const style = (userWithSig.email_signature_style as SignatureStyleId) || DEFAULT_SIGNATURE_STYLE;
       setSelectedStyle(style);
     }
@@ -107,7 +118,6 @@ export function EmailSignaturesTab() {
         job_title: "Project Manager",
       };
     }
-    const userWithSig = user as UserWithSignature;
     return {
       name: userWithSig.name || "Your Name",
       email: userWithSig.email || "your@email.com",
@@ -130,24 +140,44 @@ export function EmailSignaturesTab() {
 
       if (response?.success) {
         toast.success("Email signature updated");
-        // Refresh user data to get the new preference
         if (refreshUser) {
           await refreshUser();
         }
       } else {
         toast.error("Failed to save signature preference");
-        // Revert to previous selection
-        const userWithSig = user as UserWithSignature;
         setSelectedStyle((userWithSig.email_signature_style as SignatureStyleId) || DEFAULT_SIGNATURE_STYLE);
       }
     } catch (error) {
       console.error("Failed to update signature style:", error);
       toast.error("Failed to save signature preference");
-      // Revert to previous selection
-      const userWithSig = user as UserWithSignature;
       setSelectedStyle((userWithSig.email_signature_style as SignatureStyleId) || DEFAULT_SIGNATURE_STYLE);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSetCompanyDefault = async (styleId: SignatureStyleId) => {
+    if (!isAdmin) return;
+
+    setSavingCompanyDefault(true);
+
+    try {
+      const response = await api.patch<{ success: boolean; error?: string }>(
+        `/api/v1/company_settings`,
+        { company_setting: { default_email_signature_style: styleId } }
+      );
+
+      if (response?.success) {
+        setCompanyDefaultStyle(styleId);
+        toast.success(`Company default signature set to "${SIGNATURE_STYLES.find(s => s.id === styleId)?.name}"`);
+      } else {
+        toast.error(response?.error || "Failed to update company default");
+      }
+    } catch (error) {
+      console.error("Failed to update company default:", error);
+      toast.error("Failed to update company default");
+    } finally {
+      setSavingCompanyDefault(false);
     }
   };
 
@@ -169,12 +199,19 @@ export function EmailSignaturesTab() {
         <p className="text-sm text-muted-foreground">
           Choose your default email signature style. The preview shows how your signature will appear using your profile information.
         </p>
+        {isAdmin && (
+          <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+            <Building2 className="h-3.5 w-3.5 inline mr-1" />
+            As an admin, you can also set the company-wide default for all users.
+          </p>
+        )}
       </div>
 
       {/* Style Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {SIGNATURE_STYLES.map((style) => {
           const isSelected = selectedStyle === style.id;
+          const isCompanyDefault = companyDefaultStyle === style.id;
           const signatureHtml = generateSignatureByStyle(
             style.id,
             userData,
@@ -186,18 +223,26 @@ export function EmailSignaturesTab() {
               key={style.id}
               className={cn(
                 "relative cursor-pointer transition-all hover:shadow-md",
-                isSelected && "ring-2 ring-primary border-primary"
+                isSelected && "ring-2 ring-primary border-primary",
+                isCompanyDefault && !isSelected && "ring-1 ring-blue-400 border-blue-400"
               )}
               onClick={() => !saving && handleSelectStyle(style.id)}
             >
-              {isSelected && (
-                <div className="absolute top-2 right-2 z-10">
+              {/* Badges */}
+              <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 items-end">
+                {isSelected && (
                   <Badge className="bg-primary text-primary-foreground gap-1">
-                    <Check className="h-3 w-3" />
-                    Current
+                    <User className="h-3 w-3" />
+                    Your Choice
                   </Badge>
-                </div>
-              )}
+                )}
+                {isCompanyDefault && (
+                  <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 gap-1">
+                    <Building2 className="h-3 w-3" />
+                    Company Default
+                  </Badge>
+                )}
+              </div>
 
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -224,8 +269,8 @@ export function EmailSignaturesTab() {
                   </div>
                 )}
 
-                {/* Select Button */}
-                <div className="mt-3">
+                {/* Action Buttons */}
+                <div className="mt-3 space-y-2">
                   <Button
                     variant={isSelected ? "secondary" : "outline"}
                     size="sm"
@@ -243,9 +288,35 @@ export function EmailSignaturesTab() {
                         Selected
                       </>
                     ) : (
-                      "Select"
+                      "Select for Me"
                     )}
                   </Button>
+
+                  {/* Admin: Set as Company Default */}
+                  {isAdmin && !isCompanyDefault && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                      disabled={savingCompanyDefault}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSetCompanyDefault(style.id);
+                      }}
+                    >
+                      {savingCompanyDefault ? (
+                        <>
+                          <Spinner size={14} className="mr-2" />
+                          Setting...
+                        </>
+                      ) : (
+                        <>
+                          <Building2 className="h-4 w-4 mr-2" />
+                          Set as Company Default
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -256,7 +327,7 @@ export function EmailSignaturesTab() {
       {/* Info Card */}
       <Card className="bg-muted/30">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <h4 className="font-medium text-sm mb-2">How It Works</h4>
               <p className="text-xs text-muted-foreground">
@@ -269,6 +340,13 @@ export function EmailSignaturesTab() {
               <p className="text-xs text-muted-foreground">
                 To change the information displayed in your signature, update your profile in
                 Settings &gt; Profile. Changes will reflect in your signature immediately.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-medium text-sm mb-2">Company Default</h4>
+              <p className="text-xs text-muted-foreground">
+                New users automatically use the company default signature.
+                Users can override this with their own preference at any time.
               </p>
             </div>
           </div>
