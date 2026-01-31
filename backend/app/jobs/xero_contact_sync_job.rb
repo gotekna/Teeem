@@ -73,7 +73,10 @@ class XeroContactSyncJob < ApplicationJob
         handle_rate_limit_error(credential.tenant_id, e, options)
         combined_result[:success] = false
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: "Rate limited" }
-        break # Stop processing other tenants when rate limited
+        # FRC (Jan 2026): Changed break→next for multi-tenant SaaS scaling
+        # Xero rate limits are per-connection, not global. If tenant A is rate-limited,
+        # tenants B-Z should still sync. Critical for 10-15K connection scaling.
+        next
       rescue StandardError => e
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: e.message }
       end
