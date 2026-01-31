@@ -242,7 +242,7 @@ warehouse_daily_snapshot:
 xero_invoice_data_sync:
   class: XeroInvoiceSyncJob
   queue: default
-  args: [null]
+  args: [{}]
   schedule: every 5 minutes
 
 # Sync Xero invoice attachments (PDFs) - runs after invoice sync

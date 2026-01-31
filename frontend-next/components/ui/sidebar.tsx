@@ -30,6 +30,7 @@ import {
 } from "@/lib/personas";
 import { useTheme } from "next-themes";
 import { Button } from "./button";
+import { ComboboxDropdown, type ComboboxItem } from "./combobox-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
@@ -282,20 +283,24 @@ function SidebarContent({
             <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
             {(isExpanded || mobile) ? (
               tenantInfo.isTeeemStaff && tenantInfo.canSwitchTenants ? (
-                <select
-                  value={tenantInfo.currentTenant.id.toString()}
-                  onChange={(e) => {
-                    tenantInfo.switchTenant(parseInt(e.target.value, 10));
+                <ComboboxDropdown
+                  items={tenantInfo.tenants.map((t) => ({
+                    id: t.id.toString(),
+                    label: t.name,
+                  }))}
+                  selectedItem={{
+                    id: tenantInfo.currentTenant.id.toString(),
+                    label: tenantInfo.currentTenant.name,
+                  }}
+                  onSelect={(item) => {
+                    tenantInfo.switchTenant(parseInt(item.id, 10));
                   }}
                   disabled={tenantInfo.isLoading}
-                  className="h-6 text-xs flex-1 border border-border bg-background px-2 rounded min-w-0"
-                >
-                  {tenantInfo.tenants.map((t) => (
-                    <option key={t.id} value={t.id.toString()}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Select tenant..."
+                  searchPlaceholder="Search tenants..."
+                  className="h-7 text-xs flex-1 min-w-0"
+                  popoverProps={{ className: "w-[200px]" }}
+                />
               ) : (
                 <span className="text-xs font-medium truncate flex-1 min-w-0">
                   {tenantInfo.currentTenant.name}
@@ -972,48 +977,6 @@ export function Sidebar() {
           isExpanded ? "w-[240px]" : "w-[70px]"
         )}
       >
-        {/* DEBUG: Direct tenant switch buttons - NOT in SidebarContent */}
-        {tenantContext?.isTeeemStaff && tenantContext?.canSwitchTenants && isExpanded && (
-          <div
-            className="p-2 bg-red-100 dark:bg-red-900 border-b border-red-300 flex gap-1"
-            onMouseDown={() => console.log('[DEBUG] Container mousedown!')}
-            onPointerDown={() => console.log('[DEBUG] Container pointerdown!')}
-          >
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                console.log('[DEBUG] Button mousedown!', e.target);
-              }}
-              onPointerDown={(e) => {
-                console.log('[DEBUG] Button pointerdown!', e.target);
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('[DEBUG] Direct Pilgrim click!');
-                tenantContext.switchTenant(77);
-              }}
-              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
-              style={{ pointerEvents: 'auto', position: 'relative', zIndex: 9999 }}
-            >
-              Pilgrim (77)
-            </button>
-            <button
-              type="button"
-              onMouseDown={() => console.log('[DEBUG] Teeem mousedown!')}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('[DEBUG] Direct Teeem click!');
-                tenantContext.switchTenant(76);
-              }}
-              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
-              style={{ pointerEvents: 'auto', position: 'relative', zIndex: 9999 }}
-            >
-              Teeem (76)
-            </button>
-          </div>
-        )}
         <SidebarContent {...sidebarContentProps} />
         {/* Chevron Toggle Button */}
         <button
