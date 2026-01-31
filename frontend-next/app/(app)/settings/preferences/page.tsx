@@ -20,8 +20,14 @@ import {
   LayoutGrid,
   List,
   Sparkles,
+  HelpCircle,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { HelpIcon } from "@/components/help/HelpTooltip";
+import {
+  getHelpButtonHoverOnly,
+  setHelpButtonHoverOnly,
+} from "@/components/help/FloatingHelpButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -63,6 +69,13 @@ export default function PreferencesPage() {
   const [compactMode, setCompactMode] = React.useState(false);
   const [enableAiWritingAssistant, setEnableAiWritingAssistant] = React.useState(false);
   const [savingAi, setSavingAi] = React.useState(false);
+  const [helpButtonHoverOnly, setHelpButtonHoverOnlyState] = React.useState(false);
+
+  // Initialize preferences from localStorage/user data
+  React.useEffect(() => {
+    // Help button preference (localStorage)
+    setHelpButtonHoverOnlyState(getHelpButtonHoverOnly());
+  }, []);
 
   // Initialize AI Writing Assistant from user data
   React.useEffect(() => {
@@ -70,6 +83,18 @@ export default function PreferencesPage() {
       setEnableAiWritingAssistant((user as any).enable_ai_writing_assistant ?? false);
     }
   }, [user]);
+
+  // Handle help button visibility toggle
+  const handleHelpButtonHoverOnlyChange = (checked: boolean) => {
+    setHelpButtonHoverOnlyState(checked);
+    setHelpButtonHoverOnly(checked);
+    toast({
+      title: checked ? "Help button now shows on hover" : "Help button always visible",
+      description: checked
+        ? "The help button will fade in when you hover near the bottom-right corner."
+        : "The help button is now always visible.",
+    });
+  };
 
   // Handle AI Writing Assistant toggle
   const handleAiWritingAssistantChange = async (checked: boolean) => {
@@ -244,7 +269,13 @@ export default function PreferencesPage() {
             {/* Compact Mode */}
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Compact Mode</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label>Compact Mode</Label>
+                  <HelpIcon
+                    content="Reduces spacing between rows in tables and list views. Useful for seeing more data at once on smaller screens."
+                    size="sm"
+                  />
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Use smaller spacing in tables and lists
                 </p>
@@ -261,6 +292,16 @@ export default function PreferencesPage() {
                 <div className="flex items-center gap-2">
                   <Label>AI Writing Assistant</Label>
                   <Sparkles className="h-4 w-4 text-purple-500" />
+                  <HelpIcon
+                    content="When enabled, AI will analyze your text in email composers and notes to suggest grammar improvements and professional tone adjustments."
+                    tips={[
+                      "Works in email compose, notes, and rich text fields",
+                      "Suggestions appear as you type",
+                      "Your text is processed securely and not stored"
+                    ]}
+                    variant="tip"
+                    size="sm"
+                  />
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Enable grammar and tone checking powered by AI
