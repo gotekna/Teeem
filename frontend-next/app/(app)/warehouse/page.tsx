@@ -801,13 +801,14 @@ export default function AllDocumentsPage() {
           folders: Array<{ name: string; path: string; count: number; [key: string]: unknown }>;
           files: Array<{
             id: number;
-            name: string;
+            displayName: string;  // FRC: API returns displayName, not name
+            originalFilename?: string;
             type: string;
             mimeType: string;
             fileSize?: number;
             createdAt?: string;
             receivedAt?: string;
-            url?: string;
+            fileUrl?: string | null;  // FRC: API returns fileUrl, not url
             [key: string]: unknown;
           }>;
           count: { folders: number; files: number; total: number };
@@ -826,11 +827,12 @@ export default function AllDocumentsPage() {
                 count: f.count,
               })),
               files: (response.files || []).map(f => ({
-                name: f.name,
-                path: relativePath ? `${scopeRootFolder}/${relativePath}/${f.name}` : `${scopeRootFolder}/${f.name}`,
+                // FRC (Jan 2026): API returns displayName, not name
+                name: f.displayName || f.originalFilename || 'Unknown',
+                path: relativePath ? `${scopeRootFolder}/${relativePath}/${f.displayName || f.originalFilename}` : `${scopeRootFolder}/${f.displayName || f.originalFilename}`,
                 size: f.fileSize || 0,
                 content_type: f.mimeType || 'application/octet-stream',
-                url: f.url,
+                url: f.fileUrl ?? undefined,  // FRC: API returns fileUrl (null → undefined for type compat)
                 id: f.id,
                 type: f.type,
               })),

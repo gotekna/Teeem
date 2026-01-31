@@ -1455,6 +1455,11 @@ module Api
           # ============================================
           # SSoT: Exclude drafts from both Stage 1 and Stage 2 for consistent denominator
           # Drafts can't have PDFs (Xero only generates PDFs for finalized invoices)
+          # Total ALL invoices (including voided/deleted) for display
+          all_invoices_scope = tenant_id.present? ? ExternalInvoice.xero.where(tenant_id: tenant_id) : ExternalInvoice.xero
+          total_all_invoices = all_invoices_scope.count
+          voided_deleted_count = all_invoices_scope.where(status: %w[voided deleted]).count
+
           base_scope = tenant_id.present? ? ExternalInvoice.active.where(tenant_id: tenant_id) : ExternalInvoice.active
           base_scope_no_drafts = base_scope.where.not(status: "draft")
           total_invoices_in_db = base_scope_no_drafts.count
@@ -1757,6 +1762,34 @@ module Api
                                                        .where(storage_blob_id: nil)
                                                        .count
 
+          # ============================================
+          # BLOB HEALTH STATS
+          # ============================================
+          # Query StorageBlobs used by Xero WarehouseDocuments
+          xero_blob_ids = WarehouseDocument.where(source_type: "xero")
+                                           .where(documentable_type: "ExternalInvoice")
+                                           .where.not(storage_blob_id: nil)
+                                           .distinct
+                                           .pluck(:storage_blob_id)
+          xero_blobs = StorageBlob.where(id: xero_blob_ids)
+          total_xero_blobs = xero_blobs.count
+          blobs_with_hash = xero_blobs.where.not(content_hash: nil).count
+          blobs_missing_hash = xero_blobs.where(content_hash: nil).count
+          blobs_file_missing = xero_blobs.where(file_missing: true).count
+
+          # Calculate blob health percentage
+          blob_health_percentage = total_xero_blobs > 0 ?
+            ((blobs_with_hash.to_f / total_xero_blobs) * 100).round(1) : 100.0
+          blob_health_status = if total_xero_blobs == 0
+            "no_blobs"
+          elsif blobs_file_missing > 0
+            "files_missing"
+          elsif blobs_missing_hash > 0
+            "needs_validation"
+          else
+            "healthy"
+          end
+
           # Build violations array for Stage 3 display
           stage3_violations = []
           if wrong_format_count > 0
@@ -1856,6 +1889,25 @@ module Api
                 blocker: nil,
                 sharepoint_url: sharepoint_contacts_url,
                 violations: []
+              },
+
+              # Totals Summary (including voided/deleted for full picture)
+              totals_summary: {
+                total_all: total_all_invoices,
+                active: total_invoices_in_db,
+                voided_deleted: voided_deleted_count,
+                synced: invoices_with_pdfs,
+                pending: pdfs_pending
+              },
+
+              # Blob Health (storage validation status)
+              blob_health: {
+                total_blobs: total_xero_blobs,
+                validated: blobs_with_hash,
+                missing_hash: blobs_missing_hash,
+                file_missing: blobs_file_missing,
+                health_percentage: blob_health_percentage,
+                status: blob_health_status
               },
 
               # Overall metrics (for backwards compatibility)

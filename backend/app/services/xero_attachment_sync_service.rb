@@ -48,14 +48,22 @@ class XeroAttachmentSyncService
   end
 
   # Map Xero tenant_id (UUID) to TEEEM Tenant
+  # SSoT Chain: XeroCredential → CorporateCompanyXeroConnection → CorporateCompany → Tenant
   def find_teeem_tenant_from_xero_tenant_id(xero_tenant_id)
     return nil unless xero_tenant_id.present?
 
     xero_credential = XeroCredential.find_by(tenant_id: xero_tenant_id)
     return nil unless xero_credential
 
-    org = Organization.where(is_active: true).first
-    org&.tenant
+    # Find CorporateCompany linked to this XeroCredential via connection table
+    connection = CorporateCompanyXeroConnection.find_by(xero_credential_id: xero_credential.id)
+    return nil unless connection
+
+    corporate_company = CorporateCompany.find_by(id: connection.company_id)
+    return nil unless corporate_company
+
+    # Get the TEEEM Tenant from the CorporateCompany
+    Tenant.find_by(id: corporate_company.tenant_id)
   end
 
   # Sync all attachments for this invoice
