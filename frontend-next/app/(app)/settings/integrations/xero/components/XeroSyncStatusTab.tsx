@@ -145,7 +145,7 @@ function TenantSyncCard({ tenant }: { tenant: TenantStats }) {
         {/* Compact sync type indicators + overall health */}
         <div className="flex items-center gap-4">
           {/* 4 sync type mini indicators */}
-          <div className="hidden sm:flex items-center gap-1">
+          <div className="hidden sm:flex items-center gap-2">
             {SYNC_TYPES.map(({ key, label }) => {
               const status = tenant.sync_health?.[key];
               const health = status?.health_status || "red";
@@ -160,7 +160,7 @@ function TenantSyncCard({ tenant }: { tenant: TenantStats }) {
                 <div
                   key={key}
                   className={cn(
-                    "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium",
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium",
                     health === "green" && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300",
                     health === "yellow" && "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
                     health === "red" && "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
@@ -169,7 +169,7 @@ function TenantSyncCard({ tenant }: { tenant: TenantStats }) {
                 >
                   <span>{shortLabel}</span>
                   {hasError ? (
-                    <AlertTriangle className="h-3 w-3" />
+                    <AlertTriangle className="h-4 w-4" />
                   ) : (
                     <span className="opacity-75">{formatAge(age ?? null)}</span>
                   )}
@@ -178,18 +178,36 @@ function TenantSyncCard({ tenant }: { tenant: TenantStats }) {
             })}
           </div>
 
-          {/* Overall health indicator */}
-          <div className="flex items-center gap-2">
-            <div className={cn("w-3 h-3 rounded-full", getHealthDot(tenant.overall_sync_health))} />
-            <span className={cn(
-              "text-sm font-medium",
-              tenant.overall_sync_health === "green" && "text-green-600 dark:text-green-400",
-              tenant.overall_sync_health === "yellow" && "text-amber-600 dark:text-amber-400",
-              tenant.overall_sync_health === "red" && "text-red-600 dark:text-red-400"
-            )}>
-              {tenant.overall_sync_health === "green" ? "Healthy" : tenant.overall_sync_health === "yellow" ? "Warning" : "Stale"}
-            </span>
-          </div>
+          {/* Overall health indicator with problem details */}
+          {(() => {
+            // Find which sync types are causing issues
+            const problemTypes = SYNC_TYPES
+              .filter(({ key }) => {
+                const status = tenant.sync_health?.[key];
+                return status?.health_status === "red" || status?.health_status === "yellow";
+              })
+              .map(({ key }) => key === "invoices" ? "I" : key === "contacts" ? "C" : key === "pdfs" ? "P" : "B");
+
+            const healthLabel = tenant.overall_sync_health === "green"
+              ? "Healthy"
+              : tenant.overall_sync_health === "yellow"
+                ? `Warning: ${problemTypes.join(", ")}`
+                : `Stale: ${problemTypes.join(", ")}`;
+
+            return (
+              <div className="flex items-center gap-2">
+                <div className={cn("w-3 h-3 rounded-full", getHealthDot(tenant.overall_sync_health))} />
+                <span className={cn(
+                  "text-sm font-medium",
+                  tenant.overall_sync_health === "green" && "text-green-600 dark:text-green-400",
+                  tenant.overall_sync_health === "yellow" && "text-amber-600 dark:text-amber-400",
+                  tenant.overall_sync_health === "red" && "text-red-600 dark:text-red-400"
+                )}>
+                  {healthLabel}
+                </span>
+              </div>
+            );
+          })()}
         </div>
       </button>
 
