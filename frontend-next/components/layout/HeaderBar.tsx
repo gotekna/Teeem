@@ -227,30 +227,48 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             syncing: number;
             overall_status: 'connected' | 'disconnected' | 'error' | 'degraded';
             summary: string;
+            ms365_orgs: Array<{ name: string; status: string; is_primary: boolean }>;
+            imap: { total: number; connected: number; errors: number; syncing: number };
           };
         }>("/api/v1/imap_credentials/org_status");
 
         if (orgStatusResponse?.success && orgStatusResponse?.data) {
-          const { total, connected, errors, overall_status, summary } = orgStatusResponse.data;
+          const { total, connected, errors, overall_status, ms365_orgs, imap } = orgStatusResponse.data;
 
           // Update status and counts for display
           setEmailOverallStatus(overall_status as ConnectionStatus);
           setEmailTotalCount(total);
           setEmailConnectedCount(connected);
 
-          // Create a summary entry for the popover (org-wide view)
+          // Create entries for each MS365 org and IMAP summary
           const accounts: typeof emailAccounts = [];
-          if (total > 0) {
+
+          // Add MS365 orgs
+          ms365_orgs?.forEach((org, index) => {
             accounts.push({
-              id: 0,
-              name: "Organization Email",
-              email: summary,
-              type: 'imap',
-              status: overall_status === 'error' ? 'error' : overall_status === 'connected' ? 'connected' : 'disconnected',
+              id: index,
+              name: org.name,
+              email: org.is_primary ? 'Primary organization' : 'Microsoft 365',
+              type: 'microsoft',
+              status: org.status === 'connected' ? 'connected' : 'disconnected',
               lastSyncedAt: null,
-              error: errors > 0 ? `${errors} account(s) have sync errors` : null,
+              error: null,
+            });
+          });
+
+          // Add IMAP summary if there are IMAP accounts
+          if (imap?.total > 0) {
+            accounts.push({
+              id: 999,
+              name: 'IMAP Accounts',
+              email: `${imap.connected}/${imap.total} connected`,
+              type: 'imap',
+              status: imap.errors > 0 ? 'error' : imap.connected === imap.total ? 'connected' : 'disconnected',
+              lastSyncedAt: null,
+              error: imap.errors > 0 ? `${imap.errors} account(s) have sync errors` : null,
             });
           }
+
           setEmailAccounts(accounts);
         } else {
           setEmailOverallStatus('disconnected');

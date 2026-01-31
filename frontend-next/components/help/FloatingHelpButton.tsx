@@ -15,6 +15,19 @@ import { getTourForRoute } from "@/lib/tours/tour-definitions";
 import { usePageTour } from "./PageTour";
 import { cn } from "@/lib/utils";
 
+// LocalStorage key for help button visibility preference
+const HELP_BUTTON_HOVER_ONLY_KEY = "teeem_help_button_hover_only";
+
+export function getHelpButtonHoverOnly(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(HELP_BUTTON_HOVER_ONLY_KEY) === "true";
+}
+
+export function setHelpButtonHoverOnly(value: boolean): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(HELP_BUTTON_HOVER_ONLY_KEY, value ? "true" : "false");
+}
+
 interface FloatingHelpButtonProps {
   inline?: boolean;
 }
@@ -23,7 +36,14 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
   const pathname = usePathname();
   const [showHelpModal, setShowHelpModal] = React.useState(false);
   const [isOpen, setIsOpen] = React.useState(false);
+  const [isHovered, setIsHovered] = React.useState(false);
+  const [hoverOnly, setHoverOnly] = React.useState(false);
   const { startTour } = usePageTour();
+
+  // Load preference from localStorage
+  React.useEffect(() => {
+    setHoverOnly(getHelpButtonHoverOnly());
+  }, []);
 
   // Get contextual help for current page
   const helpInfo = getHelpForPage(pathname);
@@ -37,16 +57,23 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
     setTimeout(() => startTour(), 100); // Small delay for popover to close
   };
 
+  // Determine if button should be visible
+  const isVisible = inline || !hoverOnly || isHovered || isOpen;
+
   return (
     <>
       {/* Help Button with Popover */}
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <button
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
             className={cn(
               inline
                 ? "p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md"
-                : "fixed bottom-6 right-6 z-40 p-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-background"
+                : "fixed bottom-6 right-6 z-40 p-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-background",
+              // Hover-only mode: nearly invisible when not hovered
+              !inline && hoverOnly && !isHovered && !isOpen && "opacity-10 scale-75"
             )}
             aria-label="Get help"
             title="Get help for this page"
