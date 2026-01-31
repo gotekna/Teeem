@@ -5,8 +5,13 @@ module Api
 
       # GET /api/v1/email_case_proposals
       # List proposals with filtering
+      # SSoT (Jan 2026): Tenant scoping via SyncedEmail join
       def index
+        # EmailCaseProposal doesn't have acts_as_tenant, so we scope via SyncedEmail
+        # SyncedEmail has acts_as_tenant which auto-filters to current_tenant
+        tenant_synced_email_ids = SyncedEmail.pluck(:id)
         proposals = EmailCaseProposal
+          .where(synced_email_id: tenant_synced_email_ids)
           .includes(:synced_email, :created_by, :approved_by, :case_record)
 
         # Filter by status (default: all for overview, or specific)
@@ -26,12 +31,12 @@ module Api
 
         proposals = proposals.recent.offset((page - 1) * per_page).limit(per_page)
 
-        # Get stats
+        # Get stats (scoped to tenant)
         stats = {
-          total: EmailCaseProposal.count,
-          pending: EmailCaseProposal.pending.count,
-          approved: EmailCaseProposal.approved.count,
-          rejected: EmailCaseProposal.rejected.count
+          total: EmailCaseProposal.where(synced_email_id: tenant_synced_email_ids).count,
+          pending: EmailCaseProposal.where(synced_email_id: tenant_synced_email_ids).pending.count,
+          approved: EmailCaseProposal.where(synced_email_id: tenant_synced_email_ids).approved.count,
+          rejected: EmailCaseProposal.where(synced_email_id: tenant_synced_email_ids).rejected.count
         }
 
         render json: {
@@ -253,7 +258,9 @@ module Api
       private
 
       def set_proposal
-        @proposal = EmailCaseProposal.find(params[:id])
+        # SSoT (Jan 2026): Tenant scoping via SyncedEmail join
+        tenant_synced_email_ids = SyncedEmail.pluck(:id)
+        @proposal = EmailCaseProposal.where(synced_email_id: tenant_synced_email_ids).find(params[:id])
       end
 
       def serialize_proposal(proposal, include_full_email: false)

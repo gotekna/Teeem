@@ -83,6 +83,7 @@ interface ImapCredential {
   last_sync_error: string | null;
   created_at: string;
   email_signature: string | null;
+  email_aliases: string[]; // Send-from aliases (e.g., demo@, sales@)
   shared_with_user_ids: number[];
   shared_with_users: { id: number; name: string }[];
   user_id: number;
@@ -1120,7 +1121,14 @@ export function EmailAccountsTab() {
                       <CardTitle className="text-base">
                         {cred.name || cred.email_address}
                       </CardTitle>
-                      <CardDescription>{cred.email_address}</CardDescription>
+                      <CardDescription className="flex items-center gap-2 flex-wrap">
+                        <span>{cred.email_address}</span>
+                        {cred.email_aliases?.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            + {cred.email_aliases.length} alias{cred.email_aliases.length > 1 ? 'es' : ''}: {cred.email_aliases.join(', ')}
+                          </span>
+                        )}
+                      </CardDescription>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
