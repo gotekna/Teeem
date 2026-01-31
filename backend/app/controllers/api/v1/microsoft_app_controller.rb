@@ -434,13 +434,18 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can view organization mailboxes" }, status: :forbidden
     end
 
-    # Get all TEEEM users for the mapping UI (include all users so admins can pre-configure access)
-    teeem_users = User.order(:name).map do |u|
+    # SSoT (Jan 2026): Filter users by current tenant for multi-tenancy isolation
+    tenant_user_ids = current_tenant&.users&.pluck(:id) || []
+    teeem_users = User.where(id: tenant_user_ids).order(:name).map do |u|
       { id: u.id, name: u.name, email: u.email }
     end
 
-    # SSoT: Use MicrosoftCredential
-    organizations = MicrosoftCredential.app_credentials.active.order(:name).map do |org|
+    # SSoT (Jan 2026): Filter MS365 credentials by current tenant's organizations
+    # MicrosoftCredential belongs_to Organization, which belongs_to Tenant (indirect relationship)
+    tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
+    organizations = MicrosoftCredential.app_credentials.active
+                                        .where(organization_id: tenant_org_ids)
+                                        .order(:name).map do |org|
       # Get mailboxes from tenant
       all_mailboxes = if org.status == "connected"
         begin
