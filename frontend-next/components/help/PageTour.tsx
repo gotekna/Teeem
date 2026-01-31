@@ -97,7 +97,7 @@ export function PageTour({ forceShow = false, onTourEnd }: PageTourProps) {
 
   // Handle tour callbacks
   const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status, type, index } = data;
+    const { status, type, index, action } = data;
     const finishedStatuses: string[] = ["finished", "skipped"];
 
     if (finishedStatuses.includes(status)) {
@@ -106,6 +106,20 @@ export function PageTour({ forceShow = false, onTourEnd }: PageTourProps) {
         markTourCompleted(tour.id);
       }
       onTourEnd?.();
+    }
+
+    // Handle target not found - skip to next step
+    if (type === "error:target_not_found" && tour) {
+      const nextIndex = index + 1;
+      if (nextIndex < tour.steps.length) {
+        setStepIndex(nextIndex);
+      } else {
+        // No more steps, end tour
+        setRun(false);
+        markTourCompleted(tour.id);
+        onTourEnd?.();
+      }
+      return;
     }
 
     // Update step index for controlled tour
@@ -145,6 +159,7 @@ export function PageTour({ forceShow = false, onTourEnd }: PageTourProps) {
       hideCloseButton
       disableOverlayClose
       disableScrolling={false}
+      scrollToFirstStep
       spotlightClicks
       callback={handleJoyrideCallback}
       styles={tourStyles}

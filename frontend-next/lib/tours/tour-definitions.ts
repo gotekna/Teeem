@@ -26,11 +26,13 @@ export const dashboardTour: PageTour = {
       target: '[data-tour="recent-items"]',
       content: "Recent activity from your team appears here - see what's been updated.",
       title: "Recent Activity",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="tasks-widget"]',
       content: "See your upcoming tasks and deadlines for this week.",
       title: "Upcoming Schedule",
+      disableBeacon: true,
     },
   ],
 };
@@ -52,21 +54,25 @@ export const emailTour: PageTour = {
       target: '[data-tour="email-folders"]',
       content: "Navigate between Inbox, Drafts, Sent, and other folders.",
       title: "Email Folders",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="email-list"]',
       content: "Your emails appear here. Click any email to read it. Use keyboard shortcuts: J/K to navigate, R to reply.",
       title: "Email List",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="email-compose"]',
       content: "Click here to compose a new email. You can link emails to jobs and contacts.",
       title: "Compose Email",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="email-search"]',
       content: "Search across all your emails by subject, sender, body text, or attachments.",
       title: "Search Emails",
+      disableBeacon: true,
     },
   ],
 };
@@ -88,16 +94,19 @@ export const jobsTour: PageTour = {
       target: '[data-tour="jobs-filters"]',
       content: "Filter jobs by status, type, date range, or any column. Filters are saved automatically.",
       title: "Filter Jobs",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="jobs-add"]',
       content: "Click here to create a new job. You'll be guided through entering the job details.",
       title: "Create New Job",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="jobs-columns"]',
       content: "Customize which columns are visible. Drag to reorder, click headers to sort.",
       title: "Customize Columns",
+      disableBeacon: true,
     },
   ],
 };
@@ -119,16 +128,19 @@ export const contactsTour: PageTour = {
       target: '[data-tour="contacts-filters"]',
       content: "Filter and search contacts by name, email, phone, company, or contact type.",
       title: "Filter & Search",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="contacts-add"]',
       content: "Click here to add a new contact. Link them to jobs, send emails, or create tasks.",
       title: "Add Contact",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="contacts-columns"]',
       content: "Customize which columns are visible. Drag to reorder, click headers to sort.",
       title: "Customize Columns",
+      disableBeacon: true,
     },
   ],
 };
@@ -150,16 +162,19 @@ export const tasksTour: PageTour = {
       target: '[data-tour="tasks-filters"]',
       content: "Filter by status (Open, Complete), assignee, due date, or linked job.",
       title: "Filter Tasks",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="tasks-add"]',
       content: "Create a new task. Assign it to team members and set due dates.",
       title: "Create Task",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="tasks-views"]',
       content: "Switch between List, Board (Kanban), and Calendar views.",
       title: "Task Views",
+      disableBeacon: true,
     },
   ],
 };
@@ -181,16 +196,19 @@ export const calendarTour: PageTour = {
       target: '[data-tour="calendar-nav"]',
       content: "Navigate between days, weeks, or months. Use arrows or click dates.",
       title: "Navigate Calendar",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="calendar-filters"]',
       content: "Show or hide different event types: Tasks, Meetings, Holidays.",
       title: "Filter Events",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="calendar-add"]',
       content: "Click any date to create a new event, or drag to create a time block.",
       title: "Add Events",
+      disableBeacon: true,
     },
   ],
 };
@@ -212,16 +230,19 @@ export const warehouseTour: PageTour = {
       target: '[data-tour="warehouse-files"]',
       content: "Browse and preview files. Double-click to open, right-click for options.",
       title: "File List",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="warehouse-upload"]',
       content: "Drag files here or click to upload. Files are automatically organized.",
       title: "Upload Files",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="warehouse-search"]',
       content: "Search files by name, content, or metadata across all folders.",
       title: "Search Files",
+      disableBeacon: true,
     },
   ],
 };
@@ -243,16 +264,19 @@ export const settingsTour: PageTour = {
       target: '[data-tour="settings-company"]',
       content: "Configure your company details, branding, and business settings.",
       title: "Company Settings",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="settings-users"]',
       content: "Manage team members, roles, and permissions.",
       title: "User Management",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="settings-integrations"]',
       content: "Connect to Xero, email providers, and storage services.",
       title: "Integrations",
+      disableBeacon: true,
     },
   ],
 };
@@ -274,16 +298,19 @@ export const ganttTour: PageTour = {
       target: '[data-tour="gantt-timeline"]',
       content: "Drag task bars to reschedule. Resize to change duration. Double-click to edit details.",
       title: "Timeline View",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="gantt-zoom"]',
       content: "Zoom in/out to see days, weeks, or months. Fit to screen with one click.",
       title: "Zoom Controls",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="gantt-dependencies"]',
       content: "Toggle to show task dependencies. Click to manage predecessor/successor relationships.",
       title: "Dependencies",
+      disableBeacon: true,
     },
   ],
 };
@@ -305,16 +332,19 @@ export const jobDetailTour: PageTour = {
       target: '[data-tour="job-tabs"]',
       content: "Navigate between Overview, Documents, Emails, Schedule, and more.",
       title: "Job Tabs",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="job-documents"]',
       content: "All job documents are stored here. Upload, preview, and organize files.",
       title: "Documents",
+      disableBeacon: true,
     },
     {
       target: '[data-tour="job-gantt"]',
       content: "View and manage the job schedule with the Gantt chart.",
       title: "Schedule",
+      disableBeacon: true,
     },
   ],
 };
