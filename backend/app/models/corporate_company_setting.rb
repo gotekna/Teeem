@@ -1,4 +1,9 @@
 class CorporateCompanySetting < ApplicationRecord
+  # SSoT (Jan 2026): Tenant scoping - each tenant has ONE settings record
+  # acts_as_tenant auto-scopes all queries to current_tenant
+  belongs_to :tenant
+  acts_as_tenant(:tenant)
+
   # Encrypt sensitive credentials (SSoT pattern from MicrosoftCredential)
   encrypts :twilio_auth_token
 
@@ -26,8 +31,9 @@ class CorporateCompanySetting < ApplicationRecord
   validates :company_name, presence: true
   validates :api_environment, inclusion: { in: VALID_API_ENVIRONMENTS }, allow_nil: true
 
-  # Singleton pattern - only one company settings record should exist per tenant
-  # SSoT: No hardcoded org names - tenant must configure their own details (Jan 2026)
+  # Singleton pattern - one company settings record per tenant
+  # SSoT (Jan 2026): acts_as_tenant auto-scopes queries to current_tenant
+  # first_or_create! will find/create only within the current tenant's scope
   def self.instance
     first_or_create!(
       company_name: "My Company",  # Tenant must update this
@@ -37,6 +43,11 @@ class CorporateCompanySetting < ApplicationRecord
       phone: "",
       address: "",
       timezone: "Australia/Brisbane",
+      internal_email_domains: "",
+      monitored_mailbox_pay: "",
+      monitored_mailbox_newtask: "",
+      monitored_mailbox_newjob: "",
+      monitored_mailbox_newcase: "",
       working_days: {
         monday: true,
         tuesday: true,
