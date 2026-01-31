@@ -46,7 +46,7 @@ module Api
             degraded: credential.degraded?,
             expires_at: credential.expires_at,
             expired: credential.expired?,
-            companies: linked_companies.map do |conn|
+            companies: linked_companies.select { |conn| conn.corporate_company.present? }.map do |conn|
               # SSoT: Company status derived from credential health
               company_health = XeroConnectionHealth.for_company(conn.corporate_company)
               {
