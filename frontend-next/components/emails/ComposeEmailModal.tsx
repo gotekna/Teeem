@@ -230,11 +230,21 @@ export function ComposeEmailModal({
 
   // Generate signature from current user data (SSoT: uses user's preferred signature style)
   const getUserSignature = (): string => {
-    if (!currentUser) return "";
+    if (!currentUser) {
+      console.log('[ComposeSignature] getUserSignature: no currentUser');
+      return "";
+    }
 
     // Get user's preferred signature style or fall back to default
     const signatureStyle = ((currentUser as { email_signature_style?: string }).email_signature_style as SignatureStyleId)
       || DEFAULT_SIGNATURE_STYLE;
+
+    console.log('[ComposeSignature] getUserSignature:', {
+      signatureStyle,
+      userName: currentUser.name,
+      userEmail: currentUser.email,
+      companyName: companySettings?.company_name,
+    });
 
     return generateSignatureByStyle(
       signatureStyle,
@@ -365,15 +375,28 @@ export function ComposeEmailModal({
 
   // Generate signature when account is selected and user/company data is available
   useEffect(() => {
-    if (!formData.credential_id || accounts.length === 0 || !currentUser) return;
+    console.log('[ComposeSignature] Effect triggered:', {
+      credential_id: formData.credential_id,
+      accounts_length: accounts.length,
+      currentUser: currentUser?.name,
+      companySettings: companySettings?.company_name,
+      body_has_signature: hasSignature(formData.body),
+    });
+
+    if (!formData.credential_id || accounts.length === 0 || !currentUser) {
+      console.log('[ComposeSignature] Early return - missing data');
+      return;
+    }
 
     // Don't add signature to body if it already has one (e.g., from draft)
     if (hasSignature(formData.body)) {
+      console.log('[ComposeSignature] Body already has signature, clearing signatureHtml');
       setSignatureHtml(""); // Clear separate signature since it's in body
       return;
     }
 
     const signature = getUserSignature();
+    console.log('[ComposeSignature] Generated signature length:', signature.length);
     setSignatureHtml(signature);
   }, [formData.credential_id, accounts, currentUser, companySettings]);
 
@@ -458,19 +481,30 @@ export function ComposeEmailModal({
   };
 
   const handleSend = async () => {
+    console.log('[ComposeSend] handleSend called:', {
+      credential_id: formData.credential_id,
+      to: formData.to,
+      subject: formData.subject,
+      body_length: formData.body?.length,
+      signatureHtml_length: signatureHtml?.length,
+    });
+
     setError(null);
 
     if (!formData.credential_id) {
+      console.log('[ComposeSend] Error: no credential_id');
       setError("Please select an email account");
       return;
     }
 
     if (!formData.to.trim()) {
+      console.log('[ComposeSend] Error: no to');
       setError("Please enter a recipient");
       return;
     }
 
     if (!formData.subject.trim()) {
+      console.log('[ComposeSend] Error: no subject');
       setError("Please enter a subject");
       return;
     }
