@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Eye,
   Zap,
+  HardDrive,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
@@ -97,6 +98,23 @@ interface TenantDataSyncStats {
   } | null;
 }
 
+interface TotalsSummary {
+  total_all: number;
+  active: number;
+  voided_deleted: number;
+  synced: number;
+  pending: number;
+}
+
+interface BlobHealth {
+  total_blobs: number;
+  validated: number;
+  missing_hash: number;
+  file_missing: number;
+  health_percentage: number;
+  status: "healthy" | "needs_validation" | "files_missing" | "no_blobs";
+}
+
 interface TenantStats {
   tenant_id: string;
   tenant_name: string;
@@ -108,6 +126,8 @@ interface TenantStats {
   rate_limits: TenantRateLimits | null;
   pdf_sync?: TenantPdfSyncStats;
   data_sync?: TenantDataSyncStats;
+  totals_summary?: TotalsSummary;
+  blob_health?: BlobHealth;
 }
 
 interface PendingReviewItem {
@@ -195,6 +215,8 @@ export function XeroSyncStats() {
               if (pdfResponse.success && pdfResponse.data) {
                 const stage1 = pdfResponse.data.stage1_data_sync;
                 const stage2 = pdfResponse.data.stage2_pdf_download || pdfResponse.data;
+                const totals = pdfResponse.data.totals_summary;
+                const blobHealth = pdfResponse.data.blob_health;
                 return {
                   ...tenant,
                   data_sync: stage1 ? {
@@ -217,6 +239,8 @@ export function XeroSyncStats() {
                     blocker: stage2.blocker || null,
                     breakdown: stage2.breakdown || null,
                   },
+                  totals_summary: totals || undefined,
+                  blob_health: blobHealth || undefined,
                 };
               }
             } catch (e) {
@@ -474,6 +498,125 @@ export function XeroSyncStats() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sync Status & Storage Health - Aggregated from all tenants */}
+      {(() => {
+        // Aggregate totals and blob health from all tenants
+        const aggregatedTotals = tenants.reduce((acc, t) => {
+          if (t.totals_summary) {
+            acc.total_all += t.totals_summary.total_all || 0;
+            acc.active += t.totals_summary.active || 0;
+            acc.voided_deleted += t.totals_summary.voided_deleted || 0;
+            acc.synced += t.totals_summary.synced || 0;
+            acc.pending += t.totals_summary.pending || 0;
+          }
+          return acc;
+        }, { total_all: 0, active: 0, voided_deleted: 0, synced: 0, pending: 0 });
+
+        const aggregatedBlobHealth = tenants.reduce((acc, t) => {
+          if (t.blob_health) {
+            acc.total_blobs += t.blob_health.total_blobs || 0;
+            acc.validated += t.blob_health.validated || 0;
+            acc.missing_hash += t.blob_health.missing_hash || 0;
+            acc.file_missing += t.blob_health.file_missing || 0;
+          }
+          return acc;
+        }, { total_blobs: 0, validated: 0, missing_hash: 0, file_missing: 0 });
+
+        const blobHealthPct = aggregatedBlobHealth.total_blobs > 0
+          ? Math.round((aggregatedBlobHealth.validated / aggregatedBlobHealth.total_blobs) * 100)
+          : 100;
+        const blobStatus = aggregatedBlobHealth.file_missing > 0 ? "files_missing"
+          : aggregatedBlobHealth.missing_hash > 0 ? "needs_validation"
+          : "healthy";
+        const syncPct = aggregatedTotals.active > 0
+          ? Math.round((aggregatedTotals.synced / aggregatedTotals.active) * 100)
+          : 0;
+
+        // Only show if we have data
+        if (aggregatedTotals.total_all === 0 && aggregatedBlobHealth.total_blobs === 0) return null;
+
+        return (
+          <Card className="border-cyan-200 dark:border-cyan-800 bg-cyan-50/50 dark:bg-cyan-950/20">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-cyan-100 dark:bg-cyan-900/50 rounded">
+                  <HardDrive className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                </div>
+                <CardTitle className="text-base">Sync Overview & Storage Health</CardTitle>
+                {blobStatus === "healthy" && aggregatedBlobHealth.total_blobs > 0 && (
+                  <Badge className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    All Blobs Validated
+                  </Badge>
+                )}
+                {blobStatus === "needs_validation" && (
+                  <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {aggregatedBlobHealth.missing_hash} Need Validation
+                  </Badge>
+                )}
+                {blobStatus === "files_missing" && (
+                  <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {aggregatedBlobHealth.file_missing} Files Missing
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {/* Total All */}
+                <div className="text-center p-3 bg-white dark:bg-background rounded border">
+                  <div className="text-2xl font-bold">{aggregatedTotals.total_all.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Total (All)</div>
+                </div>
+                {/* Active */}
+                <div className="text-center p-3 bg-white dark:bg-background rounded border">
+                  <div className="text-2xl font-bold">{aggregatedTotals.active.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Active</div>
+                  {aggregatedTotals.voided_deleted > 0 && (
+                    <div className="text-[10px] text-muted-foreground mt-1">
+                      ({aggregatedTotals.voided_deleted} voided/deleted)
+                    </div>
+                  )}
+                </div>
+                {/* Synced */}
+                <div className="text-center p-3 bg-white dark:bg-background rounded border">
+                  <div className="text-2xl font-bold text-green-600">{aggregatedTotals.synced.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Synced</div>
+                  <Progress value={syncPct} className="h-1 mt-1 [&>div]:bg-green-500" />
+                  <div className="text-[10px] text-muted-foreground mt-1">{syncPct}%</div>
+                </div>
+                {/* Pending */}
+                <div className="text-center p-3 bg-white dark:bg-background rounded border">
+                  <div className={`text-2xl font-bold ${aggregatedTotals.pending > 0 ? "text-blue-600" : "text-green-600"}`}>
+                    {aggregatedTotals.pending.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Pending</div>
+                </div>
+                {/* Blob Health */}
+                <div className={`text-center p-3 rounded border ${
+                  blobStatus === "healthy" ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800" :
+                  blobStatus === "needs_validation" ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800" :
+                  "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
+                }`}>
+                  <div className={`text-2xl font-bold ${
+                    blobStatus === "healthy" ? "text-green-600" :
+                    blobStatus === "needs_validation" ? "text-amber-600" : "text-red-600"
+                  }`}>
+                    {blobHealthPct}%
+                  </div>
+                  <div className="text-xs text-muted-foreground">Blobs Validated</div>
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    {aggregatedBlobHealth.validated}/{aggregatedBlobHealth.total_blobs}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Pending Reviews Alert */}
       {global.pending_reviews.count > 0 && (
