@@ -51,7 +51,7 @@ export function EmailConfigTab() {
     try {
       setLoading(true);
       const response = await api.get<{ success: boolean; data: EmailConfig }>(
-        "/api/v1/corporate_company_settings/email_config"
+        "/api/v1/tenant_settings/email_config"
       );
       if (response?.success && response.data) {
         setFormData({
@@ -78,7 +78,7 @@ export function EmailConfigTab() {
     try {
       setSaving(true);
       const response = await api.patch<{ success: boolean; data: EmailConfig }>(
-        "/api/v1/corporate_company_settings/email_config",
+        "/api/v1/tenant_settings/email_config",
         { email_config: formData }
       );
       if (response?.success) {

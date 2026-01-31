@@ -54,7 +54,7 @@ export function BrandColorsTab() {
 
   async function loadBrand() {
     try {
-      const response = await api.get<{ success: boolean; data: BrandData }>("/api/v1/corporate_company_settings/brand");
+      const response = await api.get<{ success: boolean; data: BrandData }>("/api/v1/tenant_settings/brand");
       if (response.success && response.data) {
         setBrand(response.data);
         setWebsiteUrl(response.data.website_url || "");
@@ -75,7 +75,7 @@ export function BrandColorsTab() {
 
     try {
       const response = await api.post<{ success: boolean; data: DetectedBrand; error?: string }>(
-        "/api/v1/corporate_company_settings/brand/detect",
+        "/api/v1/tenant_settings/brand/detect",
         { url: websiteUrl }
       );
 
@@ -100,7 +100,7 @@ export function BrandColorsTab() {
 
     try {
       const response = await api.post<{ success: boolean; data: BrandData; message?: string; error?: string }>(
-        "/api/v1/corporate_company_settings/brand/apply",
+        "/api/v1/tenant_settings/brand/apply",
         { url: websiteUrl }
       );
 
@@ -126,7 +126,7 @@ export function BrandColorsTab() {
 
     try {
       const response = await api.patch<{ success: boolean; data: BrandData; error?: string }>(
-        "/api/v1/corporate_company_settings/brand",
+        "/api/v1/tenant_settings/brand",
         {
           brand: {
             logo_url: brand?.logo_url,

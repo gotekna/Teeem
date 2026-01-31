@@ -68,7 +68,7 @@ export function CompanyColorsProvider({ children }: { children: React.ReactNode 
           return;
         }
 
-        const response = await api.get<BrandResponse>('/api/v1/corporate_company_settings/brand', {
+        const response = await api.get<BrandResponse>('/api/v1/tenant_settings/brand', {
           skipAuthRedirect: true  // Brand colors are optional - gracefully fall back if not authenticated
         });
 
@@ -136,7 +136,7 @@ export async function refreshBrandColors(): Promise<void> {
   clearBrandColorsCache();
 
   try {
-    const response = await api.get<BrandResponse>('/api/v1/corporate_company_settings/brand', {
+    const response = await api.get<BrandResponse>('/api/v1/tenant_settings/brand', {
       skipAuthRedirect: true  // Brand colors are optional - gracefully fail if not authenticated
     });
 
