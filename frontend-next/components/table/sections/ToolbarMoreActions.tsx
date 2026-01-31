@@ -42,6 +42,8 @@ import {
 import { useTableMaybe } from '../context';
 
 export interface ToolbarMoreActionsProps {
+  /** Tour target attribute for interactive help tours */
+  "data-tour"?: string;
   /** Show schema editor options */
   enableSchemaEditor?: boolean;
   /** Show import option */
@@ -76,6 +78,7 @@ export interface ToolbarMoreActionsProps {
 }
 
 export function ToolbarMoreActions({
+  "data-tour": dataTour,
   enableSchemaEditor = false,
   enableImport = false,
   enableExport = false,
@@ -118,7 +121,7 @@ export function ToolbarMoreActions({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon">
+        <Button variant="outline" size="icon" data-tour={dataTour}>
           <MoreVertical className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>

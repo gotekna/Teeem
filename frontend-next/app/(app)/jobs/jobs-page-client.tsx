@@ -66,7 +66,7 @@ export default function JobsPageClient({
   }, [router]);
 
   return (
-    <TablePage>
+    <TablePage data-tour="jobs-table">
       <TeeemTableView
         foundationId="jobs"
         tableName="Jobs"
@@ -80,7 +80,7 @@ export default function JobsPageClient({
         leftActions={
           <div className="flex items-center gap-2">
             <BackButton fallbackHref="/dashboard" />
-            <Button variant="default" size="sm" asChild>
+            <Button variant="default" size="sm" asChild data-tour="jobs-add">
               <Link href="/jobs/new">
                 <Plus className="h-4 w-4 mr-2" />
                 New Job
