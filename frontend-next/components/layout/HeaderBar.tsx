@@ -213,95 +213,49 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         setOffice365Tooltip('Microsoft 365: Not Connected');
       }
 
-      // Fetch email account statuses (IMAP + Microsoft)
-      const accounts: typeof emailAccounts = [];
-
-      // 1. Fetch IMAP credentials
+      // Fetch ORG-WIDE email status (all accounts, not just user's accessible ones)
+      // FRC (Jan 2026): Header should show health of ALL org email accounts
       try {
-        const imapResponse = await api.get<{
+        const orgStatusResponse = await api.get<{
           success: boolean;
-          data: Array<{
-            id: number;
-            name: string;
-            email_address: string;
-            last_sync_status: string | null;
-            last_synced_at: string | null;
-            last_sync_error: string | null;
-            is_active: boolean;
-          }>;
-        }>("/api/v1/imap_credentials");
+          data: {
+            total: number;
+            connected: number;
+            errors: number;
+            syncing: number;
+            overall_status: 'connected' | 'disconnected' | 'error' | 'degraded';
+            summary: string;
+          };
+        }>("/api/v1/imap_credentials/org_status");
 
-        if (imapResponse?.success && imapResponse?.data) {
-          imapResponse.data.forEach(cred => {
-            if (cred.is_active) {
-              let status: 'connected' | 'error' | 'syncing' | 'disconnected' = 'disconnected';
-              if (cred.last_sync_status === 'syncing') {
-                status = 'syncing';
-              } else if (cred.last_sync_error) {
-                status = 'error';
-              } else if (cred.last_synced_at) {
-                status = 'connected';
-              }
-              accounts.push({
-                id: cred.id,
-                name: cred.name || cred.email_address,
-                email: cred.email_address,
-                type: 'imap',
-                status,
-                lastSyncedAt: cred.last_synced_at,
-                error: cred.last_sync_error,
-              });
-            }
-          });
+        if (orgStatusResponse?.success && orgStatusResponse?.data) {
+          const { total, connected, errors, overall_status, summary } = orgStatusResponse.data;
+
+          // Update status and create summary accounts for display
+          setEmailOverallStatus(overall_status as ConnectionStatus);
+
+          // Create a summary entry for the popover (org-wide view)
+          const accounts: typeof emailAccounts = [];
+          if (total > 0) {
+            accounts.push({
+              id: 0,
+              name: "Organization Email",
+              email: summary,
+              type: 'imap',
+              status: overall_status === 'error' ? 'error' : overall_status === 'connected' ? 'connected' : 'disconnected',
+              lastSyncedAt: null,
+              error: errors > 0 ? `${errors} account(s) have sync errors` : null,
+            });
+          }
+          setEmailAccounts(accounts);
+        } else {
+          setEmailOverallStatus('disconnected');
+          setEmailAccounts([]);
         }
       } catch (error) {
-        console.debug("Failed to fetch IMAP credentials:", error);
-      }
-
-      // 2. Add Microsoft orgs that have email sync configured
-      try {
-        const msOrgsResponse = await api.get<{
-          success: boolean;
-          organizations: Array<{
-            id: number;
-            name: string;
-            status: string;
-            mailboxes?: string[];
-          }>;
-        }>("/api/v1/microsoft_app/status");
-
-        if (msOrgsResponse?.success && msOrgsResponse?.organizations) {
-          msOrgsResponse.organizations.forEach(org => {
-            if (org.status === 'connected') {
-              accounts.push({
-                id: org.id,
-                name: org.name,
-                email: `${org.name} (Microsoft 365)`,
-                type: 'microsoft',
-                status: 'connected',
-                lastSyncedAt: null, // MS doesn't track this the same way
-                error: null,
-              });
-            }
-          });
-        }
-      } catch (error) {
-        console.debug("Failed to fetch Microsoft orgs for email status:", error);
-      }
-
-      setEmailAccounts(accounts);
-
-      // Calculate overall email status
-      if (accounts.length === 0) {
+        console.debug("Failed to fetch org email status:", error);
         setEmailOverallStatus('disconnected');
-      } else if (accounts.some(a => a.status === 'error')) {
-        setEmailOverallStatus('error');
-      } else if (accounts.every(a => a.status === 'connected')) {
-        setEmailOverallStatus('connected');
-      } else if (accounts.some(a => a.status === 'syncing')) {
-        setEmailOverallStatus('degraded'); // Use degraded for "syncing" state
-      } else {
-        setEmailOverallStatus('degraded');
+        setEmailAccounts([]);
       }
     };
 

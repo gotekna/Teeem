@@ -15,6 +15,58 @@ class Api::V1::ImapCredentialsController < ApplicationController
     }
   end
 
+  # GET /api/v1/imap_credentials/org_status
+  # Returns org-wide email health status (for header indicator)
+  # Shows aggregate health without exposing individual account details
+  # FRC (Jan 2026): Header needs to show ALL org accounts' health, not just user's accessible accounts
+  def org_status
+    # Get ALL active IMAP credentials (org-wide)
+    all_imap = ImapCredential.where(is_active: true)
+
+    # Count by status
+    total_imap = all_imap.count
+    connected_imap = all_imap.where(last_sync_status: 'success').where(last_sync_error: [nil, '']).count
+    error_imap = all_imap.where.not(last_sync_error: [nil, '']).count
+    syncing_imap = all_imap.where(last_sync_status: 'syncing').count
+
+    # Get MS365 org credentials status
+    ms365_credentials = MicrosoftCredential.app_credentials
+    total_ms365 = ms365_credentials.count
+    connected_ms365 = ms365_credentials.where(status: 'connected').count
+
+    # Calculate overall status
+    total = total_imap + total_ms365
+    connected = connected_imap + connected_ms365
+    has_errors = error_imap > 0
+    has_syncing = syncing_imap > 0
+
+    # Determine overall status for header indicator
+    overall_status = if total == 0
+      'disconnected'
+    elsif has_errors
+      'error'
+    elsif connected == total
+      'connected'
+    elsif has_syncing
+      'degraded'
+    else
+      'degraded'
+    end
+
+    render json: {
+      success: true,
+      data: {
+        total: total,
+        connected: connected,
+        errors: error_imap,
+        syncing: syncing_imap,
+        overall_status: overall_status,
+        # Summary for tooltip
+        summary: "#{connected}/#{total} accounts connected"
+      }
+    }
+  end
+
   # GET /api/v1/imap_credentials/:id
   def show
     render json: {
