@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_31_110002) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_31_132456) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6786,6 +6786,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_110002) do
     t.boolean "is_collapsed_default", default: true
     t.datetime "created_at", default: -> { "now()" }, null: false
     t.datetime "updated_at", default: -> { "now()" }, null: false
+    t.bigint "visible_to_tenant_ids", default: [], array: true
+    t.index ["visible_to_tenant_ids"], name: "index_navigation_items_on_visible_to_tenant_ids", using: :gin
   end
 
   create_table "ndis_addendums", force: :cascade do |t|
@@ -6933,6 +6935,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_110002) do
     t.index ["name"], name: "index_organizations_on_name", unique: true
     t.index ["slug"], name: "index_organizations_on_slug", unique: true
     t.index ["tenant_id"], name: "index_organizations_on_tenant_id"
+  end
+
+  create_table "page_help_contents", force: :cascade do |t|
+    t.string "route_pattern", null: false
+    t.string "title", null: false
+    t.text "description"
+    t.text "quick_tips"
+    t.text "common_tasks"
+    t.text "related_pages"
+    t.integer "chapter_number"
+    t.string "video_url"
+    t.boolean "is_active", default: true, null: false
+    t.bigint "last_updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_page_help_contents_on_is_active"
+    t.index ["last_updated_by_id"], name: "index_page_help_contents_on_last_updated_by_id"
+    t.index ["route_pattern"], name: "index_page_help_contents_on_route_pattern", unique: true
   end
 
   create_table "pay_now_requests", force: :cascade do |t|
@@ -11301,6 +11321,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_110002) do
   add_foreign_key "notifications", "users"
   add_foreign_key "organizations", "corporate_companies"
   add_foreign_key "organizations", "tenants"
+  add_foreign_key "page_help_contents", "users", column: "last_updated_by_id"
   add_foreign_key "pay_now_requests", "contacts"
   add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
   add_foreign_key "pay_now_requests", "payments"

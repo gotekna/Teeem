@@ -1,9 +1,56 @@
 // Page-to-Chapter Mapping for Contextual Help
 // Maps Next.js routes to User Manual chapter numbers
+// SSoT: page-help.json contains detailed help content for each page
+
+import pageHelpData from './page-help.json';
 
 export interface HelpInfo {
   chapter: number;
   section: string;
+}
+
+export interface PageHelp {
+  title: string;
+  description: string;
+  tips: string[];
+  tasks: string[];
+}
+
+// Get detailed help content for a page from page-help.json
+export function getPageHelp(pathname: string): PageHelp | null {
+  const pages = pageHelpData.pages as Record<string, PageHelp>;
+
+  // Try exact match first
+  if (pages[pathname]) {
+    return pages[pathname];
+  }
+
+  // Try pattern match for dynamic routes (e.g., /jobs/123 → /jobs/[id])
+  const pathParts = pathname.split('/').filter(Boolean);
+
+  // Check for dynamic route patterns
+  for (const pattern of Object.keys(pages)) {
+    if (pattern.includes('[')) {
+      // Convert pattern like /jobs/[id] to regex
+      const regexPattern = pattern
+        .replace(/\[.*?\]/g, '[^/]+')
+        .replace(/\//g, '\\/');
+      const regex = new RegExp(`^${regexPattern}$`);
+      if (regex.test(pathname)) {
+        return pages[pattern];
+      }
+    }
+  }
+
+  // Try progressively shorter paths (e.g., /settings/system/navigation → /settings/system → /settings)
+  for (let i = pathParts.length; i > 0; i--) {
+    const partialPath = '/' + pathParts.slice(0, i).join('/');
+    if (pages[partialPath]) {
+      return pages[partialPath];
+    }
+  }
+
+  return null;
 }
 
 export const PAGE_HELP_MAPPING: Record<string, HelpInfo> = {
