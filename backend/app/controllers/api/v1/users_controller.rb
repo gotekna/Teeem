@@ -289,7 +289,8 @@ class Api::V1::UsersController < ApplicationController
       qbcc_licence_class: user.qbcc_licence_class,
       can_sign_certificates: user.can_sign_certificates?,
       # Email signature style preference (Jan 2026)
-      email_signature_style: user.email_signature_style || 'modern-dark'
+      # Fallback chain: User preference → Company default → 'modern-dark'
+      email_signature_style: user.email_signature_style || TenantSetting.instance.default_email_signature_style || 'modern-dark'
     )
   end
 end

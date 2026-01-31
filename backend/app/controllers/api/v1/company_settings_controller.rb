@@ -154,6 +154,9 @@ module Api
         # Brand colors in hex format (for email signatures, PDFs, etc.)
         base[:brand_colors] = TenantSetting.brand_colors_hex
 
+        # Company-wide default email signature style (users can override)
+        base[:default_email_signature_style] = settings.default_email_signature_style || 'modern-dark'
+
         base
       end
 
@@ -194,6 +197,8 @@ module Api
           :bank_account_name,
           # API Environment (production backend is the "router")
           :api_environment,
+          # Company-wide default email signature style
+          :default_email_signature_style,
           # NOTE: link_expiry_days is managed via Storage Config (warehouse_providers_controller)
           # It's returned in settings_json for reading but not editable via this endpoint
           working_days: [ :monday, :tuesday, :wednesday, :thursday, :friday, :saturday, :sunday ],
