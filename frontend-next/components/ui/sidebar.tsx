@@ -312,6 +312,14 @@ function SidebarContent({
             ) : (
               <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
                 {tenantInfo.currentTenant.name}
+                {apiEnvironment && apiEnvironment !== "production" && (
+                  <span className={cn(
+                    "ml-1 font-bold uppercase",
+                    apiEnvironment === "staging" ? "text-orange-500" : "text-yellow-600"
+                  )}>
+                    - {apiEnvironment}
+                  </span>
+                )}
               </div>
             )}
           </div>
