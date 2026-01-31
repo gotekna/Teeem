@@ -33,6 +33,7 @@ interface TenantContactStats {
   sync_enabled: number;
   pending_review: number;
   with_errors: number;
+  unlinked: number;
   cross_tenant_matches: number;
   last_synced_at: string | null;
 }
@@ -877,7 +878,7 @@ export function XeroSyncStats() {
                   )}
 
                   {/* Stats Grid */}
-                  <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="grid grid-cols-4 gap-2 text-center">
                     <div className="p-2 bg-muted/50 rounded">
                       <div className="text-lg font-bold">{tenant.contacts.total_links}</div>
                       <div className="text-xs text-muted-foreground">Contacts</div>
@@ -886,6 +887,17 @@ export function XeroSyncStats() {
                       <div className="text-lg font-bold">{tenant.documents.total}</div>
                       <div className="text-xs text-muted-foreground">Documents</div>
                     </div>
+                    {tenant.contacts.unlinked > 0 ? (
+                      <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded border border-amber-300 dark:border-amber-700">
+                        <div className="text-lg font-bold text-amber-700 dark:text-amber-400">{tenant.contacts.unlinked}</div>
+                        <div className="text-xs text-amber-600 dark:text-amber-500">Unlinked</div>
+                      </div>
+                    ) : (
+                      <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded">
+                        <div className="text-lg font-bold text-green-700 dark:text-green-400">✓</div>
+                        <div className="text-xs text-green-600 dark:text-green-500">All Linked</div>
+                      </div>
+                    )}
                     <div className="p-2 bg-muted/50 rounded">
                       <div className="text-lg font-bold">{tenant.contacts.cross_tenant_matches}</div>
                       <div className="text-xs text-muted-foreground">Shared</div>

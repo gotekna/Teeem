@@ -1980,6 +1980,13 @@ module Api
             pending_review_count = tenant_links.pending_review.count
             with_errors_count = tenant_links.with_errors.count
 
+            # Unlinked = Links where TEEEM contact is inactive or deleted
+            # These Xero contacts won't sync properly until re-linked
+            unlinked_count = tenant_links
+              .joins("LEFT JOIN contacts c ON contact_external_links.contact_id = c.id AND (c.is_active = true OR c.is_active IS NULL)")
+              .where("c.id IS NULL")
+              .count
+
             # Count invoices/bills for this tenant
             # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
             tenant_invoices = ExternalInvoice.xero.active.where(tenant_id: tenant_id).where.not(status: "draft")
@@ -2016,6 +2023,7 @@ module Api
                 sync_enabled: enabled_count,
                 pending_review: pending_review_count,
                 with_errors: with_errors_count,
+                unlinked: unlinked_count,
                 cross_tenant_matches: cross_tenant_count,
                 last_synced_at: last_contact_sync
               },
