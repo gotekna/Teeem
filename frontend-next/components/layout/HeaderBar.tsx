@@ -486,7 +486,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                   <div className="p-4 text-center text-sm text-muted-foreground">
                     <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>No email accounts connected</p>
-                    <Link href="/settings/connections" className="text-primary hover:underline text-xs">
+                    <Link href="/settings/system/email-accounts" className="text-primary hover:underline text-xs">
                       Add email account
                     </Link>
                   </div>
@@ -526,7 +526,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
               </div>
               <div className="p-2 border-t border-border bg-muted/30">
                 <Link
-                  href="/settings/connections"
+                  href="/settings/system/email-accounts"
                   className="block text-center text-xs text-primary hover:underline"
                 >
                   Manage Email Accounts

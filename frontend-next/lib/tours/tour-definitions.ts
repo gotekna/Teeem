@@ -45,33 +45,21 @@ export const emailTour: PageTour = {
   title: "Email Tour",
   steps: [
     {
-      target: '[data-tour="email-accounts"]',
-      content: "Your connected email accounts are listed here. Click to switch between mailboxes.",
-      title: "Email Accounts",
-      disableBeacon: true,
-    },
-    {
-      target: '[data-tour="email-folders"]',
-      content: "Navigate between Inbox, Drafts, Sent, and other folders.",
-      title: "Email Folders",
-      disableBeacon: true,
-    },
-    {
-      target: '[data-tour="email-list"]',
-      content: "Your emails appear here. Click any email to read it. Use keyboard shortcuts: J/K to navigate, R to reply.",
-      title: "Email List",
-      disableBeacon: true,
-    },
-    {
       target: '[data-tour="email-compose"]',
       content: "Click here to compose a new email. You can link emails to jobs and contacts.",
       title: "Compose Email",
       disableBeacon: true,
     },
     {
-      target: '[data-tour="email-search"]',
-      content: "Search across all your emails by subject, sender, body text, or attachments.",
-      title: "Search Emails",
+      target: '[data-tour="email-accounts"]',
+      content: "Your connected email accounts are listed here. Click to switch between mailboxes. Select an account to see its folders.",
+      title: "Email Accounts",
+      disableBeacon: true,
+    },
+    {
+      target: '[data-tour="email-list"]',
+      content: "Your emails appear here. Click any email to read it. Use keyboard shortcuts: J/K to navigate, C to compose, R to reply.",
+      title: "Email List",
       disableBeacon: true,
     },
   ],
