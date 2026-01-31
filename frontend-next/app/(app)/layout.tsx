@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/ui/sidebar";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
+import { PageTour } from "@/components/help/PageTour";
 import { EnvironmentBadge } from "@/components/layout/EnvironmentBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
@@ -105,6 +106,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       <div className="hidden">
         <FloatingHelpButton />
       </div>
+
+      {/* Page Tour - Interactive walkthroughs for each page */}
+      <PageTour />
 
       {/* Breadcrumb Trail - floating overlay below header (hidden in fullscreen) */}
       {!shouldHideSidebar && <BreadcrumbTrail topOffset={headerOffset} />}
