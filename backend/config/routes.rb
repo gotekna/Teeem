@@ -4220,17 +4220,32 @@ Rails.application.routes.draw do
       end
 
       # =============================================================
-      # Onboarding API (data import/export for new tenants)
+      # Onboarding API (Client Onboarding System)
       # =============================================================
-      # GET    /api/v1/onboarding/status     -> Get onboarding progress
-      # GET    /api/v1/onboarding/templates  -> Download all import templates (ZIP)
-      # GET    /api/v1/onboarding/template/:type -> Download single template
-      # POST   /api/v1/onboarding/validate   -> Validate import files (dry run)
-      # POST   /api/v1/onboarding/import     -> Import data from files
-      # GET    /api/v1/onboarding/export/:type -> Export current data
+      # GET    /api/v1/onboarding/status           -> Get full onboarding status
+      # GET    /api/v1/onboarding/steps/:key       -> Get step details
+      # POST   /api/v1/onboarding/steps/:key/assign -> Assign user to step
+      # POST   /api/v1/onboarding/steps/:key/skip  -> Skip optional step
+      # POST   /api/v1/onboarding/complete         -> Mark onboarding complete
+      # GET    /api/v1/onboarding/templates/:type  -> Download import template
+      # POST   /api/v1/onboarding/import/preview   -> Preview import
+      # POST   /api/v1/onboarding/import/execute   -> Execute import
+      # GET    /api/v1/onboarding/import_history   -> Get import history
+      # Legacy endpoints kept for backwards compatibility
       resource :onboarding, only: [], controller: "onboarding" do
         collection do
+          # New onboarding hub endpoints
           get :status
+          get "steps/:key", action: :show_step, as: :show_step
+          post "steps/:key/assign", action: :assign_step
+          post "steps/:key/skip", action: :skip_step
+          post :complete
+          get "templates/:type", action: :download_template
+          post "import/preview", action: :preview_import
+          post "import/execute", action: :execute_import
+          get :import_history
+
+          # Legacy endpoints (backwards compatibility)
           get :templates
           get "template/:type", action: :template
           post :validate

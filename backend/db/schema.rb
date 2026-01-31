@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_01_31_081138) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_31_100429) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5691,6 +5691,34 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_081138) do
     t.index ["tags"], name: "index_implementation_patterns_on_tags", using: :gin
   end
 
+  create_table "import_audit_logs", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "user_id"
+    t.string "import_type", null: false
+    t.string "status", default: "completed", null: false
+    t.jsonb "counts", default: {}
+    t.integer "rows_processed", default: 0
+    t.integer "rows_created", default: 0
+    t.integer "rows_updated", default: 0
+    t.integer "rows_skipped", default: 0
+    t.integer "errors_count", default: 0
+    t.integer "warnings_count", default: 0
+    t.jsonb "error_details", default: []
+    t.jsonb "warning_details", default: []
+    t.jsonb "options_used", default: {}
+    t.string "filename"
+    t.integer "file_size"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_import_audit_logs_on_created_at"
+    t.index ["import_type"], name: "index_import_audit_logs_on_import_type"
+    t.index ["status"], name: "index_import_audit_logs_on_status"
+    t.index ["tenant_id"], name: "index_import_audit_logs_on_tenant_id"
+    t.index ["user_id"], name: "index_import_audit_logs_on_user_id"
+  end
+
   create_table "import_sessions", force: :cascade do |t|
     t.string "session_key"
     t.string "file_path"
@@ -6359,6 +6387,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_081138) do
     t.bigint "client_coordinator_id"
     t.string "job_code", null: false
     t.bigint "tenant_id"
+    t.string "project_type", default: "construction", null: false
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -6373,6 +6402,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_081138) do
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["postcode"], name: "index_jobs_on_postcode"
+    t.index ["project_type"], name: "index_jobs_on_project_type"
     t.index ["searchable"], name: "idx_jobs_searchable_gin", using: :gin
     t.index ["site_coordinator_id"], name: "index_jobs_on_site_coordinator_id"
     t.index ["storage_folder_id"], name: "index_jobs_on_storage_folder_id"
@@ -9639,11 +9669,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_081138) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "billing_company_id"
+    t.datetime "onboarding_started_at"
+    t.datetime "onboarding_completed_at"
+    t.bigint "onboarding_job_id"
     t.index ["active"], name: "index_tenants_on_active"
     t.index ["billing_company_id"], name: "index_tenants_on_billing_company_id"
     t.index ["environment"], name: "index_tenants_on_environment"
     t.index ["is_master_tenant"], name: "index_tenants_on_is_master_tenant"
     t.index ["name"], name: "index_tenants_on_name", unique: true
+    t.index ["onboarding_job_id"], name: "index_tenants_on_onboarding_job_id"
     t.index ["slug"], name: "index_tenants_on_slug", unique: true
     t.index ["tier"], name: "index_tenants_on_tier"
   end
@@ -11113,6 +11147,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_081138) do
   add_foreign_key "grok_plans", "users"
   add_foreign_key "health_kudos_events", "users", on_delete: :nullify
   add_foreign_key "imap_credentials", "users"
+  add_foreign_key "import_audit_logs", "tenants"
+  add_foreign_key "import_audit_logs", "users"
   add_foreign_key "insurance_policies", "corporate_companies", column: "company_id"
   add_foreign_key "intercompany_balances", "corporate_companies", column: "company_id"
   add_foreign_key "intercompany_balances", "corporate_companies", column: "related_company_id"
@@ -11495,6 +11531,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_01_31_081138) do
   add_foreign_key "tenant_settings", "corporate_groups"
   add_foreign_key "tenant_settings", "tenants"
   add_foreign_key "tenants", "corporate_companies", column: "billing_company_id"
+  add_foreign_key "tenants", "jobs", column: "onboarding_job_id", on_delete: :nullify
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"
   add_foreign_key "unreal_measurements", "jobs"
