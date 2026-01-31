@@ -23,8 +23,9 @@ export const SYSTEM_GENERATED_TYPES = _SYSTEM_GENERATED_TYPES;
 
 /**
  * Background color for system-generated columns
+ * Uses CSS variable for dark mode support
  */
-export const SYSTEM_COLUMN_BG = "#fee2e2"; // red-100
+export const SYSTEM_COLUMN_BG = "hsl(var(--system-column-bg))";
 
 /**
  * Non-editable column keys

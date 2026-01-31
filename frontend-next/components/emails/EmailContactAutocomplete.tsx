@@ -410,7 +410,7 @@ export function EmailContactAutocomplete({
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
           placeholder={emailChips.length === 0 ? placeholder : ""}
-          className="flex-1 min-w-[100px] h-7 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          className="flex-1 min-w-[100px] h-7 bg-transparent text-foreground text-sm outline-none placeholder:text-muted-foreground"
         />
 
         {/* Clear all button */}

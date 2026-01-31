@@ -42,7 +42,7 @@ const XERO_COLUMN_TOOLTIPS: Record<string, string> = {
   xero_link_summary: 'Summary of Xero links showing connected organizations',
 };
 
-const SYSTEM_COLUMN_BG = 'hsl(47, 100%, 96%)'; // Light yellow tint
+const SYSTEM_COLUMN_BG = 'hsl(var(--system-column-bg))'; // Uses CSS variable for dark mode support
 // GOLD STANDARD: Sticky is position-based (select + position 2)
 // This is only used for z-index calculation - actual sticky comes from getStickyColumnStyles
 const STICKY_COLUMNS = ['select'];

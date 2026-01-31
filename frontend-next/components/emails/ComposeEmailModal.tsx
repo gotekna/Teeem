@@ -230,11 +230,21 @@ export function ComposeEmailModal({
 
   // Generate signature from current user data (SSoT: uses user's preferred signature style)
   const getUserSignature = (): string => {
-    if (!currentUser) return "";
+    if (!currentUser) {
+      console.log('[ComposeSignature] getUserSignature: no currentUser');
+      return "";
+    }
 
     // Get user's preferred signature style or fall back to default
     const signatureStyle = ((currentUser as { email_signature_style?: string }).email_signature_style as SignatureStyleId)
       || DEFAULT_SIGNATURE_STYLE;
+
+    console.log('[ComposeSignature] getUserSignature:', {
+      signatureStyle,
+      userName: currentUser.name,
+      userEmail: currentUser.email,
+      companyName: companySettings?.company_name,
+    });
 
     return generateSignatureByStyle(
       signatureStyle,
@@ -303,8 +313,13 @@ export function ComposeEmailModal({
   }, []);
 
   // Fetch accounts when modal opens
+  // Track if this is initial open vs prop changes while open
+  const [hasInitialized, setHasInitialized] = useState(false);
+
   useEffect(() => {
-    if (open) {
+    if (open && !hasInitialized) {
+      console.log('[ComposeModal] Initializing modal...');
+      setHasInitialized(true);
       fetchAccounts();
       fetchFrequentContacts();
       setContacts([]);
@@ -333,15 +348,16 @@ export function ComposeEmailModal({
         const bodyAsHtml = defaultBody && !defaultBody.includes("<")
           ? plainTextToHtml(defaultBody)
           : defaultBody;
-        setFormData({
-          credential_id: "",
-          from_address: "",
+        // DON'T set credential_id here - let fetchAccounts set it when accounts load
+        // This prevents the race condition where credential_id gets reset
+        setFormData((prev) => ({
+          ...prev,
           to: defaultTo,
           cc: defaultCc,
           bcc: "",
           subject: defaultSubject,
           body: bodyAsHtml,
-        });
+        }));
         // Show CC/BCC fields if defaultCc is provided (Reply All)
         if (defaultCc) {
           setShowCcBcc(true);
@@ -359,32 +375,56 @@ export function ComposeEmailModal({
       setIsScheduled(false);
       setScheduledDate(undefined);
       setScheduledTime("09:00");
+    } else if (!open && hasInitialized) {
+      // Reset initialization flag when modal closes
+      setHasInitialized(false);
     }
-  }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments, initialExistingStorageKeys, initialPreUploadedAttachments]);
+  }, [open, hasInitialized, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments, initialExistingStorageKeys, initialPreUploadedAttachments]);
 
 
   // Generate signature when account is selected and user/company data is available
   useEffect(() => {
-    if (!formData.credential_id || accounts.length === 0 || !currentUser) return;
+    console.log('[ComposeSignature] Effect triggered:', {
+      credential_id: formData.credential_id,
+      accounts_length: accounts.length,
+      currentUser: currentUser?.name,
+      companySettings: companySettings?.company_name,
+      body_has_signature: hasSignature(formData.body),
+    });
+
+    if (!formData.credential_id || accounts.length === 0 || !currentUser) {
+      console.log('[ComposeSignature] Early return - missing data');
+      return;
+    }
 
     // Don't add signature to body if it already has one (e.g., from draft)
     if (hasSignature(formData.body)) {
+      console.log('[ComposeSignature] Body already has signature, clearing signatureHtml');
       setSignatureHtml(""); // Clear separate signature since it's in body
       return;
     }
 
     const signature = getUserSignature();
+    console.log('[ComposeSignature] Generated signature length:', signature.length);
     setSignatureHtml(signature);
   }, [formData.credential_id, accounts, currentUser, companySettings]);
 
   const fetchAccounts = async () => {
+    console.log('[ComposeAccounts] fetchAccounts called');
     setLoading(true);
     try {
       const response = await api.get<{ success: boolean; data: EmailAccount[] }>("/api/v1/imap_credentials/all_accounts");
       const typedResponse = response as { success: boolean; data: EmailAccount[] };
+      console.log('[ComposeAccounts] API response:', {
+        success: typedResponse.success,
+        total_accounts: typedResponse.data?.length,
+        accounts: typedResponse.data?.map(a => ({ id: a.id, email: a.email_address, is_active: a.is_active })),
+      });
+
       const activeAccounts = (typedResponse.data || []).filter(
         (a) => a.is_active
       );
+      console.log('[ComposeAccounts] Active accounts:', activeAccounts.length);
       setAccounts(activeAccounts);
 
       // If a specific account was requested (e.g., for replies), use that
@@ -393,18 +433,26 @@ export function ComposeEmailModal({
 
       if (defaultFromAccountId) {
         accountToSelect = activeAccounts.find((a) => String(a.id) === defaultFromAccountId);
+        console.log('[ComposeAccounts] Looking for defaultFromAccountId:', defaultFromAccountId, 'found:', !!accountToSelect);
       }
 
       if (!accountToSelect) {
         accountToSelect = activeAccounts.find((a) => a.is_default) || activeAccounts[0];
+        console.log('[ComposeAccounts] Selected account:', accountToSelect?.email_address, 'is_default:', accountToSelect?.is_default);
       }
 
       if (accountToSelect) {
-        setFormData((prev) => ({
-          ...prev,
-          credential_id: String(accountToSelect!.id),
-          from_address: accountToSelect!.email_address,
-        }));
+        console.log('[ComposeAccounts] Setting credential_id:', accountToSelect.id);
+        setFormData((prev) => {
+          console.log('[ComposeAccounts] setFormData called, prev credential_id:', prev.credential_id);
+          return {
+            ...prev,
+            credential_id: String(accountToSelect!.id),
+            from_address: accountToSelect!.email_address,
+          };
+        });
+      } else {
+        console.log('[ComposeAccounts] No account to select!');
       }
     } catch (err) {
       console.error("Failed to fetch accounts:", err);
@@ -458,19 +506,30 @@ export function ComposeEmailModal({
   };
 
   const handleSend = async () => {
+    console.log('[ComposeSend] handleSend called:', {
+      credential_id: formData.credential_id,
+      to: formData.to,
+      subject: formData.subject,
+      body_length: formData.body?.length,
+      signatureHtml_length: signatureHtml?.length,
+    });
+
     setError(null);
 
     if (!formData.credential_id) {
+      console.log('[ComposeSend] Error: no credential_id');
       setError("Please select an email account");
       return;
     }
 
     if (!formData.to.trim()) {
+      console.log('[ComposeSend] Error: no to');
       setError("Please enter a recipient");
       return;
     }
 
     if (!formData.subject.trim()) {
+      console.log('[ComposeSend] Error: no subject');
       setError("Please enter a subject");
       return;
     }
@@ -663,7 +722,7 @@ export function ComposeEmailModal({
                   });
                 }
               }}
-              className="h-9 px-3 text-sm border rounded-md bg-background max-w-[300px]"
+              className="h-9 px-3 text-sm border rounded-md bg-background text-foreground max-w-[300px]"
             >
               {accounts.map((account) => (
                 <optgroup key={account.id} label={account.name || account.email_address}>
