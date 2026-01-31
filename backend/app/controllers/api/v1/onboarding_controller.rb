@@ -13,7 +13,7 @@ module Api
     class OnboardingController < ApplicationController
       include PresignedUploadHandler
 
-      before_action :authenticate_user!
+      # Note: Authentication is handled by ApplicationController's authorize_request
 
       # GET /api/v1/onboarding/status
       # Get full onboarding status for current tenant
