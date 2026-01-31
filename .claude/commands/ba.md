@@ -56,7 +56,7 @@ git stash list
 
 ### Step 3 - Verify Backend Changes Before Commit
 **IMPORTANT: If `git status --short` shows ANY backend/ files, note them here.**
-**After commit, verify they were included with `git diff --name-only HEAD~1 HEAD | grep backend/`**
+**After commit, verify they were included with `git diff --name-only HEAD~10 HEAD 2>/dev/null | grep backend/`**
 
 If backend files were shown in status but NOT in the committed diff, STOP and investigate.
 
@@ -142,7 +142,7 @@ git push origin Staging
 ### Step 6.5 - Verify Backend Changes Were Committed
 **CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
 ```bash
-git diff --name-only HEAD~1 HEAD | grep backend/
+git diff --name-only HEAD~10 HEAD 2>/dev/null | grep backend/
 ```
 **If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
 
@@ -172,7 +172,7 @@ echo "✅ Frontend branch merged"
 
 **Check if backend files were in the commit:**
 ```bash
-git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
+git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
 ```
 
 **If backend changed, use optimized deploy:**
@@ -237,7 +237,7 @@ echo "✅ All backend deploys complete"
 **Only run migration check if commit includes db/migrate files:**
 
 ```bash
-if git diff --name-only HEAD~1 HEAD | grep -q "^backend/db/migrate/"; then
+if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/db/migrate/"; then
   echo "🔄 Migrations detected - verifying..."
 
   echo "Checking Staging migrations..."
@@ -260,7 +260,7 @@ fi
 BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
 COMMIT_HASH=$(git rev-parse --short HEAD)
 COMMIT_MSG=$(git log -1 --pretty=%s)
-BACKEND_DEPLOYED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "deployed" || echo "skipped")
+BACKEND_DEPLOYED=$(git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "deployed" || echo "skipped")
 ```
 
 **Output format:**

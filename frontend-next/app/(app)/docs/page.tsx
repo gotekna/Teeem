@@ -3,9 +3,9 @@
 /**
  * Documentation Page - User Manual & Help Center
  *
- * SSoT: TEEEM_DOCS/TEEEM_USER_MANUAL.md is the source
- * API: /api/v1/documentation/user-manual serves content by chapter
- * URL: /docs?doc=user-manual&chapter=5
+ * SSoT: lib/docs/chapters.json contains all chapter content
+ * Static loading - no backend API required
+ * URL: /docs?chapter=5
  */
 
 import * as React from "react";
@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Spinner } from "@/components/ui/spinner";
 import {
   BookOpen,
   Search,
@@ -23,10 +22,9 @@ import {
   Home,
   Menu,
   X,
-  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
+import chaptersData from "@/lib/docs/chapters.json";
 import { getChapterName } from "@/lib/helpMapping";
 
 // Chapter list with icons
@@ -79,88 +77,96 @@ export default function DocsPage() {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = React.useState(false);
 
   // Content state
   const [content, setContent] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
 
-  // Load chapter content
+  // Load chapter content from static JSON
   React.useEffect(() => {
     if (selectedChapter !== null) {
-      loadChapterContent(selectedChapter);
+      const chapterKey = selectedChapter.toString();
+      const chapterContent = (chaptersData.chapters as Record<string, { content: string }>)[chapterKey];
+      if (chapterContent) {
+        setContent(chapterContent.content);
+      } else {
+        setContent("Chapter content not yet available.");
+      }
     } else {
-      // Show welcome/overview when no chapter selected
       setContent("");
     }
   }, [selectedChapter]);
 
-  const loadChapterContent = async (chapter: number) => {
-    setLoading(true);
-    try {
-      const response = await api.get<{
-        success: boolean;
-        data: { content: string };
-      }>("/api/v1/documentation/user-manual", {
-        params: { chapter },
-      });
-
-      if (response?.success && response?.data) {
-        setContent(response.data.content || "No content available for this chapter.");
-      } else {
-        setContent("Unable to load chapter content.");
-      }
-    } catch (error) {
-      console.error("Failed to load chapter:", error);
-      setContent("Failed to load chapter content. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearch = async () => {
+  const handleSearch = () => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       return;
     }
 
-    setIsSearching(true);
-    try {
-      const response = await api.get<{
-        success: boolean;
-        data: { results: Array<{ doc_type: string; content: string }> };
-      }>("/api/v1/documentation/search", {
-        params: { q: searchQuery },
-      });
+    const query = searchQuery.toLowerCase();
+    const results: SearchResult[] = [];
 
-      if (response?.success && response?.data) {
-        const results = (response.data.results || [])
-          .filter((r) => r.doc_type === "user_manual")
-          .map((r, index) => {
-            const chapterMatch = r.content.match(/Chapter (\d+):/i);
-            return {
-              chapter: chapterMatch ? parseInt(chapterMatch[1]) : 0,
-              title: r.content.substring(0, 80),
-              excerpt: r.content.substring(0, 200),
-              score: 100 - index,
-            };
-          })
-          .filter((r) => r.chapter >= 0);
+    // Search through all chapters in static content
+    const chapters = chaptersData.chapters as Record<string, { title: string; content: string }>;
+    Object.entries(chapters).forEach(([chapterId, chapter]) => {
+      const chapterNum = parseInt(chapterId);
+      const chapterContent = chapter.content.toLowerCase();
+      const title = chapter.title.toLowerCase();
 
-        setSearchResults(results);
+      if (chapterContent.includes(query) || title.includes(query)) {
+        // Find the matching line for excerpt
+        const lines = chapter.content.split('\n');
+        let excerpt = '';
+        for (const line of lines) {
+          if (line.toLowerCase().includes(query)) {
+            excerpt = line.substring(0, 200);
+            break;
+          }
+        }
+        if (!excerpt) {
+          excerpt = chapter.content.substring(0, 200);
+        }
+
+        results.push({
+          chapter: chapterNum,
+          title: chapter.title,
+          excerpt,
+          score: title.includes(query) ? 100 : 50,
+        });
       }
-    } catch (error) {
-      console.error("Search failed:", error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
+    });
+
+    // Sort by score
+    results.sort((a, b) => b.score - a.score);
+    setSearchResults(results.slice(0, 10));
   };
 
   const navigateToChapter = (chapter: number) => {
     router.push(`/docs?doc=${docType}&chapter=${chapter}`);
     setSearchResults([]);
     setSearchQuery("");
+  };
+
+  // Helper to format inline markdown (bold, code, etc.)
+  const formatInlineMarkdown = (text: string): React.ReactNode => {
+    // Handle inline code first
+    const parts = text.split(/(`[^`]+`)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return (
+          <code key={i} className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
+            {part.slice(1, -1)}
+          </code>
+        );
+      }
+      // Handle bold
+      const boldParts = part.split(/(\*\*[^*]+\*\*)/g);
+      return boldParts.map((bp, j) => {
+        if (bp.startsWith('**') && bp.endsWith('**')) {
+          return <strong key={`${i}-${j}`} className="text-foreground font-medium">{bp.slice(2, -2)}</strong>;
+        }
+        return bp;
+      });
+    });
   };
 
   return (
@@ -236,9 +242,6 @@ export default function DocsPage() {
               placeholder="Search documentation..."
               className="pl-9"
             />
-            {isSearching && (
-              <Spinner size={16} className="absolute right-3 top-1/2 -translate-y-1/2" />
-            )}
           </div>
 
           <Button variant="outline" size="sm" onClick={handleSearch}>
@@ -306,11 +309,7 @@ export default function DocsPage() {
         {/* Content Area */}
         <ScrollArea className="flex-1">
           <div className="max-w-4xl mx-auto px-6 py-8">
-            {loading ? (
-              <div className="flex items-center justify-center py-16">
-                <Spinner size={48} className="text-indigo-600" />
-              </div>
-            ) : selectedChapter !== null ? (
+            {selectedChapter !== null ? (
               // Chapter Content
               <div>
                 <div className="flex items-center gap-3 mb-6">
@@ -329,34 +328,65 @@ export default function DocsPage() {
 
                 <div className="prose prose-sm dark:prose-invert max-w-none">
                   {content.split("\n").map((line, i) => {
+                    // Handle horizontal rules
+                    if (line.trim() === "---") {
+                      return <hr key={i} className="my-8 border-border" />;
+                    }
                     // Handle headers
                     if (line.startsWith("## ")) {
                       return (
-                        <h2 key={i} className="text-xl font-semibold mt-8 mb-4">
+                        <h2 key={i} className="text-xl font-semibold mt-8 mb-4 text-foreground">
                           {line.replace("## ", "")}
                         </h2>
                       );
                     }
                     if (line.startsWith("### ")) {
                       return (
-                        <h3 key={i} className="text-lg font-medium mt-6 mb-3">
+                        <h3 key={i} className="text-lg font-medium mt-6 mb-3 text-foreground">
                           {line.replace("### ", "")}
                         </h3>
+                      );
+                    }
+                    // Handle table rows
+                    if (line.startsWith("|")) {
+                      const cells = line.split("|").filter(c => c.trim());
+                      const isHeader = content.split("\n")[i + 1]?.includes("---");
+                      const isSeparator = line.includes("---");
+                      if (isSeparator) return null;
+                      return (
+                        <div key={i} className={cn(
+                          "grid gap-4 py-2 px-3 border-b border-border text-sm",
+                          isHeader && "bg-muted/50 font-medium"
+                        )} style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
+                          {cells.map((cell, j) => (
+                            <div key={j}>{cell.trim()}</div>
+                          ))}
+                        </div>
                       );
                     }
                     // Handle bullet points
                     if (line.startsWith("- ")) {
                       return (
-                        <li key={i} className="ml-4">
-                          {line.replace("- ", "")}
+                        <li key={i} className="ml-6 text-muted-foreground">
+                          {formatInlineMarkdown(line.replace("- ", ""))}
+                        </li>
+                      );
+                    }
+                    // Handle numbered lists
+                    if (/^\d+\.\s/.test(line)) {
+                      return (
+                        <li key={i} className="ml-6 list-decimal text-muted-foreground">
+                          {formatInlineMarkdown(line.replace(/^\d+\.\s/, ""))}
                         </li>
                       );
                     }
                     // Regular paragraph
-                    return line ? (
-                      <p key={i} className="mb-4">{line}</p>
+                    return line.trim() ? (
+                      <p key={i} className="mb-3 text-muted-foreground leading-relaxed">
+                        {formatInlineMarkdown(line)}
+                      </p>
                     ) : (
-                      <br key={i} />
+                      <div key={i} className="h-2" />
                     );
                   })}
                 </div>

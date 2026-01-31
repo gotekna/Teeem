@@ -201,7 +201,7 @@ echo "✅ All backend deploys complete"
 **Only run migration check if commit includes db/migrate files:**
 
 ```bash
-if git diff --name-only HEAD~1 HEAD | grep -q "^backend/db/migrate/"; then
+if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/db/migrate/"; then
   echo "🔄 Migrations detected - verifying..."
 
   # Check all 3 environments
