@@ -760,6 +760,7 @@ export function GanttUnified({
         isFullscreen && 'fixed inset-0 z-50',
         className
       )}
+      data-tour="gantt-tasks"
     >
       {/* Toolbar - hide during loading/error */}
       {showToolbar && !isLoading && !error && (
@@ -801,7 +802,7 @@ export function GanttUnified({
       )}
 
       {/* Main Content: Canvas + Overlays */}
-      <div ref={containerRef} className="relative flex-1 min-h-0 overflow-hidden">
+      <div ref={containerRef} className="relative flex-1 min-h-0 overflow-hidden" data-tour="gantt-timeline">
         {/* Canvas Layer - ALWAYS rendered (so refs are available for initialization) */}
         <canvas
           ref={canvasRef}

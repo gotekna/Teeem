@@ -24,18 +24,13 @@ export const dashboardTour: PageTour = {
     },
     {
       target: '[data-tour="recent-items"]',
-      content: "Your recently accessed jobs, contacts, and documents appear here for quick access.",
-      title: "Recent Items",
+      content: "Recent activity from your team appears here - see what's been updated.",
+      title: "Recent Activity",
     },
     {
       target: '[data-tour="tasks-widget"]',
-      content: "See your upcoming tasks and deadlines. Click to mark complete or view details.",
-      title: "Tasks Overview",
-    },
-    {
-      target: '[data-tour="quick-actions"]',
-      content: "Use these shortcuts to quickly create new jobs, contacts, or tasks.",
-      title: "Quick Actions",
+      content: "See your upcoming tasks and deadlines for this week.",
+      title: "Upcoming Schedule",
     },
   ],
 };
@@ -121,9 +116,9 @@ export const contactsTour: PageTour = {
       disableBeacon: true,
     },
     {
-      target: '[data-tour="contacts-search"]',
-      content: "Search by name, email, phone, or company. Results update as you type.",
-      title: "Search Contacts",
+      target: '[data-tour="contacts-filters"]',
+      content: "Filter and search contacts by name, email, phone, company, or contact type.",
+      title: "Filter & Search",
     },
     {
       target: '[data-tour="contacts-add"]',
@@ -131,9 +126,9 @@ export const contactsTour: PageTour = {
       title: "Add Contact",
     },
     {
-      target: '[data-tour="contacts-type-filter"]',
-      content: "Filter by contact type: Customers, Suppliers, Subcontractors, or view all.",
-      title: "Contact Types",
+      target: '[data-tour="contacts-columns"]',
+      content: "Customize which columns are visible. Drag to reorder, click headers to sort.",
+      title: "Customize Columns",
     },
   ],
 };
@@ -270,15 +265,15 @@ export const ganttTour: PageTour = {
   title: "Gantt Chart Tour",
   steps: [
     {
-      target: '[data-tour="gantt-timeline"]',
-      content: "Your project timeline. Drag bars to reschedule, resize to change duration.",
-      title: "Timeline View",
+      target: '[data-tour="gantt-tasks"]',
+      content: "The Gantt chart shows your project schedule. Tasks are listed on the left, timeline on the right.",
+      title: "Gantt Chart",
       disableBeacon: true,
     },
     {
-      target: '[data-tour="gantt-tasks"]',
-      content: "Tasks are listed on the left. Click to edit details, drag to reorder.",
-      title: "Task List",
+      target: '[data-tour="gantt-timeline"]',
+      content: "Drag task bars to reschedule. Resize to change duration. Double-click to edit details.",
+      title: "Timeline View",
     },
     {
       target: '[data-tour="gantt-zoom"]',
@@ -287,8 +282,8 @@ export const ganttTour: PageTour = {
     },
     {
       target: '[data-tour="gantt-dependencies"]',
-      content: "Connect tasks with dependencies. Drag from one task to another.",
-      title: "Task Dependencies",
+      content: "Toggle to show task dependencies. Click to manage predecessor/successor relationships.",
+      title: "Dependencies",
     },
   ],
 };

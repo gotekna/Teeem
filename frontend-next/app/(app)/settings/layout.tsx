@@ -83,7 +83,7 @@ export default function SettingsLayout({
       {/* Personal Section */}
       <TabbedSettingsPage.TabSection label="Personal">
         <Tabs value={currentTab} onValueChange={handleTabChange}>
-          <TabsList>
+          <TabsList data-tour="settings-nav">
             {PERSONAL_TABS.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -104,8 +104,13 @@ export default function SettingsLayout({
             <TabsList className="flex-wrap h-auto gap-1">
               {ORGANIZATION_TABS.map((tab) => {
                 const Icon = tab.icon;
+                // Add data-tour for specific tabs
+                const tourId = tab.id === "users" ? "settings-users"
+                  : tab.id === "company" ? "settings-company"
+                  : tab.id === "connections" ? "settings-integrations"
+                  : undefined;
                 return (
-                  <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+                  <TabsTrigger key={tab.id} value={tab.id} className="gap-2" data-tour={tourId}>
                     <Icon className="h-4 w-4" />
                     <span className="hidden sm:inline">{tab.label}</span>
                   </TabsTrigger>
