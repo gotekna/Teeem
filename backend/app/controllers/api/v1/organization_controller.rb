@@ -326,6 +326,28 @@ module Api
           false
         end
 
+        # SSoT (Jan 2026): Include bucket from WarehouseProvider
+        # Bucket is displayed on BOTH Storage Config and Storage Provider pages
+        # but WarehouseProvider.bucket is THE ONE SSoT
+        warehouse_provider = WarehouseProvider.instance rescue nil
+        current_bucket = warehouse_provider&.bucket
+
+        # Get active credential status and last connected info
+        active_credential = nil
+        credential_status = nil
+        last_error = nil
+
+        if organization.document_provider == "s3_compatible" && organization.document_provider_credential_id
+          active_credential = S3CompatibleCredential.find_by(id: organization.document_provider_credential_id)
+          if active_credential
+            credential_status = active_credential.status
+            last_error = active_credential.metadata&.dig("last_error")
+          end
+        elsif organization.document_provider == "sharepoint"
+          sp_cred = MicrosoftCredential.sharepoint_credential rescue nil
+          credential_status = sp_cred&.connected? ? "connected" : "disconnected"
+        end
+
         render json: {
           success: true,
           data: {
@@ -334,7 +356,13 @@ module Api
             available_providers: Organization::DOCUMENT_PROVIDERS,
             s3_credentials: s3_credentials,
             sharepoint_configured: sharepoint_configured,
-            can_switch: s3_credentials.any? { |c| c[:connected] } || sharepoint_configured
+            can_switch: s3_credentials.any? { |c| c[:connected] } || sharepoint_configured,
+            # SSoT (Jan 2026): Bucket from WarehouseProvider - visible on both screens
+            bucket: current_bucket,
+            # Connection status info
+            connection_status: credential_status,
+            last_error: last_error,
+            warehouse_provider_updated_at: warehouse_provider&.updated_at
           }
         }
       end
@@ -388,12 +416,25 @@ module Api
         if organization.save
           Rails.logger.info "[DocumentProvider] Organization switched from #{old_provider} to #{provider}"
 
+          # SSoT (Jan 2026): Also update bucket in WarehouseProvider if provided
+          # Bucket is visible on BOTH screens but WarehouseProvider is SSoT
+          if params[:bucket].present?
+            warehouse_provider = WarehouseProvider.instance rescue nil
+            if warehouse_provider
+              connection_config = warehouse_provider.connection_config || {}
+              connection_config["bucket"] = params[:bucket]
+              warehouse_provider.update!(connection_config: connection_config)
+              Rails.logger.info "[DocumentProvider] Updated bucket in WarehouseProvider: #{params[:bucket]}"
+            end
+          end
+
           render json: {
             success: true,
             message: "Document provider updated to #{provider}",
             data: {
               document_provider: organization.document_provider,
-              document_provider_credential_id: organization.document_provider_credential_id
+              document_provider_credential_id: organization.document_provider_credential_id,
+              bucket: params[:bucket].presence || (WarehouseProvider.instance.bucket rescue nil)
             }
           }
         else
