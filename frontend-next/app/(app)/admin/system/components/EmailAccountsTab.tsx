@@ -113,6 +113,7 @@ const DEFAULT_FORM = {
   username: "",
   password: "",
   email_signature: "",
+  email_aliases: "" as string,  // Comma-separated list
 };
 
 // MS365 Organization with mailboxes for access configuration
@@ -786,6 +787,7 @@ export function EmailAccountsTab() {
       username: cred.username || cred.email_address,
       password: "", // Don't prefill password for security
       email_signature: cred.email_signature || "",
+      email_aliases: (cred.email_aliases || []).join(", "),  // Convert array to comma-separated
     });
     setTestResult(null);
     setDialogOpen(true);
@@ -984,6 +986,19 @@ export function EmailAccountsTab() {
                 />
                 <p className="text-xs text-muted-foreground">
                   This signature will be automatically added to emails sent from this account.
+                </p>
+              </div>
+
+              {/* Email Aliases */}
+              <div className="space-y-2">
+                <Label>Email Aliases (Send From)</Label>
+                <Input
+                  placeholder="demo@company.com, sales@company.com"
+                  value={formData.email_aliases}
+                  onChange={(e) => setFormData({ ...formData, email_aliases: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated list of aliases you can send emails from. These must be configured with your email provider.
                 </p>
               </div>
 
