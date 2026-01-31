@@ -91,6 +91,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     error: string | null;
   }>>([]);
   const [emailOverallStatus, setEmailOverallStatus] = React.useState<ConnectionStatus>('disconnected');
+  const [emailTotalCount, setEmailTotalCount] = React.useState(0);
+  const [emailConnectedCount, setEmailConnectedCount] = React.useState(0);
   const [xeroStatus, setXeroStatus] = React.useState<ConnectionStatus>('disconnected');
   const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
   const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
@@ -231,8 +233,10 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         if (orgStatusResponse?.success && orgStatusResponse?.data) {
           const { total, connected, errors, overall_status, summary } = orgStatusResponse.data;
 
-          // Update status and create summary accounts for display
+          // Update status and counts for display
           setEmailOverallStatus(overall_status as ConnectionStatus);
+          setEmailTotalCount(total);
+          setEmailConnectedCount(connected);
 
           // Create a summary entry for the popover (org-wide view)
           const accounts: typeof emailAccounts = [];
@@ -250,11 +254,15 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           setEmailAccounts(accounts);
         } else {
           setEmailOverallStatus('disconnected');
+          setEmailTotalCount(0);
+          setEmailConnectedCount(0);
           setEmailAccounts([]);
         }
       } catch (error) {
         console.debug("Failed to fetch org email status:", error);
         setEmailOverallStatus('disconnected');
+        setEmailTotalCount(0);
+        setEmailConnectedCount(0);
         setEmailAccounts([]);
       }
     };
@@ -428,7 +436,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                   "relative p-1.5 rounded-md transition-colors",
                   getStatusColors(emailOverallStatus)
                 )}
-                title={`Email: ${emailAccounts.length} account${emailAccounts.length !== 1 ? 's' : ''}`}
+                title={`Email: ${emailTotalCount} account${emailTotalCount !== 1 ? 's' : ''}`}
               >
                 <Mail className="h-4 w-4" />
                 {/* Status indicator dot */}
@@ -450,13 +458,13 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
               <div className="p-3 border-b border-border">
                 <h4 className="font-medium text-sm">Email Accounts</h4>
                 <p className="text-xs text-muted-foreground">
-                  {emailAccounts.length === 0
+                  {emailTotalCount === 0
                     ? "No email accounts configured"
-                    : `${emailAccounts.filter(a => a.status === 'connected').length}/${emailAccounts.length} syncing`}
+                    : `${emailConnectedCount}/${emailTotalCount} connected`}
                 </p>
               </div>
               <div className="max-h-64 overflow-y-auto">
-                {emailAccounts.length === 0 ? (
+                {emailTotalCount === 0 ? (
                   <div className="p-4 text-center text-sm text-muted-foreground">
                     <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>No email accounts connected</p>

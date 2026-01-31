@@ -6080,6 +6080,7 @@ export default function TeeemTableView({
               variant="outline"
               size="sm"
               onClick={() => setShowGlobalViewsManager(true)}
+              data-tour={`${effectiveFoundationId}-filters`}
             >
               <Filter className="h-4 w-4 mr-2" />
               Filters
@@ -6124,6 +6125,7 @@ export default function TeeemTableView({
           {/* More actions menu - extracted to ToolbarMoreActions */}
           {/* Context provides: hasEmailColumns (from columns), foundationId, resolvedFoundation (from meta) */}
           <ToolbarMoreActions
+            data-tour={effectiveFoundationId ? `${effectiveFoundationId}-columns` : undefined}
             enableSchemaEditor={effectiveEnableSchemaEditor}
             enableImport={effectiveEnableImport}
             enableExport={effectiveEnableExport}
