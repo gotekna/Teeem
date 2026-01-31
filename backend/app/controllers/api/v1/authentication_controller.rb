@@ -53,8 +53,8 @@ module Api
       def signup
         user = User.new(signup_params)
 
-        # Auto-approve internal employees (SSoT: CorporateCompanySetting)
-        if CorporateCompanySetting.internal_email?(user.email)
+        # Auto-approve internal employees (SSoT: TenantSetting)
+        if TenantSetting.internal_email?(user.email)
           Rails.logger.info "Auto-approving internal employee: #{user.email}"
         end
 
@@ -91,9 +91,9 @@ module Api
           # Update last login timestamp
           user.update_column(:last_login_at, Time.current)
 
-          # Get the company's API environment config (SSoT: CorporateCompanySetting)
+          # Get the company's API environment config (SSoT: TenantSetting)
           # Production backend acts as "router" - returns api_url for the company's chosen environment
-          env_config = CorporateCompanySetting.api_environment_config
+          env_config = TenantSetting.api_environment_config
 
           # Local development should stay local - don't redirect localhost requests
           # Check Origin or Referer header for localhost
@@ -202,7 +202,7 @@ module Api
       def me
         # Get environment config for auto-login redirect check
         # (Same logic as login - needed so session restore can redirect to correct frontend)
-        env_config = CorporateCompanySetting.api_environment_config
+        env_config = TenantSetting.api_environment_config
 
         # Check if request is from localhost (don't redirect local dev)
         request_origin = request.headers['Origin'] || request.headers['Referer'] || ''

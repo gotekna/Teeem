@@ -262,7 +262,7 @@ class CorporateCompany < ApplicationRecord
     consolidated_children.exists?
   end
 
-  # SharePoint folder URL for this company's root folder (SSoT: from CorporateCompanySetting)
+  # SharePoint folder URL for this company's root folder (SSoT: from TenantSetting)
   # Structure: [company_path] / [Group Name] / [Company Name]
   def sharepoint_folder_url
     return nil unless corporate_group.present?

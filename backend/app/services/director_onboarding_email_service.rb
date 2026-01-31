@@ -75,9 +75,9 @@ class DirectorOnboardingEmailService
 
   private
 
-  # SSoT: Get company name from CorporateCompanySetting
+  # SSoT: Get company name from TenantSetting
   def company_name
-    @company_name ||= CorporateCompanySetting.instance.company_name
+    @company_name ||= TenantSetting.instance.company_name
   end
 
   # Build sender display name (e.g., "Robert Harder via Tekna Homes")

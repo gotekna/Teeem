@@ -147,7 +147,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
     end
 
     if @whs_incident.update(
-      workcov_notification_date: CorporateCompanySetting.today,
+      workcov_notification_date: TenantSetting.today,
       workcov_reference_number: workcov_reference
     )
       render json: {

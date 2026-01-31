@@ -769,7 +769,7 @@ class SmTask < ApplicationRecord
   def snap_start_date_to_working_day
     return unless start_date.present?
 
-    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    calendar = WorkingDaysCalculator.new(TenantSetting.instance)
     snapped = calendar.next_working_day(start_date)
 
     if snapped != start_date
@@ -782,7 +782,7 @@ class SmTask < ApplicationRecord
   def snap_end_date_to_working_day
     return unless end_date.present?
 
-    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    calendar = WorkingDaysCalculator.new(TenantSetting.instance)
     snapped = calendar.next_working_day(end_date)
 
     if snapped != end_date
@@ -801,7 +801,7 @@ class SmTask < ApplicationRecord
       return
     end
     # Use WorkingDaysCalculator to respect working days (M-F by default)
-    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    calendar = WorkingDaysCalculator.new(TenantSetting.instance)
     self.end_date = calendar.add_working_days(start_date, duration_days - 1)
   end
 

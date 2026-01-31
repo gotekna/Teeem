@@ -17,8 +17,8 @@ class DailyHealthCheckJob < ApplicationJob
   queue_as :low
 
   def perform
-    # SSoT: Use CorporateCompanySetting for timezone
-    Rails.logger.info "[DailyHealthCheck] Starting daily health check at #{CorporateCompanySetting.now}"
+    # SSoT: Use TenantSetting for timezone
+    Rails.logger.info "[DailyHealthCheck] Starting daily health check at #{TenantSetting.now}"
 
     start_time = Time.current
     results = {

@@ -37,8 +37,8 @@ class MeetingAgendaItem < ApplicationRecord
       stage: "Meeting Action",
       status: "not_started",
       assigned_user: task_attributes[:assigned_to],
-      start_date: CorporateCompanySetting.today,
-      end_date: task_attributes[:planned_end_date] || CorporateCompanySetting.today + 7.days,
+      start_date: TenantSetting.today,
+      end_date: task_attributes[:planned_end_date] || TenantSetting.today + 7.days,
       duration_days: task_attributes[:duration_days] || 7,
       created_by: meeting.organizer&.user
     )

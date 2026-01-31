@@ -80,7 +80,7 @@ class Asset < ApplicationRecord
 
   def insurance_expiring_soon?(days = 30)
     return false unless has_insurance?
-    today = CorporateCompanySetting.today
+    today = TenantSetting.today
     asset_insurance.renewal_date.present? &&
       asset_insurance.renewal_date <= days.days.from_now &&
       asset_insurance.renewal_date >= today
@@ -88,7 +88,7 @@ class Asset < ApplicationRecord
 
   def insurance_expired?
     return false unless asset_insurance.present?
-    asset_insurance.renewal_date.present? && asset_insurance.renewal_date < CorporateCompanySetting.today
+    asset_insurance.renewal_date.present? && asset_insurance.renewal_date < TenantSetting.today
   end
 
   def last_service
@@ -105,7 +105,7 @@ class Asset < ApplicationRecord
   end
 
   def service_overdue?
-    next_service_due.present? && next_service_due < CorporateCompanySetting.today
+    next_service_due.present? && next_service_due < TenantSetting.today
   end
 
   def total_maintenance_cost
@@ -114,7 +114,7 @@ class Asset < ApplicationRecord
 
   def age_in_years
     return nil unless purchase_date.present?
-    ((CorporateCompanySetting.today - purchase_date).to_f / 365.25).round(1)
+    ((TenantSetting.today - purchase_date).to_f / 365.25).round(1)
   end
 
   def depreciation_amount

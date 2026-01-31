@@ -36,14 +36,14 @@ class PayNowWeeklyLimit < ApplicationRecord
   scope :active, -> { where(active: true) }
   scope :for_week, ->(date) { where("week_start_date <= ? AND week_end_date >= ?", date, date) }
   scope :current_week, -> {
-    today = CorporateCompanySetting.today
+    today = TenantSetting.today
     for_week(today).active.first
   }
 
   # Class methods
   def self.current
     # Get or create current week's limit
-    today = CorporateCompanySetting.today
+    today = TenantSetting.today
     week_start = today.beginning_of_week(:monday)
 
     current_limit = for_week(week_start).active.first
@@ -70,7 +70,7 @@ class PayNowWeeklyLimit < ApplicationRecord
 
   def self.set_limit(amount, user:)
     # Set new limit for current week
-    today = CorporateCompanySetting.today
+    today = TenantSetting.today
     week_start = today.beginning_of_week(:monday)
 
     transaction do
@@ -155,7 +155,7 @@ class PayNowWeeklyLimit < ApplicationRecord
   def set_week_dates
     return if week_start_date.present? && week_end_date.present?
 
-    today = CorporateCompanySetting.today
+    today = TenantSetting.today
     self.week_start_date = today.beginning_of_week(:monday)
     self.week_end_date = today.end_of_week(:monday)
   end

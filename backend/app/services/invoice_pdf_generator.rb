@@ -214,7 +214,7 @@ class InvoicePdfGenerator
   end
 
   def build_company_context
-    settings = CorporateCompanySetting.instance
+    settings = TenantSetting.instance
 
     {
       name: settings.company_name,

@@ -101,7 +101,7 @@ module Api
             original_amount: params[:amount]&.to_f || remaining_amount,
             discount_percentage: params[:discount_percentage]&.to_f || 5.0,
             supplier_notes: params[:notes],
-            requested_payment_date: params[:requested_payment_date] || CorporateCompanySetting.today
+            requested_payment_date: params[:requested_payment_date] || TenantSetting.today
           }
 
           request = po.pay_now_requests.build(request_params)

@@ -126,7 +126,7 @@ module Api
 
       # GET /api/v1/pay_now_requests/dashboard_stats
       def dashboard_stats
-        today = CorporateCompanySetting.today
+        today = TenantSetting.today
         week_start = today.beginning_of_week(:monday)
         month_start = today.beginning_of_month
 

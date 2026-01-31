@@ -15,7 +15,7 @@ class WHSSWMSAcknowledgment < ApplicationRecord
   scope :recent, -> { order(acknowledged_at: :desc) }
   scope :by_worker, ->(name) { where("worker_name ILIKE ?", "%#{name}%") }
   scope :for_user, ->(user) { where(user: user) }
-  scope :today, -> { where("acknowledged_at >= ?", CorporateCompanySetting.today.beginning_of_day) }
+  scope :today, -> { where("acknowledged_at >= ?", TenantSetting.today.beginning_of_day) }
 
   # Helper methods
   def worker_display_name

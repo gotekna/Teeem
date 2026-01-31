@@ -3,7 +3,7 @@
 # Monitors a shared mailbox for incoming supplier invoices
 # Creates BillInbox records for each PDF attachment and queues AI extraction
 #
-# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_pay
+# SSoT: Mailbox address configured in TenantSetting.monitored_mailbox_pay
 class BillInboxSyncService
   SUPPORTED_CONTENT_TYPES = [
     "application/pdf",
@@ -14,8 +14,8 @@ class BillInboxSyncService
 
   def initialize(since: nil, mailbox: nil)
     @since = since || 1.hour.ago
-    # SSoT: Get monitored mailbox from CorporateCompanySetting
-    @mailbox = mailbox || CorporateCompanySetting.monitored_mailbox_pay
+    # SSoT: Get monitored mailbox from TenantSetting
+    @mailbox = mailbox || TenantSetting.monitored_mailbox_pay
     @client = MicrosoftAppGraphClient.new
   end
 

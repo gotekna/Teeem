@@ -14,15 +14,15 @@ module Api
       def update
         settings = current_tenant_settings
 
-        # Extract api_environment - this goes to CorporateCompanySetting, not TenantSetting
+        # Extract api_environment - this goes to TenantSetting, not TenantSetting
         # api_environment is an org-wide setting that determines which backend env the company uses
         update_params = company_settings_params.to_h
         api_environment = update_params.delete("api_environment")
 
-        # Update api_environment on CorporateCompanySetting (the org-wide singleton)
+        # Update api_environment on TenantSetting (the org-wide singleton)
         # Also sync to CorporateGroup.environment for sidebar badge display
         if api_environment.present?
-          corporate_settings = CorporateCompanySetting.instance
+          corporate_settings = TenantSetting.instance
           unless corporate_settings.update(api_environment: api_environment)
             return render json: {
               success: false,
@@ -115,8 +115,8 @@ module Api
           tenant.settings || tenant.create_tenant_setting!
         else
           # Fallback to legacy singleton if no tenant context (shouldn't happen)
-          Rails.logger.warn "[CompanySettings] No tenant context, falling back to CorporateCompanySetting"
-          CorporateCompanySetting.instance
+          Rails.logger.warn "[CompanySettings] No tenant context, falling back to TenantSetting"
+          TenantSetting.instance
         end
       end
 
@@ -144,15 +144,15 @@ module Api
           bank_account_name: settings.bank_account_name
         }
 
-        # Always get api_environment from CorporateCompanySetting (org-wide singleton)
+        # Always get api_environment from TenantSetting (org-wide singleton)
         # This determines which backend environment the company uses (production/beta/staging)
-        base[:api_environment] = CorporateCompanySetting.api_environment
+        base[:api_environment] = TenantSetting.api_environment
 
         # Link expiry days for presigned URLs (SSoT)
-        base[:link_expiry_days] = CorporateCompanySetting.link_expiry_days
+        base[:link_expiry_days] = TenantSetting.link_expiry_days
 
         # Brand colors in hex format (for email signatures, PDFs, etc.)
-        base[:brand_colors] = CorporateCompanySetting.brand_colors_hex
+        base[:brand_colors] = TenantSetting.brand_colors_hex
 
         base
       end
