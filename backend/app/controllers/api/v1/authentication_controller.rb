@@ -95,17 +95,14 @@ module Api
           # Production backend acts as "router" - returns api_url for the company's chosen environment
           env_config = CorporateCompanySetting.api_environment_config
 
-          # TEEEM staff (email ends with @teeem.com.au) stay on production frontend
-          # They use TenantSwitcher to view different companies without redirect
-          is_teeem_staff = user.email.to_s.end_with?('@teeem.com.au')
-
           # Local development should stay local - don't redirect localhost requests
           # Check Origin or Referer header for localhost
           request_origin = request.headers['Origin'] || request.headers['Referer'] || ''
           is_localhost = request_origin.include?('localhost') || request_origin.include?('127.0.0.1')
 
-          # Skip redirect for TEEEM staff OR localhost requests
-          frontend_url = (is_teeem_staff || is_localhost) ? nil : env_config[:frontend_url]
+          # All users follow tenant's api_environment setting (no hardcoded exceptions)
+          # Skip redirect only for localhost requests
+          frontend_url = is_localhost ? nil : env_config[:frontend_url]
 
           # Remember me: 1 year expiry, otherwise 1 day
           token_expiry = login_params[:remember_me] == true || login_params[:remember_me] == "true" ? 1.year.from_now : 1.day.from_now
@@ -207,15 +204,13 @@ module Api
         # (Same logic as login - needed so session restore can redirect to correct frontend)
         env_config = CorporateCompanySetting.api_environment_config
 
-        # TEEEM staff stay on production frontend (use TenantSwitcher instead)
-        is_teeem_staff = @current_user.email.to_s.end_with?('@teeem.com.au')
-
         # Check if request is from localhost (don't redirect local dev)
         request_origin = request.headers['Origin'] || request.headers['Referer'] || ''
         is_localhost = request_origin.include?('localhost') || request_origin.include?('127.0.0.1')
 
-        # Only return frontend_url if redirect is needed
-        frontend_url = (is_teeem_staff || is_localhost) ? nil : env_config[:frontend_url]
+        # All users follow tenant's api_environment setting (no hardcoded exceptions)
+        # Skip redirect only for localhost requests
+        frontend_url = is_localhost ? nil : env_config[:frontend_url]
 
         render json: {
           success: true,
