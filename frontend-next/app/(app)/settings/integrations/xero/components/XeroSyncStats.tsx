@@ -26,6 +26,7 @@ import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { FuzzyMatchReviewModal } from "./FuzzyMatchReviewModal";
 import { FuzzyMatchReviewSheet } from "./FuzzyMatchReviewSheet";
+import { XeroOrgContactsDrilldownSheet } from "./XeroOrgContactsDrilldownSheet";
 
 interface TenantContactStats {
   total_links: number;
@@ -183,6 +184,7 @@ export function XeroSyncStats() {
   const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
   const [selectedReviewItem, setSelectedReviewItem] = React.useState<PendingReviewItem | null>(null);
   const [reviewSheetOpen, setReviewSheetOpen] = React.useState(false);
+  const [contactsDrilldownOpen, setContactsDrilldownOpen] = React.useState(false);
 
   // Light-weight callback to update pending count without refetching everything
   const handleReviewed = React.useCallback(() => {
@@ -386,14 +388,20 @@ export function XeroSyncStats() {
 
       {/* Global Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Contacts Stats */}
-        <Card>
+        {/* Contacts Stats - Clickable */}
+        <Card
+          className="cursor-pointer hover:bg-accent/50 transition-colors group"
+          onClick={() => setContactsDrilldownOpen(true)}
+        >
           <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-blue-100 rounded">
-                <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded">
+                  <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <CardTitle className="text-base">Contacts</CardTitle>
               </div>
-              <CardTitle className="text-base">Contacts</CardTitle>
+              <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </CardHeader>
           <CardContent>
@@ -942,6 +950,15 @@ export function XeroSyncStats() {
         open={reviewSheetOpen}
         onOpenChange={setReviewSheetOpen}
         onReviewed={handleReviewed}
+      />
+
+      {/* Contacts Drilldown Sheet */}
+      <XeroOrgContactsDrilldownSheet
+        isOpen={contactsDrilldownOpen}
+        onClose={() => setContactsDrilldownOpen(false)}
+        tenants={tenants}
+        totalContacts={global.totals.contacts_with_links}
+        onLinkChanged={fetchData}
       />
     </div>
   );
