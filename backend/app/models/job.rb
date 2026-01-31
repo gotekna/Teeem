@@ -88,6 +88,12 @@ class Job < ApplicationRecord
     failed: "failed"
   }, prefix: :folders, default: :not_requested
 
+  # Project type: construction (customer-facing jobs) vs internal (system/onboarding jobs)
+  enum :project_type, {
+    construction: "construction",
+    internal: "internal"
+  }, prefix: :project_type, default: :construction
+
   # Alias title to name for backwards compatibility
   # Many parts of the codebase reference job.title but the column is 'name'
   alias_attribute :title, :name
@@ -173,6 +179,10 @@ class Job < ApplicationRecord
 
   # Scopes
   scope :active, -> { joins(:job_status).where(job_status: { name: "Active Job" }) }
+
+  # Project type scopes - customer_facing = construction jobs, internal_only = system/onboarding
+  scope :customer_facing, -> { where(project_type: 'construction') }
+  scope :internal_only, -> { where(project_type: 'internal') }
 
   # Archival scopes (Sprint 8: Scale Preparation)
   scope :archived, -> { where.not(archived_at: nil) }

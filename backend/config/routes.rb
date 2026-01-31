@@ -1591,6 +1591,7 @@ Rails.application.routes.draw do
       # SSoT: Use these endpoints for ALL storage providers (SharePoint, S3, Wasabi, local)
       resource :warehouse_provider, only: [:show, :update] do
         post :test, on: :collection, action: :test_connection
+        get :storage_stats, on: :collection
       end
 
       # Backup Configuration (Per-tenant backup settings)

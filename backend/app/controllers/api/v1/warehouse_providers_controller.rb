@@ -8,7 +8,7 @@ module Api
     # Replaces: /api/v1/corporate_company_settings/sharepoint
     # New endpoint: /api/v1/warehouse_provider
     class WarehouseProvidersController < ApplicationController
-      before_action :require_admin, only: %i[update test_connection]
+      before_action :require_admin, only: %i[update test_connection storage_stats]
 
       # GET /api/v1/warehouse_provider
       # Returns storage configuration for the current provider
@@ -245,23 +245,55 @@ module Api
 
       def test_s3_connection(storage_config)
         begin
-          # Use the S3 client to test connection
-          client = S3StorageClient.new(storage_config)
-          result = client.test_connection
+          # Find the active S3 credential for this tenant
+          credential = S3CompatibleCredential.active.connected.first
 
-          if result[:success]
-            render json: {
-              success: true,
-              message: "#{storage_config.provider_type.titleize} connection successful",
-              provider: storage_config.provider_type,
-              details: result[:details]
-            }
-          else
-            render json: {
+          unless credential
+            return render json: {
               success: false,
-              error: result[:error]
+              error: "No active S3 credential found. Please configure credentials first."
             }, status: :unprocessable_entity
           end
+
+          # Build S3 client and test with head_bucket
+          client = credential.build_client
+          bucket = storage_config.bucket
+
+          unless bucket.present?
+            return render json: {
+              success: false,
+              error: "Bucket not configured. Please set bucket name in Storage Config."
+            }, status: :unprocessable_entity
+          end
+
+          # Test connection by checking if bucket exists
+          client.head_bucket(bucket: bucket)
+
+          # Update credential status to connected
+          credential.update!(status: "connected")
+
+          render json: {
+            success: true,
+            message: "#{storage_config.provider_type == 's3_compatible' ? 'Wasabi/S3' : storage_config.provider_type.titleize} connection successful",
+            provider: storage_config.provider_type,
+            details: {
+              bucket: bucket,
+              endpoint: credential.endpoint,
+              region: credential.region
+            }
+          }
+        rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchBucket => e
+          render json: {
+            success: false,
+            error: "Bucket '#{storage_config.bucket}' not found: #{e.message}"
+          }, status: :unprocessable_entity
+        rescue Aws::S3::Errors::ServiceError => e
+          # Update credential with error
+          credential&.update!(status: "error", metadata: (credential.metadata || {}).merge(last_error: e.message))
+          render json: {
+            success: false,
+            error: "S3 connection failed: #{e.message}"
+          }, status: :unprocessable_entity
         rescue => e
           render json: {
             success: false,
@@ -286,6 +318,156 @@ module Api
             error: "Local storage path does not exist: #{base_path}"
           }, status: :unprocessable_entity
         end
+      end
+
+      public
+
+      # GET /api/v1/warehouse_provider/storage_stats
+      # Returns storage usage statistics for the current provider
+      def storage_stats
+        storage_config = WarehouseProvider.instance
+
+        unless storage_config&.connected?
+          return render json: {
+            success: false,
+            error: "Storage is not configured"
+          }, status: :unprocessable_entity
+        end
+
+        case storage_config.provider_type
+        when "s3_compatible"
+          get_s3_storage_stats(storage_config)
+        when "sharepoint"
+          get_sharepoint_storage_stats(storage_config)
+        when "local"
+          get_local_storage_stats(storage_config)
+        else
+          render json: {
+            success: false,
+            error: "Unknown storage provider"
+          }, status: :unprocessable_entity
+        end
+      end
+
+      private
+
+      def get_s3_storage_stats(storage_config)
+        credential = S3CompatibleCredential.active.connected.first
+
+        unless credential
+          return render json: {
+            success: false,
+            error: "No active S3 credential found"
+          }, status: :unprocessable_entity
+        end
+
+        bucket = storage_config.bucket
+        unless bucket.present?
+          return render json: {
+            success: false,
+            error: "Bucket not configured"
+          }, status: :unprocessable_entity
+        end
+
+        client = credential.build_client
+
+        # Get storage stats by listing objects (with size limit for performance)
+        total_size = 0
+        total_objects = 0
+        continuation_token = nil
+        max_iterations = 10  # Limit iterations for large buckets
+
+        begin
+          max_iterations.times do
+            response = client.list_objects_v2(
+              bucket: bucket,
+              continuation_token: continuation_token,
+              max_keys: 1000
+            )
+
+            response.contents&.each do |obj|
+              total_size += obj.size || 0
+              total_objects += 1
+            end
+
+            break unless response.is_truncated
+            continuation_token = response.next_continuation_token
+          end
+
+          # Format size for display
+          size_display = format_bytes(total_size)
+
+          render json: {
+            success: true,
+            provider: "s3_compatible",
+            bucket: bucket,
+            stats: {
+              total_objects: total_objects,
+              total_size_bytes: total_size,
+              total_size_display: size_display,
+              sampled: total_objects >= 10000  # Indicate if we hit the limit
+            }
+          }
+        rescue Aws::S3::Errors::ServiceError => e
+          render json: {
+            success: false,
+            error: "Failed to get storage stats: #{e.message}"
+          }, status: :unprocessable_entity
+        end
+      end
+
+      def get_sharepoint_storage_stats(storage_config)
+        # SharePoint storage stats would require Graph API calls
+        # For now, return not implemented
+        render json: {
+          success: true,
+          provider: "sharepoint",
+          stats: {
+            message: "SharePoint storage stats not yet implemented"
+          }
+        }
+      end
+
+      def get_local_storage_stats(storage_config)
+        base_path = storage_config.connection_config&.dig("base_path") || Rails.root.join("storage")
+
+        unless Dir.exist?(base_path)
+          return render json: {
+            success: false,
+            error: "Storage path does not exist"
+          }, status: :unprocessable_entity
+        end
+
+        # Calculate local storage stats
+        total_size = 0
+        total_objects = 0
+
+        Dir.glob(File.join(base_path, "**", "*")).each do |file|
+          next unless File.file?(file)
+          total_size += File.size(file)
+          total_objects += 1
+        end
+
+        render json: {
+          success: true,
+          provider: "local",
+          path: base_path,
+          stats: {
+            total_objects: total_objects,
+            total_size_bytes: total_size,
+            total_size_display: format_bytes(total_size)
+          }
+        }
+      end
+
+      def format_bytes(bytes)
+        return "0 B" if bytes.nil? || bytes == 0
+
+        units = %w[B KB MB GB TB PB]
+        exp = (Math.log(bytes) / Math.log(1024)).to_i
+        exp = units.length - 1 if exp >= units.length
+
+        "%.2f %s" % [bytes.to_f / (1024 ** exp), units[exp]]
       end
 
     end
