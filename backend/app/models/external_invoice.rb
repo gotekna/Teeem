@@ -1,6 +1,13 @@
 class ExternalInvoice < ApplicationRecord
   include ExternalSyncConstants
 
+  # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
+  # FRC: ExternalInvoice was leaking data across tenants
+  # Root cause: Legacy indirect relationship (invoice → contact/job → tenant)
+  # Fix: Direct tenant_id column + acts_as_tenant for automatic scoping
+  acts_as_tenant :tenant
+
+  belongs_to :tenant
   belongs_to :contact, optional: true
   belongs_to :job, optional: true
   # LIM (Jan 2026): xero_contact association removed - ContactExternalLink is THE ONE SSoT

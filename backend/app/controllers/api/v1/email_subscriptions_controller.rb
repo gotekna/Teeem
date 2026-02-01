@@ -38,13 +38,13 @@ module Api
       def create
         contact = Contact.find(params[:contact_id])
 
+        # FRC (Feb 2026): Fixed - controller was setting non-existent columns
+        # (plan_type, billing_email, notes, created_by) that caused 500 errors
         subscription = EmailSubscription.new(
           contact: contact,
+          organization: current_organization,
           domain: params[:domain],
-          plan_type: params[:plan_type] || "standard",
-          billing_email: params[:billing_email] || contact.email,
-          notes: params[:notes],
-          created_by: current_user
+          status: "pending"
         )
 
         # Add mailboxes if provided

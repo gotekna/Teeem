@@ -1,7 +1,14 @@
 # frozen_string_literal: true
 
 class BillPayment < ApplicationRecord
+  # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
+  # FRC: BillPayment was leaking data across tenants
+  # Root cause: Legacy indirect relationship (bill_payment → bill_inbox → tenant)
+  # Fix: Direct tenant_id column + acts_as_tenant for automatic scoping
+  acts_as_tenant :tenant
+
   # Associations
+  belongs_to :tenant
   belongs_to :bill_payment_batch
   belongs_to :bill_inbox
   belongs_to :purchase_order, optional: true
