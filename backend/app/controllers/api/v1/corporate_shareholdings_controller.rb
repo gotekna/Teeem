@@ -1,12 +1,12 @@
 module Api
   module V1
-    class CorporateCompanyShareholdingsController < ApplicationController
+    class CorporateShareholdingsController < ApplicationController
       before_action :set_company
       before_action :set_shareholding, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/companies/:company_id/shareholdings
       def index
-        @shareholdings = @company.corporate_company_shareholdings
+        @shareholdings = @company.corporate_shareholdings
                                  .includes(:shareholder)
                                  .order(:share_class, :created_at)
 
@@ -27,7 +27,7 @@ module Api
 
       # POST /api/v1/companies/:company_id/shareholdings
       def create
-        @shareholding = @company.corporate_company_shareholdings.new(shareholding_params)
+        @shareholding = @company.corporate_shareholdings.new(shareholding_params)
 
         if @shareholding.save
           render json: {
@@ -66,7 +66,7 @@ module Api
       # POST /api/v1/companies/:company_id/shareholdings/transfer
       # Transfer shares between shareholders
       def transfer
-        from_shareholding = @company.corporate_company_shareholdings.find(params[:from_shareholding_id])
+        from_shareholding = @company.corporate_shareholdings.find(params[:from_shareholding_id])
         to_shareholder = Contact.find(params[:to_shareholder_id])
         shares_to_transfer = params[:number_of_shares].to_i
         consideration = params[:consideration].to_f
@@ -101,7 +101,7 @@ module Api
           end
 
           # Find or create to shareholding
-          to_shareholding = @company.corporate_company_shareholdings.find_or_initialize_by(
+          to_shareholding = @company.corporate_shareholdings.find_or_initialize_by(
             shareholder: to_shareholder,
             share_class: from_shareholding.share_class
           )
@@ -128,11 +128,11 @@ module Api
       private
 
       def set_company
-        @company = CorporateCompany.find(params[:company_id])
+        @company = Corporate.find(params[:company_id])
       end
 
       def set_shareholding
-        @shareholding = @company.corporate_company_shareholdings.find(params[:id])
+        @shareholding = @company.corporate_shareholdings.find(params[:id])
       end
 
       def shareholding_params
@@ -196,7 +196,7 @@ module Api
       end
 
       def calculate_percentage(shareholding)
-        total = @company.corporate_company_shareholdings
+        total = @company.corporate_shareholdings
                         .where(share_class: shareholding.share_class)
                         .sum(:number_of_shares)
         return 0 if total.zero?
@@ -205,9 +205,9 @@ module Api
 
       def shareholding_summary
         {
-          total_shares: @company.corporate_company_shareholdings.sum(:number_of_shares),
-          shareholders_count: @company.corporate_company_shareholdings.distinct.count(:shareholder_id),
-          by_class: @company.corporate_company_shareholdings
+          total_shares: @company.corporate_shareholdings.sum(:number_of_shares),
+          shareholders_count: @company.corporate_shareholdings.distinct.count(:shareholder_id),
+          by_class: @company.corporate_shareholdings
                             .group(:share_class)
                             .sum(:number_of_shares)
         }

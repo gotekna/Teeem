@@ -135,7 +135,7 @@ class XeroApiClient
   end
 
   # Exchange authorization code for access token for a specific company
-  # Stores tokens in CorporateCompanyXeroConnection instead of XeroCredential
+  # Stores tokens in CorporateXeroConnection instead of XeroCredential
   def exchange_code_for_company_token(code, company)
     begin
       client = oauth_client
@@ -216,7 +216,7 @@ class XeroApiClient
     end
   end
 
-  # Refresh the access token for a CorporateCompanyXeroConnection
+  # Refresh the access token for a CorporateXeroConnection
   def refresh_access_token_for_connection(connection)
     return { success: false, error: "No connection provided" } unless connection
 
@@ -255,7 +255,7 @@ class XeroApiClient
     end
   end
 
-  # Get available tenants for a CorporateCompanyXeroConnection
+  # Get available tenants for a CorporateXeroConnection
   def get_tenants_for_connection(connection)
     return [] unless connection&.access_token.present?
 
@@ -605,7 +605,7 @@ class XeroApiClient
   # ============================================
 
   # Fetch Profit & Loss report from Xero
-  # @param connection [CorporateCompanyXeroConnection] - The company's Xero connection
+  # @param connection [CorporateXeroConnection] - The company's Xero connection
   # @param from_date [Date] - Start date of the report period
   # @param to_date [Date] - End date of the report period
   # @return [Hash] - { success: true, report: {...} } or { success: false, error: ... }
@@ -646,7 +646,7 @@ class XeroApiClient
   end
 
   # Fetch Balance Sheet report from Xero
-  # @param connection [CorporateCompanyXeroConnection] - The company's Xero connection
+  # @param connection [CorporateXeroConnection] - The company's Xero connection
   # @param as_at_date [Date] - The date for the balance sheet
   # @return [Hash] - { success: true, report: {...} } or { success: false, error: ... }
   def get_balance_sheet(connection, as_at_date:)
@@ -891,7 +891,7 @@ class XeroApiClient
   # Find the appropriate credential for a tenant
   def find_credential_for_tenant(tenant_id)
     if tenant_id.present?
-      CorporateCompanyXeroConnection.find_by(xero_tenant_id: tenant_id) ||
+      CorporateXeroConnection.find_by(xero_tenant_id: tenant_id) ||
         XeroCredential.find_by(tenant_id: tenant_id)
     else
       XeroCredential.current
@@ -901,7 +901,7 @@ class XeroApiClient
   # Ensure the credential has a valid token
   def ensure_token_valid!(credential)
     if credential.respond_to?(:needs_refresh?) ? credential.needs_refresh? : credential.expired?
-      if credential.is_a?(CorporateCompanyXeroConnection)
+      if credential.is_a?(CorporateXeroConnection)
         credential.refresh_tokens!
       else
         refresh_access_token_for(credential)
@@ -964,13 +964,13 @@ class XeroApiClient
     attempts = 0
     max_attempts = 2  # Initial attempt + 1 retry after 401
 
-    # First try to find a CorporateCompanyXeroConnection for this tenant_id (per-company connections)
+    # First try to find a CorporateXeroConnection for this tenant_id (per-company connections)
     # Then fall back to XeroCredential (global job/invoice connections)
     credential = nil
 
     if tenant_id.present?
-      # Try CorporateCompanyXeroConnection first (for corporate entity Xero integrations)
-      credential = CorporateCompanyXeroConnection.find_by(xero_tenant_id: tenant_id)
+      # Try CorporateXeroConnection first (for corporate entity Xero integrations)
+      credential = CorporateXeroConnection.find_by(xero_tenant_id: tenant_id)
 
       # Fall back to XeroCredential (for job/invoice Xero integrations)
       credential ||= XeroCredential.find_by(tenant_id: tenant_id)
@@ -996,8 +996,8 @@ class XeroApiClient
 
     # Proactive token refresh using XeroTokenManager (15 min buffer, grace period retry)
     # This is the key fix: use XeroTokenManager for ALL token validation, not the old 1-min buffer
-    if credential.is_a?(CorporateCompanyXeroConnection)
-      # CorporateCompanyXeroConnection delegates to XeroTokenManager via refresh_tokens!
+    if credential.is_a?(CorporateXeroConnection)
+      # CorporateXeroConnection delegates to XeroTokenManager via refresh_tokens!
       if credential.needs_refresh?
         credential.refresh_tokens!
       end
@@ -1011,7 +1011,7 @@ class XeroApiClient
     # Reload credential to get updated token
     credential.reload
 
-    # Get tenant_id - CorporateCompanyXeroConnection uses xero_tenant_id, XeroCredential uses tenant_id
+    # Get tenant_id - CorporateXeroConnection uses xero_tenant_id, XeroCredential uses tenant_id
     request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
 
     url = "#{BASE_URL}/#{endpoint}"
@@ -1041,7 +1041,7 @@ class XeroApiClient
         # Handle 401 with retry
         if response.code == 401 && attempts < max_attempts
           Rails.logger.info("[Xero] Got 401, attempting token refresh and retry...")
-          if credential.is_a?(CorporateCompanyXeroConnection)
+          if credential.is_a?(CorporateXeroConnection)
             credential.refresh_tokens!
           else
             refresh_access_token_for(credential)
@@ -1077,7 +1077,7 @@ class XeroApiClient
     # Find credential (same logic as make_request)
     credential = nil
     if tenant_id.present?
-      credential = CorporateCompanyXeroConnection.find_by(xero_tenant_id: tenant_id)
+      credential = CorporateXeroConnection.find_by(xero_tenant_id: tenant_id)
       credential ||= XeroCredential.find_by(tenant_id: tenant_id)
     end
     credential ||= XeroCredential.current
@@ -1087,7 +1087,7 @@ class XeroApiClient
     end
 
     # Proactive token refresh using XeroTokenManager (15 min buffer, grace period retry)
-    if credential.is_a?(CorporateCompanyXeroConnection)
+    if credential.is_a?(CorporateXeroConnection)
       if credential.needs_refresh?
         credential.refresh_tokens!
       end
@@ -1136,7 +1136,7 @@ class XeroApiClient
         # Try refreshing token once and retry
         if attempts < max_attempts
           Rails.logger.info("[Xero] Got 401, attempting token refresh and retry...")
-          if credential.is_a?(CorporateCompanyXeroConnection)
+          if credential.is_a?(CorporateXeroConnection)
             credential.refresh_tokens!
           else
             refresh_access_token_for(credential)

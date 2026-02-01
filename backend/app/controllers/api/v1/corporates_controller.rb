@@ -1,6 +1,6 @@
 module Api
   module V1
-    class CorporateCompaniesController < ApplicationController
+    class CorporatesController < ApplicationController
       before_action :set_company, only: [ :show, :update, :destroy, :directors, :add_director,
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
@@ -10,7 +10,7 @@ module Api
       # By default, only shows companies linked to a corporate group (have company_group_id)
       # Use include_unlinked=true to show all companies
       def index
-        @companies = CorporateCompany.includes(:corporate_company_directors, :corporate_company_xero_connection).all
+        @companies = Corporate.includes(:corporate_directors, :corporate_xero_connection).all
 
         # By default, only show companies linked to corporate (have company_group_id)
         # Unless include_unlinked=true is passed
@@ -32,7 +32,7 @@ module Api
             params[:search],
             columns: %w[name acn abn],
             mode: params[:search_mode] || 'contains',
-            model: CorporateCompany
+            model: Corporate
           )
         end
 
@@ -47,7 +47,7 @@ module Api
           companies: @companies.as_json(
             include: {
               current_directors: {},
-              corporate_company_xero_connection: {}
+              corporate_xero_connection: {}
             },
             methods: [ :formatted_acn, :formatted_abn, :has_xero_connection? ]
           ),
@@ -62,7 +62,7 @@ module Api
             bank_accounts: { methods: [ :display_name, :masked_account_number ] },
             # Note: active_assets removed - assets table not yet migrated
             pending_compliance_items: { methods: [ :days_until_due ] },
-            corporate_company_xero_connection: {},
+            corporate_xero_connection: {},
             consolidation_parent: {},
             contact: {}, # Include contact with ABN verification fields
             corporate_group: {} # Include company group for display
@@ -71,8 +71,8 @@ module Api
           # Note: total_asset_value removed - depends on assets table
         )
 
-        # Serialize current directors separately (corporate_company_directors returns CorporateCompanyDirector objects)
-        company_json["current_directors"] = @company.corporate_company_directors.current.includes(:contact).map do |director|
+        # Serialize current directors separately (corporate_directors returns CorporateCompanyDirector objects)
+        company_json["current_directors"] = @company.corporate_directors.current.includes(:contact).map do |director|
           director.as_json(
             include: { contact: {} },
             methods: [ :formatted_position ]
@@ -84,7 +84,7 @@ module Api
 
       # POST /api/v1/companies
       def create
-        @company = CorporateCompany.new(company_params)
+        @company = Corporate.new(company_params)
 
         if @company.save
           render json: {
@@ -107,7 +107,7 @@ module Api
         contact = Contact.find(params[:contact_id])
 
         # Check if a CorporateCompany already exists for this contact
-        existing = CorporateCompany.find_by(contact_id: contact.id)
+        existing = Corporate.find_by(contact_id: contact.id)
         if existing
           # Just update the company_group_id if it already exists
           existing.update!(company_group_id: params[:company_group_id])
@@ -119,7 +119,7 @@ module Api
         end
 
         # Create new CorporateCompany from Contact data
-        @company = CorporateCompany.new(
+        @company = Corporate.new(
           contact_id: contact.id,
           name: contact.display_name,
           abn: contact.abn,
@@ -187,7 +187,7 @@ module Api
 
       # GET /api/v1/companies/:id/directors
       def directors
-        directors = @company.corporate_company_directors.includes(:contact).order(appointment_date: :desc)
+        directors = @company.corporate_directors.includes(:contact).order(appointment_date: :desc)
 
         render json: {
           success: true,
@@ -206,7 +206,7 @@ module Api
       def add_director
         contact = Contact.find(params[:contact_id])
 
-        director = @company.corporate_company_directors.build(
+        director = @company.corporate_directors.build(
           contact: contact,
           position: params[:position],
           appointment_date: params[:appointment_date] || Date.today,
@@ -232,7 +232,7 @@ module Api
 
       # PUT /api/v1/companies/:id/directors/:director_id
       def update_director
-        director = @company.corporate_company_directors.find(params[:director_id])
+        director = @company.corporate_directors.find(params[:director_id])
 
         if director.update(director_params)
           render json: {
@@ -253,7 +253,7 @@ module Api
 
       # DELETE /api/v1/companies/:id/directors/:director_id
       def remove_director
-        director = @company.corporate_company_directors.find(params[:director_id])
+        director = @company.corporate_directors.find(params[:director_id])
 
         if director.update(resignation_date: params[:resignation_date] || Date.today, is_current: false)
           render json: {
@@ -270,7 +270,7 @@ module Api
 
       # GET /api/v1/companies/:id/compliance_items
       def compliance_items
-        items = @company.corporate_company_compliance_items.order(:due_date)
+        items = @company.corporate_compliance_items.order(:due_date)
 
         # Filter by status
         items = items.where(status: params[:status]) if params[:status].present?
@@ -283,7 +283,7 @@ module Api
 
       # GET /api/v1/companies/:id/activities
       def activities
-        activities = @company.corporate_company_activities
+        activities = @company.corporate_activities
           .includes(:user)
           .order(created_at: :desc)
           .limit(params[:limit]&.to_i || 50)
@@ -399,7 +399,7 @@ module Api
       # GET /api/v1/companies/:id/shareholders
       # Returns all shareholders of this company
       def shareholders
-        shareholdings = @company.corporate_company_shareholdings.includes(:shareholder)
+        shareholdings = @company.corporate_shareholdings.includes(:shareholder)
 
         render json: {
           success: true,
@@ -470,10 +470,10 @@ module Api
         # For a Corporate Trustee, find the trust it manages
         if is_trust
           trust = @company
-          corporate_trustee = CorporateCompany.find_by(trust_name: @company.name, is_trustee: true)
+          corporate_trustee = Corporate.find_by(trust_name: @company.name, is_trustee: true)
         else
           corporate_trustee = @company
-          trust = CorporateCompany.find_by(name: @company.trust_name)
+          trust = Corporate.find_by(name: @company.trust_name)
         end
 
         # Get trust roles from ContactCorporateGroupMemberships
@@ -906,7 +906,7 @@ module Api
       # Only shows entity_type = Company (excludes Person, Trust, Superfund)
       def asic_logins
         # Performance: includes :corporate_group to avoid N+1 when accessing company_group_name
-        @companies = CorporateCompany.where(entity_type: [ "Company", "company" ])
+        @companies = Corporate.where(entity_type: [ "Company", "company" ])
                                      .includes(:corporate_group)
                                      .order(:name)
 
@@ -945,7 +945,7 @@ module Api
       private
 
       def set_company
-        @company = CorporateCompany.find_by_slug_or_id(params[:id])
+        @company = Corporate.find_by_slug_or_id(params[:id])
         unless @company
           render json: { success: false, error: "Company not found" }, status: :not_found
         end

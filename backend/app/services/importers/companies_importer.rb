@@ -7,7 +7,7 @@ module Importers
         row_number = idx + 2
 
         # Companies are typically stored as Contacts with is_company flag
-        # or as CorporateCompany records depending on system design
+        # or as Corporate records depending on system design
         company = build_company(row)
 
         if company.save

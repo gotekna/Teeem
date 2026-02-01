@@ -86,7 +86,7 @@ class AsicConnectService
     # Assuming the encryption format matches what's in the database
     begin
       # This is a placeholder - actual decryption depends on your encryption method
-      # Check CorporateCompany model for the encryption method used
+      # Check Corporate model for the encryption method used
       encrypted_value
     rescue StandardError => e
       Rails.logger.error("Failed to decrypt password: #{e.message}")

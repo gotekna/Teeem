@@ -396,8 +396,8 @@ class InvoiceParsingService
     # Strategy 1: Match by ABN (most reliable)
     bill_to_abn = clean_abn(result["billing_company_abn"] || result["bill_to_abn"])
     if bill_to_abn.present?
-      company = CorporateCompany.find_by(abn: bill_to_abn)
-      company ||= CorporateCompany.where("REPLACE(abn, ' ', '') = ?", bill_to_abn).first
+      company = Corporate.find_by(abn: bill_to_abn)
+      company ||= Corporate.where("REPLACE(abn, ' ', '') = ?", bill_to_abn).first
       match_strategy = "ABN" if company
     end
 
@@ -410,7 +410,7 @@ class InvoiceParsingService
         normalized_name = normalize_company_name(billing_name)
 
         # Try exact normalized match first
-        company = CorporateCompany.all.find do |c|
+        company = Corporate.all.find do |c|
           normalize_company_name(c.name) == normalized_name
         end
         match_strategy = "exact_name" if company
@@ -419,7 +419,7 @@ class InvoiceParsingService
         if company.nil?
           name_prefix = normalized_name.split.first(2).join(" ")
           if name_prefix.length >= 3
-            company = CorporateCompany.where("LOWER(name) LIKE ?", "#{name_prefix.downcase}%").first
+            company = Corporate.where("LOWER(name) LIKE ?", "#{name_prefix.downcase}%").first
             match_strategy = "prefix_name" if company
           end
         end

@@ -2,7 +2,7 @@
 #
 # This service eliminates the SSoT violation where:
 # - XeroCredential.effectively_connected? shows one status
-# - CorporateCompanyXeroConnection.connected? shows a different status
+# - CorporateXeroConnection.connected? shows a different status
 #
 # Instead of storing status in multiple places that can get out of sync,
 # we COMPUTE status from the actual token state every time.

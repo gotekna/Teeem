@@ -48,21 +48,21 @@ class XeroAttachmentSyncService
   end
 
   # Map Xero tenant_id (UUID) to TEEEM Tenant
-  # SSoT Chain: XeroCredential → CorporateCompanyXeroConnection → CorporateCompany → Tenant
+  # SSoT Chain: XeroCredential → CorporateXeroConnection → Corporate → Tenant
   def find_teeem_tenant_from_xero_tenant_id(xero_tenant_id)
     return nil unless xero_tenant_id.present?
 
     xero_credential = XeroCredential.find_by(tenant_id: xero_tenant_id)
     return nil unless xero_credential
 
-    # Find CorporateCompany linked to this XeroCredential via connection table
-    connection = CorporateCompanyXeroConnection.find_by(xero_credential_id: xero_credential.id)
+    # Find Corporate linked to this XeroCredential via connection table
+    connection = CorporateXeroConnection.find_by(xero_credential_id: xero_credential.id)
     return nil unless connection
 
-    corporate_company = CorporateCompany.find_by(id: connection.company_id)
+    corporate_company = Corporate.find_by(id: connection.company_id)
     return nil unless corporate_company
 
-    # Get the TEEEM Tenant from the CorporateCompany
+    # Get the TEEEM Tenant from the Corporate
     Tenant.find_by(id: corporate_company.tenant_id)
   end
 

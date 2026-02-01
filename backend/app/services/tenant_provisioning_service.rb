@@ -9,7 +9,7 @@
 #   2. CorporateGroup (business grouping, belongs_to Tenant)
 #   3. Organization (credential isolation, belongs_to Tenant)
 #   4. TenantSetting (configuration, belongs_to Tenant)
-#   5. CorporateCompany (the customer's main company)
+#   5. Corporate (the customer's main company)
 #   6. Contact (admin user's linked contact record)
 #   7. User (admin user, belongs_to Tenant + Contact)
 #   8. WarehouseProvider (storage config, belongs_to Tenant)
@@ -51,7 +51,7 @@ class TenantProvisioningService
       create_corporate_group  # 2. CorporateGroup (belongs_to Tenant)
       create_organization     # 3. Organization (credential isolation)
       create_tenant_setting   # 4. TenantSetting (config)
-      create_corporate_company # 5. CorporateCompany (main company)
+      create_corporate_company # 5. Corporate (main company)
 
       # Phase 2: Admin user (requires Contact per Jan 2026 rules)
       create_admin_user       # 6-7. Contact + User
@@ -157,7 +157,7 @@ class TenantProvisioningService
   end
 
   def create_corporate_company
-    @corporate_company = CorporateCompany.create!(
+    @corporate_company = Corporate.create!(
       tenant: @tenant,
       corporate_group: @corporate_group,
       display_name: @params[:company_name],
@@ -173,7 +173,7 @@ class TenantProvisioningService
     # Set this company as the billing company for the tenant
     @tenant.update!(billing_company: @corporate_company)
 
-    Rails.logger.info "[TenantProvisioning] Created CorporateCompany: #{@corporate_company.display_name}"
+    Rails.logger.info "[TenantProvisioning] Created Corporate: #{@corporate_company.display_name}"
   rescue ActiveRecord::RecordInvalid => e
     @errors << "Failed to create corporate company: #{e.message}"
     raise ActiveRecord::Rollback

@@ -1,6 +1,6 @@
 module Api
   module V1
-    class CorporateCompanyXeroConnectionsController < ApplicationController
+    class CorporateXeroConnectionsController < ApplicationController
       before_action :set_connection, only: [ :show, :disconnect, :sync_accounts ]
 
       # GET /api/v1/company_xero_connections
@@ -22,7 +22,7 @@ module Api
                           end
 
         # Get all company connections
-        all_connections = CorporateCompanyXeroConnection.includes(:corporate_company).all
+        all_connections = CorporateXeroConnection.includes(:corporate).all
 
         # Build response showing all Xero orgs with their linked companies
         organizations = all_credentials.map do |credential|
@@ -53,15 +53,15 @@ module Api
             degraded: credential.degraded?,
             expires_at: credential.expires_at,
             expired: credential.expired?,
-            companies: linked_companies.select { |conn| conn.corporate_company.present? }.map do |conn|
+            companies: linked_companies.select { |conn| conn.corporate.present? }.map do |conn|
               # SSoT: Company status derived from credential health
-              company_health = XeroConnectionHealth.for_company(conn.corporate_company)
+              company_health = XeroConnectionHealth.for_company(conn.corporate)
               {
                 id: conn.id,
                 company_id: conn.company_id,
                 company: {
-                  id: conn.corporate_company.id,
-                  name: conn.corporate_company.name
+                  id: conn.corporate.id,
+                  name: conn.corporate.name
                 },
                 xero_tenant_id: conn.xero_tenant_id,
                 xero_tenant_name: conn.xero_tenant_name,
@@ -126,7 +126,7 @@ module Api
           success: true,
           connection: @connection.as_json(
             include: {
-              corporate_company: {},
+              corporate: {},
               company_xero_accounts: {
                 methods: [ :display_name, :mapped? ]
               }
@@ -194,7 +194,7 @@ module Api
 
       # GET /api/v1/company_xero_connections/:id/status
       def status
-        connection = CorporateCompanyXeroConnection.find(params[:id])
+        connection = CorporateXeroConnection.find(params[:id])
 
         render json: {
           success: true,
@@ -203,7 +203,7 @@ module Api
             tenant_name: connection.xero_tenant_name,
             last_sync: connection.last_sync_at,
             days_since_sync: connection.days_since_last_sync,
-            account_count: connection.corporate_company_xero_accounts.active.count
+            account_count: connection.corporate_xero_accounts.active.count
           }
         }
       end
@@ -211,7 +211,7 @@ module Api
       private
 
       def set_connection
-        @connection = CorporateCompanyXeroConnection.find(params[:id])
+        @connection = CorporateXeroConnection.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Xero connection not found" }, status: :not_found
       end

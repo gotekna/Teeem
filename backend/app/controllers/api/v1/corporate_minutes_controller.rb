@@ -1,12 +1,12 @@
 module Api
   module V1
-    class CorporateCompanyMinutesController < ApplicationController
+    class CorporateMinutesController < ApplicationController
       before_action :set_company
       before_action :set_minute, only: [ :show, :update, :destroy, :sign, :generate_pdf ]
 
       # GET /api/v1/companies/:company_id/minutes
       def index
-        @minutes = @company.corporate_company_minutes
+        @minutes = @company.corporate_minutes
                           .includes(:minute_template)
                           .order(meeting_date: :desc)
 
@@ -36,7 +36,7 @@ module Api
 
       # POST /api/v1/companies/:company_id/minutes
       def create
-        @minute = @company.corporate_company_minutes.new(minute_params)
+        @minute = @company.corporate_minutes.new(minute_params)
 
         # If template provided, generate initial content
         if @minute.minute_template.present? && @minute.content.blank?
@@ -110,7 +110,7 @@ module Api
 
       # POST /api/v1/companies/:company_id/minutes/:id/generate_from_template
       def generate_from_template
-        @minute = @company.corporate_company_minutes.find(params[:id])
+        @minute = @company.corporate_minutes.find(params[:id])
         template = MinuteTemplate.find(params[:template_id])
         variables = params[:variables] || {}
 
@@ -175,7 +175,7 @@ module Api
         # Generate content
         content = render_template(template.body, merged_variables)
 
-        @minute = @company.corporate_company_minutes.create!(
+        @minute = @company.corporate_minutes.create!(
           minute_template: template,
           title: params[:title] || template.name,
           meeting_date: meeting_date,
@@ -197,11 +197,11 @@ module Api
       private
 
       def set_company
-        @company = CorporateCompany.find(params[:company_id])
+        @company = Corporate.find(params[:company_id])
       end
 
       def set_minute
-        @minute = @company.corporate_company_minutes.find(params[:id])
+        @minute = @company.corporate_minutes.find(params[:id])
       end
 
       def minute_params
