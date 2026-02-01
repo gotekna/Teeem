@@ -2,6 +2,19 @@
 
 # Service to provision new tenants during self-service signup
 #
+# This service creates the full multi-tenancy structure for a new customer:
+#
+# Creation Order (dependencies matter!):
+#   1. Tenant (SSoT for multi-tenancy isolation)
+#   2. CorporateGroup (business grouping, belongs_to Tenant)
+#   3. Organization (credential isolation, belongs_to Tenant)
+#   4. TenantSetting (configuration, belongs_to Tenant)
+#   5. CorporateCompany (the customer's main company)
+#   6. Contact (admin user's linked contact record)
+#   7. User (admin user, belongs_to Tenant + Contact)
+#   8. WarehouseProvider (storage config, belongs_to Tenant)
+#   9. Default reference data (job types, statuses, contact types)
+#
 # Usage:
 #   service = TenantProvisioningService.new(
 #     company_name: "Pilgrim Homes",
@@ -16,26 +29,40 @@
 #     template_pack_ids: [1, 2, 3]
 #   )
 #   result = service.provision!
-#   # => { success: true, tenant: CorporateGroup, admin_user: User }
+#   # => { success: true, tenant: Tenant, admin_user: User }
 #
 class TenantProvisioningService
-  attr_reader :params, :tenant, :admin_user, :errors
+  attr_reader :params, :tenant, :corporate_group, :organization, :corporate_company, :admin_user, :errors
 
   def initialize(params)
     @params = params.with_indifferent_access
     @tenant = nil
+    @corporate_group = nil
+    @organization = nil
+    @corporate_company = nil
     @admin_user = nil
     @errors = []
   end
 
   def provision!
     ActiveRecord::Base.transaction do
-      create_tenant
+      # Phase 1: Core multi-tenancy structure
+      create_tenant           # 1. Tenant (SSoT)
+      create_corporate_group  # 2. CorporateGroup (belongs_to Tenant)
+      create_organization     # 3. Organization (credential isolation)
+      create_tenant_setting   # 4. TenantSetting (config)
+      create_corporate_company # 5. CorporateCompany (main company)
+
+      # Phase 2: Admin user (requires Contact per Jan 2026 rules)
+      create_admin_user       # 6-7. Contact + User
+
+      # Phase 3: Storage and reference data
+      setup_storage           # 8. WarehouseProvider
+      create_default_reference_data # 9. Job types, statuses, etc.
+
+      # Phase 4: Optional enhancements
       start_trial if @params[:start_trial]
-      create_tenant_setting
-      create_admin_user
       import_starter_templates
-      setup_storage
       create_stripe_customer if stripe_enabled?
 
       raise ActiveRecord::Rollback if @errors.any?
@@ -60,26 +87,58 @@ class TenantProvisioningService
 
   private
 
+  # ============================================================================
+  # Phase 1: Core multi-tenancy structure
+  # ============================================================================
+
   def create_tenant
     slug = generate_slug(@params[:company_name])
 
-    @tenant = CorporateGroup.create!(
+    @tenant = Tenant.create!(
       name: @params[:company_name],
       slug: slug,
       tier: @params[:tier] || :shared,
       environment: :production,
-      is_master_tenant: false
+      is_master_tenant: false,
+      active: true
     )
 
-    Rails.logger.info "[TenantProvisioning] Created tenant: #{@tenant.name} (ID: #{@tenant.id}, slug: #{@tenant.slug})"
+    Rails.logger.info "[TenantProvisioning] Created Tenant: #{@tenant.name} (ID: #{@tenant.id}, slug: #{@tenant.slug})"
   rescue ActiveRecord::RecordInvalid => e
     @errors << "Failed to create tenant: #{e.message}"
     raise ActiveRecord::Rollback
   end
 
+  def create_corporate_group
+    @corporate_group = CorporateGroup.create!(
+      tenant: @tenant,
+      name: @params[:company_name],
+      slug: @tenant.slug  # Reuse tenant slug for consistency
+    )
+
+    Rails.logger.info "[TenantProvisioning] Created CorporateGroup: #{@corporate_group.name}"
+  rescue ActiveRecord::RecordInvalid => e
+    @errors << "Failed to create corporate group: #{e.message}"
+    raise ActiveRecord::Rollback
+  end
+
+  def create_organization
+    @organization = Organization.create!(
+      tenant: @tenant,
+      name: "#{@params[:company_name]} Organization",
+      is_active: true
+    )
+
+    Rails.logger.info "[TenantProvisioning] Created Organization: #{@organization.name}"
+  rescue ActiveRecord::RecordInvalid => e
+    @errors << "Failed to create organization: #{e.message}"
+    raise ActiveRecord::Rollback
+  end
+
   def create_tenant_setting
     TenantSetting.create!(
-      corporate_group: @tenant,
+      tenant: @tenant,
+      corporate_group: @corporate_group,  # Backward compat
       company_name: @params[:company_name],
       abn: @params[:abn],
       email: @params[:email],
@@ -90,17 +149,59 @@ class TenantProvisioningService
       currency: @params[:currency] || "AUD"
     )
 
-    Rails.logger.info "[TenantProvisioning] Created tenant settings for #{@tenant.name}"
+    Rails.logger.info "[TenantProvisioning] Created TenantSetting for #{@tenant.name}"
   rescue ActiveRecord::RecordInvalid => e
     @errors << "Failed to create tenant settings: #{e.message}"
     raise ActiveRecord::Rollback
   end
 
+  def create_corporate_company
+    @corporate_company = CorporateCompany.create!(
+      tenant: @tenant,
+      corporate_group: @corporate_group,
+      display_name: @params[:company_name],
+      legal_name: @params[:company_name],
+      abn: @params[:abn],
+      email: @params[:email],
+      phone: @params[:phone],
+      website: @params[:website],
+      is_active: true,
+      entity_type: "Company"
+    )
+
+    # Set this company as the billing company for the tenant
+    @tenant.update!(billing_company: @corporate_company)
+
+    Rails.logger.info "[TenantProvisioning] Created CorporateCompany: #{@corporate_company.display_name}"
+  rescue ActiveRecord::RecordInvalid => e
+    @errors << "Failed to create corporate company: #{e.message}"
+    raise ActiveRecord::Rollback
+  end
+
+  # ============================================================================
+  # Phase 2: Admin user
+  # ============================================================================
+
   def create_admin_user
     temp_password = generate_temp_password
 
+    # Create Contact first (User MUST have Contact per Jan 2026 rules)
+    admin_contact = Contact.create!(
+      tenant_id: @tenant.id,
+      display_name: "#{@params[:admin_first_name]} #{@params[:admin_last_name]}",
+      first_name: @params[:admin_first_name],
+      last_name: @params[:admin_last_name],
+      email: @params[:admin_email],
+      entity_type: "person",
+      is_team_contact: true,  # Internal team member
+      primary_company_id: @corporate_company&.id,
+      is_active: true
+    )
+
     @admin_user = User.create!(
-      corporate_group: @tenant,
+      tenant: @tenant,
+      corporate_group: @corporate_group,  # Backward compat
+      contact: admin_contact,  # REQUIRED: User must have Contact
       email: @params[:admin_email],
       first_name: @params[:admin_first_name],
       last_name: @params[:admin_last_name],
@@ -118,40 +219,116 @@ class TenantProvisioningService
     raise ActiveRecord::Rollback
   end
 
-  def import_starter_templates
-    template_pack_ids = @params[:template_pack_ids] || default_template_packs
-
-    return if template_pack_ids.empty?
-
-    template_pack_ids.each do |pack_id|
-      pack = TemplatePack.find_by(id: pack_id)
-      next unless pack
-
-      result = TemplateImportService.new(@tenant, pack).import!(skip_existing: true)
-
-      if result[:success]
-        Rails.logger.info "[TenantProvisioning] Imported template pack: #{pack.name}"
-      else
-        Rails.logger.warn "[TenantProvisioning] Template pack import had errors: #{result[:errors].join(', ')}"
-        # Don't fail provisioning for template import errors
-      end
-    end
-  end
-
-  def default_template_packs
-    # Get curated packs from TEEEM master tenant
-    TemplatePack.where(visibility: :curated, status: :published).pluck(:id)
-  end
+  # ============================================================================
+  # Phase 3: Storage and reference data
+  # ============================================================================
 
   def setup_storage
-    if @tenant.dedicated?
-      # For dedicated tier, create separate bucket
+    if @tenant.tier_dedicated?
       setup_dedicated_storage
     else
-      # For shared tier, use shared bucket with tenant prefix
       setup_shared_storage
     end
   end
+
+  def setup_dedicated_storage
+    bucket_name = "teeem-#{@tenant.slug}"
+
+    WarehouseProvider.create!(
+      tenant: @tenant,
+      provider_type: default_storage_provider,
+      bucket_name: bucket_name,
+      status: :pending_setup
+    )
+
+    Rails.logger.info "[TenantProvisioning] Created dedicated storage config for #{@tenant.name}"
+  rescue ActiveRecord::RecordInvalid => e
+    @errors << "Failed to setup storage: #{e.message}"
+    raise ActiveRecord::Rollback
+  end
+
+  def setup_shared_storage
+    WarehouseProvider.create!(
+      tenant: @tenant,
+      provider_type: default_storage_provider,
+      bucket_name: "teeem-shared",
+      path_prefix: @tenant.slug,
+      status: :active
+    )
+
+    Rails.logger.info "[TenantProvisioning] Created shared storage config for #{@tenant.name}"
+  rescue ActiveRecord::RecordInvalid => e
+    @errors << "Failed to setup storage: #{e.message}"
+    raise ActiveRecord::Rollback
+  end
+
+  def default_storage_provider
+    :s3_compatible
+  end
+
+  def create_default_reference_data
+    # Create default job types (schema uses 'position' not 'display_order')
+    default_job_types = ["New Build", "Renovation", "Extension", "Other"]
+    default_job_types.each_with_index do |name, index|
+      JobType.create(
+        tenant_id: @tenant.id,
+        name: name,
+        position: index,
+        is_active: true
+      )
+    end
+
+    # Create default job statuses (schema uses 'position', no 'is_open' column)
+    default_job_statuses = [
+      { name: "Lead", color: "#94a3b8" },
+      { name: "Quoting", color: "#3b82f6" },
+      { name: "Won", color: "#22c55e" },
+      { name: "In Progress", color: "#f59e0b" },
+      { name: "Complete", color: "#10b981" },
+      { name: "Lost", color: "#ef4444" }
+    ]
+    default_job_statuses.each_with_index do |attrs, index|
+      JobStatus.create(
+        tenant_id: @tenant.id,
+        name: attrs[:name],
+        color: attrs[:color],
+        position: index,
+        is_active: true
+      )
+    end
+
+    # Create default job stages
+    default_job_stages = ["Pre-Construction", "Foundation", "Frame", "Lock Up", "Fit Off", "Handover"]
+    default_job_stages.each_with_index do |name, index|
+      JobStage.create(
+        tenant_id: @tenant.id,
+        name: name,
+        position: index,
+        is_active: true
+      )
+    end
+
+    # Create default contact types (schema uses 'position', 'active', and requires 'display_name')
+    default_contact_types = ["Client", "Supplier", "Subcontractor", "Consultant", "Architect", "Engineer"]
+    default_contact_types.each_with_index do |name, index|
+      ContactType.create(
+        tenant_id: @tenant.id,
+        name: name.downcase,       # slug-style name
+        display_name: name,        # Human-readable display name
+        position: index,
+        active: true
+      )
+    end
+
+    Rails.logger.info "[TenantProvisioning] Created default reference data for #{@tenant.name}"
+  rescue StandardError => e
+    Rails.logger.warn "[TenantProvisioning] Reference data creation warning: #{e.message}"
+    # Don't fail for reference data errors - can be set up later
+  end
+
+  # ============================================================================
+  # Phase 4: Optional enhancements
+  # ============================================================================
 
   def start_trial
     trial_days = @params[:trial_days] || 30
@@ -168,40 +345,31 @@ class TenantProvisioningService
     raise ActiveRecord::Rollback
   end
 
-  def setup_dedicated_storage
-    bucket_name = "teeem-#{@tenant.slug}"
+  def import_starter_templates
+    template_pack_ids = @params[:template_pack_ids] || default_template_packs
 
-    WarehouseProvider.create!(
-      corporate_group: @tenant,
-      provider_type: default_storage_provider,
-      bucket_name: bucket_name,
-      status: :pending_setup
-    )
+    return if template_pack_ids.empty?
 
-    Rails.logger.info "[TenantProvisioning] Created dedicated storage config for #{@tenant.name}"
-  rescue ActiveRecord::RecordInvalid => e
-    @errors << "Failed to setup storage: #{e.message}"
-    raise ActiveRecord::Rollback
+    template_pack_ids.each do |pack_id|
+      pack = TemplatePack.find_by(id: pack_id)
+      next unless pack
+
+      begin
+        result = TemplateImportService.new(@tenant, pack).import!(skip_existing: true)
+
+        if result[:success]
+          Rails.logger.info "[TenantProvisioning] Imported template pack: #{pack.name}"
+        else
+          Rails.logger.warn "[TenantProvisioning] Template pack import had errors: #{result[:errors].join(', ')}"
+        end
+      rescue StandardError => e
+        Rails.logger.warn "[TenantProvisioning] Template import error: #{e.message}"
+      end
+    end
   end
 
-  def setup_shared_storage
-    WarehouseProvider.create!(
-      corporate_group: @tenant,
-      provider_type: default_storage_provider,
-      bucket_name: "teeem-shared",
-      path_prefix: @tenant.slug,
-      status: :active
-    )
-
-    Rails.logger.info "[TenantProvisioning] Created shared storage config for #{@tenant.name}"
-  rescue ActiveRecord::RecordInvalid => e
-    @errors << "Failed to setup storage: #{e.message}"
-    raise ActiveRecord::Rollback
-  end
-
-  def default_storage_provider
-    # Default to S3-compatible (Wasabi) for new tenants
-    :s3_compatible
+  def default_template_packs
+    TemplatePack.where(visibility: :curated, status: :published).pluck(:id)
   end
 
   def stripe_enabled?
@@ -228,15 +396,17 @@ class TenantProvisioningService
     Rails.logger.info "[TenantProvisioning] Created Stripe customer: #{customer.id}"
   rescue Stripe::StripeError => e
     Rails.logger.warn "[TenantProvisioning] Stripe customer creation failed: #{e.message}"
-    # Don't fail provisioning for Stripe errors - billing can be set up later
   end
+
+  # ============================================================================
+  # Post-provisioning
+  # ============================================================================
 
   def send_welcome_email
     return unless @admin_user
 
     temp_password = @admin_user.instance_variable_get(:@temp_password)
 
-    # Use trial welcome email if tenant is on trial, otherwise standard welcome
     if @params[:start_trial] && @tenant.trial_active?
       UserMailer.trial_welcome_email(@admin_user, temp_password, @tenant).deliver_later
     else
@@ -246,7 +416,6 @@ class TenantProvisioningService
     Rails.logger.info "[TenantProvisioning] Welcome email queued for #{@admin_user.email}"
   rescue StandardError => e
     Rails.logger.warn "[TenantProvisioning] Welcome email failed: #{e.message}"
-    # Don't fail for email errors
   end
 
   def log_provision_success
@@ -258,12 +427,17 @@ class TenantProvisioningService
     Rails.logger.info "  Login URL: #{@tenant.subdomain}.teeem.com.au"
   end
 
+  # ============================================================================
+  # Helpers
+  # ============================================================================
+
   def generate_slug(name)
     base_slug = name.to_s.parameterize
     slug = base_slug
     counter = 1
 
-    while CorporateGroup.exists?(slug: slug)
+    # Check both Tenant AND CorporateGroup for uniqueness
+    while Tenant.exists?(slug: slug) || CorporateGroup.exists?(slug: slug)
       slug = "#{base_slug}-#{counter}"
       counter += 1
     end
@@ -272,7 +446,6 @@ class TenantProvisioningService
   end
 
   def generate_temp_password
-    # Generate a readable temporary password
     SecureRandom.hex(8)
   end
 end
