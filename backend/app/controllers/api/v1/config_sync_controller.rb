@@ -61,23 +61,27 @@ module Api
       #   table: string - config table name
       #   record_ids: array - IDs of records to pull from master
       #   mode: string - "add_new" | "replace_existing" | "skip_existing"
+      #   price_markup_percent: number - Optional markup % for pricebook items (e.g., 5 for 5%)
       def pull
         service = TenantConfigSyncService.new(current_tenant)
 
         result = service.pull_from_master(
           table: pull_params[:table],
           record_ids: pull_params[:record_ids].map(&:to_i),
-          mode: (pull_params[:mode] || "add_new").to_sym
+          mode: (pull_params[:mode] || "add_new").to_sym,
+          price_markup_percent: pull_params[:price_markup_percent].to_f
         )
 
         if result[:success]
-          render json: {
+          response_data = {
             success: true,
             message: "Configuration synced successfully",
             imported: result[:imported],
             updated: result[:updated],
             skipped: result[:skipped]
           }
+          response_data[:price_markup_applied] = result[:price_markup_applied] if result[:price_markup_applied]
+          render json: response_data
         else
           render json: {
             success: false,
@@ -189,7 +193,7 @@ module Api
       end
 
       def pull_params
-        params.permit(:table, :mode, record_ids: [])
+        params.permit(:table, :mode, :price_markup_percent, record_ids: [])
       end
 
       def push_params

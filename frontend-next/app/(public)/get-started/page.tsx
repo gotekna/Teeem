@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { Building2, User, Mail, Phone, Globe, ArrowRight, Check, AlertCircle, Gift } from "lucide-react";
+import { Building2, User, Mail, Phone, Globe, ArrowRight, Check, AlertCircle, Gift, Package } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import api from "@/lib/api";
 
 interface SignupData {
@@ -27,6 +28,7 @@ interface SignupData {
   admin_email: string;
   admin_first_name: string;
   admin_last_name: string;
+  include_pricebook: boolean;
 }
 
 export default function GetStartedPage() {
@@ -52,6 +54,7 @@ export default function GetStartedPage() {
     admin_email: "",
     admin_first_name: "",
     admin_last_name: "",
+    include_pricebook: true, // Default to true for better onboarding
   });
 
   // Fetch invitation data if token is present
@@ -341,6 +344,29 @@ export default function GetStartedPage() {
                       value={formData.website}
                       onChange={(e) => handleInputChange("website", e.target.value)}
                     />
+                  </div>
+                </div>
+
+                {/* Starter Pricebook Option */}
+                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="include_pricebook"
+                      checked={formData.include_pricebook}
+                      onCheckedChange={(checked) =>
+                        setFormData((prev) => ({ ...prev, include_pricebook: checked === true }))
+                      }
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="include_pricebook" className="flex items-center gap-2 cursor-pointer font-medium">
+                        <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        Include starter pricebook
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Get started with 1,200+ supplier items and pricing from industry-standard rates (5% markup applied)
+                      </p>
+                    </div>
                   </div>
                 </div>
               </>
