@@ -77,7 +77,7 @@ puts "=== Company Code Analysis ==="
 puts ""
 
 # Get all company codes from database
-companies = CorporateCompany.all.pluck(:id, :code, :name)
+companies = Corporate.all.pluck(:id, :code, :name)
 puts "Companies in database: #{companies.count}"
 companies.each do |id, code, name|
   puts "  ID: #{id}, Code: #{code || 'N/A'}, Name: #{name}"

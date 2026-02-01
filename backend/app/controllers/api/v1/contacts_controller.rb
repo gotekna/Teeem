@@ -649,7 +649,7 @@ module Api
         # Add primary company and employment details
         if @contact.primary_company.present?
           company = @contact.primary_company
-          company_record = CorporateCompany.find_by(contact_id: company.id)
+          company_record = Corporate.find_by(contact_id: company.id)
 
           contact_json[:primary_company] = {
             id: company.id,
@@ -751,7 +751,7 @@ module Api
           end
 
         # SSoT: If this contact is linked to a Company, include company data
-        linked_company = CorporateCompany.find_by(contact_id: @contact.id)
+        linked_company = Corporate.find_by(contact_id: @contact.id)
         if linked_company
           linked_company_data = {
             id: linked_company.id,
@@ -797,7 +797,7 @@ module Api
             end
             linked_company_data[:directors_count] = linked_company.corporate_company_directors.current.count
             linked_company_data[:shareholdings_count] = linked_company.corporate_company_shareholdings.count
-            linked_company_data[:documents_count] = linked_company.corporate_company_documents.count
+            linked_company_data[:documents_count] = 0  # Table dropped (Jan 2026) - use WarehouseDocument
             # SSoT: Include bank accounts from the bank_accounts table
             linked_company_data[:bank_accounts] = linked_company.bank_accounts.active.map do |ba|
               {
@@ -928,7 +928,7 @@ module Api
         if @contact.link_to_cg
           if @contact.linked_company_id.present?
             # This contact is linked to a Company record
-            company = CorporateCompany.find_by(id: @contact.linked_company_id)
+            company = Corporate.find_by(id: @contact.linked_company_id)
             return render json: {
               success: false,
               error: "Cannot delete contact linked to Company '#{company&.name || 'Unknown'}'. Unlink from Company Group first.",
@@ -950,7 +950,7 @@ module Api
         end
 
         # Check if this contact has a Company record pointing to it
-        linked_company = CorporateCompany.find_by(contact_id: @contact.id)
+        linked_company = Corporate.find_by(contact_id: @contact.id)
         if linked_company.present?
           return render json: {
             success: false,
@@ -1084,7 +1084,7 @@ module Api
         # Check for Company Group links
         if @contact.link_to_cg
           if @contact.linked_company_id.present?
-            company = CorporateCompany.find_by(id: @contact.linked_company_id)
+            company = Corporate.find_by(id: @contact.linked_company_id)
             check[:can_delete] = false
             check[:blockers] << {
               type: "linked_to_company",
@@ -1498,47 +1498,45 @@ module Api
       end
 
       # GET /api/v1/contacts/:id/documents
-      # Returns ContactDocument records for this contact (including migrated Xero PDFs)
+      # Returns WarehouseDocument records for this contact (including migrated Xero PDFs)
       # Optional params:
       #   - tab_key: Filter by EntityTab (returns docs where document_type is linked to tab via primary or also_show_in)
+      #   - folder: Filter by specific folder path
+      #   - include_descendants: When true, includes documents from all subfolders (cascade view)
 
       def documents
-        # Query ContactDocument records (includes Xero invoice/bill PDFs)
-        # Note: .with_attached_file was REMOVED Jan 2026 when ActiveStorage attachment was replaced
-        # with StorageBlob (belongs_to :storage_blob). Use .includes(:storage_blob) for eager loading.
-        documents = ContactDocument.where(contact_id: @contact.id)
-                                   .includes(:document_type, :storage_blob)
-                                   .order(created_at: :desc)
+        # SSoT: Query WarehouseDocument records linked to this contact
+        documents = WarehouseDocument.where(documentable: @contact)
+                                     .includes(:storage_blob)
+                                     .order(created_at: :desc)
 
-        # Filter by tab if tab_key provided
+        # Filter by folder if tab_key provided (simplified - no document_type linkage in WarehouseDocument)
         if params[:tab_key].present?
-          entity_tab = EntityTab.find_by(tab_key: params[:tab_key], warehouse_type: "contact")
-          if entity_tab
-            # Get all document_type_ids linked to this tab (primary + also_show_in)
-            doc_type_ids = entity_tab.document_type_ids
-            documents = documents.where(document_type_id: doc_type_ids) if doc_type_ids.any?
+          # Map tab_key to folder for filtering
+          documents = documents.where(folder: params[:tab_key])
+        end
+
+        # Filter by folder with optional cascade (include_descendants)
+        if params[:folder].present?
+          if params[:include_descendants] == 'true'
+            # Cascade view: include this folder AND all subfolders
+            # Use LIKE query with folder path prefix
+            folder_path = params[:folder]
+            documents = documents.where("folder = ? OR folder LIKE ?", folder_path, "#{folder_path}/%")
+          else
+            # Exact folder match only
+            documents = documents.where(folder: params[:folder])
           end
         end
 
-        # Generate download URLs in batch
-        storage_service = DocumentStorageService.new
-
         # Build lookup map for ExternalInvoice dates (for Xero docs)
-        # ContactDocument.external_id format: "xero:{invoice_id}:pdf" or "xero:{invoice_id}:attachment:{n}"
-        # ExternalInvoice.external_id format: "{invoice_id}" (just the Xero invoice ID)
         invoice_dates_map = {}
-        xero_docs = documents.select { |d| d.source == "xero" && d.external_id.present? }
+        xero_docs = documents.select { |d| d.source_type == "xero" }
         if xero_docs.any?
-          # Extract actual Xero invoice IDs from ContactDocument external_ids
-          xero_invoice_ids = xero_docs.map do |d|
-            # Parse "xero:{id}:pdf" or "xero:{id}:attachment:1" → extract {id}
-            parts = d.external_id.to_s.split(":")
-            parts.length >= 2 ? parts[1] : nil
-          end.compact.uniq
-
-          # Lookup ExternalInvoice records by their external_id
-          ExternalInvoice.where(external_id: xero_invoice_ids, source: "xero").find_each do |inv|
-            invoice_dates_map[inv.external_id] = {
+          # WarehouseDocument links to ExternalInvoice via documentable
+          invoice_ids = xero_docs.select { |d| d.documentable_type == "ExternalInvoice" }.map(&:documentable_id).compact
+          ExternalInvoice.where(id: invoice_ids, source: "xero").find_each do |inv|
+            invoice_dates_map[inv.id] = {
               due_date: inv.due_date,
               fully_paid_date: inv.fully_paid_date,
               invoice_date: inv.invoice_date
@@ -1549,34 +1547,27 @@ module Api
         # Format response with download URLs
         docs_json = documents.map do |doc|
           # Generate presigned download URL
-          download_url = nil
-          begin
-            result = storage_service.download_url(doc, expires_in: 3600)
-            download_url = result[:url] if result[:success]
-          rescue => e
-            Rails.logger.warn("[ContactsController#documents] Failed to generate URL for doc #{doc.id}: #{e.message}")
-          end
+          download_url = doc.download_url rescue nil
 
           # Get invoice dates for Xero documents
-          # Parse external_id to extract the actual Xero invoice ID
-          xero_invoice_id = if doc.source == "xero" && doc.external_id.present?
-            parts = doc.external_id.to_s.split(":")
-            parts.length >= 2 ? parts[1] : nil
+          invoice_dates = if doc.source_type == "xero" && doc.documentable_type == "ExternalInvoice"
+            invoice_dates_map[doc.documentable_id] || {}
+          else
+            {}
           end
-          invoice_dates = xero_invoice_id ? (invoice_dates_map[xero_invoice_id] || {}) : {}
 
           {
             id: doc.id,
-            name: doc.file_name,
-            displayName: doc.display_name || doc.file_name,
+            name: doc.storage_blob&.original_filename || doc.display_name,
+            displayName: doc.display_name,
             folder: doc.folder,
-            fileSize: doc.file_size,
-            contentType: doc.content_type,
-            source: doc.source,
-            externalId: doc.external_id,
-            storagePath: doc.storage_path,
-            storageProvider: doc.storage_provider,
-            documentType: doc.document_type&.name,
+            fileSize: doc.storage_blob&.file_size,
+            contentType: doc.storage_blob&.content_type,
+            source: doc.source_type,
+            externalId: nil,  # WarehouseDocument doesn't have external_id
+            storagePath: doc.storage_blob&.storage_path,
+            storageProvider: "s3_compatible",  # WarehouseDocument always uses S3
+            documentType: nil,  # WarehouseDocument doesn't have document_type
             createdAt: doc.created_at&.iso8601,
             updatedAt: doc.updated_at&.iso8601,
             downloadUrl: download_url,

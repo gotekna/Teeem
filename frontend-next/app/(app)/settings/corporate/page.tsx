@@ -24,7 +24,7 @@ export default function CorporateSettingsPage() {
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/corporate to work
   const subTab = useMemo(() => {
-    const parts = pathname.replace("/settings/corporate", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/settings/corporate", "").split("/").filter(Boolean);
     return parts[0] || DEFAULT_TAB;
   }, [pathname]);
 

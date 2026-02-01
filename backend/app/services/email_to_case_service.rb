@@ -206,9 +206,9 @@ class EmailToCaseService
     end.join("\n\n")
 
     # Extract text from PDF attachments
-    # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
+    # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
     pdf_content = nil
-    if @email.email_attachments.any?
+    if @email.attachment_documents.any?
       pdf_texts = @email.extract_pdf_text
       if pdf_texts.present?
         pdf_content = pdf_texts.map do |pdf|
@@ -420,11 +420,11 @@ class EmailToCaseService
     (extracted["related_companies"] || []).each do |company_ref|
       company = nil
       if company_ref["acn"].present?
-        company = CorporateCompany.find_by(acn: company_ref["acn"].gsub(/\s/, ""))
+        company = Corporate.find_by(acn: company_ref["acn"].gsub(/\s/, ""))
       elsif company_ref["abn"].present?
-        company = CorporateCompany.find_by(abn: company_ref["abn"].gsub(/\s/, ""))
+        company = Corporate.find_by(abn: company_ref["abn"].gsub(/\s/, ""))
       elsif company_ref["name"].present?
-        company = CorporateCompany.where("LOWER(name) LIKE ?", "%#{company_ref['name'].downcase}%").first
+        company = Corporate.where("LOWER(name) LIKE ?", "%#{company_ref['name'].downcase}%").first
       end
 
       if company
@@ -607,7 +607,7 @@ class EmailToCaseService
     end
 
     company_ids.uniq { |c| c[:id] }.each do |company_ref|
-      company = CorporateCompany.find_by(id: company_ref[:id])
+      company = Corporate.find_by(id: company_ref[:id])
       next unless company
 
       case_record.add_company(company, role: company_ref[:role] || "subject")
@@ -653,13 +653,13 @@ class EmailToCaseService
   end
 
   def sync_pdf_attachments_if_needed
-    # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
-    return unless @email.has_attachments && @email.email_attachments.empty?
+    # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+    return unless @email.has_attachments && @email.attachment_documents.empty?
 
     begin
       # SSoT: Per-user Outlook credentials removed - use org credentials via sync_attachments!
       @email.sync_attachments!
-      Rails.logger.info "Synced #{@email.email_attachments.count} PDF attachments for email #{@email.id}"
+      Rails.logger.info "Synced #{@email.attachment_documents.count} PDF attachments for email #{@email.id}"
     rescue StandardError => e
       Rails.logger.error "Failed to sync attachments for email #{@email.id}: #{e.message}"
     end

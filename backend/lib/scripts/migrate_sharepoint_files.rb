@@ -16,7 +16,7 @@ client = MicrosoftGraphClient.new
 
 # Constants
 # SSoT: Fetch folder names from EntityTab (replaces DocumentFolder)
-PRIMARY_FOLDERS = EntityTab.where(scope: 'corporate_entity', tab_group: 'documents')
+PRIMARY_FOLDERS = EntityTab.where(warehouse_type: 'corporate_entity', tab_group: 'documents')
                            .where(parent_id: nil)
                            .enabled
                            .order(:order_position)
@@ -272,7 +272,7 @@ puts ""
 puts "=== Step 2: Mapping files to companies ==="
 
 # Build company lookups
-all_companies = CorporateCompany.pluck(:id, :code, :name)
+all_companies = Corporate.pluck(:id, :code, :name)
 company_codes = all_companies.to_h { |id, code, name| [ code&.downcase, { id: id, code: code, name: name } ] }
 company_names = all_companies.to_h { |id, code, name| [ name&.downcase, { id: id, code: code, name: name } ] }
 
@@ -388,7 +388,7 @@ files_by_company.each do |company_id, files|
   if company_id == :unknown
     puts "  Unknown: #{files.count} files"
   else
-    company = CorporateCompany.find_by(id: company_id)
+    company = Corporate.find_by(id: company_id)
     puts "  #{company&.code || 'N/A'} - #{company&.name}: #{files.count} files"
   end
 end
@@ -480,7 +480,7 @@ files_by_company.each do |company_id, files|
   next if company_id == :unknown
   next unless company_folder_ids[company_id]
 
-  company = CorporateCompany.find_by(id: company_id)
+  company = Corporate.find_by(id: company_id)
   next unless company
 
   puts "Processing #{files.count} files for #{company.code} - #{company.name}"

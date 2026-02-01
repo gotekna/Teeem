@@ -169,30 +169,36 @@ module Api
           Rails.logger.info "[SharePointUploadSession] Logged activity for #{params[:filename]} on job #{job.id}"
         end
 
-        # 2. Create/update JobDocument for immediate warehouse indexing
-        # This happens immediately instead of waiting for JobDocumentSyncJob
+        # SSoT (Jan 2026): Create/update WarehouseDocument directly (no legacy JobDocument)
         if job && params[:sharepoint_item_id].present?
-          job_doc = JobDocument.find_or_initialize_by(
-            job: job,
-            sharepoint_item_id: params[:sharepoint_item_id]
-          )
-
           # Detect document type from extension
           extension = File.extname(params[:filename].to_s).delete(".").downcase
           doc_type = DocumentType.find_by_extension(extension) if extension.present?
 
-          job_doc.update!(
-            file_name: params[:filename],
+          # Find existing by SharePoint item ID in metadata, or create new
+          warehouse_doc = WarehouseDocument.find_by(
+            "source_type = ? AND linkable_type = ? AND linkable_id = ? AND metadata->>'sharepoint_item_id' = ?",
+            "job", "Job", job.id, params[:sharepoint_item_id]
+          ) || WarehouseDocument.new(source_type: "job", linkable: job)
+
+          warehouse_doc.update!(
+            display_name: params[:filename],
+            original_filename: params[:filename],
+            folder: params[:folder_path],
             file_size: params[:file_size].to_i,
-            folder_path: params[:folder_path],
-            web_url: params[:web_url],
-            last_modified_at: Time.current,
-            last_modified_by: current_user&.name,
-            sync_status: "synced",
-            last_synced_at: Time.current,
-            document_type: doc_type
+            metadata: (warehouse_doc.metadata || {}).merge(
+              "job_code" => job.job_code,
+              "document_type_id" => doc_type&.id,
+              "document_type" => doc_type&.name,
+              "sharepoint_item_id" => params[:sharepoint_item_id],
+              "web_url" => params[:web_url],
+              "source" => "sharepoint_upload",
+              "last_modified_by" => current_user&.name,
+              "synced_at" => Time.current.iso8601
+            )
           )
-          Rails.logger.info "[SharePointUploadSession] Indexed JobDocument #{job_doc.id} for #{params[:filename]}"
+
+          Rails.logger.info "[SharePointUploadSession] Indexed WarehouseDocument #{warehouse_doc.id} for #{params[:filename]}"
         end
 
         render json: { success: true }
@@ -208,12 +214,12 @@ module Api
 
       # Navigate to a folder path within a parent folder, creating folders if needed
       # Reuses logic from job_photos_controller
-      # SSoT: Uses StorageConfiguration for drive_id (Jan 2026)
+      # SSoT: Uses WarehouseProvider for drive_id (Jan 2026)
       def navigate_to_folder(client, credential, parent_folder_id, path)
         return { "id" => parent_folder_id } if path.blank?
 
-        # SSoT: Get drive path from StorageConfiguration
-        storage_drive_id = StorageConfiguration.instance&.drive_id
+        # SSoT: Get drive path from WarehouseProvider
+        storage_drive_id = WarehouseProvider.instance&.drive_id
         drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
         current_folder_id = parent_folder_id
 

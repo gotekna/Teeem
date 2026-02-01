@@ -3,7 +3,7 @@
  *
  * Per GOLD_STANDARD_TABLE.md:
  * - System columns are auto-generated and should NEVER be edited by users
- * - System columns MUST be visible with yellow highlight (hsl(47, 100%, 96%))
+ * - System columns MUST be visible with yellow highlight (hsl(var(--system-column-bg)))
  * - Only deleted_at should be hidden (soft-delete implementation detail)
  */
 

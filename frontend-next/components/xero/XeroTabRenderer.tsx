@@ -49,7 +49,7 @@ interface XeroTabRendererProps {
   /** Company name for display */
   companyName?: string;
 
-  /** Full company data object - uses any to support CorporateCompany from caller */
+  /** Full company data object - uses any to support Corporate from caller */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   company?: any;
 
@@ -73,8 +73,8 @@ interface XeroTabRendererProps {
 
   /**
    * Component for rendering SharePoint document folder tabs
-   * Used when tab has has_sharepoint_folder=true
-   * Uses any for company to support CorporateCompany type from caller
+   * Used when tab has warehouse_enabled=true
+   * Uses any for company to support Corporate type from caller
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DocumentsTabComponent?: React.ComponentType<{
@@ -153,9 +153,9 @@ export function XeroTabRenderer({
   // State for tab stats (counts)
   const [tabStats, setTabStats] = React.useState<XeroTabStats | null>(null);
 
-  // Fetch Xero tabs from API (children of "xero" parent in corporate_entity scope)
+  // Fetch Xero tabs from API (children of "xero" parent in corporate scope)
   const { tabs, loading, error } = useEntityTabs({
-    scope: "corporate_entity",
+    scope: "corporate",
     // entityType filtering not needed for Xero tabs
   });
 
@@ -346,7 +346,7 @@ export function XeroTabRenderer({
     }
 
     // If tab has SharePoint folder, render folder view
-    if (activeTab.has_sharepoint_folder && activeTab.full_sharepoint_path) {
+    if (activeTab.warehouse_enabled && activeTab.full_warehouse_path) {
       // Use provided DocumentsTabComponent if available
       if (DocumentsTabComponent && company) {
         return (
@@ -363,7 +363,7 @@ export function XeroTabRenderer({
       // Fallback: show path info
       return (
         <div className="p-4 text-muted-foreground">
-          SharePoint folder: {activeTab.full_sharepoint_path}
+          SharePoint folder: {activeTab.full_warehouse_path}
         </div>
       );
     }

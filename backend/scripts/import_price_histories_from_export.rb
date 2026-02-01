@@ -54,10 +54,10 @@ begin
         begin
           Date.parse(effective_date_str)
         rescue
-          CorporateCompanySetting.today
+          TenantSetting.today
         end
       else
-        CorporateCompanySetting.today
+        TenantSetting.today
       end
 
       # Find or create supplier

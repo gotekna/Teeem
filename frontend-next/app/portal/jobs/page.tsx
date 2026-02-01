@@ -49,7 +49,9 @@ export default function PortalJobs() {
   const router = useRouter();
 
   // Path-based tab navigation
+  // Note: pathname can be null during SSR/hydration
   const activeTabRaw = useMemo(() => {
+    if (!pathname) return null;
     const parts = pathname.replace("/portal/jobs", "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname]);

@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RefreshCw, Upload, Building2, Check, AlertCircle, ChevronDown, Eye } from "lucide-react";
+import { RefreshCw, Upload, Building2, Check, AlertCircle, ChevronDown, ChevronUp, Eye, Star, CircleDot, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
@@ -88,10 +88,20 @@ export function AdminConfigSyncTab() {
   const [importResult, setImportResult] = useState<{
     imported: number;
     skipped: number;
+    deleted?: number;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"browse" | "compare">("browse");
+  const [viewMode, setViewMode] = useState<"browse" | "compare" | "manage">("browse");
   const [compareOpen, setCompareOpen] = useState(false);
+  const [entityTypeFilter, setEntityTypeFilter] = useState<string>("all");
+  const [filterExistingContacts, setFilterExistingContacts] = useState<boolean>(true);
+  const [latestOnlyFilter, setLatestOnlyFilter] = useState<boolean>(true);
+  const [replaceExistingPrices, setReplaceExistingPrices] = useState<boolean>(true);
+  const [totalUnfiltered, setTotalUnfiltered] = useState<number>(0);
+  const [recordsExpanded, setRecordsExpanded] = useState<boolean>(true);
+  // Sync preferences: { recordId: 'compulsory' | 'choice' | null }
+  const [syncPreferences, setSyncPreferences] = useState<Record<number, string | null>>({});
+  const [updatingSyncMode, setUpdatingSyncMode] = useState(false);
 
   // Fetch available tables and tenants on mount
   useEffect(() => {
@@ -106,7 +116,13 @@ export function AdminConfigSyncTab() {
         }>("/api/v1/admin/config_sync/tables");
 
         if (response?.success) {
-          setTables(response.tables);
+          // Sort tables alphabetically by display name
+          const sortedTables = [...response.tables].sort((a, b) => {
+            const nameA = a.model.replace(/([A-Z])/g, " $1").trim().toLowerCase();
+            const nameB = b.model.replace(/([A-Z])/g, " $1").trim().toLowerCase();
+            return nameA.localeCompare(nameB);
+          });
+          setTables(sortedTables);
           setMasterTenant(response.master_tenant);
           // Filter out master tenant from list
           setTenants(
@@ -135,15 +151,26 @@ export function AdminConfigSyncTab() {
       setError(null);
       setImportResult(null);
       setSelectedRecords(new Set());
+      setEntityTypeFilter("all");
+
+      // For price_histories, add filter parameters
+      const params = new URLSearchParams();
+      if (selectedTable === "price_histories") {
+        if (filterExistingContacts) params.append("filter_existing_contacts", "true");
+        if (latestOnlyFilter) params.append("latest_only", "true");
+      }
+      const queryString = params.toString() ? `?${params.toString()}` : "";
 
       const response = await api.get<{
         success: boolean;
         records: ConfigRecord[];
         source_tenant: TenantInfo;
-      }>(`/api/v1/admin/config_sync/tenants/${selectedTenant}/config/${selectedTable}`);
+        total_unfiltered?: number;
+      }>(`/api/v1/admin/config_sync/tenants/${selectedTenant}/config/${selectedTable}${queryString}`);
 
       if (response?.success) {
         setRecords(response.records);
+        setTotalUnfiltered(response.total_unfiltered || response.records.length);
       }
     } catch (err) {
       console.error("Failed to fetch records:", err);
@@ -151,7 +178,7 @@ export function AdminConfigSyncTab() {
     } finally {
       setRecordsLoading(false);
     }
-  }, [selectedTenant, selectedTable]);
+  }, [selectedTenant, selectedTable, filterExistingContacts, latestOnlyFilter]);
 
   useEffect(() => {
     if (viewMode === "browse") {
@@ -193,6 +220,97 @@ export function AdminConfigSyncTab() {
     }
   }, [fetchComparison, viewMode, selectedTable]);
 
+  // Fetch master tenant records with sync preferences (for "Manage" mode)
+  const fetchMasterRecords = useCallback(async () => {
+    if (!selectedTable || !masterTenant) {
+      setRecords([]);
+      setSyncPreferences({});
+      return;
+    }
+
+    try {
+      setRecordsLoading(true);
+      setError(null);
+      setImportResult(null);
+      setSelectedRecords(new Set());
+      setEntityTypeFilter("all");
+
+      // Fetch master tenant records
+      const recordsResponse = await api.get<{
+        success: boolean;
+        records: ConfigRecord[];
+        source_tenant: TenantInfo;
+      }>(`/api/v1/admin/config_sync/tenants/${masterTenant.id}/config/${selectedTable}`);
+
+      // Fetch sync preferences
+      const prefsResponse = await api.get<{
+        success: boolean;
+        preferences: Record<number, string | null>;
+      }>(`/api/v1/admin/config_sync/sync_preferences?table=${selectedTable}`);
+
+      if (recordsResponse?.success) {
+        setRecords(recordsResponse.records);
+      }
+      if (prefsResponse?.success) {
+        setSyncPreferences(prefsResponse.preferences || {});
+      }
+    } catch (err) {
+      console.error("Failed to fetch master records:", err);
+      setError("Failed to load master tenant records");
+    } finally {
+      setRecordsLoading(false);
+    }
+  }, [selectedTable, masterTenant]);
+
+  useEffect(() => {
+    if (viewMode === "manage" && selectedTable && masterTenant) {
+      fetchMasterRecords();
+    }
+  }, [fetchMasterRecords, viewMode, selectedTable, masterTenant]);
+
+  // Update sync preferences for selected records
+  const updateSyncMode = useCallback(async (mode: string | null) => {
+    if (selectedRecords.size === 0 || !selectedTable) return;
+
+    try {
+      setUpdatingSyncMode(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        message?: string;
+        error?: string;
+      }>("/api/v1/admin/config_sync/sync_preferences", {
+        table: selectedTable,
+        record_ids: Array.from(selectedRecords),
+        sync_mode: mode,
+      });
+
+      if (response?.success) {
+        // Update local state
+        setSyncPreferences((prev) => {
+          const next = { ...prev };
+          selectedRecords.forEach((id) => {
+            if (mode) {
+              next[id] = mode;
+            } else {
+              delete next[id];
+            }
+          });
+          return next;
+        });
+        setSelectedRecords(new Set());
+      } else {
+        setError(response?.error || "Failed to update sync preferences");
+      }
+    } catch (err) {
+      console.error("Failed to update sync preferences:", err);
+      setError("Failed to update sync preferences");
+    } finally {
+      setUpdatingSyncMode(false);
+    }
+  }, [selectedRecords, selectedTable]);
+
   // Handle record selection
   const toggleRecord = (id: number) => {
     setSelectedRecords((prev) => {
@@ -207,12 +325,12 @@ export function AdminConfigSyncTab() {
   };
 
   const selectAll = () => {
-    setSelectedRecords(new Set(records.map((r) => r.id)));
+    setSelectedRecords(new Set(filteredRecords.map((r) => r.id)));
   };
 
-  const clearSelection = () => {
+  const clearSelection = useCallback(() => {
     setSelectedRecords(new Set());
-  };
+  }, []);
 
   // Handle import
   const handleImport = async () => {
@@ -228,16 +346,19 @@ export function AdminConfigSyncTab() {
         skipped?: Array<{ name: string; reason: string }>;
         errors?: string[];
         error?: string;
+        deleted_count?: number;
       }>("/api/v1/admin/config_sync/import", {
         source_tenant_id: parseInt(selectedTenant),
         table: selectedTable,
         record_ids: Array.from(selectedRecords),
+        replace_existing_prices: selectedTable === "price_histories" && replaceExistingPrices,
       });
 
       if (response?.success) {
         setImportResult({
           imported: response.imported?.length || 0,
           skipped: response.skipped?.length || 0,
+          deleted: response.deleted_count,
         });
         setSelectedRecords(new Set());
         // Refresh records
@@ -255,6 +376,73 @@ export function AdminConfigSyncTab() {
 
   // Get source tenant info
   const sourceTenant = tenants.find((t) => t.id.toString() === selectedTenant);
+
+  // Get display name for a record - handles tables like price_histories where name is just ID
+  const getRecordDisplayName = useCallback((record: ConfigRecord): string => {
+    // If we have a meaningful name (not just a number), use it
+    if (record.name && typeof record.name === "string" && isNaN(Number(record.name))) {
+      return record.name;
+    }
+
+    // For price_histories, show more useful info
+    if (selectedTable === "price_histories") {
+      const price = record.new_price as number | undefined;
+      const quoteRef = record.quote_reference as string | undefined;
+      const lga = record.lga as string | undefined;
+      const dateEffective = record.date_effective as string | undefined;
+
+      const parts: string[] = [];
+      if (quoteRef) parts.push(quoteRef);
+      if (lga) parts.push(lga);
+      if (price !== undefined && price !== null) parts.push(`$${Number(price).toFixed(2)}`);
+      if (dateEffective) parts.push(new Date(dateEffective).toLocaleDateString());
+
+      return parts.length > 0 ? parts.join(" - ") : `Record #${record.id}`;
+    }
+
+    // For job_type_statuses (join table), show IDs with labels
+    if (selectedTable === "job_type_statuses") {
+      const jobTypeId = record.job_type_id as number | undefined;
+      const jobStatusId = record.job_status_id as number | undefined;
+      return `Type #${jobTypeId || "?"} → Status #${jobStatusId || "?"}`;
+    }
+
+    // For job_status_stages (join table), show IDs with labels
+    if (selectedTable === "job_status_stages") {
+      const jobTypeId = record.job_type_id as number | undefined;
+      const jobStatusId = record.job_status_id as number | undefined;
+      const jobStageId = record.job_stage_id as number | undefined;
+      return `Type #${jobTypeId || "?"} / Status #${jobStatusId || "?"} → Stage #${jobStageId || "?"}`;
+    }
+
+    // For public_holidays, show name + date to distinguish different years
+    if (selectedTable === "public_holidays") {
+      const name = record.name as string | undefined;
+      const date = record.date as string | undefined;
+      const dateStr = date ? new Date(date).toLocaleDateString() : "";
+      return name ? `${name} (${dateStr})` : `Record #${record.id}`;
+    }
+
+    // Fallback to showing the name or ID
+    return record.name?.toString() || `Record #${record.id}`;
+  }, [selectedTable]);
+
+  // Get unique entity types for filtering (when contacts table is selected)
+  const uniqueEntityTypes = React.useMemo(() => {
+    if (selectedTable !== "contacts") return [];
+    const types = new Set<string>();
+    records.forEach((r) => {
+      const entityType = r.entity_type as string | undefined;
+      if (entityType) types.add(entityType);
+    });
+    return Array.from(types).sort();
+  }, [records, selectedTable]);
+
+  // Filter records by entity type
+  const filteredRecords = React.useMemo(() => {
+    if (selectedTable !== "contacts" || entityTypeFilter === "all") return records;
+    return records.filter((r) => r.entity_type === entityTypeFilter);
+  }, [records, selectedTable, entityTypeFilter]);
 
   if (loading) {
     return (
@@ -307,8 +495,15 @@ export function AdminConfigSyncTab() {
           variant={viewMode === "browse" ? "default" : "outline"}
           onClick={() => setViewMode("browse")}
         >
-          <Eye className="h-4 w-4 mr-2" />
-          Browse & Import
+          <Upload className="h-4 w-4 mr-2" />
+          Import from Tenant
+        </Button>
+        <Button
+          variant={viewMode === "manage" ? "default" : "outline"}
+          onClick={() => setViewMode("manage")}
+        >
+          <Star className="h-4 w-4 mr-2" />
+          Manage TEEEM Records
         </Button>
         <Button
           variant={viewMode === "compare" ? "default" : "outline"}
@@ -330,7 +525,7 @@ export function AdminConfigSyncTab() {
               <SelectTrigger className="w-full max-w-md">
                 <SelectValue placeholder="Choose a configuration table..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[400px]" position="popper" sideOffset={4}>
                 {tables.map((table) => (
                   <SelectItem key={table.key} value={table.key}>
                     <div className="flex flex-col">
@@ -360,6 +555,69 @@ export function AdminConfigSyncTab() {
                 </SelectContent>
               </Select>
             )}
+
+            {/* Entity Type Filter - only show for contacts table in browse/manage mode */}
+            {(viewMode === "browse" || viewMode === "manage") && selectedTable === "contacts" && uniqueEntityTypes.length > 0 && (
+              <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
+                <SelectTrigger className="w-full max-w-xs">
+                  <SelectValue placeholder="Filter by entity type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    All Types ({records.length})
+                  </SelectItem>
+                  {uniqueEntityTypes.map((type) => {
+                    const count = records.filter((r) => r.entity_type === type).length;
+                    return (
+                      <SelectItem key={type} value={type}>
+                        {type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} ({count})
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Price History Filters */}
+            {viewMode === "browse" && selectedTable === "price_histories" && selectedTenant && (
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="filter-existing-contacts"
+                    checked={filterExistingContacts}
+                    onCheckedChange={(checked) => setFilterExistingContacts(!!checked)}
+                  />
+                  <label htmlFor="filter-existing-contacts" className="text-sm cursor-pointer">
+                    Only for TEEEM contacts
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="filter-latest-only"
+                    checked={latestOnlyFilter}
+                    onCheckedChange={(checked) => setLatestOnlyFilter(!!checked)}
+                  />
+                  <label htmlFor="filter-latest-only" className="text-sm cursor-pointer">
+                    Latest price only
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="replace-existing-prices"
+                    checked={replaceExistingPrices}
+                    onCheckedChange={(checked) => setReplaceExistingPrices(!!checked)}
+                  />
+                  <label htmlFor="replace-existing-prices" className="text-sm cursor-pointer">
+                    Replace existing prices
+                  </label>
+                </div>
+                {(filterExistingContacts || latestOnlyFilter) && totalUnfiltered > 0 && records.length !== totalUnfiltered && (
+                  <span className="text-sm text-muted-foreground">
+                    ({records.length} of {totalUnfiltered})
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -383,8 +641,10 @@ export function AdminConfigSyncTab() {
             <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
               <Check className="h-5 w-5" />
               <span>
-                Import complete: {importResult.imported} imported, {importResult.skipped}{" "}
-                skipped
+                Import complete: {importResult.imported} imported, {importResult.skipped} skipped
+                {importResult.deleted !== undefined && importResult.deleted > 0 && (
+                  <>, {importResult.deleted} old prices deleted</>
+                )}
               </span>
             </div>
           </CardContent>
@@ -405,7 +665,7 @@ export function AdminConfigSyncTab() {
             </Card>
           )}
 
-          {!recordsLoading && records.length > 0 && (
+          {!recordsLoading && filteredRecords.length > 0 && (
             <>
               {/* Import Controls */}
               <Card>
@@ -413,7 +673,8 @@ export function AdminConfigSyncTab() {
                   <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-medium">
-                        {selectedRecords.size} of {records.length} records selected
+                        {selectedRecords.size} of {filteredRecords.length} records selected
+                        {entityTypeFilter !== "all" && ` (filtered from ${records.length} total)`}
                       </span>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={selectAll}>
@@ -445,43 +706,71 @@ export function AdminConfigSyncTab() {
                 </CardContent>
               </Card>
 
-              {/* Records Table */}
+              {/* Records Table - Collapsible */}
               <Card>
-                <CardHeader>
+                <CardHeader
+                  className="cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => setRecordsExpanded(!recordsExpanded)}
+                >
                   <CardTitle className="text-lg flex items-center gap-2">
+                    {recordsExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                    )}
                     Records from {sourceTenant?.name}
-                    <Badge variant="secondary">{records.length}</Badge>
+                    <Badge variant="secondary">{filteredRecords.length}</Badge>
+                    {entityTypeFilter !== "all" && (
+                      <Badge variant="outline" className="ml-1">
+                        {entityTypeFilter.replace(/_/g, " ")}
+                      </Badge>
+                    )}
+                    {selectedRecords.size > 0 && (
+                      <Badge variant="default" className="ml-1">
+                        {selectedRecords.size} selected
+                      </Badge>
+                    )}
                   </CardTitle>
                 </CardHeader>
+                {recordsExpanded && (
                 <CardContent>
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-12"></TableHead>
                         <TableHead>Name</TableHead>
+                        {selectedTable === "contacts" && <TableHead>Type</TableHead>}
                         <TableHead>Last Updated</TableHead>
                         <TableHead>Details</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {records.map((record) => (
+                      {filteredRecords.map((record) => (
                         <TableRow
                           key={record.id}
                           className={cn(
+                            "cursor-pointer hover:bg-muted/50",
                             selectedRecords.has(record.id) && "bg-primary/5"
                           )}
+                          onClick={() => toggleRecord(record.id)}
                         >
-                          <TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox
+                              id={`record-${record.id}`}
                               checked={selectedRecords.has(record.id)}
                               onCheckedChange={() => toggleRecord(record.id)}
                             />
                           </TableCell>
-                          <TableCell className="font-medium">{record.name}</TableCell>
+                          <TableCell className="font-medium">{getRecordDisplayName(record)}</TableCell>
+                          {selectedTable === "contacts" && (
+                            <TableCell className="text-muted-foreground text-xs">
+                              {(record.entity_type as string)?.replace(/_/g, " ") || "-"}
+                            </TableCell>
+                          )}
                           <TableCell className="text-muted-foreground">
                             {new Date(record.updated_at).toLocaleDateString()}
                           </TableCell>
-                          <TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Dialog>
                               <DialogTrigger asChild>
                                 <Button variant="ghost" size="sm">
@@ -490,7 +779,7 @@ export function AdminConfigSyncTab() {
                               </DialogTrigger>
                               <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
                                 <DialogHeader>
-                                  <DialogTitle>{record.name}</DialogTitle>
+                                  <DialogTitle>{getRecordDisplayName(record)}</DialogTitle>
                                   <DialogDescription>
                                     Full record details
                                   </DialogDescription>
@@ -506,15 +795,199 @@ export function AdminConfigSyncTab() {
                     </TableBody>
                   </Table>
                 </CardContent>
+                )}
               </Card>
             </>
           )}
 
-          {!recordsLoading && selectedTable && selectedTenant && records.length === 0 && (
+          {!recordsLoading && selectedTable && selectedTenant && filteredRecords.length === 0 && (
             <Card>
               <CardContent className="py-8 text-center">
                 <p className="text-muted-foreground">
-                  No records found in this tenant for the selected table
+                  {records.length > 0 && entityTypeFilter !== "all"
+                    ? `No ${entityTypeFilter.replace(/_/g, " ")} contacts found (${records.length} total contacts available)`
+                    : "No records found in this tenant for the selected table"}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* Manage Mode - Set compulsory/choice flags for TEEEM records */}
+      {viewMode === "manage" && (
+        <>
+          {recordsLoading && (
+            <Card>
+              <CardContent className="py-8">
+                <div className="flex items-center justify-center gap-2">
+                  <Spinner className="h-5 w-5" />
+                  <span>Loading TEEEM records...</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {!recordsLoading && filteredRecords.length > 0 && (
+            <>
+              {/* Sync Mode Controls */}
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-medium">
+                        {selectedRecords.size} of {filteredRecords.length} records selected
+                      </span>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={selectAll}>
+                          Select All
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={clearSelection}>
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => updateSyncMode("compulsory")}
+                        disabled={selectedRecords.size === 0 || updatingSyncMode}
+                        className="bg-amber-600 hover:bg-amber-700"
+                      >
+                        <Star className="h-4 w-4 mr-1" />
+                        Set Compulsory
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateSyncMode("choice")}
+                        disabled={selectedRecords.size === 0 || updatingSyncMode}
+                      >
+                        <CircleDot className="h-4 w-4 mr-1" />
+                        Set Choice
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => updateSyncMode(null)}
+                        disabled={selectedRecords.size === 0 || updatingSyncMode}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Clear Flag
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Records Table with Sync Mode */}
+              <Card>
+                <CardHeader
+                  className="cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => setRecordsExpanded(!recordsExpanded)}
+                >
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    {recordsExpanded ? (
+                      <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                    )}
+                    TEEEM Records
+                    <Badge variant="secondary">{filteredRecords.length}</Badge>
+                    {entityTypeFilter !== "all" && (
+                      <Badge variant="outline" className="ml-1">
+                        {entityTypeFilter.replace(/_/g, " ")}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                {recordsExpanded && (
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12"></TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead className="w-32">Sync Mode</TableHead>
+                        {selectedTable === "contacts" && <TableHead>Type</TableHead>}
+                        <TableHead>Last Updated</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredRecords.map((record) => {
+                        const syncMode = syncPreferences[record.id];
+                        return (
+                          <TableRow
+                            key={record.id}
+                            className={cn(
+                              "cursor-pointer hover:bg-muted/50",
+                              selectedRecords.has(record.id) && "bg-primary/5"
+                            )}
+                            onClick={() => toggleRecord(record.id)}
+                          >
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                id={`manage-record-${record.id}`}
+                                checked={selectedRecords.has(record.id)}
+                                onCheckedChange={() => toggleRecord(record.id)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{getRecordDisplayName(record)}</TableCell>
+                            <TableCell>
+                              {syncMode === "compulsory" && (
+                                <Badge className="bg-amber-600">
+                                  <Star className="h-3 w-3 mr-1" />
+                                  Compulsory
+                                </Badge>
+                              )}
+                              {syncMode === "choice" && (
+                                <Badge variant="outline">
+                                  <CircleDot className="h-3 w-3 mr-1" />
+                                  Choice
+                                </Badge>
+                              )}
+                              {!syncMode && (
+                                <span className="text-muted-foreground text-xs">-</span>
+                              )}
+                            </TableCell>
+                            {selectedTable === "contacts" && (
+                              <TableCell className="text-muted-foreground text-xs">
+                                {(record.entity_type as string)?.replace(/_/g, " ") || "-"}
+                              </TableCell>
+                            )}
+                            <TableCell className="text-muted-foreground">
+                              {new Date(record.updated_at).toLocaleDateString()}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+                )}
+              </Card>
+            </>
+          )}
+
+          {!recordsLoading && selectedTable && filteredRecords.length === 0 && (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <p className="text-muted-foreground">
+                  {records.length > 0 && entityTypeFilter !== "all"
+                    ? `No ${entityTypeFilter.replace(/_/g, " ")} records found`
+                    : "No records found in TEEEM for the selected table. Import some first!"}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {!selectedTable && (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <p className="text-muted-foreground">
+                  Select a configuration table to manage sync preferences
                 </p>
               </CardContent>
             </Card>

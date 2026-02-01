@@ -30,7 +30,7 @@ namespace :sync do
         enabled: t['enabled'],
         icon_name: t['icon_name'],
         component_name: t['component_name'],
-        has_storage_folder: t['has_storage_folder'] || t['has_sharepoint_folder'],
+        warehouse_enabled: t['warehouse_enabled'] || t['has_storage_folder'] || t['has_sharepoint_folder'],
         storage_folder_path: t['storage_folder_path'] || t['sharepoint_folder_path'],
         is_system_tab: t['is_system_tab'],
         entity_filters: t['entity_filters'] || []

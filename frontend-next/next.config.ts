@@ -111,3 +111,4 @@ const pwaConfig = withPWA({
 });
 
 export default pwaConfig(nextConfig);
+// Force rebuild Sat Jan 31 19:15:17 CET 2026

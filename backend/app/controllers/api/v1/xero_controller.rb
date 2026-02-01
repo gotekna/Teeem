@@ -55,7 +55,8 @@ module Api
           Rails.logger.info("[Xero] callback request from origin: #{origin}, redirect_uri: #{redirect_uri || 'using default'}")
 
           client = XeroApiClient.new(redirect_uri: redirect_uri)
-          result = client.exchange_code_for_token(code)
+          # Pass current tenant for multi-tenancy scoping
+          result = client.exchange_code_for_token(code, teeem_tenant: current_tenant)
 
           # Trigger sync restart immediately after reconnection
           # This resumes syncing without waiting for scheduled jobs
@@ -95,9 +96,10 @@ module Api
 
       # GET /api/v1/xero/status
       # Returns the current Xero connection status
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def status
         begin
-          client = XeroApiClient.new
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
           status = client.connection_status
 
           render json: {
@@ -128,8 +130,17 @@ module Api
       # SSoT: Backend computes token status - frontend should NOT calculate from expires_at
       # Use status_display and expires_in_human instead of client-side Date calculations
       #
+      # GET /api/v1/xero/tenants
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def tenants
-        tenants = XeroCredential.all.map do |cred|
+        # Filter credentials by TEEEM tenant
+        credentials = if current_tenant&.master_tenant?
+                        XeroCredential.all
+                      else
+                        XeroCredential.for_teeem_tenant(current_tenant)
+                      end
+
+        tenants = credentials.map do |cred|
           {
             id: cred.id,
             tenant_id: cred.tenant_id,
@@ -1455,17 +1466,22 @@ module Api
           # ============================================
           # SSoT: Exclude drafts from both Stage 1 and Stage 2 for consistent denominator
           # Drafts can't have PDFs (Xero only generates PDFs for finalized invoices)
+          # Total ALL invoices (including voided/deleted) for display
+          all_invoices_scope = tenant_id.present? ? ExternalInvoice.xero.where(tenant_id: tenant_id) : ExternalInvoice.xero
+          total_all_invoices = all_invoices_scope.count
+          voided_deleted_count = all_invoices_scope.where(status: %w[voided deleted]).count
+
           base_scope = tenant_id.present? ? ExternalInvoice.active.where(tenant_id: tenant_id) : ExternalInvoice.active
           base_scope_no_drafts = base_scope.where.not(status: "draft")
           total_invoices_in_db = base_scope_no_drafts.count
           invoices_with_contacts = base_scope_no_drafts.where.not(contact_id: nil)
           total_with_contacts = invoices_with_contacts.count
-          # SSoT: Count unlinked invoices that have a real contact name (same logic as unlinked_contacts endpoint)
-          # Excludes blank names and "No Contact" since those can't be matched
-          # Also excludes drafts for consistency with Stage 1/2 denominator
-          invoices_without_contacts = base_scope_no_drafts.where(contact_id: nil)
-            .where.not(contact_name: [nil, "", "No Contact"])
-            .count
+          # SSoT: Use ExternalInvoice.needs_contact_linking scope (THE ONE definition)
+          # Apply tenant filter if specified
+          needs_linking_scope = tenant_id.present? ?
+            ExternalInvoice.needs_contact_linking.where(tenant_id: tenant_id) :
+            ExternalInvoice.needs_contact_linking
+          invoices_without_contacts = needs_linking_scope.count
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
           # Jan 2026: Always check BOTH tenant-specific AND global (nil) records
@@ -1488,13 +1504,10 @@ module Api
 
           # Stage 1 blocker info - why aren't all invoices linked?
           stage1_blocker = if invoices_without_contacts > 0
-            # Count unique Xero contacts (same grouping as unlinked_contacts endpoint)
-            unlinked_contact_count = base_scope_no_drafts.where(contact_id: nil)
-              .where.not(contact_name: [nil, "", "No Contact"])
-              .distinct
-              .count(:contact_name)
+            # SSoT: Use same scope for contact count (distinct contact_name)
+            unlinked_contact_count = needs_linking_scope.distinct.count(:contact_name)
             # Find example unlinked invoices to help diagnose
-            unlinked_sample = base_scope_no_drafts.where(contact_id: nil).limit(5).pluck(:external_id, :contact_name)
+            unlinked_sample = needs_linking_scope.limit(5).pluck(:external_id, :contact_name)
             {
               reason: "#{unlinked_contact_count} Xero contact#{'s' if unlinked_contact_count != 1} with #{invoices_without_contacts} invoice#{'s' if invoices_without_contacts != 1} not linked",
               detail: "Xero contacts need to be matched to TEEEM contacts first",
@@ -1658,8 +1671,8 @@ module Api
           estimated_remaining_minutes = (estimated_remaining_seconds / 60.0).round(0)
 
           # Calculate next scheduled sync times (in company timezone)
-          # SSoT: Use CorporateCompanySetting for timezone
-          now_brisbane = CorporateCompanySetting.now
+          # SSoT: Use TenantSetting for timezone
+          now_brisbane = TenantSetting.now
 
           # Invoice sync runs every 5 minutes
           next_invoice_sync = calculate_next_run(now_brisbane, 5, 0)
@@ -1729,8 +1742,8 @@ module Api
           end
 
           # Stage 3 blocker info
-          # SSoT: Get storage provider name from StorageConfiguration
-          storage_provider_name = case StorageConfiguration.instance&.provider_type
+          # SSoT: Get storage provider name from WarehouseProvider
+          storage_provider_name = case WarehouseProvider.instance&.provider_type
                                   when "s3_compatible" then "Wasabi"
                                   when "sharepoint" then "SharePoint"
                                   when "local" then "Local Storage"
@@ -1751,7 +1764,6 @@ module Api
           # ============================================
           # Check for documents with wrong external_id format
           # SSoT: WarehouseDocument uses metadata for tracking, no external_id format issues
-          # Legacy CorporateCompanyDocument external_id format validation removed (Jan 2026)
           wrong_format_count = 0  # WarehouseDocument doesn't use external_id
 
           # SSoT: Check for Xero PDFs missing storage_blob (should all have blobs after sync)
@@ -1760,6 +1772,34 @@ module Api
                                                        .where(documentable_type: "ExternalInvoice")
                                                        .where(storage_blob_id: nil)
                                                        .count
+
+          # ============================================
+          # BLOB HEALTH STATS
+          # ============================================
+          # Query StorageBlobs used by Xero WarehouseDocuments
+          xero_blob_ids = WarehouseDocument.where(source_type: "xero")
+                                           .where(documentable_type: "ExternalInvoice")
+                                           .where.not(storage_blob_id: nil)
+                                           .distinct
+                                           .pluck(:storage_blob_id)
+          xero_blobs = StorageBlob.where(id: xero_blob_ids)
+          total_xero_blobs = xero_blobs.count
+          blobs_with_hash = xero_blobs.where.not(content_hash: nil).count
+          blobs_missing_hash = xero_blobs.where(content_hash: nil).count
+          blobs_file_missing = xero_blobs.where(file_missing: true).count
+
+          # Calculate blob health percentage
+          blob_health_percentage = total_xero_blobs > 0 ?
+            ((blobs_with_hash.to_f / total_xero_blobs) * 100).round(1) : 100.0
+          blob_health_status = if total_xero_blobs == 0
+            "no_blobs"
+          elsif blobs_file_missing > 0
+            "files_missing"
+          elsif blobs_missing_hash > 0
+            "needs_validation"
+          else
+            "healthy"
+          end
 
           # Build violations array for Stage 3 display
           stage3_violations = []
@@ -1785,16 +1825,16 @@ module Api
           end
 
           # Get SharePoint URL for Contacts folder (only for SharePoint provider)
-          # SSoT: Use StorageConfiguration for paths
+          # SSoT: Use WarehouseProvider for paths
           sharepoint_contacts_url = nil
           begin
-            storage_config = StorageConfiguration.instance
+            storage_config = WarehouseProvider.instance
             # Only build SharePoint URLs when using SharePoint provider
             if storage_config&.sharepoint?
               credential = MicrosoftCredential.sharepoint_credential
               if credential&.metadata&.dig("site_web_url")
                 contacts_folder = storage_config.path_for(:contacts)
-                # SSoT: root_path comes from StorageConfiguration (e.g., "Shared Documents" for SharePoint)
+                # SSoT: root_path comes from WarehouseProvider (e.g., "Shared Documents" for SharePoint)
                 root_path = storage_config.root_path&.sub(%r{^/}, "")
                 encoded_folder = ERB::Util.url_encode(contacts_folder)
                 encoded_root = ERB::Util.url_encode(root_path) if root_path.present?
@@ -1862,6 +1902,25 @@ module Api
                 violations: []
               },
 
+              # Totals Summary (including voided/deleted for full picture)
+              totals_summary: {
+                total_all: total_all_invoices,
+                active: total_invoices_in_db,
+                voided_deleted: voided_deleted_count,
+                synced: invoices_with_pdfs,
+                pending: pdfs_pending
+              },
+
+              # Blob Health (storage validation status)
+              blob_health: {
+                total_blobs: total_xero_blobs,
+                validated: blobs_with_hash,
+                missing_hash: blobs_missing_hash,
+                file_missing: blobs_file_missing,
+                health_percentage: blob_health_percentage,
+                status: blob_health_status
+              },
+
               # Overall metrics (for backwards compatibility)
               total_invoices: total_with_contacts,
               pdfs_synced: invoices_with_pdfs,
@@ -1915,10 +1974,16 @@ module Api
       # GET /api/v1/xero/sync_stats
       # Returns comprehensive sync statistics for the Xero dashboard
       # Includes per-tenant stats, global stats, and cross-tenant matching info
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def sync_stats
         begin
-          # Get all Xero credentials (tenants)
-          credentials = XeroCredential.all
+          # Get Xero credentials filtered by tenant
+          # Master tenant sees all; other tenants only see their own Xero orgs
+          credentials = if current_tenant&.master_tenant?
+                          XeroCredential.all
+                        else
+                          XeroCredential.for_teeem_tenant(current_tenant)
+                        end
 
           # Per-tenant statistics
           tenant_stats = credentials.map do |cred|
@@ -1931,9 +1996,16 @@ module Api
             pending_review_count = tenant_links.pending_review.count
             with_errors_count = tenant_links.with_errors.count
 
+            # Unlinked = Links where TEEEM contact is inactive or deleted
+            # These Xero contacts won't sync properly until re-linked
+            unlinked_count = tenant_links
+              .joins("LEFT JOIN contacts c ON contact_external_links.contact_id = c.id AND (c.is_active = true OR c.is_active IS NULL)")
+              .where("c.id IS NULL")
+              .count
+
             # Count invoices/bills for this tenant
-            # SSoT: Use .active scope to match Stage 1 sync count (excludes voided/deleted)
-            tenant_invoices = ExternalInvoice.xero.active.where(tenant_id: tenant_id)
+            # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
+            tenant_invoices = ExternalInvoice.xero.active.where(tenant_id: tenant_id).where.not(status: "draft")
             invoices_count = tenant_invoices.sales_invoices.count
             bills_count = tenant_invoices.bills.count
             quotes_count = tenant_invoices.quotes.count
@@ -1957,16 +2029,24 @@ module Api
             # Rate limit status for this tenant
             rate_usage = XeroRateLimitTracker.usage_for(tenant_id) rescue nil
 
+            # SSoT: Sync health status per sync type for this tenant
+            # This shows when each sync type last ran and its health status
+            tenant_sync_health = XeroSyncStatus.health_summary(tenant_id: tenant_id)
+
             {
               tenant_id: tenant_id,
               tenant_name: cred.tenant_name,
               status: cred.status,
               is_primary: cred.is_primary,
+              # SSoT: Per-sync-type health for this tenant (Jan 2026)
+              sync_health: tenant_sync_health[:sync_types],
+              overall_sync_health: tenant_sync_health[:overall_health],
               contacts: {
                 total_links: links_count,
                 sync_enabled: enabled_count,
                 pending_review: pending_review_count,
                 with_errors: with_errors_count,
+                unlinked: unlinked_count,
                 cross_tenant_matches: cross_tenant_count,
                 last_synced_at: last_contact_sync
               },
@@ -1993,9 +2073,9 @@ module Api
           end
 
           # Global statistics (across all tenants)
-          # SSoT: Use .active scope to match Stage 1 sync count (excludes voided/deleted)
+          # SSoT: Use .active scope + exclude drafts to match pdf_sync_status (drafts can't have PDFs)
           all_xero_links = ContactExternalLink.xero
-          all_invoices = ExternalInvoice.xero.active
+          all_invoices = ExternalInvoice.xero.active.where.not(status: "draft")
 
           # Total pending reviews
           total_pending_reviews = all_xero_links.pending_review.count
@@ -2028,6 +2108,14 @@ module Api
                                                 .limit(10)
                                                 .map do |link|
             tenant = credentials.find { |c| c.tenant_id == link.tenant_id }
+            # Try to get Xero contact name from multiple sources
+            xero_name = link.external_name ||
+                        link.metadata&.dig("name") ||
+                        ExternalInvoice.where(external_contact_id: link.external_contact_id, tenant_id: link.tenant_id)
+                                       .where.not(contact_name: nil)
+                                       .limit(1)
+                                       .pick(:contact_name) ||
+                        link.external_contact_id
             {
               id: link.id,
               contact_id: link.contact_id,
@@ -2035,7 +2123,7 @@ module Api
               tenant_id: link.tenant_id,
               tenant_name: tenant&.tenant_name || link.tenant_name,
               external_contact_id: link.external_contact_id,
-              external_contact_name: link.metadata&.dig("name") || link.external_contact_id,
+              external_contact_name: xero_name,
               match_type: link.match_type,
               match_confidence: link.match_confidence,
               created_at: link.created_at
@@ -2091,13 +2179,21 @@ module Api
 
       # GET /api/v1/xero/common_contacts
       # Returns contacts linked to multiple Xero organizations
+      # Multi-tenancy: Filters by current tenant (master sees all, others see own)
       def common_contacts
         begin
-          credentials = XeroCredential.all
+          # Filter credentials by TEEEM tenant
+          credentials = if current_tenant&.master_tenant?
+                          XeroCredential.all
+                        else
+                          XeroCredential.for_teeem_tenant(current_tenant)
+                        end
+          tenant_ids = credentials.pluck(:tenant_id)
 
-          # Find contacts linked to 2+ Xero tenants
+          # Find contacts linked to 2+ Xero tenants (within visible tenants)
           contact_ids_with_multiple_links = ContactExternalLink
             .xero
+            .where(tenant_id: tenant_ids)
             .group(:contact_id)
             .having("COUNT(DISTINCT tenant_id) >= 2")
             .count
@@ -2126,7 +2222,7 @@ module Api
                   tenant_id: tid,
                   tenant_name: cred&.tenant_name || "Unknown",
                   external_contact_id: link&.external_contact_id,
-                  external_contact_name: link&.metadata&.dig("name") || link&.external_contact_id,
+                  external_contact_name: link&.external_name || link&.metadata&.dig("name") || link&.external_contact_id,
                   match_type: link&.match_type,
                   sync_enabled: link&.sync_enabled,
                   last_synced_at: link&.last_synced_at
@@ -2212,9 +2308,9 @@ module Api
       # Returns grouped unlinked Xero contacts with potential TEEEM contact matches
       def unlinked_contacts
         begin
-          # Get all unlinked invoices grouped by contact_name
-          unlinked = ExternalInvoice.where(contact_id: nil)
-            .where.not(contact_name: [ nil, "", "No Contact" ])
+          # SSoT: Use ExternalInvoice.needs_contact_linking scope (THE ONE definition)
+          # This ensures counts match the status page exactly
+          unlinked = ExternalInvoice.needs_contact_linking
             .group(:contact_name, :external_contact_id)
             .select("contact_name, external_contact_id, COUNT(*) as invoice_count, SUM(total) as total_amount")
             .order("invoice_count DESC")
@@ -2383,18 +2479,41 @@ module Api
         xero_contact_name = params[:xero_contact_name]
         tenant_id = params[:tenant_id]
         contact_id = params[:contact_id]
+        create_new = params[:create_new] == true || params[:create_new] == "true"
 
         unless xero_contact_id.present?
           return render json: { success: false, error: "xero_contact_id is required" }, status: :bad_request
         end
 
-        unless contact_id.present?
+        # contact_id is required UNLESS create_new is true
+        unless contact_id.present? || create_new
           return render json: { success: false, error: "contact_id is required" }, status: :bad_request
         end
 
         begin
           ActiveRecord::Base.transaction do
-            @contact = Contact.find(contact_id)
+            # If create_new, create a new Contact first
+            if create_new
+              # Generate a unique contact_code (required by DB)
+              next_id = (Contact.maximum(:id) || 0) + 1
+              temp_code = "C#{next_id}"
+              # Ensure uniqueness
+              while Contact.exists?(contact_code: temp_code)
+                next_id += 1
+                temp_code = "C#{next_id}"
+              end
+
+              @contact = Contact.create!(
+                name: xero_contact_name,
+                company_name_or_trust: xero_contact_name,
+                contact_code: temp_code,
+                entity_type: "company",
+                is_active: true
+              )
+              Rails.logger.info("[Xero] Created new contact #{@contact.id} (#{@contact.name}) for Xero contact #{xero_contact_id}")
+            else
+              @contact = Contact.find(contact_id)
+            end
 
             # Get tenant info - prefer passed tenant_id, fall back to finding from invoices
             effective_tenant_id = tenant_id
@@ -2917,9 +3036,9 @@ module Api
           Rails.logger.info("[Xero] Starting sync_all_companies")
 
           # Get all corporate companies with Xero connections
-          companies_with_xero = CorporateCompany.joins(:corporate_company_xero_connection)
-            .includes(:corporate_company_xero_connection)
-            .where(corporate_company_xero_connections: { xero_tenant_id: XeroCredential.pluck(:tenant_id) })
+          companies_with_xero = Corporate.joins(:corporate_xero_connection)
+            .includes(:corporate_xero_connection)
+            .where(corporate_xero_connections: { xero_tenant_id: XeroCredential.pluck(:tenant_id) })
 
           if companies_with_xero.empty?
             return render json: {
@@ -2971,7 +3090,7 @@ module Api
               # 2. Sync Monthly P&L data
               pl_result = { success: true }
               begin
-                pl_sync_service = CorporateCompanyXeroSyncService.new(company)
+                pl_sync_service = CorporateXeroSyncService.new(company)
                 pl_result = pl_sync_service.sync_all(force: false)
               rescue StandardError => e
                 Rails.logger.warn("[Xero] P&L sync failed for #{company.name}: #{e.message}")
@@ -3059,7 +3178,7 @@ module Api
 
             {
               link_id: link.id,
-              xero_contact_name: link.external_contact_name,
+              xero_contact_name: link.external_name,
               xero_contact_id: link.external_contact_id,
               tenant_id: link.tenant_id,
               tenant_name: XeroCredential.find_by(tenant_id: link.tenant_id)&.tenant_name,

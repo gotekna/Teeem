@@ -219,7 +219,7 @@ export default function SmFieldPage() {
   // URL is SSoT for tab state (path-based navigation)
   const activeTab = useMemo(() => {
     const basePath = `/jobs/${constructionId}/field`;
-    const parts = pathname.replace(basePath, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(basePath, "").split("/").filter(Boolean);
     return parts[0] || "tasks";
   }, [pathname, constructionId]);
 

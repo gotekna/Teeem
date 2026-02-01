@@ -60,7 +60,7 @@ module Api
 
         @batch = @corporate_company.bill_payment_batches.build(
           bank_account: bank_account,
-          payment_date: params[:payment_date] || CorporateCompanySetting.today + 1.day,
+          payment_date: params[:payment_date] || TenantSetting.today + 1.day,
           processing_description: params[:description],
           created_by: current_user
         )
@@ -242,12 +242,12 @@ module Api
       def set_corporate_company
         # Support both nested (/companies/:id/bill_payment_batches) and top-level (/bill_payment_batches) routes
         if params[:corporate_company_id].present?
-          @corporate_company = CorporateCompany.find(params[:corporate_company_id])
+          @corporate_company = Corporate.find(params[:corporate_company_id])
         elsif params[:company_id].present?
-          @corporate_company = CorporateCompany.find(params[:company_id])
+          @corporate_company = Corporate.find(params[:company_id])
         else
           # For top-level route without company filter, use the user's default company
-          @corporate_company = current_user&.corporate_company || CorporateCompany.first
+          @corporate_company = current_user&.corporate_company || Corporate.first
         end
       end
 

@@ -3,14 +3,35 @@
 module Api
   module V1
     class SignupController < ApplicationController
-      skip_before_action :authorize_request, only: [:create, :check_availability, :template_packs, :tiers]
-      skip_before_action :set_tenant, only: [:create, :check_availability, :template_packs, :tiers], raise: false
+      skip_before_action :authorize_request, only: [:create, :check_availability, :template_packs, :tiers, :invitation]
+      skip_before_action :set_tenant, only: [:create, :check_availability, :template_packs, :tiers, :invitation], raise: false
 
       # POST /api/v1/signup
       # Create a new tenant (self-service signup)
       def create
+        # Check for invitation token
+        invitation = nil
+        if params[:invite_token].present?
+          invitation = TrialInvitation.valid.find_by(token: params[:invite_token])
+          if invitation.nil?
+            return render json: {
+              success: false,
+              error: "Invalid or expired invitation"
+            }, status: :unprocessable_entity
+          end
+        end
+
+        # Use invitation data as defaults if available
+        effective_params = signup_params.to_h
+        if invitation
+          effective_params[:company_name] ||= invitation.company_name
+          effective_params[:admin_email] ||= invitation.email
+          effective_params[:admin_first_name] ||= invitation.name.split.first
+          effective_params[:admin_last_name] ||= invitation.name.split[1..].join(' ')
+        end
+
         # Validate required params
-        missing = required_params - signup_params.keys.select { |k| signup_params[k].present? }
+        missing = required_params - effective_params.keys.select { |k| effective_params[k].present? }
         if missing.any?
           return render json: {
             success: false,
@@ -19,7 +40,7 @@ module Api
         end
 
         # Check if company name/slug already exists
-        slug = signup_params[:company_name].to_s.parameterize
+        slug = effective_params[:company_name].to_s.parameterize
         if CorporateGroup.exists?(slug: slug)
           return render json: {
             success: false,
@@ -28,19 +49,28 @@ module Api
         end
 
         # Check if admin email already exists
-        if User.exists?(email: signup_params[:admin_email])
+        if User.exists?(email: effective_params[:admin_email])
           return render json: {
             success: false,
             error: "An account with this email already exists"
           }, status: :unprocessable_entity
         end
 
-        # Provision the tenant
-        service = TenantProvisioningService.new(signup_params.to_h)
+        # Provision the tenant with trial if from invitation
+        provision_params = effective_params.merge(
+          start_trial: invitation.present?,
+          trial_days: 30,
+          invited_by: invitation&.invited_by
+        )
+        service = TenantProvisioningService.new(provision_params)
         result = service.provision!
 
         if result[:success]
           tenant = result[:tenant]
+
+          # Mark invitation as accepted if present
+          invitation&.accept!(tenant)
+
           render json: {
             success: true,
             message: "Account created successfully",
@@ -48,7 +78,8 @@ module Api
               id: tenant.id,
               name: tenant.name,
               slug: tenant.slug,
-              login_url: "https://#{tenant.slug}.teeem.com.au"
+              login_url: "https://#{tenant.slug}.teeem.com.au",
+              trial_ends_at: tenant.trial_ends_at&.iso8601
             },
             admin_user: {
               id: result[:admin_user].id,
@@ -84,6 +115,47 @@ module Api
           available: available,
           suggested_slug: slug,
           login_url: available ? "https://#{slug}.teeem.com.au" : nil
+        }
+      end
+
+      # GET /api/v1/signup/invitation/:token
+      # Get invitation details by token (for prefilling signup form)
+      def invitation
+        token = params[:token]
+
+        if token.blank?
+          return render json: {
+            success: false,
+            error: "Token is required"
+          }, status: :bad_request
+        end
+
+        invitation = TrialInvitation.valid.find_by(token: token)
+
+        if invitation.nil?
+          return render json: {
+            success: false,
+            error: "Invalid or expired invitation"
+          }, status: :not_found
+        end
+
+        # Split name into first/last
+        name_parts = invitation.name.to_s.split
+        first_name = name_parts.first || ""
+        last_name = name_parts[1..].join(' ')
+
+        render json: {
+          success: true,
+          data: {
+            email: invitation.email,
+            name: invitation.name,
+            first_name: first_name,
+            last_name: last_name,
+            company_name: invitation.company_name,
+            personal_message: invitation.personal_message,
+            sender_name: invitation.sender_name,
+            expires_at: invitation.expires_at.iso8601
+          }
         }
       end
 
@@ -179,6 +251,7 @@ module Api
           :timezone,
           :locale,
           :currency,
+          :include_pricebook,
           template_pack_ids: []
         )
       end

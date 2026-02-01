@@ -60,7 +60,7 @@ export interface BankAccount {
   last_transaction_date?: string;
 }
 
-export interface CorporateCompany {
+export interface Corporate {
   id: number;
   name: string;
   previous_names?: string;
@@ -120,7 +120,7 @@ export interface CorporateCompany {
   bank_account_name?: string;
   bank_start_date?: string;
   bank_end_date?: string;
-  corporate_company_xero_connection?: {
+  corporate_xero_connection?: {
     id: number;
     connection_status: string;
     xero_tenant_name: string;
@@ -206,7 +206,7 @@ export interface OfficerRecord {
  */
 export interface CorporateTabProps {
   companyId: string;
-  company: CorporateCompany;
+  company: Corporate;
   onUpdate?: () => void;
   onRefresh?: () => Promise<void>;
 }

@@ -43,7 +43,7 @@ class SyncExclusionRule < ApplicationRecord
       name: "Corporate",
       description: "Company and entity documents",
       icon: "building",
-      warehouse_type: "corporate_entity"
+      warehouse_type: "corporate"
     },
     contacts: {
       name: "Contacts",
@@ -225,10 +225,10 @@ class SyncExclusionRule < ApplicationRecord
     user_rules = for_user(user).include_rules.where(rule_type: "folder_scope").pluck(:value)
 
     # Get storage configuration for folder paths
-    config = StorageConfiguration.instance
+    config = WarehouseProvider.instance
 
     FOLDER_SCOPES.map do |key, scope|
-      folder_path = config.root_folder_for(scope[:warehouse_type])
+      folder_path = config.path_for(scope[:warehouse_type])
       {
         key: key.to_s,
         name: scope[:name],

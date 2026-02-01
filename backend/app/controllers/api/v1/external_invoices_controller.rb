@@ -5,7 +5,7 @@ module Api
       # GET /api/v1/external_invoices
       # List invoices with optional filtering
       def index
-        invoices = ExternalInvoice.active.includes(:job)
+        invoices = ExternalInvoice.active.includes(:job, :warehouse_documents)
 
         # Filter by source
         invoices = invoices.where(source: params[:source]) if params[:source].present?
@@ -50,12 +50,13 @@ module Api
       end
 
       # GET /api/v1/external_invoices/:id
+      # Note: corporate_company_documents DROPPED (Jan 2026) - migrated to warehouse_documents
       def show
         invoice = ExternalInvoice.find(params[:id])
 
-        # Check if PDF is available in SharePoint (SSoT)
-        pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.storage_reference.present?
+        # Check if PDF is available (SSoT: now via warehouse_documents)
+        pdf_doc = invoice.warehouse_documents.find_by("metadata->>'document_type' = ?", document_type_for(invoice.invoice_type))
+        has_pdf = pdf_doc&.storage_blob.present?
 
         render json: {
           success: true,
@@ -70,12 +71,13 @@ module Api
 
       # GET /api/v1/external_invoices/by_external_id/:external_id
       # Find invoice by Xero ID (external_id) - for invoice detail modal
+      # Note: corporate_company_documents DROPPED (Jan 2026) - migrated to warehouse_documents
       def by_external_id
         invoice = ExternalInvoice.find_by!(external_id: params[:external_id])
 
-        # Check if PDF is available in SharePoint (SSoT)
-        pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.storage_reference.present?
+        # Check if PDF is available (SSoT: now via warehouse_documents)
+        pdf_doc = invoice.warehouse_documents.find_by("metadata->>'document_type' = ?", document_type_for(invoice.invoice_type))
+        has_pdf = pdf_doc&.storage_blob.present?
 
         render json: {
           success: true,
@@ -94,7 +96,7 @@ module Api
         job = Job.find(params[:job_id])
 
         invoices = ExternalInvoice.active
-                                  .includes(:job)
+                                  .includes(:job, :warehouse_documents)
                                   .where(job_id: job.id)
                                   .order(invoice_date: :desc)
 
@@ -166,10 +168,10 @@ module Api
 
         if job
           # Use job_id for fast lookup
-          invoices = ExternalInvoice.active.includes(:job).where(job_id: job.id)
+          invoices = ExternalInvoice.active.includes(:job, :warehouse_documents).where(job_id: job.id)
         else
           # Fall back to searching tracking_data JSON (slower but works for unlinked)
-          invoices = ExternalInvoice.active.includes(:job).with_tracking(tracking_option_name)
+          invoices = ExternalInvoice.active.includes(:job, :warehouse_documents).with_tracking(tracking_option_name)
         end
 
         invoices = invoices.order(invoice_date: :desc)
@@ -203,7 +205,7 @@ module Api
         contact = Contact.find(params[:contact_id])
 
         invoices = ExternalInvoice.active
-                                  .includes(:job)
+                                  .includes(:job, :warehouse_documents)
                                   .where(contact_id: contact.id)
                                   .order(invoice_date: :desc)
 
@@ -453,19 +455,20 @@ module Api
       end
 
       # GET /api/v1/external_invoices/:id/pdf
-      # Returns PDF from storage (SharePoint/S3) via storage_reference
+      # Returns PDF from storage (SharePoint/S3) via storage_blob
+      # Note: corporate_company_documents DROPPED (Jan 2026) - migrated to warehouse_documents
       def pdf
         invoice = ExternalInvoice.find(params[:id])
 
-        # SSoT: Find PDF by document_type (matches XeroAttachmentSyncService)
-        existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
+        # SSoT: Find PDF via warehouse_documents (document_type stored in metadata)
+        existing_pdf = invoice.warehouse_documents.find_by("metadata->>'document_type' = ?", document_type_for(invoice.invoice_type))
 
-        if existing_pdf&.storage_reference.present?
+        if existing_pdf&.storage_blob.present?
           # Use fetch_from_storage which handles paths correctly for any provider
           content = fetch_from_storage(existing_pdf)
           if content
             send_data content,
-                      filename: existing_pdf.file_name || "invoice.pdf",
+                      filename: existing_pdf.original_filename || "invoice.pdf",
                       type: "application/pdf",
                       disposition: "inline"
             return
@@ -479,11 +482,11 @@ module Api
         service = XeroAttachmentSyncService.new(invoice)
         result = service.sync!
 
-        if result[:pdf]&.storage_reference.present?
+        if result[:pdf]&.storage_blob.present?
           content = fetch_from_storage(result[:pdf])
           if content
             send_data content,
-                      filename: result[:pdf].file_name || "invoice.pdf",
+                      filename: result[:pdf].original_filename || "invoice.pdf",
                       type: "application/pdf",
                       disposition: "inline"
             return
@@ -555,23 +558,23 @@ module Api
 
       # GET /api/v1/external_invoices/:id/attachments
       # List all attachments for this invoice
+      # Note: corporate_company_documents DROPPED (Jan 2026) - migrated to warehouse_documents
       def attachments
         invoice = ExternalInvoice.find(params[:id])
 
-        # Return documents linked to this invoice (SharePoint SSoT)
-        documents = invoice.corporate_company_documents.map do |doc|
+        # Return documents linked to this invoice (SSoT: warehouse_documents)
+        documents = invoice.warehouse_documents.includes(:storage_blob).map do |doc|
           {
             id: doc.id,
-            title: doc.title,
-            file_name: doc.file_name,
-            document_type: doc.document_type,
+            title: doc.display_name,
+            file_name: doc.original_filename,
+            document_type: doc.metadata&.dig("document_type"),
             folder: doc.folder,
             file_size: doc.file_size,
-            mime_type: doc.mime_type,
-            has_file: doc.storage_reference.present?,
-            # SSoT: Use storage_reference, keep key for backwards compat
-            sharepoint_file_id: doc.storage_reference,
-            storage_reference: doc.storage_reference,
+            mime_type: doc.content_type,
+            has_file: doc.storage_blob.present?,
+            # SSoT: Use storage_blob path
+            storage_reference: doc.storage_blob&.storage_path,
             created_at: doc.created_at.iso8601
           }
         end
@@ -640,7 +643,9 @@ module Api
           # Xero-compatible fields for frontend backwards compatibility
           xero_invoice_id: invoice.external_id,
           xero_type: invoice.xero_type,
-          xero_status: invoice.xero_status
+          xero_status: invoice.xero_status,
+          # PDF sync status - true if a WarehouseDocument with storage_blob exists
+          has_pdf: invoice.warehouse_documents.any? { |wd| wd.storage_blob_id.present? }
         }
 
         if include_details

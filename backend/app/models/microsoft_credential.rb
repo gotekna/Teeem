@@ -98,7 +98,7 @@ class MicrosoftCredential < ApplicationRecord
   scope :alive, -> { where(refresh_token_dead: false) }
   scope :dead, -> { where(refresh_token_dead: true) }
   # REMOVED: with_sharepoint scope - columns removed in Phase 5
-  # Use StorageConfiguration.instance.connected? instead to check if SharePoint is configured
+  # Use WarehouseProvider.instance.connected? instead to check if SharePoint is configured
   # The scope was: where.not(sharepoint_site_id: nil).where.not(sharepoint_drive_id: nil)
 
   # SSoT: Organization-scoped credential lookup - ALWAYS use these instead of .first
@@ -188,6 +188,18 @@ class MicrosoftCredential < ApplicationRecord
       record_refresh_failure!(error_msg)
       false
     end
+  rescue ActiveRecord::StaleObjectError
+    # FRC (Jan 2026): Another process refreshed the token concurrently
+    # Reload to get the fresh token - don't record as failure
+    reload
+    if valid_credential?
+      Rails.logger.info "[MicrosoftCredential] Token already refreshed by another process for #{name || id}"
+      true
+    else
+      # Token still invalid after reload - actual failure
+      record_refresh_failure!("Concurrent token refresh failed")
+      false
+    end
   rescue StandardError => e
     record_refresh_failure!(e.message)
     false
@@ -235,6 +247,17 @@ class MicrosoftCredential < ApplicationRecord
       error_data = response.parse rescue {}
       error_msg = error_data["error_description"] || error_data["error"] || "Token refresh failed"
       record_refresh_failure!(error_msg)
+      false
+    end
+  rescue ActiveRecord::StaleObjectError
+    # FRC (Jan 2026): Another process refreshed the token concurrently
+    # Reload to get the fresh token - don't record as failure
+    reload
+    if valid_credential?
+      Rails.logger.info "[MicrosoftCredential] Token already refreshed by another process for #{owner_type}##{owner_id || name}"
+      true
+    else
+      record_refresh_failure!("Concurrent token refresh failed")
       false
     end
   rescue StandardError => e
@@ -380,11 +403,11 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   # SharePoint configuration helpers
-  # SSoT: Now uses StorageConfiguration for site_id/drive_id (Jan 2026)
+  # SSoT: Now uses WarehouseProvider for site_id/drive_id (Jan 2026)
   # MicrosoftCredential only provides the authentication credential
   # No hardcoded org names - configuration is tenant-specific
   def self.sharepoint_config
-    storage_config = StorageConfiguration.instance
+    storage_config = WarehouseProvider.instance
     return nil unless storage_config&.connected?
 
     {
@@ -400,56 +423,56 @@ class MicrosoftCredential < ApplicationRecord
     sharepoint_config
   end
 
-  # Check if SharePoint is configured (SSoT: StorageConfiguration)
+  # Check if SharePoint is configured (SSoT: WarehouseProvider)
   def self.sharepoint_configured?
-    StorageConfiguration.instance&.connected? && sharepoint_credential.present?
+    WarehouseProvider.instance&.connected? && sharepoint_credential.present?
   end
 
   # ╔════════════════════════════════════════════════════════════════════════╗
   # ║  DEPRECATED: Storage Delegation Methods (Jan 2026)                      ║
   # ║                                                                         ║
-  # ║  These methods delegate to StorageConfiguration for backward compat.   ║
-  # ║  NEW CODE SHOULD USE StorageConfiguration.instance.* DIRECTLY!          ║
+  # ║  These methods delegate to WarehouseProvider for backward compat.   ║
+  # ║  NEW CODE SHOULD USE WarehouseProvider.instance.* DIRECTLY!          ║
   # ║                                                                         ║
   # ║  Example:                                                               ║
   # ║    ❌ credential.drive_id                                               ║
-  # ║    ✅ StorageConfiguration.instance.drive_id                            ║
+  # ║    ✅ WarehouseProvider.instance.drive_id                            ║
   # ╚════════════════════════════════════════════════════════════════════════╝
 
-  # @deprecated Use StorageConfiguration.instance.drive_id instead
+  # @deprecated Use WarehouseProvider.instance.drive_id instead
   def drive_id
     ActiveSupport::Deprecation.warn(
-      "MicrosoftCredential#drive_id is deprecated. Use StorageConfiguration.instance.drive_id instead.",
+      "MicrosoftCredential#drive_id is deprecated. Use WarehouseProvider.instance.drive_id instead.",
       caller(1)
     )
-    StorageConfiguration.instance&.drive_id
+    WarehouseProvider.instance&.drive_id
   end
 
-  # @deprecated Use StorageConfiguration.instance.site_id instead
+  # @deprecated Use WarehouseProvider.instance.site_id instead
   def site_id
     ActiveSupport::Deprecation.warn(
-      "MicrosoftCredential#site_id is deprecated. Use StorageConfiguration.instance.site_id instead.",
+      "MicrosoftCredential#site_id is deprecated. Use WarehouseProvider.instance.site_id instead.",
       caller(1)
     )
-    StorageConfiguration.instance&.site_id
+    WarehouseProvider.instance&.site_id
   end
 
-  # @deprecated Use StorageConfiguration.instance.root_folder_id instead
+  # @deprecated Use WarehouseProvider.instance.root_folder_id instead
   def root_folder_id
     ActiveSupport::Deprecation.warn(
-      "MicrosoftCredential#root_folder_id is deprecated. Use StorageConfiguration.instance.root_folder_id instead.",
+      "MicrosoftCredential#root_folder_id is deprecated. Use WarehouseProvider.instance.root_folder_id instead.",
       caller(1)
     )
-    StorageConfiguration.instance&.root_folder_id
+    WarehouseProvider.instance&.root_folder_id
   end
 
-  # @deprecated Use StorageConfiguration.instance.root_folder_path instead
+  # @deprecated Use WarehouseProvider.instance.root_folder_path instead
   def root_folder_path
     ActiveSupport::Deprecation.warn(
-      "MicrosoftCredential#root_folder_path is deprecated. Use StorageConfiguration.instance.root_folder_path instead.",
+      "MicrosoftCredential#root_folder_path is deprecated. Use WarehouseProvider.instance.root_folder_path instead.",
       caller(1)
     )
-    StorageConfiguration.instance&.root_folder_path
+    WarehouseProvider.instance&.root_folder_path
   end
 
   # Test the connection by making a simple API call

@@ -192,7 +192,7 @@ module Api
           .order(created_at: :desc)
           .limit(100)
 
-        companies = CorporateCompany.order(:name)
+        companies = Corporate.order(:name)
           .limit(100)
 
         contacts = Contact.where.not(first_name: nil)
@@ -203,7 +203,7 @@ module Api
           success: true,
           data: {
             jobs: jobs.map { |j| folder_json(j, "Job") },
-            companies: companies.map { |c| folder_json(c, "CorporateCompany") },
+            companies: companies.map { |c| folder_json(c, "Corporate") },
             contacts: contacts.map { |c| folder_json(c, "Contact") }
           }
         }
@@ -227,7 +227,7 @@ module Api
         syncable_id = params[:syncable_id]
         include_subfolders = params[:include_subfolders] != false
 
-        unless %w[Job CorporateCompany Contact].include?(syncable_type)
+        unless %w[Job Corporate Contact].include?(syncable_type)
           return render json: { success: false, error: "Invalid syncable_type" }, status: :bad_request
         end
 
@@ -672,9 +672,9 @@ module Api
         end
       end
 
-      # SSoT: Uses StorageConfiguration for base paths
+      # SSoT: Uses WarehouseProvider for base paths
       def folder_json(entity, type)
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
         case type
         when "Job"
           base = config.path_for(:job)
@@ -687,15 +687,18 @@ module Api
             document_count: entity.job_documents.count,
             has_sharepoint_folder: entity.storage_folder_id.present?
           }
-        when "CorporateCompany"
+        when "Corporate"
           base = config.path_for(:corporate)
+          # SSoT: Use WarehouseDocument for company document count (Jan 2026)
+          doc_count = defined?(WarehouseDocument) ?
+            WarehouseDocument.where(documentable: entity).count : 0
           {
             id: "company:#{entity.id}",
-            type: "CorporateCompany",
+            type: "Corporate",
             syncable_id: entity.id,
             name: entity.name,
             path: "/#{base}/#{entity.name}",
-            document_count: entity.corporate_company_documents.count,
+            document_count: doc_count,
             has_sharepoint_folder: entity.respond_to?(:storage_folder_id) && entity.storage_folder_id.present?
           }
         when "Contact"
@@ -719,7 +722,6 @@ module Api
 
         case subscription.syncable_type
         when "Job"
-          docs = JobDocument.where(job_id: subscription.syncable_id)
             .where("updated_at > ?", subscription.last_sync_at || 100.years.ago)
 
           docs.each do |doc|
@@ -739,26 +741,32 @@ module Api
               }
             }
           end
-        when "CorporateCompany"
-          docs = CorporateCompanyDocument.where(company_id: subscription.syncable_id)
-            .where("updated_at > ?", subscription.last_sync_at || 100.years.ago)
+        when "Corporate"
+          # SSoT: Use WarehouseDocument for company documents (Jan 2026)
+          if defined?(WarehouseDocument)
+            docs = WarehouseDocument.where(documentable_type: "Corporate", documentable_id: subscription.syncable_id)
+              .where("updated_at > ?", subscription.last_sync_at || 100.years.ago)
+              .includes(:storage_blob)
 
-          docs.each do |doc|
-            next unless subscription.should_sync_file?(doc.file_name, doc.file_size)
+            docs.each do |doc|
+              file_name = doc.display_name || doc.storage_blob&.original_filename
+              file_size = doc.storage_blob&.file_size
+              next unless file_name && subscription.should_sync_file?(file_name, file_size)
 
-            changes << {
-              subscription_id: subscription.id,
-              type: doc_change_type(doc, subscription),
-              file: {
-                id: doc.id,
-                path: "#{subscription.remote_path}/#{doc.folder}/#{doc.file_name}",
-                name: doc.file_name,
-                size: doc.file_size,
-                modified_at: doc.updated_at,
-                item_id: doc.storage_reference,
-                content_hash: doc.content_hash
+              changes << {
+                subscription_id: subscription.id,
+                type: doc_change_type(doc, subscription),
+                file: {
+                  id: doc.id,
+                  path: "#{subscription.remote_path}/#{doc.folder}/#{file_name}",
+                  name: file_name,
+                  size: file_size,
+                  modified_at: doc.updated_at,
+                  item_id: doc.storage_blob&.storage_path,
+                  content_hash: doc.storage_blob&.content_hash
+                }
               }
-            }
+            end
           end
         end
 

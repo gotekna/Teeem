@@ -271,8 +271,8 @@ class EmailToJobService
   # When AI fails, try to extract customer name from email subject
   # Don't use internal senders as customers
   def extract_customer_from_subject_fallback
-    # SSoT: Get internal domains from CorporateCompanySetting
-    internal_domain_patterns = CorporateCompanySetting.internal_domain_patterns
+    # SSoT: Get internal domains from TenantSetting
+    internal_domain_patterns = TenantSetting.internal_domain_patterns
     sender_is_internal = internal_domain_patterns.any? { |d| @email.from_email&.downcase&.include?(d) }
 
     # Try to extract name from subject patterns like "Quote for [Name]" or "... for [Name]"
@@ -305,9 +305,9 @@ class EmailToJobService
     email_body = @email.body_text.presence || strip_html(@email.body_html)
 
     # Extract text from PDF attachments if present
-    # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
+    # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
     pdf_content = nil
-    if @email.email_attachments.any?
+    if @email.attachment_documents.any?
       pdf_texts = @email.extract_pdf_text
       if pdf_texts.present?
         pdf_content = pdf_texts.map do |pdf|
@@ -978,8 +978,8 @@ class EmailToJobService
     end
 
     # Internal sales: Prefer email sender if internal, otherwise the user who extracted
-    # SSoT: Get internal domains from CorporateCompanySetting
-    internal_domain_patterns = CorporateCompanySetting.internal_domain_patterns
+    # SSoT: Get internal domains from TenantSetting
+    internal_domain_patterns = TenantSetting.internal_domain_patterns
     sender_is_internal = internal_domain_patterns.any? { |d| @email.from_email&.downcase&.include?(d) }
 
     if sender_is_internal
@@ -1078,13 +1078,13 @@ class EmailToJobService
 
   def sync_pdf_attachments_if_needed
     # Skip if no attachments or already synced
-    # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
-    return unless @email.has_attachments && @email.email_attachments.empty?
+    # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+    return unless @email.has_attachments && @email.attachment_documents.empty?
 
     begin
       # SSoT: Per-user Outlook credentials removed - use org credentials via sync_attachments!
       @email.sync_attachments!
-      Rails.logger.info "Synced #{@email.email_attachments.count} PDF attachments for email #{@email.id}"
+      Rails.logger.info "Synced #{@email.attachment_documents.count} PDF attachments for email #{@email.id}"
     rescue StandardError => e
       Rails.logger.error "Failed to sync attachments for email #{@email.id}: #{e.message}"
       # Don't fail the whole process if attachment sync fails

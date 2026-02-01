@@ -1,0 +1,25 @@
+Your TEEEM Trial Has Ended
+==========================
+
+Hi <%= @user.first_name || @user.name %>,
+
+Your trial for <%= @tenant.name %> has expired.
+Your account is now in read-only mode. Upgrade to restore full access.
+
+WHAT THIS MEANS
+---------------
+- You can still log in and view all your existing data
+- You cannot create new jobs, contacts, or documents
+- You cannot edit existing records
+- Your data is safe and preserved for 30 days
+
+READY TO CONTINUE WITH TEEEM?
+-----------------------------
+Upgrade to a paid plan and pick up right where you left off. All your data, settings, and team members will be exactly as you left them.
+
+Upgrade Now: <%= @upgrade_url %>
+
+Need to talk about pricing or have questions? Reply to this email - we're here to help!
+
+---
+(c) <%= Time.current.year %> Tekna. All rights reserved.

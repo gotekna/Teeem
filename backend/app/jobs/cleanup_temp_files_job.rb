@@ -21,7 +21,7 @@ class CleanupTempFilesJob < ApplicationJob
     folder_path = "Temp/TaskResponseZips"
     cutoff_time = RETENTION_DAYS.days.ago
 
-    files = provider.list_files(folder_path) rescue []
+    files = provider.list_folder(folder_path) rescue []
     return if files.empty?
 
     deleted = 0

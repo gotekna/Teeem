@@ -390,9 +390,8 @@ namespace :phase3 do
       mismatched = 0
 
       sample_blobs.each do |blob|
-        actual = WarehouseDocument.where(storage_blob_id: blob.id).count +
-                 EmailAttachment.where(storage_blob_id: blob.id).count +
-                 CorporateCompanyDocument.where(storage_blob_id: blob.id).count
+        # SSoT: WarehouseDocument is THE ONE source
+        actual = WarehouseDocument.where(storage_blob_id: blob.id).count
 
         mismatched += 1 if actual != blob.reference_count
       end

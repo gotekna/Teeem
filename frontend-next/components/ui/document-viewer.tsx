@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Download,
   DownloadCloud,
@@ -476,10 +476,18 @@ export function DocumentViewer({
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [downloadingAll, setDownloadingAll] = useState(false);
 
+  // PDF blob URL cache - maps original URL to blob URL
+  // This ensures instant navigation when switching between files
+  const pdfBlobCacheRef = useRef<Map<string, string>>(new Map());
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfLoadProgress, setPdfLoadProgress] = useState<number>(0);
+
   const fileType = getFileType(fileName);
+  const hasFiles = files && files.length > 0;
   const hasMultipleFiles = files && files.length > 1;
   const hasQA = qaContext && qaContext.length > 0;
-  const hasSidebar = showSidebar ?? (hasQA || hasMultipleFiles);
+  const hasSidebar = showSidebar ?? (hasQA || hasFiles);
   const effectiveDownloadUrl = downloadUrl || url;
 
   // Download all files sequentially with small delays to avoid browser blocking
@@ -511,6 +519,179 @@ export function DocumentViewer({
       setDownloadingAll(false);
     }
   };
+
+  // Fetch PDF via JavaScript and create blob URL
+  // Architecture: Fetching via JS bypasses Content-Disposition headers entirely
+  // This guarantees PDFs always display, regardless of server configuration
+  //
+  // Features:
+  // - Blob URL caching: Instant navigation when switching between files
+  // - Progress tracking: User sees loading progress for large files
+  // - Pre-fetching: Next/prev files load in background for instant switching
+  // - Memory management: Blob URLs cleaned up on unmount
+  useEffect(() => {
+    console.log(`[DocumentViewer] PDF load - file: ${fileName}, type: ${fileType}, url: ${url ? url.substring(0, 80) + '...' : 'EMPTY'}`);
+
+    if (fileType !== "pdf") {
+      setPdfBlobUrl(null);
+      setPdfLoadProgress(0);
+      return;
+    }
+
+    // Handle empty/missing URL - show error instead of black screen
+    if (!url) {
+      console.warn(`[DocumentViewer] Empty URL for: ${fileName}`);
+      setPdfBlobUrl(null);
+      setPdfLoadProgress(0);
+      setError("Document URL not available. The file may not be uploaded to storage yet.");
+      setPdfLoading(false);
+      return;
+    }
+
+    // Check cache first - instant display if already loaded
+    const cached = pdfBlobCacheRef.current.get(url);
+    if (cached) {
+      setPdfBlobUrl(cached);
+      setPdfLoading(false);
+      setPdfLoadProgress(100);
+      return;
+    }
+
+    const controller = new AbortController();
+    setPdfLoading(true);
+    setPdfBlobUrl(null);
+    setPdfLoadProgress(0);
+    setError(null);
+
+    // Fetch with progress tracking
+    fetch(url, { signal: controller.signal })
+      .then(async res => {
+        if (!res.ok) throw new Error("Failed to fetch PDF");
+
+        // Try to get content length for progress
+        const contentLength = res.headers.get('content-length');
+        const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+        if (!total || !res.body) {
+          // No content-length or no body stream - fall back to simple blob
+          const blob = await res.blob();
+          return blob;
+        }
+
+        // Stream with progress
+        const reader = res.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          setPdfLoadProgress(Math.round((received / total) * 100));
+        }
+
+        // Combine chunks into blob - concatenate Uint8Arrays first
+        const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+        const combined = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+          combined.set(chunk, offset);
+          offset += chunk.length;
+        }
+        const blob = new Blob([combined], { type: 'application/pdf' });
+        return blob;
+      })
+      .then(async blob => {
+        console.log(`[DocumentViewer] PDF loaded: ${fileName} (${blob.size} bytes)`);
+
+        // Validate PDF content - detect corrupted/invalid files
+        // Real PDFs start with %PDF magic bytes and are typically >500 bytes
+        const MIN_PDF_SIZE = 500;
+        if (blob.size < MIN_PDF_SIZE) {
+          console.error(`[DocumentViewer] PDF content too small (${blob.size} bytes) - likely corrupted: ${fileName}`);
+          setError("Document appears to be corrupted or incomplete. Click Download to save the file.");
+          setPdfLoading(false);
+          return;
+        }
+
+        // Check PDF magic bytes (%PDF = 0x25 0x50 0x44 0x46)
+        const header = await blob.slice(0, 4).text();
+        if (!header.startsWith('%PDF')) {
+          console.error(`[DocumentViewer] Invalid PDF header "${header}" - not a PDF: ${fileName}`);
+          setError("Document is not a valid PDF. Click Download to save the file.");
+          setPdfLoading(false);
+          return;
+        }
+
+        console.log(`[DocumentViewer] PDF validated successfully: ${fileName}`);
+        const blobUrl = URL.createObjectURL(blob);
+        // Cache for instant navigation
+        pdfBlobCacheRef.current.set(url, blobUrl);
+        setPdfBlobUrl(blobUrl);
+        setPdfLoadProgress(100);
+        setPdfLoading(false);
+      })
+      .catch(err => {
+        // CRITICAL: Aborted fetches must NOT change loading state
+        // When user switches files rapidly, old fetch is aborted and new fetch starts.
+        // If we set pdfLoading=false here, it overwrites the new fetch's loading=true state,
+        // causing a race condition that shows black screen instead of loading indicator.
+        if (err.name === 'AbortError') {
+          console.log(`[DocumentViewer] Fetch aborted (user switched files): ${fileName}`);
+          return;
+        }
+        console.error(`[DocumentViewer] PDF fetch failed for ${fileName}:`, err);
+        setError("Unable to load PDF. Click Download to save the file.");
+        setPdfLoading(false);
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [fileType, url]);
+
+  // Pre-fetch adjacent PDFs for instant navigation
+  useEffect(() => {
+    if (!files || files.length <= 1) return;
+
+    const prefetchPdf = async (fileUrl: string) => {
+      // Skip if already cached or not a PDF URL
+      if (pdfBlobCacheRef.current.has(fileUrl)) return;
+      if (!fileUrl) return;
+
+      try {
+        const res = await fetch(fileUrl);
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        pdfBlobCacheRef.current.set(fileUrl, blobUrl);
+      } catch {
+        // Silent fail for pre-fetch
+      }
+    };
+
+    // Pre-fetch next and previous PDF files
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : null;
+    const nextIndex = currentIndex < files.length - 1 ? currentIndex + 1 : null;
+
+    if (prevIndex !== null && getFileType(files[prevIndex].name) === 'pdf') {
+      prefetchPdf(files[prevIndex].openUrl);
+    }
+    if (nextIndex !== null && getFileType(files[nextIndex].name) === 'pdf') {
+      prefetchPdf(files[nextIndex].openUrl);
+    }
+  }, [files, currentIndex]);
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      pdfBlobCacheRef.current.forEach(blobUrl => {
+        URL.revokeObjectURL(blobUrl);
+      });
+      pdfBlobCacheRef.current.clear();
+    };
+  }, []);
 
   // Fetch and parse EML content when URL changes
   useEffect(() => {
@@ -704,10 +885,10 @@ export function DocumentViewer({
             )}
 
             {/* File Navigation - Vertical list */}
-            {hasMultipleFiles && (
+            {hasFiles && (
               <div className="flex-1 overflow-y-auto p-2">
                 <div className={cn("text-xs uppercase tracking-wide px-2 py-1 mb-2", isDark ? "text-gray-500" : "text-gray-400")}>
-                  Files ({files!.length})
+                  {files!.length === 1 ? 'File' : 'Files'} ({files!.length})
                 </div>
                 <div className="space-y-1">
                   {files!.map((file, index) => (
@@ -762,10 +943,10 @@ export function DocumentViewer({
         {/* Document viewer - takes remaining space */}
         <main className="flex-1 flex items-center justify-center p-4 min-w-0">
           {error ? (
-            <div className="bg-white p-8 rounded-lg shadow-md text-center max-w-md">
+            <div className={`p-8 rounded-lg shadow-md text-center max-w-md ${isDark ? "bg-gray-800" : "bg-white"}`}>
               <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">Unable to Preview</h2>
-              <p className="text-gray-600 mb-4">{error}</p>
+              <h2 className={`text-xl font-semibold mb-2 ${isDark ? "text-white" : "text-gray-800"}`}>Unable to Preview</h2>
+              <p className={`mb-4 ${isDark ? "text-gray-300" : "text-gray-600"}`}>{error}</p>
               <a
                 href={effectiveDownloadUrl}
                 download={fileName}
@@ -776,12 +957,69 @@ export function DocumentViewer({
               </a>
             </div>
           ) : fileType === "pdf" ? (
-            <iframe
-              src={url}
-              className="w-full h-full rounded-lg shadow-2xl"
-              style={{ minHeight: "calc(100vh - 200px)" }}
-              onError={() => setError("Unable to load PDF preview")}
-            />
+            pdfLoading ? (
+              <div className="flex flex-col items-center justify-center gap-4">
+                {/* Professional loading indicator with progress */}
+                <div className="w-16 h-16 relative">
+                  <svg className="w-full h-full" viewBox="0 0 100 100">
+                    {/* Background circle */}
+                    <circle
+                      cx="50" cy="50" r="40"
+                      fill="none"
+                      stroke={isDark ? "#374151" : "#e5e7eb"}
+                      strokeWidth="8"
+                    />
+                    {/* Progress circle */}
+                    <circle
+                      cx="50" cy="50" r="40"
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={`${pdfLoadProgress * 2.51} 251`}
+                      transform="rotate(-90 50 50)"
+                      className="transition-all duration-300"
+                    />
+                  </svg>
+                  {/* Percentage text */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-700"}`}>
+                      {pdfLoadProgress}%
+                    </span>
+                  </div>
+                </div>
+                <p className={isDark ? "text-gray-300" : "text-gray-600"}>
+                  Loading document...
+                </p>
+              </div>
+            ) : pdfBlobUrl ? (
+              <iframe
+                key={pdfBlobUrl}
+                src={pdfBlobUrl}
+                className="w-full h-full rounded-lg shadow-2xl"
+                style={{ minHeight: "calc(100vh - 200px)" }}
+                onError={() => setError("Unable to load PDF preview")}
+              />
+            ) : (
+              // Fallback UI when PDF blob URL couldn't be created (prevents black screen)
+              <div className={`p-8 rounded-lg shadow-md text-center max-w-md ${isDark ? "bg-gray-800" : "bg-white"}`}>
+                <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h2 className={`text-xl font-semibold mb-2 ${isDark ? "text-white" : "text-gray-800"}`}>
+                  Unable to Preview
+                </h2>
+                <p className={`mb-4 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
+                  This document couldn&apos;t be loaded for preview.
+                </p>
+                <a
+                  href={effectiveDownloadUrl}
+                  download={fileName}
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
+                >
+                  <Download className="h-5 w-5" />
+                  Download File
+                </a>
+              </div>
+            )
           ) : fileType === "image" ? (
             <div className="max-w-full max-h-full overflow-auto">
               <img

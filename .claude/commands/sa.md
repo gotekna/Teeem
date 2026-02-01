@@ -42,7 +42,7 @@ git stash list
 
 ### Step 3 - Verify Backend Changes Before Commit
 **IMPORTANT: If `git status --short` shows ANY backend/ files, note them here.**
-**After commit, verify they were included with `git diff --name-only HEAD~1 HEAD | grep backend/`**
+**After commit, verify they were included with `git diff --name-only HEAD~10 HEAD 2>/dev/null | grep backend/`**
 
 If backend files were shown in status but NOT in the committed diff, STOP and investigate.
 
@@ -128,7 +128,7 @@ git push origin Staging
 ### Step 6.5 - Verify Backend Changes Were Committed
 **CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
 ```bash
-git diff --name-only HEAD~1 HEAD | grep backend/
+git diff --name-only HEAD~10 HEAD 2>/dev/null | grep backend/
 ```
 **If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
 
@@ -136,13 +136,13 @@ git diff --name-only HEAD~1 HEAD | grep backend/
 
 **Check if backend files were in the commit:**
 ```bash
-git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
+git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "BACKEND: Deploy needed" || echo "BACKEND: No changes, skip Heroku"
 ```
 
 **If backend changed**, run additional backend checks then deploy:
 ```bash
 # Check migrations can run locally
-if git diff --name-only HEAD~1 HEAD | grep "^backend/db/migrate/" > /dev/null; then
+if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep "^backend/db/migrate/" > /dev/null; then
   echo "Checking migrations..."
   cd backend && bin/rails db:migrate:status > /dev/null 2>&1 || {
     echo "❌ Migration check failed - fix locally first"
@@ -166,9 +166,9 @@ cp -r backend/* "$DEPLOY_DIR/"
 
 # VERIFICATION: Check that latest changes are in copied directory
 # Compare git HEAD with copied files to ensure Edit tool changes are included
-if git diff --name-only HEAD~1 HEAD | grep "^backend/" > /dev/null; then
+if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep "^backend/" > /dev/null; then
   echo "✅ Verifying copied files match git commit..."
-  git diff --name-only HEAD~1 HEAD | grep "^backend/" | while read file; do
+  git diff --name-only HEAD~10 HEAD 2>/dev/null | grep "^backend/" | while read file; do
     if [ -f "$file" ] && [ -f "$DEPLOY_DIR/${file#backend/}" ]; then
       if ! diff -q "$file" "$DEPLOY_DIR/${file#backend/}" > /dev/null 2>&1; then
         echo "⚠️  Warning: $file differs between git and deploy directory"
@@ -196,7 +196,7 @@ rm -rf "$DEPLOY_DIR"
 ```bash
 BACKEND_VERSION=$(curl -s https://teeem-staging-*.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")
 BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
-BACKEND_DEPLOYED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "deployed" || echo "skipped")
+BACKEND_DEPLOYED=$(git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "deployed" || echo "skipped")
 ```
 
 **Output format:**

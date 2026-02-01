@@ -13,7 +13,7 @@ module Api
     #   3. POST /api/v1/uploads/confirm - Confirm upload and create record
     #
     # Scopes determine where the file is stored and what record type is created:
-    #   - documents: CorporateCompanyDocument (corporate documents)
+    #   - documents: WarehouseDocument (corporate documents)
     #   - user_documents: UserDocument (personal documents)
     #   - job_documents: Job attachments
     #   - task_attachments: SmTaskAttachment (use SmTasksController instead)
@@ -47,12 +47,15 @@ module Api
         end
 
         begin
+          Rails.logger.info "[UploadsController#presign] Starting presign for scope=#{scope}, filename=#{filename}"
           provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+          Rails.logger.info "[UploadsController#presign] Got provider"
 
           # Build storage path based on scope
           folder_path = build_folder_path(scope, metadata)
           safe_filename = sanitize_filename(filename)
           temp_key = "#{folder_path}/#{Time.current.to_i}_#{SecureRandom.hex(4)}_#{safe_filename}"
+          Rails.logger.info "[UploadsController#presign] Built temp_key=#{temp_key}"
 
           # Get presigned upload URL
           upload_url = provider.presigned_upload_url(
@@ -61,6 +64,7 @@ module Api
             expires_in: 3600,
             content_type: content_type
           )
+          Rails.logger.info "[UploadsController#presign] Got presigned URL"
 
           render json: {
             success: true,
@@ -72,10 +76,13 @@ module Api
             expires_in: 3600
           }
         rescue DocumentProviders::NotConnectedError => e
+          Rails.logger.error "[UploadsController#presign] Not connected: #{e.message}"
           render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
         rescue => e
-          Rails.logger.error "[UploadsController#presign] Failed: #{e.message}"
-          render json: { success: false, error: "Failed to generate upload URL" }, status: :unprocessable_entity
+          Rails.logger.error "[UploadsController#presign] Failed: #{e.class} - #{e.message}"
+          Rails.logger.error e.backtrace.first(5).join("\n")
+          # Return actual error message for debugging (internal API)
+          render json: { success: false, error: "Failed to generate upload URL: #{e.message}" }, status: :unprocessable_entity
         end
       end
 
@@ -131,9 +138,9 @@ module Api
         VALID_SCOPES.include?(scope)
       end
 
-      # SSoT: Uses StorageConfiguration for base folders (Jan 2026)
+      # SSoT: Uses WarehouseProvider for base folders (Jan 2026)
       def build_folder_path(scope, metadata)
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
 
         case scope
         when "documents"
@@ -178,29 +185,34 @@ module Api
         end
       end
 
+      # SSoT: Uses WarehouseDocument directly
       def create_corporate_document(key, filename, content_type, file_size, metadata, provider)
         # Get company from metadata or current user's default
         company_id = metadata[:company_id] || metadata["company_id"]
-        company = company_id ? CorporateCompany.find_by(id: company_id) : current_user.corporate_companies.first
+        company = company_id ? Corporate.find_by(id: company_id) : current_user.corporates.first
         return { success: false, error: "Company required for corporate documents" } unless company
 
         # Move to permanent location with content-hash deduplication
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
-        doc = CorporateCompanyDocument.create!(
-          file_name: filename,
-          document_type: metadata[:document_type] || metadata["document_type"] || "other",
-          storage_blob: blob,
-          content_hash: blob.content_hash,
-          file_size: file_size,
-          mime_type: content_type,
-          company_id: company.id,
-          user: current_user,
+        doc = WarehouseDocument.create!(
+          source_type: "corporate",
+          display_name: filename,
+          original_filename: filename,
           folder: metadata[:folder] || metadata["folder"],
-          source: "manual"
+          content_type: content_type,
+          file_size: file_size,
+          storage_blob: blob,
+          linkable: company,
+          metadata: {
+            document_type: metadata[:document_type] || metadata["document_type"] || "other",
+            company_code: company.company_code,
+            source: "manual",
+            uploaded_by_id: current_user&.id
+          }
         )
 
-        { success: true, document: document_to_json(doc) }
+        { success: true, document: { id: doc.id, file_name: doc.display_name, display_name: doc.display_name } }
       end
 
       def create_user_document(key, filename, content_type, file_size, metadata, provider)
@@ -220,6 +232,7 @@ module Api
         { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.display_name } }
       end
 
+      # SSoT (Jan 2026): Uses WarehouseDocument directly (no legacy JobDocument)
       def create_job_document(key, filename, content_type, file_size, metadata, provider)
         job_id = metadata[:job_id] || metadata["job_id"]
         job = Job.find_by(id: job_id)
@@ -227,24 +240,24 @@ module Api
 
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
-        # SSoT: storage_item_id is THE ONE identifier for all storage providers
-        # (Provider-agnostic - was renamed from sharepoint_item_id)
-        doc = JobDocument.create!(
-          file_name: filename,
-          storage_blob: blob,
-          storage_item_id: blob.storage_path,  # SSoT: THE ONE storage identifier
-          storage_path: blob.storage_path,
-          storage_provider: "s3_compatible",
-          content_hash: blob.content_hash,
+        doc = WarehouseDocument.create!(
+          source_type: "job",
+          display_name: filename,
+          original_filename: filename,
+          folder: metadata[:folder_path] || metadata["folder_path"] || "Uploads",
+          content_type: content_type,
           file_size: file_size,
-          mime_type: content_type,
-          job: job,
-          folder_path: metadata[:folder_path] || metadata["folder_path"] || "Uploads",
-          source: "manual",
-          sync_status: "synced"
+          storage_blob: blob,
+          linkable: job,
+          metadata: {
+            job_code: job.job_code,
+            document_type: metadata[:document_type] || metadata["document_type"],
+            storage_provider: "s3_compatible",
+            source: "manual"
+          }
         )
 
-        { success: true, document: { id: doc.id, file_name: doc.file_name, display_name: doc.file_name } }
+        { success: true, document: { id: doc.id, file_name: doc.display_name, display_name: doc.display_name } }
       end
 
       def find_or_create_blob(temp_key, filename, content_type, file_size, provider)

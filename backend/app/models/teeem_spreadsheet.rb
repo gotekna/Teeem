@@ -4,6 +4,11 @@ class TeeemSpreadsheet < ApplicationRecord
 
   belongs_to :user
   belongs_to :job, optional: true
+  belongs_to :storage_blob, optional: true
+
+  # Phase 4: Universal warehouse metadata (SSoT for display_name, folder)
+  # User-created spreadsheets appear in File Warehouse under Warehousing folder
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
 
   validates :name, presence: true, length: { maximum: 255 }
 
@@ -24,7 +29,7 @@ class TeeemSpreadsheet < ApplicationRecord
   scope :unattached, -> { where(job_id: nil) }
 
   # ========================================
-  # Warehouse Path (SSoT: StorageConfiguration)
+  # Warehouse Path (SSoT: WarehouseProvider)
   # ========================================
 
   # SSoT: Full warehouse path including filename
@@ -33,9 +38,9 @@ class TeeemSpreadsheet < ApplicationRecord
     "#{warehouse_folder_path}/#{safe_filename}_#{id}.xlsx".gsub(%r{/+}, "/")
   end
 
-  # SSoT: Folder path computed by StorageConfiguration
+  # SSoT: Folder path computed by WarehouseProvider
   def warehouse_folder_path
-    StorageConfiguration.instance.resolve_warehouse_path(self, scope: :excel_documents)
+    WarehouseProvider.instance.resolve_warehouse_path(self, scope: :excel_documents)
   end
 
   # Safe filename (remove special characters)

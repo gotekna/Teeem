@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Accordion,
@@ -132,6 +133,7 @@ export function ConfigSyncTab() {
   const [pushing, setPushing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [applyPriceMarkup, setApplyPriceMarkup] = useState(false);
 
 
   // Fetch available tables on mount
@@ -305,22 +307,37 @@ export function ConfigSyncTab() {
       setSyncing(true);
       setError(null);
 
+      // Prepare request body
+      const requestBody: {
+        table: string;
+        record_ids: number[];
+        mode: SyncMode;
+        price_markup_percent?: number;
+      } = {
+        table: selectedTable,
+        record_ids: rowsToPull.map((r) => r.teeemRecord!.id),
+        mode: mode,
+      };
+
+      // Add price markup for pricebook-related tables
+      if (applyPriceMarkup && (selectedTable === "pricebook_items" || selectedTable === "price_histories")) {
+        requestBody.price_markup_percent = 5; // 5% markup
+      }
+
       const response = await api.post<{
         success: boolean;
         imported?: ConfigRecord[];
         updated?: ConfigRecord[];
         skipped?: Array<{ name: string; reason: string }>;
         error?: string;
-      }>("/api/v1/config_sync/pull", {
-        table: selectedTable,
-        record_ids: rowsToPull.map((r) => r.teeemRecord!.id),
-        mode: mode,
-      });
+        price_markup_applied?: number;
+      }>("/api/v1/config_sync/pull", requestBody);
 
       if (response?.success) {
         const imported = response.imported?.length || 0;
         const updated = response.updated?.length || 0;
-        setSyncResult(`Pulled: ${imported} added, ${updated} updated`);
+        const markupNote = response.price_markup_applied ? ` (${response.price_markup_applied}% markup applied)` : "";
+        setSyncResult(`Pulled: ${imported} added, ${updated} updated${markupNote}`);
         // Refresh comparison
         await fetchComparison();
       } else {
@@ -486,6 +503,19 @@ export function ConfigSyncTab() {
             <Button variant="ghost" size="sm" onClick={clearSelection}>
               Clear
             </Button>
+            {/* Price markup checkbox for pricebook tables */}
+            {(selectedTable === "pricebook_items" || selectedTable === "price_histories") && (
+              <div className="flex items-center gap-2 ml-4 pl-4 border-l">
+                <Checkbox
+                  id="apply-markup"
+                  checked={applyPriceMarkup}
+                  onCheckedChange={(checked) => setApplyPriceMarkup(checked === true)}
+                />
+                <Label htmlFor="apply-markup" className="text-sm cursor-pointer">
+                  Apply 5% markup to prices
+                </Label>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">

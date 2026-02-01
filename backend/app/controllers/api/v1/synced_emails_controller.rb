@@ -1,7 +1,7 @@
 # Renamed from EmailWarehouseController (Jan 2026)
 class Api::V1::SyncedEmailsController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :download_attachment, :download_eml, :attachment_presigned_url ]
-  before_action :require_admin, only: [ :bulk_delete_spam ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :mark_read, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :download_attachment, :download_eml, :attachment_presigned_url ]
+  before_action :require_admin, only: [ :bulk_delete_spam, :sync_dashboard ]
 
   # GET /api/v1/synced_emails
   # List synced emails with filtering
@@ -35,11 +35,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
         bind_values << user_imap_ids
       end
 
-      # MS365 org mailboxes - filter by credential AND mailbox email
+      # Ultra Email Architecture: MS365 org mailboxes - filter via mailbox_appearances join table
+      # This allows emails sent to multiple recipients to be seen by all of them
       if ms365_cred_ids.any?
-        conditions << "(microsoft_credential_id IN (?) AND mailbox_owner_email IN (?))"
+        # Join with mailbox_appearances to find emails visible to this user's mailboxes
+        conditions << "(id IN (SELECT synced_email_id FROM synced_email_mailboxes WHERE microsoft_credential_id IN (?) AND LOWER(mailbox_owner_email) IN (?)))"
         bind_values << ms365_cred_ids
-        bind_values << ms365_mailbox_emails
+        bind_values << ms365_mailbox_emails.map(&:downcase)
       end
 
       if conditions.any?
@@ -126,21 +128,35 @@ class Api::V1::SyncedEmailsController < ApplicationController
       emails = emails.where(imap_credential_id: params[:imap_credential_id])
     end
 
+    # Filter by PolarisMail mailbox (EmailMailbox)
+    if params[:email_mailbox_id].present?
+      emails = emails.where(email_mailbox_id: params[:email_mailbox_id])
+    end
+
     # Filter by mailbox_owner_email (for Warehouse links to historical mailboxes)
     # This allows filtering by mailbox even if it's not a connected account
-    if params[:mailbox_owner_email].present?
-      emails = emails.where("LOWER(mailbox_owner_email) = LOWER(?)", params[:mailbox_owner_email])
+    # ⚠️ FRC (Jan 2026): When microsoft_credential_id is present, SKIP this filter!
+    # Ultra Email Architecture stores emails once with the FIRST mailbox's owner.
+    # If James and Robert both receive the same email, it has mailbox_owner_email=robert
+    # but James's mailbox appearance exists in the join table. Filtering here would exclude it.
+    # The MS365 block below will handle mailbox filtering via the join table instead.
+    if params[:mailbox_owner_email].present? && params[:microsoft_credential_id].blank?
+      emails = emails.where("LOWER(synced_emails.mailbox_owner_email) = LOWER(?)", params[:mailbox_owner_email])
     end
 
     # Filter by folder name or ID (e.g., "Sent Items", "Inbox", etc.)
     # SSoT: Use in_folder scope for case-insensitive matching (Gmail=INBOX, Outlook=Inbox, etc.)
-    if params[:folder_id].present?
-      emails = emails.in_folder(params[:folder_id])
-    end
-    if params[:folder_name].present?
-      Rails.logger.info "[SyncedEmail] Filtering by folder_name: #{params[:folder_name].inspect}"
-      emails = emails.in_folder(params[:folder_name])
-      Rails.logger.info "[SyncedEmail] After folder filter, count: #{emails.count}"
+    # NOTE: For MS365 with microsoft_credential_id, folder filtering is handled in the
+    # mailbox_appearances join block below (folder_name is per-mailbox in join table)
+    if params[:microsoft_credential_id].blank?
+      if params[:folder_id].present?
+        emails = emails.in_folder(params[:folder_id])
+      end
+      if params[:folder_name].present?
+        Rails.logger.info "[SyncedEmail] Filtering by folder_name: #{params[:folder_name].inspect}"
+        emails = emails.in_folder(params[:folder_name])
+        Rails.logger.info "[SyncedEmail] After folder filter, count: #{emails.count}"
+      end
     end
 
     # Filter by direction (sent, received, cc, bcc)
@@ -182,12 +198,50 @@ class Api::V1::SyncedEmailsController < ApplicationController
         Rails.logger.info "[SyncedEmail] MS365 filter: credential=#{org_cred.id}, user_mailboxes=#{user_mailboxes.inspect}"
 
         if user_mailboxes.any?
-          emails = emails.where(microsoft_credential_id: params[:microsoft_credential_id])
-          # If specific mailbox requested, filter to that (if user has access)
-          if params[:mailbox].present? && user_mailboxes.map(&:downcase).include?(params[:mailbox].downcase)
-            emails = emails.where("LOWER(mailbox_owner_email) = LOWER(?)", params[:mailbox])
+          # Ultra Email Architecture: Filter via mailbox_appearances join table
+          # This allows emails sent to multiple recipients to be seen by all of them
+          # ⚠️ FRC (Jan 2026): Do NOT filter on synced_emails.microsoft_credential_id!
+          # An email may be synced by Org A (cred 9) but have a mailbox appearance for Org B (cred 11).
+          # Example: Derick sends to robert@tekna AND james@hoh - synced once via Tekna, but visible in both.
+          # We filter on the JOIN TABLE's credential, not the main table's.
+          # Accept both :mailbox and :mailbox_owner_email params (frontend sends mailbox_owner_email)
+          specific_mailbox = params[:mailbox].presence || params[:mailbox_owner_email].presence
+          if specific_mailbox.present? && user_mailboxes.map(&:downcase).include?(specific_mailbox.downcase)
+            # Specific mailbox requested - filter by mailbox and credential on JOIN table
+            emails = emails.joins(:mailbox_appearances)
+              .where("synced_email_mailboxes.microsoft_credential_id = ?", params[:microsoft_credential_id])
+              .where("LOWER(synced_email_mailboxes.mailbox_owner_email) = LOWER(?)", specific_mailbox)
+              .distinct
+
+            # Ultra Email Architecture: folder_name is now per-mailbox in join table
+            # Apply folder filter on join table, not main table
+            if params[:folder_name].present?
+              # Handle Sent folder variations (Sent, Sent Items, [Gmail]/Sent Mail)
+              sent_variants = %w[sent sent\ items [gmail]/sent\ mail]
+              folder_lower = params[:folder_name].to_s.downcase
+              if sent_variants.include?(folder_lower)
+                emails = emails.where("LOWER(synced_email_mailboxes.folder_name) IN (?)", sent_variants)
+              else
+                emails = emails.where("LOWER(synced_email_mailboxes.folder_name) = LOWER(?)", params[:folder_name])
+              end
+            end
           else
-            emails = emails.where("LOWER(mailbox_owner_email) IN (?)", user_mailboxes)
+            # All user's mailboxes - filter by mailboxes and credential on JOIN table
+            emails = emails.joins(:mailbox_appearances)
+              .where("synced_email_mailboxes.microsoft_credential_id = ?", params[:microsoft_credential_id])
+              .where("LOWER(synced_email_mailboxes.mailbox_owner_email) IN (?)", user_mailboxes.map(&:downcase))
+              .distinct
+
+            # Ultra Email Architecture: folder_name is now per-mailbox in join table
+            if params[:folder_name].present?
+              sent_variants = %w[sent sent\ items [gmail]/sent\ mail]
+              folder_lower = params[:folder_name].to_s.downcase
+              if sent_variants.include?(folder_lower)
+                emails = emails.where("LOWER(synced_email_mailboxes.folder_name) IN (?)", sent_variants)
+              else
+                emails = emails.where("LOWER(synced_email_mailboxes.folder_name) = LOWER(?)", params[:folder_name])
+              end
+            end
           end
         else
           # User has no access to this credential's mailboxes
@@ -434,12 +488,25 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
   # POST /api/v1/synced_email/sync
   # Trigger manual email sync from Office 365
+  # FRC (Jan 2026): Push to :default queue instead of perform_now or :low queue
+  # Root cause: perform_now blocks web worker causing cascading timeouts.
+  # Using :low queue puts it behind 80+ background jobs, useless for manual refresh.
+  # Solution: :default queue = highest priority, processes immediately, non-blocking.
   def sync
     # SSoT: Sync ALL connected MS365 organizations (not just one)
     connected_orgs = MicrosoftCredential.app_credentials.connected
 
+    if connected_orgs.empty?
+      return render json: {
+        success: false,
+        message: "No connected email organizations found"
+      }
+    end
+
+    # Push to :default queue (high priority) so manual refresh jumps the queue
+    # Manual sync only fetches delta since last auto-sync (~few seconds of work)
     connected_orgs.each do |cred|
-      OrgEmailSyncJob.perform_later("incremental", credential_id: cred.id)
+      OrgEmailSyncJob.set(queue: :default).perform_later("incremental", credential_id: cred.id)
     end
 
     render json: {
@@ -481,6 +548,106 @@ class Api::V1::SyncedEmailsController < ApplicationController
     }
   end
 
+  # GET /api/v1/synced_emails/sync_dashboard
+  # Admin dashboard showing mailboxes grouped by organization with sync stats
+  def sync_dashboard
+    # MS365 Organizations
+    ms_credentials = MicrosoftCredential.app_credentials.connected.includes(:organization)
+
+    ms365_orgs = ms_credentials.map do |cred|
+      mailboxes = SyncedEmailMailbox
+        .where(microsoft_credential_id: cred.id)
+        .select("LOWER(mailbox_owner_email) as email")
+        .distinct
+        .pluck("LOWER(mailbox_owner_email)")
+        .map { |email| mailbox_stats_for_dashboard(cred.id, email, :microsoft, credential_last_synced_at: cred.last_sync_at) }
+        .sort_by { |m| -m[:email_count] }
+
+      {
+        id: cred.id,
+        type: "microsoft",
+        name: cred.name || cred.organization&.name || "Unknown",
+        status: cred.status,
+        last_sync_at: cred.last_sync_at,
+        total_emails: mailboxes.sum { |m| m[:email_count] },
+        mailboxes: mailboxes,
+        sync_config: {
+          sync_all: cred.sync_config&.dig("sync_all") || false,
+          sync_years: cred.sync_config&.dig("sync_years") || 3
+        }
+      }
+    end
+
+    # IMAP Accounts
+    imap_credentials = ImapCredential.where(is_active: true)
+
+    imap_accounts = imap_credentials.map do |cred|
+      mailboxes = SyncedEmailMailbox
+        .where(imap_credential_id: cred.id)
+        .select("LOWER(mailbox_owner_email) as email")
+        .distinct
+        .pluck("LOWER(mailbox_owner_email)")
+        .map { |email| mailbox_stats_for_dashboard(cred.id, email, :imap, credential_last_synced_at: cred.last_synced_at) }
+        .sort_by { |m| -m[:email_count] }
+
+      {
+        id: cred.id,
+        type: "imap",
+        name: cred.name.presence || cred.email_address,
+        status: cred.is_active ? "connected" : "disconnected",
+        last_sync_at: cred.last_synced_at,
+        total_emails: mailboxes.sum { |m| m[:email_count] },
+        mailboxes: mailboxes,
+        sync_config: {
+          sync_all: cred.sync_all || false
+        }
+      }
+    end
+
+    # Combine both types
+    all_organizations = ms365_orgs + imap_accounts
+
+    # Orphaned mailboxes (no credential linked - can't sync)
+    orphaned_mailboxes = SyncedEmailMailbox
+      .where(microsoft_credential_id: nil, imap_credential_id: nil)
+      .select("LOWER(mailbox_owner_email) as email")
+      .distinct
+      .pluck("LOWER(mailbox_owner_email)")
+      .map { |email| mailbox_stats_for_dashboard(nil, email, :orphaned) }
+      .sort_by { |m| -m[:email_count] }
+
+    if orphaned_mailboxes.any?
+      all_organizations << {
+        id: 0,
+        type: "orphaned",
+        name: "Orphaned (No Credential)",
+        status: "warning",
+        last_sync_at: nil,
+        total_emails: orphaned_mailboxes.sum { |m| m[:email_count] },
+        mailboxes: orphaned_mailboxes,
+        sync_config: { sync_all: false }
+      }
+    end
+
+    # Get storage/blob stats
+    # Note: email_attachments table DROPPED (Jan 2026) - use WarehouseDocument count
+    blob_stats = {
+      total_blobs: StorageBlob.count,
+      total_size_bytes: StorageBlob.sum(:file_size),
+      email_attachments: WarehouseDocument.where(source_type: 'email_attachment').count
+    }
+
+    render json: {
+      success: true,
+      data: {
+        total_emails: SyncedEmail.count,
+        total_mailboxes: SyncedEmailMailbox.select(:mailbox_owner_email).distinct.count,
+        organizations: all_organizations,
+        storage: blob_stats
+      }
+    }
+  end
+
   # GET /api/v1/synced_email/unread_counts
   # Get unread email counts for the sidebar badge
   def unread_counts
@@ -511,6 +678,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
         end
       end
 
+      # Get PolarisMail mailboxes (EmailMailbox)
+      polaris_mailboxes = EmailMailbox.active.includes(:email_subscription)
+                                      .select { |m| m.email_subscription&.status == "active" }
+      polaris_mailbox_ids = polaris_mailboxes.map(&:id)
+      polaris_mailbox_emails = polaris_mailboxes.map(&:email_address)
+      all_accounts.concat(polaris_mailbox_emails)
+
       conditions = []
       bind_values = []
 
@@ -520,11 +694,19 @@ class Api::V1::SyncedEmailsController < ApplicationController
         bind_values << user_imap_ids
       end
 
-      # MS365 org mailboxes
+      # Ultra Email Architecture: MS365 org mailboxes - use join table for proper multi-mailbox support
+      # Build the query using mailbox_appearances for accurate unread counts per mailbox
       if ms365_cred_ids.any?
-        conditions << "(microsoft_credential_id IN (?) AND mailbox_owner_email IN (?))"
+        # Use subquery to find emails visible to user's mailboxes via join table
+        conditions << "(id IN (SELECT synced_email_id FROM synced_email_mailboxes WHERE microsoft_credential_id IN (?) AND LOWER(mailbox_owner_email) IN (?)))"
         bind_values << ms365_cred_ids
-        bind_values << ms365_mailbox_emails
+        bind_values << ms365_mailbox_emails.map(&:downcase)
+      end
+
+      # PolarisMail mailboxes
+      if polaris_mailbox_ids.any?
+        conditions << "(email_mailbox_id IN (?))"
+        bind_values << polaris_mailbox_ids
       end
 
       if conditions.any?
@@ -534,11 +716,45 @@ class Api::V1::SyncedEmailsController < ApplicationController
         return render json: { total: 0, by_account: [] }
       end
 
-      # Filter to unread only
-      unread_emails = emails.where(is_read: false)
+      # Ultra Email Architecture: Get unread counts per mailbox from join table
+      # The join table has per-mailbox is_read status (more accurate than email-level is_read)
+      ms365_unread_by_account = {}
+      if ms365_cred_ids.any?
+        ms365_unread_by_account = SyncedEmailMailbox
+          .where(microsoft_credential_id: ms365_cred_ids)
+          .where("LOWER(mailbox_owner_email) IN (?)", ms365_mailbox_emails.map(&:downcase))
+          .where(is_read: false)
+          .group(:mailbox_owner_email)
+          .count
+      end
 
-      # Get counts by mailbox/account
-      unread_by_account = unread_emails.group(:mailbox_owner_email).count
+      # For IMAP, still use the email-level is_read (no join table for IMAP yet)
+      imap_unread_by_account = {}
+      if user_imap_ids.any?
+        imap_unread_by_account = emails
+          .where(source_type: 'imap', imap_credential_id: user_imap_ids)
+          .where(is_read: false)
+          .group(:mailbox_owner_email)
+          .count
+      end
+
+      # For PolarisMail, use the email-level is_read
+      polaris_unread_by_account = {}
+      if polaris_mailbox_ids.any?
+        # Group by email address from the mailbox, not mailbox_owner_email
+        polaris_mailbox_map = polaris_mailboxes.index_by(&:id)
+        SyncedEmail.where(email_mailbox_id: polaris_mailbox_ids, is_read: false)
+          .group(:email_mailbox_id)
+          .count
+          .each do |mailbox_id, count|
+            mailbox = polaris_mailbox_map[mailbox_id]
+            polaris_unread_by_account[mailbox&.email_address] = count if mailbox
+          end
+      end
+
+      # Merge the counts
+      unread_by_account = ms365_unread_by_account.merge(imap_unread_by_account).merge(polaris_unread_by_account)
+      total_unread = unread_by_account.values.sum
 
       # Build result including all accounts (even with 0 unread)
       by_account = all_accounts.uniq.map do |email|
@@ -546,7 +762,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       end.sort_by { |a| [ -a[:count], a[:email] ] }
 
       render json: {
-        total: unread_emails.count,
+        total: total_unread,
         by_account: by_account
       }
     rescue StandardError => e
@@ -604,6 +820,24 @@ class Api::V1::SyncedEmailsController < ApplicationController
     render json: {
       success: true,
       message: delete_from_outlook ? "Email marked as spam and deleted from Outlook" : "Email marked as spam",
+      email: email_json(@email)
+    }
+  end
+
+  # POST /api/v1/synced_emails/:id/mark_read
+  # Mark an email as read (SSoT: syncs with inbox read status)
+  # Used when user views email in task detail view
+  def mark_read
+    @email.update!(is_read: true)
+
+    # Also update mailbox appearances if exist (for per-mailbox read tracking)
+    if @email.mailbox_appearances.any?
+      @email.mailbox_appearances.update_all(is_read: true)
+    end
+
+    render json: {
+      success: true,
+      message: "Email marked as read",
       email: email_json(@email)
     }
   end
@@ -896,82 +1130,50 @@ class Api::V1::SyncedEmailsController < ApplicationController
   end
 
   # GET /api/v1/synced_email/:id/attachments/:attachment_id/download
-  # Download an attachment - tries local storage first (SSoT), then SharePoint, then Outlook
-  # attachment_id can be either local EmailAttachment ID or outlook_attachment_id
+  # Download an attachment - tries local storage first (SSoT via WarehouseDocument), then Outlook
+  # attachment_id is WarehouseDocument ID
+  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
   def download_attachment
     attachment_id = params[:attachment_id]
     filename_param = params[:filename]  # SSoT: Frontend sends filename for local file matching
 
-    # Try to find local EmailAttachment first
-    email_attachment = @email.email_attachments.find_by(id: attachment_id)
-    outlook_attachment_id = email_attachment&.outlook_attachment_id || attachment_id
-    filename_hint = filename_param || email_attachment&.filename || email_attachment&.attachment&.filename
-    content_type_hint = email_attachment&.attachment&.content_type
+    # Try to find WarehouseDocument attachment first
+    attachment_doc = @email.attachment_documents.find_by(id: attachment_id)
+    filename_hint = filename_param || attachment_doc&.original_filename || attachment_doc&.display_name
+    content_type_hint = attachment_doc&.content_type || attachment_doc&.storage_blob&.content_type
 
-    # SSoT: Try email_attachments first (primary path since Jan 2026)
-    # Priority 1: Use attachment found by ID if it's stored in Wasabi
-    if email_attachment&.stored?
-      Rails.logger.info "[SyncedEmail] Downloading attachment from Wasabi by ID: #{email_attachment.id} (#{email_attachment.filename})"
-      content = email_attachment.download
+    # SSoT: Try WarehouseDocument + StorageBlob first (primary path since Jan 2026)
+    # Priority 1: Use attachment found by ID if it has a storage blob
+    if attachment_doc&.storage_blob.present?
+      Rails.logger.info "[SyncedEmail] Downloading attachment from storage by ID: #{attachment_doc.id} (#{attachment_doc.display_name})"
+      content = attachment_doc.storage_blob.download
       # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
       content = content&.b
       if content.present?
         return send_data(
           content,
-          filename: email_attachment.filename,
-          type: email_attachment.storage_blob&.content_type || "application/octet-stream",
+          filename: attachment_doc.original_filename || attachment_doc.display_name,
+          type: content_type_hint || "application/octet-stream",
           disposition: "attachment"
         )
       end
     end
 
     # Priority 2: Search by filename if ID lookup didn't work
-    if @email.email_attachments.any? && filename_hint.present?
-      attachment = @email.email_attachments.find { |a| a.filename == filename_hint }
-      if attachment&.stored?
-        Rails.logger.info "[SyncedEmail] Downloading attachment from Wasabi by filename: #{filename_hint}"
-        content = attachment.download
+    if @email.attachment_documents.any? && filename_hint.present?
+      doc = @email.attachment_documents.find { |d| (d.original_filename || d.display_name) == filename_hint }
+      if doc&.storage_blob.present?
+        Rails.logger.info "[SyncedEmail] Downloading attachment from storage by filename: #{filename_hint}"
+        content = doc.storage_blob.download
         # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
         content = content&.b
         if content.present?
           return send_data(
             content,
             filename: filename_hint,
-            type: attachment.storage_blob&.content_type || "application/octet-stream",
+            type: doc.content_type || doc.storage_blob&.content_type || "application/octet-stream",
             disposition: "attachment"
           )
-        end
-      end
-    end
-
-    # Fallback 1: Try SharePoint if attachment is synced there
-    if email_attachment&.attachment&.storage_reference.present?
-      sp_config = MicrosoftCredential.teeem_sharepoint_config
-      if sp_config
-        begin
-          Rails.logger.info "[SyncedEmail] Downloading attachment from SharePoint: #{email_attachment.attachment.storage_reference}"
-          teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
-          content = teeem_client.get_drive_item_content(
-            drive_id: sp_config[:drive_id],
-            item_id: email_attachment.attachment.storage_reference
-          )
-          # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
-          content = content&.b
-
-          if content.present?
-            filename = filename_hint || "attachment"
-            content_type = content_type_hint || "application/octet-stream"
-
-            return send_data(
-              content,
-              filename: filename,
-              type: content_type,
-              disposition: "attachment"
-            )
-          end
-        rescue StandardError => e
-          # SharePoint download failed - fall back to Outlook
-          Rails.logger.warn "[SyncedEmail] SharePoint download failed, falling back to Outlook: #{e.message}"
         end
       end
     end
@@ -1026,43 +1228,45 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Returns a presigned URL for direct download (no Rails streaming)
   # SSoT: Same pattern as document_storage_controller#presigned_url
   # Why: Avoids double transfer (S3 → Rails → Browser), browser fetches directly from S3
+  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
   def attachment_presigned_url
     attachment_id = params[:attachment_id]
     filename_param = params[:filename]
 
-    # Try to find local EmailAttachment first
-    email_attachment = @email.email_attachments.find_by(id: attachment_id)
+    # Try to find WarehouseDocument attachment first
+    attachment_doc = @email.attachment_documents.find_by(id: attachment_id)
 
     # Priority 1: Use attachment found by ID if it has storage_blob
-    if email_attachment&.storage_blob.present?
-      url = email_attachment.storage_blob.presigned_url(
+    if attachment_doc&.storage_blob.present?
+      filename = attachment_doc.original_filename || attachment_doc.display_name
+      url = attachment_doc.storage_blob.presigned_url(
         expires_in: 900,  # 15 minutes
-        filename: email_attachment.filename
+        filename: filename
       )
 
       return render json: {
         success: true,
         url: url,
-        filename: email_attachment.filename,
-        content_type: email_attachment.storage_blob.content_type,
+        filename: filename,
+        content_type: attachment_doc.content_type || attachment_doc.storage_blob.content_type,
         expires_in: 900
       }
     end
 
     # Priority 2: Search by filename if ID lookup didn't find a blob
-    if @email.email_attachments.any? && filename_param.present?
-      attachment = @email.email_attachments.find { |a| a.filename == filename_param && a.storage_blob.present? }
-      if attachment&.storage_blob.present?
-        url = attachment.storage_blob.presigned_url(
+    if @email.attachment_documents.any? && filename_param.present?
+      doc = @email.attachment_documents.find { |d| (d.original_filename || d.display_name) == filename_param && d.storage_blob.present? }
+      if doc&.storage_blob.present?
+        url = doc.storage_blob.presigned_url(
           expires_in: 900,
-          filename: attachment.filename
+          filename: filename_param
         )
 
         return render json: {
           success: true,
           url: url,
-          filename: attachment.filename,
-          content_type: attachment.storage_blob.content_type,
+          filename: filename_param,
+          content_type: doc.content_type || doc.storage_blob.content_type,
           expires_in: 900
         }
       end
@@ -1217,16 +1421,23 @@ class Api::V1::SyncedEmailsController < ApplicationController
   def reconstruct_eml_from_warehouse
     Rails.logger.info "[SyncedEmail] Reconstructing EML from warehouse: email_id=#{@email.id}"
 
+    # FRC (Jan 2026): Sent emails from MS Graph have no from_email
+    # Use mailbox_owner_email for sent items, or from_name as fallback
+    from_address = @email.from_email.presence ||
+                   (@email.folder_name&.downcase&.start_with?("sent") ? @email.mailbox_owner_email : nil) ||
+                   (@email.from_name.present? ? "#{@email.from_name} <noreply@teeem.com.au>" : nil)
+
     # Validate required fields - fail explicitly if missing
-    raise "Email has no from_email" if @email.from_email.blank?
+    raise "Email has no from address (from_email, mailbox_owner, or from_name)" if from_address.blank?
     raise "Email has no body (html or text)" if @email.body_html.blank? && @email.body_text.blank?
 
     email_ref = @email # Capture reference for block scope
+    from_addr = from_address # Capture for block scope
 
     mail = Mail.new do |m|
       m.message_id = email_ref.internet_message_id if email_ref.internet_message_id.present?
       m.subject = email_ref.subject.presence || "(No subject)"
-      m.from = email_ref.from_email
+      m.from = from_addr
       m.to = email_ref.to_emails if email_ref.to_emails.present?
       m.cc = email_ref.cc_emails if email_ref.cc_emails.present?
       m.date = email_ref.received_at || email_ref.sent_at || email_ref.created_at
@@ -1350,6 +1561,54 @@ class Api::V1::SyncedEmailsController < ApplicationController
     end
   end
 
+  # Helper for sync_dashboard - get stats for a single mailbox
+  # FRC (Jan 2026): Added credential_last_synced_at parameter
+  # Root cause: Using SyncedEmail.updated_at showed when EMAIL was modified, not when SYNC ran.
+  # If no new emails arrive, the old date stays forever even though sync runs every 2 min.
+  def mailbox_stats_for_dashboard(credential_id, email, credential_type = :microsoft, credential_last_synced_at: nil)
+    appearances = SyncedEmailMailbox.where("LOWER(mailbox_owner_email) = ?", email.downcase)
+
+    case credential_type
+    when :imap
+      appearances = appearances.where(imap_credential_id: credential_id)
+    when :orphaned
+      appearances = appearances.where(microsoft_credential_id: nil, imap_credential_id: nil)
+    else
+      appearances = appearances.where(microsoft_credential_id: credential_id)
+    end
+
+    email_ids = appearances.pluck(:synced_email_id)
+    emails_for_stats = SyncedEmail.where(id: email_ids)
+    last_received = emails_for_stats.maximum(:received_at)
+
+    # Attachment stats for this mailbox (SSoT Jan 2026: WarehouseDocument)
+    attachments = WarehouseDocument.where(source_type: "email_attachment")
+                                   .where("metadata->>'synced_email_id' IN (?)", email_ids.map(&:to_s))
+    attachment_count = attachments.count
+    blob_count = attachments.where.not(storage_blob_id: nil).count
+
+    # Email body blob stats - count emails that have their .eml file uploaded to S3
+    email_blob_count = WarehouseDocument.where(
+      documentable_type: "SyncedEmail",
+      documentable_id: email_ids
+    ).count
+
+    # Count emails marked as content_unavailable (permanently unobtainable from Microsoft)
+    content_unavailable_count = emails_for_stats.where(content_unavailable: true).count
+
+    {
+      email: email,
+      email_count: email_ids.count,
+      unread_count: appearances.unread.count,
+      attachment_count: attachment_count,
+      blob_count: blob_count,
+      email_blob_count: email_blob_count,
+      content_unavailable_count: content_unavailable_count,
+      last_email_received_at: last_received,
+      last_synced_at: credential_last_synced_at  # Use credential's sync time, not email's updated_at
+    }
+  end
+
   def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil, thread_counts_cache: nil, user_states_cache: nil, thread_emails: nil)
     # Get user's read state - check cache first, then database
     user_state = if user_states_cache
@@ -1357,8 +1616,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
     else
       EmailUserState.find_by(synced_email_id: email.id, user_id: current_user.id)
     end
-    # Default to unread if no state exists (new emails are unread)
-    is_read = user_state&.is_read || false
+    # FRC (Jan 2026): If user has a state, use it. Otherwise fall back to the email's
+    # read status from O365/IMAP. Previously defaulted to false, which showed emails
+    # that were read in O365 as unread in TEEEM (wrong blue dots).
+    is_read = user_state ? user_state.is_read : email.is_read
 
     json = {
       id: email.id,
@@ -1386,6 +1647,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       source_type: email.source_type || "outlook",
       imap_credential_id: email.imap_credential_id,
       mailbox: email.mailbox_owner_email,
+      mailbox_owner_email: email.mailbox_owner_email,  # SSoT: Explicit field for reply From address
       # Direction and importance (direction column may not exist yet)
       direction: email.respond_to?(:direction) ? email.direction : nil,
       importance: email.importance,
@@ -1446,25 +1708,26 @@ class Api::V1::SyncedEmailsController < ApplicationController
     json
   end
 
-  # Build attachments list - use synced records or fetch from MS365
+  # Build attachments list - use synced records (WarehouseDocument) or fetch from MS365
+  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
   def build_attachments_list(email)
-    # First try local email_attachments (already synced to SharePoint)
-    synced = email.email_attachments.includes(:storage_blob, :attachment)
+    # First try local attachment_documents (already synced via WarehouseDocument)
+    synced = email.attachment_documents.includes(:storage_blob)
     if synced.any?
-      return synced.map do |ea|
+      return synced.map do |doc|
+        # For inline images: content_id matches cid: references in HTML
+        content_id = doc.metadata&.dig('content_id')
         # Generate presigned URL for inline images (to replace cid: references)
-        inline_url = if ea.storage_blob.present? && ea.content_id.present?
-                       ea.storage_blob.presigned_url(expires_in: 3600)
+        inline_url = if doc.storage_blob.present? && content_id.present?
+                       doc.storage_blob.presigned_url(expires_in: 3600)
                      end
         {
-          id: ea.id,
-          name: ea.filename || ea.storage_blob&.original_filename || "Unknown",
-          # content_type and file_size are on storage_blob (Jan 2026 refactor)
-          content_type: ea.storage_blob&.content_type,
-          size: ea.storage_blob&.file_size,
-          outlook_attachment_id: ea.outlook_attachment_id,
-          # For inline images: content_id matches cid: references in HTML
-          content_id: ea.content_id,
+          id: doc.id,
+          name: doc.original_filename || doc.display_name || "Unknown",
+          content_type: doc.content_type || doc.storage_blob&.content_type,
+          size: doc.file_size || doc.storage_blob&.file_size,
+          outlook_attachment_id: nil,  # Not stored in WarehouseDocument
+          content_id: content_id,
           inline_url: inline_url
         }
       end
@@ -1488,8 +1751,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
       client = MicrosoftAppGraphClient.new(credential)
       ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
 
-      # SSoT: Use EmailAttachmentFilterService to filter out signature/embedded images
-      filtered = EmailAttachmentFilterService.filter_attachments(ms_attachments)
+      # Filter out embedded images/signatures (inline attachments with contentId)
+      # These are typically small signature images that clutter the attachment list
+      filtered = ms_attachments.reject do |att|
+        att["isInline"] == true || att["contentId"].present?
+      end
 
       # SSoT: Update attachment_count when we discover actual count from Outlook
       # This ensures the count is accurate for future list views
@@ -1698,7 +1964,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
             emails: overview[:other][:emails].map { |e| email_json(e, contacts_cache: contacts_cache, user_states_cache: user_states_cache) }
           }
         },
-        team_domains: CorporateCompanySetting.team_email_domains
+        team_domains: TenantSetting.team_email_domains
       }
     }
   end

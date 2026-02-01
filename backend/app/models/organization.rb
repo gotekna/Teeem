@@ -15,8 +15,8 @@ class Organization < ApplicationRecord
   # Parent tenant (SSoT for multi-tenancy)
   belongs_to :tenant
 
-  # Optional link to CorporateCompany (for credential isolation per company)
-  belongs_to :corporate_company, optional: true
+  # Optional link to Corporate (for credential isolation per company)
+  belongs_to :corporate, optional: true
 
   # Associations - credentials belong to organizations
   has_many :microsoft_credentials, dependent: :destroy
@@ -25,7 +25,7 @@ class Organization < ApplicationRecord
   belongs_to :document_provider_credential, class_name: 'S3CompatibleCredential', optional: true
 
   # SSoT: Storage configuration for document paths and provider settings
-  has_one :storage_configuration, dependent: :destroy
+  has_one :warehouse_provider, dependent: :destroy
 
   # SSoT: Backup configuration for per-tenant backup settings
   has_one :backup_configuration, dependent: :destroy
@@ -43,7 +43,7 @@ class Organization < ApplicationRecord
 
   # SSoT: Get or create storage configuration for this organization
   def storage_config
-    storage_configuration || StorageConfiguration.for_organization(self)
+    warehouse_provider || WarehouseProvider.for_organization(self)
   end
 
   # Check if S3-compatible storage is enabled

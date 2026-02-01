@@ -1,4 +1,10 @@
 class BankAccount < ApplicationRecord
+  # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
+  # FRC: BankAccount was leaking data across tenants
+  # Root cause: Legacy indirect relationship (bank_account → corporate_company → tenant)
+  # Fix: Direct tenant_id column + acts_as_tenant for automatic scoping
+  acts_as_tenant :tenant
+
   # Bank code mapping for standardized naming
   BANK_CODES = {
     "nab" => "NAB",
@@ -16,6 +22,7 @@ class BankAccount < ApplicationRecord
   }.freeze
 
   # Associations
+  belongs_to :tenant
   belongs_to :corporate_company, foreign_key: "company_id"
   has_many :bank_transactions, dependent: :nullify
 

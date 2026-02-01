@@ -42,7 +42,6 @@ class DailyJobSnapshotJob < ApplicationJob
   def capture_snapshot(job, snapshot_date)
     # Get pre-computed metrics from materialized views
     job_summary = MvJobSummary.find_by(job_id: job.id)
-    doc_status = MvJobDocumentStatus.find_by(job_id: job.id)
 
     # Calculate financial metrics
     total_income = job_summary&.total_income.to_d || 0

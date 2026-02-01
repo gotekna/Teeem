@@ -3,9 +3,16 @@
 class BillInbox < ApplicationRecord
   include StorageUploadable
 
+  # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
+  # FRC: BillInbox was leaking data across tenants - users could see other tenants' bills
+  # Root cause: Legacy indirect relationship (bill → corporate_company → corporate_group → tenant)
+  # Fix: Direct tenant_id column + acts_as_tenant for automatic scoping
+  acts_as_tenant :tenant
+
   # Associations
-  belongs_to :corporate_company, optional: true
-  belongs_to :detected_company, class_name: "CorporateCompany", optional: true
+  belongs_to :tenant
+  belongs_to :corporate, optional: true
+  belongs_to :detected_company, class_name: "Corporate", optional: true
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :matched_purchase_order, class_name: "PurchaseOrder", optional: true
   belongs_to :approved_by, class_name: "User", optional: true
@@ -119,8 +126,8 @@ class BillInbox < ApplicationRecord
   end
 
   def internal_sender?
-    # SSoT: Use CorporateCompanySetting for internal domains
-    CorporateCompanySetting.internal_email_domains.include?(sender_domain)
+    # SSoT: Use TenantSetting for internal domains
+    TenantSetting.internal_email_domains.include?(sender_domain)
   end
 
   def variance_percent
@@ -147,11 +154,13 @@ class BillInbox < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # SSoT: Reads from StorageConfiguration.virtual_template_for(:bill_inbox)
+  # SSoT: Reads from WarehouseProvider.path_for(:bill_inbox)
   # Configure at: /settings/company/entity-config → Storage Config
   def virtual_folder_path
-    config = StorageConfiguration.instance
-    template = config&.virtual_template_for(:bill_inbox)
+    return "Warehousing/BillInbox/Unknown" unless tenant_id
+
+    config = WarehouseProvider.for_tenant(tenant) rescue nil
+    template = config&.path_for(:bill_inbox)
     return "Warehousing/BillInbox/Unknown" unless template
 
     year = (created_at || Time.current).year.to_s
@@ -224,10 +233,13 @@ class BillInbox < ApplicationRecord
   private
 
   # Create WarehouseDocument entry for this bill inbox item
+  # SSoT (Feb 2026): Uses direct tenant_id association (acts_as_tenant)
   def create_warehouse_entry
     return unless storage_blob
+    return unless tenant_id # Guaranteed by acts_as_tenant + NOT NULL constraint
 
     create_warehouse_document!(
+      tenant_id: tenant_id,
       source_type: "warehouse",
       folder: virtual_folder_path,
       display_name: display_name,
@@ -242,7 +254,7 @@ class BillInbox < ApplicationRecord
       }
     )
   rescue StandardError => e
-    Rails.logger.error("[BillInbox] Failed to create warehouse entry: #{e.message}")
+    Rails.logger.error("[BillInbox] ##{id}: Failed to create warehouse entry: #{e.message}")
   end
 
   def set_defaults

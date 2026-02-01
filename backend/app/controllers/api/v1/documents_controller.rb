@@ -3,13 +3,13 @@
 module Api
   module V1
     class DocumentsController < ApplicationController
-      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move ]
+      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move, :link_to_task ]
 
       # GET /api/v1/documents/all
       # Returns file counts for the entire warehouse (fast)
       # Used by the File Warehouse page
       # SSoT: Counts ALL file types - documents, emails, attachments, tasks
-      # NOTE: Scope keys match StorageConfiguration.SCOPE_FOLDERS for consistency
+      # NOTE: Scope keys match WarehouseProvider.SCOPE_FOLDERS for consistency
       #
       # Phase 3: Now uses WarehouseDocument as SSoT for migrated documents
       def all
@@ -17,24 +17,23 @@ module Api
         warehouse_counts = WarehouseDocument.group(:source_type).count
         warehouse_total = WarehouseDocument.count
 
-        # Legacy counts (for documents not yet migrated or for comparison)
-        job_count = warehouse_counts["job"] || JobDocument.where.not(file_name: [nil, ""]).count
-        corp_count = warehouse_counts["corporate"] || CorporateCompanyDocument.where.not(file_name: [nil, ""]).count
-        people_count = warehouse_counts["people"] || PeopleDocument.where.not(title: [nil, ""]).count
+        # SSoT (Jan 2026): WarehouseDocument counts are authoritative
+        # Legacy fallback removed - all documents should be in WarehouseDocument
+        job_count = warehouse_counts["job"] || 0
+        corp_count = warehouse_counts["corporate"] || 0
+        people_count = warehouse_counts["people"] || 0
 
-        # Email counts - use warehouse_document counts (source_type: "email" covers both)
-        email_total = warehouse_counts["email"] || 0
-        # Split between EML files and attachments based on documentable_type
+        # Email counts - use warehouse_document counts
+        # SSoT (Jan 2026): WarehouseDocument is THE ONE table for all document metadata
         email_eml_count = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail").count
-        email_attachment_count = WarehouseDocument.where(source_type: "email", documentable_type: "EmailAttachment").count
+        email_attachment_count = WarehouseDocument.where(source_type: "email_attachment").count
         # Fallback to legacy counts if no warehouse documents
         email_eml_count = SyncedEmail.where.not(storage_email_path: [nil, ""]).count if email_eml_count == 0
-        email_attachment_count = EmailAttachment.where.not(storage_path: [nil, ""]).count if email_attachment_count == 0
+        email_total = email_eml_count + email_attachment_count
 
         # Task attachment counts - documents uploaded against task IDs
-        # These are CorporateCompanyDocuments linked via SmTaskAttachment
-        task_attachment_ids = SmTaskAttachment.where(attachable_type: 'CorporateCompanyDocument').distinct.pluck(:attachable_id) rescue []
-        task_doc_count = task_attachment_ids.size
+        # SSoT (Jan 2026): SmTaskAttachment only references WarehouseDocument now
+        task_doc_count = SmTaskAttachment.where(attachable_type: 'WarehouseDocument').distinct.count(:attachable_id) rescue 0
 
         # Document templates (Word/Excel templates stored in storage)
         template_count = DocumentTemplate.where.not(storage_path: [nil, ""]).count rescue 0
@@ -64,7 +63,7 @@ module Api
         warehousing_count = excel_count + word_count + powerpoint_count + pdf_count + notes_count
 
         # User files from S3 (MyDocs folder)
-        # SSoT: Path matches StorageConfiguration.SCOPE_FOLDERS["my_docs"] = "Users/MyDocs"
+        # SSoT: Path matches WarehouseProvider.SCOPE_FOLDERS["my_docs"] = "Users/MyDocs"
         # Note: list_folder returns an array of items directly, not a hash
         my_docs_count = begin
           # SSoT (Jan 2026): Use tenant for storage provider
@@ -80,14 +79,13 @@ module Api
         total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count + notes_count + excel_count + word_count + powerpoint_count + pdf_count
 
         # Fetch task documents with their task associations
-        # SSoT: Task documents are CorporateCompanyDocuments linked via SmTaskAttachment
-        task_documents = if task_attachment_ids.any?
-          CorporateCompanyDocument
-            .where(id: task_attachment_ids)
-            .includes(:corporate_company, sm_task_attachments: :sm_task)
-            .map { |doc| serialize_task_doc(doc) }
-        else
-          []
+        # SSoT (Jan 2026): SmTaskAttachment only references WarehouseDocument now
+        task_attachments = SmTaskAttachment.where(attachable_type: 'WarehouseDocument')
+                                           .includes(:sm_task, :attachable)
+        task_documents = task_attachments.filter_map do |att|
+          doc = att.attachable
+          next unless doc
+          serialize_task_doc_from_attachment(att, doc)
         end
 
         render json: {
@@ -148,7 +146,7 @@ module Api
       #   source_type: Filter by source (corporate, job, email, people, contact)
       #   folder: Filter by virtual folder path
       #   search: Full-text search on display_name
-      #   documentable_type: Filter by underlying model (SyncedEmail, EmailAttachment, etc.)
+      #   documentable_type: Filter by underlying model (SyncedEmail, etc.)
       #   limit: Max results (default: 100)
       #   offset: Pagination offset
       def warehouse
@@ -226,9 +224,9 @@ module Api
         path = params[:path].to_s.strip.gsub(%r{^/+|/+$}, "")
         path_segments = path.present? ? path.split("/") : []
 
-        # Get template from StorageConfiguration
-        config = StorageConfiguration.instance
-        template = config.template_for(scope) rescue nil
+        # Get template from WarehouseProvider
+        config = WarehouseProvider.instance
+        template = config.path_for(scope) rescue nil
 
         # Build live folder tree based on scope
         result = build_live_folder_tree(scope, path_segments)
@@ -262,7 +260,7 @@ module Api
       # Phase 4: Virtual File Warehouse - Database-driven folder tree
       # Returns folder tree from WarehouseDocument.folder instead of S3
       #
-      # When a scope is marked as virtual in StorageConfiguration:
+      # When a scope is marked as virtual in WarehouseProvider:
       # - Folder tree renders from database (instant)
       # - Reorganization is instant (bulk DB update)
       # - Physical storage stays at Blobs/{hash}.ext (never moves)
@@ -281,8 +279,8 @@ module Api
         base_path = params[:path].to_s.strip.gsub(%r{^/+|/+$}, "")
 
         # Verify scope is virtual (configured in admin UI)
-        config = StorageConfiguration.instance
-        unless config.virtual_scope?(scope)
+        config = WarehouseProvider.instance
+        unless config.virtual_warehouse?(scope)
           return render json: {
             success: false,
             error: "Scope '#{scope}' is not configured as virtual",
@@ -292,13 +290,22 @@ module Api
           }, status: :bad_request
         end
 
+        # SSoT: Prepend scope root folder if path doesn't already include it
+        # Task folders are stored as "Tasks/123/Attachments" but frontend sends "123/Attachments"
+        scope_root = scope_root_folder(scope)
+        full_path = if base_path.present? && scope_root.present? && !base_path.start_with?(scope_root)
+                      "#{scope_root}/#{base_path}"
+                    else
+                      base_path
+                    end
+
         # Query WarehouseDocument by source_type
         documents = WarehouseDocument.where(source_type: scope)
                                      .includes(:documentable, :storage_blob)
 
         # Filter by base path if provided
-        if base_path.present?
-          documents = documents.where("folder LIKE ?", "#{base_path}%")
+        if full_path.present?
+          documents = documents.where("folder LIKE ?", "#{full_path}%")
         end
 
         # Search filter
@@ -308,11 +315,11 @@ module Api
         end
 
         # Build folder tree from unique folder paths
-        folder_tree = build_virtual_folder_tree(documents, base_path)
+        folder_tree = build_virtual_folder_tree(documents, full_path)
 
-        # Get files at EXACTLY this level (folder matches base_path exactly)
-        files_at_level = if base_path.present?
-          documents.where(folder: base_path).limit(500)
+        # Get files at EXACTLY this level (folder matches full_path exactly)
+        files_at_level = if full_path.present?
+          documents.where(folder: full_path).limit(500)
         else
           documents.where(folder: [nil, ""]).limit(500)
         end
@@ -375,10 +382,12 @@ module Api
         results = results.sort_by { |r| r[:uploaded_at] || "" }.reverse.first(limit)
 
         # Only include folders for corporate-only queries (backward compatibility)
+        # SSoT (Jan 2026): Uses WarehouseDocument.folder for corporate documents
         folders = if sources == ["corporate"]
-          folder_counts = CorporateCompanyDocument.where.not(folder: [ nil, "" ])
-                                                  .group(:folder)
-                                                  .count
+          folder_counts = WarehouseDocument.where(source_type: "corporate")
+                                           .where.not(folder: [nil, ""])
+                                           .group(:folder)
+                                           .count
           folder_counts.keys.sort.map.with_index do |folder_name, index|
             {
               id: (index + 1).to_s,
@@ -403,14 +412,14 @@ module Api
       # Params:
       #   file: The file to upload (multipart)
       #   folder: Optional folder path (default: "MyDocs")
-      # SSoT: Paths match StorageConfiguration.SCOPE_FOLDERS (Users/MyDocs, Users/Photos, etc.)
+      # SSoT: Paths match WarehouseProvider.SCOPE_FOLDERS (Users/MyDocs, Users/Photos, etc.)
       def create
         unless params[:file].present?
           return render json: { success: false, error: "No file provided" }, status: :bad_request
         end
 
         file = params[:file]
-        # SSoT: Folder names match StorageConfiguration.SCOPE_FOLDERS
+        # SSoT: Folder names match WarehouseProvider.SCOPE_FOLDERS
         folder = params[:folder].presence || "MyDocs"
         user = current_user
 
@@ -432,7 +441,7 @@ module Api
           )
 
           # For user "My Documents" uploads, we store in S3 but don't create a
-          # CorporateCompanyDocument record (which requires company/contact/job/task owner).
+          # WarehouseDocument record (which requires company/contact/job/task linkable).
           # Files are accessible directly via S3 path: Users/{user_id}/{folder}/{filename}
           render json: {
             success: true,
@@ -458,9 +467,9 @@ module Api
       # GET /api/v1/documents/user_files
       # Lists files in user folder from S3
       # Used by File Warehouse "MyDocs" section
-      # SSoT: Paths match StorageConfiguration.SCOPE_FOLDERS
+      # SSoT: Paths match WarehouseProvider.SCOPE_FOLDERS
       def user_files
-        # SSoT: Folder names match StorageConfiguration.SCOPE_FOLDERS
+        # SSoT: Folder names match WarehouseProvider.SCOPE_FOLDERS
         # Supports two modes:
         # 1. ?folder=MyDocs (legacy) -> Users/MyDocs
         # 2. ?path=Users/MyDocs (generic) -> exact path
@@ -520,7 +529,7 @@ module Api
       #
       # Params:
       #   path: The S3 path to list (e.g., "Jobs", "Jobs/J49", "Corporate/Group A")
-      #         Empty/nil returns root folders from StorageConfiguration.SCOPE_FOLDERS
+      #         Empty/nil returns root folders from WarehouseProvider.SCOPE_FOLDERS
       #
       # Returns:
       #   folders: Array of { name, path } for subfolders
@@ -569,31 +578,49 @@ module Api
         base_scope = base_scope.where.not(source_type: "email") unless include_emails
 
         if path.blank?
-          # Root level: Get top-level folders with counts using indexed column
-          # SQL: SELECT split_part(folder, '/', 1), COUNT(*) GROUP BY 1
+          # SSoT (Jan 2026): Root folder structure comes from WarehouseFolder
+          # WarehouseFolder is THE ONE source for folder hierarchy
+          # Counts come from WarehouseDocument (to show how many files in each folder)
+          root_folders_from_config = WarehouseFolder.all_root_folders
+
+          # Get actual counts from WarehouseDocument for display
           folder_counts = base_scope
             .group(Arel.sql("split_part(folder, '/', 1)"))
             .count
 
-          folders = folder_counts.map do |name, count|
-            { name: name, path: name, count: count }
+          # Build folders array: all configured folders (even with 0 count) + any extras from documents
+          all_root_folders = (root_folders_from_config + folder_counts.keys).uniq
+          folders = all_root_folders.map do |name|
+            { name: name, path: name, count: folder_counts[name] || 0 }
           end
 
           # Add Emails folder as expandable - shows individual mailboxes when expanded
           # Each mailbox links to its specific email page
+          # SSoT: Only add if not already in folders (some non-email docs may have folder starting with "Emails/")
           unless include_emails
+            # Check if Emails folder already exists (from non-email docs like attachments)
+            existing_emails_folder = folders.find { |f| f[:name] == "Emails" }
+
             email_count = WarehouseDocument.where(source_type: "email").count
             mailbox_count = SyncedEmail.where.not(mailbox_owner_email: [ nil, "" ])
                                         .distinct
                                         .count(:mailbox_owner_email)
             if email_count > 0
-              folders << {
-                name: "Emails",
-                path: "Emails",
-                count: email_count,
-                mailbox_count: mailbox_count,  # Show "X mailboxes" in UI
-                expandable: true               # User can expand to see mailboxes
-              }
+              if existing_emails_folder
+                # Update existing folder with full email count and mailbox info
+                existing_emails_folder[:count] = email_count
+                existing_emails_folder[:mailbox_count] = mailbox_count
+                existing_emails_folder[:expandable] = true
+              else
+                # Add new Emails folder
+                folders << {
+                  name: "Emails",
+                  path: "Emails",
+                  count: email_count,
+                  mailbox_count: mailbox_count,  # Show "X mailboxes" in UI
+                  expandable: true               # User can expand to see mailboxes
+                }
+              end
             end
           end
 
@@ -615,6 +642,113 @@ module Api
             }
           end.sort_by { |f| f[:name].to_s.downcase }
           files = []
+        elsif !path.include?("/") && WarehouseFolder.warehouse_type_for_root_folder(path)
+          # SSoT (Jan 2026): Root folder expanded - show tabs from WarehouseFolder
+          # e.g., "Jobs" → shows Plans, Site, Sales, Photo, etc.
+          tabs_from_config = WarehouseFolder.tabs_for_root_folder(path)
+
+          # Get actual document counts for each tab folder
+          subfolder_counts = base_scope
+            .where("folder LIKE ?", "#{sanitize_sql_like(path)}/%")
+            .group(Arel.sql("split_part(folder, '/', 2)"))
+            .count
+
+          # Enrich tabs with counts, include tabs even with 0 documents
+          folders = tabs_from_config.map do |tab|
+            tab[:count] = subfolder_counts[tab[:name]] || 0
+            tab
+          end
+
+          # Also add any document folders not in config (from existing documents)
+          config_folder_names = tabs_from_config.map { |t| t[:name] }
+          extra_folders = subfolder_counts.reject { |name, _| config_folder_names.include?(name) || name.blank? }
+          extra_folders.each do |name, count|
+            folders << { name: name, path: "#{path}/#{name}", count: count }
+          end
+
+          folders = folders.sort_by { |f| f[:name].to_s.downcase }
+          files = []
+        elsif path.include?("/") && WarehouseFolder.warehouse_type_for_root_folder(path.split("/").first)
+          # SSoT (Jan 2026): Subfolder with configured tabs - check for child tabs
+          # e.g., "Jobs/Photo" → shows Supervisor, Site, Client, etc.
+          root_folder = path.split("/").first
+          child_tabs = WarehouseFolder.child_tabs_for_path(path)
+          path_depth = path.count("/") + 2
+
+          # Get actual document counts for subfolders
+          subfolder_counts = base_scope
+            .where("folder LIKE ?", "#{sanitize_sql_like(path)}/%")
+            .group(Arel.sql("split_part(folder, '/', #{path_depth})"))
+            .count
+
+          # Start with configured child tabs
+          if child_tabs.any?
+            folders = child_tabs.map do |tab|
+              tab[:count] = subfolder_counts[tab[:name]] || 0
+              tab
+            end
+
+            # Add any extra folders from documents not in config
+            config_folder_names = child_tabs.map { |t| t[:name] }
+            extra_folders = subfolder_counts.reject { |name, _| config_folder_names.include?(name) || name.blank? }
+            extra_folders.each do |name, count|
+              # SSoT: Return relative path (without root folder prefix)
+              full_path = "#{path}/#{name}"
+              relative_path = full_path.sub("#{root_folder}/", "")
+              folders << { name: name, path: relative_path, count: count }
+            end
+          else
+            # No child tabs in config, use document-based folders
+            subfolder_counts.reject! { |name, _| name.blank? }
+            folders = subfolder_counts.map do |name, count|
+              # SSoT: Return relative path (without root folder prefix)
+              full_path = "#{path}/#{name}"
+              relative_path = full_path.sub("#{root_folder}/", "")
+              { name: name, path: relative_path, count: count }
+            end
+          end
+
+          # SSoT: Enrich task folders with task names (for Tasks/*)
+          if path == "Tasks"
+            task_ids = folders.map { |f| f[:name] }
+            tasks_by_id = SmTask.where(id: task_ids)
+                                .pluck(:id, :name)
+                                .to_h { |id, name| [id.to_s, { id: id, name: name }] }
+
+            folders = folders.map do |f|
+              task_info = tasks_by_id[f[:name]]
+              if task_info
+                display = "##{task_info[:id]} #{task_info[:name]}"
+                f.merge(name: display, taskId: f[:name].to_i)
+              else
+                f
+              end
+            end
+          end
+
+          folders = folders.sort_by { |f| f[:name].to_s.downcase }
+
+          # Get files at this exact folder path
+          docs_at_path = base_scope
+            .where(folder: path)
+            .includes(:storage_blob)
+            .limit(500)
+
+          files = docs_at_path.map do |doc|
+            blob = doc.storage_blob
+            url = doc.download_url rescue nil
+
+            {
+              name: doc.display_name || doc.original_filename || "Document #{doc.id}",
+              path: blob&.storage_path,
+              size: doc.file_size || blob&.file_size || 0,
+              content_type: doc.content_type || blob&.content_type || "application/octet-stream",
+              last_modified: doc.updated_at&.iso8601,
+              url: url,
+              id: doc.id,
+              warehouse_document_id: doc.id
+            }
+          end.sort_by { |f| f[:name].to_s.downcase }
         else
           # Subfolder level: Get immediate subfolders and files at this exact path
           path_depth = path.count("/") + 2  # +2 because split_part is 1-indexed and we want next level
@@ -631,7 +765,31 @@ module Api
 
           folders = subfolder_counts.map do |name, count|
             { name: name, path: "#{path}/#{name}", count: count }
-          end.sort_by { |f| f[:name].to_s.downcase }
+          end
+
+          # SSoT (Jan 2026): Enrich task folders with task names
+          # When browsing Tasks/, show "#2236 Robert Harder" (using TaskId, not task_number)
+          # FRC: Display must match folder path which uses {{TaskId}} (database ID)
+          # task_number is NOT unique (manual tasks all get #0, templates share numbers)
+          if path == "Tasks"
+            task_ids = folders.map { |f| f[:name] }
+            tasks_by_id = SmTask.where(id: task_ids)
+                                .pluck(:id, :name)
+                                .to_h { |id, name| [id.to_s, { id: id, name: name }] }
+
+            folders = folders.map do |f|
+              task_info = tasks_by_id[f[:name]]
+              if task_info
+                # SSoT: Use TaskId (database ID) - matches folder path and is always unique
+                display = "##{task_info[:id]} #{task_info[:name]}"
+                f.merge(name: display, taskId: f[:name].to_i)
+              else
+                f
+              end
+            end
+          end
+
+          folders = folders.sort_by { |f| f[:name].to_s.downcase }
 
           # Get files at this exact folder path (not in subfolders)
           # SQL: SELECT * WHERE folder = 'exact/path'
@@ -921,14 +1079,15 @@ module Api
 
       # POST /api/v1/documents/analyze
       # AI analysis of document content
+      # SSoT (Jan 2026): Uses WarehouseDocument with metadata for document properties
       def analyze
-        document = CorporateCompanyDocument.find(params[:document_id])
+        document = WarehouseDocument.find(params[:document_id])
 
         # Return mock suggestion for now - can integrate with AI service later
         suggestion = {
-          display_title: document.display_title || document.title,
-          document_type_id: document.document_type_id,
-          fiscal_year: document.year&.to_s,
+          display_title: document.display_name,
+          document_type_id: document.meta("document_type_id"),
+          fiscal_year: document.meta("fiscal_year")&.to_s,
           confidence: 0.85,
           reasoning: "Based on filename pattern and content analysis"
         }
@@ -937,13 +1096,13 @@ module Api
       end
 
       # GET /api/v1/documents/scope_hierarchy
-      # SSoT: Returns folder hierarchy for a scope that matches StorageConfiguration.SCOPE_TEMPLATES
+      # SSoT: Returns folder hierarchy for a scope that matches WarehouseProvider.SCOPE_TEMPLATES
       # Used by File Warehouse to build tree structure that mirrors storage paths
       # Example: scope=corporate → CompanyGroup/CompanyCode/TabName hierarchy
       def scope_hierarchy
         scope = params[:scope]&.to_s || "corporate"
-        config = StorageConfiguration.instance
-        template = config.template_for(scope)
+        config = WarehouseProvider.instance
+        template = config.path_for(scope)
 
         hierarchy = build_hierarchy_for_scope(scope, template)
 
@@ -960,7 +1119,7 @@ module Api
       # Params:
       #   path: The current S3 path (e.g., "Tasks/123/Attachments/old-name.pdf")
       #   new_name: The new filename (e.g., "Invoice-2024.pdf")
-      #   document_id: Optional - the CorporateCompanyDocument ID to update
+      #   document_id: Optional - the WarehouseDocument ID to update
       #   source: Optional - the document source type (job, corporate, people, task)
       def rename
         path = params[:path]
@@ -1032,33 +1191,134 @@ module Api
         end
       end
 
+      # PATCH /api/v1/documents/:id/link_to_task
+      # Link any WarehouseDocument to a task
+      # Creates SmTaskAttachment → triggers callback → creates new WarehouseDocument in task folder
+      # Original document stays in place (same blob, multiple folder entries)
+      # Params:
+      #   task_id: The SmTask ID to link to
+      #   action_item_id: (optional) Link to a specific question (sets category to "response")
+      #   category: (optional) "info" (default) or "response"
+      def link_to_task
+        task_id = params[:task_id]
+        action_item_id = params[:action_item_id]
+        # If linking to a question, category is always "response"
+        category = action_item_id.present? ? "response" : (params[:category] || "info")
+
+        unless task_id.present?
+          return render json: { success: false, error: "Missing task_id parameter" }, status: :bad_request
+        end
+
+        task = SmTask.find_by(id: task_id)
+        unless task
+          return render json: { success: false, error: "Task not found" }, status: :not_found
+        end
+
+        # Validate action_item belongs to this task (if provided)
+        action_item = nil
+        if action_item_id.present?
+          action_item = TaskActionItem.find_by(id: action_item_id, sm_task_id: task.id)
+          unless action_item
+            return render json: { success: false, error: "Question not found on this task" }, status: :not_found
+          end
+        end
+
+        begin
+          # Check if already attached to this task/question combo (avoid duplicates)
+          # For questions: check same document + same action_item_id
+          # For general attachments: check same document + no action_item_id
+          existing_scope = SmTaskAttachment.where(
+            sm_task_id: task.id,
+            attachable_type: "WarehouseDocument",
+            attachable_id: @document.id
+          )
+
+          if action_item_id.present?
+            existing = existing_scope.find_by(action_item_id: action_item_id)
+            if existing
+              return render json: {
+                success: false,
+                error: "Document is already attached to this question"
+              }, status: :unprocessable_entity
+            end
+          else
+            # For general attachments, check if any non-question attachment exists
+            existing = existing_scope.where(action_item_id: nil).first
+            if existing
+              return render json: {
+                success: false,
+                error: "Document is already attached to this task"
+              }, status: :unprocessable_entity
+            end
+          end
+
+          # Create SmTaskAttachment pointing to this WarehouseDocument
+          # The after_create callback will create a NEW WarehouseDocument
+          # in the task folder (Tasks/{{TaskId}}/{{Category}}) with the same blob
+          attachment = SmTaskAttachment.create!(
+            sm_task_id: task.id,
+            attachable_type: "WarehouseDocument",
+            attachable_id: @document.id,
+            action_item_id: action_item_id,
+            category: category,
+            attachment_type: "document",
+            added_by: current_user,
+            display_name: @document.display_name
+          )
+
+          render json: {
+            success: true,
+            message: "Document linked to task successfully",
+            document: document_to_json(@document),
+            task: {
+              id: task.id,
+              name: task.name,
+              task_number: task.task_number
+            },
+            attachment_id: attachment.id,
+            warehouse_document_id: attachment.warehouse_document&.id
+          }
+        rescue ActiveRecord::RecordInvalid => e
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        rescue StandardError => e
+          Rails.logger.error "[Documents] Link to task failed: #{e.message}"
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       # ========================================
       # Multi-Source Search Helpers (AttachmentPicker)
       # ========================================
 
-      # Search corporate documents (CorporateCompanyDocument)
+      # Search corporate documents (via WarehouseDocument SSoT)
       def search_corporate_documents(search_term, limit)
-        scope = CorporateCompanyDocument.includes(:corporate_company, :user, :document_type_record)
-                                        .order(created_at: :desc)
-                                        .limit(limit)
+        scope = WarehouseDocument.where(source_type: "corporate")
+                                 .includes(:storage_blob, :linkable)
+                                 .order(created_at: :desc)
+                                 .limit(limit)
 
-        scope = scope.search_text(search_term) if search_term.present?
+        if search_term.present?
+          search_pattern = "%#{search_term.downcase}%"
+          scope = scope.where("LOWER(display_name) LIKE ? OR LOWER(original_filename) LIKE ?", search_pattern, search_pattern)
+        end
 
         scope.map do |doc|
+          doc_type_id = doc.meta("document_type_id")
+          doc_type = DocumentType.find_by(id: doc_type_id) if doc_type_id
           {
             id: doc.id,
-            name: doc.file_name,
-            display_title: doc.display_name || doc.file_name,
+            name: doc.original_filename,
+            display_title: doc.display_name,
             source_type: "corporate",
-            document_type: doc.document_type_record ? {
-              id: doc.document_type_record.id,
-              name: doc.document_type_record.name,
-              abbreviation: doc.document_type_record.abbreviation || doc.document_type_record.name[0..2].upcase
+            document_type: doc_type ? {
+              id: doc_type.id,
+              name: doc_type.name,
+              abbreviation: doc_type.abbreviation || doc_type.name[0..2].upcase
             } : nil,
-            url: doc.storage_url || doc.file_url,
-            file_url: doc.storage_url || doc.file_url,
+            url: doc.download_url,
+            file_url: doc.download_url,
             uploaded_at: doc.created_at&.iso8601
           }
         end
@@ -1130,23 +1390,87 @@ module Api
       # @param scope [String] The document scope (email, corporate, job, contact, people, task)
       # @param path_segments [Array<String>] Path segments to drill down
       # @return [Hash] { folders: [{ name, path, count }...], files: [...] }
+      # SSoT (Jan 2026): Unified folder tree builder
+      # Email has special logic (mailboxes, years, months from SyncedEmail)
+      # All other scopes use generic folder-based approach from WarehouseDocument.folder
       def build_live_folder_tree(scope, path_segments)
         case scope
         when "email", "emails"
           build_email_live_tree(path_segments)
-        when "corporate", "corporate_entity", "corp"
-          build_corporate_live_tree(path_segments)
-        when "job", "jobs"
-          build_job_live_tree(path_segments)
-        when "contact", "contacts"
-          build_contact_live_tree(path_segments)
-        when "people"
-          build_people_live_tree(path_segments)
-        when "task", "tasks"
-          build_task_live_tree(path_segments)
         else
-          { folders: [], files: [] }
+          # Generic: job, contact, corporate, people, task, etc.
+          # All use WarehouseDocument.folder + WarehouseFolder tabs
+          build_generic_folder_tree(scope, path_segments)
         end
+      end
+
+      # SSoT (Jan 2026): ONE generic method for all folder-based scopes
+      # Queries WarehouseDocument.folder + WarehouseFolder tabs
+      # Works for: job, contact, corporate, people, task, case, warehouse, etc.
+      #
+      # IMPORTANT: Returns RELATIVE paths (without root folder prefix)
+      # Frontend adds root folder prefix when building UI paths
+      # e.g., for Contacts scope: returns "7 Eleven/Bills", frontend adds "Contacts/" prefix
+      def build_generic_folder_tree(scope, path_segments)
+        # Get root folder from scope (e.g., "job" → "Jobs", "contact" → "Contacts")
+        root_folder = WarehouseFolder.root_folder_for_warehouse_type(scope)
+        return { folders: [], files: [] } unless root_folder
+
+        # Build full DB path (includes root folder for querying WarehouseDocument.folder)
+        full_db_path = path_segments.any? ? "#{root_folder}/#{path_segments.join('/')}" : nil
+        # Relative path for response (what frontend will use)
+        relative_path = path_segments.any? ? path_segments.join('/') : nil
+        path_depth = path_segments.size + 2  # "RootFolder" is depth 1, first segment is depth 2
+
+        # Base scope: all documents in this root folder
+        base_scope = WarehouseDocument.where("folder LIKE ?", "#{root_folder}/%")
+
+        # Get configured tabs for this path level
+        tabs_from_config = if full_db_path
+          WarehouseFolder.child_tabs_for_path(full_db_path)
+        else
+          WarehouseFolder.tabs_for_root_folder(root_folder)
+        end
+
+        # Get subfolder counts from documents
+        subfolder_scope = full_db_path ? base_scope.where("folder LIKE ?", "#{full_db_path}/%") : base_scope
+        subfolder_counts = subfolder_scope
+          .group(Arel.sql("split_part(folder, '/', #{path_depth})"))
+          .count
+
+        # Build folders: configured tabs (with counts) + extra folders from documents
+        # SSoT: Return RELATIVE paths - frontend adds root folder prefix
+        folders = tabs_from_config.map do |tab|
+          # Strip root folder from path (WarehouseFolder methods return full paths)
+          relative_tab_path = tab[:path].to_s.sub(/^#{Regexp.escape(root_folder)}\//, '')
+          {
+            name: tab[:name],
+            path: relative_tab_path,
+            count: subfolder_counts[tab[:name]] || 0,
+            tab_key: tab[:tab_key],
+            icon: tab[:icon],
+            warehouse_folder_id: tab[:warehouse_folder_id],
+            has_children: tab[:has_children]
+          }
+        end
+
+        config_names = tabs_from_config.map { |t| t[:name] }
+        extra_folders = subfolder_counts.reject { |name, _| config_names.include?(name) || name.blank? }
+        extra_folders.each do |name, count|
+          # Build relative path (without root folder)
+          folder_relative_path = relative_path ? "#{relative_path}/#{name}" : name
+          folders << { name: name, path: folder_relative_path, count: count }
+        end
+
+        # Get files at exactly this level (only if we have a path)
+        files = []
+        if full_db_path
+          files_at_level = base_scope.where(folder: full_db_path).includes(:storage_blob).limit(500)
+          files = files_at_level.map { |doc| warehouse_document_to_json(doc) }
+        end
+
+        folders = folders.sort_by { |f| f[:name].to_s.downcase }
+        { folders: folders, files: files }
       end
 
       # Email structure: {{Mailbox}}/{{Year}}/Email Body|Attachments/{{Month}}/files
@@ -1196,11 +1520,12 @@ module Api
                                    .where("EXTRACT(YEAR FROM received_at) = ?", year)
                                    .count
 
-          # Count attachments from synced_email_attachments
-          attachment_count = SyncedEmailAttachment.joins(:synced_email)
-                                                  .where(synced_emails: { mailbox_owner_email: mailbox })
-                                                  .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
-                                                  .count
+          # Count attachments from warehouse_documents (SSoT Jan 2026)
+          attachment_count = WarehouseDocument.where(source_type: "email_attachment")
+                                              .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+                                              .where(synced_emails: { mailbox_owner_email: mailbox })
+                                              .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                              .count
 
           folders = [
             { name: "Email Body", path: "#{mailbox}/#{year}/Email Body", count: email_count },
@@ -1216,12 +1541,13 @@ module Api
           folder_type = path_segments[2]  # "Email Body" or "Attachments"
 
           if folder_type == "Attachments"
-            # Count attachments by month
-            months = SyncedEmailAttachment.joins(:synced_email)
-                                          .where(synced_emails: { mailbox_owner_email: mailbox })
-                                          .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
-                                          .group("EXTRACT(MONTH FROM synced_emails.received_at)::INTEGER")
-                                          .count
+            # Count attachments by month (SSoT Jan 2026: WarehouseDocument)
+            months = WarehouseDocument.where(source_type: "email_attachment")
+                                      .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+                                      .where(synced_emails: { mailbox_owner_email: mailbox })
+                                      .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                      .group("EXTRACT(MONTH FROM synced_emails.received_at)::INTEGER")
+                                      .count
           else
             # Count emails by month
             months = SyncedEmail.where(mailbox_owner_email: mailbox)
@@ -1247,23 +1573,26 @@ module Api
           month = path_segments[3].to_i
 
           if folder_type == "Attachments"
-            # Show email attachments
-            attachments = SyncedEmailAttachment.joins(:synced_email)
-                                               .where(synced_emails: { mailbox_owner_email: mailbox })
-                                               .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
-                                               .where("EXTRACT(MONTH FROM synced_emails.received_at) = ?", month)
-                                               .order("synced_emails.received_at DESC")
-                                               .limit(500)
+            # Show email attachments (SSoT Jan 2026: WarehouseDocument)
+            attachments = WarehouseDocument.where(source_type: "email_attachment")
+                                           .includes(:storage_blob)
+                                           .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+                                           .where(synced_emails: { mailbox_owner_email: mailbox })
+                                           .where("EXTRACT(YEAR FROM synced_emails.received_at) = ?", year)
+                                           .where("EXTRACT(MONTH FROM synced_emails.received_at) = ?", month)
+                                           .order("synced_emails.received_at DESC")
+                                           .limit(500)
 
             files = attachments.map do |att|
+              email = SyncedEmail.find_by(id: att.metadata["synced_email_id"])
               {
                 id: att.id,
-                name: att.filename || "(Unknown)",
+                name: att.display_name || "(Unknown)",
                 type: "attachment",
-                mimeType: att.content_type || "application/octet-stream",
-                fileSize: att.file_size,
-                receivedAt: att.synced_email&.received_at&.iso8601,
-                emailSubject: att.synced_email&.subject
+                mimeType: att.storage_blob&.content_type || "application/octet-stream",
+                fileSize: att.storage_blob&.file_size,
+                receivedAt: email&.received_at&.iso8601,
+                emailSubject: email&.subject
               }
             end
           else
@@ -1288,359 +1617,6 @@ module Api
               }
             end
           end
-
-          { folders: [], files: files }
-        end
-      end
-
-      # Corporate scope: {{CompanyGroup}}/{{CompanyCode}}/{{Tab}}
-      # Level 0: Company Groups (group by corporate_groups.name)
-      # Level 1: Companies in group (group by company_code)
-      # Level 2: Document types/tabs (group by document_type)
-      # Level 3: Files
-      def build_corporate_live_tree(path_segments)
-        depth = path_segments.size
-
-        case depth
-        when 0
-          # Root: Show company groups
-          groups = CorporateGroup.order(:name).map do |group|
-            count = CorporateCompanyDocument
-              .joins("INNER JOIN corporate_companies cc ON cc.id = corporate_company_documents.company_id")
-              .where("cc.company_group_id = ?", group.id)
-              .count
-
-            { name: group.name, path: group.name, count: count, groupId: group.id }
-          end
-
-          { folders: groups.select { |g| g[:count] > 0 }, files: [] }
-
-        when 1
-          # Level 1: Show companies in selected group
-          group_name = path_segments[0]
-          group = CorporateGroup.find_by(name: group_name)
-          return { folders: [], files: [] } unless group
-
-          companies = CorporateCompany.where(company_group_id: group.id).order(:name).map do |company|
-            count = CorporateCompanyDocument.where(company_id: company.id).count
-            display_name = company.company_code.present? ? "#{company.company_code} - #{company.name}" : company.name
-            { name: display_name, path: "#{group_name}/#{company.company_code || company.id}", count: count, companyId: company.id }
-          end
-
-          { folders: companies.select { |c| c[:count] > 0 }, files: [] }
-
-        when 2
-          # Level 2: Show document types for selected company
-          group_name = path_segments[0]
-          company_code = path_segments[1]
-
-          company = CorporateCompany.find_by(company_code: company_code) ||
-                    CorporateCompany.find_by(id: company_code)
-          return { folders: [], files: [] } unless company
-
-          # Group by document_type (using document_type_id for proper grouping)
-          doc_types = CorporateCompanyDocument.where(company_id: company.id)
-                                              .joins("LEFT JOIN document_types ON document_types.id = corporate_company_documents.document_type_id")
-                                              .group("COALESCE(document_types.name, corporate_company_documents.document_type, 'Uncategorized')")
-                                              .count
-
-          folders = doc_types.map do |type_name, count|
-            safe_name = type_name || "Uncategorized"
-            { name: safe_name, path: "#{group_name}/#{company_code}/#{safe_name}", count: count }
-          end.sort_by { |f| f[:name].to_s.downcase }
-
-          { folders: folders, files: [] }
-
-        else
-          # Level 3+: Show files for selected document type
-          group_name = path_segments[0]
-          company_code = path_segments[1]
-          doc_type_name = path_segments[2]
-
-          company = CorporateCompany.find_by(company_code: company_code) ||
-                    CorporateCompany.find_by(id: company_code)
-          return { folders: [], files: [] } unless company
-
-          documents = CorporateCompanyDocument
-            .where(company_id: company.id)
-            .joins("LEFT JOIN document_types ON document_types.id = corporate_company_documents.document_type_id")
-            .where("COALESCE(document_types.name, corporate_company_documents.document_type, 'Uncategorized') = ?", doc_type_name)
-            .includes(:document_type_record)
-            .order(created_at: :desc)
-            .limit(500)
-
-          files = documents.map do |doc|
-            {
-              id: doc.id,
-              name: doc.display_name || doc.file_name || "Untitled",
-              type: "corporate",
-              mimeType: doc.mime_type || "application/octet-stream",
-              fileSize: doc.file_size || 0,
-              createdAt: doc.created_at&.iso8601,
-              url: doc.storage_url || doc.file_url
-            }
-          end
-
-          { folders: [], files: files }
-        end
-      end
-
-      # Job scope: {{JobCode}}/{{Tab}}
-      # Level 0: Jobs (group by job_code)
-      # Level 1: Document types/tabs (group by document_type)
-      # Level 2: Files
-      def build_job_live_tree(path_segments)
-        depth = path_segments.size
-
-        case depth
-        when 0
-          # Root: Show jobs with documents
-          jobs = JobDocument.joins(:job)
-                            .group("jobs.job_code", "jobs.id", "jobs.name")
-                            .count
-
-          folders = jobs.map do |(job_code, job_id, job_name), count|
-            display = job_code.present? ? job_code : "Job-#{job_id}"
-            { name: display, path: display, count: count, jobId: job_id, jobName: job_name }
-          end.sort_by { |f| f[:name].to_s.downcase }
-
-          { folders: folders, files: [] }
-
-        when 1
-          # Level 1: Show document types for selected job
-          job_code = path_segments[0]
-          job = Job.find_by(job_code: job_code) || Job.find_by(id: job_code.sub(/^Job-/, ""))
-          return { folders: [], files: [] } unless job
-
-          doc_types = JobDocument.where(job_id: job.id)
-                                 .joins("LEFT JOIN document_types ON document_types.id = job_documents.document_type_id")
-                                 .group("COALESCE(document_types.name, 'Uncategorized')")
-                                 .count
-
-          folders = doc_types.map do |type_name, count|
-            safe_name = type_name || "Uncategorized"
-            { name: safe_name, path: "#{job_code}/#{safe_name}", count: count }
-          end.sort_by { |f| f[:name].to_s.downcase }
-
-          { folders: folders, files: [] }
-
-        else
-          # Level 2+: Show files
-          job_code = path_segments[0]
-          doc_type_name = path_segments[1]
-
-          job = Job.find_by(job_code: job_code) || Job.find_by(id: job_code.sub(/^Job-/, ""))
-          return { folders: [], files: [] } unless job
-
-          documents = JobDocument.where(job_id: job.id)
-                                 .joins("LEFT JOIN document_types ON document_types.id = job_documents.document_type_id")
-                                 .where("COALESCE(document_types.name, 'Uncategorized') = ?", doc_type_name)
-                                 .order(created_at: :desc)
-                                 .limit(500)
-
-          files = documents.map do |doc|
-            {
-              id: doc.id,
-              name: doc.display_title || doc.file_name || "Untitled",
-              type: "job",
-              mimeType: doc.mime_type || "application/octet-stream",
-              fileSize: doc.file_size || 0,
-              createdAt: doc.created_at&.iso8601,
-              url: doc.storage_url || doc.web_url
-            }
-          end
-
-          { folders: [], files: files }
-        end
-      end
-
-      # Contact scope: {{ContactName}}/{{Tab}}
-      # Uses ContactDocument (Xero invoices/bills)
-      def build_contact_live_tree(path_segments)
-        depth = path_segments.size
-
-        case depth
-        when 0
-          # Root: Show contacts with documents
-          contacts = ContactDocument.joins(:contact)
-                                    .group("contacts.name", "contacts.id")
-                                    .count
-
-          folders = contacts.map do |(contact_name, contact_id), count|
-            display = contact_name.presence || "Unknown Contact"
-            { name: display, path: display, count: count, contactId: contact_id }
-          end.sort_by { |f| f[:name].to_s.downcase }
-
-          { folders: folders, files: [] }
-
-        when 1
-          # Level 1: Show document types for selected contact
-          contact_name = path_segments[0]
-          contact = Contact.find_by(name: contact_name) || Contact.find_by(display_name: contact_name)
-          return { folders: [], files: [] } unless contact
-
-          doc_types = ContactDocument.where(contact_id: contact.id)
-                                     .joins("LEFT JOIN document_types ON document_types.id = contact_documents.document_type_id")
-                                     .group("COALESCE(document_types.name, 'Uncategorized')")
-                                     .count
-
-          folders = doc_types.map do |type_name, count|
-            safe_name = type_name || "Uncategorized"
-            { name: safe_name, path: "#{contact_name}/#{safe_name}", count: count }
-          end.sort_by { |f| f[:name].to_s.downcase }
-
-          { folders: folders, files: [] }
-
-        else
-          # Level 2+: Show files
-          contact_name = path_segments[0]
-          doc_type_name = path_segments[1]
-
-          contact = Contact.find_by(name: contact_name) || Contact.find_by(display_name: contact_name)
-          return { folders: [], files: [] } unless contact
-
-          documents = ContactDocument.where(contact_id: contact.id)
-                                     .joins("LEFT JOIN document_types ON document_types.id = contact_documents.document_type_id")
-                                     .where("COALESCE(document_types.name, 'Uncategorized') = ?", doc_type_name)
-                                     .order(created_at: :desc)
-                                     .limit(500)
-
-          files = documents.map do |doc|
-            {
-              id: doc.id,
-              name: doc.display_name || doc.file_name || "Untitled",
-              type: "contact",
-              mimeType: doc.mime_type || "application/octet-stream",
-              fileSize: doc.file_size || 0,
-              createdAt: doc.created_at&.iso8601,
-              url: doc.respond_to?(:storage_url) ? doc.storage_url : nil
-            }
-          end
-
-          { folders: [], files: files }
-        end
-      end
-
-      # People scope: {{ContactName}}/{{Tab}}
-      # Uses PeopleDocument (employee documents)
-      def build_people_live_tree(path_segments)
-        depth = path_segments.size
-
-        case depth
-        when 0
-          # Root: Show contacts with people documents
-          contacts = PeopleDocument.joins(:contact)
-                                   .group("contacts.name", "contacts.id")
-                                   .count
-
-          folders = contacts.map do |(contact_name, contact_id), count|
-            display = contact_name.presence || "Unknown Person"
-            { name: display, path: display, count: count, contactId: contact_id }
-          end.sort_by { |f| f[:name].to_s.downcase }
-
-          { folders: folders, files: [] }
-
-        when 1
-          # Level 1: Show document types for selected person
-          contact_name = path_segments[0]
-          contact = Contact.find_by(name: contact_name) || Contact.find_by(display_name: contact_name)
-          return { folders: [], files: [] } unless contact
-
-          doc_types = PeopleDocument.where(contact_id: contact.id)
-                                    .joins("LEFT JOIN document_types ON document_types.id = people_documents.document_type_id")
-                                    .group("COALESCE(document_types.name, people_documents.document_type, 'Uncategorized')")
-                                    .count
-
-          folders = doc_types.map do |type_name, count|
-            safe_name = type_name || "Uncategorized"
-            { name: safe_name, path: "#{contact_name}/#{safe_name}", count: count }
-          end.sort_by { |f| f[:name].to_s.downcase }
-
-          { folders: folders, files: [] }
-
-        else
-          # Level 2+: Show files
-          contact_name = path_segments[0]
-          doc_type_name = path_segments[1]
-
-          contact = Contact.find_by(name: contact_name) || Contact.find_by(display_name: contact_name)
-          return { folders: [], files: [] } unless contact
-
-          documents = PeopleDocument.where(contact_id: contact.id)
-                                    .joins("LEFT JOIN document_types ON document_types.id = people_documents.document_type_id")
-                                    .where("COALESCE(document_types.name, people_documents.document_type, 'Uncategorized') = ?", doc_type_name)
-                                    .order(created_at: :desc)
-                                    .limit(500)
-
-          files = documents.map do |doc|
-            {
-              id: doc.id,
-              name: doc.title || doc.file_name || "Untitled",
-              type: "people",
-              mimeType: doc.mime_type || "application/octet-stream",
-              fileSize: doc.file_size || 0,
-              createdAt: doc.created_at&.iso8601,
-              expiryDate: doc.expiry_date&.iso8601,
-              isExpired: doc.respond_to?(:expired?) ? doc.expired? : false,
-              url: doc.respond_to?(:storage_url) ? doc.storage_url : nil
-            }
-          end
-
-          { folders: [], files: files }
-        end
-      end
-
-      # Task scope: Tasks/{{TaskNumber}}
-      # Uses SmTaskAttachment linked to CorporateCompanyDocument
-      def build_task_live_tree(path_segments)
-        depth = path_segments.size
-
-        case depth
-        when 0
-          # Root: Show "Tasks" folder as entry point
-          count = SmTaskAttachment.where(attachable_type: "CorporateCompanyDocument").distinct.count(:sm_task_id)
-          { folders: [{ name: "Tasks", path: "Tasks", count: count }], files: [] }
-
-        when 1
-          # Level 1: Show tasks with attachments
-          tasks = SmTaskAttachment.where(attachable_type: "CorporateCompanyDocument")
-                                  .joins(:sm_task)
-                                  .group("sm_tasks.task_number", "sm_tasks.id", "sm_tasks.name")
-                                  .count
-
-          folders = tasks.map do |(task_number, task_id, task_name), count|
-            display = task_number.present? ? "#{task_number} - #{task_name}" : task_name
-            { name: display || "Task #{task_id}", path: "Tasks/#{task_number || task_id}", count: count, taskId: task_id }
-          end.sort_by { |f| f[:name].to_s.downcase }
-
-          { folders: folders, files: [] }
-
-        else
-          # Level 2+: Show files for selected task
-          task_identifier = path_segments[1]
-
-          task = SmTask.find_by(task_number: task_identifier) || SmTask.find_by(id: task_identifier)
-          return { folders: [], files: [] } unless task
-
-          attachments = SmTaskAttachment.where(sm_task_id: task.id, attachable_type: "CorporateCompanyDocument")
-                                        .includes(:attachable)
-
-          files = attachments.map do |attachment|
-            doc = attachment.attachable
-            next unless doc
-
-            {
-              id: doc.id,
-              name: doc.display_name || doc.file_name || "Untitled",
-              type: "task",
-              mimeType: doc.mime_type || "application/octet-stream",
-              fileSize: doc.file_size || 0,
-              createdAt: doc.created_at&.iso8601,
-              taskId: task.id,
-              taskNumber: task.task_number,
-              url: doc.storage_url || doc.file_url
-            }
-          end.compact
 
           { folders: [], files: files }
         end
@@ -1695,7 +1671,7 @@ module Api
         { folders: sorted_folders }
       end
 
-      # SSoT: Build folder hierarchy matching StorageConfiguration.SCOPE_TEMPLATES
+      # SSoT: Build folder hierarchy matching WarehouseProvider.SCOPE_TEMPLATES
       # Template tokens ({{CompanyGroup}}, {{CompanyCode}}, {{TabName}}) define the tree structure
       def build_hierarchy_for_scope(scope, template)
         case scope.to_s
@@ -1704,7 +1680,7 @@ module Api
         when "job", "jobs"
           build_job_hierarchy
         when "contact", "contacts"
-          # SSoT: ContactDocument stores invoices/bills from Xero
+          # SSoT: WarehouseDocument with source_type='contact' stores contact documents
           build_contact_hierarchy
         when "people"
           # SSoT: PeopleDocument stores people/employee documents
@@ -1715,9 +1691,10 @@ module Api
       end
 
       # SSoT: Corporate hierarchy follows template {{CompanyGroup}}/{{CompanyCode}}/{{TabName}}
+      # SSoT (Jan 2026): Uses WarehouseDocument for document counts
       def build_corporate_hierarchy
-        # Get document tabs for corporate scope
-        tabs = EntityTab.for_scope("corporate_entity")
+        # Get document tabs for corporate scope (SSoT: 'corporate' is THE ONE - Jan 2026)
+        tabs = EntityTab.for_scope("corporate")
                         .where(tab_group: "documents")
                         .enabled
                         .ordered
@@ -1738,10 +1715,11 @@ module Api
                 companyCode: company.company_code,
                 companyName: company.name,
                 children: tabs.map do |tab|
-                  # Count documents for this company+tab combination
+                  # Count documents for this company+tab combination using WarehouseDocument
                   doc_count = if tab.document_type_ids.present?
-                    CorporateCompanyDocument
-                      .where(company_id: company.id, document_type_id: tab.document_type_ids)
+                    WarehouseDocument
+                      .where(source_type: "corporate", linkable: company)
+                      .where("metadata->>'document_type_id' IN (?)", tab.document_type_ids.map(&:to_s))
                       .count
                   else
                     0
@@ -1764,7 +1742,7 @@ module Api
       end
 
       # SSoT: Contact hierarchy follows template {{ContactName}}/{{TabName}}
-      # Uses ContactDocument model (for Xero invoices/bills)
+      # SSoT (Jan 2026): Uses WarehouseDocument for contact document counts
       def build_contact_hierarchy
         # Get document tabs for contact scope (includes Invoices, Financial, etc.)
         tabs = EntityTab.for_scope("contact")
@@ -1772,9 +1750,11 @@ module Api
                         .enabled
                         .ordered
 
-        # Get contacts with ContactDocuments (includes Xero invoices)
-        Contact.joins(:contact_documents)
-               .distinct
+        # Get contacts with WarehouseDocuments
+        contact_ids = WarehouseDocument.where(source_type: "contact", linkable_type: "Contact")
+                                       .distinct
+                                       .pluck(:linkable_id)
+        Contact.where(id: contact_ids)
                .order(:name)
                .limit(100)
                .map do |contact|
@@ -1786,11 +1766,12 @@ module Api
             contactId: contact.id,
             children: tabs.map do |tab|
               doc_count = if tab.document_type_ids.present?
-                ContactDocument
-                  .where(contact_id: contact.id, document_type_id: tab.document_type_ids)
+                WarehouseDocument
+                  .where(source_type: "contact", linkable: contact)
+                  .where("metadata->>'document_type_id' IN (?)", tab.document_type_ids.map(&:to_s))
                   .count
               else
-                ContactDocument.where(contact_id: contact.id).count
+                WarehouseDocument.where(source_type: "contact", linkable: contact).count
               end
 
               {
@@ -1808,6 +1789,7 @@ module Api
       end
 
       # SSoT: Job hierarchy follows template {{JobCode}}/{{TabName}}
+      # SSoT (Jan 2026): Uses WarehouseDocument for job document counts
       def build_job_hierarchy
         # Get document tabs for job scope
         tabs = EntityTab.for_scope("job")
@@ -1826,8 +1808,9 @@ module Api
             jobTitle: job.title,
             children: tabs.map do |tab|
               doc_count = if tab.document_type_ids.present?
-                JobDocument
-                  .where(job_id: job.id, document_type_id: tab.document_type_ids)
+                WarehouseDocument
+                  .where(source_type: "job", linkable: job)
+                  .where("metadata->>'document_type_id' IN (?)", tab.document_type_ids.map(&:to_s))
                   .count
               else
                 0
@@ -1891,54 +1874,58 @@ module Api
       end
 
       # SSoT: Fetch job documents by EntityTab.document_type_ids
+      # Migrated to WarehouseDocument (Jan 2026)
       def fetch_job_documents(entity_tab)
         return [] if entity_tab.document_type_ids.empty?
 
-        JobDocument
-          .where(document_type_id: entity_tab.document_type_ids)
-          .includes(:job)
+        WarehouseDocument
+          .where(source_type: "job")
+          .where("metadata->>'document_type_id' IN (?)", entity_tab.document_type_ids.map(&:to_s))
+          .includes(:storage_blob, :linkable)
           .order(created_at: :desc)
           .limit(500)
           .map do |doc|
+            job = doc.linkable if doc.linkable_type == "Job"
+            filename = doc.original_filename || doc.display_name || "Untitled"
             {
-              name: doc.display_title || doc.file_name || "Untitled",
-              path: doc.storage_path || doc.folder_path || "",
-              size: doc.file_size || 0,
-              content_type: doc.mime_type || MiniMime.lookup_by_filename(doc.file_name || "")&.content_type || "application/octet-stream",
+              name: doc.display_name || filename,
+              path: doc.folder || "",
+              size: doc.file_size || doc.storage_blob&.file_size || 0,
+              content_type: doc.storage_blob&.content_type || MiniMime.lookup_by_filename(filename)&.content_type || "application/octet-stream",
               last_modified: doc.updated_at&.iso8601,
-              # SSoT: storage_url (from StorableDocument concern) is THE ONE way to get download URLs
-              # Falls back to web_url (SharePoint) for backwards compatibility
-              url: doc.storage_url || doc.web_url || "",
+              url: doc.download_url || "",
               id: doc.id,
-              job_id: doc.job_id,
-              job_number: doc.job&.job_number,
-              job_title: doc.job&.title
+              job_id: job&.id,
+              job_number: job&.job_number,
+              job_title: job&.title
             }
           end
       end
 
       # SSoT: Fetch corporate documents by EntityTab.document_type_ids
+      # Migrated to WarehouseDocument (Jan 2026)
       def fetch_corporate_documents(entity_tab)
         return [] if entity_tab.document_type_ids.empty?
 
-        CorporateCompanyDocument
-          .where(document_type_id: entity_tab.document_type_ids)
-          .includes(:corporate_company)
+        WarehouseDocument
+          .where(source_type: "corporate")
+          .where("metadata->>'document_type_id' IN (?)", entity_tab.document_type_ids.map(&:to_s))
+          .includes(:storage_blob, :linkable)
           .order(created_at: :desc)
           .limit(500)
           .map do |doc|
+            company = doc.linkable if doc.linkable_type == "Corporate"
+            filename = doc.original_filename || doc.display_name || "Untitled"
             {
-              name: doc.display_name || doc.file_name || "Untitled",
-              path: doc.storage_path || doc.expected_storage_path || "",
-              size: doc.file_size || 0,
-              content_type: doc.mime_type || MiniMime.lookup_by_filename(doc.file_name || "")&.content_type || "application/octet-stream",
+              name: doc.display_name || filename,
+              path: doc.folder || "",
+              size: doc.file_size || doc.storage_blob&.file_size || 0,
+              content_type: doc.storage_blob&.content_type || MiniMime.lookup_by_filename(filename)&.content_type || "application/octet-stream",
               last_modified: doc.updated_at&.iso8601,
-              # SSoT: storage_url (from StorableDocument concern) is THE ONE way to get download URLs
-              # Falls back to legacy database columns for backwards compatibility
-              url: doc.storage_url || doc.file_url || doc.storage_download_url || "",
+              url: doc.download_url || "",
               id: doc.id,
-              company_name: doc.corporate_company&.name,
-              company_code: doc.company_code
+              company_name: company&.name,
+              company_code: doc.meta("company_code") || company&.code
             }
           end
       end
@@ -2063,40 +2050,41 @@ module Api
       end
 
       # Update document record after S3 rename
+      # SSoT (Jan 2026): WarehouseDocument is THE ONE source for documents
       def update_document_record(document_id, source, new_filename, new_path)
-        case source
-        when "job"
-          doc = JobDocument.find_by(id: document_id)
-          doc&.update(file_name: new_filename, storage_path: new_path)
-        when "corporate", "task"
-          doc = CorporateCompanyDocument.find_by(id: document_id)
-          doc&.update(file_name: new_filename, storage_path: new_path)
-        when "people"
-          doc = PeopleDocument.find_by(id: document_id)
-          doc&.update(file_name: new_filename, storage_path: new_path)
-        end
+        # Find by ID in WarehouseDocument (SSoT)
+        doc = WarehouseDocument.find_by(id: document_id)
+        return unless doc
+
+        doc.update(display_name: new_filename, original_filename: new_filename, folder: new_path)
+
+        # Also update storage blob path if needed
+        doc.storage_blob&.update(storage_path: new_path) if doc.storage_blob
       end
 
       # Find document by storage_path and update
+      # SSoT (Jan 2026): WarehouseDocument via StorageBlob is THE ONE source
       def find_and_update_document_by_path(old_path, new_filename, new_path)
         # Normalize path for comparison (remove leading slash)
         normalized_old = old_path.sub(%r{^/}, "")
 
-        # Try each document type
-        [CorporateCompanyDocument, JobDocument, PeopleDocument].each do |klass|
-          next unless klass.column_names.include?("storage_path")
+        # Find via StorageBlob (content-addressed storage)
+        blob = StorageBlob.find_by("storage_path = ? OR storage_path = ?", old_path, normalized_old)
+        if blob
+          # Update blob path
+          blob.update(storage_path: new_path)
 
-          doc = klass.find_by("storage_path = ? OR storage_path = ?", old_path, normalized_old)
-          if doc
-            doc.update(file_name: new_filename, storage_path: new_path)
-            Rails.logger.info "[Documents] Updated #{klass.name}##{doc.id} after rename"
-            return
+          # Update all linked WarehouseDocuments
+          blob.warehouse_documents.find_each do |wd|
+            wd.update(display_name: new_filename, original_filename: new_filename)
+            Rails.logger.info "[Documents] Updated WarehouseDocument##{wd.id} after rename"
           end
         end
       end
 
+      # SSoT (Jan 2026): WarehouseDocument is THE ONE source
       def set_document
-        @document = CorporateCompanyDocument.find(params[:id])
+        @document = WarehouseDocument.find(params[:id])
       end
 
       def document_params
@@ -2110,37 +2098,63 @@ module Api
         )
       end
 
+      # SSoT (Jan 2026): WarehouseDocument format
       def document_to_json(doc)
+        return {} unless doc.is_a?(WarehouseDocument)
+
+        filename = doc.original_filename || doc.display_name
+        blob = doc.storage_blob
+        linkable = doc.linkable
+
+        # Get document type from metadata
+        doc_type_id = doc.meta("document_type_id")
+        doc_type = DocumentType.find_by(id: doc_type_id) if doc_type_id
+
         {
           id: doc.id,
-          name: doc.file_name,
-          display_title: doc.display_name || doc.file_name,
-          type: doc.mime_type || "application/octet-stream",
-          size: doc.file_size || 0,
-          # SSoT: storage_url (from StorableDocument concern) is THE ONE way to get download URLs
-          url: doc.storage_url || doc.file_url,
-          job_title: nil, # CorporateCompanyDocuments aren't linked to jobs
-          job_id: nil,
+          name: filename,
+          display_title: doc.display_name || filename,
+          type: doc.content_type || blob&.content_type || "application/octet-stream",
+          size: doc.file_size || blob&.file_size || 0,
+          url: doc.download_url,
+          job_title: linkable.is_a?(Job) ? linkable.title : nil,
+          job_id: linkable.is_a?(Job) ? linkable.id : nil,
           uploaded_at: doc.created_at&.iso8601,
-          uploaded_by: doc.user&.name || "Unknown",
+          uploaded_by: doc.meta("uploaded_by") || "Unknown",
           folder_path: doc.folder,
-          document_type: doc.document_type_record ? {
-            id: doc.document_type_record.id,
-            name: doc.document_type_record.name,
-            abbreviation: doc.document_type_record.abbreviation || doc.document_type_record.name[0..2].upcase
+          document_type: doc_type ? {
+            id: doc_type.id,
+            name: doc_type.name,
+            abbreviation: doc_type.abbreviation || doc_type.name[0..2].upcase
           } : nil,
-          fiscal_year: doc.financial_years&.first&.to_s,
-          company_name: doc.corporate_company&.name,
-          verified: doc.ai_verification_status == "verified",
-          verified_at: doc.user_validated_at&.iso8601,
-          verified_by: doc.user_validated_by&.name
+          fiscal_year: doc.meta("fiscal_year")&.to_s,
+          company_name: linkable.is_a?(Corporate) ? linkable.name : nil,
+          verified: doc.meta("ai_verification_status") == "verified",
+          verified_at: doc.meta("user_validated_at"),
+          verified_by: doc.meta("user_validated_by")
         }
+      end
+
+      # SSoT: Get root folder for scope (used to expand paths in virtual_tree)
+      # Folders are stored with prefix (e.g., "Tasks/123") but frontend sends without prefix
+      def scope_root_folder(scope)
+        case scope.to_s
+        when "task" then "Tasks"
+        when "job" then "Jobs"
+        when "contact" then "Contacts"
+        when "corporate" then "Corporate"
+        when "email" then "Emails"
+        when "people" then "People"
+        else nil
+        end
       end
 
       # Phase 3: Serialize WarehouseDocument (universal format)
       # SSoT: Uses WarehouseDocument metadata with documentable context
       def warehouse_document_to_json(wd)
-        documentable = wd.documentable
+        # SSoT (Jan 2026): Don't access wd.documentable - it triggers NameError for deleted models
+        # (e.g., ContactDocument was deleted but records still reference it)
+        # Use WarehouseDocument directly - it IS the SSoT with linkable/metadata pattern
         blob = wd.storage_blob
 
         # Build download URL using WarehouseDocument.download_filename for Send Name
@@ -2150,8 +2164,8 @@ module Api
           provider&.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
         end
 
-        # Get parent context based on documentable type
-        parent_info = extract_parent_info(documentable)
+        # Get parent context from WarehouseDocument (SSoT: uses linkable + metadata)
+        parent_info = extract_parent_info(wd)
 
         {
           id: wd.id,
@@ -2169,7 +2183,7 @@ module Api
           fileUrl: download_url,
           storagePath: blob&.storage_path,
           # Virtual folder - computed from CURRENT templates (no sync needed)
-          # Uses documentable's virtual_folder_path which reads current StorageConfiguration
+          # Uses documentable's virtual_folder_path which reads current WarehouseProvider
           folder: wd.computed_folder_path,
           # Timestamps
           createdAt: wd.created_at&.iso8601,
@@ -2184,28 +2198,59 @@ module Api
         }
       end
 
-      # Extract parent context from documentable
-      def extract_parent_info(documentable)
-        return {} unless documentable
+      # Extract parent context from WarehouseDocument
+      # SSoT (Jan 2026): Uses linkable polymorphic and metadata instead of documentable
+      def extract_parent_info(wd_or_documentable)
+        return {} unless wd_or_documentable
 
-        case documentable
-        when CorporateCompanyDocument
-          {
-            companyId: documentable.company_id,
-            companyName: documentable.corporate_company&.name,
-            companyCode: documentable.company_code,
-            documentTypeId: documentable.document_type_id,
-            documentTypeName: documentable.document_type_record&.name
+        # If passed a WarehouseDocument, use linkable and metadata
+        if wd_or_documentable.is_a?(WarehouseDocument)
+          wd = wd_or_documentable
+          linkable = wd.linkable
+
+          base_info = {
+            documentTypeId: wd.meta("document_type_id"),
+            documentTypeName: wd.meta("document_type")
           }
-        when JobDocument
-          {
-            jobId: documentable.job_id,
-            jobNumber: documentable.job&.job_number,
-            jobTitle: documentable.job&.title,
-            documentTypeId: documentable.document_type_id,
-            documentTypeName: documentable.document_type&.name
-          }
-        when SyncedEmail
+
+          case linkable
+          when Corporate
+            base_info.merge(
+              companyId: linkable.id,
+              companyName: linkable.name,
+              companyCode: linkable.company_code
+            )
+          when Job
+            base_info.merge(
+              jobId: linkable.id,
+              jobNumber: linkable.job_number,
+              jobTitle: linkable.title
+            )
+          when Contact
+            base_info.merge(
+              contactId: linkable.id,
+              contactName: linkable.display_name
+            )
+          when SmTask
+            base_info.merge(
+              taskId: linkable.id,
+              taskName: linkable.name,
+              taskNumber: linkable.task_number,
+              jobId: linkable.job_id
+            )
+          else
+            # Extract from metadata if no linkable (including orphaned task docs)
+            # taskId: nil explicitly included so frontend can detect orphaned task documents
+            base_info.merge(
+              jobId: wd.meta("job_id"),
+              companyId: wd.meta("company_id"),
+              contactId: wd.meta("contact_id"),
+              taskId: wd.meta("task_id")  # Will be nil for orphaned task docs
+            ).compact
+          end
+        # Legacy: Handle SyncedEmail directly (still valid documentable)
+        elsif wd_or_documentable.is_a?(SyncedEmail)
+          documentable = wd_or_documentable
           {
             emailSubject: documentable.subject,
             emailFrom: documentable.from_email,
@@ -2213,29 +2258,6 @@ module Api
             emailReceivedAt: documentable.received_at&.iso8601,
             jobId: documentable.job_id,
             contactId: documentable.contact_id
-          }
-        when EmailAttachment
-          email = documentable.email_warehouse
-          {
-            emailSubject: email&.subject,
-            emailFrom: email&.from_email,
-            emailReceivedAt: email&.received_at&.iso8601,
-            attachmentIndex: documentable.attachment_index
-          }
-        when ContactDocument
-          {
-            contactId: documentable.contact_id,
-            contactName: documentable.contact&.display_name,
-            documentTypeId: documentable.document_type_id,
-            documentTypeName: documentable.document_type_record&.name
-          }
-        when PeopleDocument
-          {
-            contactId: documentable.contact_id,
-            contactName: documentable.contact&.display_name,
-            documentTypeId: documentable.document_type_id,
-            documentTypeName: documentable.document_type_record&.name,
-            expiryDate: documentable.expiry_date&.iso8601
           }
         else
           {}
@@ -2327,36 +2349,64 @@ module Api
         }
       end
 
-      # Serialize task documents (CorporateCompanyDocuments attached to tasks)
+      # Serialize task documents from attachment + attachable pair
+      # SSoT (Jan 2026): WarehouseDocument only
+      def serialize_task_doc_from_attachment(attachment, doc)
+        return nil unless doc.is_a?(WarehouseDocument)
+
+        task = attachment.sm_task
+        {
+          id: doc.id,
+          source: "task",
+          fileName: doc.original_filename || doc.display_name,
+          displayName: doc.display_name,
+          mimeType: doc.content_type || "application/octet-stream",
+          fileSize: doc.file_size || 0,
+          fileUrl: doc.download_url,
+          folderPath: doc.folder,
+          storagePath: doc.storage_path,
+          storageProvider: nil,
+          createdAt: doc.created_at&.iso8601,
+          taskId: task&.id,
+          taskName: task&.name,
+          taskNumber: task&.task_number,
+          jobId: task&.job_id,
+          jobNumber: task&.job&.job_number,
+          documentTypeId: doc.meta("document_type_id"),
+          documentTypeName: doc.meta("document_type"),
+          isImage: image_file?(doc.original_filename || doc.display_name)
+        }
+      end
+
+      # Serialize task doc from WarehouseDocument directly
+      # SSoT (Jan 2026): WarehouseDocument only
       def serialize_task_doc(doc)
-        # Get the task this document is attached to
-        task_attachment = doc.sm_task_attachments.first
+        return nil unless doc.is_a?(WarehouseDocument)
+
+        task_attachment = SmTaskAttachment.find_by(attachable: doc)
         task = task_attachment&.sm_task
+        filename = doc.original_filename || doc.display_name
 
         {
           id: doc.id,
           source: "task",
-          fileName: doc.file_name,
-          displayName: doc.display_name || doc.file_name,
-          mimeType: doc.mime_type || "application/octet-stream",
+          fileName: filename,
+          displayName: doc.display_name || filename,
+          mimeType: doc.content_type || "application/octet-stream",
           fileSize: doc.file_size || 0,
-          fileUrl: generate_download_url(doc),
-          folderPath: doc.folder,  # Folder only (not full path)
-          storagePath: doc.storage_path,  # Full S3 key - SSoT for rename/download
-          storageProvider: doc.storage_provider,
+          fileUrl: doc.download_url,
+          folderPath: doc.folder,
+          storagePath: doc.storage_path,
+          storageProvider: nil,
           createdAt: doc.created_at&.iso8601,
-          # Task info
           taskId: task&.id,
           taskName: task&.name,
           taskNumber: task&.task_number,
-          # Job info (if task is part of a job)
           jobId: task&.job_id,
           jobNumber: task&.job&.job_number,
-          # Document type
-          documentTypeId: doc.document_type_id,
-          documentTypeName: doc.document_type_record&.name,
-          # Metadata
-          isImage: image_file?(doc.file_name)
+          documentTypeId: doc.meta("document_type_id"),
+          documentTypeName: doc.meta("document_type"),
+          isImage: image_file?(filename)
         }
       end
 

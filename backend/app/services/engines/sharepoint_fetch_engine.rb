@@ -21,8 +21,8 @@ module Engines
       folder_path = determine_folder_path(job)
       file_pattern = template.storage_path || template.name
 
-      # SSoT: Get site_id/drive_id from StorageConfiguration, not template
-      storage_config = StorageConfiguration.instance
+      # SSoT: Get site_id/drive_id from WarehouseProvider, not template
+      storage_config = WarehouseProvider.instance
       graph_client = MicrosoftAppGraphClient.new
       site_id = storage_config.site_id
       drive_id = storage_config.drive_id
@@ -50,8 +50,8 @@ module Engines
     private
 
     def determine_folder_path(job)
-      # SSoT: Get jobs base path from StorageConfiguration
-      storage_config = StorageConfiguration.instance
+      # SSoT: Get jobs base path from WarehouseProvider
+      storage_config = WarehouseProvider.instance
       jobs_base = storage_config.path_for(:jobs)
       job_folder_name = "#{job.job_number} - #{job.name}".truncate(100)
       "#{jobs_base}/#{job_folder_name}"

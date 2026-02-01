@@ -49,34 +49,56 @@ interface LayoutModeContextType {
 
 const LayoutModeContext = React.createContext<LayoutModeContextType | undefined>(undefined);
 
-// Compute classes based on layout mode
+// ============================================================================
+// 🔴 CRITICAL FIX (Feb 2026): Block Layout by Default for space-y Compatibility
+// ============================================================================
+//
+// ROOT CAUSE: 208 files use `space-y-*` which is a BLOCK layout utility.
+// Previously ALL modes forced `flex flex-col` which broke space-y everywhere.
+//
+// THE FIX:
+// - "padded" mode: Block layout (overflow-auto only, no flex)
+//   → Allows space-y, mt-*, mb-* to work naturally
+//   → 99% of pages expect this (forms, content, settings)
+//
+// - "full-height" mode: Flex layout (needed for tables, fullscreen)
+//   → Pages using TablePage, TabbedDetailPage explicitly need flex
+//   → These pages call useSetLayoutMode("full-height")
+//
+// This fixes scrolling for 208 files while keeping specialized layouts working.
+// ============================================================================
+
 function getContainerClassName(mode: LayoutMode): string {
+  // Container ALWAYS clips - the inner content div handles scrolling
+  // Having overflow-auto on BOTH causes scroll conflicts
   switch (mode) {
     case "padded":
-      return "h-full overflow-auto";
     case "full-height":
-      return "h-full overflow-hidden";
     case "edge-to-edge":
-      return "h-full overflow-hidden";
     case "fullscreen":
-      return "h-full overflow-hidden";
     default:
-      return "h-full overflow-auto";
+      return "h-full overflow-hidden";
   }
 }
 
 function getContentClassName(mode: LayoutMode): string {
   switch (mode) {
     case "padded":
-      return "h-full pt-6 pb-0 px-4 flex flex-col";
+      // ✅ BLOCK LAYOUT (default) - works with space-y-*, margin-top, etc.
+      // This is what 99% of pages expect (forms, content, settings)
+      return "pt-6 pb-0 px-4 overflow-auto";
     case "full-height":
-      return "h-full pt-4 pb-0 px-4 flex flex-col";
+      // ✅ FLEX LAYOUT - for pages that explicitly need it
+      // Used by: TablePage, TabbedDetailPage, FullscreenPage
+      return "pt-4 pb-0 px-4 flex flex-col overflow-auto";
     case "edge-to-edge":
-      return "h-full flex flex-col";
+      // ✅ FLEX LAYOUT - for edge-to-edge content
+      return "flex flex-col overflow-auto";
     case "fullscreen":
-      return "h-full flex flex-col";
+      // ✅ FLEX LAYOUT - for fullscreen pages (Schedule Master)
+      return "flex flex-col overflow-auto";
     default:
-      return "h-full pt-6 pb-0 px-4 flex flex-col";
+      return "pt-6 pb-0 px-4 overflow-auto";
   }
 }
 

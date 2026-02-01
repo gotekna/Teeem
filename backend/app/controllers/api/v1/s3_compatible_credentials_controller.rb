@@ -86,8 +86,10 @@ module Api
       end
 
       # POST /api/v1/s3_compatible_credentials/:id/test
+      # SSoT (Jan 2026): bucket comes from WarehouseProvider, or optionally from params for testing
       def test
-        if @credential.test_connection!
+        test_bucket = params[:bucket].presence
+        if @credential.test_connection!(test_bucket)
           render json: {
             success: true,
             message: "Connection successful",
@@ -108,13 +110,16 @@ module Api
         @credential = current_organization.s3_compatible_credentials.find(params[:id])
       end
 
+      # SSoT (Jan 2026): bucket removed from params - WarehouseProvider.bucket is SSoT
       def credential_params
         params.require(:s3_compatible_credential).permit(
-          :name, :provider_type, :endpoint, :region, :bucket,
+          :name, :provider_type, :endpoint, :region,
           :access_key_id, :secret_access_key, :is_active
         )
       end
 
+      # SSoT (Jan 2026): bucket removed from credential response
+      # Bucket is now in WarehouseProvider only - not credential
       def credential_json(credential)
         {
           id: credential.id,
@@ -123,18 +128,13 @@ module Api
           providerName: credential.provider_display_name,
           endpoint: credential.endpoint,
           region: credential.region,
-          bucket: credential.bucket,
-          bucketUrl: credential.bucket_url,
+          # bucket removed - WarehouseProvider.bucket is SSoT
           status: credential.status,
           isActive: credential.is_active,
           isConnected: credential.connected?,
           createdAt: credential.created_at,
           updatedAt: credential.updated_at
         }
-      end
-
-      def current_organization
-        ActsAsTenant.current_tenant
       end
     end
   end

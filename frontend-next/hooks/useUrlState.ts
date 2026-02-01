@@ -19,7 +19,7 @@ import { useCallback, useMemo } from "react";
  * @example
  * ```tsx
  * const [state, setState] = useUrlState({
- *   scope: "corporate_entity",
+ *   scope: "corporate",
  *   tabId: null as string | null,
  *   action: null as string | null,
  *   expanded: [] as string[],

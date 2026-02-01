@@ -39,6 +39,13 @@ This manual will guide you through using TEEEM's construction management feature
 - [Chapter 16: Payment Tracking](#chapter-16-payment-tracking)
 - [Chapter 17: Workflow Automation](#chapter-17-workflow-automation)
 - [Chapter 18: Custom Data Tables](#chapter-18-custom-data-tables)
+- [Chapter 19: UI/UX Standards & Patterns](#chapter-19-uiux-standards--patterns)
+- [Chapter 20: Corporate Module](#chapter-20-corporate-module)
+- [Chapter 21: Work Health & Safety (WHS)](#chapter-21-work-health--safety-whs)
+- [Chapter 22: Customer Portal](#chapter-22-customer-portal)
+- [Chapter 23: File Warehouse](#chapter-23-file-warehouse)
+- [Chapter 24: E-Signatures](#chapter-24-e-signatures)
+- [Chapter 25: Data Warehouse & Reports](#chapter-25-data-warehouse--reports)
 
 ---
 
@@ -4841,5 +4848,1216 @@ Some tables support selecting multiple items:
 
 ---
 
-**Last Updated:** 2025-11-16
+# Chapter 20: Corporate Module
+
+┌─────────────────────────────────────────────────┐
+│ 📖 BIBLE (RULES):     Chapter 20                │
+│ 📕 LEXICON (BUGS):    Chapter 20                │
+└─────────────────────────────────────────────────┘
+
+**Audience:** End Users (Corporate Administrators)
+**Purpose:** Managing company groups, directors, shareholders, and compliance
+**Last Updated:** 2026-01-31
+
+---
+
+## What is the Corporate Module?
+
+The Corporate Module helps you manage your corporate structure, including:
+- ✅ Company groups and subsidiaries
+- ✅ Directors and their appointments
+- ✅ Shareholders and share registers
+- ✅ Trust beneficiaries
+- ✅ ASIC compliance and filings
+- ✅ Corporate documents and minutes
+
+**Who Uses This:**
+- Company secretaries
+- Accountants
+- Business owners managing multiple entities
+- Compliance officers
+
+---
+
+## Company Structure
+
+### Viewing the Structure
+
+1. **Navigate to:** Corporate → Structure
+2. **See your hierarchy:**
+   - Parent companies at the top
+   - Subsidiaries branching below
+   - Click to expand/collapse branches
+3. **Click any company** to view its details
+
+### Adding a Company
+
+1. **Click "Add Company"**
+2. **Enter company details:**
+   - **Name:** Full legal name
+   - **ACN/ABN:** Australian Company/Business Number
+   - **Type:** Company, Trust, Partnership, etc.
+   - **Parent:** Select parent company (or leave blank for top-level)
+3. **Click "Save"**
+
+### Company Types
+
+| Type | Description |
+|------|-------------|
+| Company | Pty Ltd, Ltd companies |
+| Trust | Family trusts, unit trusts |
+| Partnership | Business partnerships |
+| Sole Trader | Individual businesses |
+| Association | Clubs, charities |
+
+---
+
+## Managing Directors
+
+### Viewing Directors
+
+1. **Navigate to:** Corporate → Directors
+2. **See all directors** across all companies
+3. **Filter by:** Company, status, appointment date
+
+### Adding a Director
+
+1. **Click "Add Director"**
+2. **Enter details:**
+   - **Name:** Full legal name
+   - **Date of Birth:** Required for ASIC
+   - **Address:** Residential address
+   - **Appointment Date:** When they became a director
+3. **Link to companies:** Select which companies they direct
+4. **Click "Save"**
+
+### Recording Appointments/Resignations
+
+**New Appointment:**
+1. Open the director record
+2. Click "Add Appointment"
+3. Select company and enter date
+4. Specify position (Director, Secretary, etc.)
+
+**Resignation:**
+1. Open the director record
+2. Find the appointment
+3. Click "Record Resignation"
+4. Enter resignation date
+
+---
+
+## Shareholders & Share Register
+
+### Viewing Shareholders
+
+1. **Navigate to:** Corporate → Shareholders
+2. **See all shareholders** and their holdings
+3. **Filter by:** Company, share class
+
+### Recording Share Ownership
+
+1. **Click "Add Shareholder"**
+2. **Enter details:**
+   - **Shareholder:** Name or company
+   - **Company:** Which company they hold shares in
+   - **Share Class:** Ordinary, Preference, etc.
+   - **Number of Shares:** How many shares held
+3. **Click "Save"**
+
+### Share Transfers
+
+1. **Find the shareholding** to transfer
+2. **Click "Transfer Shares"**
+3. **Enter:**
+   - Number of shares to transfer
+   - New shareholder (existing or new)
+   - Transfer date
+   - Consideration (price paid)
+4. **Click "Complete Transfer"**
+
+### Generating Share Register
+
+1. **Go to:** Corporate → Companies → [Company] → Share Register
+2. **Click "Generate Register"**
+3. **Select date** (current or historical)
+4. **Download PDF** or view on screen
+
+---
+
+## Trust Beneficiaries
+
+### Adding Beneficiaries
+
+1. **Navigate to:** Corporate → Beneficiaries
+2. **Click "Add Beneficiary"**
+3. **Enter details:**
+   - **Name:** Beneficiary name
+   - **Trust:** Which trust they're a beneficiary of
+   - **Type:** Primary, Secondary, Default
+   - **Entitlement:** Percentage or fixed amount
+4. **Click "Save"**
+
+### Recording Distributions
+
+1. **Open the beneficiary** record
+2. **Click "Record Distribution"**
+3. **Enter:**
+   - Distribution amount
+   - Date of distribution
+   - Tax year
+4. **Click "Save"**
+
+---
+
+## ASIC Logins & Compliance
+
+### Storing ASIC Credentials
+
+1. **Navigate to:** Corporate → ASIC Logins
+2. **Click "Add ASIC Login"**
+3. **Enter:**
+   - **Company:** Which company this login is for
+   - **Username:** ASIC portal username
+   - **Password:** Portal password (stored securely)
+   - **Last Updated:** When password was changed
+4. **Click "Save"**
+
+### Compliance Calendar
+
+1. **Navigate to:** Corporate → Compliance Calendar
+2. **View upcoming deadlines:**
+   - Annual reviews
+   - ASIC filings
+   - Director appointments/resignations
+   - Shareholder meetings
+3. **Click any deadline** to see details
+4. **Mark as complete** when done
+
+### Setting Reminders
+
+1. **Open a compliance task**
+2. **Click "Set Reminder"**
+3. **Choose:**
+   - Days before deadline
+   - Who to notify
+4. **Click "Save"**
+
+---
+
+## Corporate Documents
+
+### Minute Templates
+
+1. **Navigate to:** Corporate → Minute Templates
+2. **Browse templates:**
+   - Director meetings
+   - Shareholder meetings
+   - Resolutions
+   - Consents
+3. **Click "Use Template"** to create from template
+4. **Customize** with your company details
+5. **Save or export** as PDF
+
+### Uploading Documents
+
+1. **Open a company** record
+2. **Go to "Documents" tab**
+3. **Click "Upload"**
+4. **Select files** from your computer
+5. **Choose document type:**
+   - Constitution
+   - Minutes
+   - ASIC Forms
+   - Certificates
+6. **Click "Upload"**
+
+---
+
+## Corporate Health Dashboard
+
+### Understanding Health Indicators
+
+1. **Navigate to:** Corporate → Health
+2. **See status indicators:**
+   - 🟢 **Green:** All compliant
+   - 🟡 **Yellow:** Action needed soon
+   - 🔴 **Red:** Overdue/urgent
+3. **Click indicators** to see specific issues
+
+### Common Issues
+
+| Issue | Action Required |
+|-------|-----------------|
+| Annual review due | File with ASIC |
+| Director expired | Update or remove |
+| Missing shareholder | Add to register |
+| Document expired | Upload new version |
+
+---
+
+## Related Topics
+
+- **Chapter 3:** Contacts & Relationships (linking contacts to directors)
+- **Chapter 12:** OneDrive File Management (corporate document storage)
+- **Chapter 15:** Xero Accounting Sync (corporate financial data)
+
+---
+
+# Chapter 21: Work Health & Safety (WHS)
+
+┌─────────────────────────────────────────────────┐
+│ 📖 BIBLE (RULES):     Chapter 21                │
+│ 📕 LEXICON (BUGS):    Chapter 21                │
+└─────────────────────────────────────────────────┘
+
+**Audience:** End Users (Safety Officers, Site Managers)
+**Purpose:** Managing workplace health and safety compliance
+**Last Updated:** 2026-01-31
+
+---
+
+## What is WHS in TEEEM?
+
+The WHS module helps you manage workplace safety, including:
+- ✅ Incident reporting and tracking
+- ✅ Safety inspections
+- ✅ Site inductions
+- ✅ SWMS (Safe Work Method Statements)
+- ✅ Action items and corrective measures
+
+**Who Uses This:**
+- Safety officers
+- Site supervisors
+- Project managers
+- HR administrators
+
+---
+
+## WHS Dashboard
+
+### Accessing the Dashboard
+
+1. **Navigate to:** WHS → Dashboard
+2. **View at a glance:**
+   - Open incidents
+   - Upcoming inspections
+   - Expiring inductions
+   - Overdue action items
+
+### Understanding Metrics
+
+| Metric | What It Shows |
+|--------|--------------|
+| Open Incidents | Incidents requiring action |
+| Days Since Last Incident | Safety streak |
+| Pending Inspections | Scheduled but not completed |
+| Expired Inductions | Workers needing re-induction |
+
+---
+
+## Incident Reporting
+
+### Reporting an Incident
+
+1. **Navigate to:** WHS → Incidents
+2. **Click "Report Incident"**
+3. **Fill in details:**
+   - **Date/Time:** When it happened
+   - **Location:** Site or area
+   - **Type:** Injury, near-miss, property damage, etc.
+   - **Severity:** Minor, moderate, serious, critical
+   - **Description:** What happened
+   - **People Involved:** Workers, witnesses
+4. **Attach evidence:**
+   - Photos of scene
+   - Witness statements
+5. **Click "Submit"**
+
+### Incident Types
+
+| Type | Examples |
+|------|----------|
+| Injury | Cuts, falls, strains |
+| Near Miss | Almost hit, close call |
+| Property Damage | Equipment, materials |
+| Environmental | Spills, contamination |
+| Security | Theft, trespass |
+
+### Managing Incidents
+
+**Update Status:**
+1. Open the incident
+2. Change status: Open → Investigating → Corrective Action → Closed
+3. Add notes at each stage
+
+**Add Corrective Actions:**
+1. Open the incident
+2. Click "Add Action Item"
+3. Describe the action needed
+4. Assign to a person
+5. Set due date
+
+---
+
+## Safety Inspections
+
+### Scheduling an Inspection
+
+1. **Navigate to:** WHS → Inspections
+2. **Click "Schedule Inspection"**
+3. **Enter details:**
+   - **Type:** Daily, weekly, monthly, annual
+   - **Location:** Site or area
+   - **Inspector:** Who will conduct
+   - **Date:** When scheduled
+4. **Click "Save"**
+
+### Conducting an Inspection
+
+1. **Open the scheduled inspection**
+2. **Click "Start Inspection"**
+3. **Work through the checklist:**
+   - Check each item
+   - Mark as Pass, Fail, or N/A
+   - Add comments where needed
+4. **Record any issues:**
+   - Take photos
+   - Create action items
+5. **Click "Complete Inspection"**
+
+### Inspection Checklists
+
+Common checklist items:
+- PPE compliance
+- Housekeeping
+- Electrical safety
+- Fire safety
+- First aid
+- Signage
+- Equipment condition
+
+---
+
+## Site Inductions
+
+### Recording an Induction
+
+1. **Navigate to:** WHS → Inductions
+2. **Click "Record Induction"**
+3. **Enter details:**
+   - **Worker:** Name or select from contacts
+   - **Site:** Which site inducted for
+   - **Inducted By:** Who conducted induction
+   - **Date:** When inducted
+   - **Expiry:** When re-induction required
+4. **Click "Save"**
+
+### Managing Expirations
+
+1. **View expiring inductions** on the dashboard
+2. **Filter by:**
+   - Expired (past due)
+   - Expiring soon (next 30 days)
+   - Valid
+3. **Click "Renew"** to record re-induction
+
+### Induction Report
+
+1. **Navigate to:** WHS → Inductions
+2. **Click "Generate Report"**
+3. **Select:**
+   - Site (or all sites)
+   - Date range
+   - Status filter
+4. **Export to PDF or Excel**
+
+---
+
+## SWMS (Safe Work Method Statements)
+
+### Creating a SWMS
+
+1. **Navigate to:** WHS → SWMS
+2. **Click "Create SWMS"**
+3. **Enter details:**
+   - **Title:** What work is covered
+   - **Job/Site:** Where it applies
+   - **Description:** Scope of work
+4. **Add hazards and controls:**
+   - Identify each hazard
+   - Add risk rating (likelihood × consequence)
+   - Describe control measures
+5. **Click "Save Draft"**
+
+### SWMS Sign-off
+
+1. **Open the SWMS**
+2. **Click "Request Sign-off"**
+3. **Select workers** who need to sign
+4. **Workers sign electronically:**
+   - They receive notification
+   - Click to review SWMS
+   - Sign on screen
+5. **Track completion** on the SWMS record
+
+### SWMS Review
+
+- Review SWMS regularly (at least annually)
+- Update when work conditions change
+- Create new versions (keeps history)
+
+---
+
+## Action Items
+
+### Viewing Action Items
+
+1. **Navigate to:** WHS → Action Items
+2. **See all safety actions:**
+   - From incidents
+   - From inspections
+   - Standalone items
+3. **Filter by:**
+   - Status (open, overdue, complete)
+   - Assigned person
+   - Priority
+
+### Creating Action Items
+
+1. **Click "Add Action Item"**
+2. **Enter details:**
+   - **Description:** What needs to be done
+   - **Priority:** Low, medium, high, critical
+   - **Assigned To:** Who is responsible
+   - **Due Date:** Deadline
+   - **Linked To:** Incident, inspection (optional)
+3. **Click "Save"**
+
+### Completing Actions
+
+1. **Open the action item**
+2. **Add completion notes:**
+   - What was done
+   - Photos of completed work
+3. **Click "Mark Complete"**
+4. **Optionally:** Have supervisor verify
+
+---
+
+## Related Topics
+
+- **Chapter 5:** Jobs & Construction Management (linking WHS to jobs)
+- **Chapter 10:** Daily Tasks & Checklists (safety checklists)
+- **Chapter 17:** Workflow Automation (safety workflows)
+
+---
+
+# Chapter 22: Customer Portal
+
+┌─────────────────────────────────────────────────┐
+│ 📖 BIBLE (RULES):     Chapter 22                │
+│ 📕 LEXICON (BUGS):    Chapter 22                │
+└─────────────────────────────────────────────────┘
+
+**Audience:** End Users (and their Customers)
+**Purpose:** External client access to project information
+**Last Updated:** 2026-01-31
+
+---
+
+## What is the Customer Portal?
+
+The Customer Portal gives your clients secure access to:
+- ✅ View their project status and progress
+- ✅ Review and approve quotes
+- ✅ View and pay invoices online
+- ✅ Access project documents
+- ✅ See their project schedule
+- ✅ Communicate with your team
+
+**Benefits:**
+- Reduces phone calls and emails
+- Clients can self-serve information
+- Faster quote approvals
+- Online payment collection
+
+---
+
+## Portal Access for Your Customers
+
+### Inviting a Customer
+
+1. **Open the customer's contact** record
+2. **Click "Invite to Portal"**
+3. **Customer receives email:**
+   - Link to create account
+   - Instructions for logging in
+4. **Customer creates password** and accesses portal
+
+### Managing Portal Access
+
+1. **Navigate to:** Contacts → [Customer]
+2. **See "Portal Access" section:**
+   - ✅ Has Access / ❌ No Access
+   - Last login date
+3. **Options:**
+   - Resend invitation
+   - Disable access
+   - Reset password
+
+---
+
+## What Customers See
+
+### Portal Dashboard
+
+Your customers see:
+- **Their jobs** with status indicators
+- **Recent updates** on their projects
+- **Unread messages** from your team
+- **Outstanding invoices** with pay button
+
+### Portal Jobs
+
+Customers can view:
+- Job details (address, status)
+- Current progress
+- Scheduled tasks
+- Key milestones
+
+**They CANNOT:**
+- Edit job details
+- See internal notes
+- View costs/margins
+
+### Portal Documents
+
+Customers can access:
+- Plans and drawings (if shared)
+- Signed contracts
+- Variations
+- Invoices
+- Any documents you share
+
+### Portal Schedule
+
+Customers see:
+- Upcoming work dates
+- Milestone dates
+- Task completion status
+
+**View only** - they cannot make changes.
+
+---
+
+## Portal Quotes
+
+### Sending a Quote for Approval
+
+1. **Create the estimate** (Chapter 6)
+2. **Click "Send to Portal"**
+3. **Customer is notified**
+4. **Customer views in portal:**
+   - Line items and pricing
+   - Total amount
+   - Terms and conditions
+
+### Customer Approving/Rejecting
+
+**To Approve:**
+1. Customer reviews quote
+2. Clicks "Accept Quote"
+3. Signs electronically
+4. You receive notification
+
+**To Request Changes:**
+1. Customer clicks "Request Changes"
+2. Adds comments
+3. You receive notification
+4. Revise and resend
+
+---
+
+## Portal Invoices & Payments
+
+### Viewing Invoices
+
+Customers see:
+- Invoice number and date
+- Line items
+- Amount due
+- Due date
+- Payment status
+
+### Making Payments Online
+
+1. **Customer clicks "Pay Now"**
+2. **Selects invoices** to pay
+3. **Enters payment details:**
+   - Credit card
+   - Bank account (if enabled)
+4. **Confirms payment**
+5. **Receives receipt** via email
+
+### Payment Methods
+
+| Method | Processing Time |
+|--------|-----------------|
+| Credit Card | Instant |
+| Bank Transfer | 1-3 business days |
+
+---
+
+## Portal Messages
+
+### Customer Sending a Message
+
+1. Customer clicks "Send Message"
+2. Types their message
+3. Attaches files if needed
+4. You receive notification
+
+### Responding to Customers
+
+1. **Navigate to:** Chat or Job → Messages
+2. **See portal messages** marked with 📤
+3. **Reply as normal**
+4. **Customer sees your response** in portal
+
+---
+
+## Customizing the Portal
+
+### Portal Branding
+
+1. **Navigate to:** Settings → Company → Brand
+2. **Upload your logo**
+3. **Set brand colors**
+4. **Portal shows your branding**
+
+### What to Share
+
+Control what customers can see:
+- **Documents:** Mark as "Portal Visible"
+- **Schedule:** Choose which tasks to show
+- **Messages:** All messages are visible to them
+
+---
+
+## Related Topics
+
+- **Chapter 3:** Contacts & Relationships (customer records)
+- **Chapter 6:** Estimates & Quoting (creating quotes for portal)
+- **Chapter 16:** Payment Tracking (payment processing)
+
+---
+
+# Chapter 23: File Warehouse
+
+┌─────────────────────────────────────────────────┐
+│ 📖 BIBLE (RULES):     Chapter 23                │
+│ 📕 LEXICON (BUGS):    Chapter 23                │
+└─────────────────────────────────────────────────┘
+
+**Audience:** End Users
+**Purpose:** Central document storage across all modules
+**Last Updated:** 2026-01-31
+
+---
+
+## What is the File Warehouse?
+
+The File Warehouse is your central document storage, containing:
+- ✅ All job documents
+- ✅ All contact documents
+- ✅ Email attachments
+- ✅ Corporate documents
+- ✅ User uploads
+
+**Key Features:**
+- Browse by folder structure
+- Search across all documents
+- Preview files without downloading
+- Track document versions
+
+---
+
+## Navigating the Warehouse
+
+### Folder Structure
+
+Documents are organized into folders:
+- **Jobs** → Job folders → Document categories
+- **Contacts** → Contact folders
+- **Emails** → Year → Month
+- **Corporate** → Company folders
+- **Teeem Docs** → User personal files
+
+### Browsing Folders
+
+1. **Navigate to:** Warehouse
+2. **Click a folder** to open it
+3. **See contents:**
+   - Subfolders (📁 icon)
+   - Documents (file icons)
+4. **Use breadcrumbs** to navigate back
+
+### Searching Documents
+
+1. **Enter search term** in search box
+2. **Results show:**
+   - File name matches
+   - Folder location
+   - File type
+3. **Click to open** document
+
+---
+
+## Working with Documents
+
+### Previewing Documents
+
+1. **Click a document** in the list
+2. **Preview panel** opens
+3. **Supported formats:**
+   - PDF - full preview
+   - Images - full preview
+   - Word/Excel - basic preview
+4. **Click "Download"** for full version
+
+### Uploading Documents
+
+1. **Navigate to the folder** where you want to upload
+2. **Click "Upload"** or drag files
+3. **Select files** from your computer
+4. **Wait for upload** to complete
+5. **Documents appear** in the folder
+
+### Moving Documents
+
+1. **Select the document(s)**
+2. **Click "Move"**
+3. **Select destination folder**
+4. **Confirm move**
+
+Note: Moving in File Warehouse is instant (virtual folders).
+
+### Renaming Documents
+
+1. **Right-click the document**
+2. **Click "Rename"**
+3. **Enter new name**
+4. **Press Enter** to save
+
+---
+
+## Document Properties
+
+### Viewing Properties
+
+Click a document to see:
+- **Display Name:** What you see
+- **Send Name:** Download filename
+- **Size:** File size
+- **Type:** File format
+- **Uploaded:** When added
+- **Source:** Where it came from (job, email, etc.)
+
+### Two Names Explained
+
+| Name | Purpose | Example |
+|------|---------|---------|
+| Display Name | What you see in TEEEM | "RE: Invoice Question" |
+| Send Name | Download filename | "RE Invoice Question - 2026-01-17.eml" |
+
+---
+
+## Linking Documents to Records
+
+### From the Warehouse
+
+1. **Select a document**
+2. **Click "Link to..."**
+3. **Choose:**
+   - Job
+   - Contact
+   - Task
+4. **Select the record**
+5. **Document appears** in that record's files
+
+### From a Record
+
+1. **Open a job/contact/task**
+2. **Go to "Documents" tab**
+3. **Click "Upload"** or "Link Existing"
+4. **Document linked** to that record
+
+---
+
+## Document Types
+
+### Available Types
+
+| Type | Use For |
+|------|---------|
+| Plans | Construction drawings |
+| Contracts | Signed agreements |
+| Invoices | Bills and invoices |
+| Quotes | Estimates and quotes |
+| Correspondence | Letters, emails |
+| Photos | Site photos |
+| Reports | Inspection reports |
+| Other | Everything else |
+
+### Setting Document Type
+
+1. **Select a document**
+2. **Click "Change Type"**
+3. **Select appropriate type**
+4. **Type is saved**
+
+---
+
+## Storage Providers
+
+### Supported Providers
+
+| Provider | Description |
+|----------|-------------|
+| Wasabi/S3 | Cloud storage (default) |
+| SharePoint | Microsoft cloud |
+| Local | On-premises server |
+
+### Checking Provider
+
+1. **Navigate to:** Settings → Connections → Storage
+2. **See active provider**
+3. **Connection status** (green = connected)
+
+---
+
+## Related Topics
+
+- **Chapter 5:** Jobs & Construction (job documents)
+- **Chapter 12:** OneDrive File Management (Microsoft integration)
+- **Chapter 13:** Email Integration (email attachments)
+
+---
+
+# Chapter 24: E-Signatures
+
+┌─────────────────────────────────────────────────┐
+│ 📖 BIBLE (RULES):     Chapter 24                │
+│ 📕 LEXICON (BUGS):    Chapter 24                │
+└─────────────────────────────────────────────────┘
+
+**Audience:** End Users
+**Purpose:** Electronic document signing
+**Last Updated:** 2026-01-31
+
+---
+
+## What are E-Signatures?
+
+Electronic signatures allow you to:
+- ✅ Send documents for signing
+- ✅ Track signature status
+- ✅ Store signed documents
+- ✅ Legally binding signatures
+
+**Common Uses:**
+- Contracts and agreements
+- Quotes and variations
+- SWMS sign-offs
+- Timesheets
+
+---
+
+## Sending for Signature
+
+### Preparing a Document
+
+1. **Navigate to:** E-Signature → Prepare
+2. **Upload your document** (PDF)
+3. **Add signature fields:**
+   - Drag signature box to location
+   - Add date, initials, text fields
+4. **Add signers:**
+   - Enter email addresses
+   - Set signing order (if needed)
+5. **Click "Send for Signing"**
+
+### Signature Fields
+
+| Field Type | Purpose |
+|------------|---------|
+| Signature | Full signature |
+| Initials | Short initials |
+| Date | Auto-fills signing date |
+| Text | Custom text input |
+| Checkbox | Tick to agree |
+
+### Signing Order
+
+**Sequential:** Signer 1, then Signer 2, etc.
+**Parallel:** All signers at once
+
+---
+
+## Tracking Signatures
+
+### Viewing Status
+
+1. **Navigate to:** E-Signature
+2. **See all requests:**
+   - Pending (waiting for signatures)
+   - Completed (all signed)
+   - Expired (deadline passed)
+3. **Click request** for details
+
+### Status Indicators
+
+| Status | Meaning |
+|--------|---------|
+| 📤 Sent | Waiting for signer |
+| 👁️ Viewed | Signer opened document |
+| ✍️ Signed | Signer completed |
+| ✅ Complete | All signers done |
+| ❌ Declined | Signer refused |
+| ⏰ Expired | Deadline passed |
+
+### Sending Reminders
+
+1. **Open the signature request**
+2. **Click "Send Reminder"**
+3. **Signer receives email** prompt
+
+---
+
+## Signing Documents
+
+### For External Signers
+
+When someone receives a signing request:
+1. **Click link in email**
+2. **Review the document**
+3. **Click each signature field**
+4. **Draw or type signature**
+5. **Click "Complete Signing"**
+6. **Receive copy** via email
+
+### For TEEEM Users
+
+1. **See notification** in TEEEM
+2. **Click to open document**
+3. **Sign as above**
+4. **Document saved** automatically
+
+---
+
+## Completed Documents
+
+### Accessing Signed Documents
+
+1. **Navigate to:** E-Signature → Completed
+2. **Click the document**
+3. **Download signed PDF**
+4. **Includes:**
+   - All signatures
+   - Signing timestamps
+   - Certificate of completion
+
+### Certificate of Completion
+
+Shows:
+- Document ID
+- All signers
+- When each signed
+- IP addresses (optional)
+
+---
+
+## Settings
+
+### Default Settings
+
+1. **Navigate to:** Settings → E-Signature
+2. **Configure:**
+   - Reminder frequency
+   - Expiry period
+   - Email templates
+
+### Branding
+
+Your logo and colors appear on:
+- Email notifications
+- Signing page
+- Completed documents
+
+---
+
+## Related Topics
+
+- **Chapter 6:** Estimates & Quoting (signing quotes)
+- **Chapter 21:** WHS (SWMS sign-offs)
+- **Chapter 22:** Customer Portal (portal signatures)
+
+---
+
+# Chapter 25: Data Warehouse & Reports
+
+┌─────────────────────────────────────────────────┐
+│ 📖 BIBLE (RULES):     Chapter 25                │
+│ 📕 LEXICON (BUGS):    Chapter 25                │
+└─────────────────────────────────────────────────┘
+
+**Audience:** End Users (Advanced)
+**Purpose:** Advanced reporting and data analysis
+**Last Updated:** 2026-01-31
+
+---
+
+## What is the Data Warehouse?
+
+The Data Warehouse provides:
+- ✅ Cross-module reporting
+- ✅ Custom data queries
+- ✅ Export to Excel
+- ✅ Scheduled reports
+
+**Who Uses This:**
+- Business analysts
+- Managers needing custom reports
+- Accountants
+
+---
+
+## Accessing Reports
+
+### Standard Reports
+
+1. **Navigate to:** Data Warehouse → Reports
+2. **Browse report categories:**
+   - Jobs & Projects
+   - Financial
+   - Contacts
+   - Safety
+3. **Click to run** a report
+4. **Set parameters** (date range, filters)
+5. **View results** or export
+
+### Report Types
+
+| Category | Reports |
+|----------|---------|
+| Jobs | Job summary, status breakdown, profitability |
+| Financial | Revenue, costs, outstanding invoices |
+| Contacts | Contact list, activity summary |
+| Safety | Incidents, inspections, compliance |
+
+---
+
+## Custom Queries
+
+### Building a Query
+
+1. **Navigate to:** Data Warehouse → Custom Query
+2. **Select data source:**
+   - Jobs
+   - Contacts
+   - Invoices
+   - etc.
+3. **Choose columns** to include
+4. **Add filters:**
+   - Date ranges
+   - Status filters
+   - Text matches
+5. **Run query**
+6. **View results**
+
+### Saving Queries
+
+1. **After running a query**
+2. **Click "Save Query"**
+3. **Enter name**
+4. **Find in "My Queries"** for later use
+
+---
+
+## Exporting Data
+
+### Export Formats
+
+| Format | Best For |
+|--------|----------|
+| Excel (.xlsx) | Further analysis |
+| CSV | Data import |
+| PDF | Sharing/printing |
+
+### Exporting
+
+1. **Run your report** or query
+2. **Click "Export"**
+3. **Select format**
+4. **Download file**
+
+---
+
+## Scheduled Reports
+
+### Setting Up a Schedule
+
+1. **Open a report** or saved query
+2. **Click "Schedule"**
+3. **Configure:**
+   - Frequency (daily, weekly, monthly)
+   - Day/time to run
+   - Email recipients
+4. **Click "Save Schedule"**
+
+### Managing Schedules
+
+1. **Navigate to:** Data Warehouse → Scheduled
+2. **See all scheduled reports**
+3. **Options:**
+   - Edit schedule
+   - Pause/resume
+   - Delete
+
+---
+
+## System Health
+
+### Monitoring System Status
+
+1. **Navigate to:** System Health
+2. **View status:**
+   - 🟢 All systems operational
+   - 🟡 Some issues
+   - 🔴 System problems
+3. **Check components:**
+   - API status
+   - Background jobs
+   - Storage
+   - Integrations
+
+### Performance Metrics
+
+- Response times
+- Job queue depth
+- Storage usage
+- API call volume
+
+---
+
+## Related Topics
+
+- **Chapter 15:** Xero Accounting Sync (financial data)
+- **Chapter 18:** Custom Data Tables (custom data)
+- **Chapter 20:** Corporate Module (corporate reports)
+
+---
+
+**Last Updated:** 2026-01-31
 **Maintained By:** Development Team

@@ -6,22 +6,22 @@ module Api
       before_action :require_admin, only: %i[microsoft_org_stats data_stats]
 
       # GET /api/v1/organization_settings
-      # SSoT: Returns folder templates from StorageConfiguration
+      # SSoT: Returns folder templates from WarehouseProvider
       def settings
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
 
         render json: {
           success: true,
-          # SSoT: Use StorageConfiguration.template_for for folder templates
-          job_folder_template: config&.template_for(:job) || "{{JobCode}}/{{TabName}}",
-          contact_folder_template: config&.template_for(:contact) || "{{ContactId}} - {{ContactName}}"
+          # SSoT: Use WarehouseProvider.path_for for folder templates
+          job_folder_template: config&.path_for(:job) || "{{JobCode}}/{{TabName}}",
+          contact_folder_template: config&.path_for(:contact) || "{{ContactId}} - {{ContactName}}"
         }
       end
 
       # PATCH /api/v1/organization_settings
-      # SSoT: Updates folder templates in StorageConfiguration
+      # SSoT: Updates folder templates in WarehouseProvider
       def update_settings
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
         templates = config.templates || {}
 
         templates["job"] = params[:job_folder_template] if params[:job_folder_template].present?
@@ -86,22 +86,20 @@ module Api
                                            .where("storage_email_path IS NOT NULL AND storage_email_path != ''")
                                            .sum("COALESCE(LENGTH(body_text), 0) + COALESCE(LENGTH(body_html), 0)") || 0
 
-            # Attachment storage breakdown - SSoT: EmailAttachment linked to SyncedEmail
+            # Attachment storage breakdown - SSoT (Jan 2026): WarehouseDocument with source_type='email_attachment'
             email_ids = emails.pluck(:id)
-            attachments = EmailAttachment.where(email_warehouse_id: email_ids)
-            total_attachments = attachments.count  # SSoT: total attachment count
+            attachments = WarehouseDocument.where(source_type: "email_attachment")
+                                           .where("metadata->>'synced_email_id' IN (?)", email_ids.map(&:to_s))
+            total_attachments = attachments.count
             wasabi_attachments = attachments.where.not(storage_blob_id: nil).count
-            sharepoint_attachments = attachments.where(storage_blob_id: nil)
-                                                .where("storage_path IS NOT NULL AND storage_path != ''")
-                                                .count
+            sharepoint_attachments = 0  # Legacy SharePoint path no longer used
 
             # Deduplication stats (how many unique blobs vs total references)
             blob_ids_with_count = attachments.where.not(storage_blob_id: nil).pluck(:storage_blob_id)
             unique_blob_count = blob_ids_with_count.uniq.count
             dedup_savings_count = blob_ids_with_count.count - unique_blob_count
             # Calculate bytes saved by deduplication
-            dedup_savings_bytes = if unique_blob_count > 0 && defined?(StorageBlob)
-              # Get average blob size from the blobs used by these attachments
+            dedup_savings_bytes = if unique_blob_count > 0
               avg_blob_size = StorageBlob.where(id: blob_ids_with_count.uniq).average(:file_size)&.to_i || 0
               dedup_savings_count * avg_blob_size
             else
@@ -110,21 +108,17 @@ module Api
 
             # Per-mailbox attachment counts - include ALL mailboxes
             per_mailbox_attachment_counts = attachments
-              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
+              .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
               .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
               .count
 
             # Shared attachments per mailbox - include ALL mailboxes
-            shared_per_mailbox = if defined?(StorageBlob)
-              attachments
-                .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
-                .joins("INNER JOIN storage_blobs ON storage_blobs.id = email_attachments.storage_blob_id")
-                .where("storage_blobs.reference_count > 1")
-                .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
-                .count
-            else
-              {}
-            end
+            shared_per_mailbox = attachments
+              .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
+              .joins("INNER JOIN storage_blobs ON storage_blobs.id = warehouse_documents.storage_blob_id")
+              .where("storage_blobs.reference_count > 1")
+              .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
+              .count
 
             # Per-mailbox email storage counts - include ALL mailboxes
             per_mailbox_wasabi_counts = emails
@@ -138,34 +132,29 @@ module Api
               .group("COALESCE(NULLIF(mailbox_owner_email, ''), 'Unknown')")
               .count
 
-            # Per-mailbox attachment storage counts - include ALL mailboxes
+            # Per-mailbox attachment storage counts - SSoT (Jan 2026): WarehouseDocument
             per_mailbox_att_wasabi = attachments
-              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
+              .joins("INNER JOIN synced_emails ON synced_emails.id = CAST(warehouse_documents.metadata->>'synced_email_id' AS INTEGER)")
               .where.not(storage_blob_id: nil)
               .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
               .count
 
-            per_mailbox_att_sharepoint = attachments
-              .joins("INNER JOIN synced_emails ON synced_emails.id = email_attachments.email_warehouse_id")
-              .where(storage_blob_id: nil)
-              .where("email_attachments.storage_path IS NOT NULL AND email_attachments.storage_path != ''")
-              .group("COALESCE(NULLIF(synced_emails.mailbox_owner_email, ''), 'Unknown')")
-              .count
+            # Note: SharePoint path no longer used for email attachments (all via StorageBlob now)
+            per_mailbox_att_sharepoint = {}
 
             # Document storage breakdown (Tekna tenant only - org-wide)
-            # SSoT: Orphaned documents (sync_status: 'missing') are deleted, not tracked
+            # SSoT (Jan 2026): Uses WarehouseDocument with StorageBlob
             document_storage = if org_name == "Tekna"
               doc_by_provider = { "s3_compatible" => 0, "sharepoint" => 0 }
-              [JobDocument, CorporateCompanyDocument, PeopleDocument].each do |klass|
-                next unless defined?(klass)
-                klass.group(:storage_provider).count.each do |provider, count|
-                  normalized = case provider
-                               when "s3_compatible", "wasabi", "s3" then "s3_compatible"
-                               when "sharepoint", nil then "sharepoint"
-                               else "s3_compatible"
-                               end
-                  doc_by_provider[normalized] += count
-                end
+              # Group WarehouseDocuments by storage provider in metadata
+              WarehouseDocument.joins(:storage_blob).find_each do |wd|
+                provider = wd.meta("storage_provider") || WarehouseProvider.instance&.provider_type || "sharepoint"
+                normalized = case provider
+                             when "s3_compatible", "wasabi", "s3" then "s3_compatible"
+                             when "sharepoint", nil then "sharepoint"
+                             else "s3_compatible"
+                             end
+                doc_by_provider[normalized] += 1
               end
               doc_by_provider
             else
@@ -301,7 +290,8 @@ module Api
       # Returns the organization's current document storage provider configuration
       def document_provider
         # SSoT (Jan 2026): Derive from tenant, not Organization.first
-        organization = current_organization
+        # Auto-create Organization if it doesn't exist for the tenant
+        organization = current_organization || create_organization_for_tenant
 
         if organization.nil?
           return render json: {
@@ -317,12 +307,13 @@ module Api
         end
 
         # Get available S3 credentials for dropdown
+        # SSoT (Jan 2026): bucket removed - WarehouseProvider.bucket is SSoT
         s3_credentials = S3CompatibleCredential.active.order(:name).map do |cred|
           {
             id: cred.id,
             name: cred.name,
             provider_type: cred.provider_type,
-            bucket: cred.bucket,
+            # bucket removed - WarehouseProvider.bucket is SSoT
             status: cred.status,
             connected: cred.status == "connected"
           }
@@ -335,6 +326,28 @@ module Api
           false
         end
 
+        # SSoT (Jan 2026): Include bucket from WarehouseProvider
+        # Bucket is displayed on BOTH Storage Config and Storage Provider pages
+        # but WarehouseProvider.bucket is THE ONE SSoT
+        warehouse_provider = WarehouseProvider.instance rescue nil
+        current_bucket = warehouse_provider&.bucket
+
+        # Get active credential status and last connected info
+        active_credential = nil
+        credential_status = nil
+        last_error = nil
+
+        if organization.document_provider == "s3_compatible" && organization.document_provider_credential_id
+          active_credential = S3CompatibleCredential.find_by(id: organization.document_provider_credential_id)
+          if active_credential
+            credential_status = active_credential.status
+            last_error = active_credential.metadata&.dig("last_error")
+          end
+        elsif organization.document_provider == "sharepoint"
+          sp_cred = MicrosoftCredential.sharepoint_credential rescue nil
+          credential_status = sp_cred&.connected? ? "connected" : "disconnected"
+        end
+
         render json: {
           success: true,
           data: {
@@ -343,7 +356,13 @@ module Api
             available_providers: Organization::DOCUMENT_PROVIDERS,
             s3_credentials: s3_credentials,
             sharepoint_configured: sharepoint_configured,
-            can_switch: s3_credentials.any? { |c| c[:connected] } || sharepoint_configured
+            can_switch: s3_credentials.any? { |c| c[:connected] } || sharepoint_configured,
+            # SSoT (Jan 2026): Bucket from WarehouseProvider - visible on both screens
+            bucket: current_bucket,
+            # Connection status info
+            connection_status: credential_status,
+            last_error: last_error,
+            warehouse_provider_updated_at: warehouse_provider&.updated_at
           }
         }
       end
@@ -352,12 +371,13 @@ module Api
       # Updates the organization's document storage provider
       def update_document_provider
         # SSoT (Jan 2026): Derive from tenant, not Organization.first
-        organization = current_organization
+        # Auto-create Organization if it doesn't exist for the tenant
+        organization = current_organization || create_organization_for_tenant
 
         if organization.nil?
           return render json: {
             success: false,
-            error: "No organization found"
+            error: "No organization found and could not create one"
           }, status: :not_found
         end
 
@@ -396,12 +416,25 @@ module Api
         if organization.save
           Rails.logger.info "[DocumentProvider] Organization switched from #{old_provider} to #{provider}"
 
+          # SSoT (Jan 2026): Also update bucket in WarehouseProvider if provided
+          # Bucket is visible on BOTH screens but WarehouseProvider is SSoT
+          if params[:bucket].present?
+            warehouse_provider = WarehouseProvider.instance rescue nil
+            if warehouse_provider
+              connection_config = warehouse_provider.connection_config || {}
+              connection_config["bucket"] = params[:bucket]
+              warehouse_provider.update!(connection_config: connection_config)
+              Rails.logger.info "[DocumentProvider] Updated bucket in WarehouseProvider: #{params[:bucket]}"
+            end
+          end
+
           render json: {
             success: true,
             message: "Document provider updated to #{provider}",
             data: {
               document_provider: organization.document_provider,
-              document_provider_credential_id: organization.document_provider_credential_id
+              document_provider_credential_id: organization.document_provider_credential_id,
+              bucket: params[:bucket].presence || (WarehouseProvider.instance.bucket rescue nil)
             }
           }
         else
@@ -510,41 +543,35 @@ module Api
         end
 
         # Get company settings for organization name
-        company_setting = CorporateCompanySetting.instance
+        company_setting = TenantSetting.instance
 
-        # Document statistics (all company_documents)
-        # SSoT: Count documents WITH files (matches Documents page definition)
-        documents = CorporateCompanyDocument.all
-        documents_with_files = documents.where.not(file_name: [nil, ""])
-
-        # SSoT: Total documents across ALL tables (matches Documents page)
-        job_doc_count = defined?(JobDocument) ? JobDocument.where.not(file_name: [nil, ""]).count : 0
-        people_doc_count = defined?(PeopleDocument) ? PeopleDocument.where.not(title: [nil, ""]).count : 0
-        all_docs_total = documents_with_files.count + job_doc_count + people_doc_count
+        # Document statistics - SSoT (Jan 2026): WarehouseDocument is THE ONE source
+        warehouse_docs = WarehouseDocument.all
+        warehouse_by_source = warehouse_docs.group(:source_type).count
 
         doc_stats = {
-          total_documents: all_docs_total,  # SSoT: Grand total across all document tables
-          corporate_documents: documents_with_files.count,  # CorporateCompanyDocument only
-          job_documents_count: job_doc_count,  # JobDocument only
-          people_documents_count: people_doc_count,  # PeopleDocument only
-          total_records: documents.count,  # Full CorporateCompanyDocument count (admin)
-          by_source: documents.group(:source).count,
-          by_folder: documents.group(:folder).count,
-          by_ai_status: documents.group(:ai_verification_status).count,
-          verified_count: documents.where(ai_verification_status: "verified").count,
-          needs_review_count: documents.where(ai_verification_status: %w[mismatch needs_review pending]).count,
-          total_file_size: documents.sum(:file_size) || 0,
-          latest_upload: documents.maximum(:created_at)
+          total_documents: warehouse_docs.count,  # SSoT: Grand total in WarehouseDocument
+          corporate_documents: warehouse_by_source["corporate"] || 0,
+          job_documents_count: warehouse_by_source["job"] || 0,
+          people_documents_count: warehouse_by_source["people"] || 0,
+          email_documents_count: warehouse_by_source["email"] || 0,
+          contact_documents_count: warehouse_by_source["contact"] || 0,
+          total_records: warehouse_docs.count,
+          by_source: warehouse_by_source,
+          by_folder: warehouse_docs.group(:folder).count,
+          total_file_size: warehouse_docs.joins(:storage_blob).sum("storage_blobs.file_size") || 0,
+          latest_upload: warehouse_docs.maximum(:created_at),
+          warehouse_total: warehouse_docs.count,
+          warehouse_by_source: warehouse_by_source
         }
 
-        # Document types breakdown
-        doc_type_stats = documents
-          .joins("LEFT JOIN document_types ON document_types.name = corporate_company_documents.document_type")
-          .select("corporate_company_documents.document_type, document_types.abbreviation, COUNT(*) as doc_count")
-          .group("corporate_company_documents.document_type, document_types.abbreviation")
-          .order("doc_count DESC")
-          .limit(15)
-          .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.doc_count } }
+        # Document types breakdown - SSoT (Jan 2026): From WarehouseDocument metadata
+        doc_type_stats = warehouse_docs
+          .group("metadata->>'document_type'")
+          .count
+          .sort_by { |_k, v| -v }
+          .first(15)
+          .map { |type, count| { type: type || "Uncategorized", abbreviation: type&.slice(0, 3)&.upcase, count: count } }
 
         # Email statistics with detailed breakdown
         # Note: synced_email table only has job_id for linking (no contact_id, company_id, etc.)
@@ -575,14 +602,14 @@ module Api
                                      .count
           remaining_to_upload = uploadable - with_storage
 
-          # Email Attachments Storage Progress
-          attachment_count = defined?(EmailAttachment) ? EmailAttachment.count : 0
-          attachments_with_blob = defined?(EmailAttachment) ? EmailAttachment.where.not(storage_blob_id: nil).count : 0
-          attachments_legacy = defined?(EmailAttachment) ? EmailAttachment.where(storage_blob_id: nil).where("storage_path IS NOT NULL AND storage_path != ''").count : 0
+          # Email Attachments Storage Progress (SSoT Jan 2026: WarehouseDocument)
+          attachment_count = WarehouseDocument.where(source_type: "email_attachment").count
+          attachments_with_blob = WarehouseDocument.where(source_type: "email_attachment").where.not(storage_blob_id: nil).count
+          attachments_legacy = 0  # Legacy EmailAttachment table dropped
 
           # StorageBlob Deduplication Stats (SSoT for file storage)
-          unique_blobs = defined?(StorageBlob) ? StorageBlob.count : 0
-          total_blob_bytes = defined?(StorageBlob) ? (StorageBlob.sum(:file_size) || 0) : 0
+          unique_blobs = StorageBlob.count
+          total_blob_bytes = StorageBlob.sum(:file_size) || 0
           # Deduplication ratio: if 1000 attachments → 500 unique blobs = 2x dedup
           dedup_ratio = unique_blobs > 0 ? (attachments_with_blob.to_f / unique_blobs).round(2) : 0
           files_saved = attachments_with_blob > unique_blobs ? attachments_with_blob - unique_blobs : 0
@@ -672,8 +699,8 @@ module Api
         end
 
         # Storage stats (provider-agnostic: SharePoint, S3, Wasabi, local)
-        # SSoT: Auto-detect from active credentials, not just StorageConfiguration
-        storage_config = StorageConfiguration.instance rescue nil
+        # SSoT: Auto-detect from active credentials, not just WarehouseProvider
+        storage_config = WarehouseProvider.instance rescue nil
 
         # Auto-detect actual provider from credentials (SSoT: credentials are source of truth)
         s3_credential = S3CompatibleCredential.active.first rescue nil
@@ -695,13 +722,13 @@ module Api
         end
 
         # Count synced files and last sync based on actual provider
+        # SSoT (Jan 2026): All documents are now in WarehouseDocument (warehouse_docs defined above).
+        # warehouse_documents has no storage_provider column - all docs are in the current provider.
         synced_files_count, last_sync_time = case actual_provider_type
         when "s3_compatible"
-          s3_docs = documents.where(storage_provider: %w[s3 wasabi s3_compatible])
-          [s3_docs.count, s3_docs.maximum(:last_modified_at) || s3_credential&.updated_at]
+          [warehouse_docs.count, warehouse_docs.maximum(:updated_at) || s3_credential&.updated_at]
         when "sharepoint"
-          sp_docs = documents.where(storage_provider: "sharepoint")
-          [sp_docs.count, sp_docs.maximum(:last_modified_at) || ms_credential&.last_sync_at]
+          [warehouse_docs.count, warehouse_docs.maximum(:updated_at) || ms_credential&.last_sync_at]
         else
           [0, nil]
         end
@@ -726,7 +753,7 @@ module Api
         }
 
         # Xero stats - SSoT: Filter connections by XeroConnectionHealth
-        all_xero_connections = CorporateCompanyXeroConnection.includes(:xero_credential).where.not(xero_credential_id: nil)
+        all_xero_connections = CorporateXeroConnection.includes(:xero_credential).where.not(xero_credential_id: nil)
         connected_xero_connections = all_xero_connections.select(&:connected?)
         xero_stats = {
           connected: connected_xero_connections.any?,
@@ -735,27 +762,16 @@ module Api
           last_sync: all_xero_connections.maximum(:last_sync_at)
         }
 
-        # Job documents (CAD/BIM files) stats
-        job_doc_stats = if defined?(JobDocument)
-          {
-            total_files: JobDocument.count,
-            revit_files: JobDocument.where("file_extension IN (?)", [ ".rvt", ".rfa" ]).count,
-            autocad_files: JobDocument.where("file_extension IN (?)", [ ".dwg", ".dxf" ]).count,
-            pdf_files: JobDocument.where(file_extension: ".pdf").count,
-            image_files: JobDocument.where("file_extension IN (?)", [ ".jpg", ".jpeg", ".png", ".gif", ".heic" ]).count,
-            total_size: JobDocument.sum(:file_size) || 0
-          }
-        else
-          # Estimate from company documents
-          {
-            total_files: 0,
-            revit_files: 0,
-            autocad_files: 0,
-            pdf_files: documents.where("title LIKE ?", "%.pdf").count,
-            image_files: documents.where("title LIKE ? OR title LIKE ? OR title LIKE ?", "%.jpg", "%.png", "%.jpeg").count,
-            total_size: 0
-          }
-        end
+        # Job documents (CAD/BIM files) stats - SSoT (Jan 2026): WarehouseDocument
+        job_docs = WarehouseDocument.where(source_type: "job").joins(:storage_blob)
+        job_doc_stats = {
+          total_files: job_docs.count,
+          revit_files: job_docs.where("storage_blobs.original_filename ILIKE ? OR storage_blobs.original_filename ILIKE ?", "%.rvt", "%.rfa").count,
+          autocad_files: job_docs.where("storage_blobs.original_filename ILIKE ? OR storage_blobs.original_filename ILIKE ?", "%.dwg", "%.dxf").count,
+          pdf_files: job_docs.where("storage_blobs.original_filename ILIKE ?", "%.pdf").count,
+          image_files: job_docs.where("storage_blobs.original_filename ~* ?", "\\.(jpg|jpeg|png|gif|heic)$").count,
+          total_size: job_docs.sum("storage_blobs.file_size") || 0
+        }
 
         # Phase 3: Warehouse Document Breakdown (SSoT for all stored files)
         # Shows documents by source_type with storage status
@@ -774,6 +790,7 @@ module Api
           # Email bodies (SyncedEmail) - SSoT: Total from SyncedEmail, not WarehouseDocument
           # This shows the REAL total of emails in the system that need to be synced
           email_body_total = SyncedEmail.count
+          email_body_unfetchable = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%").count
           email_body_scope = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail")
           email_body_linked = email_body_scope.count
           email_body_with_blob = email_body_scope.where.not(storage_blob_id: nil).count
@@ -785,16 +802,16 @@ module Api
               total: email_body_total,
               with_blob: email_body_linked,  # "LINKED" = has WarehouseDocument
               with_file: email_body_with_file,
-              without_blob: email_body_total - email_body_linked,
+              without_blob: email_body_total - email_body_linked - email_body_unfetchable,
+              unfetchable: email_body_unfetchable,  # Emails from deleted mailboxes
               storage_rate: ((email_body_linked.to_f / email_body_total) * 100).round(1),
               file_rate: ((email_body_with_file.to_f / email_body_total) * 100).round(1)
             }
           end
 
-          # Email attachments - SSoT: Total from EmailAttachment, not WarehouseDocument
-          email_attach_total = EmailAttachment.count
-          email_attach_scope = WarehouseDocument.where(source_type: "email", documentable_type: "EmailAttachment")
-          email_attach_linked = email_attach_scope.count
+          # Email attachments - SSoT (Jan 2026): WarehouseDocument with source_type='email_attachment'
+          email_attach_scope = WarehouseDocument.where(source_type: "email_attachment")
+          email_attach_total = email_attach_scope.count
           email_attach_with_blob = email_attach_scope.where.not(storage_blob_id: nil).count
           email_attach_with_file = count_with_file.call(email_attach_scope)
           if email_attach_total > 0
@@ -802,10 +819,10 @@ module Api
               source_type: "email_attachment",
               label: "Email Attachments",
               total: email_attach_total,
-              with_blob: email_attach_linked,  # "LINKED" = has WarehouseDocument
+              with_blob: email_attach_with_blob,
               with_file: email_attach_with_file,
-              without_blob: email_attach_total - email_attach_linked,
-              storage_rate: ((email_attach_linked.to_f / email_attach_total) * 100).round(1),
+              without_blob: email_attach_total - email_attach_with_blob,
+              storage_rate: ((email_attach_with_blob.to_f / email_attach_total) * 100).round(1),
               file_rate: ((email_attach_with_file.to_f / email_attach_total) * 100).round(1)
             }
           end
@@ -826,7 +843,7 @@ module Api
             with_file_count = with_file_by_source[source_type] || 0
             results << {
               source_type: source_type,
-              label: StorageConfiguration.label_for(source_type),  # SSoT: Use centralized labels
+              label: WarehouseProvider.label_for(source_type),  # SSoT: Use centralized labels
               total: total,
               with_blob: with_storage,
               with_file: with_file_count,
@@ -912,19 +929,31 @@ module Api
           total_bytes = StorageBlob.sum(:file_size) || 0
           blobs_path = StorageBlob.where("storage_path LIKE 'Blobs/%'").count
           emails_path = StorageBlob.where("storage_path LIKE 'Emails/%'").count
+
+          # Deduplication stats (attachments save most storage)
+          total_refs = StorageBlob.sum(:reference_count)
+          dupes_avoided = total_refs - total_blobs
+          # Estimate bytes saved: avg file size * dupes avoided
+          avg_size = total_blobs > 0 ? (total_bytes.to_f / total_blobs) : 0
+          bytes_saved = (avg_size * dupes_avoided).to_i
+
           {
             total_blobs: total_blobs,
             total_bytes: total_bytes,
             blobs_format: blobs_path,
             legacy_format: emails_path,
-            migration_rate: total_blobs > 0 ? ((blobs_path.to_f / total_blobs) * 100).round(1) : 0
+            migration_rate: total_blobs > 0 ? ((blobs_path.to_f / total_blobs) * 100).round(1) : 0,
+            # Deduplication
+            total_references: total_refs,
+            duplicates_avoided: dupes_avoided,
+            bytes_saved: bytes_saved
           }
         else
           { total_blobs: 0, total_bytes: 0, blobs_format: 0, legacy_format: 0, migration_rate: 0 }
         end
 
         # Corporate (Companies) stats
-        active_companies = CorporateCompany.where(active: [ true, nil ])
+        active_companies = Corporate.where(active: [ true, nil ])
         total_companies = active_companies.count
         missing_abn = active_companies.where(abn: [ nil, "" ]).count
         missing_acn = active_companies.where(acn: [ nil, "" ])
@@ -950,7 +979,7 @@ module Api
           data: {
             organization: {
               name: company_setting&.company_name || "Organization",
-              total_companies: CorporateCompany.count,
+              total_companies: Corporate.count,
               total_jobs: Job.count
             },
             documents: doc_stats,
@@ -974,7 +1003,27 @@ module Api
 
       private
 
-      # SSoT: Connection info - bucket from StorageConfiguration (Jan 2026)
+      # Auto-create Organization for current tenant if it doesn't exist
+      # SSoT (Jan 2026): Organization is needed for document_provider settings
+      # Default: Wasabi (s3_compatible) with shared bucket credential
+      def create_organization_for_tenant
+        return nil unless current_tenant
+
+        # Find the active Wasabi/S3 credential to use as default
+        default_credential = S3CompatibleCredential.active.where(status: "connected").first
+
+        Organization.create!(
+          tenant: current_tenant,
+          name: current_tenant.name || "Organization",
+          document_provider: "s3_compatible",
+          document_provider_credential_id: default_credential&.id
+        )
+      rescue ActiveRecord::RecordInvalid => e
+        Rails.logger.error "[OrganizationController] Failed to create Organization for tenant: #{e.message}"
+        nil
+      end
+
+      # SSoT: Connection info - bucket from WarehouseProvider (Jan 2026)
       def storage_connection_info_for(provider_type, s3_credential, ms_credential, storage_config)
         case provider_type
         when "s3_compatible"
@@ -990,7 +1039,7 @@ module Api
             site_url: ms_credential.site_url || "https://#{ms_credential.tenant_id}.sharepoint.com",
             site_id: storage_config&.site_id,
             drive_id: storage_config&.drive_id,
-            # SSoT: drive_name comes from StorageConfiguration - no hardcoded fallback
+            # SSoT: drive_name comes from WarehouseProvider - no hardcoded fallback
             drive_name: storage_config&.drive_name
           }
         when "local"

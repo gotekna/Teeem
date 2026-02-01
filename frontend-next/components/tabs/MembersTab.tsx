@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { Users } from "lucide-react";
 import { api } from "@/lib/api";
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 
 interface Member {
   id: number;
@@ -33,7 +33,7 @@ interface Member {
 }
 
 interface MembersTabProps {
-  company: CorporateCompany;
+  company: Corporate;
   companyId?: string;
   entityId?: string;
 }

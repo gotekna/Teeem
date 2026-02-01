@@ -51,6 +51,7 @@ module DocumentProviders
     end
 
     # Find credential for tenant (SSoT: Jan 2026 fix)
+    # Skips credentials that can't be decrypted (key mismatch)
     def self.find_credential_for_tenant(tenant)
       return nil unless defined?(S3CompatibleCredential)
       return nil unless tenant
@@ -60,26 +61,27 @@ module DocumentProviders
 
       # Try tenant's org-specific credentials first
       if org_ids.any?
-        cred = S3CompatibleCredential.active.connected.where(organization_id: org_ids).first
+        cred = S3CompatibleCredential.active.connected.where(organization_id: org_ids).find { |c| c.decryptable? }
         return cred if cred
       end
 
       # Fall back to global credential (no org)
-      S3CompatibleCredential.active.connected.where(organization_id: nil).first
+      S3CompatibleCredential.active.connected.where(organization_id: nil).find { |c| c.decryptable? }
     end
 
     # Find credential for organization (legacy)
+    # Skips credentials that can't be decrypted (key mismatch)
     def self.find_credential_for_organization(organization)
       return nil unless defined?(S3CompatibleCredential)
 
       # Try org-specific credential first
       if organization&.id
-        cred = S3CompatibleCredential.active.connected.where(organization_id: organization.id).first
+        cred = S3CompatibleCredential.active.connected.where(organization_id: organization.id).find { |c| c.decryptable? }
         return cred if cred
       end
 
       # Fall back to global credential (no org)
-      S3CompatibleCredential.active.connected.where(organization_id: nil).first
+      S3CompatibleCredential.active.connected.where(organization_id: nil).find { |c| c.decryptable? }
     end
 
     def initialize(credential, tenant: nil)
@@ -87,11 +89,11 @@ module DocumentProviders
       @client = credential.build_client
       @tenant = tenant
 
-      # SSoT: StorageConfiguration.connection_config['bucket'] is THE ONE source (Jan 2026)
+      # SSoT: WarehouseProvider.connection_config['bucket'] is THE ONE source (Jan 2026)
       # No fallback to credential - fail fast if bucket not configured
-      config = tenant ? StorageConfiguration.for_tenant(tenant) : StorageConfiguration.instance
+      config = tenant ? WarehouseProvider.for_tenant(tenant) : WarehouseProvider.instance
       @bucket = config&.connection_config&.dig("bucket").presence
-      raise DocumentProviders::ConfigurationError, "Bucket not configured in StorageConfiguration (SSoT). Configure at /settings/company/connections" unless @bucket
+      raise DocumentProviders::ConfigurationError, "Bucket not configured in WarehouseProvider (SSoT). Configure at /settings/company/connections" unless @bucket
       @root_path = config&.root_path.to_s.sub(%r{^/+}, "").sub(%r{/+$}, "")
     end
 
@@ -250,7 +252,9 @@ module DocumentProviders
     def download_file(path_or_id)
       key = resolve_key(path_or_id)
       response = @client.get_object(bucket: @bucket, key: key)
-      response.body.read
+      content = response.body.read
+      # FRC (Jan 2026): Force binary encoding to prevent PDF corruption in email attachments
+      content.force_encoding(Encoding::ASCII_8BIT)
     rescue Aws::S3::Errors::NoSuchKey
       raise NotFoundError, "File not found: #{path_or_id}"
     end
@@ -313,6 +317,16 @@ module DocumentProviders
       }
     rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchKey
       raise NotFoundError, "File not found: #{path_or_id}"
+    end
+
+    # Check if a file exists without throwing errors
+    # Used for cache validation (zip files, etc.)
+    def file_exists?(path_or_id)
+      key = resolve_key(path_or_id)
+      @client.head_object(bucket: @bucket, key: key)
+      true
+    rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchKey
+      false
     end
 
     def delete_file(path_or_id)
@@ -485,8 +499,8 @@ module DocumentProviders
     # @param _template [deprecated] No longer used, kept for API compatibility
     # @return [Hash] The created job folder
     def create_job_folder_structure(job, _template = nil)
-      # SSoT: Use StorageConfiguration.job_path for consistent folder naming (job_code = "J" + id)
-      job_folder_path = StorageConfiguration.instance&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
+      # SSoT: Use WarehouseProvider.job_path for consistent folder naming (job_code = "J" + id)
+      job_folder_path = WarehouseProvider.instance&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
 
       # Create main job folder
       job_folder = create_folder(job_folder_path)
@@ -500,7 +514,7 @@ module DocumentProviders
     # SSoT: Create subfolders from EntityTab hierarchy
     def create_subfolders_from_entity_tabs(parent_path)
       root_tabs = EntityTab.for_jobs
-                           .where(has_storage_folder: true)
+                           .where(warehouse_enabled: true)
                            .enabled
                            .root_tabs
                            .ordered
@@ -518,7 +532,7 @@ module DocumentProviders
 
       Rails.logger.info "[EntityTab SSoT] Created S3 folder: #{folder_path}"
 
-      tab.children.where(has_storage_folder: true).enabled.ordered.each do |child|
+      tab.children.where(warehouse_enabled: true).enabled.ordered.each do |child|
         create_entity_tab_folder_recursive(child, folder_path)
       end
     end
@@ -527,8 +541,8 @@ module DocumentProviders
     # @param job [Job] The job to find folder for
     # @return [Hash, nil] The folder info or nil if not found
     def find_job_folder(job)
-      # SSoT: Use StorageConfiguration.job_path for consistent folder naming (job_code = "J" + id)
-      job_folder_path = StorageConfiguration.instance&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
+      # SSoT: Use WarehouseProvider.job_path for consistent folder naming (job_code = "J" + id)
+      job_folder_path = WarehouseProvider.instance&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
 
       return nil unless folder_exists?(job_folder_path)
 

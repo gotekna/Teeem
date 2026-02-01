@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { Building2, User, Mail, Phone, Globe, ArrowRight, Check, AlertCircle } from "lucide-react";
+import { Building2, User, Mail, Phone, Globe, ArrowRight, Check, AlertCircle, Gift, Package } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import api from "@/lib/api";
 
 interface SignupData {
@@ -27,16 +28,22 @@ interface SignupData {
   admin_email: string;
   admin_first_name: string;
   admin_last_name: string;
+  include_pricebook: boolean;
 }
 
-export default function GetStartedPage() {
+function GetStartedPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("invite_token");
+
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingInvite, setIsLoadingInvite] = useState(!!inviteToken);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
   const [suggestedSlug, setSuggestedSlug] = useState<string>("");
+  const [inviteSenderName, setInviteSenderName] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<SignupData>({
     company_name: "",
@@ -47,7 +54,56 @@ export default function GetStartedPage() {
     admin_email: "",
     admin_first_name: "",
     admin_last_name: "",
+    include_pricebook: true, // Default to true for better onboarding
   });
+
+  // Fetch invitation data if token is present
+  useEffect(() => {
+    if (inviteToken) {
+      loadInvitationData(inviteToken);
+    }
+  }, [inviteToken]);
+
+  const loadInvitationData = async (token: string) => {
+    setIsLoadingInvite(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data?: {
+          email: string;
+          name: string;
+          first_name: string;
+          last_name: string;
+          company_name: string;
+          sender_name: string;
+        };
+        error?: string;
+      }>(`/api/v1/signup/invitation/${token}`);
+
+      if (response.success && response.data) {
+        // Prefill form with invitation data
+        setFormData((prev) => ({
+          ...prev,
+          company_name: response.data!.company_name || prev.company_name,
+          admin_email: response.data!.email || prev.admin_email,
+          admin_first_name: response.data!.first_name || prev.admin_first_name,
+          admin_last_name: response.data!.last_name || prev.admin_last_name,
+        }));
+        setInviteSenderName(response.data.sender_name);
+
+        // Check availability of prefilled company name
+        if (response.data.company_name) {
+          checkAvailability(response.data.company_name);
+        }
+      } else {
+        setError(response.error || "Invalid or expired invitation");
+      }
+    } catch {
+      setError("Failed to load invitation details");
+    } finally {
+      setIsLoadingInvite(false);
+    }
+  };
 
   const handleInputChange = (field: keyof SignupData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -126,7 +182,10 @@ export default function GetStartedPage() {
         tenant?: { name: string; slug: string; login_url?: string };
         admin_user?: { email: string; name: string };
         error?: string;
-      }>("/api/v1/signup", formData);
+      }>("/api/v1/signup", {
+        ...formData,
+        invite_token: inviteToken,
+      });
 
       if (response?.success) {
         // Store tenant info for the next steps
@@ -178,6 +237,22 @@ export default function GetStartedPage() {
           </CardHeader>
 
           <CardContent className="space-y-4">
+            {isLoadingInvite && (
+              <div className="flex items-center justify-center py-8">
+                <Spinner size={24} />
+                <span className="ml-2 text-muted-foreground">Loading invitation details...</span>
+              </div>
+            )}
+
+            {!isLoadingInvite && inviteSenderName && (
+              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+                <Gift className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <AlertDescription className="text-green-800 dark:text-green-200">
+                  {inviteSenderName} has invited you to try TEEEM!
+                </AlertDescription>
+              </Alert>
+            )}
+
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -185,7 +260,7 @@ export default function GetStartedPage() {
               </Alert>
             )}
 
-            {step === 1 && (
+            {!isLoadingInvite && step === 1 && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="company_name">Company Name *</Label>
@@ -271,10 +346,33 @@ export default function GetStartedPage() {
                     />
                   </div>
                 </div>
+
+                {/* Starter Pricebook Option */}
+                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="include_pricebook"
+                      checked={formData.include_pricebook}
+                      onCheckedChange={(checked) =>
+                        setFormData((prev) => ({ ...prev, include_pricebook: checked === true }))
+                      }
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="include_pricebook" className="flex items-center gap-2 cursor-pointer font-medium">
+                        <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        Include starter pricebook
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Copy our full pricebook with supplier items and industry-standard pricing (5% markup applied)
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </>
             )}
 
-            {step === 2 && (
+            {!isLoadingInvite && step === 2 && (
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -328,7 +426,7 @@ export default function GetStartedPage() {
                 Already have an account?
               </Button>
             )}
-            <Button onClick={handleNext} disabled={isLoading}>
+            <Button onClick={handleNext} disabled={isLoading || isLoadingInvite}>
               {isLoading ? (
                 <Spinner size={16} className="mr-2" />
               ) : null}
@@ -350,6 +448,18 @@ export default function GetStartedPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function GetStartedPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+        <Spinner size={32} />
+      </div>
+    }>
+      <GetStartedPageContent />
+    </Suspense>
   );
 }
 

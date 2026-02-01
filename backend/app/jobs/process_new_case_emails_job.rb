@@ -1,10 +1,10 @@
-# SSoT: Mailbox address configured in CorporateCompanySetting.monitored_mailbox_newcase
+# SSoT: Mailbox address configured in TenantSetting.monitored_mailbox_newcase
 class ProcessNewCaseEmailsJob < ApplicationJob
   queue_as :default
 
   def perform
     # SSoT: Get the monitored mailbox from configuration
-    newcase_address = CorporateCompanySetting.monitored_mailbox_newcase
+    newcase_address = TenantSetting.monitored_mailbox_newcase
 
     # Find emails sent to newcase@ mailbox that don't have proposals yet
     new_case_emails = SyncedEmail

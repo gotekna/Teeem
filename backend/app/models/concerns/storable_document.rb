@@ -2,11 +2,11 @@
 
 # StorableDocument - SSoT concern for document storage integration
 #
-# Include in any model that stores documents using StorageConfiguration.
+# Include in any model that stores documents using WarehouseProvider.
 # Requires the model to have: storage_path, storage_item_id, storage_provider columns.
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: StorageConfiguration determines WHERE files go             ║
+# ║  SSoT: WarehouseProvider determines WHERE files go             ║
 # ║  This concern is THE ONE way models integrate with storage        ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
@@ -27,7 +27,7 @@ module StorableDocument
     # Class attribute for storage scope
     class_attribute :document_storage_scope, default: :custom
 
-    # SSoT: Auto-assign storage_provider from StorageConfiguration on create
+    # SSoT: Auto-assign storage_provider from WarehouseProvider on create
     before_validation :assign_storage_provider_from_config, on: :create
 
     # Scopes for migration tracking
@@ -39,13 +39,13 @@ module StorableDocument
     scope :migration_failed, -> { where(migration_status: "failed") }
   end
 
-  # SSoT: Auto-assign storage_provider from current StorageConfiguration
+  # SSoT: Auto-assign storage_provider from current WarehouseProvider
   # Called before_validation on create - ensures ALL new documents get correct provider
   def assign_storage_provider_from_config
     return if storage_provider.present?
     return unless respond_to?(:storage_provider=)
 
-    config = StorageConfiguration.instance rescue nil
+    config = WarehouseProvider.instance rescue nil
     self.storage_provider = config&.storage_provider_for_new_documents || "s3_compatible"
   end
 
@@ -61,7 +61,7 @@ module StorableDocument
   # Upload Methods
   # ========================================
 
-  # Upload a file to storage using StorageConfiguration
+  # Upload a file to storage using WarehouseProvider
   # @param file [File, ActionDispatch::Http::UploadedFile, String] The file or content
   # @param tokens [Hash] Token values for path template
   # @param filename [String] Optional filename override
@@ -84,7 +84,7 @@ module StorableDocument
       update!(
         storage_path: result[:path],
         storage_item_id: result[:file_id],
-        storage_provider: StorageConfiguration.instance.provider_type,
+        storage_provider: WarehouseProvider.instance.provider_type,
         migration_status: "completed",
         migration_completed_at: Time.current
       )
@@ -108,7 +108,7 @@ module StorableDocument
 
   # Check if file is stored in the current provider
   def in_current_storage?
-    storage_path.present? && storage_provider == StorageConfiguration.instance.provider_type
+    storage_path.present? && storage_provider == WarehouseProvider.instance.provider_type
   end
 
   # Check if file is in Wasabi
@@ -131,11 +131,19 @@ module StorableDocument
   # URL Methods
   # ========================================
 
-  # Get download URL for the stored file
+  # Get download URL for the stored file (forces browser download)
   # SSoT: Delegates to DocumentStorageService (handles S3, SharePoint, ActiveStorage)
   def storage_url
     service = DocumentStorageService.new
-    result = service.download_url(self)
+    result = service.download_url(self, disposition: :attachment)
+    result[:success] ? result[:url] : nil
+  end
+
+  # Get inline view URL for the stored file (browser displays in viewer)
+  # SSoT: Same as storage_url but with Content-Disposition: inline
+  def storage_url_inline
+    service = DocumentStorageService.new
+    result = service.download_url(self, disposition: :inline)
     result[:success] ? result[:url] : nil
   end
 
@@ -236,7 +244,7 @@ module StorableDocument
   # SSoT: Unified legacy storage ID accessor
   # Different models use different column names:
   #   - storage_item_id (JobDocument, ContactDocument - renamed from sharepoint_item_id)
-  #   - storage_file_id (CorporateCompanyDocument, BillInbox - renamed from sharepoint_file_id)
+  #   - storage_file_id (BillInbox - renamed from sharepoint_file_id)
   #   - external_id (PeopleDocument)
   # This method handles all - ONLY use internally, external code should use storage_reference
   def legacy_storage_id

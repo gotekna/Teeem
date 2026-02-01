@@ -76,7 +76,7 @@ class EmailClassificationService
   ].freeze
 
   # Trusted external business partner domains - NEVER classify as spam
-  # SSoT: Internal domains come from CorporateCompanySetting.internal_email_domains
+  # SSoT: Internal domains come from TenantSetting.internal_email_domains
   EXTERNAL_TRUSTED_DOMAINS = %w[
     bunnings.com.au
     harveynorman.com.au
@@ -91,7 +91,7 @@ class EmailClassificationService
 
   # All trusted domains: internal + external partners
   def self.trusted_domains
-    CorporateCompanySetting.internal_email_domains + EXTERNAL_TRUSTED_DOMAINS
+    TenantSetting.internal_email_domains + EXTERNAL_TRUSTED_DOMAINS
   end
 
   # Automated/ephemeral emails - short retention period (7 days)

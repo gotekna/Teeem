@@ -66,7 +66,7 @@ class SaasBillingRecord < ApplicationRecord
     return gl_invoice if gl_invoice.present?
 
     # Find Teeem corporate company for invoicing
-    teeem_company = CorporateCompany.find_by("name ILIKE ?", "%teeem%")
+    teeem_company = Corporate.find_by("name ILIKE ?", "%teeem%")
     raise "Teeem corporate company not found" unless teeem_company
 
     invoice = Gl::Invoice.create!(

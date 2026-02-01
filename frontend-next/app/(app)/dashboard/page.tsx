@@ -47,7 +47,7 @@ export default function DashboardPage() {
   // Path-based tab: /dashboard/overview, /dashboard/competitor
   // URL always shows current tab for clarity
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/dashboard", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/dashboard", "").split("/").filter(Boolean);
     return parts[0] || null; // null means no tab in URL yet
   }, [pathname]);
 
@@ -134,7 +134,7 @@ export default function DashboardPage() {
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="metrics-cards">
             {statCards.map((stat) => {
               const Icon = stat.icon;
               return (
@@ -234,7 +234,7 @@ export default function DashboardPage() {
           {/* Quick Actions */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Recent Activity */}
-            <Card>
+            <Card data-tour="recent-items">
               <CardHeader>
                 <CardTitle className="text-lg">Recent Activity</CardTitle>
                 <CardDescription>Latest updates from your team</CardDescription>
@@ -285,7 +285,7 @@ export default function DashboardPage() {
             </Card>
 
             {/* Upcoming */}
-            <Card>
+            <Card data-tour="tasks-widget">
               <CardHeader>
                 <CardTitle className="text-lg">Upcoming Schedule</CardTitle>
                 <CardDescription>Tasks and deadlines this week</CardDescription>

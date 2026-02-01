@@ -4,7 +4,7 @@
  * SSoT: Contact Corporate Details Sub-Tab
  * Part of Contact SSoT Consolidation
  *
- * This component displays CorporateCompany-specific details for company/trust contacts.
+ * This component displays Corporate-specific details for company/trust contacts.
  * It shows the company's own corporate data (ASIC, compliance, share register)
  * as opposed to the person-centric view (person's roles in companies).
  *

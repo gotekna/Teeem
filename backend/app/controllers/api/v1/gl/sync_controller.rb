@@ -271,7 +271,7 @@ module Api
         def set_corporate_company
           # Try to find by explicit param first
           if params[:corporate_company_id].present?
-            @corporate_company = CorporateCompany.find(params[:corporate_company_id])
+            @corporate_company = Corporate.find(params[:corporate_company_id])
             return
           end
 
@@ -286,7 +286,7 @@ module Api
           end
 
           # Fallback to current_user's company
-          @corporate_company = CorporateCompany.find(current_user&.corporate_company_id)
+          @corporate_company = Corporate.find(current_user&.corporate_company_id)
         rescue ActiveRecord::RecordNotFound
           render json: { success: false, error: 'Company not found' }, status: :not_found
         end
@@ -303,7 +303,7 @@ module Api
             if credential
               ::Gl::Adapters.for(@corporate_company, credential: credential)
             elsif params[:provider] == 'xero'
-              # Fallback: Use existing XeroCredential via CorporateCompanyXeroConnection
+              # Fallback: Use existing XeroCredential via CorporateXeroConnection
               xero_credential = find_xero_credential
               if xero_credential
                 ::Gl::Adapters::Xero.new(@corporate_company, xero_credential: xero_credential)
@@ -319,8 +319,8 @@ module Api
         end
 
         def find_xero_credential
-          # Find XeroCredential for this company via CorporateCompanyXeroConnection
-          connection = CorporateCompanyXeroConnection
+          # Find XeroCredential for this company via CorporateXeroConnection
+          connection = CorporateXeroConnection
             .joins(:xero_credential)
             .where(corporate_company: @corporate_company)
             .first

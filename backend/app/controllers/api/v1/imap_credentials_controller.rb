@@ -1,7 +1,7 @@
 class Api::V1::ImapCredentialsController < ApplicationController
   include PresignedUploadHandler
 
-  before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
+  before_action :set_credential, only: [:show, :update, :destroy, :sync, :sync_status, :toggle_sync_all, :reveal_password, :create_folder, :delete_folder, :move_email, :update_sharing]
 
   # GET /api/v1/imap_credentials
   # List user's IMAP accounts (owned + shared)
@@ -12,6 +12,81 @@ class Api::V1::ImapCredentialsController < ApplicationController
     render json: {
       success: true,
       data: credentials.map { |c| credential_json(c) }
+    }
+  end
+
+  # GET /api/v1/imap_credentials/org_status
+  # Returns TENANT-SCOPED email health status (for header indicator)
+  # Shows breakdown by provider type for user clarity
+  # FRC (Jan 2026): Header needs to show accounts' health for current TENANT only
+  def org_status
+    # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
+    tenant = current_tenant
+
+    # Get IMAP credentials for users in this tenant
+    tenant_user_ids = tenant&.users&.pluck(:id) || []
+    all_imap = ImapCredential.where(is_active: true, user_id: tenant_user_ids)
+
+    # Count by status
+    total_imap = all_imap.count
+    connected_imap = all_imap.where(last_sync_status: 'success').where(last_sync_error: [nil, '']).count
+    error_imap = all_imap.where.not(last_sync_error: [nil, '']).count
+    syncing_imap = all_imap.where(last_sync_status: 'syncing').count
+
+    # Get MS365 org credentials for THIS TENANT's organizations only
+    tenant_org_ids = tenant&.organizations&.pluck(:id) || []
+    ms365_credentials = MicrosoftCredential.app_credentials
+                                            .where(organization_id: tenant_org_ids)
+                                            .order(is_primary: :desc, name: :asc)
+    total_ms365 = ms365_credentials.count
+    connected_ms365 = ms365_credentials.where(status: 'connected').count
+
+    # Build MS365 orgs list with status
+    ms365_orgs = ms365_credentials.map do |cred|
+      {
+        name: cred.name,
+        status: cred.status == 'connected' ? 'connected' : 'disconnected',
+        is_primary: cred.is_primary
+      }
+    end
+
+    # Calculate overall status
+    total = total_imap + total_ms365
+    connected = connected_imap + connected_ms365
+    has_errors = error_imap > 0
+    has_syncing = syncing_imap > 0
+
+    # Determine overall status for header indicator
+    overall_status = if total == 0
+      'disconnected'
+    elsif has_errors
+      'error'
+    elsif connected == total
+      'connected'
+    elsif has_syncing
+      'degraded'
+    else
+      'degraded'
+    end
+
+    render json: {
+      success: true,
+      data: {
+        total: total,
+        connected: connected,
+        errors: error_imap,
+        syncing: syncing_imap,
+        overall_status: overall_status,
+        summary: "#{connected}/#{total} accounts connected",
+        # Detailed breakdown for popover
+        ms365_orgs: ms365_orgs,
+        imap: {
+          total: total_imap,
+          connected: connected_imap,
+          errors: error_imap,
+          syncing: syncing_imap
+        }
+      }
     }
   end
 
@@ -114,11 +189,54 @@ class Api::V1::ImapCredentialsController < ApplicationController
   def sync
     full_sync = params[:full_sync] == "true"
 
+    # Mark as syncing immediately so UI can show progress
+    @credential.update!(last_sync_status: "syncing", last_sync_error: nil)
+
     ImapSyncJob.perform_later(@credential.id, full_sync: full_sync)
 
     render json: {
       success: true,
-      message: "Sync started. New emails will appear shortly."
+      message: "Sync started. New emails will appear shortly.",
+      data: {
+        id: @credential.id,
+        sync_status: "syncing"
+      }
+    }
+  end
+
+  # GET /api/v1/imap_credentials/:id/sync_status
+  # Get current sync status for polling
+  def sync_status
+    render json: {
+      success: true,
+      data: {
+        id: @credential.id,
+        sync_status: @credential.last_sync_status,
+        sync_error: @credential.last_sync_error,
+        last_synced_at: @credential.last_synced_at,
+        email_count: SyncedEmailMailbox.where(imap_credential_id: @credential.id).count
+      }
+    }
+  end
+
+  # PUT /api/v1/imap_credentials/:id/toggle_sync_all
+  # Toggle sync_all setting for an IMAP account (Jan 2026: sync all historical emails)
+  def toggle_sync_all
+    sync_all = ActiveModel::Type::Boolean.new.cast(params[:sync_all])
+
+    @credential.update!(sync_all: sync_all)
+
+    # If enabling sync_all, trigger a sync immediately
+    if sync_all
+      ImapSyncJob.perform_later(@credential.id, full_sync: true)
+    end
+
+    render json: {
+      success: true,
+      sync_all: sync_all,
+      message: sync_all ?
+        "Sync All enabled for #{@credential.display_name}. All historical emails will be synced." :
+        "Sync All disabled for #{@credential.display_name}. Only recent emails will be synced."
     }
   end
 
@@ -242,7 +360,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # GET /api/v1/imap_credentials/all_accounts
-  # List ALL email accounts (IMAP + connected Microsoft 365 tenants)
+  # List email accounts (IMAP + connected Microsoft 365) for CURRENT TENANT
   # SSoT: Uses same ordering as navigation (email_nav_positions)
   def all_accounts
     accounts = []
@@ -252,11 +370,17 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # SSoT: Get user's favorite mailbox IDs
     favorite_ids = EmailMailboxFavorite.favorited_account_ids(current_user.id)
 
-    # Add connected Microsoft 365 organization accounts
+    # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
+    tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
+
+    # Add connected Microsoft 365 organization accounts FOR THIS TENANT ONLY
     # These use Application permissions to access mailboxes
     # SSoT: Use MicrosoftCredential for app credentials
     # SSoT: Order by is_primary DESC so primary tenancy comes first
-    ms365_credentials = MicrosoftCredential.app_credentials.connected.order(is_primary: :desc, name: :asc)
+    ms365_credentials = MicrosoftCredential.app_credentials
+                                            .connected
+                                            .where(organization_id: tenant_org_ids)
+                                            .order(is_primary: :desc, name: :asc)
 
     ms365_credentials.each do |org_cred|
       # SSoT: User automatically gets access to their own mailbox
@@ -277,7 +401,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
         # 1. Graph API call to get domains was too slow (30+ sec)
         # 2. Multiple tenants exist with different domains
         known_domains = {
-          "Tekna" => CorporateCompanySetting.internal_email_domains,
+          "Tekna" => TenantSetting.internal_email_domains,
           "100xBestLife" => ["100xbestlife.com"],
           "Homes of Hope" => ["homesofhope.org.au"],
           "Love Your World" => ["loveyourworld.org"]
@@ -309,8 +433,11 @@ class Api::V1::ImapCredentialsController < ApplicationController
           is_active: org_cred.status == "connected",
           is_default: is_primary_account,
           org_credential_id: org_cred.id,
+          credential_id: org_cred.id,
           position: saved_positions[account_id] || (fallback_position += 1),
-          is_favorite: favorite_ids.include?(account_id)
+          is_favorite: favorite_ids.include?(account_id),
+          last_synced_at: org_cred.last_sync_at&.iso8601,
+          last_sync_status: org_cred.status
         }
       end
     end
@@ -332,6 +459,29 @@ class Api::V1::ImapCredentialsController < ApplicationController
         owner_name: is_shared ? cred.user&.name : nil,
         email_signature: cred.email_signature,
         email_aliases: cred.email_aliases || [],
+        position: saved_positions[account_id] || (fallback_position += 1),
+        is_favorite: favorite_ids.include?(account_id),
+        last_synced_at: cred.last_synced_at&.iso8601,
+        last_sync_status: cred.last_sync_status
+      }
+    end
+
+    # Add PolarisMail accounts (EmailMailbox)
+    # These are mailboxes from email subscriptions managed by PolarisMail/EmailArray
+    EmailMailbox.active.includes(:email_subscription).each do |mailbox|
+      # Skip if subscription isn't active
+      next unless mailbox.email_subscription&.status == "active"
+
+      account_id = "polaris_#{mailbox.id}"
+      accounts << {
+        id: account_id,
+        type: "polaris",
+        name: mailbox.display_name.presence || mailbox.email_address.split("@").first,
+        email_address: mailbox.email_address,
+        provider: "polaris",
+        is_active: true,
+        is_default: false,
+        email_mailbox_id: mailbox.id,
         position: saved_positions[account_id] || (fallback_position += 1),
         is_favorite: favorite_ids.include?(account_id)
       }
@@ -589,8 +739,10 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
   # GET /api/v1/imap_credentials/shareable_users
   # List users who can be granted access to email credentials
+  # SSoT (Jan 2026): Filter by current tenant for multi-tenancy isolation
   def shareable_users
-    users = User.order(:name).map do |user|
+    tenant_user_ids = current_tenant&.users&.pluck(:id) || []
+    users = User.where(id: tenant_user_ids).order(:name).map do |user|
       {
         id: user.id,
         name: user.name,
@@ -767,7 +919,49 @@ class Api::V1::ImapCredentialsController < ApplicationController
       end
     end
 
-    # Handle storage keys (from presigned URL uploads)
+    # Handle attachment_data (new format with filenames - Ultra fix Jan 2026)
+    # Format: [{ key: "storage/path", filename: "document.pdf", content_type: "application/pdf" }]
+    if params[:attachment_data].present?
+      att_data_array = Array(params[:attachment_data])
+      Rails.logger.info "[SendEmail] Processing #{att_data_array.size} attachment_data items"
+
+      att_data_array.each_with_index do |att_data, idx|
+        # Support both string keys and symbol keys
+        storage_key = att_data[:key] || att_data["key"]
+        filename = att_data[:filename] || att_data["filename"]
+        content_type = att_data[:content_type] || att_data["content_type"]
+
+        if storage_key.blank?
+          Rails.logger.warn "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': No storage_key, skipping"
+          next
+        end
+
+        Rails.logger.info "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': Downloading from #{storage_key}"
+        file = download_from_storage(storage_key)
+
+        unless file
+          Rails.logger.error "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': FAILED to download from #{storage_key}"
+          next
+        end
+
+        # FRC (Jan 2026): Read file content and ensure binary encoding to prevent PDF corruption
+        file_content = file.read
+        file_content = file_content.dup.force_encoding(Encoding::ASCII_8BIT) if file_content
+
+        Rails.logger.info "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': SUCCESS (#{file_content&.bytesize || 0} bytes, encoding: #{file_content&.encoding})"
+
+        # Use provided filename (preserves original name), fallback to extracted filename
+        attachments << {
+          filename: filename.presence || file.original_filename,
+          content: file_content,
+          content_type: content_type.presence || file.content_type
+        }
+      end
+
+      Rails.logger.info "[SendEmail] Processed #{attachments.size} of #{att_data_array.size} attachments successfully"
+    end
+
+    # Legacy: Handle storage keys (from presigned URL uploads) - for backwards compatibility
     if params[:attachment_storage_keys].present?
       Array(params[:attachment_storage_keys]).each do |storage_key|
         file = download_from_storage(storage_key)
@@ -785,7 +979,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   def credential_params
-    params.require(:imap_credential).permit(
+    permitted = params.require(:imap_credential).permit(
       :name,
       :email_address,
       :provider,
@@ -799,8 +993,23 @@ class Api::V1::ImapCredentialsController < ApplicationController
       :password,
       :sync_interval_minutes,
       :is_active,
-      :email_signature
+      :email_signature,
+      :email_aliases  # Accepts comma-separated string from frontend
     )
+
+    # FRC (Jan 2026): Don't update password if blank - preserves existing password during edits
+    # Frontend sends password: "" for security (doesn't prefill existing password)
+    permitted.delete(:password) if permitted[:password].blank?
+
+    # Convert comma-separated string to array for email_aliases
+    if permitted[:email_aliases].is_a?(String)
+      permitted[:email_aliases] = permitted[:email_aliases]
+        .split(",")
+        .map(&:strip)
+        .reject(&:blank?)
+    end
+
+    permitted
   end
 
   def credential_json(credential, include_folders: false)
@@ -815,11 +1024,13 @@ class Api::V1::ImapCredentialsController < ApplicationController
       smtp_port: credential.smtp_port,
       sync_interval_minutes: credential.sync_interval_minutes,
       is_active: credential.is_active,
+      sync_all: credential.respond_to?(:sync_all) ? credential.sync_all : false,  # Jan 2026: Sync all historical emails
       last_synced_at: credential.last_synced_at,
       last_sync_status: credential.last_sync_status,
       last_sync_error: credential.last_sync_error,
       created_at: credential.created_at,
       email_signature: credential.email_signature,
+      email_aliases: credential.email_aliases || [],  # Send-from aliases
       # Sharing fields
       user_id: credential.user_id,
       owner_name: credential.user&.name,

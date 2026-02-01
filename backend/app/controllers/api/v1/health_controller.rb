@@ -90,7 +90,7 @@ module Api
             jobs_count: Job.count,
             contacts_count: Contact.count,
             pricebook_items_count: PricebookItem.count,
-            companies_count: CorporateCompany.count,
+            companies_count: Corporate.count,
             pending_jobs: get_pending_jobs_count,
             failed_jobs: get_failed_jobs_count
           },
@@ -413,9 +413,10 @@ module Api
         when "pricebook"
           PricebookItem.active.count
         when "companies"
-          CorporateCompany.count
+          Corporate.count
         when "documents"
-          CorporateCompanyDocument.count
+          # SSoT: WarehouseDocument is the universal document table (Jan 2026)
+          defined?(WarehouseDocument) ? WarehouseDocument.count : 0
         else
           0
         end
@@ -783,10 +784,10 @@ module Api
         fixed_ids = []
 
         if item_ids.present?
-          companies = CorporateCompany.where(id: item_ids)
+          companies = Corporate.where(id: item_ids)
         else
           # Find companies with ABN that needs formatting (should be XX XXX XXX XXX)
-          companies = CorporateCompany.where.not(abn: [ nil, "" ])
+          companies = Corporate.where.not(abn: [ nil, "" ])
         end
 
         companies.find_each do |company|
@@ -811,7 +812,7 @@ module Api
         #   HealthKudosEvent.record_bulk_fix(
         #     user: auto ? nil : current_user,
         #     fix_type: "abn_format",
-        #     record_type: "CorporateCompany",
+        #     record_type: "Corporate",
         #     record_ids: fixed_ids,
         #     points_per_record: HealthKudosEvent::POINTS[:abn_format]
         #   )
@@ -831,10 +832,10 @@ module Api
         fixed_ids = []
 
         if item_ids.present?
-          companies = CorporateCompany.where(id: item_ids)
+          companies = Corporate.where(id: item_ids)
         else
           # Find companies with ACN that needs formatting (should be XXX XXX XXX)
-          companies = CorporateCompany.where.not(acn: [ nil, "" ])
+          companies = Corporate.where.not(acn: [ nil, "" ])
         end
 
         companies.find_each do |company|
@@ -859,7 +860,7 @@ module Api
         #   HealthKudosEvent.record_bulk_fix(
         #     user: auto ? nil : current_user,
         #     fix_type: "acn_format",
-        #     record_type: "CorporateCompany",
+        #     record_type: "Corporate",
         #     record_ids: fixed_ids,
         #     points_per_record: HealthKudosEvent::POINTS[:acn_format]
         #   )

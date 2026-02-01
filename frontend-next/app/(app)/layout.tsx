@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/ui/sidebar";
 import { HeaderBar } from "@/components/layout/HeaderBar";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
+import { PageTour } from "@/components/help/PageTour";
 import { EnvironmentBadge } from "@/components/layout/EnvironmentBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
@@ -16,6 +17,14 @@ import { BreadcrumbTrail, BREADCRUMB_BAR_HEIGHT } from "@/components/navigation/
 import { Spinner } from "@/components/ui/spinner";
 import { initVitals } from "@/lib/performance/vitals";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import consoleCapture from "@/utils/consoleCapture";
+
+// Initialize console capture immediately to catch ALL errors from the start
+// This ensures the error count badge in the sidebar matches DevTools
+if (typeof window !== "undefined") {
+  consoleCapture.initialize();
+}
+
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const { sidebarWidth } = useSidebar();
@@ -93,10 +102,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
        * transition-all caused non-composited border-color animations triggering CLS
        * Only padding-left needs to animate (for sidebar resize) */}
       <main
-        className={`sidebar-content-area h-screen overflow-hidden ${containerClassName} transition-[padding-left] duration-300 ease-in-out pb-16 md:pb-0`}
+        className={`sidebar-content-area h-screen ${containerClassName} transition-[padding-left] duration-300 ease-in-out pb-16 md:pb-0`}
         style={{ paddingTop: shouldHideSidebar ? headerOffset : headerOffset + BREADCRUMB_BAR_HEIGHT }}
       >
-        <div className={`h-full overflow-auto ${contentClassName}`}>
+        <div className={`h-full ${contentClassName}`}>
           {children}
         </div>
       </main>
@@ -105,6 +114,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       <div className="hidden">
         <FloatingHelpButton />
       </div>
+
+      {/* Page Tour - Interactive walkthroughs for each page */}
+      <PageTour />
 
       {/* Breadcrumb Trail - floating overlay below header (hidden in fullscreen) */}
       {!shouldHideSidebar && <BreadcrumbTrail topOffset={headerOffset} />}

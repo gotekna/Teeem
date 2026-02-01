@@ -380,8 +380,8 @@ export function ContactTypesTab() {
       const settings = await api.get<any>("/api/v1/company_settings");
       setContactDocPath(settings.contact_documents_path || "");
 
-      // SSoT: Load folder format from StorageConfiguration templates
-      const storageConfig = await api.get<{ success: boolean; data: any }>("/api/v1/storage_configuration");
+      // SSoT: Load folder format from WarehouseProvider templates
+      const storageConfig = await api.get<{ success: boolean; data: any }>("/api/v1/warehouse_provider");
       const contactTemplate = storageConfig.data?.scope_templates?.contact || "{{ContactId}} - {{ContactName}}";
       setContactFolderFormat(templateToFormat(contactTemplate));
     } catch (error) {
@@ -389,7 +389,7 @@ export function ContactTypesTab() {
     }
   };
 
-  // SSoT: Map dropdown value to StorageConfiguration template string
+  // SSoT: Map dropdown value to WarehouseProvider template string
   const formatToTemplate: Record<string, string> = {
     id_name: "{{ContactId}} - {{ContactName}}",
     id_only: "{{ContactId}}",
@@ -407,8 +407,8 @@ export function ContactTypesTab() {
     setSavingFormat(true);
     setContactFolderFormat(format);
     try {
-      // SSoT: Save to StorageConfiguration templates
-      await api.patch("/api/v1/storage_configuration", {
+      // SSoT: Save to WarehouseProvider templates
+      await api.patch("/api/v1/warehouse_provider", {
         storage: { scope_templates: { contact: formatToTemplate[format] } },
       });
       toast({

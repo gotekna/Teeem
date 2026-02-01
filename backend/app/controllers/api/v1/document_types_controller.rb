@@ -122,14 +122,9 @@ module Api
       end
 
       # DELETE /api/v1/document_types/:id
+      # Note: corporate_company_documents table DROPPED (Jan 2026) - check removed
+      # TODO: Add WarehouseDocument check if document types need protection
       def destroy
-        if @document_type.corporate_company_documents.any?
-          return render json: {
-            success: false,
-            errors: [ "Cannot delete document type with existing documents" ]
-          }, status: :unprocessable_entity
-        end
-
         @document_type.destroy
         render json: { success: true }
       end
@@ -371,7 +366,7 @@ module Api
           generates_certificate: document_type.generates_certificate || false,
           certificate_template: document_type.certificate_template,
           signature_field_config: document_type.signature_field_config || [],
-          documents_count: document_type.corporate_company_documents.count,
+          documents_count: 0,  # Table dropped (Jan 2026) - use WarehouseDocument
           created_at: document_type.created_at,
           updated_at: document_type.updated_at
         }
@@ -388,7 +383,7 @@ module Api
 
       def all_available_tabs
         # SSoT: Get all document tabs from EntityTab (replaces old DocumentFolder)
-        EntityTab.for_scope('corporate_entity')
+        EntityTab.for_scope('corporate')
                  .for_group('documents')
                  .enabled
                  .root_tabs

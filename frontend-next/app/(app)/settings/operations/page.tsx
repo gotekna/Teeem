@@ -42,7 +42,7 @@ export default function OperationsSettingsPage() {
   // Default to DEFAULT_TAB if no tab specified - no redirect needed
   // This allows breadcrumb navigation to /settings/operations to work
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/settings/operations", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/settings/operations", "").split("/").filter(Boolean);
     const tab = parts[0] || DEFAULT_TAB;
     // Validate tab exists
     return OPERATIONS_TABS.some((t) => t.id === tab) ? tab : DEFAULT_TAB;

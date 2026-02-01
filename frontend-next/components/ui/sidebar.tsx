@@ -17,6 +17,9 @@ import {
   ChevronRight,
   ChevronDown,
   Trash2,
+  RefreshCw,
+  ClipboardCopy,
+  Check,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { clearAllCachedRecords } from "@/lib/records-cache";
@@ -27,6 +30,7 @@ import {
 } from "@/lib/personas";
 import { useTheme } from "next-themes";
 import { Button } from "./button";
+import { ComboboxDropdown, type ComboboxItem } from "./combobox-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
@@ -51,6 +55,8 @@ import {
 import { useNavigation, useToggleNavCollapse, type NavigationItem, type NavigationChildItem } from "@/hooks/useNavigation";
 import { getIcon } from "@/lib/icon-map";
 import { SIDEBAR_NAVIGATION_EVENT } from "@/contexts/BreadcrumbContext";
+import consoleCapture from "@/utils/consoleCapture";
+import { copyToClipboard } from "@/utils/formatters";
 
 // Tenant info for sidebar display
 interface TenantInfo {
@@ -106,6 +112,74 @@ function SidebarContent({
 }: SidebarContentProps) {
   const queryClient = useQueryClient();
   const [clearing, setClearing] = useState(false);
+  const [copiedConsole, setCopiedConsole] = useState(false);
+  const [logCount, setLogCount] = useState(0);
+  const [errorCount, setErrorCount] = useState(0);
+  const [isDevOrStaging, setIsDevOrStaging] = useState(false);
+
+  // Track console logs for the copy button (dev/staging only)
+  useEffect(() => {
+    const isDev = process.env.NODE_ENV === "development";
+    const isStaging = typeof window !== "undefined" &&
+      (window.location.hostname.includes("vercel.app") ||
+       window.location.hostname.includes("staging") ||
+       window.location.hostname === "localhost");
+
+    const shouldShow = isDev || isStaging;
+    setIsDevOrStaging(shouldShow);
+
+    if (!shouldShow) return;
+
+    consoleCapture.initialize();
+    const unsubscribe = consoleCapture.subscribe((logs) => {
+      setLogCount(logs.length);
+      setErrorCount(logs.filter((log) => log.type === "error" || log.type === "warn").length);
+    });
+
+    // Initial count
+    const logs = consoleCapture.getLogs();
+    setLogCount(logs.length);
+    setErrorCount(logs.filter((log) => log.type === "error" || log.type === "warn").length);
+
+    return () => unsubscribe();
+  }, []);
+
+  const [copiedProblems, setCopiedProblems] = useState(false);
+
+  // Copy ALL console logs
+  const handleCopyConsole = async () => {
+    try {
+      const logs = consoleCapture.getLogs();
+      let formatted = `=== All Console Logs ===\nTotal: ${logs.length}\nURL: ${window.location.href}\nCaptured: ${new Date().toLocaleString()}\n\n`;
+      logs.forEach((log) => {
+        const time = new Date(log.timestamp).toLocaleTimeString();
+        formatted += `[${time}] [${log.type.toUpperCase()}] ${log.message}\n`;
+      });
+      await copyToClipboard(formatted);
+      setCopiedConsole(true);
+      setTimeout(() => setCopiedConsole(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy console:", err);
+    }
+  };
+
+  // Copy only errors + warnings (Problems)
+  const handleCopyProblems = async () => {
+    try {
+      const logs = consoleCapture.getLogs();
+      const problems = logs.filter((log) => log.type === "error" || log.type === "warn");
+      let formatted = `=== Problems (Errors & Warnings) ===\nTotal: ${problems.length}\nURL: ${window.location.href}\nCaptured: ${new Date().toLocaleString()}\n\n`;
+      problems.forEach((log) => {
+        const time = new Date(log.timestamp).toLocaleTimeString();
+        formatted += `[${time}] [${log.type.toUpperCase()}] ${log.message}\n`;
+      });
+      await copyToClipboard(formatted);
+      setCopiedProblems(true);
+      setTimeout(() => setCopiedProblems(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy problems:", err);
+    }
+  };
 
   // Clear ALL app caches - use this after hotfixes
   const handleClearCache = async () => {
@@ -196,109 +270,174 @@ function SidebarContent({
         ) : null}
       </nav>
 
-      {/* Version Info - SSoT: Backend version from commit messages */}
-      {backendVersion && (
-        <div
-          className={cn(
-            "px-3 py-2 text-[10px] text-muted-foreground border-t border-border",
-            !isExpanded && !mobile && "text-center"
-          )}
-        >
-          {isExpanded || mobile ? (
-            <div className="flex flex-col gap-0.5">
-              <span>{backendVersion}</span>
-              {herokuRelease && <span>Heroku: {herokuRelease}</span>}
-              {deployedAt && <span>D: {deployedAt}</span>}
-              {apiEnvironment && <span className="text-amber-500 font-medium">{apiEnvironment}</span>}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-0.5">
-              <span>{backendVersion}</span>
-              {herokuRelease && <span>{herokuRelease}</span>}
-              {apiEnvironment && <span className="text-amber-500">{apiEnvironment.charAt(0)}</span>}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Company/Tenant Info - shows company name + environment for all users */}
-      {/* TEEEM staff can switch tenants, regular users just see their company */}
-      <div className="p-2 border-t border-border">
-        {tenantInfo?.currentTenant ? (
-          tenantInfo.isTeeemStaff && tenantInfo.canSwitchTenants ? (
-            // TEEEM staff: dropdown to switch tenants
-            <div
-              className={cn(
-                "flex items-center gap-2 p-2",
-                !isExpanded && !mobile && "justify-center"
-              )}
-            >
-              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-              {(isExpanded || mobile) ? (
-                <select
-                  value={tenantInfo.currentTenant.id.toString()}
-                  onChange={(e) => {
-                    tenantInfo.switchTenant(parseInt(e.target.value, 10));
+      {/* Footer: Company + Version + Debug Tools */}
+      <div className="border-t border-border">
+        {/* Company/Tenant + Environment */}
+        {tenantInfo?.currentTenant && (
+          <div
+            className={cn(
+              "flex items-center gap-2 px-3 py-2 group relative",
+              !isExpanded && !mobile && "justify-center"
+            )}
+          >
+            <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+            {(isExpanded || mobile) ? (
+              tenantInfo.isTeeemStaff && tenantInfo.canSwitchTenants ? (
+                <ComboboxDropdown
+                  items={tenantInfo.tenants.map((t) => ({
+                    id: t.id.toString(),
+                    label: t.name,
+                  }))}
+                  selectedItem={{
+                    id: tenantInfo.currentTenant.id.toString(),
+                    label: tenantInfo.currentTenant.name,
+                  }}
+                  onSelect={(item) => {
+                    tenantInfo.switchTenant(parseInt(item.id, 10));
                   }}
                   disabled={tenantInfo.isLoading}
-                  className="h-7 text-xs flex-1 border border-border bg-background px-2 py-1 rounded min-w-0"
-                >
-                  {tenantInfo.tenants.map((t) => (
-                    <option key={t.id} value={t.id.toString()}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Select tenant..."
+                  searchPlaceholder="Search tenants..."
+                  className="h-7 text-xs flex-1 min-w-0"
+                  popoverProps={{ className: "w-[200px]" }}
+                />
               ) : (
-                // Collapsed: just show tooltip on hover
-                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
+                <span className="text-xs font-medium truncate flex-1 min-w-0">
                   {tenantInfo.currentTenant.name}
-                </div>
-              )}
-            </div>
-          ) : (
-            // Regular users: just display company name
-            <div
-              className={cn(
-                "flex items-center gap-2 p-2 group relative",
-                !isExpanded && !mobile && "justify-center"
-              )}
-            >
-              <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-              {(isExpanded || mobile) ? (
-                <span className="text-sm font-medium truncate flex-1 min-w-0">
-                  {tenantInfo.currentTenant.name}
+                  {apiEnvironment && apiEnvironment !== "production" && (
+                    <span className={cn(
+                      "ml-1 text-[10px] font-bold uppercase",
+                      apiEnvironment === "staging" ? "text-orange-500" : "text-yellow-600"
+                    )}>
+                      - {apiEnvironment}
+                    </span>
+                  )}
                 </span>
-              ) : (
-                // Collapsed: show tooltip on hover
-                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
-                  {tenantInfo.currentTenant.name}
-                </div>
-              )}
-            </div>
-          )
-        ) : null}
-      </div>
-
-      {/* Clear Cache Button - visible when sidebar expanded or mobile */}
-      {(isExpanded || mobile) && (
-        <div className="px-2 pb-2">
-          <button
-            onClick={handleClearCache}
-            disabled={clearing}
-            className={cn(
-              "w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded text-xs font-medium transition-all",
-              clearing
-                ? "bg-red-300 text-white cursor-wait"
-                : "bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 dark:bg-red-500/20 dark:text-red-400 dark:hover:bg-red-500/30"
+              )
+            ) : (
+              <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
+                {tenantInfo.currentTenant.name}
+                {apiEnvironment && apiEnvironment !== "production" && (
+                  <span className={cn(
+                    "ml-1 font-bold uppercase",
+                    apiEnvironment === "staging" ? "text-orange-500" : "text-yellow-600"
+                  )}>
+                    - {apiEnvironment}
+                  </span>
+                )}
+              </div>
             )}
-            title="Clear all cached data and refresh"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            {clearing ? "Clearing..." : "Clear Cache"}
-          </button>
-        </div>
-      )}
+          </div>
+        )}
+
+        {/* Version + Deploy Time */}
+        {backendVersion && (isExpanded || mobile) && (
+          <div className="px-3 py-1 text-[10px] text-muted-foreground">
+            {backendVersion}{deployedAt && ` · ${deployedAt}`}
+          </div>
+        )}
+
+        {/* Debug Tools - dev/staging only */}
+        {isDevOrStaging && (
+          <>
+            {/* Expanded: 3 buttons in a row */}
+            {(isExpanded || mobile) && (
+              <div className="px-2 py-1 grid grid-cols-3 gap-0.5">
+                <button
+                  onClick={handleCopyConsole}
+                  className={cn(
+                    "flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] font-medium transition-all border",
+                    copiedConsole
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                  )}
+                  title="Copy all console logs"
+                >
+                  {copiedConsole ? <Check className="h-2.5 w-2.5" /> : <ClipboardCopy className="h-2.5 w-2.5" />}
+                  <span>{logCount}</span>
+                </button>
+                <button
+                  onClick={handleCopyProblems}
+                  className={cn(
+                    "flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] font-medium transition-all border",
+                    copiedProblems
+                      ? "bg-green-600 text-white border-green-600"
+                      : errorCount > 0
+                        ? "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                  )}
+                  title="Copy errors & warnings"
+                >
+                  {copiedProblems ? <Check className="h-2.5 w-2.5" /> : <span>!</span>}
+                  <span>{errorCount}</span>
+                </button>
+                <button
+                  onClick={handleClearCache}
+                  disabled={clearing}
+                  className={cn(
+                    "flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] font-medium transition-all border",
+                    clearing
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+                  )}
+                  title="Clear cache + hard refresh"
+                >
+                  <Trash2 className="h-2.5 w-2.5" />
+                  <RefreshCw className="h-2 w-2" />
+                </button>
+              </div>
+            )}
+
+            {/* Collapsed: 3 icon-only buttons stacked vertically */}
+            {!isExpanded && !mobile && (
+              <div className="px-2 py-1 flex flex-col gap-0.5">
+                <button
+                  onClick={handleCopyConsole}
+                  className={cn(
+                    "flex items-center justify-center gap-1 py-1 rounded text-[9px] font-medium transition-all border",
+                    copiedConsole
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                  )}
+                  title="Copy all console logs"
+                >
+                  {copiedConsole ? <Check className="h-3 w-3" /> : <ClipboardCopy className="h-3 w-3" />}
+                  <span>{logCount}</span>
+                </button>
+                <button
+                  onClick={handleCopyProblems}
+                  className={cn(
+                    "flex items-center justify-center gap-1 py-1 rounded text-[9px] font-medium transition-all border",
+                    copiedProblems
+                      ? "bg-green-600 text-white border-green-600"
+                      : errorCount > 0
+                        ? "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                  )}
+                  title="Copy errors & warnings"
+                >
+                  {copiedProblems ? <Check className="h-3 w-3" /> : <span>!</span>}
+                  <span>{errorCount}</span>
+                </button>
+                <button
+                  onClick={handleClearCache}
+                  disabled={clearing}
+                  className={cn(
+                    "flex items-center justify-center gap-1 py-1 rounded text-[9px] font-medium transition-all border",
+                    clearing
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+                  )}
+                  title="Clear cache + hard refresh"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <RefreshCw className="h-2.5 w-2.5" />
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -891,48 +1030,6 @@ export function Sidebar() {
           isExpanded ? "w-[240px]" : "w-[70px]"
         )}
       >
-        {/* DEBUG: Direct tenant switch buttons - NOT in SidebarContent */}
-        {tenantContext?.isTeeemStaff && tenantContext?.canSwitchTenants && isExpanded && (
-          <div
-            className="p-2 bg-red-100 dark:bg-red-900 border-b border-red-300 flex gap-1"
-            onMouseDown={() => console.log('[DEBUG] Container mousedown!')}
-            onPointerDown={() => console.log('[DEBUG] Container pointerdown!')}
-          >
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                console.log('[DEBUG] Button mousedown!', e.target);
-              }}
-              onPointerDown={(e) => {
-                console.log('[DEBUG] Button pointerdown!', e.target);
-              }}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('[DEBUG] Direct Pilgrim click!');
-                tenantContext.switchTenant(77);
-              }}
-              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
-              style={{ pointerEvents: 'auto', position: 'relative', zIndex: 9999 }}
-            >
-              Pilgrim (77)
-            </button>
-            <button
-              type="button"
-              onMouseDown={() => console.log('[DEBUG] Teeem mousedown!')}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('[DEBUG] Direct Teeem click!');
-                tenantContext.switchTenant(76);
-              }}
-              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
-              style={{ pointerEvents: 'auto', position: 'relative', zIndex: 9999 }}
-            >
-              Teeem (76)
-            </button>
-          </div>
-        )}
         <SidebarContent {...sidebarContentProps} />
         {/* Chevron Toggle Button */}
         <button

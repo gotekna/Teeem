@@ -68,7 +68,7 @@ class NotebookPageAttachment < ApplicationRecord
   end
 
   # ========================================
-  # Warehouse Path (SSoT: StorageConfiguration)
+  # Warehouse Path (SSoT: WarehouseProvider)
   # ========================================
 
   # SSoT: Full warehouse path including filename
@@ -80,17 +80,29 @@ class NotebookPageAttachment < ApplicationRecord
     "#{warehouse_folder_path}/#{base}_#{id}#{ext}".gsub(%r{/+}, "/")
   end
 
-  # SSoT: Folder path computed by StorageConfiguration
+  # SSoT: Folder path computed by WarehouseProvider
+  # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
+  # Model callbacks run without ActsAsTenant context set
   def warehouse_folder_path
-    StorageConfiguration.instance.resolve_warehouse_path(self, scope: :notes)
+    tenant = resolve_tenant_for_config
+    return "Warehousing/Notes/Unknown" unless tenant
+
+    config = WarehouseProvider.for_tenant(tenant) rescue nil
+    return "Warehousing/Notes/Unknown" unless config
+
+    config.resolve_warehouse_path(self, scope: :notes)
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # SSoT: Reads from StorageConfiguration.virtual_template_for(:notebook)
+  # SSoT: Reads from WarehouseProvider.path_for(:notebook)
   # Configure at: /settings/company/entity-config → Storage Config
+  # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
-    config = StorageConfiguration.instance
-    template = config&.virtual_template_for(:notebook)
+    tenant = resolve_tenant_for_config
+    return "Warehousing/Notes/Unknown" unless tenant
+
+    config = WarehouseProvider.for_tenant(tenant) rescue nil
+    template = config&.path_for(:notebook)
     return "Warehousing/Notes/Unknown" unless template
 
     year = (created_at || Time.current).year.to_s
@@ -135,11 +147,38 @@ class NotebookPageAttachment < ApplicationRecord
 
   private
 
+  # Resolve tenant for WarehouseProvider access
+  # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
+  # Derive tenant from: uploaded_by → tenant, or notebook → owner → tenant
+  def resolve_tenant_for_config
+    # Try uploaded_by user first
+    if uploaded_by&.respond_to?(:tenant) && uploaded_by.tenant.present?
+      return uploaded_by.tenant
+    end
+
+    # Try notebook owner
+    if notebook&.owner&.respond_to?(:tenant) && notebook.owner.tenant.present?
+      return notebook.owner.tenant
+    end
+
+    # Fall back to ActsAsTenant if available
+    ActsAsTenant.current_tenant
+  end
+
   # Create WarehouseDocument entry for notebook attachments
+  # ⚠️ FRC (Jan 2026): Must set tenant_id explicitly - model callbacks don't have
+  # ActsAsTenant context, and WarehouseDocument validates tenant presence
   def create_warehouse_entry
     return unless storage_blob
 
+    tenant = resolve_tenant_for_config
+    unless tenant
+      Rails.logger.warn("[NotebookPageAttachment] ##{id}: No tenant found, skipping warehouse entry")
+      return
+    end
+
     create_warehouse_document!(
+      tenant_id: tenant.id,
       source_type: "warehouse",
       folder: virtual_folder_path,
       display_name: file_name,
@@ -154,6 +193,6 @@ class NotebookPageAttachment < ApplicationRecord
       }
     )
   rescue StandardError => e
-    Rails.logger.error("[NotebookPageAttachment] Failed to create warehouse entry: #{e.message}")
+    Rails.logger.error("[NotebookPageAttachment] ##{id}: Failed to create warehouse entry: #{e.message}")
   end
 end

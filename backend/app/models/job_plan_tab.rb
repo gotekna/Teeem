@@ -1,4 +1,3 @@
-# Per-job plan tabs (like JobDocumentationTab)
 # Each job gets a copy of PlanCategories as tabs
 #
 # MASTERPIECE: Counter caches for O(1) count lookups

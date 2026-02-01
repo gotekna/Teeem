@@ -36,8 +36,8 @@ namespace :sharepoint do
 
     # EntityTabs folder status
     puts "🗂️ ENTITY TABS:"
-    tabs_with_folder = EntityTab.where(has_storage_folder: true).count
-    tabs_with_folder_id = EntityTab.where(has_storage_folder: true).where.not(storage_folder_id: [nil, ""]).count
+    tabs_with_folder = EntityTab.where(warehouse_enabled: true).count
+    tabs_with_folder_id = EntityTab.where(warehouse_enabled: true).where.not(storage_folder_id: [nil, ""]).count
     puts "  Tabs with SharePoint folder: #{tabs_with_folder}"
     puts "  With folder ID stored: #{tabs_with_folder_id}"
     puts "  Need backfill: #{tabs_with_folder - tabs_with_folder_id}"

@@ -77,17 +77,21 @@ class ChatMessage < ApplicationRecord
   end
 
   # Phase 4: Virtual folder path for File Warehouse
-  # SSoT: Reads from StorageConfiguration.virtual_template_for(:chat)
+  # SSoT: Reads from WarehouseProvider.path_for(:chat)
   # Configure at: /settings/company/entity-config → Storage Config
+  # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
-    config = StorageConfiguration.instance
-    template = config&.virtual_template_for(:chat)
+    tenant = resolve_tenant_for_config
+    return "Warehousing/Chat/Unknown" unless tenant
+
+    config = WarehouseProvider.for_tenant(tenant) rescue nil
+    template = config&.path_for(:chat)
     return "Warehousing/Chat/Unknown" unless template
 
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)
 
-    # SSoT: Determine context folder using StorageConfiguration paths (Jan 2026)
+    # SSoT: Determine context folder using WarehouseProvider paths (Jan 2026)
     context = if job_id.present?
                 jobs_folder = config&.path_for(:jobs) || "Jobs"
                 "#{jobs_folder}/#{job&.job_code || job_id}"
@@ -156,11 +160,43 @@ class ChatMessage < ApplicationRecord
 
   private
 
+  # Resolve tenant for WarehouseProvider access
+  # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
+  # Derive tenant from: user → tenant, or job → tenant, or contact → tenant
+  def resolve_tenant_for_config
+    # Try user first (most common)
+    if user&.respond_to?(:tenant) && user.tenant.present?
+      return user.tenant
+    end
+
+    # Try job
+    if job&.respond_to?(:tenant) && job.tenant.present?
+      return job.tenant
+    end
+
+    # Try contact
+    if contact&.respond_to?(:tenant) && contact.tenant.present?
+      return contact.tenant
+    end
+
+    # Fall back to ActsAsTenant if available
+    ActsAsTenant.current_tenant
+  end
+
   # Create WarehouseDocument entry for chat messages with files
+  # ⚠️ FRC (Jan 2026): Must set tenant_id explicitly - model callbacks don't have
+  # ActsAsTenant context, and WarehouseDocument validates tenant presence
   def create_warehouse_entry
     return unless storage_blob
 
+    tenant = resolve_tenant_for_config
+    unless tenant
+      Rails.logger.warn("[ChatMessage] ##{id}: No tenant found, skipping warehouse entry")
+      return
+    end
+
     create_warehouse_document!(
+      tenant_id: tenant.id,
       source_type: "warehouse",
       folder: virtual_folder_path,
       display_name: display_name_for_warehouse,
@@ -176,7 +212,7 @@ class ChatMessage < ApplicationRecord
       }
     )
   rescue StandardError => e
-    Rails.logger.error("[ChatMessage] Failed to create warehouse entry: #{e.message}")
+    Rails.logger.error("[ChatMessage] ##{id}: Failed to create warehouse entry: #{e.message}")
   end
 
   def should_upload_to_storage?

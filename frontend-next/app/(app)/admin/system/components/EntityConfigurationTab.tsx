@@ -4,12 +4,15 @@ import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
-import { StorageConfigTab } from "./StorageConfigTab";
+import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncTab } from "./ConfigSyncTab";
+import { AdminConfigSyncTab } from "./AdminConfigSyncTab";
+import { TenantSyncPullTab } from "./TenantSyncPullTab";
 import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useSidebar } from "@/contexts/SidebarContext";
 
 /**
  * EntityConfigurationTab - SSoT for ALL tab configuration
@@ -53,7 +56,7 @@ const scopes = [
     isEntityTab: false,
   },
   {
-    id: "corporate_entity",
+    id: "corporate",
     label: "Corporate",
     icon: Building2,
     showEntityFilters: true,
@@ -94,7 +97,7 @@ const scopes = [
     isEmailConfig: true,
   },
   {
-    id: "config_sync",
+    id: "sync",
     label: "Sync",
     icon: RefreshCw,
     showEntityFilters: false,
@@ -107,13 +110,13 @@ const scopes = [
 
 // Scope label mapping
 const SCOPE_LABELS: Record<string, string> = {
-  corporate_entity: "Corporate",
+  corporate: "Corporate",
   job: "Jobs",
   contact: "Contacts",
   document_types: "Document Types",
   storage_config: "Storage Config",
   email_config: "Email Config",
-  config_sync: "Sync from TEEEM",
+  sync: "Sync",
 };
 
 // Build breadcrumb items from path and active scope
@@ -141,6 +144,7 @@ function buildBreadcrumbs(basePath: string, activeScope: string): Array<{ label:
 
 export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFAULT_ENTITY_CONFIG_BASE_PATH }: EntityConfigurationTabProps) {
   const router = useRouter();
+  const { sidebarWidth } = useSidebar();
   // Support both scope and subTab props (subTab for consistency with other tabs)
   const activeScope = scope || subTab || "storage_config";
 
@@ -170,15 +174,17 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
   }, []);
 
   // Render full page below header AND breadcrumbs
-  // top-24 = 96px to sit below header + breadcrumbs, z-50 to cover sidebar
+  // top-24 = 96px to sit below header + breadcrumbs
+  // Left offset matches sidebar width on desktop (md+), full-width on mobile
   return (
-    <div className="fixed top-24 left-0 right-0 bottom-0 bg-background flex flex-col z-50">
+    <div
+      className="fixed top-24 left-0 md:left-[var(--sidebar-width)] right-0 bottom-0 bg-background flex flex-col z-40 transition-[left] duration-300"
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+    >
       <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full flex-1 min-h-0">
-        {/* Compact header with scope tabs inline */}
+        {/* Scope tabs */}
         <div className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-muted/30">
-          <div className="flex items-center gap-4">
-            <h1 className="text-base font-semibold whitespace-nowrap">Storage Locations</h1>
-            <TabsList className="h-8 bg-transparent p-0 gap-1">
+          <TabsList className="h-8 bg-transparent p-0 gap-1">
               {scopes.map((s) => {
                 const Icon = s.icon;
                 return (
@@ -198,8 +204,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
                   </TabsTrigger>
                 );
               })}
-            </TabsList>
-          </div>
+          </TabsList>
         </div>
 
         {/* Scope Content */}
@@ -208,7 +213,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               {scope.isEntityTab ? (
                 <EntityTabsConfig
-                  scope={scope.id as "corporate_entity" | "job" | "contact" | "email" | "warehouse" | "task"}
+                  scope={scope.id as "corporate" | "job" | "contact" | "email" | "warehouse" | "task"}
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}
                   showDocumentTypes={scope.showDocumentTypes}
@@ -216,11 +221,29 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
                   compact={true}
                 />
               ) : "isStorageConfig" in scope && scope.isStorageConfig ? (
-                <StorageConfigTab />
+                <WarehouseProviderTab />
               ) : "isEmailConfig" in scope && scope.isEmailConfig ? (
                 <EmailConfigTab />
               ) : "isConfigSync" in scope && scope.isConfigSync ? (
-                <ConfigSyncTab />
+                <div className="space-y-8">
+                  {/* Admin Import UI - Pull data FROM other tenants INTO TEEEM */}
+                  <AdminConfigSyncTab />
+
+                  {/* Divider */}
+                  <div className="border-t pt-8">
+                    <h2 className="text-lg font-semibold mb-4">Sync from TEEEM</h2>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Pull configuration records marked as compulsory or optional from TEEEM master tenant
+                    </p>
+                    <TenantSyncPullTab />
+                  </div>
+
+                  {/* Divider */}
+                  <div className="border-t pt-8">
+                    <h2 className="text-lg font-semibold mb-4">Tenant Configuration Overview</h2>
+                    <ConfigSyncTab />
+                  </div>
+                </div>
               ) : (
                 <DocumentTypesTab />
               )}

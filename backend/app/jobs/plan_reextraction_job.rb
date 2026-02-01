@@ -33,7 +33,7 @@ class PlanReextractionJob < ApplicationJob
 
     Rails.logger.info "[PlanReextractionJob] Starting re-extraction for job #{@job.id}"
 
-    # SSoT: Setup document provider using StorageConfiguration
+    # SSoT: Setup document provider using WarehouseProvider
     begin
       setup_default_provider!
     rescue DocumentProviders::NotConnectedError => e

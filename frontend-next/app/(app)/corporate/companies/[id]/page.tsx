@@ -55,7 +55,7 @@ import { XeroTabRenderer } from "@/components/xero/XeroTabRenderer";
 import { ActivityTab } from "@/components/tabs";
 import { Spinner } from "@/components/ui/spinner";
 // Shared types for corporate entities (SSoT for Company type)
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 
 // SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
@@ -63,8 +63,8 @@ import { getIcon } from "@/lib/icon-map";
 
 // =============================================================================
 // TAB CONFIGURATION
-// SSoT: GET /api/v1/entity_tabs?scope=corporate_entity (EntityTab model)
-// Xero tabs are children of the Xero tab in corporate_entity scope (SSoT)
+// SSoT: GET /api/v1/entity_tabs?scope=corporate (EntityTab model)
+// Xero tabs are children of the Xero tab in corporate scope (SSoT)
 // Manage via: Admin > System > Entity Configuration
 // Phase 5 Migration: Using XeroTabRenderer for dynamic Xero tab rendering
 // =============================================================================
@@ -73,8 +73,8 @@ import { getIcon } from "@/lib/icon-map";
 // NO FALLBACK ARRAYS - if API fails, show error so we can fix it
 // Manage tabs via: Admin > System > Entity Configuration
 
-// Company type alias - SSoT: CorporateCompany from @/lib/types/corporate
-type Company = CorporateCompany;
+// Company type alias - SSoT: Corporate from @/lib/types/corporate
+type Company = Corporate;
 
 // =============================================================================
 // PAGE COMPONENT
@@ -97,7 +97,7 @@ export default function CompanyDetailPage() {
   // Parse path: /corporate/companies/123/overview/info → { tab: "overview", subtab: "info" }
   const { activeTab, overviewSubTab } = React.useMemo(() => {
     const basePath = `/corporate/companies/${companyId}`;
-    const pathSuffix = pathname.replace(basePath, "");
+    const pathSuffix = (pathname ?? "").replace(basePath, "");
     const parts = pathSuffix.split("/").filter(Boolean);
     return {
       activeTab: parts[0] || null,
@@ -175,7 +175,7 @@ export default function CompanyDetailPage() {
 
   // SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
   const { tabs: entityTabs } = useEntityTabs({
-    scope: "corporate_entity",
+    scope: "corporate",
     entityType: normalizedEntityType,
   });
 

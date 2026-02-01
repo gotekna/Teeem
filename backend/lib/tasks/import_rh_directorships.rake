@@ -139,9 +139,9 @@ namespace :directorships do
     puts
 
     # Skip callbacks during import to avoid errors with company_activities
-    CorporateCompanyDirector.skip_callback(:create, :after, :create_appointment_activity)
-    CorporateCompanyDirector.skip_callback(:create, :after, :ensure_ssot_director_membership)
-    CorporateCompanyDirector.skip_callback(:commit, :after, :sync_to_contact_relationship)
+    CorporateDirector.skip_callback(:create, :after, :create_appointment_activity)
+    CorporateDirector.skip_callback(:create, :after, :ensure_ssot_director_membership)
+    CorporateDirector.skip_callback(:commit, :after, :sync_to_contact_relationship)
 
     stats = {
       companies_found: companies.count,
@@ -158,7 +158,7 @@ namespace :directorships do
       # Find or create company
       acn_normalized = company_data[:acn].gsub(/\s+/, "")
 
-      corp_company = CorporateCompany.find_by("REPLACE(acn, ' ', '') = ?", acn_normalized)
+      corp_company = Corporate.find_by("REPLACE(acn, ' ', '') = ?", acn_normalized)
 
       if corp_company
         stats[:companies_matched] += 1
@@ -174,7 +174,7 @@ namespace :directorships do
         }
         our_status = status_map[company_data[:status]] || "struck_off"
 
-        corp_company = CorporateCompany.create!(
+        corp_company = Corporate.create!(
           name: company_data[:name] || "Company ACN #{company_data[:acn]}",
           acn: company_data[:acn],
           abn: company_data[:abn],
@@ -208,7 +208,7 @@ namespace :directorships do
 
         # Skip duplicates (e.g., if director and secretary are listed separately but we already created director_secretary)
         next if position == "secretary" &&
-                CorporateCompanyDirector.exists?(
+                CorporateDirector.exists?(
                   contact_id: robert_harder.id,
                   company_id: corp_company.id,
                   position: "director_secretary",
@@ -217,7 +217,7 @@ namespace :directorships do
 
         begin
           # Find or create without callbacks to avoid activity logging errors
-          directorship = CorporateCompanyDirector.find_or_initialize_by(
+          directorship = CorporateDirector.find_or_initialize_by(
             contact_id: robert_harder.id,
             company_id: corp_company.id,
             appointment_date: dir[:appointment_date]
@@ -244,9 +244,9 @@ namespace :directorships do
     puts
 
     # Re-enable callbacks
-    CorporateCompanyDirector.set_callback(:create, :after, :create_appointment_activity)
-    CorporateCompanyDirector.set_callback(:create, :after, :ensure_ssot_director_membership)
-    CorporateCompanyDirector.set_callback(:commit, :after, :sync_to_contact_relationship)
+    CorporateDirector.set_callback(:create, :after, :create_appointment_activity)
+    CorporateDirector.set_callback(:create, :after, :ensure_ssot_director_membership)
+    CorporateDirector.set_callback(:commit, :after, :sync_to_contact_relationship)
 
     # Final summary
     puts
@@ -272,7 +272,7 @@ namespace :directorships do
 
     # Show current directorships count
     current_count = robert_harder.current_directorships.count
-    total_count = robert_harder.corporate_company_directorships.count
+    total_count = robert_harder.corporate_directorships.count
 
     puts "Robert Harder Directorships:"
     puts "  Current: #{current_count}"

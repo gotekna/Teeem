@@ -13,7 +13,9 @@
 #   - Manual sync endpoint in synced_emails_controller.rb
 #
 class AllOrgsEmailSyncJob < ApplicationJob
-  queue_as :low
+  # FRC (Jan 2026): Moved from :low to :default queue
+  # Email sync is user-visible and time-sensitive - shouldn't compete with background analytics
+  queue_as :default
 
   def perform(sync_type = "incremental")
     connected_credentials = MicrosoftCredential.app_credentials.connected

@@ -38,13 +38,13 @@ module Api
       def create
         contact = Contact.find(params[:contact_id])
 
+        # FRC (Feb 2026): Fixed - controller was setting non-existent columns
+        # (plan_type, billing_email, notes, created_by) that caused 500 errors
         subscription = EmailSubscription.new(
           contact: contact,
+          organization: current_organization,
           domain: params[:domain],
-          plan_type: params[:plan_type] || "standard",
-          billing_email: params[:billing_email] || contact.email,
-          notes: params[:notes],
-          created_by: current_user
+          status: "pending"
         )
 
         # Add mailboxes if provided
@@ -340,7 +340,7 @@ module Api
               {
                 subscription_id: sub.id,
                 domain: sub.domain,
-                contact_name: sub.contact.display_name,
+                contact_name: sub.contact&.display_name || "Unknown Contact",
                 mailbox_count: sub.email_mailboxes.active.count,
                 retail: sub_retail,
                 wholesale: sub_wholesale,
@@ -504,18 +504,19 @@ module Api
       end
 
       def subscription_params
-        params.permit(:domain, :plan_type, :billing_email, :notes, :status)
+        # FRC (Feb 2026): Removed non-existent columns: plan_type, billing_email, notes
+        params.permit(:domain, :status)
       end
 
       def subscription_json(sub)
         {
           id: sub.id,
           contact_id: sub.contact_id,
-          contact_name: sub.contact.display_name,
+          contact_name: sub.contact&.display_name || "Unknown Contact",
           domain: sub.domain,
           status: sub.status,
           dns_status: sub.dns_status,
-          plan_type: sub.plan_type,
+          # FRC (Feb 2026): Removed plan_type - column doesn't exist
           mailbox_count: sub.mailbox_count,
           monthly_retail: sub.retail_price.to_f,
           monthly_wholesale: sub.wholesale_cost.to_f,
@@ -527,8 +528,7 @@ module Api
 
       def subscription_detail_json(sub)
         subscription_json(sub).merge(
-          billing_email: sub.billing_email,
-          notes: sub.notes,
+          # FRC (Feb 2026): Removed billing_email, notes - columns don't exist
           stripe_subscription_id: sub.stripe_subscription_id,
           polaris_account_id: sub.polaris_account_id,
           mailboxes: sub.email_mailboxes.map { |m| mailbox_json(m) },

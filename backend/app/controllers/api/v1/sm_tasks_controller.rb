@@ -67,11 +67,16 @@ module Api
           @tasks = @tasks.for_user_roles(user) if user
         end
 
-        # Apply limit before preloading nested email_attachments
+        # Search filter - searches name and task_number
+        if params[:search].present?
+          search_term = "%#{params[:search].downcase}%"
+          @tasks = @tasks.where("LOWER(sm_tasks.name) LIKE ? OR CAST(sm_tasks.task_number AS TEXT) LIKE ?", search_term, search_term)
+        end
+
+        # Apply limit before preloading
         tasks_to_render = @tasks.limit(500).to_a
 
-        # N+1 fix: Preload email_attachments + storage_blob for SyncedEmail attachables
-        # This is a separate preload because polymorphic associations don't support nested includes
+        # N+1 fix: Preload SyncedEmail attachables
         synced_email_ids = tasks_to_render.flat_map do |task|
           task.sm_task_attachments
               .select { |a| a.attachable_type == "SyncedEmail" }
@@ -79,14 +84,38 @@ module Api
         end.uniq
         if synced_email_ids.any?
           # Preload in batch, then the attachment_to_json will use cached data
-          preloaded_emails = SyncedEmail.where(id: synced_email_ids)
-                                           .includes(email_attachments: :storage_blob)
-                                           .index_by(&:id)
+          # Note: Email attachments now in WarehouseDocument (Jan 2026 - email_attachments dropped)
+          preloaded_emails = SyncedEmail.where(id: synced_email_ids).index_by(&:id)
+          # Preload attachment documents for these emails
+          @attachment_docs_cache = WarehouseDocument
+            .includes(:storage_blob)
+            .where(source_type: 'email_attachment')
+            .where("metadata->>'synced_email_id' IN (?)", synced_email_ids.map(&:to_s))
+            .group_by { |d| d.metadata['synced_email_id'].to_i }
           # Inject preloaded emails into attachables to avoid re-query
           tasks_to_render.each do |task|
             task.sm_task_attachments.each do |att|
               if att.attachable_type == "SyncedEmail" && preloaded_emails[att.attachable_id]
                 att.attachable = preloaded_emails[att.attachable_id]
+              end
+            end
+          end
+        end
+
+        # N+1 fix: Preload storage_blob for WarehouseDocument attachables
+        doc_ids = tasks_to_render.flat_map do |task|
+          task.sm_task_attachments
+              .select { |a| a.attachable_type == "WarehouseDocument" }
+              .map(&:attachable_id)
+        end.uniq
+        if doc_ids.any?
+          preloaded_docs = WarehouseDocument.where(id: doc_ids)
+                                            .includes(:storage_blob)
+                                            .index_by(&:id)
+          tasks_to_render.each do |task|
+            task.sm_task_attachments.each do |att|
+              if att.attachable_type == "WarehouseDocument" && preloaded_docs[att.attachable_id]
+                att.attachable = preloaded_docs[att.attachable_id]
               end
             end
           end
@@ -180,6 +209,21 @@ module Api
 
       # GET /api/v1/sm_tasks/:id
       def show
+        # N+1 fix: Preload storage_blob for document attachables (for storage_key in attachment_to_json)
+        doc_ids = @task.sm_task_attachments
+                       .select { |a| a.attachable_type == "WarehouseDocument" }
+                       .map(&:attachable_id)
+        if doc_ids.any?
+          preloaded_docs = WarehouseDocument.where(id: doc_ids)
+                                            .includes(:storage_blob)
+                                            .index_by(&:id)
+          @task.sm_task_attachments.each do |att|
+            if att.attachable_type == "WarehouseDocument" && preloaded_docs[att.attachable_id]
+              att.attachable = preloaded_docs[att.attachable_id]
+            end
+          end
+        end
+
         render json: {
           success: true,
           sm_task: task_to_json(@task, include_dependencies: true)
@@ -934,9 +978,8 @@ module Api
       # POST /api/v1/sm_tasks/:id/attachments
       # Supports multiple document sources:
       #   - email → SyncedEmail
-      #   - document → CorporateCompanyDocument (legacy/default)
       #   - user_document → UserDocument (My Docs)
-      #   - warehouse_document → WarehouseDocument (job, contact, task docs)
+      #   - warehouse_document → WarehouseDocument (alias for document)
       def add_attachment
         attachment_type = params[:attachment_type]
         attachable_id = params[:attachable_id]
@@ -945,12 +988,10 @@ module Api
         attachable = case attachment_type
         when "email"
           SyncedEmail.find(attachable_id)
-        when "document"
-          CorporateCompanyDocument.find(attachable_id)
+        when "document", "warehouse_document"
+          WarehouseDocument.find(attachable_id)
         when "user_document"
           UserDocument.find(attachable_id)
-        when "warehouse_document"
-          WarehouseDocument.find(attachable_id)
         else
           return render json: { success: false, error: "Invalid attachment type: #{attachment_type}" }, status: :unprocessable_entity
         end
@@ -974,11 +1015,26 @@ module Api
       end
 
       # DELETE /api/v1/sm_tasks/:id/attachments/:attachment_id
+      # SSoT: Uses soft delete to prevent email sync from re-creating deleted attachments
+      #
+      # Params:
+      #   from_responses_only: true - Only remove from Response Files section, keep email in Emails
+      #                        (changes category from "response" to "info" instead of soft deleting)
+      #
+      # FRC (Jan 2026): User expected delete from Response Files to only remove from that section,
+      # not delete the email entirely. Root cause was single delete behavior for two different contexts.
       def remove_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
-        attachment.destroy
 
-        render json: { success: true, message: "Attachment removed" }
+        if params[:from_responses_only].present? && attachment.category == "response"
+          # Remove from Response Files only - keep email in Emails section
+          attachment.update!(category: "info")
+          render json: { success: true, message: "Removed from responses" }
+        else
+          # Full soft delete
+          attachment.soft_delete!(current_user)
+          render json: { success: true, message: "Attachment removed" }
+        end
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Attachment not found" }, status: :not_found
       end
@@ -1051,6 +1107,17 @@ module Api
       def update_attachment
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
 
+        # FRC DEBUG: Log when action_item_id or category is being set on source emails
+        if attachment.is_source? && (params[:action_item_id].present? || params[:category].present?)
+          Rails.logger.warn "[FRC-DEBUG] Source email attachment being modified!"
+          Rails.logger.warn "[FRC-DEBUG] Task: #{@task.id} (#{@task.name})"
+          Rails.logger.warn "[FRC-DEBUG] Attachment: #{attachment.id}, notes: #{attachment.notes}"
+          Rails.logger.warn "[FRC-DEBUG] Params: action_item_id=#{params[:action_item_id]}, category=#{params[:category]}"
+          Rails.logger.warn "[FRC-DEBUG] User: #{current_user&.id} (#{current_user&.email})"
+          Rails.logger.warn "[FRC-DEBUG] Request: #{request.method} #{request.fullpath}"
+          Rails.logger.warn "[FRC-DEBUG] Referrer: #{request.referrer}"
+        end
+
         # Handle display_name update - SSoT is warehouse_document.display_name
         if params[:display_name].present?
           if attachment.warehouse_document.present?
@@ -1113,7 +1180,6 @@ module Api
       # All uploads now go through upload_standard_file which uses StorageBlob
 
       # Standard file upload using StorageBlob (SSoT for file storage)
-      # Creates a CorporateCompanyDocument record to track the file
       # ActiveStorage was REMOVED (Jan 2026) - use StorageBlob for deduplication
       def upload_standard_file(file, category)
         # Read file content for StorageBlob
@@ -1128,32 +1194,16 @@ module Api
         )
         blob.increment_reference!
 
-        # Create a document record for the uploaded file
-        # Document ownership: job_id OR contact_id (for personal tasks)
-        doc_attrs = {
-          file_name: file.original_filename,
+        # SSoT (Jan 2026): Create WarehouseDocument record for the uploaded file
+        # Folder path comes from WarehouseProvider template (warehouse_folders['task_attachments'])
+        folder_path = WarehouseProvider.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
+        doc = WarehouseDocument.create!(
           display_name: file.original_filename,
-          mime_type: file.content_type,  # Required for PDF/image preview
-          document_type: "other",
-          filed_by: current_user&.name,
-          uploaded_at: Time.current,
-          storage_blob: blob,  # SSoT: Link to StorageBlob (replaces ActiveStorage)
-          content_hash: blob.content_hash
-        }
-
-        # SSoT: Task is the primary owner for task attachments
-        doc_attrs[:sm_task_id] = @task.id
-
-        # Also set secondary owner if available (for cross-referencing)
-        if @task.job_id.present?
-          doc_attrs[:job_id] = @task.job_id
-        elsif @task.supplier_id.present?
-          doc_attrs[:contact_id] = @task.supplier_id
-        elsif current_user&.contact_id.present?
-          doc_attrs[:contact_id] = current_user.contact_id
-        end
-
-        doc = CorporateCompanyDocument.create!(doc_attrs)
+          storage_blob: blob,
+          source_type: "task",
+          folder: folder_path,
+          documentable: @task
+        )
 
         # Create the task attachment linking to the document
         attachment = @task.sm_task_attachments.create!(
@@ -1253,29 +1303,16 @@ module Api
           # Delete the temp file (StorageBlob now has it in Blobs/ folder)
           provider.delete_file(key) rescue nil
 
-          # Create document record
-          doc_attrs = {
-            file_name: filename,
+          # SSoT (Jan 2026): Create WarehouseDocument record
+          # Folder path comes from WarehouseProvider template (warehouse_folders['task_attachments'])
+          folder_path = WarehouseProvider.instance.resolve_virtual_path(:task_attachments, { TaskId: @task.id })
+          doc = WarehouseDocument.create!(
             display_name: filename,
-            mime_type: content_type,
-            document_type: "other",
-            filed_by: current_user&.name,
-            uploaded_at: Time.current,
             storage_blob: blob,
-            content_hash: blob.content_hash,
-            sm_task_id: @task.id
-          }
-
-          # Secondary owner for cross-referencing
-          if @task.job_id.present?
-            doc_attrs[:job_id] = @task.job_id
-          elsif @task.supplier_id.present?
-            doc_attrs[:contact_id] = @task.supplier_id
-          elsif current_user&.contact_id.present?
-            doc_attrs[:contact_id] = current_user.contact_id
-          end
-
-          doc = CorporateCompanyDocument.create!(doc_attrs)
+            source_type: "task",
+            folder: folder_path,
+            documentable: @task
+          )
 
           # Create task attachment
           attachment = @task.sm_task_attachments.create!(
@@ -1309,7 +1346,8 @@ module Api
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
         document = attachment.attachable
 
-        unless document.is_a?(CorporateCompanyDocument)
+        # SSoT (Jan 2026): Support both WarehouseDocument (new) and legacy document types
+        unless document.is_a?(WarehouseDocument) || document.respond_to?(:storage_blob)
           return render json: { success: false, error: "Attachment is not a document" }, status: :unprocessable_entity
         end
 
@@ -1323,11 +1361,15 @@ module Api
           return render json: { success: false, error: "Could not download file content" }, status: :unprocessable_entity
         end
 
+        # Get filename and content type from appropriate source
+        filename = document.respond_to?(:display_name) ? document.display_name : (document.respond_to?(:file_name) ? document.file_name : "attachment")
+        content_type = document.storage_blob&.content_type || "application/octet-stream"
+
         render json: {
           success: true,
-          filename: document.file_name || document.display_name || "attachment",
+          filename: filename,
           content: Base64.strict_encode64(content),
-          content_type: document.mime_type || "application/octet-stream"
+          content_type: content_type
         }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Attachment not found" }, status: :not_found
@@ -1342,8 +1384,8 @@ module Api
         attachment = @task.sm_task_attachments.find(params[:attachment_id])
         attachable = attachment.attachable
 
-        # Validate attachment type
-        unless attachable.is_a?(CorporateCompanyDocument) || attachable.is_a?(SyncedEmail)
+        # SSoT (Jan 2026): Support WarehouseDocument (new) and SyncedEmail
+        unless attachable.is_a?(WarehouseDocument) || attachable.is_a?(SyncedEmail)
           return render json: { success: false, error: "Attachment type not supported for sharing" }, status: :unprocessable_entity
         end
 
@@ -1370,6 +1412,12 @@ module Api
       # GET /api/v1/sm_tasks/:id/download_all_response_files
       # Creates a zip file containing all response document attachments and returns a download URL
       # For external email recipients to download all files with one click
+      #
+      # Smart Caching (Jan 2026):
+      # - Calculates fingerprint of current attachments (IDs + timestamps)
+      # - If fingerprint matches cached zip, returns fresh presigned URL (no recreate)
+      # - If fingerprint changed, creates new zip and updates cache
+      # - Prevents duplicate zips and ensures data freshness
       def download_all_response_files
         require "zip"
 
@@ -1379,13 +1427,44 @@ module Api
         end
 
         # Filter to only documents (not emails)
-        document_attachments = response_attachments.select { |att| att.attachable.is_a?(CorporateCompanyDocument) }
+        document_attachments = response_attachments.select { |att| att.attachable.is_a?(WarehouseDocument) }
 
         if document_attachments.empty?
           return render json: { success: false, error: "No files to download" }, status: :unprocessable_entity
         end
 
-        # Create zip file in memory
+        # Calculate fingerprint of current attachments for smart caching
+        fingerprint = calculate_response_zip_fingerprint(document_attachments)
+
+        # Generate zip filename (consistent for cache matching)
+        safe_name = @task.name.to_s.gsub(/[^a-zA-Z0-9\s-]/, "").strip.gsub(/\s+/, "_")[0..40]
+        zip_filename = "task_#{@task.id}_#{safe_name}_response.zip"
+
+        # Try to use cached zip if fingerprint matches
+        begin
+          provider = DocumentProviders.for_organization(current_organization)
+
+          if provider && can_use_cached_zip?(fingerprint, provider)
+            # Fingerprint matches and file exists - return fresh presigned URL
+            download_url = provider.download_url(@task.response_zip_path, expires_in: TenantSetting.link_expiry_seconds)
+            Rails.logger.info "[SmTasksController] Using cached zip for task #{@task.id} (fingerprint: #{fingerprint[0..7]})"
+
+            return render json: {
+              success: true,
+              download_method: "presigned_url",
+              share_url: download_url,
+              filename: File.basename(@task.response_zip_path).sub(/^\d{8}_\d{6}_/, ""),
+              file_count: document_attachments.size,
+              expiry_days: TenantSetting.link_expiry_days,
+              cached: true
+            }
+          end
+        rescue DocumentProviders::NotConnectedError, ActiveRecord::Encryption::Errors::Decryption
+          # Will fall through to base64 handling below
+          provider = nil
+        end
+
+        # Fingerprint changed or no cache - create new zip
         zip_data = Zip::OutputStream.write_buffer do |zip|
           document_attachments.each do |att|
             document = att.attachable
@@ -1404,10 +1483,6 @@ module Api
         end
         zip_data.rewind
 
-        # Generate a unique filename for the zip
-        safe_name = @task.name.to_s.gsub(/[^a-zA-Z0-9\s-]/, "").strip.gsub(/\s+/, "_")[0..50]
-        zip_filename = "#{safe_name}_response_files.zip"
-
         # Option 1: Return as direct download (for API calls)
         if params[:direct] == "true"
           send_data zip_data.read,
@@ -1418,10 +1493,7 @@ module Api
         end
 
         # Option 2: Upload to storage and return presigned download URL
-        # SSoT: Use DocumentProviders (auto-selects Wasabi/S3/SharePoint based on StorageConfiguration)
         begin
-          provider = DocumentProviders.for_organization(current_organization)
-
           unless provider
             # Fallback to base64 encoded data if no storage provider
             return render json: {
@@ -1437,11 +1509,22 @@ module Api
           temp_folder_path = "Temp/TaskResponseZips"
           timestamped_filename = "#{Time.current.strftime('%Y%m%d_%H%M%S')}_#{zip_filename}"
 
+          # Delete previous zip for this task (old cached zip is now stale)
+          cleanup_previous_task_zips(provider, temp_folder_path, zip_filename)
+
           upload_result = provider.upload_file(temp_folder_path, zip_data.read, timestamped_filename, content_type: "application/zip")
 
           if upload_result[:path]
+            # Store cache info for future requests
+            @task.update!(
+              response_zip_fingerprint: fingerprint,
+              response_zip_path: upload_result[:path],
+              response_zip_created_at: Time.current
+            )
+            Rails.logger.info "[SmTasksController] Created new zip for task #{@task.id} (fingerprint: #{fingerprint[0..7]})"
+
             # Get presigned download URL (expiry from company settings - SSoT)
-            download_url = provider.download_url(upload_result[:path], expires_in: CorporateCompanySetting.link_expiry_seconds)
+            download_url = provider.download_url(upload_result[:path], expires_in: TenantSetting.link_expiry_seconds)
 
             render json: {
               success: true,
@@ -1449,7 +1532,8 @@ module Api
               share_url: download_url,
               filename: zip_filename,
               file_count: document_attachments.size,
-              expiry_days: CorporateCompanySetting.link_expiry_days
+              expiry_days: TenantSetting.link_expiry_days,
+              cached: false
             }
           else
             render json: { success: false, error: "Failed to upload zip file" }, status: :unprocessable_entity
@@ -2350,6 +2434,58 @@ module Api
 
       private
 
+      # SSoT: Delete previous response zips for the same task
+      # When user sends a new response, old zips should be invalidated (links become 404)
+      # This ensures only the latest response is accessible
+      def cleanup_previous_task_zips(provider, folder_path, zip_filename)
+        files = provider.list_folder(folder_path) rescue []
+        return if files.empty?
+
+        # zip_filename is like "TaskName_response_files.zip"
+        # Find files ending with this suffix (different timestamps, same task)
+        deleted = 0
+        files.each do |file|
+          next unless file[:name]&.end_with?(zip_filename)
+
+          begin
+            provider.delete_file(file[:id] || "#{folder_path}/#{file[:name]}")
+            deleted += 1
+            Rails.logger.info "[SmTasksController] Deleted previous task zip: #{file[:name]}"
+          rescue => e
+            Rails.logger.warn "[SmTasksController] Failed to delete old zip #{file[:name]}: #{e.message}"
+          end
+        end
+
+        Rails.logger.info "[SmTasksController] Cleaned up #{deleted} previous zip(s) for task" if deleted > 0
+      rescue => e
+        # Don't fail the upload if cleanup fails - just log
+        Rails.logger.warn "[SmTasksController] cleanup_previous_task_zips error: #{e.message}"
+      end
+
+      # Calculate fingerprint for response zip caching
+      # Fingerprint = hash of sorted (attachment_id, document_updated_at) pairs
+      # Changes when: attachments added/removed, documents modified
+      def calculate_response_zip_fingerprint(document_attachments)
+        data = document_attachments.map do |att|
+          doc = att.attachable
+          "#{att.id}:#{doc&.updated_at&.to_i}"
+        end.sort.join("|")
+
+        Digest::SHA256.hexdigest(data)[0..15] # Short hash is sufficient
+      end
+
+      # Check if we can use cached zip (fingerprint matches AND file exists)
+      def can_use_cached_zip?(fingerprint, provider)
+        return false unless @task.response_zip_fingerprint == fingerprint
+        return false unless @task.response_zip_path.present?
+
+        # Verify file still exists in storage
+        provider.file_exists?(@task.response_zip_path)
+      rescue => e
+        Rails.logger.warn "[SmTasksController] Cache check failed: #{e.message}"
+        false
+      end
+
       # Parse user counts from SQL result, ensuring valid integer IDs
       # Handles edge cases where raw SQL might return unexpected values
       def parse_user_counts(result)
@@ -2619,6 +2755,7 @@ module Api
           :searchable,
           :is_private,
           :email_keywords,
+          :auto_attach_email_files,
 
           # Workflow triggers
           :start_workflow_enabled, :start_workflow_id,
@@ -2652,7 +2789,8 @@ module Api
           display_name: attachment.display_name, # Custom display name (overrides document/email name)
           added_by: attachment.added_by&.name,
           created_at: attachment.created_at,
-          action_item_id: attachment.action_item_id
+          action_item_id: attachment.action_item_id,
+          is_source: attachment.is_source  # SSoT: True if this is the source email (task created from)
         }
 
         case attachment.attachable_type
@@ -2669,6 +2807,8 @@ module Api
               to_emails: email.to_emails,
               cc_emails: email.cc_emails,
               received_at: email.received_at,
+              is_read: email.is_read, # SSoT: Read status synced with inbox
+              folder_name: email.folder_name, # SSoT: "Sent Items" = sent email (never show as unread)
               has_attachments: email.document_attachments_count > 0,
               document_attachments_count: email.document_attachments_count,
               conversation_id: email.conversation_id,
@@ -2676,43 +2816,50 @@ module Api
               body_preview: email.body_preview || email.body_text&.truncate(200),
               body_text: email.body_text, # Full plain text body
               body_html: email.body_html, # Full HTML body for quoted replies (preserves formatting)
+              mailbox_owner_email: email.mailbox_owner_email, # SSoT: Which mailbox this email belongs to (for sent detection)
               # SSoT: Download entire email as .eml file
               # Endpoint: GET /api/v1/synced_emails/:id/download_eml
               download_eml_url: "/api/v1/synced_emails/#{email.id}/download_eml",
+              # SSoT: eml_storage_key for emails already stored - pass directly to send_email API
+              # Ultra fix (Jan 2026): Avoids re-download and re-upload of .eml files
+              eml_storage_key: email.eml_stored? ? email.email_storage_path : nil,
               # SSoT: Return attachment metadata for display
-              # Download URL: /api/v1/synced_email/:email_id/attachments/:attachment_id/download
-              # Frontend constructs download URL from email_id + attachment.id (never expose storage_path)
+              # Download URL: /api/v1/synced_emails/:email_id/attachment_documents/:doc_id/download
+              # Frontend constructs download URL from email_id + doc.id (never expose storage_path)
               email_id: email.id,
-              email_attachments: email.email_attachments.map do |ea|
+              # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+              email_attachments: email.attachment_documents.map do |doc|
                 {
-                  id: ea.id,
-                  filename: ea.filename,
-                  # content_type and file_size are on storage_blob (Jan 2026 refactor)
-                  content_type: ea.storage_blob&.content_type,
-                  file_size: ea.storage_blob&.file_size
+                  id: doc.id,
+                  filename: doc.original_filename || doc.display_name,
+                  content_type: doc.content_type || doc.storage_blob&.content_type,
+                  file_size: doc.file_size || doc.storage_blob&.file_size
                 }
               end
             }
           )
-        when "CorporateCompanyDocument"
+        when "WarehouseDocument"
           doc = attachment.attachable
           # Defensive: attachable may be nil if document was deleted
           return base unless doc
           base.merge(
             document: {
               id: doc.id,
-              file_name: doc.file_name,
+              file_name: doc.storage_blob&.original_filename || doc.display_name,
               # SSoT: Use attachment.display_name which checks warehouse_document first
               display_name: attachment.display_name,
-              document_type: doc.document_type,
-              # SSoT: Use StorableDocument#storage_url for provider-agnostic download URL
-              # ActiveStorage has_one_attached :file was REMOVED (Jan 2026)
-              storage_url: doc.storage_url,
-              # SSoT: has_storage = can create share links (storage_blob, storage_path, or storage_reference)
-              # Used by frontend to show Link option even if storage_url is nil (legacy SharePoint docs)
-              has_storage: doc.storage_blob.present? || doc.storage_path.present? || doc.has_storage_reference?,
+              document_type: nil,  # WarehouseDocument doesn't have document_type
+              # SSoT: Use download_url for WarehouseDocument
+              storage_url: doc.download_url,  # Content-Disposition: attachment (forces download)
+              storage_url_inline: doc.download_url(disposition: :inline),  # Content-Disposition: inline (for viewers)
+              # SSoT: has_storage = can create share links
+              has_storage: doc.storage_blob.present?,
+              # SSoT: storage_key for email attachments - pass directly to send_email API to avoid re-upload
+              storage_key: doc.storage_blob&.storage_path,
+              content_type: doc.storage_blob&.content_type,
+              file_size: doc.storage_blob&.file_size,
               created_at: doc.created_at,
-              content_hash: doc.content_hash
+              content_hash: doc.storage_blob&.content_hash
             }
           )
         else
@@ -2892,8 +3039,8 @@ module Api
 
       # Find the first non-internal email address involved in an email
       def find_external_party_email(email)
-        internal_domain_patterns = CorporateCompanySetting.internal_domain_patterns
-        newtask_address = CorporateCompanySetting.monitored_mailbox_newtask&.downcase
+        internal_domain_patterns = TenantSetting.internal_domain_patterns
+        newtask_address = TenantSetting.monitored_mailbox_newtask&.downcase
 
         # Check from
         if email.from_email.present?
@@ -3013,7 +3160,7 @@ module Api
         deps = task.active_predecessor_dependencies
         return if deps.empty?
 
-        calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+        calendar = WorkingDaysCalculator.new(TenantSetting.instance)
 
         # Calculate the earliest valid start based on all predecessors
         earliest_start = deps.map do |dep|
@@ -3165,6 +3312,28 @@ module Api
           required_by: task.required_by,
           # Use .size instead of .count to use preloaded data (avoids N+1)
           attachments_count: task.sm_task_attachments.size,
+          # Unread email count for task card indicator (SSoT: synced with inbox read status)
+          # FRC (Jan 2026): Exclude sent/internal emails - they should never show as unread
+          # SSoT: Must match frontend isSentEmail() logic in TaskFullscreenView.tsx
+          unread_email_count: begin
+            email_attachments = task.sm_task_attachments.select { |a| a.attachable_type == "SyncedEmail" && a.attachable }
+            our_mailboxes = email_attachments.map { |a| a.attachable.mailbox_owner_email&.downcase }.compact.uniq
+            email_attachments.count { |a|
+              email = a.attachable
+              next false unless email.is_read == false
+              # Skip sent emails (folder_name = "Sent Items", "Sent", "Outbox")
+              folder = email.folder_name&.downcase || ""
+              next false if folder.start_with?("sent") || folder == "outbox"
+              # Skip emails with no from_email (sent emails from MS Graph)
+              next false if email.from_email.blank?
+              # Skip emails FROM our mailboxes (internal)
+              from_email = email.from_email.downcase
+              next false if our_mailboxes.include?(from_email)
+              # Skip emails FROM @tekna.com.au or @teeem.com.au (internal)
+              next false if from_email.end_with?("@tekna.com.au", "@teeem.com.au")
+              true
+            }
+          end,
           # Include full attachments for task detail view (uses preloaded association)
           # Note: has_many_attached :files was removed (Jan 2026) - all files now via SmTaskAttachment
           attachments: task.sm_task_attachments.map { |a| attachment_to_json(a) },

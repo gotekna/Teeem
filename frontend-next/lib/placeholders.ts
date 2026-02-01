@@ -476,18 +476,31 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "orange",
     description: "Task status",
   },
-  // Task folder suffix tokens (literal text for folder naming)
+  // Task folder suffix tokens (literal folder names)
   {
-    code: "{{Attachments}}",
+    code: "[[Attachments]]",
     example: "Attachments",
     color: "orange",
-    description: "Literal 'Attachments' folder name",
+    description: "Attachments folder (literal)",
   },
   {
-    code: "{{Responses}}",
+    code: "[[Responses]]",
     example: "Responses",
     color: "orange",
-    description: "Literal 'Responses' folder name",
+    description: "Responses folder (literal)",
+  },
+  // Email folder suffix tokens (literal folder names)
+  {
+    code: "[[Email Body]]",
+    example: "Email Body",
+    color: "blue",
+    description: "Email Body folder (literal)",
+  },
+  {
+    code: "[[Email Attachments]]",
+    example: "Email Attachments",
+    color: "blue",
+    description: "Email Attachments folder (literal)",
   },
   // Task Attachments tokens
   {
@@ -545,11 +558,54 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "purple",
     description: "Company name (full)",
   },
+  // Literal folder names use [[...]] syntax (not dynamic placeholders)
   {
-    code: "{{TeeemXL}}",
+    code: "[[TeeemXL]]",
     example: "TeeemXL",
     color: "blue",
-    description: "Folder name from tab",
+    description: "TeeemXL folder (literal)",
+  },
+  {
+    code: "[[TeeemDocs]]",
+    example: "TeeemDocs",
+    color: "blue",
+    description: "TeeemDocs folder (literal)",
+  },
+  {
+    code: "[[TeeemNotes]]",
+    example: "TeeemNotes",
+    color: "blue",
+    description: "TeeemNotes folder (literal)",
+  },
+  {
+    code: "[[TeeemWord]]",
+    example: "TeeemWord",
+    color: "blue",
+    description: "TeeemWord folder (literal)",
+  },
+  {
+    code: "[[TeeemPDF]]",
+    example: "TeeemPDF",
+    color: "blue",
+    description: "TeeemPDF folder (literal)",
+  },
+  {
+    code: "[[TeeemPPT]]",
+    example: "TeeemPPT",
+    color: "blue",
+    description: "TeeemPPT folder (literal)",
+  },
+  {
+    code: "[[TeeemTemplates]]",
+    example: "TeeemTemplates",
+    color: "blue",
+    description: "TeeemTemplates folder (literal)",
+  },
+  {
+    code: "{{TabName}}",
+    example: "Plans",
+    color: "orange",
+    description: "Tab/folder name (parent category)",
   },
   {
     code: "{{SubTabName}}",
@@ -629,6 +685,24 @@ export const STORAGE_PLACEHOLDERS: PlaceholderToken[] = [
     example: "14-30",
     color: "green",
     description: "Time email was received (HH-MM)",
+  },
+  {
+    code: "{{SenderName}}",
+    example: "John Smith",
+    color: "blue",
+    description: "Email sender's display name",
+  },
+  {
+    code: "{{SenderEmail}}",
+    example: "john@example.com",
+    color: "blue",
+    description: "Email sender's address",
+  },
+  {
+    code: "{{ReceivedDate}}",
+    example: "2026-01-30",
+    color: "green",
+    description: "Date email was received (YYYY-MM-DD)",
   },
   // Case tokens
   {
@@ -860,7 +934,7 @@ function escapeRegex(str: string): string {
  * @param template - The SharePoint path template
  * @returns Resolved path with example values
  */
-export function resolveSharePointPath(template: string): string {
+export function resolveStoragePath(template: string): string {
   if (!template) return "";
 
   let result = template;
@@ -877,7 +951,19 @@ export function resolveSharePointPath(template: string): string {
     "{{CompanyGroup}}": "Teeem Group",
     "{{CompanyCode}}": "TH",
     "{{CompanyName}}": "Teeem Homes Pty Ltd",
-    "{{TeeemXL}}": "TeeemXL",
+    // Literal folder names [[...]] - strips brackets
+    "[[TeeemXL]]": "TeeemXL",
+    "[[TeeemDocs]]": "TeeemDocs",
+    "[[TeeemNotes]]": "TeeemNotes",
+    "[[TeeemWord]]": "TeeemWord",
+    "[[TeeemPDF]]": "TeeemPDF",
+    "[[TeeemPPT]]": "TeeemPPT",
+    "[[TeeemTemplates]]": "TeeemTemplates",
+    "[[Attachments]]": "Attachments",
+    "[[Responses]]": "Responses",
+    "[[Email Body]]": "Email Body",
+    "[[Email Attachments]]": "Email Attachments",
+    "{{TabName}}": "Plans",
     "{{SubTabName}}": "Photos",
     "{{ContactName}}": "Robert Harder",
     "{{EntityName}}": "Teeem Homes Pty Ltd",
@@ -887,7 +973,15 @@ export function resolveSharePointPath(template: string): string {
     "{CategoryCode}": "ConD",
     "{JobName}": "Tulum Street Jimboomba",
     "{JobTitle}": "Tulum Street Jimboomba QLD",
-    "{TeeemXL}": "TeeemXL",
+    // Single bracket literal folder names
+    "[TeeemXL]": "TeeemXL",
+    "[TeeemDocs]": "TeeemDocs",
+    "[TeeemNotes]": "TeeemNotes",
+    "[TeeemWord]": "TeeemWord",
+    "[TeeemPDF]": "TeeemPDF",
+    "[TeeemPPT]": "TeeemPPT",
+    "[TeeemTemplates]": "TeeemTemplates",
+    "{TabName}": "Plans",
     "{SubTabName}": "Photos",
     "{CompanyGroup}": "Teeem Group",
     "{CompanyCode}": "TH",

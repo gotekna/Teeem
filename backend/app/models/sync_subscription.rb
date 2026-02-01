@@ -7,19 +7,19 @@
 #
 class SyncSubscription < ApplicationRecord
   belongs_to :desktop_client
-  belongs_to :syncable, polymorphic: true  # Job, CorporateCompany, Contact
+  belongs_to :syncable, polymorphic: true  # Job, Corporate, Contact
 
   has_many :sync_file_states, dependent: :destroy
 
   # Validations
-  validates :syncable_type, inclusion: { in: %w[Job CorporateCompany Contact] }
+  validates :syncable_type, inclusion: { in: %w[Job Corporate Contact] }
   validates :syncable_id, uniqueness: { scope: [:desktop_client_id, :syncable_type] }
 
   # Scopes
   scope :enabled, -> { where(enabled: true) }
   scope :disabled, -> { where(enabled: false) }
   scope :for_jobs, -> { where(syncable_type: "Job") }
-  scope :for_companies, -> { where(syncable_type: "CorporateCompany") }
+  scope :for_companies, -> { where(syncable_type: "Corporate") }
   scope :for_contacts, -> { where(syncable_type: "Contact") }
   scope :needs_sync, -> { where("last_sync_at IS NULL OR last_sync_at < ?", 5.minutes.ago) }
 
@@ -27,15 +27,15 @@ class SyncSubscription < ApplicationRecord
   delegate :user, :organization, to: :desktop_client
 
   # Get the remote path for this subscription based on syncable type
-  # SSoT: Uses StorageConfiguration for base paths
+  # SSoT: Uses WarehouseProvider for base paths
   def remote_path
-    config = StorageConfiguration.instance
+    config = WarehouseProvider.instance
     case syncable_type
     when "Job"
-      # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+      # SSoT: Use WarehouseProvider.job_path for consistent folder naming
       job = syncable
       config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
-    when "CorporateCompany"
+    when "Corporate"
       company = syncable
       base = config.path_for(:corporate)
       "/#{base}/#{company.name}".gsub(/[<>:"\/\\|?*]/, "_")
@@ -51,7 +51,7 @@ class SyncSubscription < ApplicationRecord
     case syncable_type
     when "Job"
       syncable.storage_folder_id
-    when "CorporateCompany"
+    when "Corporate"
       syncable.storage_folder_id
     when "Contact"
       # Contacts may not have dedicated storage folders
@@ -96,7 +96,7 @@ class SyncSubscription < ApplicationRecord
     when "Job"
       job = syncable
       "Job #{job.job_number} - #{job.title}"
-    when "CorporateCompany"
+    when "Corporate"
       syncable.name
     when "Contact"
       syncable.full_name
@@ -104,14 +104,17 @@ class SyncSubscription < ApplicationRecord
   end
 
   # Get document count for this subscription
+  # SSoT: WarehouseDocument is now THE ONE table for all document metadata
   def document_count
     case syncable_type
     when "Job"
-      JobDocument.where(job_id: syncable_id).count
-    when "CorporateCompany"
-      CorporateCompanyDocument.where(company_id: syncable_id).count
+      WarehouseDocument.where(linkable_type: "Job", linkable_id: syncable_id).count
+    when "Corporate"
+      WarehouseDocument.where(linkable_type: "Corporate", linkable_id: syncable_id).count
     when "Contact"
-      PeopleDocument.where(contact_id: syncable_id).count
+      WarehouseDocument.where(linkable_type: "Contact", linkable_id: syncable_id).count
+    else
+      0
     end
   end
 

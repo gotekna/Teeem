@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
-# DEPRECATED: Use StorageLocation instead
+# DEPRECATED: Use WarehouseFolder instead
 # This alias exists for backward compatibility during migration
-# All new code should use StorageLocation
+# All new code should use WarehouseFolder
 #
-# SSoT Rename (Jan 2026): EntityTab → StorageLocation
-# "StorageLocation" is clearer - it's just a folder configuration
-EntityTab = StorageLocation
+# SSoT Rename (Jan 2026): EntityTab → StorageLocation → WarehouseFolder
+# "WarehouseFolder" is clearest - it's the folder configuration for File Warehouse
+EntityTab = WarehouseFolder
+StorageLocation = WarehouseFolder

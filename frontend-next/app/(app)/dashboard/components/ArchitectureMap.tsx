@@ -1333,7 +1333,7 @@ export default function JobsPage() {
                 {[
                   { scope: "job", icon: Briefcase, path: "Jobs/{{JobCode}}", color: "green", desc: "Job documents, plans, photos" },
                   { scope: "contact", icon: Users, path: "Contacts/{{ContactName}}", color: "purple", desc: "Client/supplier docs" },
-                  { scope: "corporate_entity", icon: Building2, path: "Corporate/{{CompanyGroup}}", color: "orange", desc: "Company-level docs" },
+                  { scope: "corporate", icon: Building2, path: "Corporate/{{CompanyGroup}}", color: "orange", desc: "Company-level docs" },
                   { scope: "task", icon: ClipboardList, path: "Tasks/{{TaskId}}", color: "red", desc: "Task attachments" },
                   { scope: "email", icon: Mail, path: "Emails/{{Mailbox}}", color: "blue", desc: "Synced emails" },
                   { scope: "warehouse", icon: Archive, path: "Warehousing/{{UserName}}", color: "gray", desc: "General storage" },
@@ -1363,7 +1363,7 @@ export default function JobsPage() {
               <div className="mt-4 p-3 rounded-lg bg-muted">
                 <p className="text-xs text-muted-foreground">
                   <strong>SSoT:</strong> Scope paths are configured in{" "}
-                  <code className="bg-background px-1 rounded">StorageConfiguration.warehouse_folders</code>.
+                  <code className="bg-background px-1 rounded">WarehouseProvider.warehouse_folders</code>.
                   Configure at: Settings → Company → Entity Config → Storage Config
                 </p>
               </div>
@@ -1414,7 +1414,7 @@ export default function JobsPage() {
               </div>
 
               <div className="p-3 rounded-lg bg-muted">
-                <p className="text-xs font-semibold mb-2">Send Name Templates</p>
+                <p className="text-xs font-semibold mb-2">Download Name Templates</p>
                 <div className="grid md:grid-cols-2 gap-2 text-xs font-mono">
                   <div><span className="text-muted-foreground">email →</span> {"{Subject} - {ReceivedDate}.eml"}</div>
                   <div><span className="text-muted-foreground">job →</span> {"{JobCode} {DocTypeName} {Date}"}</div>
@@ -1495,8 +1495,8 @@ export default function JobsPage() {
                       <td className="py-2">Deduplicated content storage</td>
                     </tr>
                     <tr className="border-b">
-                      <td className="py-2 pr-4 font-semibold">StorageConfiguration</td>
-                      <td className="py-2 pr-4 text-muted-foreground">app/models/storage_configuration.rb</td>
+                      <td className="py-2 pr-4 font-semibold">WarehouseProvider</td>
+                      <td className="py-2 pr-4 text-muted-foreground">app/models/warehouse_provider.rb</td>
                       <td className="py-2">Provider config & folder paths</td>
                     </tr>
                     <tr className="border-b">
@@ -1603,7 +1603,7 @@ export default function JobsPage() {
                     />
                     <SSoTRow
                       category="Storage Paths"
-                      location="StorageConfiguration model"
+                      location="WarehouseProvider model"
                       notHere="Hardcoded path strings"
                     />
                     <SSoTRow
@@ -2026,7 +2026,7 @@ export default function JobsPage() {
                 <div className="flex items-start gap-3 p-3 rounded bg-red-50 dark:bg-red-950/30">
                   <XCircle className="h-5 w-5 text-red-500 mt-0.5" />
                   <div>
-                    <p className="font-medium">StorageConfiguration at Organization level</p>
+                    <p className="font-medium">WarehouseProvider at Organization level</p>
                     <p className="text-xs text-muted-foreground">Should be at Tenant level - one bucket per customer</p>
                   </div>
                 </div>

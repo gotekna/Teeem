@@ -156,7 +156,7 @@ module TenantResolvable
   def corporate_company_tenant(company)
     return nil unless company
 
-    # CorporateCompany → CorporateGroup → Tenant
+    # Corporate → CorporateGroup → Tenant
     if company.respond_to?(:corporate_group) && company.corporate_group&.tenant.present?
       return company.corporate_group.tenant
     end

@@ -31,8 +31,8 @@ module Api
       # Returns just array of date strings for Gantt view
       def dates
         region = params[:region]
-        year_start = params[:year_start]&.to_i || CorporateCompanySetting.today.year
-        year_end = params[:year_end]&.to_i || (CorporateCompanySetting.today.year + 2)
+        year_start = params[:year_start]&.to_i || TenantSetting.today.year
+        year_end = params[:year_end]&.to_i || (TenantSetting.today.year + 2)
 
         # When filtering by a state, also include National holidays (they apply to all states)
         base_query = if region.present? && region != "all" && region != "National"

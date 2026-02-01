@@ -5,17 +5,17 @@
 # Purpose: Store files ONCE based on content_hash, link from multiple records
 #
 # Architecture:
-#   StorageConfiguration (determines provider: wasabi, s3, sharepoint, azure)
+#   WarehouseProvider (determines provider: wasabi, s3, sharepoint, azure)
 #      ↓
 #   StorageBlob (one per unique file)
 #   ├── content_hash: SHA256 of file content (unique)
 #   ├── storage_path: Where file lives in provider
 #   ├── reference_count: How many records link to this blob
 #      ↓
-#   EmailAttachment, etc. (link via storage_blob_id)
+#   WarehouseDocument (link via storage_blob_id)
 #
 # Deduplication:
-#   Same file sent to 100 users = 1 StorageBlob, 100 EmailAttachments
+#   Same file sent to 100 users = 1 StorageBlob, 100 WarehouseDocuments
 #
 # SSoT: Uses TenantResolvable for fail-fast tenant derivation (Jan 2026 fix)
 #
@@ -31,11 +31,11 @@ class StorageBlob < ApplicationRecord
   belongs_to :organization, optional: true  # Optional for tenant-shared blobs
 
   # Associations
-  has_many :email_attachments, dependent: :nullify
-  has_many :corporate_company_documents, dependent: :nullify
+  # Note: email_attachments and corporate_company_documents tables DROPPED (Jan 2026)
+  # All documents now use WarehouseDocument as SSoT (Ultra Design)
   has_many :chat_messages, dependent: :nullify
   has_many :bill_inboxes, dependent: :nullify
-  has_many :warehouse_documents, dependent: :nullify  # Phase 3: Universal document table
+  has_many :warehouse_documents, dependent: :nullify  # SSoT: Universal document table
 
   # Validations
   # content_hash is optional for legacy records (backfill without download)
@@ -68,24 +68,77 @@ class StorageBlob < ApplicationRecord
 
   # Find or create blob for content
   # Returns existing blob if content_hash matches, otherwise creates new
+  #
+  # ⚠️ RACE CONDITION HANDLING (Jan 2026):
+  # Parallel processing (e.g., email upload jobs) can cause two threads to
+  # compute the same hash simultaneously. Both try find_or_create_by! and
+  # one fails with RecordNotUnique on content_hash. We rescue and retry find.
+  #
+  # ⚠️ FRC (Jan 2026): MISSING FILE RECOVERY
+  # When reusing existing blob (deduplication), the original upload may have failed.
+  # We now verify file exists and re-upload if missing. This prevents "File not found"
+  # errors when accessing deduplicated content.
   def self.find_or_create_for_content!(content, filename: nil, content_type: nil)
     hash = compute_hash(content)
+    was_new = false
 
-    find_or_create_by!(content_hash: hash) do |blob|
-      blob.file_size = content.bytesize
-      blob.original_filename = filename
+    blob = find_or_create_by!(content_hash: hash) do |b|
+      was_new = true
+      b.file_size = content.bytesize
+      b.original_filename = filename
       # Guard: Ensure content_type is correct, especially for PDFs
       # Curl uploads often send wrong content_type (octet-stream)
-      blob.content_type = ensure_correct_content_type(
+      b.content_type = ensure_correct_content_type(
         content_type || detect_content_type(content, filename),
         filename
       )
-      blob.storage_path = generate_storage_path(hash, filename)
-      blob.reference_count = 0
+      b.storage_path = generate_storage_path(hash, filename)
+      b.reference_count = 0
 
       # Upload to storage provider
-      upload_to_storage!(blob, content)
+      upload_to_storage!(b, content)
     end
+
+    # FRC (Jan 2026): For existing blobs, verify file actually exists
+    # If original upload failed, the blob record exists but file doesn't
+    # We have the content NOW, so re-upload if missing
+    unless was_new
+      ensure_file_exists!(blob, content)
+    end
+
+    # Mark as verified after successful upload (new or recovered)
+    blob.mark_verified! if blob.verified_at.nil?
+
+    blob
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
+    # Race condition: another thread created the blob first
+    # Retry the find (it should now exist)
+    # Note: Rails validation messages use "Content hash" (space) not "content_hash" (underscore)
+    if e.message.downcase.include?("content hash") || e.message.downcase.include?("storage path")
+      Rails.logger.info "[StorageBlob] Race condition on hash #{hash[0..7]}..., retrying find"
+      retry_blob = find_by(content_hash: hash)
+      return retry_blob if retry_blob
+    end
+    raise # Re-raise if not a race condition we can handle
+  end
+
+  # FRC (Jan 2026): Verify file exists in storage, re-upload if missing
+  # This recovers from failed original uploads when deduplication finds existing blob
+  def self.ensure_file_exists!(blob, content)
+    return if blob.verified_at.present? # Already verified, skip check
+
+    provider = storage_provider
+    if provider.file_exists?(blob.storage_path)
+      Rails.logger.debug "[StorageBlob] File verified for blob #{blob.id}"
+    else
+      Rails.logger.warn "[StorageBlob] File missing for blob #{blob.id}, re-uploading..."
+      upload_to_storage!(blob, content)
+      Rails.logger.info "[StorageBlob] File recovered for blob #{blob.id}"
+    end
+  rescue StandardError => e
+    # Don't fail the entire operation if verification fails
+    # The presigned URL path still works for existing files
+    Rails.logger.error "[StorageBlob] File verification failed for blob #{blob.id}: #{e.message}"
   end
 
   # Compute SHA256 hash of content
@@ -119,14 +172,14 @@ class StorageBlob < ApplicationRecord
   end
 
   # Get presigned download URL
-  # @param expires_in [Integer] Expiry time in seconds (default: from CorporateCompanySetting.link_expiry_seconds)
+  # @param expires_in [Integer] Expiry time in seconds (default: from TenantSetting.link_expiry_seconds)
   # @param filename [String] Custom download filename (optional)
   # @param disposition [Symbol] :inline (view in browser) or :attachment (force download)
   #   Default: :inline for PDFs/images, :attachment for other files
   # @return [String] Presigned download URL
   def presigned_url(expires_in: nil, filename: nil, disposition: nil)
     # Default expiry from company settings (SSoT)
-    expires_in ||= CorporateCompanySetting.link_expiry_seconds
+    expires_in ||= TenantSetting.link_expiry_seconds
 
     # Default disposition based on content type:
     # - PDFs and images open inline (in browser)
@@ -262,8 +315,9 @@ class StorageBlob < ApplicationRecord
 
   # Find tenant through linked records (warehouse_documents -> documentable -> tenant)
   # Uses TenantResolvable pattern for fail-fast behavior
+  # Note: email_attachments table DROPPED (Jan 2026) - all attachments now in WarehouseDocument
   def find_tenant_from_links
-    # Try warehouse_document first
+    # SSoT: All documents now go through WarehouseDocument
     if warehouse_documents.any?
       doc = warehouse_documents.first
       # Try direct tenant access
@@ -271,16 +325,9 @@ class StorageBlob < ApplicationRecord
       # Try documentable chain
       if doc.documentable.present?
         return doc.documentable.tenant if doc.documentable.respond_to?(:tenant) && doc.documentable.tenant.present?
-        return doc.documentable.microsoft_credential&.organization&.tenant if doc.documentable.respond_to?(:microsoft_credential)
-      end
-    end
-
-    # Try email_attachments -> synced_email -> microsoft_credential -> tenant
-    if email_attachments.any?
-      att = email_attachments.first
-      if att.respond_to?(:synced_email) && att.synced_email.present?
-        return att.synced_email.microsoft_credential&.organization&.tenant if att.synced_email.respond_to?(:microsoft_credential)
-        return att.synced_email.tenant if att.synced_email.respond_to?(:tenant)
+        # FRC (Jan 2026): Must check tenant.present? - nil microsoft_credential returns nil chain
+        doc_ms_tenant = doc.documentable.microsoft_credential&.organization&.tenant if doc.documentable.respond_to?(:microsoft_credential)
+        return doc_ms_tenant if doc_ms_tenant.present?
       end
     end
 

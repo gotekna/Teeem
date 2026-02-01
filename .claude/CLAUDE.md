@@ -186,6 +186,47 @@ grep -n "COLUMN_NAME\|similar_name" backend/db/schema.rb
 
 **Mantra:** "One concept, one column, one table."
 
+## 🔴 CRITICAL: Multi-Tenancy Scoping
+
+**EVERY API endpoint that returns data MUST be tenant-scoped.**
+
+### How acts_as_tenant Works
+
+The system uses `acts_as_tenant` which auto-scopes models that directly `belongs_to :tenant`. But many models are **indirectly** related:
+
+| Model | Relationship | Auto-Scoped? | Manual Filter Required |
+|-------|-------------|--------------|------------------------|
+| `Job`, `Contact` | `belongs_to :tenant` | ✅ Yes | No |
+| `MicrosoftCredential` | → `Organization` → `Tenant` | ❌ No | `where(organization_id: current_tenant.organizations.pluck(:id))` |
+| `ImapCredential` | → `User` → `Tenant` | ❌ No | `where(user_id: current_tenant.users.pluck(:id))` |
+| `S3CompatibleCredential` | → `Organization` → `Tenant` | ❌ No | Filter by organization |
+
+### Before Writing ANY API Endpoint
+
+```ruby
+# ❌ WRONG - Returns data from ALL tenants
+MicrosoftCredential.app_credentials.all
+
+# ✅ CORRECT - Scoped to current tenant
+tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
+MicrosoftCredential.app_credentials.where(organization_id: tenant_org_ids)
+```
+
+### SSoT Helpers
+
+```ruby
+current_tenant        # The user's tenant (from ActsAsTenant)
+current_organization  # First organization in tenant (for credential lookups)
+```
+
+### Red Flags - Audit These Patterns
+
+- `Model.all` or `Model.where(...)` without tenant filter on indirectly-related models
+- Any endpoint returning credentials, settings, or config without tenant scoping
+- Queries on `Organization`, `MicrosoftCredential`, `ImapCredential`, `S3CompatibleCredential`
+
+**Mantra:** "If it's not auto-scoped, filter by tenant manually."
+
 ## 🔴 SSoT - Foundation API
 
 **Foundation API is THE SSoT for all record queries.**
@@ -346,6 +387,50 @@ You're a craftsman, an artist, an engineer who thinks like a designer. Every lin
 
 **Deprecated:** `combobox.tsx`, `loader.tsx`, `drawer.tsx`, `data-table.tsx`, `router.back()`
 
+## 🔴 SSoT - Page Help Content
+
+**SSoT:** `frontend-next/lib/page-help.json`
+
+The contextual help system shows page-specific help when users click the ? button in the header.
+
+### When to Update page-help.json
+
+**Update page-help.json whenever:**
+- Adding a new page/route
+- Changing what a page does
+- Adding new features to a page
+- Renaming or reorganizing pages
+
+### JSON Structure
+
+```json
+{
+  "/route/path": {
+    "title": "Page Title",
+    "description": "What this page is for (1-2 sentences)",
+    "tips": ["Tip 1", "Tip 2", "Tip 3"],
+    "tasks": ["Task 1", "Task 2", "Task 3"]
+  }
+}
+```
+
+### Dynamic Routes
+
+Use `[id]` pattern for dynamic routes:
+- `/jobs/[id]` matches `/jobs/123`, `/jobs/456`, etc.
+- Falls back to parent path if no exact match
+
+### Quick Update Checklist
+
+| Change | Action |
+|--------|--------|
+| New page | Add entry to page-help.json |
+| Page renamed | Update route key in page-help.json |
+| Feature added | Update tips/tasks in page-help.json |
+| Page removed | Remove entry from page-help.json |
+
+**Rule:** When creating/modifying pages, check if page-help.json needs updating.
+
 ## 🔴 SSoT - Settings Navigation Structure
 
 **All settings are under `/settings/` with URL-based tab state.**
@@ -364,10 +449,19 @@ You're a craftsman, an artist, an engineer who thinks like a designer. Every lin
 | Users | `/settings/users` | User management |
 | Access Control | `/settings/roles` | Permissions, User Roles, Groups |
 | Corporate | `/settings/corporate` | Groups, Companies, Company Tabs |
-| Company | `/settings/company` | Info, Brand Colors, Documents, Holidays, Workflows, Connections, Job Setup, Entity Config |
+| Company | `/settings/company` | Info, Brand Colors, Documents, Holidays, Workflows, Job Setup, Entity Config, Offline |
 | Operations | `/settings/operations` | Schedule Master, SM Tasks, Contact Types, Meeting Types, Supervisor Checklist, Cost |
+| Connections | `/settings/connections` | Storage Provider, Integrations, Migration, Cost Comparison |
 | System | `/settings/system` | System configuration |
 | Developer | `/settings/developer` | Components Lab, Developer Tools, Brand Guidelines, Unreal Engine |
+
+### Connections Sub-tabs Detail (Jan 2026 - now top-level)
+| Sub-tab | URL | Contains |
+|---------|-----|----------|
+| Storage Provider | `/settings/connections/provider` | SharePoint, S3/Wasabi, MinIO config |
+| Integrations | `/settings/connections/integrations` | Xero, Cloudflare |
+| Migration | `/settings/connections/migration` | Email migration, attachment deduplication, document migration |
+| Cost Comparison | `/settings/connections/costs` | Storage cost comparison |
 
 ### Company Sub-tabs Detail
 | Sub-tab | URL | Contains |
@@ -377,9 +471,9 @@ You're a craftsman, an artist, an engineer who thinks like a designer. Every lin
 | Documents | `/settings/company/documents` | Document Types, Templates, PDF Fields |
 | Holidays | `/settings/company/holidays` | Public holidays |
 | Workflows | `/settings/company/workflows` | Workflow configuration |
-| Connections | `/settings/company/connections` | Storage Provider, Integrations (Xero), Migration, Cost Comparison |
 | Job Setup | `/settings/company/job-setup` | Lists (Types/Statuses/Stages/Suburbs), Workflow |
 | Entity Config | `/settings/company/entity-config` | Corporate, Jobs, Contacts, Document Types, Storage Config, Email Config |
+| Offline | `/settings/company/offline` | Offline mode settings |
 
 ### Navigation Patterns
 - **URL is SSoT** for tab state - use `router.push()` not local state
@@ -389,7 +483,8 @@ You're a craftsman, an artist, an engineer who thinks like a designer. Every lin
 
 ### SSoT Consolidations (Jan 2026)
 - ❌ `/settings/documents` → Moved to `/settings/company/documents`
-- ❌ `/settings/integrations` → Moved to `/settings/company/connections/integrations`
+- ❌ `/settings/integrations` → Redirects to `/settings/connections/integrations`
+- ❌ `/settings/company/connections` → Moved to top-level `/settings/connections`
 - ❌ Entity Config in Developer → Moved to `/settings/company/entity-config`
 - ❌ Workflow Config separate tab → Moved to `/settings/company/job-setup/workflow`
 - ❌ Doc Templates duplicate → Consolidated into Documents > Templates

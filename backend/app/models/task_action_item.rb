@@ -23,6 +23,16 @@ class TaskActionItem < ApplicationRecord
   # Note: When a question/action with a delegated task is deleted, the UI asks
   # whether to keep or delete the subtask. No auto-cascade here - user decides.
 
+  # FRC (Jan 2026): Preserve response status before nullify
+  # ════════════════════════════════════════════════════════════════════════
+  # Why: When a question is deleted, dependent: :nullify clears action_item_id
+  #      on linked attachments. Without action_item_id, they disappear from
+  #      Response Files (which filters by action_item_id || category='response').
+  # Fix: Before destroy, mark all linked attachments with category='response'
+  #      so they remain visible even after action_item_id is nullified.
+  # ════════════════════════════════════════════════════════════════════════
+  before_destroy :preserve_attachment_response_status
+
   default_scope { order(:position) }
 
   # Scopes
@@ -240,5 +250,19 @@ class TaskActionItem < ApplicationRecord
     )
   rescue StandardError => e
     Rails.logger.error("[TaskActionItem] Failed to create completion notification: #{e.message}")
+  end
+
+  # FRC: Preserve response status for attachments before action_item_id is nullified
+  # This runs BEFORE dependent: :nullify, so attachments still have action_item_id
+  def preserve_attachment_response_status
+    return unless attachments.any?
+
+    # Mark all linked attachments with category='response' so they remain visible
+    # in Response Files even after action_item_id is set to NULL by dependent: :nullify
+    attachments.update_all(category: 'response')
+    Rails.logger.info("[TaskActionItem##{id}] Preserved response status for #{attachments.count} attachments before destroy")
+  rescue StandardError => e
+    Rails.logger.error("[TaskActionItem] Failed to preserve attachment response status: #{e.message}")
+    # Don't block the destroy - just log the error
   end
 end

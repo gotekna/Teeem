@@ -326,7 +326,11 @@ class ImapEmailService
       SYNC_FOLDERS.each do |folder|
         # Use date-based sync for both full and incremental
         # UID-based sync was broken because UIDs are folder-specific but we stored one global last_uid
-        since_date = if full_sync
+        # Jan 2026: sync_all mode syncs ALL historical emails (no date limit)
+        sync_all_mode = credential.respond_to?(:sync_all) && credential.sync_all
+        since_date = if sync_all_mode
+                       nil  # No date limit - sync all emails
+                     elsif full_sync
                        90.days.ago
                      else
                        # For incremental, sync emails from last sync time minus 1 hour buffer
@@ -334,7 +338,9 @@ class ImapEmailService
                        # Duplicates are handled by internet_message_id uniqueness check
                        (credential.last_synced_at || 7.days.ago) - 1.hour
                      end
-        emails = fetch_emails(folder: folder, since: since_date, limit: full_sync ? 500 : 250)
+        # sync_all mode: no limit. full_sync: 500. incremental: 250
+        limit = sync_all_mode ? nil : (full_sync ? 500 : 250)
+        emails = fetch_emails(folder: folder, since: since_date, limit: limit)
         all_emails.concat(emails)
       rescue => e
         Rails.logger.warn "[ImapEmailService] Skipping folder #{folder}: #{e.message}"
@@ -382,6 +388,10 @@ class ImapEmailService
 
           # Attach files if present
           attach_email_files(email, email_data[:attachments]) if email_data[:attachments].present?
+
+          # FRC (Jan 2026): Store raw .eml content to StorageBlob for EMAIL BLOBS tracking
+          # This mirrors what EmailStorageUploadService does for Microsoft emails
+          store_email_content_to_blob(email, email_data[:raw_content]) if email_data[:raw_content].present?
 
           # Apply email rules to newly synced email
           apply_rules_to_email(email)
@@ -495,7 +505,8 @@ class ImapEmailService
       attachment_count: attachments.size,
       attachments: attachments,
       body_text: body_text,
-      body_html: body_html
+      body_html: body_html,
+      raw_content: raw  # FRC (Jan 2026): Pass raw .eml content for storage to StorageBlob
     }
   rescue => e
     Rails.logger.error "[ImapEmailService] Error parsing email: #{e.message}"
@@ -566,24 +577,96 @@ class ImapEmailService
   end
 
   def attach_email_files(email, attachments)
-    # Note: has_many_attached :files was removed (Jan 2026) - create EmailAttachment records instead
-    # SSoT: EmailAttachment uses store_content! for deduplicated storage via StorageBlob
+    # Note: email_attachments table DROPPED (Jan 2026) - use WarehouseDocument + StorageBlob
+    # SSoT: StorageBlob handles content-addressed deduplication
     attachments.each do |attachment|
       next unless attachment[:content].present?
 
-      # Note: content_type and file_size are stored in storage_blob, not email_attachment (Jan 2026 refactor)
-      email_attachment = email.email_attachments.create!(
-        filename: attachment[:filename]
+      content = attachment[:content]
+      filename = attachment[:filename]
+      content_type = attachment[:content_type]
+
+      # Create StorageBlob (handles deduplication via content_hash)
+      blob = StorageBlob.find_or_create_for_content!(
+        content,
+        filename: filename,
+        content_type: content_type
       )
-      # SSoT: Use store_content! which handles deduplication via StorageBlob
-      email_attachment.store_content!(
-        attachment[:content],
-        filename: attachment[:filename],
-        content_type: attachment[:content_type]
+
+      # Create WarehouseDocument linking to blob
+      WarehouseDocument.create!(
+        documentable: email,
+        storage_blob_id: blob.id,
+        display_name: filename,
+        original_filename: filename,
+        folder: 'Emails/Attachments',
+        source_type: 'email_attachment',
+        tenant_id: email.tenant_id,
+        content_type: content_type || blob.content_type,
+        file_size: content.bytesize,
+        metadata: { 'synced_email_id' => email.id.to_s }
       )
+
+      blob.increment!(:reference_count)
+      Rails.logger.debug "[ImapEmailService] Created attachment: #{filename}"
     end
   rescue => e
     Rails.logger.error "[ImapEmailService] Error attaching files: #{e.message}"
+  end
+
+  # FRC (Jan 2026): Store raw .eml content to StorageBlob and create WarehouseDocument
+  # This mirrors EmailStorageUploadService behavior for Microsoft emails, enabling:
+  # - EMAIL BLOBS tracking on dashboard
+  # - Content-addressed deduplication
+  # - File Warehouse integration
+  def store_email_content_to_blob(email, raw_content)
+    return unless raw_content.present?
+    return if email.warehouse_document.present?  # Already has blob
+
+    tenant = email.tenant || credential.user&.tenant
+    return unless tenant
+
+    # Store to content-addressed blob storage
+    blob = StorageBlob.find_or_create_for_content!(
+      raw_content,
+      filename: "#{email.id}.eml",
+      content_type: "message/rfc822"
+    )
+
+    # Update email with storage paths
+    email.update_columns(
+      storage_path: blob.storage_path,
+      storage_file_id: blob.id.to_s,
+      storage_email_path: blob.storage_path,
+      storage_email_file_id: blob.id.to_s
+    )
+
+    # Create WarehouseDocument for File Warehouse integration
+    doc = WarehouseDocument.find_or_create_by!(
+      documentable_type: "SyncedEmail",
+      documentable_id: email.id
+    ) do |d|
+      d.storage_blob = blob
+      d.source_type = "email"
+      d.folder = email.virtual_folder_path
+      d.display_name = email.subject.presence || "No Subject"
+      d.original_filename = "#{email.id}.eml"
+      d.tenant_id = tenant.id
+      d.metadata = {
+        subject: email.subject,
+        from_email: email.from_email,
+        received_at: email.received_at&.iso8601,
+        mailbox: email.mailbox_owner_email
+      }
+    end
+
+    # Increment blob reference if we created new document
+    blob.increment!(:reference_count) if doc.previously_new_record?
+
+    Rails.logger.debug "[ImapEmailService] Stored email #{email.id} to blob: #{blob.storage_path}"
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error storing email content to blob: #{e.message}"
+    # Don't raise - blob storage failing shouldn't stop sync
   end
 
   def apply_rules_to_email(email)

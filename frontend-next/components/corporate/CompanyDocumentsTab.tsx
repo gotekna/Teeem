@@ -24,6 +24,7 @@ import {
   Cloud,
   Plus,
   Sparkles,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -34,7 +35,7 @@ import type { TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
 import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
 import { Spinner } from "@/components/ui/spinner";
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
@@ -85,7 +86,7 @@ const DOCUMENT_TYPE_OPTIONS = [
 
 interface CompanyDocumentsTabProps {
   companyId: string;
-  company: CorporateCompany;
+  company: Corporate;
   category?: string;
 }
 
@@ -94,7 +95,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   const { confirm } = useConfirm();
   const [documents, setDocuments] = React.useState<CompanyDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [companies, setCompanies] = React.useState<CorporateCompany[]>([]);
+  const [companies, setCompanies] = React.useState<Corporate[]>([]);
 
   // Document preview state - side panel for single click, fullscreen modal for double click
   const [selectedDocument, setSelectedDocument] = React.useState<CompanyDocument | null>(null);
@@ -102,14 +103,17 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   const [sidePanelDocument, setSidePanelDocument] = React.useState<CompanyDocument | null>(null);
   const [isSidePanelOpen, setIsSidePanelOpen] = React.useState(false);
 
+  // Cascade mode - shows documents from folder AND all subfolders
+  const [cascadeMode, setCascadeMode] = React.useState(true);
+
   React.useEffect(() => {
     loadDocuments();
     loadCompanies();
-  }, [companyId, category]);
+  }, [companyId, category, cascadeMode]);
 
   const loadCompanies = async () => {
     try {
-      const response = await api.get<{ companies: CorporateCompany[] }>("/api/v1/companies");
+      const response = await api.get<{ companies: Corporate[] }>("/api/v1/companies");
       setCompanies(response.companies || []);
     } catch (error) {
       console.error("Failed to load companies:", error);
@@ -122,6 +126,10 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
       const params: Record<string, string> = { company_id: companyId };
       if (category && category !== "all") {
         params.tab = category;
+        // When filtering by category (folder), include cascade mode
+        if (cascadeMode) {
+          params.include_descendants = 'true';
+        }
       }
       const response = await api.get<{ documents: CompanyDocument[] }>("/api/v1/company_documents", { params });
       const docs = response.documents || [];
@@ -461,10 +469,22 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   };
 
   const leftActions = (
-    <Button>
-      <Plus className="h-4 w-4 mr-2" />
-      Upload
-    </Button>
+    <div className="flex items-center gap-2">
+      <Button
+        variant={cascadeMode ? "secondary" : "outline"}
+        size="sm"
+        onClick={() => setCascadeMode(!cascadeMode)}
+        title={cascadeMode ? "Showing all subfolders" : "Showing this folder only"}
+        className="text-xs"
+      >
+        <Layers className="h-3.5 w-3.5 mr-1" />
+        {cascadeMode ? "All Subfolders" : "This Folder Only"}
+      </Button>
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        Upload
+      </Button>
+    </div>
   );
 
   if (loading && documents.length === 0) {

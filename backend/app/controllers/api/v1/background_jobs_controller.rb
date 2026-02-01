@@ -118,29 +118,6 @@ module Api
         }
       end
 
-      # POST /api/v1/background_jobs/start_attachment_deduplication
-      # Start attachment deduplication/migration job
-      def start_attachment_deduplication
-        batch_size = params[:batch_size]&.to_i || 1000
-
-        # Use the class method to enqueue a batch
-        count = EmailAttachmentMigrationJob.enqueue_batch(batch_size)
-
-        if count > 0
-          render json: {
-            success: true,
-            count: count,
-            message: "Queued #{count} attachments for deduplication"
-          }
-        else
-          render json: {
-            success: false,
-            count: 0,
-            error: "No attachments pending migration"
-          }
-        end
-      end
-
       # POST /api/v1/background_jobs/:id/cancel
       # Cancel a running background job
       def cancel

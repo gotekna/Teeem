@@ -475,7 +475,7 @@ class XeroTokenManager
 
       XeroAlert.create!(
         xero_credential: credential,
-        corporate_company: company,
+        corporate: company,
         alert_type: alert_type,
         severity: severity,
         title: title,
@@ -489,8 +489,8 @@ class XeroTokenManager
     end
 
     def find_company_for_credential(credential)
-      # Try to find company via CorporateCompanyXeroConnection
-      connection = CorporateCompanyXeroConnection.find_by(xero_credential: credential)
+      # Try to find company via CorporateXeroConnection
+      connection = CorporateXeroConnection.find_by(xero_credential: credential)
       connection&.corporate_company
     end
   end

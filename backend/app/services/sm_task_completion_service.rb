@@ -111,10 +111,11 @@ class SmTaskCompletionService
     required_doc_type_id = task.completion_document_type_id
     return false unless required_doc_type_id
 
-    # Check attached CorporateCompanyDocuments for matching document type
+    # Check attached documents for matching document type
+    # SSoT (Jan 2026): All documents are now WarehouseDocument
     task.sm_task_attachments.documents.any? do |attachment|
       doc = attachment.attachable
-      doc.is_a?(CorporateCompanyDocument) && doc.document_type_id == required_doc_type_id
+      doc.is_a?(WarehouseDocument) && doc.meta("document_type_id")&.to_i == required_doc_type_id
     end
   end
 
@@ -200,7 +201,7 @@ class SmTaskCompletionService
   end
 
   def spawn_document_get_tasks
-    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    calendar = WorkingDaysCalculator.new(TenantSetting.instance)
 
     task.sm_task_document_types.includes(:document_type).each do |doc_type_link|
       doc_type = doc_type_link.document_type
@@ -267,30 +268,34 @@ class SmTaskCompletionService
 
     result = generator.generate
 
-    # Create JobDocument with the generated PDF
-    job_document = JobDocument.new(
-      job: job,
-      document_type: document_type,
-      file_name: result[:filename],
-      file_extension: "pdf",
-      file_size: result[:pdf_content].bytesize,
-      sharepoint_item_id: "generated_#{SecureRandom.uuid}",
-      source: "generated",
-      sync_status: "synced",
-      version_status: "signed",
-      signed_by: supervisor,
-      signed_at: result[:generated_at],
-      folder_path: document_type.target_folder || "Certificates"
-    )
-
-    # Attach the PDF content
-    job_document.file.attach(
-      io: StringIO.new(result[:pdf_content]),
+    # Create StorageBlob with deduplicated PDF content
+    blob = StorageBlob.find_or_create_for_content!(
+      result[:pdf_content],
       filename: result[:filename],
       content_type: "application/pdf"
     )
 
-    job_document.save!
+    # Create WarehouseDocument (SSoT for all document metadata)
+    warehouse_doc = WarehouseDocument.create!(
+      source_type: "job",
+      display_name: result[:filename],
+      original_filename: result[:filename],
+      content_type: "application/pdf",
+      file_size: result[:pdf_content].bytesize,
+      storage_blob: blob,
+      folder: document_type.target_folder || "Certificates",
+      linkable: job,
+      metadata: {
+        document_type_id: document_type.id,
+        document_type: document_type.name,
+        job_code: job.job_code,
+        version_status: "signed",
+        signed_by_id: supervisor.id,
+        signed_at: result[:generated_at]&.iso8601,
+        source: "generated",
+        certificate_template: document_type.certificate_template
+      }
+    )
 
     # Record signature usage in digital register
     SignatureUsage.record!(

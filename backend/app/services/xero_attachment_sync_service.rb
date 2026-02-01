@@ -38,20 +38,32 @@ class XeroAttachmentSyncService
     @skip_storage_upload = skip_storage_upload
     # SSoT: Derive TEEEM tenant from Xero tenant_id
     # ExternalInvoice.tenant_id is Xero tenant UUID, not TEEEM Tenant.id
+    @xero_tenant_id = external_invoice.tenant_id  # Xero org UUID
+    @xero_credential = XeroCredential.find_by(tenant_id: @xero_tenant_id)
+    @xero_tenant_name = @xero_credential&.tenant_name  # Xero org name (e.g., "Tekna Homes")
     @tenant = find_teeem_tenant_from_xero_tenant_id(external_invoice.tenant_id)
-    @storage_config = @tenant ? StorageConfiguration.for_tenant(@tenant) : nil
+    @organization = @tenant&.organizations&.where(is_active: true)&.first
+    @storage_config = @tenant ? WarehouseProvider.for_tenant(@tenant) : nil
     @results = { pdf: nil, attachments: [], errors: [], skipped: false }
   end
 
   # Map Xero tenant_id (UUID) to TEEEM Tenant
+  # SSoT Chain: XeroCredential → CorporateXeroConnection → Corporate → Tenant
   def find_teeem_tenant_from_xero_tenant_id(xero_tenant_id)
     return nil unless xero_tenant_id.present?
 
     xero_credential = XeroCredential.find_by(tenant_id: xero_tenant_id)
     return nil unless xero_credential
 
-    org = Organization.where(is_active: true).first
-    org&.tenant
+    # Find Corporate linked to this XeroCredential via connection table
+    connection = CorporateXeroConnection.find_by(xero_credential_id: xero_credential.id)
+    return nil unless connection
+
+    corporate_company = Corporate.find_by(id: connection.company_id)
+    return nil unless corporate_company
+
+    # Get the TEEEM Tenant from the Corporate
+    Tenant.find_by(id: corporate_company.tenant_id)
   end
 
   # Sync all attachments for this invoice
@@ -60,7 +72,7 @@ class XeroAttachmentSyncService
     return error_result("No external_id on invoice") unless external_invoice.external_id.present?
     return error_result("No tenant_id on invoice") unless external_invoice.tenant_id.present?
     return error_result("Tenant not found for tenant_id #{external_invoice.tenant_id}") unless @tenant
-    return error_result("StorageConfiguration not found for tenant #{@tenant.name}") unless @storage_config
+    return error_result("WarehouseProvider not found for tenant #{@tenant.name}") unless @storage_config
 
     # SSoT: Wrap entire sync in tenant context
     ActsAsTenant.with_tenant(@tenant) do
@@ -121,7 +133,28 @@ class XeroAttachmentSyncService
     # SSoT: Get folder path from EntityTab (no hardcoding)
     folder = compute_folder_from_document_type(document_type)
 
-    # SSoT: Create StorageBlob (handles deduplication)
+    # ========================================
+    # SSoT Content-Hash Deduplication (Jan 2026)
+    # ========================================
+    # Before creating a new WarehouseDocument, check if a document with
+    # the same content_hash already exists. If yes, link it to the Xero
+    # invoice instead of creating a new one. This prevents duplicate
+    # document metadata for the same file content.
+
+    content_hash = StorageBlob.compute_hash(pdf_content)
+    existing_by_content = find_document_by_content_hash(content_hash)
+
+    if existing_by_content
+      # Link existing document to Xero invoice
+      linked_doc = link_existing_document_to_xero(existing_by_content, document_type, folder)
+      if linked_doc
+        results[:pdf] = linked_doc
+        return
+      end
+      # If linking failed, fall through to create new document
+    end
+
+    # SSoT: Create StorageBlob (handles deduplication at storage level)
     storage_blob = StorageBlob.find_or_create_for_content!(
       pdf_content,
       filename: filename,
@@ -313,16 +346,16 @@ class XeroAttachmentSyncService
   # ========================================
 
   # Compute folder path from DocumentType's primary EntityTab
-  # SSoT: Derives folder from StorageConfiguration.warehouse_folders (not EntityTab.warehouse_folder)
+  # SSoT: Derives folder from WarehouseProvider.warehouse_folders (not EntityTab.warehouse_folder)
   def compute_folder_from_document_type(document_type)
     entity_tab = document_type.primary_entity_tab
     return nil unless entity_tab
 
-    # SSoT: Derive template from StorageConfiguration.warehouse_folders
-    # root_folder_for already handles alias normalization (e.g., 'corporate_entity' → 'corporate')
+    # SSoT: Derive template from WarehouseProvider.warehouse_folders
+    # path_for already handles alias normalization (e.g., 'corporate_entity' → 'corporate')
     warehouse_type = entity_tab.warehouse_type || 'corporate'
-    config = StorageConfiguration.instance
-    template = config.root_folder_for(warehouse_type)
+    config = WarehouseProvider.instance
+    template = config.path_for(warehouse_type)
     return nil unless template.present?
 
     # SSoT: {{TeeemXL}} is the UI placeholder for tab/folder name (Jan 2026)
@@ -416,6 +449,12 @@ class XeroAttachmentSyncService
       "invoice_number" => external_invoice.invoice_number,
       "invoice_type" => external_invoice.invoice_type,
       "xero_id" => external_invoice.external_id,
+      "xero_tenant_id" => @xero_tenant_id,
+      "xero_tenant_name" => @xero_tenant_name,
+      "tenant_id" => @tenant&.id,
+      "tenant_name" => @tenant&.name,
+      "organization_id" => @organization&.id,
+      "organization_name" => @organization&.name,
       "contact_id" => external_invoice.contact_id,
       "document_type_id" => document_type&.id,
       "document_type_name" => document_type&.name,
@@ -429,6 +468,12 @@ class XeroAttachmentSyncService
       "invoice_number" => external_invoice.invoice_number,
       "invoice_type" => external_invoice.invoice_type,
       "xero_id" => external_invoice.external_id,
+      "xero_tenant_id" => @xero_tenant_id,
+      "xero_tenant_name" => @xero_tenant_name,
+      "tenant_id" => @tenant&.id,
+      "tenant_name" => @tenant&.name,
+      "organization_id" => @organization&.id,
+      "organization_name" => @organization&.name,
       "attachment_id" => attachment_id,
       "original_filename" => filename,
       "contact_id" => external_invoice.contact_id,
@@ -451,6 +496,58 @@ class XeroAttachmentSyncService
       xero_client.get_credit_note_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
     else
       xero_client.get_invoice_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+    end
+  end
+
+  # ========================================
+  # SSoT Content-Hash Deduplication (Jan 2026)
+  # ========================================
+
+  # Find existing WarehouseDocument with same content hash
+  # Returns nil if no match found or if already linked to this invoice
+  def find_document_by_content_hash(hash)
+    return nil if hash.blank?
+
+    WarehouseDocument
+      .joins(:storage_blob)
+      .where(storage_blobs: { content_hash: hash })
+      .where.not(documentable: external_invoice) # Not already linked to this invoice
+      .where(tenant_id: @tenant.id)
+      .first
+  end
+
+  # Link existing document to Xero invoice
+  # Preserves original metadata while adding Xero link
+  # @return [WarehouseDocument, nil] The updated document or nil if update failed
+  def link_existing_document_to_xero(doc, document_type, folder)
+    original_source_type = doc.source_type
+    original_documentable_type = doc.documentable_type
+    original_documentable_id = doc.documentable_id
+
+    doc.assign_attributes(
+      documentable: external_invoice,
+      source_type: "xero",
+      folder: folder,
+      linkable: external_invoice.contact,
+      metadata: (doc.metadata || {}).merge(
+        "xero_id" => external_invoice.external_id,
+        "xero_linked_at" => Time.current.iso8601,
+        "original_source_type" => original_source_type,
+        "original_documentable_type" => original_documentable_type,
+        "original_documentable_id" => original_documentable_id,
+        "document_type_id" => document_type&.id,
+        "document_type_name" => document_type&.name,
+        "invoice_number" => external_invoice.invoice_number,
+        "invoice_type" => external_invoice.invoice_type
+      )
+    )
+
+    if doc.save
+      Rails.logger.info("[XeroAttachmentSync] Linked existing document #{doc.id} to ExternalInvoice #{external_invoice.id} (content-hash dedup)")
+      doc
+    else
+      Rails.logger.warn("[XeroAttachmentSync] Failed to link existing document #{doc.id}: #{doc.errors.full_messages.join(', ')}")
+      nil
     end
   end
 

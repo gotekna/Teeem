@@ -18,9 +18,9 @@ class SmTask < ApplicationRecord
   # Virtual attribute for delegation response (set in controller, used in callback)
   attr_accessor :delegation_response
 
-  # SSoT: Task attachments use SmTaskAttachment → SyncedEmail → email_attachments chain
-  # ActiveStorage has_many_attached :files was REMOVED (Jan 2026) - it violated SSoT by
-  # duplicating email attachments instead of linking to existing EmailAttachment records.
+  # SSoT: Task attachments use SmTaskAttachment → SyncedEmail → attachment_documents (WarehouseDocument)
+  # ActiveStorage has_many_attached :files was REMOVED (Jan 2026) - it violated SSoT.
+  # email_attachments table DROPPED (Jan 2026) - all attachments now in WarehouseDocument.
 
   # Status enum
   enum :status, {
@@ -190,7 +190,7 @@ class SmTask < ApplicationRecord
   # Task Attachments (emails, documents, uploads)
   has_many :sm_task_attachments, dependent: :destroy
   has_many :attached_emails, through: :sm_task_attachments, source: :attachable, source_type: "SyncedEmail"
-  has_many :attached_documents, through: :sm_task_attachments, source: :attachable, source_type: "CorporateCompanyDocument"
+  has_many :attached_documents, through: :sm_task_attachments, source: :attachable, source_type: "WarehouseDocument"
 
   # Task Followers (for notifications)
   has_many :task_followers, dependent: :destroy
@@ -769,7 +769,7 @@ class SmTask < ApplicationRecord
   def snap_start_date_to_working_day
     return unless start_date.present?
 
-    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    calendar = WorkingDaysCalculator.new(TenantSetting.instance)
     snapped = calendar.next_working_day(start_date)
 
     if snapped != start_date
@@ -782,7 +782,7 @@ class SmTask < ApplicationRecord
   def snap_end_date_to_working_day
     return unless end_date.present?
 
-    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    calendar = WorkingDaysCalculator.new(TenantSetting.instance)
     snapped = calendar.next_working_day(end_date)
 
     if snapped != end_date
@@ -801,7 +801,7 @@ class SmTask < ApplicationRecord
       return
     end
     # Use WorkingDaysCalculator to respect working days (M-F by default)
-    calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    calendar = WorkingDaysCalculator.new(TenantSetting.instance)
     self.end_date = calendar.add_working_days(start_date, duration_days - 1)
   end
 

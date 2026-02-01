@@ -184,7 +184,7 @@ module Api
         progress = BankStatementBatchRegenerateJob.progress(company_id: company_id, force: force)
 
         # Get list of companies with pending work
-        companies_with_pending = CorporateCompany
+        companies_with_pending = Corporate
           .joins("LEFT JOIN bank_statement_reports ON bank_statement_reports.company_id = corporate_companies.id")
           .where(bank_statement_reports: { status: "completed" })
           .select("corporate_companies.id, corporate_companies.name, corporate_companies.code")
@@ -265,7 +265,7 @@ module Api
       private
 
       def set_company
-        @company = CorporateCompany.find(params[:company_id])
+        @company = Corporate.find(params[:company_id])
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Company not found" }, status: :not_found
       end

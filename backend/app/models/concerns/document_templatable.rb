@@ -3,7 +3,7 @@
 # DocumentTemplatable - SSoT for template expansion across all document types
 #
 # This concern provides a unified template expansion system for:
-# - CorporateCompanyDocument (manual uploads)
+# - WarehouseDocument (universal document storage)
 # - ProfitLossReport (auto-generated)
 # - BalanceSheetReport (auto-generated)
 # - BankStatementReport (auto-generated)

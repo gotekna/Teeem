@@ -1,10 +1,12 @@
-// StorageLocation types - SSoT for folder/storage configuration
-// Renamed from EntityTab → StorageLocation (Jan 2026)
-// "StorageLocation" is clearer - it's a folder configuration, not a UI tab
-// Legacy name "EntityTab" kept as alias for backward compatibility
+// WarehouseFolder types - SSoT for folder/storage configuration
+// Renamed: EntityTab → StorageLocation → WarehouseFolder (Jan 2026)
+// Backend model is "WarehouseFolder" (table: warehouse_folders)
+// Frontend keeps "EntityTab" as interface name for UI tab rendering
+// "WarehouseFolder" and "StorageLocation" are aliases for backward compatibility
 
+// SSoT: 'corporate' is THE ONE scope for corporate entities (Jan 2026 - 'corporate_entity' renamed)
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
-export type EntityTabScope = 'corporate_entity' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
+export type EntityTabScope = 'corporate' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
 
 // Tab groups - matches backend EntityTab::TAB_GROUPS
 // 'system' is for system-managed tabs (email storage, warehousing) - read-only in UI
@@ -40,15 +42,15 @@ export interface EntityTab {
   // SSoT: Xero integration fields
   xero_scope: 'primary' | null;  // Which Xero account this tab uses
   xero_account_name: string | null;  // Resolved name (e.g., "Teeem Homes")
-  has_sharepoint_folder: boolean;
-  sharepoint_folder_path: string | null;
-  full_sharepoint_path: string | null;
+  warehouse_enabled: boolean;
+  warehouse_folder: string | null;
+  full_warehouse_path: string | null;
   // SSoT: Template inheritance fields
   uses_custom_path: boolean;
-  sharepoint_path_type: 'corporate' | 'contacts';
-  sharepoint_base_path: string | null;
-  effective_sharepoint_path: string | null;
-  folder_path: string | null;  // Alias for effective_sharepoint_path (frontend compatibility)
+  warehouse_type_override: 'corporate' | 'contacts';
+  warehouse_base_path: string | null;
+  effective_warehouse_path: string | null;
+  folder_path: string | null;  // Alias for effective_warehouse_path
   inherited_template: string | null;
   hierarchy_path: string;
   document_count: number;
@@ -97,10 +99,10 @@ export interface EntityTabCreateParams {
   enabled?: boolean;
   icon_name?: string;
   component_name?: string;
-  has_sharepoint_folder?: boolean;
-  sharepoint_folder_path?: string;
+  warehouse_enabled?: boolean;
+  warehouse_folder?: string;
   uses_custom_path?: boolean;  // SSoT: Template inheritance flag
-  sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
+  warehouse_type_override?: 'corporate' | 'contacts';  // SSoT: Path type
   document_type_ids?: number[];  // SSoT: Link document types to this tab
   is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
   is_cad_category?: boolean;  // SSoT: Show CAD/Revit file viewer
@@ -119,10 +121,10 @@ export interface EntityTabUpdateParams {
   enabled?: boolean;
   icon_name?: string;
   component_name?: string;
-  has_sharepoint_folder?: boolean;
-  sharepoint_folder_path?: string;
+  warehouse_enabled?: boolean;
+  warehouse_folder?: string;
   uses_custom_path?: boolean;  // SSoT: Template inheritance flag
-  sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
+  warehouse_type_override?: 'corporate' | 'contacts';  // SSoT: Path type
   document_type_ids?: number[];  // SSoT: Link document types to this tab
   is_photo_category?: boolean;  // SSoT: Show photo gallery instead of file table
   is_cad_category?: boolean;  // SSoT: Show CAD/Revit file viewer
@@ -136,9 +138,10 @@ export interface ReorderTabParams {
 }
 
 // Scope display names for UI
+// SSoT: 'corporate' is THE ONE scope for corporate entities (Jan 2026 - 'corporate_entity' renamed)
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
 export const SCOPE_LABELS: Record<EntityTabScope, string> = {
-  corporate_entity: 'Corporate Entity',
+  corporate: 'Corporate',
   job: 'Job',
   contact: 'Contact',
   email: 'Email',
@@ -158,13 +161,14 @@ export const GROUP_LABELS: Record<TabGroup, string> = {
   system: 'System',
 };
 
-// Entity type options are now fetched from API (SSoT: CorporateCompanySetting)
+// Entity type options are now fetched from API (SSoT: CorporateSetting)
 // See: GET /api/v1/entity_tabs/entity_types
 
 // ============================================================================
-// SSoT Rename (Jan 2026): EntityTab → StorageLocation
-// "StorageLocation" is clearer - it's a folder configuration, not a UI tab
-// These aliases allow gradual migration to new naming while maintaining compatibility
+// SSoT Rename (Jan 2026): EntityTab → StorageLocation → WarehouseFolder
+// Backend: WarehouseFolder model (table: warehouse_folders)
+// Frontend: EntityTab interface (for UI rendering)
+// These aliases allow backward compatibility
 // ============================================================================
 export type StorageLocationScope = EntityTabScope;
 export type StorageLocation = EntityTab;
@@ -173,3 +177,12 @@ export type StorageLocationsResponse = EntityTabsResponse;
 export type StorageLocationResponse = EntityTabResponse;
 export type StorageLocationCreateParams = EntityTabCreateParams;
 export type StorageLocationUpdateParams = EntityTabUpdateParams;
+
+// New naming (Jan 2026) - backend model is WarehouseFolder
+export type WarehouseFolderScope = EntityTabScope;
+export type WarehouseFolder = EntityTab;
+export type WarehouseFolderDocumentType = EntityTabDocumentType;
+export type WarehouseFoldersResponse = EntityTabsResponse;
+export type WarehouseFolderResponse = EntityTabResponse;
+export type WarehouseFolderCreateParams = EntityTabCreateParams;
+export type WarehouseFolderUpdateParams = EntityTabUpdateParams;

@@ -103,6 +103,7 @@ export default function SubscriptionDetailPage() {
   const fetchData = React.useCallback(async () => {
     try {
       const data = await getSubscription(subscriptionId);
+      console.log("[DEBUG] Subscription data received:", JSON.stringify(data, null, 2));
       setSubscription(data as SubscriptionDetail);
     } catch (err) {
       console.error("Failed to fetch subscription:", err);
@@ -141,8 +142,9 @@ export default function SubscriptionDetailPage() {
     });
   };
 
-  const formatStorage = (usedGb: number, quotaGb: number) => {
-    return `${usedGb.toFixed(1)} / ${quotaGb} GB`;
+  const formatStorage = (usedGb: number | null | undefined, quotaGb: number) => {
+    const used = usedGb ?? 0;
+    return `${used.toFixed(1)} / ${quotaGb} GB`;
   };
 
   if (loading) {

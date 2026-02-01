@@ -491,7 +491,7 @@ export default function CorporateDashboardPage() {
 
   // Parse tab from path: /corporate/structure → "structure", /corporate → "groups"
   const activeTab = React.useMemo(() => {
-    const parts = pathname.replace("/corporate", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/corporate", "").split("/").filter(Boolean);
     // Valid tab values that map to TabsContent values
     // Note: /corporate/companies/123 (detail pages) have their own route files
     const VALID_TABS = ["groups", "companies", "memberships", "people", "shareholders", "beneficiaries", "structure"];
@@ -771,7 +771,7 @@ export default function CorporateDashboardPage() {
                 email: m.contact_email,
                 entity_type: m.contact_entity_type,
                 company_group_memberships_count: 1, // Will be updated below
-                membership_types: [m.membership_type],
+                membership_types: m.membership_type ? [m.membership_type] : [],
                 company_group_names: [groupsMap[group.id] || group.name],
               });
             } else {
@@ -780,7 +780,7 @@ export default function CorporateDashboardPage() {
               if (existing) {
                 existing.company_group_memberships_count = ((existing.company_group_memberships_count as number) || 0) + 1;
                 const types = existing.membership_types as string[];
-                if (!types.includes(m.membership_type)) {
+                if (m.membership_type && !types.includes(m.membership_type)) {
                   types.push(m.membership_type);
                 }
                 const groupNames = existing.company_group_names as string[];
@@ -1618,8 +1618,8 @@ export default function CorporateDashboardPage() {
                         {people.map((person) => {
                           const name = (person.display_name || person.name || "Unknown") as string;
                           const email = (person.email || "—") as string;
-                          const membershipTypes = (person.membership_types || []) as string[];
-                          const groupNames = (person.company_group_names || []) as string[];
+                          const membershipTypes = ((person.membership_types || []) as (string | null)[]).filter(Boolean) as string[];
+                          const groupNames = ((person.company_group_names || []) as (string | null)[]).filter(Boolean) as string[];
                           return (
                             <TableRow key={person.id} className="border-b hover:bg-muted/50">
                               <TableCell className="py-2 px-3">

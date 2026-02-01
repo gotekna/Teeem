@@ -231,7 +231,7 @@ module Api
         return nil unless contact  # Skip orphaned memberships
 
         # Check if this contact has a linked Company record
-        linked_company = CorporateCompany.find_by(contact_id: contact.id)
+        linked_company = Corporate.find_by(contact_id: contact.id)
         {
           id: membership.id,
           contact_id: contact.id,
@@ -375,8 +375,7 @@ module Api
               shareholders: [],
               investments: [],
               children: [],
-              is_trust_of_trustee: true,  # Flag to indicate this is the trust managed by the parent trustee
-              document_count: trust_entity.corporate_company_documents.count
+              is_trust_of_trustee: true  # Flag to indicate this is the trust managed by the parent trustee
             }
             children.unshift(trust_node)
           end
@@ -396,8 +395,7 @@ module Api
           date_incorporated: company.date_incorporated,
           shareholders: shareholders,
           investments: investments,
-          children: children,
-          document_count: company.corporate_company_documents.count
+          children: children
         }
       end
     end

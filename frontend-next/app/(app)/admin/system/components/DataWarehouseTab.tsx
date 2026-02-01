@@ -57,7 +57,7 @@ import {
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { StorageConfigTab } from "./StorageConfigTab";
+import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { formatFileSize } from "@/utils/formatters";
 
 interface WarehouseViewStatus {
@@ -218,6 +218,7 @@ interface OrgDataStats {
     with_blob: number;
     with_file: number;
     without_blob: number;
+    unfetchable?: number;  // Emails from deleted mailboxes (will never have file)
     storage_rate: number;
     file_rate: number;
     linked?: number;  // For Xero: WarehouseDocument records created
@@ -239,6 +240,10 @@ interface OrgDataStats {
     blobs_format: number;
     legacy_format: number;
     migration_rate: number;
+    // Deduplication stats
+    total_references?: number;
+    duplicates_avoided?: number;
+    bytes_saved?: number;
   };
   last_updated: string;
 }
@@ -973,9 +978,9 @@ export function DataWarehouseTab() {
           )}
         </TabsContent>
 
-        {/* Storage Config Tab - Embeds the same component from Entity Configurator */}
+        {/* WarehouseProvider Tab - Embeds the same component from Entity Configurator */}
         <TabsContent value="storage-config" className="space-y-4">
-          <StorageConfigTab />
+          <WarehouseProviderTab />
         </TabsContent>
 
         {/* Microsoft 365 Organization Tabs */}
@@ -1429,6 +1434,7 @@ export function DataWarehouseTab() {
                   <TableHead className="text-right">Linked</TableHead>
                   <TableHead className="text-right">Has File</TableHead>
                   <TableHead className="text-right">Missing</TableHead>
+                  <TableHead className="text-right">Unfetchable</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1474,6 +1480,13 @@ export function DataWarehouseTab() {
                             <span className="text-green-600 dark:text-green-400">-</span>
                           )}
                         </TableCell>
+                        <TableCell className="text-right">
+                          {row.unfetchable && row.unfetchable > 0 ? (
+                            <span className="text-orange-600 dark:text-orange-400">{row.unfetchable.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
                       </TableRow>
                       {/* Per-tenant breakdown for Xero */}
                       {row.source_type === "xero" && row.tenant_breakdown && row.tenant_breakdown.map((tenant) => (
@@ -1499,6 +1512,7 @@ export function DataWarehouseTab() {
                               <span className="text-green-600/80 dark:text-green-400/80">-</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-right text-muted-foreground">-</TableCell>
                         </TableRow>
                       ))}
                     </React.Fragment>
@@ -1517,12 +1531,22 @@ export function DataWarehouseTab() {
                   <span className="font-medium text-foreground">{formatFileSize(stats.blob_stats.total_bytes)}</span>{" "}
                   total storage
                 </div>
-                <div>
-                  <span className="font-medium text-green-600 dark:text-green-400">
-                    {stats.blob_stats.blobs_format.toLocaleString()}
-                  </span>{" "}
-                  content-addressed
-                </div>
+                {stats.blob_stats.duplicates_avoided && stats.blob_stats.duplicates_avoided > 0 && (
+                  <>
+                    <div>
+                      <span className="font-medium text-blue-600 dark:text-blue-400">
+                        {stats.blob_stats.duplicates_avoided.toLocaleString()}
+                      </span>{" "}
+                      duplicates avoided
+                    </div>
+                    <div>
+                      <span className="font-medium text-green-600 dark:text-green-400">
+                        {formatFileSize(stats.blob_stats.bytes_saved || 0)}
+                      </span>{" "}
+                      saved via dedup
+                    </div>
+                  </>
+                )}
                 {stats.blob_stats.legacy_format > 0 && (
                   <div>
                     <span className="font-medium text-amber-600 dark:text-amber-400">

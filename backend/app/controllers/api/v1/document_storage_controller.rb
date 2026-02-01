@@ -11,16 +11,21 @@ module Api
       # Skip auth for job_document_download - opened in new browser tab via window.open()
       skip_before_action :authorize_request, only: [ :callback, :download, :job_document_download ]
 
+      # Skip tenant for public download endpoints - tenant determined from storage key, not user
+      skip_before_action :set_tenant, only: [ :download, :job_document_download ], raise: false
+
       # Require admin for sensitive operations
       before_action :require_admin, only: [ :disconnect, :change_root_folder, :sync_corporate_documents ]
 
       # SSoT: Setup document provider for provider-agnostic methods
       # Skip for SharePoint-specific admin actions (OAuth, site selection, etc.)
+      # Note: download and job_document_download excluded - they create providers directly
+      # and can be called without tenant context (public endpoints)
       before_action :setup_storage_provider, only: [
         :browse_folders, :create_root_folder, :validate_folder,
-        :folder_contents, :search, :download, :presigned_url,
+        :folder_contents, :search, :presigned_url,
         :download_url, :upload, :delete_file, :copy_files,
-        :job_all_files, :job_document_download, :job_document_url
+        :job_all_files, :job_document_url
       ]
 
       # Handle decryption errors gracefully - this happens when credentials were encrypted
@@ -36,14 +41,14 @@ module Api
 
       # GET /api/v1/documents/status
       # Check if organization has OneDrive connected
-      # SSoT: StorageConfiguration.provider_type determines THE ONE storage backend
+      # SSoT: WarehouseProvider.provider_type determines THE ONE storage backend
       # No fallback chains - one provider, one credential check
       def status
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
 
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
         provider = storage_config&.provider_type || "s3_compatible"
 
         case provider
@@ -99,7 +104,7 @@ module Api
               provider_type: provider,
               drive_id: storage_config&.drive_id,
               drive_name: storage_config&.drive_name,
-              root_folder_id: storage_config&.root_folder_id,  # SSoT: StorageConfiguration
+              root_folder_id: storage_config&.root_folder_id,  # SSoT: WarehouseProvider
               root_folder_path: storage_config&.root_path,
               connected_at: credential.created_at,
               connected_by: credential.connected_by&.as_json
@@ -207,9 +212,9 @@ module Api
               Rails.logger.error "Failed to get personal OneDrive info: #{e.message}"
             end
           else
-            # SSoT: Get SharePoint site name from StorageConfiguration (Jan 2026)
-            storage_config = StorageConfiguration.instance
-            site_name = storage_config&.site_name.presence || CorporateCompanySetting.instance.company_name
+            # SSoT: Get SharePoint site name from WarehouseProvider (Jan 2026)
+            storage_config = WarehouseProvider.instance
+            site_name = storage_config&.site_name.presence || TenantSetting.instance.company_name
             site_name_lower = site_name&.downcase || ""
 
             Rails.logger.info "Switching to #{site_name} SharePoint site..."
@@ -229,7 +234,7 @@ module Api
             end
 
             # Create root folder for all jobs in the SharePoint site (SSoT)
-            jobs_folder_name = StorageConfiguration.instance.path_for(:jobs)
+            jobs_folder_name = WarehouseProvider.instance.path_for(:jobs)
             Rails.logger.info "Creating root folder '#{jobs_folder_name}'..."
             root_folder = client.create_jobs_root_folder(jobs_folder_name)
             Rails.logger.info "Root folder created successfully at: #{root_folder['webUrl']}"
@@ -351,8 +356,8 @@ module Api
             end
           end
 
-          # SSoT: Update StorageConfiguration with root folder info (not credential)
-          storage_config = StorageConfiguration.instance
+          # SSoT: Update WarehouseProvider with root folder info (not credential)
+          storage_config = WarehouseProvider.instance
           if storage_config
             storage_config.root_folder_id = current_folder["id"]
             storage_config.root_folder_path = sanitized_path
@@ -430,8 +435,8 @@ module Api
           # Get personal OneDrive info
           drive_info = client.get("/me/drive")
 
-          # SSoT: Update StorageConfiguration with new drive info
-          storage_config = StorageConfiguration.instance
+          # SSoT: Update WarehouseProvider with new drive info
+          storage_config = WarehouseProvider.instance
           if storage_config
             storage_config.update_connection(
               "drive_id" => drive_info["id"],
@@ -489,8 +494,8 @@ module Api
           client = MicrosoftGraphClient.new(credential)
           result = client.use_sharepoint_site(site_name)
 
-          # SSoT: Reset root folder in StorageConfiguration (not credential)
-          storage_config = StorageConfiguration.instance
+          # SSoT: Reset root folder in WarehouseProvider (not credential)
+          storage_config = WarehouseProvider.instance
           if storage_config
             storage_config.root_folder_id = nil
             storage_config.root_folder_path = nil
@@ -551,7 +556,7 @@ module Api
           if sharepoint_credential.credential_type == "app"
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
             client = sharepoint_client
-            storage_config = StorageConfiguration.instance
+            storage_config = WarehouseProvider.instance
 
             unless storage_config&.connected?
               return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
@@ -601,8 +606,8 @@ module Api
             # Delegated credentials use MicrosoftGraphClient with /me endpoints
             client = sharepoint_client
 
-            # SSoT: Get drive path from StorageConfiguration (Jan 2026)
-            config = StorageConfiguration.instance
+            # SSoT: Get drive path from WarehouseProvider (Jan 2026)
+            config = WarehouseProvider.instance
             drive_path = config&.drive_id.present? ? "/drives/#{config.drive_id}" : "/me/drive"
 
             # Get folders in the specified location
@@ -692,8 +697,8 @@ module Api
         begin
           client = MicrosoftGraphClient.new(credential)
 
-          # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
-          storage_drive_id = StorageConfiguration.instance&.drive_id
+          # SSoT: Get drive_id from WarehouseProvider (Jan 2026)
+          storage_drive_id = WarehouseProvider.instance&.drive_id
           folder = client.create_folder(folder_name, drive_id: storage_drive_id)
 
           render json: {
@@ -831,7 +836,7 @@ module Api
       def list_job_items
         job = Job.find(params[:job_id])
 
-        # SSoT: Setup provider using StorageConfiguration
+        # SSoT: Setup provider using WarehouseProvider
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
@@ -1147,16 +1152,22 @@ module Api
         end
 
         begin
-          # SSoT: Check storage provider to route to correct download method
-          storage_config = StorageConfiguration.instance
-          provider_type = storage_config&.provider_type || "sharepoint"
+          # SSoT: Route by configured provider, not file_id format guessing
+          # Check credentials to determine provider (no tenant context needed)
+          #
+          # For public downloads (preview=true, no auth), we need to set tenant context
+          # since S3Compatible provider requires WarehouseProvider which is tenant-scoped.
+          # Default to first tenant for public access (single-tenant system).
+          unless ActsAsTenant.current_tenant
+            ActsAsTenant.current_tenant = Tenant.first
+          end
 
-          if provider_type.to_s.in?(%w[wasabi s3])
-            # S3/Wasabi: file_id is the S3 key
+          if S3CompatibleCredential.active.connected.exists?
             download_from_s3_by_key(file_id, is_preview)
-          else
-            # SharePoint: file_id is the Graph API item ID
+          elsif MicrosoftCredential.sharepoint_credential&.connected?
             download_from_sharepoint_by_id(file_id, is_preview)
+          else
+            raise DocumentProviders::NotConnectedError, "No storage provider configured"
           end
 
         rescue DocumentProviders::NotFoundError => e
@@ -1180,20 +1191,21 @@ module Api
       # Why: Avoids double transfer (S3 → Rails → Browser), browser fetches directly from S3
       # Params:
       #   - file_id: Direct storage reference (S3 key or SharePoint item ID)
-      #   - document_id: JobDocument ID (will lookup storage_reference from the model)
+      #   - document_id: WarehouseDocument ID (will lookup storage_reference from the model)
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def presigned_url
         file_id = params[:file_id]
         document_id = params[:document_id]
 
-        # Support both file_id (direct storage ID) and document_id (JobDocument lookup)
+        # Support both file_id (direct storage ID) and document_id (WarehouseDocument lookup)
         if document_id.present?
-          document = JobDocument.find_by(id: document_id)
+          document = WarehouseDocument.find_by(id: document_id)
           unless document
             return render json: { success: false, error: "Document not found" }, status: :not_found
           end
 
-          # SSoT: Use storage_reference from StorableDocument concern
-          file_id = document.storage_reference
+          # SSoT: Use storage_path from storage_blob
+          file_id = document.storage_blob&.storage_path || document.storage_path
           unless file_id.present?
             return render json: { success: false, error: "Document has no storage reference" }, status: :unprocessable_entity
           end
@@ -1202,16 +1214,13 @@ module Api
         end
 
         begin
-          # SSoT: Check storage provider to route to correct method
-          storage_config = StorageConfiguration.instance
-          provider_type = storage_config&.provider_type || "sharepoint"
-
-          if provider_type.to_s.in?(%w[wasabi s3 s3_compatible])
-            # S3/Wasabi: file_id is the S3 key
-            presigned_url_for_s3(file_id)
-          else
-            # SharePoint: file_id is the Graph API item ID
+          # Route by file_id format, not just current provider.
+          # SharePoint item IDs are alphanumeric (e.g. "01P43HWV5GJTQ6IY66V5AKLYLFE7LSUORX").
+          # S3 keys have path separators or extensions (e.g. "Blobs/ab/abc123.pdf").
+          if sharepoint_item_id?(file_id)
             presigned_url_for_sharepoint(file_id)
+          else
+            presigned_url_for_s3(file_id)
           end
 
         rescue DocumentProviders::NotFoundError => e
@@ -1245,7 +1254,7 @@ module Api
 
         begin
           client = sharepoint_client
-          config = StorageConfiguration.instance
+          config = WarehouseProvider.instance
 
           # App credentials use different API methods than delegated
           if sharepoint_credential.credential_type == "app"
@@ -1261,18 +1270,17 @@ module Api
             client.delete_file(file_id)
           end
 
-          # SSoT: Update database to reflect deletion
-          # Find and remove any JobDocument records pointing to this file
-          deleted_docs = JobDocument.where(storage_item_id: file_id)
-          deleted_count = deleted_docs.count
-          deleted_docs.destroy_all if deleted_count > 0
+          # SSoT (Jan 2026): Update database to reflect deletion via WarehouseDocument
+          # Find StorageBlob and delete associated WarehouseDocuments
+          blob = StorageBlob.find_by(storage_path: file_id)
+          deleted_count = 0
+          if blob
+            deleted_count = WarehouseDocument.where(storage_blob: blob).count
+            WarehouseDocument.where(storage_blob: blob).destroy_all
+            # Note: Don't destroy blob yet - let blob:cleanup handle orphans safely
+          end
 
-          # Also check CorporateCompanyDocument
-          deleted_corp_docs = CorporateCompanyDocument.where(storage_file_id: file_id)
-          deleted_corp_count = deleted_corp_docs.count
-          deleted_corp_docs.destroy_all if deleted_corp_count > 0
-
-          Rails.logger.info "[SharePoint] Deleted file #{file_id}, removed #{deleted_count} JobDocument(s), #{deleted_corp_count} CorporateCompanyDocument(s)"
+          Rails.logger.info "[DocumentStorage] Deleted file #{file_id}, removed #{deleted_count} WarehouseDocument(s)"
 
           render json: { success: true, message: "File deleted successfully" }
 
@@ -1310,7 +1318,7 @@ module Api
           if is_app_credential
             # App credentials use MicrosoftAppGraphClient with explicit site/drive
             client = MicrosoftAppGraphClient.new(credential)
-            storage_config = StorageConfiguration.instance
+            storage_config = WarehouseProvider.instance
 
             unless storage_config&.connected?
               return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
@@ -1339,8 +1347,8 @@ module Api
           else
             # Delegated credentials use MicrosoftGraphClient with /me endpoints
             client = MicrosoftGraphClient.new(credential)
-            # SSoT: Get drive path from StorageConfiguration (Jan 2026)
-            storage_drive_id = StorageConfiguration.instance&.drive_id
+            # SSoT: Get drive path from WarehouseProvider (Jan 2026)
+            storage_drive_id = WarehouseProvider.instance&.drive_id
             drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
 
             # Fetch single item - this returns @microsoft.graph.downloadUrl
@@ -1429,7 +1437,7 @@ module Api
         begin
           client = sharepoint_client
           # SSoT: Get storage config for drive_id/root_folder_id (Jan 2026)
-          storage_config = StorageConfiguration.instance
+          storage_config = WarehouseProvider.instance
           storage_root_folder_id = storage_config&.root_folder_id
           storage_drive_id = storage_config&.drive_id
 
@@ -1642,12 +1650,76 @@ module Api
       #
       # Params:
       #   refresh_thumbnails: "true" - Fetch fresh thumbnail URLs from SharePoint (cached ones expire)
+      #   folder: Filter by specific folder path
+      #   include_descendants: When true, includes documents from all subfolders (cascade view)
       def job_all_files
         job = Job.find(params[:job_id])
 
+        # SSoT (Jan 2026): JobDocument table was dropped. Use WarehouseDocument instead.
+        # Return warehouse documents linked to this job until full migration to WarehouseDocument is complete.
+        unless defined?(JobDocument) && ActiveRecord::Base.connection.table_exists?("job_documents")
+          warehouse_docs = WarehouseDocument.where(linkable_type: "Job", linkable_id: job.id)
+            .or(WarehouseDocument.where(source_type: "job", documentable_type: "Job", documentable_id: job.id))
+            .includes(:storage_blob)
+
+          # Filter by folder with optional cascade (include_descendants)
+          if params[:folder].present?
+            if params[:include_descendants] == 'true'
+              # Cascade view: include this folder AND all subfolders
+              folder_path = params[:folder]
+              warehouse_docs = warehouse_docs.where("folder = ? OR folder LIKE ?", folder_path, "#{folder_path}/%")
+            else
+              # Exact folder match only
+              warehouse_docs = warehouse_docs.where(folder: params[:folder])
+            end
+          end
+
+          files = warehouse_docs.map do |doc|
+            blob = doc.storage_blob
+            {
+              id: doc.id.to_s,
+              document_id: doc.id,
+              name: doc.display_name || doc.original_filename || "Untitled",
+              original_name: doc.original_filename,
+              size: doc.file_size || blob&.file_size || 0,
+              web_url: nil,
+              storage_provider: "wasabi",
+              storage_path: blob&.storage_path,
+              download_url: doc.download_url ? "#{request.base_url}/api/v1/documents/warehouse_download?id=#{doc.id}" : nil,
+              modified: doc.updated_at&.iso8601,
+              type: "file",
+              folder_path: doc.folder || "",
+              document_type_id: nil,
+              document_type_name: doc.document_type_name,
+              from_cache: false
+            }
+          end
+
+          return render json: {
+            success: true,
+            files: files.sort_by { |f| [f[:folder_path].to_s.downcase, f[:name].to_s.downcase] },
+            total: files.size,
+            ai_stats: { total: 0, analyzed: 0, unanalyzed: 0, pending_review: 0, approved: 0, rejected: 0 },
+            source: "warehouse_documents"
+          }
+        end
+
+        # Legacy path: JobDocument table (deprecated - will be removed)
         # Check if we have cached documents in the data warehouse
         # Include entity_tabs through document_type to get entity_tab_key for folder view
         cached_docs = job.job_documents.includes({ document_type: :entity_tabs }, :ai_suggested_type, :parent_document, :child_versions, :signed_by).synced
+
+        # Filter by folder with optional cascade (include_descendants)
+        if params[:folder].present?
+          if params[:include_descendants] == 'true'
+            # Cascade view: include this folder AND all subfolders
+            folder_path = params[:folder]
+            cached_docs = cached_docs.where("folder_path = ? OR folder_path LIKE ?", folder_path, "#{folder_path}/%")
+          else
+            # Exact folder match only
+            cached_docs = cached_docs.where(folder_path: params[:folder])
+          end
+        end
 
         if cached_docs.any?
           # Refresh thumbnails if requested (they expire after ~24-48 hours)
@@ -1875,17 +1947,23 @@ module Api
 
       # POST /api/v1/documents/upload_signed_version
       # Upload a signed version of an existing draft document
-      # Creates a new JobDocument record linked to the original as parent_document
+      # SSoT (Jan 2026): Uses WarehouseDocument with version metadata
       # Params:
-      #   - parent_document_id: ID of the draft document to create signed version for
+      #   - parent_document_id: ID of the draft WarehouseDocument
       #   - file: The signed file to upload
       #   - folder_path: Optional subfolder path within the job folder
       def upload_signed_version
-        parent_doc = JobDocument.find(params[:parent_document_id])
-        job = parent_doc.job
+        parent_doc = WarehouseDocument.find(params[:parent_document_id])
+        job = parent_doc.linkable if parent_doc.linkable_type == "Job"
 
-        # Validate the document type supports versioning
-        unless parent_doc.versionable?
+        unless job
+          return render json: { success: false, error: "Document not linked to a job" }, status: :unprocessable_entity
+        end
+
+        # Validate the document supports versioning (check metadata)
+        doc_type_id = parent_doc.meta("document_type_id")
+        doc_type = DocumentType.find_by(id: doc_type_id) if doc_type_id
+        unless doc_type&.supports_versioning
           return render json: {
             success: false,
             error: "This document type does not support Draft/Signed versioning"
@@ -1893,7 +1971,7 @@ module Api
         end
 
         # Validate the parent is a draft
-        unless parent_doc.draft?
+        unless parent_doc.meta("version_status") == "draft"
           return render json: {
             success: false,
             error: "Only draft documents can have signed versions uploaded"
@@ -1923,7 +2001,7 @@ module Api
           end
 
           # Determine upload folder (same as parent document)
-          folder_path = parent_doc.folder_path || ""
+          folder_path = parent_doc.folder || ""
 
           # Generate filename with "Signed" suffix
           original_name = File.basename(file.original_filename, ".*")
@@ -1933,7 +2011,6 @@ module Api
           # Upload to SharePoint
           target_folder_id = job_folder["id"]
           if folder_path.present?
-            # Navigate to the subfolder if needed
             subfolder = client.find_or_create_subfolder(target_folder_id, folder_path)
             target_folder_id = subfolder["id"] if subfolder
           end
@@ -1945,16 +2022,42 @@ module Api
             content_type: file.content_type
           )
 
-          # Create the signed version using the model method
-          signed_version = parent_doc.create_signed_version!(
-            {
-              file_name: signed_filename,
-              file_extension: File.extname(signed_filename).delete_prefix(".").downcase,
-              file_size: uploaded_file["size"],
-              storage_item_id: uploaded_file["id"],
-              web_url: uploaded_file["webUrl"]
-            },
-            signed_by_user: current_user
+          # Create StorageBlob for the uploaded file
+          blob = StorageBlob.create!(
+            storage_path: uploaded_file["id"],
+            filename: signed_filename,
+            content_type: file.content_type,
+            byte_size: uploaded_file["size"]
+          )
+
+          # Create signed version as new WarehouseDocument with parent reference
+          version_number = (parent_doc.meta("version_number") || 1).to_i + 1
+          signed_version = WarehouseDocument.create!(
+            source_type: parent_doc.source_type,
+            linkable: job,
+            storage_blob: blob,
+            display_name: signed_filename,
+            original_filename: signed_filename,
+            folder: folder_path,
+            metadata: {
+              document_type_id: doc_type_id,
+              document_type: doc_type&.name,
+              version_status: "signed",
+              version_number: version_number,
+              parent_document_id: parent_doc.id,
+              signed_at: Time.current.iso8601,
+              signed_by_id: current_user&.id,
+              signed_by_name: current_user&.name,
+              storage_provider: "sharepoint"
+            }
+          )
+
+          # Update parent to reflect it has a signed version
+          parent_doc.update!(
+            metadata: parent_doc.metadata.merge(
+              "version_status" => "superseded",
+              "signed_version_id" => signed_version.id
+            )
           )
 
           render json: {
@@ -1962,16 +2065,16 @@ module Api
             message: "Signed version uploaded successfully",
             signed_document: {
               id: signed_version.id,
-              file_name: signed_version.file_name,
-              version_status: signed_version.version_status,
-              version_number: signed_version.version_number,
-              signed_at: signed_version.signed_at&.iso8601,
-              signed_by_name: signed_version.signed_by&.name,
+              file_name: signed_filename,
+              version_status: "signed",
+              version_number: version_number,
+              signed_at: signed_version.meta("signed_at"),
+              signed_by_name: signed_version.meta("signed_by_name"),
               web_url: uploaded_file["webUrl"]
             },
             parent_document: {
               id: parent_doc.id,
-              version_status: parent_doc.reload.version_status
+              version_status: "superseded"
             }
           }
 
@@ -2079,8 +2182,11 @@ module Api
 
         job = Job.find(job_id)
 
+        # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
         # Count documents needing analysis
-        unanalyzed_count = JobDocument.where(job_id: job.id, ai_analyzed_at: nil).count
+        unanalyzed_count = WarehouseDocument.where(source_type: "job", linkable: job)
+                                            .where("metadata->>'ai_analyzed_at' IS NULL")
+                                            .count
 
         if unanalyzed_count == 0
           return render json: {
@@ -2151,33 +2257,35 @@ module Api
       #   - job_id: Optional - filter by job
       #   - status: 'pending' (default), 'approved', 'rejected', 'all'
       #   - min_confidence: Optional - only show docs above this confidence (0-100)
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def documents_needing_review
-        scope = JobDocument.includes(:job, :document_type, :ai_suggested_type)
-                          .where.not(ai_analyzed_at: nil)
+        scope = WarehouseDocument.where(source_type: "job")
+                                 .includes(:storage_blob, :linkable)
+                                 .where("metadata->>'ai_analyzed_at' IS NOT NULL")
 
         # Filter by job if specified
         if params[:job_id].present?
-          scope = scope.where(job_id: params[:job_id])
+          scope = scope.where(linkable_type: "Job", linkable_id: params[:job_id])
         end
 
         # Filter by rename status
         status = params[:status] || "pending"
         unless status == "all"
-          scope = scope.where(rename_status: status)
+          scope = scope.where("metadata->>'rename_status' = ?", status)
         end
 
         # Filter by minimum confidence
         if params[:min_confidence].present?
           min_conf = params[:min_confidence].to_i
-          scope = scope.where("ai_confidence >= ?", min_conf)
+          scope = scope.where("(metadata->>'ai_confidence')::int >= ?", min_conf)
         end
 
         # Order by confidence descending (highest confidence first)
-        documents = scope.order(ai_confidence: :desc, ai_analyzed_at: :desc).limit(100)
+        documents = scope.order(Arel.sql("(metadata->>'ai_confidence')::int DESC NULLS LAST, metadata->>'ai_analyzed_at' DESC")).limit(100)
 
         render json: {
           success: true,
-          documents: documents.map { |doc| format_document_for_review(doc) },
+          documents: documents.map { |doc| format_warehouse_document_for_review(doc) },
           count: documents.length,
           filters: {
             job_id: params[:job_id],
@@ -2190,12 +2298,13 @@ module Api
       # POST /api/v1/documents/approve_document_rename
       # Approve or reject AI rename suggestion for a document
       # Params:
-      #   - document_id: The JobDocument ID
+      #   - document_id: WarehouseDocument ID
       #   - action: 'approve' or 'reject'
       #   - custom_name: Optional - use this name instead of AI suggestion
       #   - custom_type_id: Optional - use this document type instead of AI suggestion
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def approve_document_rename
-        document = JobDocument.find(params[:document_id])
+        document = WarehouseDocument.find(params[:document_id])
         action = params[:action]
 
         unless %w[approve reject].include?(action)
@@ -2204,9 +2313,11 @@ module Api
 
         if action == "reject"
           document.update!(
-            rename_status: "rejected",
-            rename_approved_at: Time.current,
-            rename_approved_by_id: current_user&.id
+            metadata: (document.metadata || {}).merge(
+              "rename_status" => "rejected",
+              "rename_approved_at" => Time.current.iso8601,
+              "rename_approved_by_id" => current_user&.id
+            )
           )
 
           return render json: {
@@ -2226,41 +2337,46 @@ module Api
         end
 
         # Determine the new name
-        new_name = params[:custom_name].presence || document.ai_proposed_name
+        new_name = params[:custom_name].presence || document.meta("ai_proposed_name")
 
         unless new_name.present?
           return render json: { error: "No proposed name available" }, status: :bad_request
         end
 
         # Determine the document type
-        new_type_id = params[:custom_type_id].presence || document.ai_suggested_type_id
+        new_type_id = params[:custom_type_id].presence || document.meta("ai_suggested_type_id")
 
         begin
           client = MicrosoftGraphClient.new(credential)
-          # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
-          storage_drive_id = StorageConfiguration.instance&.drive_id
+          # SSoT: Get drive_id from WarehouseProvider (Jan 2026)
+          storage_drive_id = WarehouseProvider.instance&.drive_id
 
-          # Rename the file in SharePoint (SSoT: use storage_reference)
+          # Rename the file in SharePoint (SSoT: use storage_reference from blob)
+          storage_ref = document.storage_blob&.storage_path
           result = client.patch(
-            "/drives/#{storage_drive_id}/items/#{document.storage_reference}",
+            "/drives/#{storage_drive_id}/items/#{storage_ref}",
             { name: new_name }
           )
 
           # Update the document record
+          old_name = document.original_filename || document.display_name
           document.update!(
-            file_name: new_name,
-            document_type_id: new_type_id,
-            rename_status: "completed",
-            rename_approved_at: Time.current,
-            rename_approved_by_id: current_user&.id,
-            web_url: result["webUrl"]
+            display_name: new_name,
+            original_filename: new_name,
+            metadata: (document.metadata || {}).merge(
+              "document_type_id" => new_type_id,
+              "rename_status" => "completed",
+              "rename_approved_at" => Time.current.iso8601,
+              "rename_approved_by_id" => current_user&.id,
+              "web_url" => result["webUrl"]
+            )
           )
 
           render json: {
             success: true,
             message: "Document renamed successfully",
             document_id: document.id,
-            old_name: document.original_file_name,
+            old_name: old_name,
             new_name: new_name,
             document_type_id: new_type_id,
             web_url: result["webUrl"]
@@ -2280,7 +2396,8 @@ module Api
       # POST /api/v1/documents/bulk_approve_renames
       # Bulk approve multiple document renames
       # Params:
-      #   - document_ids: Array of JobDocument IDs to approve
+      #   - document_ids: Array of WarehouseDocument IDs to approve
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def bulk_approve_renames
         document_ids = params[:document_ids] || []
 
@@ -2295,31 +2412,39 @@ module Api
           return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
-        documents = JobDocument.where(id: document_ids, rename_status: "pending")
-                              .where.not(ai_proposed_name: nil)
+        documents = WarehouseDocument.where(id: document_ids)
+                                     .where("metadata->>'rename_status' = ?", "pending")
+                                     .where("metadata->>'ai_proposed_name' IS NOT NULL")
+                                     .includes(:storage_blob)
 
         results = { approved: 0, failed: 0, errors: [] }
 
         client = MicrosoftGraphClient.new(credential)
-        # SSoT: Get drive_id from StorageConfiguration (Jan 2026)
-        storage_drive_id = StorageConfiguration.instance&.drive_id
+        # SSoT: Get drive_id from WarehouseProvider (Jan 2026)
+        storage_drive_id = WarehouseProvider.instance&.drive_id
 
         documents.each do |doc|
           begin
-            # Rename in SharePoint (SSoT: use storage_reference)
+            ai_proposed_name = doc.meta("ai_proposed_name")
+            storage_ref = doc.storage_blob&.storage_path
+
+            # Rename in SharePoint (SSoT: use storage_reference from blob)
             result = client.patch(
-              "/drives/#{storage_drive_id}/items/#{doc.storage_reference}",
-              { name: doc.ai_proposed_name }
+              "/drives/#{storage_drive_id}/items/#{storage_ref}",
+              { name: ai_proposed_name }
             )
 
             # Update document record
             doc.update!(
-              file_name: doc.ai_proposed_name,
-              document_type_id: doc.ai_suggested_type_id,
-              rename_status: "completed",
-              rename_approved_at: Time.current,
-              rename_approved_by_id: current_user&.id,
-              web_url: result["webUrl"]
+              display_name: ai_proposed_name,
+              original_filename: ai_proposed_name,
+              metadata: (doc.metadata || {}).merge(
+                "document_type_id" => doc.meta("ai_suggested_type_id"),
+                "rename_status" => "completed",
+                "rename_approved_at" => Time.current.iso8601,
+                "rename_approved_by_id" => current_user&.id,
+                "web_url" => result["webUrl"]
+              )
             )
 
             results[:approved] += 1
@@ -2382,9 +2507,9 @@ module Api
       # - 'sharepoint' or nil: Downloads from SharePoint
       #
       # Params:
-      #   document_id: JobDocument ID (required)
+      #   document_id: WarehouseDocument ID (required)
       #   preview: "true" for inline display, omit for attachment download
-      #
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def job_document_download
         document_id = params[:document_id]
         is_preview = params[:preview] == "true"
@@ -2393,16 +2518,21 @@ module Api
           return render json: { error: "document_id is required" }, status: :bad_request
         end
 
-        document = JobDocument.find_by(id: document_id)
+        document = WarehouseDocument.find_by(id: document_id)
 
         unless document
           return render json: { error: "Document not found" }, status: :not_found
         end
 
+        blob = document.storage_blob
+        unless blob&.storage_path.present?
+          return render json: { error: "Document has no storage reference" }, status: :unprocessable_entity
+        end
+
         begin
           # SSoT: Only serve documents from current storage provider (no fallback)
-          storage_config = StorageConfiguration.instance
-          doc_provider = document.storage_provider || "sharepoint"
+          storage_config = WarehouseProvider.instance
+          doc_provider = document.meta("storage_provider") || storage_config.provider_type || "sharepoint"
 
           unless storage_config.document_in_current_provider?(doc_provider)
             return render json: {
@@ -2414,9 +2544,9 @@ module Api
           # Route to correct provider based on document's storage_provider
           case doc_provider
           when "s3_compatible", "wasabi", "s3"
-            download_from_s3(document, is_preview)
+            download_from_s3_warehouse(document, is_preview)
           when "sharepoint"
-            download_from_sharepoint(document, is_preview)
+            download_from_sharepoint_warehouse(document, is_preview)
           else
             render json: { error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
           end
@@ -2426,21 +2556,21 @@ module Api
         rescue DocumentProviders::NotConnectedError => e
           render json: { error: "Storage provider not connected: #{e.message}" }, status: :service_unavailable
         rescue StandardError => e
-          Rails.logger.error "[JobDocumentDownload] Error downloading document #{document_id}: #{e.message}"
+          Rails.logger.error "[WarehouseDocumentDownload] Error downloading document #{document_id}: #{e.message}"
           Rails.logger.error e.backtrace.first(5).join("\n")
           render json: { error: "Failed to download: #{e.message}" }, status: :internal_server_error
         end
       end
 
       # GET /api/v1/documents/job_document_url
-      # Get a pre-signed URL for direct browser access to a job document
+      # Get a pre-signed URL for direct browser access to a document
       #
       # Returns a URL that can be used directly in browser for 1 hour.
       # Useful for opening PDFs in new tabs, image previews, etc.
       #
       # Params:
-      #   document_id: JobDocument ID (required)
-      #
+      #   document_id: WarehouseDocument ID (required)
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
       def job_document_url
         document_id = params[:document_id]
 
@@ -2448,16 +2578,21 @@ module Api
           return render json: { success: false, error: "document_id is required" }, status: :bad_request
         end
 
-        document = JobDocument.find_by(id: document_id)
+        document = WarehouseDocument.find_by(id: document_id)
 
         unless document
           return render json: { success: false, error: "Document not found" }, status: :not_found
         end
 
+        blob = document.storage_blob
+        unless blob&.storage_path.present?
+          return render json: { success: false, error: "Document has no storage reference" }, status: :unprocessable_entity
+        end
+
         begin
           # SSoT: Only serve documents from current storage provider (no fallback)
-          storage_config = StorageConfiguration.instance
-          doc_provider = document.storage_provider || "sharepoint"
+          storage_config = WarehouseProvider.instance
+          doc_provider = document.meta("storage_provider") || storage_config.provider_type || "sharepoint"
 
           unless storage_config.document_in_current_provider?(doc_provider)
             return render json: {
@@ -2470,19 +2605,20 @@ module Api
           # Route to correct provider based on document's storage_provider
           case doc_provider
           when "s3_compatible", "wasabi", "s3"
-            url = get_s3_presigned_url(document)
+            url = get_s3_presigned_url_warehouse(document)
           when "sharepoint"
-            url = get_sharepoint_download_url(document)
+            url = get_sharepoint_download_url_warehouse(document)
           else
             return render json: { success: false, error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
           end
 
+          filename = document.original_filename || document.display_name
           render json: {
             success: true,
             download_url: url,
             storage_provider: doc_provider,
-            file_name: document.file_name,
-            mime_type: document.mime_type,
+            file_name: filename,
+            mime_type: document.content_type || blob&.content_type,
             expires_in: 3600
           }
 
@@ -2491,17 +2627,17 @@ module Api
         rescue DocumentProviders::NotConnectedError => e
           render json: { success: false, error: "Storage provider not connected" }, status: :service_unavailable
         rescue StandardError => e
-          Rails.logger.error "[JobDocumentUrl] Error getting URL for document #{document_id}: #{e.message}"
+          Rails.logger.error "[WarehouseDocumentUrl] Error getting URL for document #{document_id}: #{e.message}"
           render json: { success: false, error: "Failed to get download URL" }, status: :internal_server_error
         end
       end
 
       private
 
-      # Build job folder path using SSoT pattern from StorageConfiguration
+      # Build job folder path using SSoT pattern from WarehouseProvider
       # SSoT: Uses job_code ("J" + id), e.g., "J201"
       def build_job_folder_path(job)
-        # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+        # SSoT: Use WarehouseProvider.job_path for consistent folder naming
         storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
       end
 
@@ -2528,7 +2664,14 @@ module Api
         end
       end
 
-      # Generate presigned URL for S3/Wasabi files
+      # Detect SharePoint Graph API item IDs by format (no API call).
+      # SharePoint IDs: alphanumeric + !, no slashes or dots
+      # S3 keys: contain path separators / or file extensions .
+      # Matches DocumentProviders::SharePoint#looks_like_id?
+      def sharepoint_item_id?(file_id)
+        file_id.present? && !file_id.include?("/") && file_id.match?(/\A[A-Za-z0-9!_-]+\z/)
+      end
+
       # SSoT: Used by presigned_url action for PDF performance optimization
       def presigned_url_for_s3(s3_key)
         credential = S3CompatibleCredential.active.connected.first
@@ -2556,7 +2699,7 @@ module Api
         end
 
         client = sharepoint_client
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
 
         unless config&.connected?
           raise DocumentProviders::NotConnectedError, "SharePoint not configured"
@@ -2663,7 +2806,7 @@ module Api
         end
 
         client = sharepoint_client
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
 
         # Get file metadata and content
         # App credentials use different API methods than delegated
@@ -2744,7 +2887,7 @@ module Api
         end
 
         client = sharepoint_client
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
 
         # Get file metadata and content
         # App credentials use different API methods than delegated
@@ -2804,7 +2947,7 @@ module Api
         end
 
         client = sharepoint_client
-        config = StorageConfiguration.instance
+        config = WarehouseProvider.instance
 
         # Get download URL
         # App credentials use different API methods than delegated
@@ -2825,8 +2968,8 @@ module Api
       def change_root_folder_by_id(credential, folder_id)
         client = MicrosoftGraphClient.new(credential)
 
-        # SSoT: Get drive path from StorageConfiguration (Jan 2026)
-        storage_drive_id = StorageConfiguration.instance&.drive_id
+        # SSoT: Get drive path from WarehouseProvider (Jan 2026)
+        storage_drive_id = WarehouseProvider.instance&.drive_id
         drive_path = storage_drive_id.present? ? "/drives/#{storage_drive_id}" : "/me/drive"
 
         # Get folder info from Graph API
@@ -2845,8 +2988,8 @@ module Api
           full_path = folder_name
         end
 
-        # SSoT: Update StorageConfiguration with root folder info (not credential)
-        storage_config = StorageConfiguration.instance
+        # SSoT: Update WarehouseProvider with root folder info (not credential)
+        storage_config = WarehouseProvider.instance
         if storage_config
           storage_config.root_folder_id = folder_response["id"]
           storage_config.root_folder_path = full_path
@@ -2962,6 +3105,7 @@ module Api
       end
 
       # Map foundation_id to model class
+      # SSoT: All documents use WarehouseDocument
       def get_model_for_foundation(foundation_id)
         case foundation_id&.to_s&.downcase
         when "contacts", "contact"
@@ -2973,7 +3117,7 @@ module Api
         when "assets", "asset"
           Asset
         when "documents", "document", "company_documents"
-          CorporateCompanyDocument
+          WarehouseDocument
         when "pay_now_requests", "pay_now_request"
           PayNowRequest
         when "financial_transactions", "financial_transaction"
@@ -2985,7 +3129,7 @@ module Api
             # Whitelist valid model classes to prevent RCE via constantize
             valid_models = %w[
               Job Contact Supplier Case Invoice Quote Estimate Task
-              SmTask SmScheduleMasterTemplate Foundation Record CorporateCompanyDocument
+              SmTask SmScheduleMasterTemplate Foundation Record WarehouseDocument
               PayNowRequest FinancialTransaction User PricebookItem
               Column FoundationView WhsIncident WhsInspection WhsInduction
             ]
@@ -3068,13 +3212,13 @@ module Api
 
       # Recursively list all files in a job folder
       # Similar to JobDocumentMigrationService but for the job's own folder
-      # SSoT: Uses StorageConfiguration for drive_id (Jan 2026)
+      # SSoT: Uses WarehouseProvider for drive_id (Jan 2026)
       def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
         files = []
         folders_to_process = [ [ root_folder_id, 0, "" ] ] # [folder_id, depth, path]
         start_time = Time.now
-        # SSoT: Get drive_id from StorageConfiguration
-        storage_drive_id = StorageConfiguration.instance&.drive_id
+        # SSoT: Get drive_id from WarehouseProvider
+        storage_drive_id = WarehouseProvider.instance&.drive_id
 
         while folders_to_process.any?
           # Check if we've exceeded the time limit
@@ -3207,37 +3351,44 @@ module Api
       end
 
       # Format a document for the review UI
-      def format_document_for_review(doc)
+      # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
+      def format_warehouse_document_for_review(doc)
+        job = doc.linkable if doc.linkable_type == "Job"
+        doc_type_id = doc.meta("document_type_id")
+        doc_type = DocumentType.find_by(id: doc_type_id) if doc_type_id
+        suggested_type_id = doc.meta("ai_suggested_type_id")
+        suggested_type = DocumentType.find_by(id: suggested_type_id) if suggested_type_id
+
         {
           id: doc.id,
-          job_id: doc.job_id,
-          job_title: doc.job&.title,
-          # SSoT: Use storage_reference (provider-agnostic)
-          sharepoint_item_id: doc.storage_reference,
-          storage_reference: doc.storage_reference,
-          current_name: doc.file_name,
-          original_name: doc.original_file_name,
-          proposed_name: doc.ai_proposed_name,
-          folder_path: doc.folder_path,
-          file_extension: doc.file_extension,
-          file_type: doc.file_type,
-          file_size: doc.file_size,
-          web_url: doc.web_url,
-          current_type: doc.document_type ? {
-            id: doc.document_type.id,
-            name: doc.document_type.name,
-            abbreviation: doc.document_type.abbreviation
+          job_id: job&.id,
+          job_title: job&.title,
+          # SSoT: Use storage_path from blob (provider-agnostic)
+          sharepoint_item_id: doc.storage_blob&.storage_path,
+          storage_reference: doc.storage_blob&.storage_path,
+          current_name: doc.display_name || doc.original_filename,
+          original_name: doc.original_filename,
+          proposed_name: doc.meta("ai_proposed_name"),
+          folder_path: doc.folder,
+          file_extension: File.extname(doc.original_filename.to_s).delete("."),
+          file_type: doc.storage_blob&.content_type,
+          file_size: doc.file_size || doc.storage_blob&.file_size,
+          web_url: doc.meta("web_url"),
+          current_type: doc_type ? {
+            id: doc_type.id,
+            name: doc_type.name,
+            abbreviation: doc_type.abbreviation
           } : nil,
-          suggested_type: doc.ai_suggested_type ? {
-            id: doc.ai_suggested_type.id,
-            name: doc.ai_suggested_type.name,
-            abbreviation: doc.ai_suggested_type.abbreviation
+          suggested_type: suggested_type ? {
+            id: suggested_type.id,
+            name: suggested_type.name,
+            abbreviation: suggested_type.abbreviation
           } : nil,
-          ai_confidence: doc.ai_confidence&.to_f,
-          ai_reasoning: doc.ai_reasoning,
-          ai_analyzed_at: doc.ai_analyzed_at&.iso8601,
-          rename_status: doc.rename_status,
-          rename_approved_at: doc.rename_approved_at&.iso8601
+          ai_confidence: doc.meta("ai_confidence")&.to_f,
+          ai_reasoning: doc.meta("ai_reasoning"),
+          ai_analyzed_at: doc.meta("ai_analyzed_at"),
+          rename_status: doc.meta("rename_status"),
+          rename_approved_at: doc.meta("rename_approved_at")
         }
       end
 

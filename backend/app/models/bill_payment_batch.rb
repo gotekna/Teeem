@@ -1,7 +1,14 @@
 # frozen_string_literal: true
 
 class BillPaymentBatch < ApplicationRecord
+  # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
+  # FRC: BillPaymentBatch was leaking data across tenants
+  # Root cause: Legacy indirect relationship (batch → corporate_company → tenant)
+  # Fix: Direct tenant_id column + acts_as_tenant for automatic scoping
+  acts_as_tenant :tenant
+
   # Associations
+  belongs_to :tenant
   belongs_to :corporate_company
   belongs_to :bank_account
   belongs_to :created_by, class_name: "User", optional: true
@@ -171,7 +178,7 @@ class BillPaymentBatch < ApplicationRecord
   def generate_batch_reference
     return if batch_reference.present?
 
-    date_str = (payment_date || CorporateCompanySetting.today).strftime("%Y%m%d")
+    date_str = (payment_date || TenantSetting.today).strftime("%Y%m%d")
     company_code = corporate_company&.code || "XXX"
     sequence = SecureRandom.hex(3).upcase
     self.batch_reference = "PAY-#{company_code}-#{date_str}-#{sequence}"
@@ -191,7 +198,7 @@ class BillPaymentBatch < ApplicationRecord
   end
 
   def payment_date_not_in_past
-    if payment_date.present? && payment_date < CorporateCompanySetting.today
+    if payment_date.present? && payment_date < TenantSetting.today
       errors.add(:payment_date, "cannot be in the past")
     end
   end

@@ -57,13 +57,10 @@ export default function DocumentSidePanel({
   const [previewLoading, setPreviewLoading] = React.useState(false);
   const [previewError, setPreviewError] = React.useState<string | null>(null);
 
-  // Fetch embeddable preview URL for cloud storage files
-  // SSoT: Prefer storage_item_id, fall back to sharepoint_file_id
-  const storageRef = document?.storage_item_id || document?.sharepoint_file_id;
-
+  // Fetch presigned preview URL for all documents (S3/Wasabi and SharePoint)
   React.useEffect(() => {
     const fetchPreviewUrl = async () => {
-      if (!storageRef || !open) {
+      if (!document?.id || !open) {
         setPreviewUrl(null);
         return;
       }
@@ -98,7 +95,7 @@ export default function DocumentSidePanel({
     };
 
     fetchPreviewUrl();
-  }, [document?.id, storageRef, open]);
+  }, [document?.id, open]);
 
   if (!document) return null;
 
@@ -244,27 +241,23 @@ export default function DocumentSidePanel({
                 <Spinner size={48} className="mb-4" />
                 <p className="text-sm">Loading preview...</p>
               </div>
-            ) : previewUrl ? (
-              <iframe
-                src={previewUrl}
-                className="w-full h-full border-0"
-                title="Document Preview"
-                allow="fullscreen"
-              />
-            ) : fileType === "pdf" && document.file_url && !storageRef ? (
-              <iframe
-                src={document.file_url}
-                className="w-full h-full border-0"
-                title="Document Preview"
-              />
-            ) : fileType === "image" && document.file_url ? (
-              <div className="flex items-center justify-center h-full p-4">
-                <img
-                  src={document.file_url}
-                  alt={fileName}
-                  className="max-w-full max-h-full object-contain"
+            ) : previewUrl && (fileType === "pdf" || fileType === "image") ? (
+              fileType === "image" ? (
+                <div className="flex items-center justify-center h-full p-4">
+                  <img
+                    src={previewUrl}
+                    alt={fileName}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <iframe
+                  src={previewUrl}
+                  className="w-full h-full border-0"
+                  title="Document Preview"
+                  allow="fullscreen"
                 />
-              </div>
+              )
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
                 <FileText className="h-16 w-16 mb-4" />
@@ -272,14 +265,12 @@ export default function DocumentSidePanel({
                   {previewError || "Preview not available"}
                 </p>
                 <p className="text-sm text-center mb-4">
-                  {storageRef
-                    ? "Could not load cloud storage preview"
-                    : "This file type cannot be previewed inline"}
+                  This file type cannot be previewed inline
                 </p>
                 <div className="flex gap-2">
-                  {document.file_url && (
+                  {previewUrl && (
                     <Button asChild size="sm">
-                      <a href={document.file_url} target="_blank" rel="noopener noreferrer">
+                      <a href={previewUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-4 w-4 mr-2" />
                         Open in New Tab
                       </a>

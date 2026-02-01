@@ -5,7 +5,7 @@
 # =============================================================================
 # ╔═══════════════════════════════════════════════════════════════════╗
 # ║  SSoT: Uses DocumentProviderAware for storage abstraction         ║
-# ║  Scans Wasabi, SharePoint, or S3 based on StorageConfiguration    ║
+# ║  Scans Wasabi, SharePoint, or S3 based on WarehouseProvider    ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
 # Uses BatchOperation for progress tracking (SSoT for all batch operations).
@@ -32,7 +32,7 @@ class BatchFolderScanJob < ApplicationJob
 
     Rails.logger.info "[BatchFolderScanJob] Starting folder scan"
 
-    # SSoT: Setup document provider using StorageConfiguration
+    # SSoT: Setup document provider using WarehouseProvider
     begin
       setup_default_provider!
     rescue DocumentProviders::NotConnectedError => e
@@ -104,7 +104,7 @@ class BatchFolderScanJob < ApplicationJob
     end
   end
 
-  # SSoT: Use StorageConfiguration.job_path for consistent folder naming
+  # SSoT: Use WarehouseProvider.job_path for consistent folder naming
   def build_job_folder_path(job)
     storage_config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
   end

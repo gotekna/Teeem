@@ -6,6 +6,11 @@ class TeeemPdf < ApplicationRecord
 
   belongs_to :user
   belongs_to :job, optional: true
+  belongs_to :storage_blob, optional: true
+
+  # Phase 4: Universal warehouse metadata (SSoT for display_name, folder)
+  # User-created PDFs appear in File Warehouse under Warehousing folder
+  has_one :warehouse_document, as: :documentable, dependent: :destroy
 
   validates :name, presence: true, length: { maximum: 255 }
 
@@ -62,7 +67,7 @@ class TeeemPdf < ApplicationRecord
   scope :unattached, -> { where(job_id: nil) }
 
   # ========================================
-  # Warehouse Path (SSoT: StorageConfiguration)
+  # Warehouse Path (SSoT: WarehouseProvider)
   # ========================================
 
   # SSoT: Full warehouse path including filename
@@ -71,9 +76,9 @@ class TeeemPdf < ApplicationRecord
     "#{warehouse_folder_path}/#{safe_filename}_#{id}.pdf".gsub(%r{/+}, "/")
   end
 
-  # SSoT: Folder path computed by StorageConfiguration
+  # SSoT: Folder path computed by WarehouseProvider
   def warehouse_folder_path
-    StorageConfiguration.instance.resolve_warehouse_path(self, scope: :pdf_documents)
+    WarehouseProvider.instance.resolve_warehouse_path(self, scope: :pdf_documents)
   end
 
   # Safe filename (remove special characters)

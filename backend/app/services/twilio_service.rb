@@ -1,7 +1,7 @@
 class TwilioService
   class << self
     def send_sms(to:, body:, contact:, user: nil)
-      settings = CorporateCompanySetting.instance
+      settings = TenantSetting.instance
 
       unless settings&.twilio_enabled?
         return { success: false, error: "Twilio is not configured. Please configure Twilio in Settings." }
@@ -95,7 +95,7 @@ class TwilioService
     end
 
     def test_connection
-      settings = CorporateCompanySetting.instance
+      settings = TenantSetting.instance
 
       unless settings&.twilio_enabled?
         return { success: false, error: "Twilio is not enabled" }

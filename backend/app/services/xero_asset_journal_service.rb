@@ -191,7 +191,7 @@ class XeroAssetJournalService
 
     results = { success: 0, failed: 0, errors: [] }
 
-    CorporateCompanyXeroConnection.active.each do |connection|
+    CorporateXeroConnection.active.each do |connection|
       begin
         service = new(connection)
         result = service.post_depreciation_journal(month, year)
@@ -290,7 +290,7 @@ class XeroAssetJournalService
 
   def load_account_codes
     # Load account codes from company settings or use defaults
-    settings = @company.corporate_company_setting rescue nil
+    settings = @company.corporate_setting rescue nil
 
     if settings&.xero_asset_accounts.present?
       settings.xero_asset_accounts.symbolize_keys

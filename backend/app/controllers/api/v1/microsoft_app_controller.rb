@@ -434,13 +434,18 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can view organization mailboxes" }, status: :forbidden
     end
 
-    # Get all TEEEM users for the mapping UI (include all users so admins can pre-configure access)
-    teeem_users = User.order(:name).map do |u|
+    # SSoT (Jan 2026): Filter users by current tenant for multi-tenancy isolation
+    tenant_user_ids = current_tenant&.users&.pluck(:id) || []
+    teeem_users = User.where(id: tenant_user_ids).order(:name).map do |u|
       { id: u.id, name: u.name, email: u.email }
     end
 
-    # SSoT: Use MicrosoftCredential
-    organizations = MicrosoftCredential.app_credentials.active.order(:name).map do |org|
+    # SSoT (Jan 2026): Filter MS365 credentials by current tenant's organizations
+    # MicrosoftCredential belongs_to Organization, which belongs_to Tenant (indirect relationship)
+    tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
+    organizations = MicrosoftCredential.app_credentials.active
+                                        .where(organization_id: tenant_org_ids)
+                                        .order(:name).map do |org|
       # Get mailboxes from tenant
       all_mailboxes = if org.status == "connected"
         begin
@@ -460,13 +465,16 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
       # Get current user-mailbox access configuration
       user_mailbox_access = org.sync_config&.dig("user_mailbox_access") || {}
+      # Get sync_all setting (Jan 2026: Option B - sync all tenant mailboxes)
+      sync_all = org.sync_config&.dig("sync_all") || false
 
       {
         id: org.id,
         name: org.name,
         status: org.status,
         mailboxes: mailboxes,
-        user_mailbox_access: user_mailbox_access
+        user_mailbox_access: user_mailbox_access,
+        sync_all: sync_all
       }
     end
 
@@ -479,6 +487,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
   # PUT /api/v1/microsoft_app/:organization_id/user_mailbox_access
   # Configure which TEEEM users can access which mailboxes
+  # FRC (Jan 2026): Also auto-updates user_emails to sync all accessible mailboxes
   def update_user_mailbox_access
     unless current_user_admin?
       return render json: { error: "Only admins can configure mailbox access" }, status: :forbidden
@@ -495,14 +504,87 @@ class Api::V1::MicrosoftAppController < ApplicationController
     # Keys are TEEEM user IDs, values are arrays of allowed mailbox emails
     user_mailbox_access = params[:user_mailbox_access] || {}
 
-    # Merge with existing sync_config
-    new_sync_config = (credential.sync_config || {}).merge("user_mailbox_access" => user_mailbox_access)
+    # FRC (Jan 2026): Auto-derive user_emails from all accessible mailboxes
+    # If ANY user has access to a mailbox, it should be synced automatically
+    # This fixes the bug where granting access didn't enable syncing
+    # FRC (Jan 2026): Add .compact to handle nil values (frontend may send nil instead of [])
+    all_accessible_mailboxes = user_mailbox_access.values.flatten.compact.uniq.sort
+
+    # Merge with existing sync_config, updating BOTH user_mailbox_access AND user_emails
+    existing_config = credential.sync_config || {}
+    new_sync_config = existing_config.merge(
+      "user_mailbox_access" => user_mailbox_access,
+      "user_emails" => all_accessible_mailboxes
+    )
     credential.update!(sync_config: new_sync_config)
+
+    # Trigger incremental sync to pick up any new mailboxes
+    if all_accessible_mailboxes.any?
+      OrgEmailSyncJob.perform_later("incremental", credential_id: credential.id)
+    end
 
     render json: {
       success: true,
-      message: "Mailbox access configuration saved for #{credential.name}",
-      user_mailbox_access: user_mailbox_access
+      message: "Mailbox access configuration saved for #{credential.name}. Syncing #{all_accessible_mailboxes.count} mailbox(es).",
+      user_mailbox_access: user_mailbox_access,
+      user_emails: all_accessible_mailboxes
+    }
+  end
+
+  # PUT /api/v1/microsoft_app/:id/toggle_sync_all
+  # Toggle sync_all setting for an organization (Jan 2026: Option B - sync all tenant mailboxes)
+  # When enabled, OrgEmailSyncJob will sync ALL mailboxes from the tenant
+  def toggle_sync_all
+    unless current_user_admin?
+      return render json: { error: "Only admins can toggle sync settings" }, status: :forbidden
+    end
+
+    credential = MicrosoftCredential.find_by(id: params[:id])
+    unless credential
+      return render json: { error: "Organization not found" }, status: :not_found
+    end
+
+    sync_all = ActiveModel::Type::Boolean.new.cast(params[:sync_all])
+
+    # Update sync_config with new sync_all value
+    existing_config = credential.sync_config || {}
+    new_sync_config = existing_config.merge("sync_all" => sync_all)
+    credential.update!(sync_config: new_sync_config)
+
+    # If enabling sync_all, trigger a sync immediately
+    if sync_all
+      OrgEmailSyncJob.perform_later("incremental", credential_id: credential.id)
+    end
+
+    render json: {
+      success: true,
+      sync_all: sync_all,
+      message: sync_all ?
+        "Sync All enabled for #{credential.name}. All tenant mailboxes will be synced." :
+        "Sync All disabled for #{credential.name}. Only configured mailboxes will be synced."
+    }
+  end
+
+  # POST /api/v1/microsoft_app/:id/sync
+  # Trigger a full email sync for this organization
+  def sync
+    unless current_user_admin?
+      return render json: { error: "Only admins can trigger syncs" }, status: :forbidden
+    end
+
+    credential = MicrosoftCredential.find_by(id: params[:id])
+    unless credential
+      return render json: { error: "Organization not found" }, status: :not_found
+    end
+
+    full_sync = params[:full_sync] == true || params[:full_sync] == "true"
+    sync_type = full_sync ? "full" : "incremental"
+
+    OrgEmailSyncJob.perform_later(sync_type, credential_id: credential.id)
+
+    render json: {
+      success: true,
+      message: "#{sync_type.titleize} email sync started for #{credential.name}. This may take several minutes."
     }
   end
 
@@ -702,13 +784,13 @@ class Api::V1::MicrosoftAppController < ApplicationController
   end
 
   # POST /api/v1/microsoft_app/sync_to_storage
-  # Sync emails to SyncedEmail and upload to configured storage provider (SSoT: StorageConfiguration)
+  # Sync emails to SyncedEmail and upload to configured storage provider (SSoT: WarehouseProvider)
   def sync_to_storage
     unless current_user_admin?
       return render json: { error: "Only admins can trigger storage sync" }, status: :forbidden
     end
 
-    # Queue the storage upload job (respects StorageConfiguration provider)
+    # Queue the storage upload job (respects WarehouseProvider provider)
     UploadEmailsToStorageJob.perform_later(batch_size: 500)
 
     render json: {
@@ -832,11 +914,11 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "site_id and drive_id are required" }, status: :bad_request
     end
 
-    # SSoT: Update StorageConfiguration instead of MicrosoftCredential
-    # MicrosoftCredential only holds auth tokens, StorageConfiguration holds connection config
-    storage_config = StorageConfiguration.instance
+    # SSoT: Update WarehouseProvider instead of MicrosoftCredential
+    # MicrosoftCredential only holds auth tokens, WarehouseProvider holds connection config
+    storage_config = WarehouseProvider.instance
     unless storage_config
-      return render json: { error: "No StorageConfiguration found" }, status: :not_found
+      return render json: { error: "No WarehouseProvider found" }, status: :not_found
     end
 
     # Update the SharePoint connection config
@@ -885,7 +967,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Organization not connected" }, status: :not_found
     end
 
-    unless StorageConfiguration.instance&.connected?
+    unless WarehouseProvider.instance&.connected?
       return render json: { error: "Storage not configured. Please configure storage provider first." }, status: :unprocessable_entity
     end
 
@@ -994,7 +1076,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
     return unless mc
 
     # Note: sharepoint_* columns removed from MicrosoftCredential in Phase 5
-    # SSoT: SharePoint config now lives in StorageConfiguration
+    # SSoT: SharePoint config now lives in WarehouseProvider
     mc.update!(
       access_token: old_credential.access_token,
       token_expires_at: old_credential.token_expires_at,

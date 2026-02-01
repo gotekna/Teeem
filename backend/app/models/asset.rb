@@ -3,13 +3,14 @@ class Asset < ApplicationRecord
   acts_as_tenant :tenant
 
   # Associations
+  belongs_to :tenant
   belongs_to :corporate_company, foreign_key: "company_id"
   belongs_to :assigned_user, class_name: "User", optional: true
 
   # Existing associations
   has_one :asset_insurance, dependent: :destroy
   has_many :asset_service_histories, dependent: :destroy
-  has_many :corporate_company_documents, dependent: :nullify
+  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
 
   # New associations for Asset Register
   has_one :depreciation_profile, class_name: "AssetDepreciationProfile", dependent: :destroy
@@ -80,7 +81,7 @@ class Asset < ApplicationRecord
 
   def insurance_expiring_soon?(days = 30)
     return false unless has_insurance?
-    today = CorporateCompanySetting.today
+    today = TenantSetting.today
     asset_insurance.renewal_date.present? &&
       asset_insurance.renewal_date <= days.days.from_now &&
       asset_insurance.renewal_date >= today
@@ -88,7 +89,7 @@ class Asset < ApplicationRecord
 
   def insurance_expired?
     return false unless asset_insurance.present?
-    asset_insurance.renewal_date.present? && asset_insurance.renewal_date < CorporateCompanySetting.today
+    asset_insurance.renewal_date.present? && asset_insurance.renewal_date < TenantSetting.today
   end
 
   def last_service
@@ -105,7 +106,7 @@ class Asset < ApplicationRecord
   end
 
   def service_overdue?
-    next_service_due.present? && next_service_due < CorporateCompanySetting.today
+    next_service_due.present? && next_service_due < TenantSetting.today
   end
 
   def total_maintenance_cost
@@ -114,7 +115,7 @@ class Asset < ApplicationRecord
 
   def age_in_years
     return nil unless purchase_date.present?
-    ((CorporateCompanySetting.today - purchase_date).to_f / 365.25).round(1)
+    ((TenantSetting.today - purchase_date).to_f / 365.25).round(1)
   end
 
   def depreciation_amount
@@ -127,7 +128,8 @@ class Asset < ApplicationRecord
   end
 
   def documents_count
-    corporate_company_documents.count
+    # Note: corporate_company_documents table dropped (Jan 2026) - use WarehouseDocument
+    0  # Placeholder until WarehouseDocument integration
   end
 
   # Asset number in format: ABC-VEH-001

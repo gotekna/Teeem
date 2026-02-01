@@ -35,7 +35,8 @@ export default function ProfilePage() {
 
   const loadUser = async () => {
     try {
-      const response = await api.get<{ user: User }>("/api/v1/users/me");
+      // SSoT: auth/me is the correct endpoint (not users/me)
+      const response = await api.get<{ user: User }>("/api/v1/auth/me");
       if (response?.user) {
         setUser(response.user);
         const nameParts = (response.user.name || "").split(" ");
@@ -59,10 +60,13 @@ export default function ProfilePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user?.id) return;
+
     setSaving(true);
 
     try {
-      await api.patch("/api/v1/users/me", {
+      // SSoT: Use /api/v1/users/:id (not /users/me)
+      await api.patch(`/api/v1/users/${user.id}`, {
         user: {
           name: `${formData.firstName} ${formData.lastName}`.trim(),
           email: formData.email,

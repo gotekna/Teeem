@@ -51,6 +51,10 @@ import {
   FileSpreadsheet,
   PenTool,
   Pencil,
+  AlertTriangle,
+  Link2,
+  ArrowLeft,
+  MessageSquare,
 } from "lucide-react";
 import {
   Dialog,
@@ -141,7 +145,7 @@ type ViewMode = "tree" | "list" | "gallery";
 type TreeDisplayMode = "list" | "gallery";
 
 // SSoT: Scope hierarchy item from /api/v1/documents/scope_hierarchy
-// Matches StorageConfiguration.SCOPE_TEMPLATES structure
+// Matches WarehouseProvider.SCOPE_TEMPLATES structure
 interface ScopeHierarchyItem {
   id: string;
   name: string;
@@ -203,7 +207,7 @@ interface SyncSubscription {
   lastSyncAt?: string;
 }
 
-// SSoT: Scope folder names from StorageConfiguration
+// SSoT: Scope folder names from WarehouseProvider
 interface ScopeFolders {
   job?: string;
   corporate?: string;
@@ -224,13 +228,12 @@ interface EntityTabFolder {
   children?: EntityTabFolder[];
 }
 
-// Icon mapping for all storage scopes - matches StorageConfiguration.SCOPE_FOLDERS
+// Icon mapping for all storage scopes - matches WarehouseProvider.SCOPE_FOLDERS
 const SCOPE_ICONS: Record<string, React.ReactNode> = {
   job: <Briefcase className="h-4 w-4" />,
   jobs: <Briefcase className="h-4 w-4" />,
   corporate: <Building2 className="h-4 w-4" />,
-  corporate_entity: <Building2 className="h-4 w-4" />,
-  company: <Building2 className="h-4 w-4" />,
+    company: <Building2 className="h-4 w-4" />,
   people: <Users className="h-4 w-4" />,
   users: <User className="h-4 w-4" />,
   user_photos: <ImageIcon className="h-4 w-4" />,
@@ -257,7 +260,7 @@ const SCOPE_ICONS: Record<string, React.ReactNode> = {
   contracts: <PenTool className="h-4 w-4" />,
 };
 
-// SSoT: Build hierarchical tree from StorageConfiguration.scope_folders
+// SSoT: Build hierarchical tree from WarehouseProvider.scope_folders
 // This matches the tree structure shown in SharePointTab (Storage Configurator)
 // Both components use the same backend data source for consistency
 // Note: rootPath is provider-agnostic - "/" for S3/Wasabi, "/Shared Documents" for SharePoint
@@ -372,7 +375,7 @@ export default function AllDocumentsPage() {
     people: DocumentItem[];
     tasks: DocumentItem[];
   }>({ jobs: [], corporate: [], people: [], tasks: [] });
-  // Counts for all scopes - matches StorageConfiguration.SCOPE_FOLDERS
+  // Counts for all scopes - matches WarehouseProvider.SCOPE_FOLDERS
   const [counts, setCounts] = useState<Record<string, number>>({
     jobs: 0, corporate: 0, people: 0, contacts: 0,
     emails: 0, attachments: 0, email_attachments: 0,
@@ -390,14 +393,33 @@ export default function AllDocumentsPage() {
   const [renameValue, setRenameValue] = useState("");
   const [isRenameSaving, setIsRenameSaving] = useState(false);
 
-  // SSoT: Scope folder names from StorageConfiguration
-  // Start empty - API will provide all scopes from StorageConfiguration.SCOPE_FOLDERS
+  // Link to Task dialog state (for orphaned documents)
+  const [showLinkToTaskDialog, setShowLinkToTaskDialog] = useState(false);
+  const [linkToTaskSearch, setLinkToTaskSearch] = useState("");
+  const [linkToTaskResults, setLinkToTaskResults] = useState<Array<{ id: number; name: string; task_number: number }>>([]);
+  const [isLinkingToTask, setIsLinkingToTask] = useState(false);
+  // Two-step flow: selected task and its questions
+  const [selectedTaskForLink, setSelectedTaskForLink] = useState<{
+    id: number;
+    name: string;
+    task_number: number;
+    action_items: Array<{
+      id: number;
+      text: string;
+      item_type: string;
+      attachments: Array<{ attachable_id: number }>;
+    }>;
+  } | null>(null);
+  const [isLoadingTaskQuestions, setIsLoadingTaskQuestions] = useState(false);
+
+  // SSoT: Scope folder names from WarehouseProvider
+  // Start empty - API will provide all scopes from WarehouseProvider.SCOPE_FOLDERS
   const [scopeFolders, setScopeFolders] = useState<ScopeFolders>({});
 
   // SSoT: Folder path templates from Entity Config
   const [scopeTemplates, setScopeTemplates] = useState<Record<string, string>>({});
 
-  // SSoT: Root path from StorageConfiguration
+  // SSoT: Root path from WarehouseProvider
   // Default to empty string - will be populated from API
   // For S3: "/" (bucket root), for SharePoint: "/Shared Documents"
   const [rootPath, setRootPath] = useState<string>("");
@@ -412,7 +434,7 @@ export default function AllDocumentsPage() {
   }>({ job: [], corporate: [], contact: [] });
 
   // SSoT: Scope hierarchies from /api/v1/documents/scope_hierarchy
-  // These match StorageConfiguration.SCOPE_TEMPLATES ({{CompanyGroup}}/{{CompanyCode}}/{{TabName}})
+  // These match WarehouseProvider.SCOPE_TEMPLATES ({{CompanyGroup}}/{{CompanyCode}}/{{TabName}})
   const [scopeHierarchies, setScopeHierarchies] = useState<{
     corporate: ScopeHierarchyItem[];
     job: ScopeHierarchyItem[];
@@ -423,7 +445,7 @@ export default function AllDocumentsPage() {
   // This mirrors the exact Wasabi/S3 folder structure for OneDrive-like browsing
   const [s3Folders, setS3Folders] = useState<Record<string, {
     folders: Array<{ name: string; path: string; count?: number; external_link?: string; mailbox_count?: number; expandable?: boolean }>;
-    files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string }>;
+    files: Array<{ name: string; path: string; size: number; content_type: string; url?: string; id?: number; type?: string; warehouse_document_id?: number }>;
     loading?: boolean;
     message?: string;
     progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
@@ -470,9 +492,9 @@ export default function AllDocumentsPage() {
   const [folderFiles, setFolderFiles] = useState<Record<string, DocumentItem[]>>({});
   const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
 
-  // SSoT: Fetch storage config from StorageConfiguration (scope folders, templates, root path)
-  // This uses the same endpoint as StorageConfigTab to ensure consistency
-  // NOTE: Endpoint name "sharepoint" is legacy - it returns provider-agnostic config from StorageConfiguration
+  // SSoT: Fetch storage config from WarehouseProvider (scope folders, templates, root path)
+  // This uses the same endpoint as WarehouseProviderTab to ensure consistency
+  // NOTE: Endpoint name "sharepoint" is legacy - it returns provider-agnostic config from WarehouseProvider
   useEffect(() => {
     const fetchStorageConfig = async () => {
       try {
@@ -482,11 +504,11 @@ export default function AllDocumentsPage() {
             scope_folders?: ScopeFolders;
             scope_templates?: Record<string, string>;
             root_path?: string;
-            virtual_scopes?: Record<string, boolean>;  // Phase 4
+            virtual_warehouses?: Record<string, boolean>;  // Phase 4
           };
-        }>("/api/v1/storage_configuration");
+        }>("/api/v1/warehouse_provider");
         if (response?.success && response.data) {
-          // SSoT: Use scope_folders from StorageConfiguration.SCOPE_FOLDERS
+          // SSoT: Use scope_folders from WarehouseProvider.SCOPE_FOLDERS
           if (response.data.scope_folders) {
             setScopeFolders(response.data.scope_folders);
           }
@@ -496,9 +518,9 @@ export default function AllDocumentsPage() {
           if (response.data.root_path) {
             setRootPath(response.data.root_path);
           }
-          // Phase 4: Virtual scopes from StorageConfiguration
-          if (response.data.virtual_scopes) {
-            setVirtualScopes(response.data.virtual_scopes);
+          // Phase 4: Virtual warehouses from WarehouseProvider
+          if (response.data.virtual_warehouses) {
+            setVirtualScopes(response.data.virtual_warehouses);
           }
         }
       } catch (err) {
@@ -515,7 +537,7 @@ export default function AllDocumentsPage() {
         // Fetch folders for all scopes in parallel
         const [jobRes, corpRes, contactRes] = await Promise.all([
           api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=job&include_disabled=false"),
-          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=corporate_entity&include_disabled=false"),
+          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=corporate&include_disabled=false"),
           api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=contact&include_disabled=false"),
         ]);
 
@@ -532,7 +554,7 @@ export default function AllDocumentsPage() {
   }, []);
 
   // SSoT: Fetch scope hierarchies from /api/v1/documents/scope_hierarchy
-  // These hierarchies match StorageConfiguration.SCOPE_TEMPLATES
+  // These hierarchies match WarehouseProvider.SCOPE_TEMPLATES
   // Structure: CompanyGroup → CompanyCode → TabName (for corporate)
   useEffect(() => {
     const fetchScopeHierarchies = async () => {
@@ -764,10 +786,11 @@ export default function AllDocumentsPage() {
       if (isVirtual && scope) {
         // Phase 5: Use live_folder_tree - computes folder structure from DB relationships
         // Benefits: Instant template changes, always accurate, single GROUP BY query per level
-        const scopeFolder = scopeFolders[scope] || '';
-        const relativePath = path.startsWith(scopeFolder + '/')
-          ? path.slice(scopeFolder.length + 1)
-          : (path === scopeFolder ? '' : path);
+        // LIM (Jan 2026): scopeFolders now contains simple root folders (e.g., "Contacts")
+        const scopeRootFolder = scopeFolders[scope] || '';
+        const relativePath = path.startsWith(scopeRootFolder + '/')
+          ? path.slice(scopeRootFolder.length + 1)
+          : (path === scopeRootFolder ? '' : path);
 
         const response = await api.get<{
           success: boolean;
@@ -777,13 +800,14 @@ export default function AllDocumentsPage() {
           folders: Array<{ name: string; path: string; count: number; [key: string]: unknown }>;
           files: Array<{
             id: number;
-            name: string;
+            displayName: string;  // FRC: API returns displayName, not name
+            originalFilename?: string;
             type: string;
             mimeType: string;
             fileSize?: number;
             createdAt?: string;
             receivedAt?: string;
-            url?: string;
+            fileUrl?: string | null;  // FRC: API returns fileUrl, not url
             [key: string]: unknown;
           }>;
           count: { folders: number; files: number; total: number };
@@ -791,21 +815,23 @@ export default function AllDocumentsPage() {
 
         if (response?.success) {
           // Map live_folder_tree response to s3_folders format for UI compatibility
+          // FRC (Jan 2026): Use scopeRootFolder for path building, not full template
           setS3Folders(prev => ({
             ...prev,
             [path]: {
               folders: (response.folders || []).map(f => ({
                 name: f.name,
-                // Prepend scope folder to make full path
-                path: scopeFolder ? `${scopeFolder}/${f.path}` : f.path,
+                // Prepend scope ROOT folder to make full path (e.g., "Contacts/2Code Fire & Build/Licenses")
+                path: scopeRootFolder ? `${scopeRootFolder}/${f.path}` : f.path,
                 count: f.count,
               })),
               files: (response.files || []).map(f => ({
-                name: f.name,
-                path: relativePath ? `${scopeFolder}/${relativePath}/${f.name}` : `${scopeFolder}/${f.name}`,
+                // FRC (Jan 2026): API returns displayName, not name
+                name: f.displayName || f.originalFilename || 'Unknown',
+                path: relativePath ? `${scopeRootFolder}/${relativePath}/${f.displayName || f.originalFilename}` : `${scopeRootFolder}/${f.displayName || f.originalFilename}`,
                 size: f.fileSize || 0,
                 content_type: f.mimeType || 'application/octet-stream',
-                url: f.url,
+                url: f.fileUrl ?? undefined,  // FRC: API returns fileUrl (null → undefined for type compat)
                 id: f.id,
                 type: f.type,
               })),
@@ -821,7 +847,7 @@ export default function AllDocumentsPage() {
           progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
           path: string;
           folders: Array<{ name: string; path: string }>;
-          files: Array<{ name: string; path: string; size: number; content_type: string; last_modified?: string; url?: string }>;
+          files: Array<{ name: string; path: string; size: number; content_type: string; last_modified?: string; url?: string; id?: number; warehouse_document_id?: number }>;
           count: { folders: number; files: number; total: number };
         }>(`/api/v1/documents/s3_folders?path=${encodeURIComponent(path)}`);
 
@@ -1188,13 +1214,15 @@ export default function AllDocumentsPage() {
       const data = s3Folders[s3Path];
       if (!data) return [];
 
-      const folderNodes: TreeNode[] = data.folders.map(folder => {
+      const folderNodes: TreeNode[] = data.folders
+        .filter(folder => folder.path != null)  // Skip folders with null paths
+        .map(folder => {
         // Check if this subfolder has been loaded
         const subfolderData = s3Folders[folder.path];
         const subChildren = subfolderData ? s3FoldersToTreeWithIcons(folder.path) : undefined;
 
         return {
-          id: `s3-folder-${folder.path.replace(/\//g, "-")}`,
+          id: `s3-folder-${(folder.path || "").replace(/\//g, "-")}`,
           name: folder.name,
           type: "folder" as const,
           icon: getFolderIcon(folder.name),
@@ -1210,12 +1238,16 @@ export default function AllDocumentsPage() {
         };
       });
 
-      const fileNodes: TreeNode[] = data.files.map(file => ({
-        id: `s3-file-${file.path.replace(/\//g, "-")}`,
+      const fileNodes: TreeNode[] = data.files
+        .filter(file => file.path != null)  // Skip files with null paths
+        .map(file => ({
+        id: `s3-file-${(file.path || "").replace(/\//g, "-")}`,
         name: file.name,
         type: "file" as const,
         file: {
-          id: 0, // S3 files don't have database IDs
+          // SSoT (Jan 2026): Use WarehouseDocument ID from API for virtual folders
+          // This enables "Link to Task" for documents browsed in File Warehouse
+          id: file.id || file.warehouse_document_id || 0,
           source: "corporate" as const,
           fileName: file.name,
           displayName: file.name,
@@ -1393,6 +1425,159 @@ export default function AllDocumentsPage() {
     }
   }, [previewDocument, renameValue]);
 
+  // Check if document is orphaned (task source but no linked task)
+  const isOrphanedDocument = useCallback((doc: DocumentItem | null): boolean => {
+    if (!doc) return false;
+    return doc.source === "task" && !doc.taskId;
+  }, []);
+
+  // Search for tasks to link to
+  const searchTasksForLink = useCallback(async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setLinkToTaskResults([]);
+      return;
+    }
+    try {
+      const response = await api.get<{ tasks: Array<{ id: number; name: string; task_number: number }>; success: boolean }>(
+        `/api/v1/sm_tasks?search=${encodeURIComponent(searchTerm)}&limit=10`
+      );
+      if (response.success && response.tasks) {
+        setLinkToTaskResults(response.tasks.map(t => ({ id: t.id, name: t.name, task_number: t.task_number })));
+      }
+    } catch (error) {
+      console.error("Failed to search tasks:", error);
+    }
+  }, []);
+
+  // Step 1: Select task and load its questions
+  const handleSelectTaskForLink = useCallback(async (task: { id: number; name: string; task_number: number }) => {
+    setIsLoadingTaskQuestions(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        sm_task: {
+          id: number;
+          name: string;
+          task_number: number;
+          action_items: Array<{
+            id: number;
+            text: string;
+            item_type: string;
+            attachments: Array<{ attachable_id: number }>;
+          }>;
+        };
+      }>(`/api/v1/sm_tasks/${task.id}`);
+
+      if (response.success && response.sm_task) {
+        setSelectedTaskForLink({
+          id: response.sm_task.id,
+          name: response.sm_task.name,
+          task_number: response.sm_task.task_number,
+          action_items: response.sm_task.action_items || [],
+        });
+        // Clear search results since we're moving to step 2
+        setLinkToTaskSearch("");
+        setLinkToTaskResults([]);
+      }
+    } catch (error) {
+      console.error("Failed to load task questions:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load task questions",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingTaskQuestions(false);
+    }
+  }, [toast]);
+
+  // Check if document is already attached to this task/question
+  const isAlreadyAttachedTo = useCallback((actionItemId: number | null): boolean => {
+    if (!previewDocument || !selectedTaskForLink) return false;
+
+    if (actionItemId === null) {
+      // Check general attachments - look for any attachment without action_item
+      // Since we don't have full attachment data here, we'll let the backend handle this
+      return false;
+    }
+
+    // Check if this document is already attached to this specific question
+    const actionItem = selectedTaskForLink.action_items.find(ai => ai.id === actionItemId);
+    if (!actionItem) return false;
+
+    return actionItem.attachments.some(att => att.attachable_id === previewDocument.id);
+  }, [previewDocument, selectedTaskForLink]);
+
+  // Step 2: Link document to selected task/question
+  const handleLinkToTask = useCallback(async (actionItemId: number | null) => {
+    if (!previewDocument || !selectedTaskForLink) return;
+
+    // Client-side duplicate check for questions
+    if (actionItemId !== null && isAlreadyAttachedTo(actionItemId)) {
+      toast({
+        title: "Already attached",
+        description: "This document is already attached to this question",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLinkingToTask(true);
+    try {
+      const response = await api.patch<{
+        success: boolean;
+        document: DocumentItem;
+        task: { id: number; name: string; task_number: number };
+        error?: string;
+      }>(
+        `/api/v1/documents/${previewDocument.id}/link_to_task`,
+        {
+          task_id: selectedTaskForLink.id,
+          action_item_id: actionItemId,
+          category: actionItemId ? "response" : "info",
+        }
+      );
+
+      if (response.success) {
+        const locationName = actionItemId
+          ? selectedTaskForLink.action_items.find(ai => ai.id === actionItemId)?.text?.substring(0, 50) || "question"
+          : "Attachments";
+        toast({
+          title: "Document linked",
+          description: `Linked to Task #${response.task.task_number} → ${locationName}`,
+        });
+        // Update the preview document with new task info
+        setPreviewDocument({
+          ...previewDocument,
+          taskId: response.task.id,
+          taskName: response.task.name,
+          taskNumber: response.task.task_number,
+        });
+        // Reset dialog state
+        setShowLinkToTaskDialog(false);
+        setLinkToTaskSearch("");
+        setLinkToTaskResults([]);
+        setSelectedTaskForLink(null);
+        // Refresh the file list to update folder structure
+        fetchDocuments();
+      } else {
+        toast({
+          title: "Failed to link",
+          description: response.error || "Unknown error",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to link document to task",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLinkingToTask(false);
+    }
+  }, [previewDocument, selectedTaskForLink, toast, fetchDocuments, isAlreadyAttachedTo]);
+
   // Render tree node recursively
   const renderTreeNode = (node: TreeNode, depth: number = 0): React.ReactNode => {
     const isExpanded = expandedFolders.has(node.id);
@@ -1513,7 +1698,7 @@ export default function AllDocumentsPage() {
     const getFolderPath = (): string | undefined => {
       // For S3-driven scope folders (job, corporate, contact, etc.),
       // use the scope folder name directly (e.g., "Jobs"), NOT the fullPath with template tokens
-      const S3_SCOPE_IDS = ["job", "corporate", "corporate_entity", "contact", "contacts"];
+      const S3_SCOPE_IDS = ["job", "corporate", "contact", "contacts"];
       if (S3_SCOPE_IDS.includes(node.id)) {
         // Use scopeFolders mapping which gives us just the folder name (e.g., "Jobs")
         const scopePath = scopeFolders[node.id];
@@ -1521,7 +1706,7 @@ export default function AllDocumentsPage() {
       }
 
       // Helper to strip root path prefix from a path
-      // SSoT: rootPath comes from StorageConfiguration (e.g., "/" for S3, "/Shared Documents" for SharePoint)
+      // SSoT: rootPath comes from WarehouseProvider (e.g., "/" for S3, "/Shared Documents" for SharePoint)
       const stripRootPath = (path: string): string => {
         if (!path) return path;
         const normalizedPath = path.replace(/^\/+/, '');  // Remove leading slashes
@@ -1564,6 +1749,9 @@ export default function AllDocumentsPage() {
     // Check if S3 folder data is loaded for this path
     const s3Data = folderPath ? s3Folders[folderPath] : null;
     const hasS3Data = s3Data && (s3Data.folders.length > 0 || s3Data.files.length > 0);
+    // FRC (Jan 2026): Also check if folder was LOADED (even if empty)
+    // This ensures "No files in this folder" renders for empty folders
+    const s3DataLoaded = folderPath ? s3Folders[folderPath] !== undefined : false;
 
     return (
       <div key={node.id}>
@@ -1578,7 +1766,7 @@ export default function AllDocumentsPage() {
         >
           {/* Show chevron if expandable (has children OR files OR is S3-driven folder)
               BUT NOT for external link folders (they navigate away, not expand) */}
-          {!node.externalLink && (hasChildren || fileCount > 0 || node.id.startsWith("s3-folder-") || ["job", "corporate", "corporate_entity", "contact", "contacts"].includes(node.id)) ? (
+          {!node.externalLink && (hasChildren || fileCount > 0 || node.id.startsWith("s3-folder-") || ["job", "corporate", "contact", "contacts"].includes(node.id)) ? (
             isLoading ? (
               <Loader2 className="h-4 w-4 text-muted-foreground animate-spin shrink-0" />
             ) : (
@@ -1622,7 +1810,7 @@ export default function AllDocumentsPage() {
           )}
         </div>
 
-        {isExpanded && (hasChildren || hasLoadedFiles || hasS3Data || isLoading) && (
+        {isExpanded && (hasChildren || hasLoadedFiles || hasS3Data || s3DataLoaded || isLoading) && (
           <div className={cn(depth > 0 && "border-l border-muted ml-6")}>
             {isLoading ? (
               // Loading state
@@ -1735,7 +1923,7 @@ export default function AllDocumentsPage() {
     >
       {/* Drag-and-drop overlay */}
       {isDragging && (
-        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center">
+        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center" data-tour="warehouse-upload">
           <div className="text-center">
             <Download className="h-12 w-12 text-primary mx-auto mb-2" />
             <p className="text-lg font-medium text-primary">Drop files to upload</p>
@@ -1771,7 +1959,7 @@ export default function AllDocumentsPage() {
 
           <div className="flex items-center gap-2">
             {/* Search */}
-            <div className="relative w-64">
+            <div className="relative w-64" data-tour="warehouse-search">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search documents..."
@@ -1904,7 +2092,7 @@ export default function AllDocumentsPage() {
         <div className={cn(
           "flex-1 overflow-auto px-4 py-4 border-r",
           previewDocument && "max-w-[50%]"
-        )}>
+        )} data-tour="warehouse-files">
           {loading ? (
             <div className="space-y-2">
               {Array.from({ length: 10 }).map((_, i) => (
@@ -1913,7 +2101,7 @@ export default function AllDocumentsPage() {
             </div>
           ) : viewMode === "tree" ? (
             // Tree View
-            <div className="space-y-1">
+            <div className="space-y-1" data-tour="warehouse-folders">
               {treeData.map(node => renderTreeNode(node, 0))}
             </div>
           ) : viewMode === "list" ? (
@@ -2077,6 +2265,24 @@ export default function AllDocumentsPage() {
                     {previewDocument.source === "task" && previewDocument.taskName && (
                       <Badge variant="outline" className="text-xs">{previewDocument.taskName}</Badge>
                     )}
+                    {/* Orphaned task document - show warning and link option */}
+                    {isOrphanedDocument(previewDocument) && (
+                      <>
+                        <Badge variant="destructive" className="text-xs gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Orphaned
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-5 text-xs px-2 gap-1"
+                          onClick={() => setShowLinkToTaskDialog(true)}
+                        >
+                          <Link2 className="h-3 w-3" />
+                          Link to Task
+                        </Button>
+                      </>
+                    )}
                     {previewDocument.storageProvider === "s3_compatible" && (
                       <Badge variant="secondary" className="text-xs">S3</Badge>
                     )}
@@ -2112,6 +2318,16 @@ export default function AllDocumentsPage() {
                       />
                     </>
                   )}
+                  {/* Link to Task button - available for ALL documents */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setShowLinkToTaskDialog(true)}
+                    title="Link to Task"
+                  >
+                    <Link2 className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -2502,6 +2718,170 @@ export default function AllDocumentsPage() {
                 </li>
               </ul>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Link to Task Dialog - two-step flow: 1) Select task 2) Select question/location */}
+      <Dialog
+        open={showLinkToTaskDialog}
+        onOpenChange={(open) => {
+          setShowLinkToTaskDialog(open);
+          if (!open) {
+            // Reset state when dialog closes
+            setSelectedTaskForLink(null);
+            setLinkToTaskSearch("");
+            setLinkToTaskResults([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedTaskForLink && (
+                <button
+                  onClick={() => setSelectedTaskForLink(null)}
+                  className="p-1 -ml-1 hover:bg-accent rounded"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              )}
+              <Link2 className="h-5 w-5" />
+              {selectedTaskForLink
+                ? `Task #${selectedTaskForLink.task_number}`
+                : "Link to Task"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Step 1: Search and select task */}
+            {!selectedTaskForLink && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {isOrphanedDocument(previewDocument)
+                    ? "This document is orphaned (original task was deleted). Search for a task to link it to."
+                    : "Search for a task to link this document to."}
+                </p>
+
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search tasks by name or number..."
+                    value={linkToTaskSearch}
+                    onChange={(e) => {
+                      setLinkToTaskSearch(e.target.value);
+                      searchTasksForLink(e.target.value);
+                    }}
+                    className="pl-9"
+                  />
+                </div>
+
+                {linkToTaskResults.length > 0 && (
+                  <div className="border rounded-md max-h-60 overflow-auto">
+                    {linkToTaskResults.map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => handleSelectTaskForLink(task)}
+                        disabled={isLoadingTaskQuestions}
+                        className="w-full text-left px-3 py-2 hover:bg-accent flex items-center justify-between group border-b last:border-b-0"
+                      >
+                        <div>
+                          <p className="font-medium text-sm">#{task.task_number} {task.name}</p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {linkToTaskSearch && linkToTaskResults.length === 0 && !isLoadingTaskQuestions && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No tasks found matching &quot;{linkToTaskSearch}&quot;
+                  </p>
+                )}
+
+                {isLoadingTaskQuestions && (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Step 2: Select question or general attachments */}
+            {selectedTaskForLink && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Where should this document go?
+                </p>
+
+                <div className="border rounded-md max-h-72 overflow-auto">
+                  {/* General Attachments option */}
+                  <button
+                    onClick={() => handleLinkToTask(null)}
+                    disabled={isLinkingToTask}
+                    className="w-full text-left px-3 py-3 hover:bg-accent flex items-center justify-between group border-b"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Paperclip className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium text-sm">General Attachments</p>
+                        <p className="text-xs text-muted-foreground">Attach to task without linking to a question</p>
+                      </div>
+                    </div>
+                    <Link2 className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+
+                  {/* Questions from the task */}
+                  {selectedTaskForLink.action_items
+                    .filter(item => item.item_type === "question")
+                    .map((item) => {
+                      const isAttached = isAlreadyAttachedTo(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleLinkToTask(item.id)}
+                          disabled={isLinkingToTask || isAttached}
+                          className={cn(
+                            "w-full text-left px-3 py-3 flex items-center justify-between group border-b last:border-b-0",
+                            isAttached
+                              ? "opacity-50 cursor-not-allowed bg-muted/50"
+                              : "hover:bg-accent"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <MessageSquare className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate">{item.text}</p>
+                              {isAttached && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400">Already attached</p>
+                              )}
+                            </div>
+                          </div>
+                          {isAttached ? (
+                            <Check className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                          ) : (
+                            <Link2 className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+
+                  {/* No questions message */}
+                  {selectedTaskForLink.action_items.filter(item => item.item_type === "question").length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4 px-3">
+                      This task has no questions. Use General Attachments above.
+                    </p>
+                  )}
+                </div>
+
+                {isLinkingToTask && (
+                  <div className="flex items-center justify-center py-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -2,11 +2,11 @@
 
 # DocumentStorageService - THE ONE SSoT for document storage operations
 #
-# Uses StorageConfiguration to determine paths and provider.
+# Uses WarehouseProvider to determine paths and provider.
 # Works with ANY document model that has a storage_path column.
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: StorageConfiguration determines WHERE files go             ║
+# ║  SSoT: WarehouseProvider determines WHERE files go             ║
 # ║  This service is THE ONE way to upload AND download documents     ║
 # ╚═══════════════════════════════════════════════════════════════════╝
 #
@@ -39,7 +39,7 @@
 #   result = service.download_url(job_document)
 #   # => { success: true, url: "https://..." }
 #
-# Supported scopes (from StorageConfiguration):
+# Supported scopes (from WarehouseProvider):
 #   :job, :corporate, :people, :contact, :task, :email, :email_attachments, etc.
 #
 class DocumentStorageService
@@ -51,7 +51,7 @@ class DocumentStorageService
     @tenant = tenant || ActsAsTenant.current_tenant
     raise ::TenantNotFoundError, "Tenant required for DocumentStorageService" unless @tenant
 
-    @storage_config = StorageConfiguration.for_tenant(@tenant)
+    @storage_config = WarehouseProvider.for_tenant(@tenant)
     @provider = get_storage_provider
   end
 
@@ -72,7 +72,7 @@ class DocumentStorageService
   # @return [Hash] { success: true/false, path: "...", blob_id: ..., deduplicated: true/false }
   def upload(scope:, record:, file:, tokens: {}, filename: nil, content_type: nil)
     unless @provider
-      return error_result("No storage provider configured. Check StorageConfiguration.")
+      return error_result("No storage provider configured. Check WarehouseProvider.")
     end
 
     # Get file content and metadata
@@ -96,7 +96,7 @@ class DocumentStorageService
       storage_path = existing_blob.storage_path
       blob = existing_blob
     else
-      # Build the storage path using StorageConfiguration
+      # Build the storage path using WarehouseProvider
       # SSoT: Pass record so we can use its EntityTab.storage_folder_path template
       folder_path = build_folder_path(scope, tokens, record: record)
       full_path = "#{folder_path}/#{sanitize_filename(file_name)}"
@@ -195,8 +195,14 @@ class DocumentStorageService
     elsif has_sharepoint_storage?(record)
       create_sharepoint_share_link(record, type: type, scope: scope)
     elsif record.is_a?(SyncedEmail)
-      # Ultra: Lazy self-heal - generate .eml and create share link
-      create_s3_share_link(record, expires_in: expires_in, disposition: disposition)
+      # Lazy self-heal: Upload email to storage on-demand, then create share link
+      upload_result = upload_email_on_demand(record)
+      if upload_result[:success]
+        # Now that it's uploaded, create the share link
+        create_s3_share_link(record.reload, expires_in: expires_in, disposition: disposition)
+      else
+        error_result("Document not in storage (missing storage_blob and storage_path)")
+      end
     else
       error_result("Document not in storage (missing storage_path and storage_reference)")
     end
@@ -211,7 +217,7 @@ class DocumentStorageService
       provider: @storage_config.provider_type,
       connected: @storage_config.connected?,
       root_path: @storage_config.root_path,
-      available_scopes: @storage_config.effective_scope_folders.keys
+      available_scopes: @storage_config.scope_root_folders.keys
     }
   end
 
@@ -356,17 +362,17 @@ class DocumentStorageService
   # Build folder path from scope and tokens
   # SSoT Priority:
   # 1. Record's storage_folder_template (from EntityTab.storage_folder_path - database)
-  # 2. StorageConfiguration.template_for(scope) (fallback)
+  # 2. WarehouseProvider.path_for(scope) (fallback)
   def build_folder_path(scope, tokens, record: nil)
-    # Get base path from StorageConfiguration
+    # Get base path from WarehouseProvider
     base_path = @storage_config.path_for(scope)
 
     # SSoT: Try to get template from record's EntityTab first (database-stored)
-    # Falls back to StorageConfiguration constant if not available
+    # Falls back to WarehouseProvider constant if not available
     template = if record&.respond_to?(:storage_folder_template) && record.storage_folder_template.present?
       record.storage_folder_template
     else
-      @storage_config.template_for(scope)
+      @storage_config.path_for(scope)
     end
 
     # Expand template with tokens
@@ -506,7 +512,7 @@ class DocumentStorageService
   #   5. storage_blob.original_filename (fallback)
   #   6. "document" (last resort)
   #
-  # Note: display_name is checked FIRST because CorporateCompanyDocument generates
+  # Note: display_name is checked FIRST because document models generate
   # nice display names (e.g., "Invoice INV-0520") but the warehouse_document may
   # have been created earlier with just the raw file_name.
   #
@@ -521,8 +527,15 @@ class DocumentStorageService
       return "#{safe_subject}.eml"
     end
 
-    # 1. Try display_name FIRST - this is the user-friendly name
-    # CorporateCompanyDocument.generate_display_name creates names like "Invoice INV-0520"
+    # 1. WarehouseDocument: Use download_filename (SSoT via SendNameResolver)
+    # FRC (Jan 2026): Email attachments are WarehouseDocuments with proper display_name.
+    # The download_filename method handles full resolution with templates.
+    if record.is_a?(WarehouseDocument)
+      return record.download_filename
+    end
+
+    # 2. Try display_name FIRST - this is the user-friendly name
+    # Various document models generate display names like "Invoice INV-0520"
     if record.respond_to?(:display_name) && record.display_name.present?
       display = record.display_name
       original = record.respond_to?(:file_name) ? record.file_name : nil
@@ -538,22 +551,22 @@ class DocumentStorageService
       return display
     end
 
-    # 2. Try warehouse_document (Phase 3 SSoT)
+    # 3. Try warehouse_document (Phase 3 SSoT)
     if record.respond_to?(:warehouse_document) && record.warehouse_document.present?
       return record.warehouse_document.download_filename
     end
 
-    # 3. Try record's file_name
+    # 4. Try record's file_name
     if record.respond_to?(:file_name) && record.file_name.present?
       return record.file_name
     end
 
-    # 4. Try storage_blob's original_filename
+    # 5. Try storage_blob's original_filename
     if record.respond_to?(:storage_blob) && record.storage_blob&.original_filename.present?
       return record.storage_blob.original_filename
     end
 
-    # 5. Last resort fallback
+    # 6. Last resort fallback
     "document"
   end
 
@@ -641,8 +654,125 @@ class DocumentStorageService
     else
       # Other documents use org's SharePoint
       credential = MicrosoftCredential.sharepoint_credential
-      drive_id = StorageConfiguration.instance&.drive_id
+      drive_id = WarehouseProvider.instance&.drive_id
       [credential, drive_id]
     end
+  end
+
+  # ============================================================================
+  # LAZY SELF-HEAL: Upload email on-demand (FRC fix Jan 2026)
+  # ============================================================================
+
+  # Upload a SyncedEmail to storage on-demand
+  #
+  # This is called when creating a share link for an email that hasn't been
+  # uploaded yet. Fetches .eml content from Graph API and uploads to S3.
+  #
+  # @param email [SyncedEmail] The email to upload
+  # @return [Hash] { success: true } or { success: false, error: "..." }
+  def upload_email_on_demand(email)
+    Rails.logger.info "[DocumentStorage] Lazy self-heal: Uploading email #{email.id} on-demand"
+
+    # Skip if already uploaded (race condition check)
+    # Check storage_path (direct) and warehouse_document.storage_blob (Phase 3 SSoT)
+    if email.storage_path.present? || email.warehouse_document&.storage_blob.present?
+      Rails.logger.info "[DocumentStorage] Email #{email.id} already has storage, skipping upload"
+      return { success: true }
+    end
+
+    # Need outlook_id and mailbox to fetch from Graph API
+    unless email.outlook_id.present? && email.mailbox_owner_email.present?
+      Rails.logger.warn "[DocumentStorage] Email #{email.id} missing outlook_id or mailbox_owner_email"
+      return { success: false, error: "Email metadata incomplete" }
+    end
+
+    # Get credential to fetch from Graph API
+    credential = get_credential_for_email(email)
+    unless credential&.connected?
+      Rails.logger.warn "[DocumentStorage] No valid credential for email #{email.id}"
+      return { success: false, error: "No Graph API credential available" }
+    end
+
+    # Fetch .eml content from Graph API
+    Rails.logger.info "[DocumentStorage] Fetching email #{email.id} from #{email.mailbox_owner_email}"
+    client = MicrosoftAppGraphClient.new(credential)
+    mime_content = client.get_email_mime_content(email.mailbox_owner_email, email.outlook_id)
+
+    unless mime_content.present?
+      Rails.logger.warn "[DocumentStorage] Could not fetch email #{email.id} content"
+      return { success: false, error: "Could not fetch email content from Outlook" }
+    end
+
+    Rails.logger.info "[DocumentStorage] Got #{mime_content.bytesize} bytes for email #{email.id}, uploading..."
+
+    # Create StorageBlob (content-addressed storage)
+    blob = StorageBlob.find_or_create_for_content!(
+      mime_content,
+      filename: "#{email.id}.eml",
+      content_type: "message/rfc822"
+    )
+
+    # Update email record with storage path
+    email.update_columns(
+      storage_path: blob.storage_path,
+      storage_file_id: blob.id.to_s,
+      storage_email_path: blob.storage_path,
+      storage_email_file_id: blob.id.to_s
+    )
+
+    # Create WarehouseDocument for file warehouse (if not exists)
+    create_warehouse_document_for_email(email, blob)
+
+    Rails.logger.info "[DocumentStorage] Lazy self-heal SUCCESS: Email #{email.id} uploaded to #{blob.storage_path}"
+    { success: true, path: blob.storage_path }
+  rescue MicrosoftAppGraphClient::NotConnectedError => e
+    Rails.logger.error "[DocumentStorage] Graph API not connected for email #{email.id}: #{e.message}"
+    { success: false, error: "Outlook connection required" }
+  rescue MicrosoftAppGraphClient::APIError => e
+    Rails.logger.error "[DocumentStorage] Graph API error for email #{email.id}: #{e.message}"
+    { success: false, error: "Could not fetch email: #{e.message}" }
+  rescue StandardError => e
+    Rails.logger.error "[DocumentStorage] Failed to upload email #{email.id}: #{e.class} - #{e.message}"
+    Rails.logger.error e.backtrace.first(3).join("\n")
+    { success: false, error: e.message }
+  end
+
+  # Get a credential that can fetch this email
+  # Priority: credential that synced this email > any connected credential
+  def get_credential_for_email(email)
+    # Try the credential that synced this email first
+    if email.microsoft_credential_id.present?
+      cred = MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+      return cred if cred&.connected?
+    end
+
+    # Fall back to any connected app credential
+    MicrosoftCredential.active_credential
+  end
+
+  # Create WarehouseDocument for email (copied from EmailStorageUploadService for consistency)
+  def create_warehouse_document_for_email(email, blob)
+    return if email.warehouse_document.present?
+
+    WarehouseDocument.create!(
+      documentable: email,
+      storage_blob: blob,
+      source_type: "email",
+      folder: email.virtual_folder_path,
+      display_name: email.subject.presence || "No Subject",
+      original_filename: "#{email.id}.eml",
+      tenant_id: @tenant.id,
+      metadata: {
+        subject: email.subject,
+        from_email: email.from_email,
+        received_at: email.received_at&.iso8601,
+        mailbox: email.mailbox_owner_email
+      }
+    )
+
+    blob.increment!(:reference_count)
+    Rails.logger.debug "[DocumentStorage] Created WarehouseDocument for email #{email.id}"
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.error "[DocumentStorage] Failed to create WarehouseDocument for email #{email.id}: #{e.message}"
   end
 end

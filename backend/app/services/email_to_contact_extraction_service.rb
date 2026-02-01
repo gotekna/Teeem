@@ -215,7 +215,7 @@ class EmailToContactExtractionService
                 linked_to_companies << {
                   contact_id: contact.id,
                   company_id: company_id,
-                  company_name: CorporateCompany.find(company_id).contact&.display_name || CorporateCompany.find(company_id).name
+                  company_name: Corporate.find(company_id).contact&.display_name || Corporate.find(company_id).name
                 }
               end
             end
@@ -292,7 +292,7 @@ class EmailToContactExtractionService
           end
 
           if company_id.present?
-            company = CorporateCompany.find(company_id)
+            company = Corporate.find(company_id)
             linked_to_companies << {
               contact_id: contact.id,
               company_id: company_id,
@@ -888,7 +888,7 @@ class EmailToContactExtractionService
     matches = []
 
     # Try exact match first (through contact)
-    exact_matches = CorporateCompany.joins(:contact)
+    exact_matches = Corporate.joins(:contact)
                            .where("LOWER(contacts.display_name) = ?", suggested_name.downcase)
                            .limit(10)
 
@@ -896,7 +896,7 @@ class EmailToContactExtractionService
 
     # Try partial match - find companies where the name starts with the suggested name
     # This will match "Tekna" to "Tekna Homes", "Tekna Admin", etc.
-    partial_matches = CorporateCompany.joins(:contact)
+    partial_matches = Corporate.joins(:contact)
                              .where("LOWER(contacts.display_name) LIKE ?", "#{suggested_name.downcase}%")
                              .where.not(id: matches.map(&:id))  # Exclude already found
                              .order("LENGTH(contacts.display_name)")
@@ -910,7 +910,7 @@ class EmailToContactExtractionService
     if matches.empty? && suggested_name.length <= 5 && suggested_name.match?(/^[A-Z]+$/)
       # Try matching as a word boundary (e.g., "SVP" matches "SV Partners", "SVP Group")
       # Use PostgreSQL regex with ~* (case-insensitive) and \y for word boundaries
-      abbreviation_matches = CorporateCompany.joins(:contact)
+      abbreviation_matches = Corporate.joins(:contact)
                                     .where("contacts.display_name ~* ?", "\\y#{suggested_name}\\y")
                                     .order("LENGTH(contacts.display_name)")
                                     .limit(10)
@@ -919,7 +919,7 @@ class EmailToContactExtractionService
       if abbreviation_matches.empty?
         # Build regex pattern: "SVP" -> match names where words start with S, V, P
         # This is complex, so let's try a simpler approach: match names containing the abbreviation
-        word_match = CorporateCompany.joins(:contact)
+        word_match = Corporate.joins(:contact)
                            .where("contacts.display_name ILIKE ?", "%#{suggested_name}%")
                            .order("LENGTH(contacts.display_name)")
                            .limit(10)
@@ -932,7 +932,7 @@ class EmailToContactExtractionService
 
     # Also try reverse - if suggested name contains an existing company name
     if matches.empty?
-      contained_matches = CorporateCompany.joins(:contact)
+      contained_matches = Corporate.joins(:contact)
                                  .where("LOWER(?) LIKE CONCAT('%', LOWER(contacts.display_name), '%')", suggested_name)
                                  .order("LENGTH(contacts.display_name) DESC")
                                  .limit(10)
@@ -952,8 +952,8 @@ class EmailToContactExtractionService
       # Use display_name from website details if available, otherwise use company_name
       full_company_name = website_details[:display_name].presence || company_name
 
-      # Create company Contact (NOT CorporateCompany)
-      # SSoT: CorporateCompany = entities you OWN/MANAGE (SPVs, trusts)
+      # Create company Contact (NOT Corporate)
+      # SSoT: Corporate = entities you OWN/MANAGE (SPVs, trusts)
       #       Contact (entity_type='company') = companies you do business WITH
       # SSoT: Multi-tenancy - set tenant_id from user
       company_contact = Contact.create!(

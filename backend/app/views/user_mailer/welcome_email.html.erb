@@ -27,7 +27,7 @@
           <h3>Your Login Credentials:</h3>
           <p><strong>Email:</strong> <%= @user.email %></p>
           <p><strong>Temporary Password:</strong> <code><%= @temp_password %></code></p>
-          <p><strong>Role:</strong> <%= @user.role.titleize %></p>
+          <p><strong>Role:</strong> <%= @user.role_names.map(&:titleize).join(', ').presence || 'User' %></p>
         </div>
 
         <p><strong>Important:</strong> Please change your password after your first login for security.</p>

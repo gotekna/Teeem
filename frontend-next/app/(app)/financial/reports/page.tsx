@@ -60,7 +60,7 @@ export default function FinancialReportsPage() {
 
   // URL is SSoT for tab state (path-based navigation)
   const activeTab = useMemo(() => {
-    const parts = pathname.replace("/financial/reports", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/financial/reports", "").split("/").filter(Boolean);
     return parts[0] || "balance_sheet";
   }, [pathname]);
 

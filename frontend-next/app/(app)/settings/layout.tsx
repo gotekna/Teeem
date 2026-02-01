@@ -17,6 +17,7 @@ import {
   Server,
   Code,
   Wrench,
+  Cable,
 } from "lucide-react";
 
 // Personal tabs - visible to all authenticated users
@@ -28,15 +29,16 @@ const PERSONAL_TABS = [
 ];
 
 // Organization tabs - visible to admin users only
-// SSoT: Integrations is now under Company > Connections > Integrations
 // SSoT: Documents moved under Company
 // SSoT: Entity Config moved under Company
+// SSoT: Connections is top-level (Jan 2026) - contains Storage Provider, Integrations, Migration, Cost Comparison
 const ORGANIZATION_TABS = [
   { id: "users", label: "Users", icon: Users },
   { id: "roles", label: "Access Control", icon: ShieldCheck },
   { id: "corporate", label: "Corporate", icon: Building2 },
   { id: "company", label: "Company", icon: Building },
   { id: "operations", label: "Operations", icon: Wrench },
+  { id: "connections", label: "Connections", icon: Cable },
   { id: "system", label: "System", icon: Server },
   { id: "developer", label: "Developer", icon: Code },
 ];
@@ -52,15 +54,17 @@ export default function SettingsLayout({
 
   // Extract current tab from path
   // /settings/profile → "profile"
-  // /settings/integrations/xero → "integrations"
+  // /settings/connections/provider → "connections"
   // /settings/company/info → "company"
-  const pathParts = pathname.replace("/settings", "").split("/").filter(Boolean);
+  // Note: pathname can be null during SSR/hydration
+  const pathParts = (pathname ?? "").replace("/settings", "").split("/").filter(Boolean);
   const currentTab = pathParts[0] || "profile";
 
   // Hide navigation on detail pages (e.g., /settings/integrations/xero)
-  // Detail pages are 2+ levels deep under a non-company section
-  // Company sub-tabs still show navigation (e.g., /settings/company/info)
-  const isDetailPage = pathParts.length >= 2 && pathParts[0] !== "company";
+  // Detail pages are 2+ levels deep under sections without sub-tabs
+  // Company and Connections sub-tabs still show navigation (e.g., /settings/company/info, /settings/connections/provider)
+  const sectionsWithSubTabs = ["company", "connections"];
+  const isDetailPage = pathParts.length >= 2 && !sectionsWithSubTabs.includes(pathParts[0]);
 
   const handleTabChange = (value: string) => {
     router.push(`/settings/${value}`);
@@ -79,7 +83,7 @@ export default function SettingsLayout({
       {/* Personal Section */}
       <TabbedSettingsPage.TabSection label="Personal">
         <Tabs value={currentTab} onValueChange={handleTabChange}>
-          <TabsList>
+          <TabsList data-tour="settings-nav">
             {PERSONAL_TABS.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -100,8 +104,13 @@ export default function SettingsLayout({
             <TabsList className="flex-wrap h-auto gap-1">
               {ORGANIZATION_TABS.map((tab) => {
                 const Icon = tab.icon;
+                // Add data-tour for specific tabs
+                const tourId = tab.id === "users" ? "settings-users"
+                  : tab.id === "company" ? "settings-company"
+                  : tab.id === "connections" ? "settings-integrations"
+                  : undefined;
                 return (
-                  <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+                  <TabsTrigger key={tab.id} value={tab.id} className="gap-2" data-tour={tourId}>
                     <Icon className="h-4 w-4" />
                     <span className="hidden sm:inline">{tab.label}</span>
                   </TabsTrigger>

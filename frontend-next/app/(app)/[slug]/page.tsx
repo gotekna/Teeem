@@ -29,6 +29,7 @@ const STATIC_ROUTE_PREFIXES = [
   "settings",
   "admin",
   "corporate", // Has dedicated pages in /corporate/*
+  "onboarding", // Has dedicated onboarding hub pages
   // Note: Don't add foundation slugs here (jobs, contacts, etc.)
   // Those are intentionally handled by this [slug] route
 ];
@@ -82,7 +83,7 @@ function TablePageContent() {
   // URL is SSoT for tab state (path-based navigation)
   // Parse: /contacts/schema → tab = "schema"
   const tab = useMemo(() => {
-    const parts = pathname.replace(`/${cleanSlug}`, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(`/${cleanSlug}`, "").split("/").filter(Boolean);
     // Only return tab if it's a known tab name (not a record ID)
     const potentialTab = parts[0];
     if (potentialTab && ["data", "schema", "connections"].includes(potentialTab)) {

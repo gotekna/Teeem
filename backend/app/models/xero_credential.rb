@@ -4,7 +4,7 @@
 # - OAuth tokens: This model (access_token, refresh_token, expires_at)
 # - Connection health: This model (status: connected/degraded/disconnected)
 # - Sync timing: XeroSyncStatus (NOT this model)
-# - Company mapping: CorporateCompanyXeroConnection
+# - Company mapping: CorporateXeroConnection
 #
 # Key status values:
 # - connected: Healthy, tokens valid and working
@@ -13,9 +13,13 @@
 #
 class XeroCredential < ApplicationRecord
   # Associations - SSoT for OAuth tokens
+  belongs_to :teeem_tenant, class_name: "Tenant", foreign_key: :teeem_tenant_id, optional: true
   has_many :corporate_company_xero_connections, dependent: :nullify, foreign_key: :xero_credential_id
   has_many :xero_alerts, dependent: :destroy
   has_many :xero_sync_events, dependent: :destroy
+
+  # Multi-tenancy scopes
+  scope :for_teeem_tenant, ->(tenant) { where(teeem_tenant_id: tenant.is_a?(Tenant) ? tenant.id : tenant) }
 
   # Encrypt sensitive OAuth tokens
   encrypts :access_token

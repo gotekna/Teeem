@@ -9,14 +9,14 @@
 #
 # Provides a unified interface for jobs to interact with the organization's
 # configured document storage provider (SharePoint, S3-compatible, etc.)
-# The active provider is determined by StorageConfiguration.provider_type.
+# The active provider is determined by WarehouseProvider.provider_type.
 #
 # Usage in a job:
 #   class UploadDocumentJob < ApplicationJob
 #     include DocumentProviderAware
 #
 #     def perform(document_id)
-#       # Single-tenant: auto-detects provider from StorageConfiguration
+#       # Single-tenant: auto-detects provider from WarehouseProvider
 #       setup_default_provider!
 #
 #       # Get or create nested folders
@@ -48,9 +48,9 @@ module DocumentProviderAware
     raise ::TenantNotFoundError, "Tenant context required for setup_default_provider! - use ActsAsTenant.with_tenant or set ActsAsTenant.current_tenant" unless tenant
 
     @organization = tenant.organizations&.first || Organization.first
-    @storage_config = StorageConfiguration.for_tenant(tenant)
+    @storage_config = WarehouseProvider.for_tenant(tenant)
 
-    # SSoT: StorageConfiguration.provider_type determines which provider to use
+    # SSoT: WarehouseProvider.provider_type determines which provider to use
     # Only 3 types: sharepoint, s3_compatible, local
     provider_type = @storage_config&.provider_type || "s3_compatible"
 
@@ -74,7 +74,7 @@ module DocumentProviderAware
   # @raise [DocumentProviders::NotConnectedError] If no provider is configured
   def setup_document_provider(organization)
     @organization = organization
-    @storage_config = StorageConfiguration.for_organization(organization)
+    @storage_config = WarehouseProvider.for_organization(organization)
 
     # SSoT: Only 3 types - sharepoint, s3_compatible, local
     provider_type = @storage_config&.provider_type || "s3_compatible"
@@ -245,7 +245,7 @@ module DocumentProviderAware
     @storage_config&.root_path || "/"
   end
 
-  # Get a scope folder path from StorageConfiguration
+  # Get a scope folder path from WarehouseProvider
   # @param scope [Symbol] The scope (:job, :contact, :corporate, etc.)
   # @return [String] The folder name for that scope
   def scope_folder_path(scope)

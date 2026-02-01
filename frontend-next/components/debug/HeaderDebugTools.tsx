@@ -252,53 +252,73 @@ ${formattedLogs || "(No logs)"}
     }
   };
 
+  // Combined: Copy all console logs + errors in one action
+  const handleCopyAllConsole = async () => {
+    try {
+      const logs = consoleCapture.getLogs();
+      const errors = logs.filter((log) => log.type === "error");
+      const warnings = logs.filter((log) => log.type === "warn");
+
+      let formatted = `=== Console Logs ===\nTotal: ${logs.length} | Errors: ${errors.length} | Warnings: ${warnings.length}\nURL: ${window.location.href}\nCaptured: ${new Date().toLocaleString()}\n`;
+
+      if (errors.length > 0) {
+        formatted += `\n--- ERRORS ---\n`;
+        errors.forEach((log) => {
+          const time = new Date(log.timestamp).toLocaleTimeString();
+          formatted += `[${time}] ${log.message}\n`;
+        });
+      }
+
+      if (warnings.length > 0) {
+        formatted += `\n--- WARNINGS ---\n`;
+        warnings.forEach((log) => {
+          const time = new Date(log.timestamp).toLocaleTimeString();
+          formatted += `[${time}] ${log.message}\n`;
+        });
+      }
+
+      formatted += `\n--- ALL LOGS ---\n`;
+      logs.forEach((log) => {
+        const time = new Date(log.timestamp).toLocaleTimeString();
+        formatted += `[${time}] [${log.type.toUpperCase()}] ${log.message}\n`;
+      });
+
+      await copyToClipboard(formatted);
+      setCopiedButton("console");
+      setTimeout(() => setCopiedButton(null), 2000);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div className="flex items-center gap-1">
-      {/* Console logs button */}
+      {/* Console + Errors combined */}
       <button
-        onClick={handleCopyConsole}
+        onClick={handleCopyAllConsole}
         className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
           copiedButton === "console"
             ? "bg-green-600 text-white"
-            : "bg-indigo-600 text-white hover:bg-indigo-700"
+            : errorCount > 0
+              ? "bg-yellow-500 text-black hover:bg-yellow-600"
+              : "bg-indigo-600 text-white hover:bg-indigo-700"
         }`}
-        title="Copy all console logs"
+        title="Copy console logs + errors"
       >
         {copiedButton === "console" ? (
           <Check className="h-2.5 w-2.5" />
         ) : (
           <ClipboardCopy className="h-2.5 w-2.5" />
         )}
-        <span className="hidden sm:inline">Console</span>
-        {logCount > 0 && (
-          <span className="px-1 py-0 rounded-full bg-indigo-800 text-white text-[9px] font-bold">
-            {logCount}
-          </span>
-        )}
-      </button>
-
-      {/* Errors button */}
-      <button
-        onClick={handleCopyErrors}
-        className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
-          copiedButton === "errors"
-            ? "bg-green-600 text-white"
-            : errorCount > 0
-              ? "bg-yellow-500 text-black hover:bg-yellow-600"
-              : "bg-muted text-muted-foreground hover:bg-muted dark:bg-muted dark:text-muted-foreground"
-        }`}
-        title="Copy errors & warnings"
-      >
-        {copiedButton === "errors" ? (
-          <Check className="h-2.5 w-2.5" />
-        ) : (
-          <AlertTriangle className="h-2.5 w-2.5" />
-        )}
-        {errorCount > 0 && (
+        {errorCount > 0 ? (
           <span className="px-1 py-0 rounded-full bg-red-600 text-white text-[9px] font-bold">
             {errorCount}
           </span>
-        )}
+        ) : logCount > 0 ? (
+          <span className="px-1 py-0 rounded-full bg-indigo-800 text-white text-[9px] font-bold">
+            {logCount}
+          </span>
+        ) : null}
       </button>
 
       {/* Screenshot */}
@@ -307,7 +327,7 @@ ${formattedLogs || "(No logs)"}
         className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
           copiedButton === "screenshot"
             ? "bg-green-600 text-white"
-            : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300"
+            : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800"
         }`}
         title="Copy screenshot"
       >
@@ -318,16 +338,7 @@ ${formattedLogs || "(No logs)"}
         )}
       </button>
 
-      {/* Refresh */}
-      <button
-        onClick={handleRefresh}
-        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500 text-white hover:bg-green-600 transition-all"
-        title="Refresh page"
-      >
-        <RefreshCw className="h-2.5 w-2.5" />
-      </button>
-
-      {/* Clear All Cache - use after hotfixes */}
+      {/* Clear Cache + Hard Refresh combined */}
       <button
         onClick={handleClearAllCache}
         disabled={clearing}
@@ -338,17 +349,19 @@ ${formattedLogs || "(No logs)"}
               ? "bg-red-300 text-white cursor-wait"
               : "bg-red-500 text-white hover:bg-red-600"
         }`}
-        title="Clear all cache & refresh (use after updates)"
+        title="Clear cache & hard refresh"
       >
         {copiedButton === "clear" ? (
           <Check className="h-2.5 w-2.5" />
         ) : (
-          <Trash2 className="h-2.5 w-2.5" />
+          <>
+            <Trash2 className="h-2.5 w-2.5" />
+            <RefreshCw className="h-2 w-2" />
+          </>
         )}
-        <span className="hidden sm:inline">Clear</span>
       </button>
 
-      {/* Validate */}
+      {/* Validate - Screenshot + Console */}
       <button
         onClick={handleValidate}
         className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
@@ -356,16 +369,16 @@ ${formattedLogs || "(No logs)"}
             ? "bg-green-600 text-white"
             : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900 dark:text-emerald-300"
         }`}
-        title="Copy screenshot + console (validation context)"
+        title="Copy screenshot + console (for bug reports)"
       >
         {copiedButton === "validate" ? (
           <Check className="h-2.5 w-2.5" />
         ) : (
           <>
-            <span className="text-[10px]">V</span>
-            {logCount > 0 && (
-              <span className="px-1 py-0 rounded-full bg-emerald-600 text-white text-[9px] font-bold">
-                {logCount}
+            <span className="text-[10px] font-bold">V</span>
+            {(logCount > 0 || errorCount > 0) && (
+              <span className={`px-1 py-0 rounded-full text-white text-[9px] font-bold ${errorCount > 0 ? 'bg-red-600' : 'bg-emerald-600'}`}>
+                {errorCount > 0 ? errorCount : logCount}
               </span>
             )}
           </>

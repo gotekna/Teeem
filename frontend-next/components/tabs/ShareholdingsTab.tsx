@@ -21,10 +21,10 @@ import {
 } from "@/components/ui/table";
 
 import { api } from "@/lib/api";
-import type { CorporateCompany, Shareholding } from "@/lib/types/corporate";
+import type { Corporate, Shareholding } from "@/lib/types/corporate";
 
 interface ShareholdingsTabProps {
-  company: CorporateCompany;
+  company: Corporate;
   companyId?: string;
   entityId?: string;
 }

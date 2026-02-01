@@ -467,31 +467,27 @@ module Api
             claim_stage: @stage
           )
 
-          # Create document record and attach the PDF
-          document = CorporateCompanyDocument.new(
-            title: "Invoice #{invoice.invoice_number || 'Draft'}",
-            document_type: "invoice",
-            contact: invoice.contact || @job.client || @job.primary_contact,
+          # SSoT: Create WarehouseDocument for the generated PDF (Jan 2026)
+          document = WarehouseDocument.create!(
+            display_name: "Invoice #{invoice.invoice_number || 'Draft'}",
             documentable: invoice,
-            source: "generated",
-            focus: "job"
+            source_type: "generated",
+            folder: "Invoices"
           )
 
-          # SSoT: Attach the PDF via StorageBlob (Jan 2026)
+          # Attach the PDF via StorageBlob
           document.attach_file(
             result[:pdf_content],
             filename: result[:filename],
             content_type: "application/pdf"
           )
 
-          document.save!
-
           render json: {
             success: true,
             data: {
               document_id: document.id,
-              filename: document.file_name,
-              url: document.file_url,
+              filename: result[:filename],
+              url: document.download_url,
               template_name: template.name,
               message: "Invoice PDF generated successfully"
             }

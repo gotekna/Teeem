@@ -90,7 +90,6 @@ Rails.application.routes.draw do
       # Stores viewer context server-side to avoid URL length limits
       resources :viewer_contexts, only: [:create, :show]
 
-      # All Documents - unified view across JobDocument, CorporateCompanyDocument, PeopleDocument
       get "documents/all", to: "documents#all"
 
       # =============================================================
@@ -443,6 +442,7 @@ Rails.application.routes.draw do
       # GET    /api/v1/config_sync/diff/:table       -> Compare tenant to TEEEM master
       # POST   /api/v1/config_sync/pull              -> Pull selected records from master
       # GET    /api/v1/config_sync/master_records/:table -> View master tenant's records
+      # POST   /api/v1/config_sync/auto_sync_compulsory -> Auto-sync all compulsory records
       resource :config_sync, only: [], controller: "config_sync" do
         collection do
           get :tables
@@ -450,6 +450,7 @@ Rails.application.routes.draw do
           get "master_records/:table", action: :master_records
           post :pull
           post :push  # TEEEM staff only - push records to master
+          post :auto_sync_compulsory  # Auto-sync all compulsory records from master
         end
       end
       delete "job_status_stages/:id", to: "job_status_stages#destroy"
@@ -462,7 +463,7 @@ Rails.application.routes.draw do
       get "documents/corporate_folder_files", to: "documents#folder_files"
       # Warehouse files (TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf)
       get "documents/warehouse_files", to: "documents#warehouse_files"
-      # SSoT: Folder hierarchy matching StorageConfiguration.SCOPE_TEMPLATES
+      # SSoT: Folder hierarchy matching WarehouseProvider.SCOPE_TEMPLATES
       # Used by File Warehouse to build tree structure that mirrors storage paths
       get "documents/scope_hierarchy", to: "documents#scope_hierarchy"
       # SSoT: OneDrive-like S3 folder browser - lists actual S3/Wasabi folders
@@ -487,11 +488,24 @@ Rails.application.routes.draw do
           get :download  # Human-readable download URL (redirects to S3)
           get :preview   # Universal document preview (Excel/Word/PDF)
           patch :move    # Move file to different folder (File Warehouse action)
+          patch :link_to_task  # Re-link orphaned document to a task
         end
         collection do
           post :analyze
           post :preview_upload  # Preview uploaded file
           post :rename          # Rename file in S3 storage
+        end
+      end
+
+      # Company Documents (corporate company document counts)
+      # SSoT: WarehouseDocument is THE ONE table for document metadata (Jan 2026)
+      resources :company_documents, only: [:index] do
+        collection do
+          get :counts
+        end
+        member do
+          get :preview
+          get :download
         end
       end
 
@@ -1075,7 +1089,6 @@ Rails.application.routes.draw do
         member do
           get :internal_messages
           get :activities
-          get :documents  # ContactDocument records (including migrated Xero PDFs)
           # Archive system (Phase 3 Contact Consolidation)
           get :deletion_check  # Pre-flight check before delete - returns warnings/blockers
           post :archive        # Archive instead of delete - preserves data
@@ -1322,6 +1335,8 @@ Rails.application.routes.draw do
         end
         member do
           put :user_mailbox_access, action: :update_user_mailbox_access
+          put :toggle_sync_all
+          post :sync  # Trigger full email sync for this organization
         end
       end
 
@@ -1334,6 +1349,7 @@ Rails.application.routes.draw do
           get :unassigned
           get :search
           get :stats
+          get :sync_dashboard
           get :unread_counts
           get :sync_status
           post :sync
@@ -1348,6 +1364,7 @@ Rails.application.routes.draw do
           post :unassign
           post :dismiss_suggestion
           post :mark_as_spam
+          post :mark_read
           delete :delete_from_outlook
           post :move_to_folder
           post :summarize
@@ -1495,6 +1512,7 @@ Rails.application.routes.draw do
           post :test
           get :providers
           get :all_accounts
+          get :org_status  # Org-wide email health status for header indicator
           post :send_email
           post :schedule_email
           get :scheduled_emails
@@ -1507,6 +1525,8 @@ Rails.application.routes.draw do
         end
         member do
           post :sync
+          get :sync_status  # Poll sync progress
+          put :toggle_sync_all  # Toggle sync_all setting (Jan 2026: sync all historical emails)
           get :reveal_password
           post :create_folder
           delete :delete_folder
@@ -1572,8 +1592,9 @@ Rails.application.routes.draw do
 
       # Storage Configuration (Provider-agnostic SSoT)
       # SSoT: Use these endpoints for ALL storage providers (SharePoint, S3, Wasabi, local)
-      resource :storage_configuration, only: [:show, :update] do
+      resource :warehouse_provider, only: [:show, :update] do
         post :test, on: :collection, action: :test_connection
+        get :storage_stats, on: :collection
       end
 
       # Backup Configuration (Per-tenant backup settings)
@@ -1594,26 +1615,21 @@ Rails.application.routes.draw do
         end
       end
 
-      # Corporate Company Settings (document paths, Email SSoT)
-      resource :corporate_company_settings, only: [] do
-        get :document_paths, on: :collection
-        patch :document_paths, on: :collection, action: :update_document_paths
-
-        # DEPRECATED: Use /api/v1/storage_configuration instead
-        # Kept for backward compatibility - redirects to new controller
-        get :sharepoint, on: :collection
-        patch :sharepoint, on: :collection, action: :update_sharepoint
-        post "sharepoint/test", on: :collection, action: :test_sharepoint
-
-        # Email SSoT Configuration
-        get :email_config, on: :collection
-        patch :email_config, on: :collection, action: :update_email_config
-
-        # Brand Colors SSoT Configuration
-        get :brand, on: :collection
-        patch :brand, on: :collection, action: :update_brand
-        post "brand/detect", on: :collection, action: :detect_brand
-        post "brand/apply", on: :collection, action: :apply_brand
+      # Tenant Settings - SSoT for all tenant configuration
+      resource :tenant_settings, only: [:show, :update] do
+        collection do
+          post :test_twilio
+          get :document_paths
+          get :sharepoint
+          patch :sharepoint, action: :update_sharepoint
+          post "sharepoint/test", action: :test_sharepoint
+          get :email_config
+          patch :email_config, action: :update_email_config
+          get :brand
+          patch :brand, action: :update_brand
+          post "brand/detect", action: :detect_brand
+          post "brand/apply", action: :apply_brand
+        end
       end
 
       # NOTE: folder_templates routes removed - SSoT: EntityTab is now the source of truth for folder structure
@@ -2092,6 +2108,8 @@ Rails.application.routes.draw do
       resources :site_presence_dashboards, only: [] do
         collection do
           get :overview
+          get :active_sessions
+          get :today
           get :live
           get :daily_activity
           get :job_profitability
@@ -2724,7 +2742,7 @@ Rails.application.routes.draw do
       resources :unreal_variables
 
       # Corporate Entity Management
-      resources :companies, controller: "corporate_companies" do
+      resources :companies, controller: "corporates" do
         collection do
           post :import
           post :reload
@@ -2762,7 +2780,7 @@ Rails.application.routes.draw do
         end
 
         # Shareholdings (nested under companies)
-        resources :shareholdings, controller: "corporate_company_shareholdings", only: [ :index, :show, :create, :update, :destroy ] do
+        resources :shareholdings, controller: "corporate_shareholdings", only: [ :index, :show, :create, :update, :destroy ] do
           collection do
             post :transfer
           end
@@ -2772,7 +2790,7 @@ Rails.application.routes.draw do
         resources :share_transfers, only: [ :index, :show, :create, :update, :destroy ]
 
         # Loans (nested under companies)
-        resources :loans, controller: "corporate_company_loans", only: [ :index, :show, :create, :update, :destroy ] do
+        resources :loans, controller: "corporate_loans", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :payment
           end
@@ -2789,7 +2807,7 @@ Rails.application.routes.draw do
         end
 
         # Minutes (nested under companies)
-        resources :minutes, controller: "corporate_company_minutes", only: [ :index, :show, :create, :update, :destroy ] do
+        resources :minutes, controller: "corporate_minutes", only: [ :index, :show, :create, :update, :destroy ] do
           member do
             post :sign
             post :generate_from_template
@@ -2800,39 +2818,39 @@ Rails.application.routes.draw do
         end
 
         # Per-Company Xero Integration
-        get "xero/status", to: "corporate_company_xero#status"
-        get "xero/setup_status", to: "corporate_company_xero#setup_status"
-        get "xero/connection", to: "corporate_company_xero#connection"
-        get "xero/authorize", to: "corporate_company_xero#authorize"
-        get "xero/callback", to: "corporate_company_xero#callback"
-        post "xero/link", to: "corporate_company_xero#link"
-        post "xero/disconnect", to: "corporate_company_xero#disconnect"
-        post "xero/sync", to: "corporate_company_xero#sync"
-        get "xero/tenants", to: "corporate_company_xero#tenants"
+        get "xero/status", to: "corporate_xero#status"
+        get "xero/setup_status", to: "corporate_xero#setup_status"
+        get "xero/connection", to: "corporate_xero#connection"
+        get "xero/authorize", to: "corporate_xero#authorize"
+        get "xero/callback", to: "corporate_xero#callback"
+        post "xero/link", to: "corporate_xero#link"
+        post "xero/disconnect", to: "corporate_xero#disconnect"
+        post "xero/sync", to: "corporate_xero#sync"
+        get "xero/tenants", to: "corporate_xero#tenants"
         # Bank sync endpoints
-        get "xero/bank_accounts", to: "corporate_company_xero#bank_accounts"
-        post "xero/link_bank_account", to: "corporate_company_xero#link_bank_account"
-        post "xero/sync_transactions", to: "corporate_company_xero#sync_transactions"
-        get "xero/transactions", to: "corporate_company_xero#transactions"
+        get "xero/bank_accounts", to: "corporate_xero#bank_accounts"
+        post "xero/link_bank_account", to: "corporate_xero#link_bank_account"
+        post "xero/sync_transactions", to: "corporate_xero#sync_transactions"
+        get "xero/transactions", to: "corporate_xero#transactions"
         # Chart of Accounts from Xero
-        get "xero/accounts", to: "corporate_company_xero#accounts"
-        get "xero/accounts/compare", to: "corporate_company_xero#compare_accounts"
-        post "xero/accounts/:account_id/rename", to: "corporate_company_xero#rename_account"
-        post "xero/accounts/standardize_names", to: "corporate_company_xero#standardize_account_names"
+        get "xero/accounts", to: "corporate_xero#accounts"
+        get "xero/accounts/compare", to: "corporate_xero#compare_accounts"
+        post "xero/accounts/:account_id/rename", to: "corporate_xero#rename_account"
+        post "xero/accounts/standardize_names", to: "corporate_xero#standardize_account_names"
         # Financial Reports from Xero
-        get "xero/profit_loss", to: "corporate_company_xero#profit_loss"
-        get "xero/profit_loss_monthly", to: "corporate_company_xero#profit_loss_monthly"
-        get "xero/balance_sheet", to: "corporate_company_xero#balance_sheet"
+        get "xero/profit_loss", to: "corporate_xero#profit_loss"
+        get "xero/profit_loss_monthly", to: "corporate_xero#profit_loss_monthly"
+        get "xero/balance_sheet", to: "corporate_xero#balance_sheet"
         # Group reports (for consolidated company groups)
-        get "xero/group/companies", to: "corporate_company_xero#group_companies"
-        get "xero/group/profit_loss", to: "corporate_company_xero#group_profit_loss"
-        get "xero/group/balance_sheet", to: "corporate_company_xero#group_balance_sheet"
+        get "xero/group/companies", to: "corporate_xero#group_companies"
+        get "xero/group/profit_loss", to: "corporate_xero#group_profit_loss"
+        get "xero/group/balance_sheet", to: "corporate_xero#group_balance_sheet"
         # Bank transactions by account
-        get "xero/bank_transactions", to: "corporate_company_xero#bank_transactions"
+        get "xero/bank_transactions", to: "corporate_xero#bank_transactions"
         # Tab stats (counts for badges on Xero sub-tabs)
-        get "xero/tab_stats", to: "corporate_company_xero#tab_stats"
+        get "xero/tab_stats", to: "corporate_xero#tab_stats"
         # Xero health dashboard (detailed sync status, locked date, etc.)
-        get "xero/health", to: "corporate_company_xero#health"
+        get "xero/health", to: "corporate_xero#health"
 
         # PDF Financial Reports (Gold Standard tables)
         resources :profit_loss_reports, only: [ :index, :show ] do
@@ -2951,7 +2969,7 @@ Rails.application.routes.draw do
       end
 
       # Company Loans (global view)
-      get "company_loans", to: "corporate_company_loans#all"
+      get "company_loans", to: "corporate_loans#all"
 
       # Minute Templates
       resources :minute_templates do
@@ -3096,34 +3114,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Company Documents (routes to CorporateCompanyDocumentsController)
-      resources :company_documents, controller: "corporate_company_documents" do
-        collection do
-          get :duplicates
-          post :analyze_duplicates
-          post :resolve_duplicates
-          post :auto_resolve_duplicates
-          get :marked_for_deletion
-          post :permanently_delete
-          get :counts
-        end
-        member do
-          get :download
-          get :preview
-          get :content
-          post :validate
-          post :ai_verify
-          post :apply_ai_suggestion
-          post :relocate
-          post :feedback
-          post :upload_edited
-          post :split
-          post :restore
-        end
-      end
-
       # Company Xero Connections
-      resources :company_xero_connections, controller: "corporate_company_xero_connections", only: [ :index, :show, :destroy ] do
+      resources :company_xero_connections, controller: "corporate_xero_connections", only: [ :index, :show, :destroy ] do
         collection do
           get :auth_url
           post :callback
@@ -3132,11 +3124,12 @@ Rails.application.routes.draw do
           post :sync_accounts
           get :status
           delete :disconnect
+          patch :assign_tenant  # Multi-tenancy: Assign Xero org to tenant
         end
       end
 
       # Company Compliance Items (routes to CorporateCompanyComplianceItemsController)
-      resources :company_compliance_items, controller: "corporate_company_compliance_items", only: [ :index, :show, :create, :update, :destroy ] do
+      resources :company_compliance_items, controller: "corporate_compliance_items", only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :mark_completed
         end
@@ -4216,26 +4209,43 @@ Rails.application.routes.draw do
       # GET    /api/v1/signup/check_availability -> Check if company name available
       # GET    /api/v1/signup/template_packs -> List available starter templates
       # GET    /api/v1/signup/tiers          -> List available pricing tiers
+      # GET    /api/v1/signup/invitation/:token -> Get invitation details by token
       resource :signup, only: [:create], controller: "signup" do
         collection do
           get :check_availability
           get :template_packs
           get :tiers
+          get 'invitation/:token', action: :invitation, as: :invitation
         end
       end
 
       # =============================================================
-      # Onboarding API (data import/export for new tenants)
+      # Onboarding API (Client Onboarding System)
       # =============================================================
-      # GET    /api/v1/onboarding/status     -> Get onboarding progress
-      # GET    /api/v1/onboarding/templates  -> Download all import templates (ZIP)
-      # GET    /api/v1/onboarding/template/:type -> Download single template
-      # POST   /api/v1/onboarding/validate   -> Validate import files (dry run)
-      # POST   /api/v1/onboarding/import     -> Import data from files
-      # GET    /api/v1/onboarding/export/:type -> Export current data
+      # GET    /api/v1/onboarding/status           -> Get full onboarding status
+      # GET    /api/v1/onboarding/steps/:key       -> Get step details
+      # POST   /api/v1/onboarding/steps/:key/assign -> Assign user to step
+      # POST   /api/v1/onboarding/steps/:key/skip  -> Skip optional step
+      # POST   /api/v1/onboarding/complete         -> Mark onboarding complete
+      # GET    /api/v1/onboarding/templates/:type  -> Download import template
+      # POST   /api/v1/onboarding/import/preview   -> Preview import
+      # POST   /api/v1/onboarding/import/execute   -> Execute import
+      # GET    /api/v1/onboarding/import_history   -> Get import history
+      # Legacy endpoints kept for backwards compatibility
       resource :onboarding, only: [], controller: "onboarding" do
         collection do
+          # New onboarding hub endpoints
           get :status
+          get "steps/:key", action: :show_step, as: :show_step
+          post "steps/:key/assign", action: :assign_step
+          post "steps/:key/skip", action: :skip_step
+          post :complete
+          get "templates/:type", action: :download_template
+          post "import/preview", action: :preview_import
+          post "import/execute", action: :execute_import
+          get :import_history
+
+          # Legacy endpoints (backwards compatibility)
           get :templates
           get "template/:type", action: :template
           post :validate
@@ -4255,18 +4265,39 @@ Rails.application.routes.draw do
         # Tenant Management (multi-tenancy)
         # GET    /api/v1/admin/tenants          -> List all tenants (TEEEM staff only)
         # GET    /api/v1/admin/tenants/current  -> Current tenant info (all users)
+        # GET    /api/v1/admin/tenants/dashboard -> Dashboard with usage stats (TEEEM staff only)
         # GET    /api/v1/admin/tenants/:id      -> Single tenant details
         # POST   /api/v1/admin/tenants/:id/switch -> Switch to tenant (TEEEM staff only)
+        # POST   /api/v1/admin/tenants/:id/extend_trial -> Extend tenant trial (TEEEM staff only)
+        # POST   /api/v1/admin/tenants/:id/convert_to_paid -> Convert to paid (TEEEM staff only)
         # DELETE /api/v1/admin/tenants/switch   -> Clear tenant override
         # PATCH  /api/v1/admin/tenants/environment -> Update tenant environment (all users)
         resources :tenants, only: [:index, :show] do
           collection do
             get :current
+            get :dashboard
             patch :environment, action: :update_environment
             delete :switch, action: :clear_switch
           end
           member do
             post :switch
+            post :extend_trial
+            post :convert_to_paid
+          end
+        end
+
+        # Trial Invitations (TEEEM staff only)
+        # GET    /api/v1/admin/trial_invitations                   -> List all invitations
+        # GET    /api/v1/admin/trial_invitations/available_senders -> Users who can be "Send From"
+        # POST   /api/v1/admin/trial_invitations                   -> Send new invitation
+        # POST   /api/v1/admin/trial_invitations/:id/resend        -> Resend invitation
+        # DELETE /api/v1/admin/trial_invitations/:id               -> Cancel invitation
+        resources :trial_invitations, only: [:index, :create, :destroy] do
+          collection do
+            get :available_senders
+          end
+          member do
+            post :resend
           end
         end
 
@@ -4296,12 +4327,16 @@ Rails.application.routes.draw do
         # GET    /api/v1/admin/config_sync/tenants/:tenant_id/config/:table -> Browse tenant's config
         # POST   /api/v1/admin/config_sync/import                        -> Import records into master
         # GET    /api/v1/admin/config_sync/compare                       -> Compare across tenants
+        # GET    /api/v1/admin/config_sync/sync_preferences              -> Get sync preferences
+        # POST   /api/v1/admin/config_sync/sync_preferences              -> Update sync preferences
         resource :config_sync, only: [], controller: "config_sync" do
           collection do
             get :tables
             get "tenants/:tenant_id/config/:table", action: :browse
             post :import
             get :compare
+            get :sync_preferences
+            post :sync_preferences, action: :update_sync_preferences
           end
         end
       end

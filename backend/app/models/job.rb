@@ -45,7 +45,8 @@ class Job < ApplicationRecord
   has_many :unreal_measurements, dependent: :destroy
   has_many :rain_logs, dependent: :destroy
   has_many :external_invoices, dependent: :nullify
-  has_many :job_documents, dependent: :destroy
+  # Note: job_documents association REMOVED (Jan 2026) - table dropped
+  # SSoT: WarehouseDocument is now THE ONE table for document metadata
   has_many :teeem_spreadsheets, dependent: :nullify
 
   # Plans (new plans tab with revision tracking)
@@ -86,6 +87,12 @@ class Job < ApplicationRecord
     completed: "completed",
     failed: "failed"
   }, prefix: :folders, default: :not_requested
+
+  # Project type: construction (customer-facing jobs) vs internal (system/onboarding jobs)
+  enum :project_type, {
+    construction: "construction",
+    internal: "internal"
+  }, prefix: :project_type, default: :construction
 
   # Alias title to name for backwards compatibility
   # Many parts of the codebase reference job.title but the column is 'name'
@@ -173,6 +180,10 @@ class Job < ApplicationRecord
   # Scopes
   scope :active, -> { joins(:job_status).where(job_status: { name: "Active Job" }) }
 
+  # Project type scopes - customer_facing = construction jobs, internal_only = system/onboarding
+  scope :customer_facing, -> { where(project_type: 'construction') }
+  scope :internal_only, -> { where(project_type: 'internal') }
+
   # Archival scopes (Sprint 8: Scale Preparation)
   scope :archived, -> { where.not(archived_at: nil) }
   scope :not_archived, -> { where(archived_at: nil) }
@@ -191,7 +202,7 @@ class Job < ApplicationRecord
       project_code: "PROJ-#{id}",
       project_manager: project_manager,
       status: "planning",
-      start_date: CorporateCompanySetting.today
+      start_date: TenantSetting.today
     )
   end
 
@@ -239,7 +250,8 @@ class Job < ApplicationRecord
   end
 
   # Site supervisor info for prepopulating POs
-  # SSoT: Derives from job_contacts with role "supervisor", falls back to legacy columns
+  # SSoT: Derives from job_contacts with role "supervisor"
+  # Note: site_supervisor_name/phone columns removed (Jan 2026)
   def site_supervisor_info
     supervisor_contact = job_contacts.find_by(role: "supervisor")
     if supervisor_contact&.user.present?
@@ -251,12 +263,12 @@ class Job < ApplicationRecord
         display_name: user.name
       }
     else
-      # Legacy fallback for old jobs that have data in columns
+      # No supervisor assigned - return empty info
       {
-        name: site_supervisor_name,
+        name: nil,
         email: nil,
-        phone: site_supervisor_phone,
-        display_name: site_supervisor_name
+        phone: nil,
+        display_name: nil
       }
     end
   end

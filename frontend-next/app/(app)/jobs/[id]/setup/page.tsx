@@ -677,7 +677,7 @@ export default function SmSetupPage() {
 
   // Path-based tab: /jobs/123/setup/hold-reasons, /jobs/123/setup/settings
   const activeTab = useMemo(() => {
-    const parts = pathname.replace(`/jobs/${jobId}/setup`, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(`/jobs/${jobId}/setup`, "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname, jobId]);
 

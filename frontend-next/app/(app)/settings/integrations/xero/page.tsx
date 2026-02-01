@@ -33,6 +33,7 @@ import { api } from "@/lib/api";
 import { XeroFieldMapping, XeroContactSync } from "./components/XeroTabs";
 import { XeroPdfSyncStatus } from "./components/XeroPdfSyncStatus";
 import { XeroSyncStats } from "./components/XeroSyncStats";
+import { XeroSyncStatusTab } from "./components/XeroSyncStatusTab";
 import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
 import { XeroCommonContacts } from "./components/XeroCommonContacts";
 import { DuplicateContactsTab } from "@/components/settings/xero/DuplicateContactsTab";
@@ -105,6 +106,7 @@ export default function XeroIntegrationPage() {
   const [pdfSyncHealth, setPdfSyncHealth] = React.useState<PdfSyncHealth | null>(null);
   const [showConnectionsPopup, setShowConnectionsPopup] = React.useState(showConnectionsParam === "true");
   const [companyConnections, setCompanyConnections] = React.useState<CompanyXeroConnection[]>([]);
+  const [isMasterTenant, setIsMasterTenant] = React.useState(false);
   const [settingPrimary, setSettingPrimary] = React.useState<string | null>(null);
   const [organizationsExpanded, setOrganizationsExpanded] = React.useState<boolean | null>(null);
 
@@ -142,10 +144,11 @@ export default function XeroIntegrationPage() {
           const [tenantsResponse, pdfSyncResponse, connectionsResponse] = await Promise.all([
             api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
             api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
-            api.get<{ success: boolean; companies: CompanyXeroConnection[] }>("/api/v1/company_xero_connections"),
+            api.get<{ success: boolean; companies: CompanyXeroConnection[]; is_master_tenant?: boolean }>("/api/v1/company_xero_connections"),
           ]);
           setTenants(tenantsResponse.tenants || []);
           setCompanyConnections(connectionsResponse.companies || []);
+          setIsMasterTenant(connectionsResponse.is_master_tenant || false);
 
           // Extract health data from PDF sync response
           if (pdfSyncResponse.success && pdfSyncResponse.data) {
@@ -344,10 +347,14 @@ export default function XeroIntegrationPage() {
         }}
         className="space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="connection">
             <Link2 className="h-4 w-4 mr-2" />
             Connection
+          </TabsTrigger>
+          <TabsTrigger value="status">
+            <Clock className="h-4 w-4 mr-2" />
+            Status
           </TabsTrigger>
           <TabsTrigger value="stats">
             <Activity className="h-4 w-4 mr-2" />
@@ -418,10 +425,13 @@ export default function XeroIntegrationPage() {
             <CardContent>
               {status?.connected ? (
                 <div className="flex items-center gap-2">
-                  <Button onClick={() => setShowConnectionsPopup(true)}>
-                    <Link2 className="h-4 w-4 mr-2" />
-                    Manage Company Connections
-                  </Button>
+                  {/* Only show Manage Company Connections for master tenant (admin) */}
+                  {isMasterTenant && (
+                    <Button onClick={() => setShowConnectionsPopup(true)}>
+                      <Link2 className="h-4 w-4 mr-2" />
+                      Manage Company Connections
+                    </Button>
+                  )}
                   <Button variant="outline" onClick={handleConnect} disabled={connecting}>
                     <RefreshCw className={`h-4 w-4 mr-2 ${connecting ? "animate-spin" : ""}`} />
                     Reconnect
@@ -625,10 +635,25 @@ export default function XeroIntegrationPage() {
           )}
 
           {/* PDF Sync Status - Above Health Check */}
+          {/* SSoT: Show global data (all tenants) to match UnlinkedContactsSheet */}
           {status?.connected && (
-            <XeroPdfSyncStatus tenantId={tenants.find(t => t.is_primary)?.tenant_id} />
+            <XeroPdfSyncStatus />
           )}
 
+        </TabsContent>
+
+        {/* Status Tab - Sync status per Xero organization */}
+        <TabsContent value="status" className="space-y-4">
+          {status?.connected ? (
+            <XeroSyncStatusTab />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center h-48 gap-4">
+                <AlertTriangle className="h-8 w-8 text-amber-500" />
+                <p className="text-muted-foreground">Connect to Xero to view sync status</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Stats Tab - Comprehensive sync statistics */}

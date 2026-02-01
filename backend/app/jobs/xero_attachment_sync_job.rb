@@ -29,15 +29,65 @@ class XeroAttachmentSyncJob < ApplicationJob
   BATCH_LOCK_TTL = 30.minutes
 
   # Sync attachments for a single invoice or batch
+  # Multi-org support: If no tenant_id specified, syncs ALL connected orgs
   def perform(external_invoice_id = nil, **options)
     if external_invoice_id.present?
       sync_single_invoice(external_invoice_id)
-    else
+    elsif options[:tenant_id].present?
+      # Specific tenant requested - sync just that one
       sync_batch_with_rate_limiting(options)
+    else
+      # No tenant specified - sync ALL connected orgs (multi-org support)
+      sync_all_tenants(options)
     end
   end
 
   private
+
+  # SSoT: Sync ALL connected Xero orgs, not just the primary
+  # This ensures multi-org setups get their PDFs synced
+  def sync_all_tenants(options)
+    credentials = XeroCredential.where(status: %w[connected degraded])
+
+    if credentials.empty?
+      Rails.logger.warn("[XeroAttachmentSync] No connected Xero credentials found")
+      return { processed: 0, success: 0, failed: 0, no_credentials: true }
+    end
+
+    Rails.logger.info("[XeroAttachmentSync] Syncing #{credentials.count} connected org(s)")
+
+    combined_results = {
+      processed: 0,
+      success: 0,
+      failed: 0,
+      tenants_processed: 0,
+      tenant_results: []
+    }
+
+    credentials.find_each do |credential|
+      Rails.logger.info("[XeroAttachmentSync] Processing org: #{credential.tenant_name} (#{credential.tenant_id})")
+
+      # Check if this tenant is locked out before processing
+      if XeroRateLimitTracker.current_lockout(tenant_id: credential.tenant_id).present?
+        Rails.logger.info("[XeroAttachmentSync] Skipping #{credential.tenant_name} - rate limited")
+        combined_results[:tenant_results] << { tenant_id: credential.tenant_id, skipped_lockout: true }
+        next
+      end
+
+      result = sync_batch_with_rate_limiting(options.merge(tenant_id: credential.tenant_id))
+      combined_results[:processed] += result[:processed] || 0
+      combined_results[:success] += result[:success] || 0
+      combined_results[:failed] += result[:failed] || 0
+      combined_results[:tenants_processed] += 1
+      combined_results[:tenant_results] << result.merge(tenant_id: credential.tenant_id)
+
+      # If we hit rate limits, don't continue to other tenants
+      break if result[:rate_limited] || result[:blocked_by_lockout]
+    end
+
+    Rails.logger.info("[XeroAttachmentSync] All orgs complete: #{combined_results.slice(:tenants_processed, :processed, :success, :failed)}")
+    combined_results
+  end
 
   def sync_single_invoice(external_invoice_id)
     invoice = ExternalInvoice.find_by(id: external_invoice_id)
@@ -58,8 +108,13 @@ class XeroAttachmentSyncJob < ApplicationJob
   end
 
   def sync_batch_with_rate_limiting(options)
-    # Get tenant_id for per-tenant status tracking
-    tenant_id = options[:tenant_id] || XeroCredential.where(status: %w[connected degraded]).first&.tenant_id
+    # tenant_id is now always provided (either explicitly or from sync_all_tenants)
+    tenant_id = options[:tenant_id]
+
+    unless tenant_id.present?
+      Rails.logger.warn("[XeroAttachmentSync] No tenant_id provided, skipping")
+      return { processed: 0, success: 0, failed: 0, error: "No tenant_id provided" }
+    end
 
     # SSoT: Check for Xero-enforced rate limit lockout FIRST
     lockout = XeroRateLimitTracker.current_lockout(tenant_id: tenant_id)
@@ -114,7 +169,7 @@ class XeroAttachmentSyncJob < ApplicationJob
       end
 
       # If there's more work and we have rate limit headroom, queue another batch
-      if remaining > 0 && can_continue_syncing?
+      if remaining > 0 && can_continue_syncing?(tenant_id)
         Rails.logger.info("[XeroAttachmentSync] #{remaining} remaining, queuing next batch")
         XeroAttachmentSyncJob.set(wait: 1.minute).perform_later(**options)
       end
@@ -146,9 +201,8 @@ class XeroAttachmentSyncJob < ApplicationJob
     tenant_id = options[:tenant_id]
     invoice_type = options[:invoice_type]
 
-    # Get current rate limit usage
-    credential = XeroCredential.where(status: %w[connected degraded]).first
-    usage = XeroRateLimitTracker.usage_for(credential&.tenant_id)
+    # Get current rate limit usage for the specific tenant
+    usage = XeroRateLimitTracker.usage_for(tenant_id)
 
     # SSoT: Abort immediately if Xero has us locked out
     if usage && usage[:locked_out]
@@ -186,7 +240,7 @@ class XeroAttachmentSyncJob < ApplicationJob
 
     invoices.find_each do |invoice|
       # Check rate limit before each invoice
-      break if should_pause_for_rate_limit?(credential&.tenant_id)
+      break if should_pause_for_rate_limit?(tenant_id)
 
       results[:processed] += 1
 
@@ -277,14 +331,13 @@ class XeroAttachmentSyncJob < ApplicationJob
       (usage.dig(:daily, :percentage) || 0) >= 90
   end
 
-  def can_continue_syncing?
-    credential = XeroCredential.where(status: %w[connected degraded]).first
-    return false unless credential
+  def can_continue_syncing?(tenant_id)
+    return false unless tenant_id.present?
 
     # SSoT: Cannot continue if Xero has us locked out
-    return false if XeroRateLimitTracker.current_lockout(tenant_id: credential.tenant_id).present?
+    return false if XeroRateLimitTracker.current_lockout(tenant_id: tenant_id).present?
 
-    usage = XeroRateLimitTracker.usage_for(credential.tenant_id)
+    usage = XeroRateLimitTracker.usage_for(tenant_id)
     return true unless usage
 
     # Cannot continue if locked out

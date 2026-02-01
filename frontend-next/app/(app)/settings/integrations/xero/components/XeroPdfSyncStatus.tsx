@@ -227,11 +227,11 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
   React.useEffect(() => {
     fetchStatus();
     fetchRateLimits();
-    // Auto-refresh every 5 seconds to show live syncing activity
+    // Auto-refresh every 10 seconds (rate limiting is now per-tenant, so safe with 10+ tenants)
     const refreshInterval = setInterval(() => {
       fetchStatus();
       fetchRateLimits();
-    }, 5000);
+    }, 10000);
     return () => {
       clearInterval(refreshInterval);
     };
@@ -631,8 +631,9 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
             </div>
             {rateLimits && (
               <div className="text-sm text-blue-700">
-                <span className="font-semibold">{rateLimits.aggregate.daily_requests}</span>
-                <span className="text-blue-500 dark:text-blue-400"> / {rateLimits.limits.daily} API calls today</span>
+                <span className="font-semibold">{rateLimits.aggregate.daily_requests.toLocaleString()}</span>
+                {/* FRC: Show aggregate without per-org limit comparison - limits are PER ORG not aggregate */}
+                <span className="text-blue-500 dark:text-blue-400"> API calls today ({rateLimits.tenants.length} orgs)</span>
               </div>
             )}
           </div>
@@ -698,13 +699,24 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
           )}
 
           {/* Rate Limit Warning Banners */}
-          {isAtLimit && (
-            <div className="p-2 mb-3 bg-red-100 border border-red-300 rounded text-sm">
+          {isAtLimit && rateLimits && (
+            <div className="p-2 mb-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-sm">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                <span className="font-medium text-red-800">
-                  Rate limit reached - syncing paused until reset
-                </span>
+                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0" />
+                <div className="text-red-800 dark:text-red-200">
+                  <span className="font-medium">Rate limit reached</span>
+                  {/* FRC: Show WHICH org(s) are blocked */}
+                  {(() => {
+                    const blockedOrgs = rateLimits.tenants.filter(t => !t.can_make_request);
+                    if (blockedOrgs.length === 1) {
+                      return <span> for {blockedOrgs[0].tenant_name}</span>;
+                    } else if (blockedOrgs.length > 1) {
+                      return <span> for {blockedOrgs.map(o => o.tenant_name).join(', ')}</span>;
+                    }
+                    return null;
+                  })()}
+                  <span className="text-red-600 dark:text-red-300"> - syncing paused until reset (10:00 AM Brisbane)</span>
+                </div>
               </div>
             </div>
           )}

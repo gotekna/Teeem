@@ -65,7 +65,7 @@ interface CompanyApprovalRule {
   is_active: boolean;
 }
 
-interface CorporateCompany {
+interface Corporate {
   id: number;
   name: string;
   code: string;
@@ -94,7 +94,7 @@ const approverTypeLabels: Record<string, string> = {
 export default function FinanceSettingsPage() {
   const { confirm } = useConfirm();
   const [rules, setRules] = useState<CompanyApprovalRule[]>([]);
-  const [companies, setCompanies] = useState<CorporateCompany[]>([]);
+  const [companies, setCompanies] = useState<Corporate[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyFilter, setCompanyFilter] = useState<string>("all");
@@ -123,7 +123,7 @@ export default function FinanceSettingsPage() {
     try {
       const [rulesRes, companiesRes, usersRes] = await Promise.all([
         api.get<CompanyApprovalRule[] | { rules: CompanyApprovalRule[] }>("/api/v1/company_approval_rules"),
-        api.get<CorporateCompany[] | { companies: CorporateCompany[] }>("/api/v1/companies"),
+        api.get<Corporate[] | { companies: Corporate[] }>("/api/v1/companies"),
         api.get<User[] | { users: User[] }>("/api/v1/users"),
       ]);
       setRules(Array.isArray(rulesRes) ? rulesRes : (rulesRes.rules || []));

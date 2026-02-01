@@ -53,7 +53,7 @@ class CorporateFinancialReportsJob < ApplicationJob
   private
 
   def fetch_companies(company_ids = nil)
-    scope = CorporateCompany.includes(:company_xero_connection)
+    scope = Corporate.includes(:company_xero_connection)
                             .joins(:company_xero_connection)
                             .where(company_xero_connections: { status: "connected" })
 
@@ -151,7 +151,7 @@ class CorporateFinancialReportsJob < ApplicationJob
   end
 
   def current_financial_year
-    today = CorporateCompanySetting.in_company_timezone { Date.today }
+    today = TenantSetting.in_company_timezone { Date.today }
     # Australian FY: July 1 - June 30
     # If we're in Jan-June, we're in FY of current year
     # If we're in July-Dec, we're in FY of next year

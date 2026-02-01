@@ -12,6 +12,7 @@ import { SmartTextField } from '@/components/ui/smart-text-field';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Dialog,
@@ -96,9 +97,11 @@ import {
   Send,
   Target,
   Trash2,
+  Upload,
   User,
   Users,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -111,6 +114,7 @@ import { DocumentViewerModal, getFileType } from '@/components/ui/document-viewe
 import { RichTextEditorModal } from '@/components/ui/rich-text-editor-modal';
 import { AttachmentCategoryDialog } from './AttachmentCategoryDialog';
 import { ComposeEmailModal } from '@/components/emails/ComposeEmailModal';
+import type { PreUploadedAttachment } from '@/lib/email-types';
 import { EmailAttachmentLink } from '@/components/emails/EmailAttachmentLink';
 import { getOverdueColorClasses } from './TaskColorSettings';
 import { TASK_STATUS } from '@/lib/constants/task-status';
@@ -222,6 +226,31 @@ interface SortableQuestionItemProps {
   // Document viewer props
   onOpenDocument?: (url: string, fileName: string, fileType: 'pdf' | 'image' | 'other') => void;
   onDownloadAttachment?: (att: TaskAttachment) => void;
+}
+
+// Helper to display email sender with fallback for sent emails (no from_email)
+function getEmailSenderDisplay(email: TaskAttachmentEmail | undefined): string {
+  if (!email) return 'Unknown';
+  if (email.from_email) return email.from_email;
+  if (email.to_emails && email.to_emails.length > 0) {
+    return `To: ${email.to_emails[0]}`;
+  }
+  return 'Unknown sender';
+}
+
+// Helper to check if email is a sent/internal email
+// Emails sent FROM any of our mailboxes should never show as "unread"
+function isSentEmail(email: TaskAttachmentEmail | undefined, ourMailboxes: Set<string>): boolean {
+  if (!email) return false;
+  // SSoT: folder_name is the authoritative source (from MS Graph sync)
+  // "Sent Items", "Sent", "Outbox" are all sent folders
+  if (email.folder_name?.toLowerCase().startsWith('sent') || email.folder_name?.toLowerCase() === 'outbox') return true;
+  // No from_email = sent email (MS Graph doesn't include 'from' for sent items)
+  if (!email.from_email && !!email.to_emails && email.to_emails.length > 0) return true;
+  // from_email matches one of our mailboxes = internal email (never unread)
+  const fromEmail = email.from_email?.toLowerCase() || '';
+  if (fromEmail && ourMailboxes.has(fromEmail)) return true;
+  return false;
 }
 
 function SortableQuestionItem({
@@ -700,10 +729,11 @@ function SortableQuestionItem({
       {item.attachments && item.attachments.length > 0 && (
         <div className="space-y-0.5">
           {item.attachments.map((att) => {
-            // Handle document attachments (CorporateCompanyDocument)
+            // Handle document attachments (CorporateDocument)
             if (att.document) {
-              // SSoT: Use storage_url (provider-agnostic) first, then file_url (ActiveStorage legacy)
-              const url = att.document?.storage_url || att.document?.file_url;
+              // SSoT: Use storage_url for downloads, storage_url_inline for viewers
+              const downloadUrl = att.document?.storage_url || att.document?.file_url;
+              const viewUrl = att.document?.storage_url_inline || downloadUrl;
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
               const isRenaming = renamingAttachmentId === att.id;
 
@@ -714,10 +744,10 @@ function SortableQuestionItem({
                 : 'other';
 
               return (
-                <div key={att.id} className="flex items-center gap-1 text-xs group">
+                <div key={att.id} className="flex items-center gap-1 text-xs group relative">
                   <Paperclip className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
                   {/* Download button - always visible */}
-                  {url && (
+                  {downloadUrl && (
                     <button
                       onClick={() => onDownloadAttachment?.(att)}
                       className="text-muted-foreground hover:text-foreground"
@@ -727,9 +757,9 @@ function SortableQuestionItem({
                     </button>
                   )}
                   {isRenaming ? (
-                    // Inline edit mode - use form submit to get current input value directly
+                    // Inline edit mode - pops out with absolute positioning for full visibility
                     <form
-                      className="flex items-center gap-1 flex-1"
+                      className="absolute left-0 top-0 z-50 flex items-center gap-1 bg-background border rounded-md shadow-lg p-1 min-w-[320px]"
                       onSubmit={(e) => {
                         e.preventDefault();
                         const form = e.currentTarget;
@@ -744,8 +774,10 @@ function SortableQuestionItem({
                       <Input
                         name="attachmentName"
                         defaultValue={renamingAttachmentName}
-                        className="h-5 text-xs px-1 py-0 flex-1"
+                        className="h-6 text-xs px-2 py-0 flex-1 min-w-[240px]"
                         autoFocus
+                        maxLength={200}
+                        title="Characters not allowed: brackets, colons, quotes, slashes, pipes, question marks, asterisks"
                         onKeyDown={(e) => {
                           e.stopPropagation();
                           if (e.key === 'Escape') {
@@ -753,10 +785,17 @@ function SortableQuestionItem({
                             setRenamingAttachmentName?.('');
                           }
                         }}
+                        onChange={(e) => {
+                          // Strip invalid filename characters as user types
+                          const invalidChars = /[<>:"/\\|?*]/g;
+                          if (invalidChars.test(e.target.value)) {
+                            e.target.value = e.target.value.replace(invalidChars, '');
+                          }
+                        }}
                       />
                       <button
                         type="submit"
-                        className="text-green-600 hover:text-green-700 p-0.5"
+                        className="text-green-600 hover:text-green-700 p-0.5 shrink-0"
                         title="Save"
                       >
                         <Check className="h-3 w-3" />
@@ -768,7 +807,7 @@ function SortableQuestionItem({
                           setRenamingAttachmentId?.(null);
                           setRenamingAttachmentName?.('');
                         }}
-                        className="text-muted-foreground hover:text-foreground p-0.5"
+                        className="text-muted-foreground hover:text-foreground p-0.5 shrink-0"
                         title="Cancel"
                       >
                         <X className="h-3 w-3" />
@@ -777,12 +816,13 @@ function SortableQuestionItem({
                   ) : (
                     // Display mode: single click = drawer, double click = new window
                     <>
-                      {url ? (
+                      {viewUrl ? (
                         <button
-                          onClick={() => onOpenDocument?.(url, fileName, fileType)}
+                          onClick={() => onOpenDocument?.(viewUrl, fileName, fileType)}
                           onDoubleClick={(e) => {
                             e.preventDefault();
-                            window.open(url, '_blank');
+                            // Double-click opens in new tab using inline URL
+                            window.open(viewUrl, '_blank');
                           }}
                           className="text-green-600 dark:text-green-400 hover:text-green-700 hover:underline font-medium text-left"
                           title="Click to preview, double-click to open in new tab"
@@ -1087,6 +1127,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     label?: string;     // Display label for the filter
   }>({ type: 'all' });
 
+  // Document source filter - filter documents by source (email attachment vs uploaded)
+  const [documentSourceFilter, setDocumentSourceFilter] = useState<'all' | 'email' | 'uploaded'>('all');
+
   // Bulk email linking state
   const [bulkLinkOpen, setBulkLinkOpen] = useState(false);
   const [bulkLinkOptions, setBulkLinkOptions] = useState<{
@@ -1211,6 +1254,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Email compose for responses
   const [showComposeEmail, setShowComposeEmail] = useState(false);
   const [emailFileAttachments, setEmailFileAttachments] = useState<File[]>([]);
+  // SSoT: Existing storage keys (pass directly to backend, no re-upload needed)
+  // Ultra fix (Jan 2026): Documents already in S3 don't need download/re-upload
+  const [emailExistingStorageKeys, setEmailExistingStorageKeys] = useState<string[]>([]);
+  // Pre-uploaded attachments with display names (show in UI, no re-upload on send)
+  const [emailPreUploadedAttachments, setEmailPreUploadedAttachments] = useState<PreUploadedAttachment[]>([]);
   const [prepareEmailLoading, setPrepareEmailLoading] = useState(false);
   const [prepareEmailStatus, setPrepareEmailStatus] = useState('');
   // Track how each attachment should be included: 'attach' (file), 'link' (URL), 'both' (attach + link), 'none' (exclude)
@@ -1287,7 +1335,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   // Collapsible sections - all collapsed by default for cleaner initial view
   const [emailsCollapsed, setEmailsCollapsed] = useState(true);
-  const [documentsCollapsed, setDocumentsCollapsed] = useState(true);
+  const [documentsCollapsed, setDocumentsCollapsed] = useState(true); // Collapsed by default like other sections
   const [responseFilesCollapsed, setResponseFilesCollapsed] = useState(true);
   const [emailSourceCollapsed, setEmailSourceCollapsed] = useState(true); // Start collapsed
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<number>>(new Set());
@@ -1327,6 +1375,29 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setDuration(task.duration_days);
     setEmailKeywords(task.email_keywords || '');
   }, [task]);
+
+  // Mark email as read when viewed in task detail (SSoT: syncs with inbox)
+  useEffect(() => {
+    if (!selectedEmailId) return;
+
+    // Find the attachment with this email
+    const attachment = localAttachments.find(a => a.email?.id === selectedEmailId);
+    if (!attachment?.email || attachment.email.is_read) return; // Already read or not found
+
+    // Mark as read via API
+    api.post(`/api/v1/synced_emails/${selectedEmailId}/mark_read`)
+      .then(() => {
+        // Update local state to reflect read status
+        setLocalAttachments(prev => prev.map(a =>
+          a.email?.id === selectedEmailId
+            ? { ...a, email: { ...a.email!, is_read: true } }
+            : a
+        ));
+      })
+      .catch(err => {
+        console.error('Failed to mark email as read:', err);
+      });
+  }, [selectedEmailId]);
 
   // Filter attachments - emails sorted by date (latest first)
   const allEmailAttachments = localAttachments
@@ -1368,6 +1439,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   };
 
   const matchedEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Matched')).length;
+
+  // Collect all our mailbox emails (mailbox_owner_email) - works for any org/tenant
+  const ourMailboxes = useMemo(() => {
+    const mailboxes = new Set<string>();
+    allEmailAttachments.forEach(att => {
+      if (att.email?.mailbox_owner_email) {
+        mailboxes.add(att.email.mailbox_owner_email.toLowerCase());
+      }
+    });
+    return mailboxes;
+  }, [allEmailAttachments]);
+
+  // FRC: Emails FROM our mailboxes should never count as "unread" - they're internal
+  const unreadEmailCount = allEmailAttachments.filter(att => att.email?.is_read === false && !isSentEmail(att.email, ourMailboxes)).length;
   const threadEmailCount = allEmailAttachments.filter(att => att.notes?.startsWith('Thread:')).length;
 
   // Calculate unique senders from attached emails with counts
@@ -1473,10 +1558,21 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       if (foundEmail) return foundEmail;
     }
 
-    const findOldestEmailSender = (emails: typeof allEmailAttachments): string | null => {
+    const findOldestExternalSender = (emails: typeof allEmailAttachments): string | null => {
       if (emails.length === 0) return null;
+      // Filter to only external senders (not current user, not @teeem internal)
+      const currentUserEmail = currentUser?.email?.toLowerCase() || '';
+      const externalEmails = emails.filter(att => {
+        const fromEmail = att.email?.from_email?.toLowerCase() || '';
+        // Exclude: current user, @teeem internal addresses, @tekna internal
+        return fromEmail &&
+               fromEmail !== currentUserEmail &&
+               !fromEmail.includes('@teeem.') &&
+               !fromEmail.includes('@tekna.');
+      });
+      if (externalEmails.length === 0) return null;
       // Sort by received_at ascending (oldest first)
-      const sorted = [...emails].sort((a, b) => {
+      const sorted = [...externalEmails].sort((a, b) => {
         const dateA = a.email?.received_at ? new Date(a.email.received_at).getTime() : 0;
         const dateB = b.email?.received_at ? new Date(b.email.received_at).getTime() : 0;
         return dateA - dateB;
@@ -1485,18 +1581,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     };
 
     // Try thread emails first (most likely the original conversation)
-    const threadSender = findOldestEmailSender(categorizedEmails.thread);
+    const threadSender = findOldestExternalSender(categorizedEmails.thread);
     if (threadSender) return threadSender;
 
     // Then try matched emails
-    const matchedSender = findOldestEmailSender(categorizedEmails.matched);
+    const matchedSender = findOldestExternalSender(categorizedEmails.matched);
     if (matchedSender) return matchedSender;
 
     // Finally try linked emails
-    return findOldestEmailSender(categorizedEmails.linked);
-  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments]);
+    return findOldestExternalSender(categorizedEmails.linked);
+  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments, currentUser]);
 
   // Find the original email data for quoted reply
+  // SSoT: Must use same filtering as originalEmailSender to ensure TO address and greeting match
   const originalEmailData = useMemo(() => {
     // If we have forwarded email info, try to find the actual email record
     if (forwardedEmailInfo?.from_name) {
@@ -1509,6 +1606,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           return email;
         }
       }
+      // If not found by name, try to get mailbox_owner_email from any attachment
+      // SSoT: This preserves the correct reply From address even when name match fails
+      const firstEmailWithMailbox = allEmailAttachments.find(att => att.email?.mailbox_owner_email);
       // If not found in stored emails, return what we have from parsing
       return {
         from_name: forwardedEmailInfo.from_name,
@@ -1521,12 +1621,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         body_text: undefined,
         body_html: undefined,
         conversation_id: undefined, // Required for SSoT conversation threading
+        mailbox_owner_email: firstEmailWithMailbox?.email?.mailbox_owner_email, // SSoT: Preserve for Reply From
       };
     }
 
-    const findOldestEmail = (emails: typeof allEmailAttachments) => {
+    // SSoT: Filter to external senders only (same logic as originalEmailSender)
+    // This ensures the greeting name matches the TO address
+    const currentUserEmail = currentUser?.email?.toLowerCase() || '';
+    const isExternalSender = (email: { from_email?: string } | null | undefined): boolean => {
+      const fromEmail = email?.from_email?.toLowerCase() || '';
+      return !!fromEmail &&
+             fromEmail !== currentUserEmail &&
+             !fromEmail.includes('@teeem.') &&
+             !fromEmail.includes('@tekna.');
+    };
+
+    const findOldestExternalEmail = (emails: typeof allEmailAttachments) => {
       if (emails.length === 0) return null;
-      const sorted = [...emails].sort((a, b) => {
+      // Filter to external senders first
+      const externalEmails = emails.filter(att => isExternalSender(att.email));
+      if (externalEmails.length === 0) return null;
+      // Sort by received_at ascending (oldest first)
+      const sorted = [...externalEmails].sort((a, b) => {
         const dateA = a.email?.received_at ? new Date(a.email.received_at).getTime() : 0;
         const dateB = b.email?.received_at ? new Date(b.email.received_at).getTime() : 0;
         return dateA - dateB;
@@ -1534,49 +1650,62 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       return sorted[0]?.email || null;
     };
 
-    // Try thread emails first
-    const threadEmail = findOldestEmail(categorizedEmails.thread);
+    // Try thread emails first (external senders only)
+    const threadEmail = findOldestExternalEmail(categorizedEmails.thread);
     if (threadEmail) return threadEmail;
 
-    // Then matched
-    const matchedEmail = findOldestEmail(categorizedEmails.matched);
+    // Then matched (external senders only)
+    const matchedEmail = findOldestExternalEmail(categorizedEmails.matched);
     if (matchedEmail) return matchedEmail;
 
-    // Finally linked
-    return findOldestEmail(categorizedEmails.linked);
-  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments]);
+    // Finally linked (external senders only)
+    return findOldestExternalEmail(categorizedEmails.linked);
+  }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments, currentUser]);
+
+  // Get the mailbox email that received the original message (for Reply From address)
+  // SSoT: Ensures reply is sent from the same mailbox the original was received at
+  const originalEmailMailbox = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mailbox = (originalEmailData as any)?.mailbox_owner_email || null;
+    console.log('[TaskReply] originalEmailData:', originalEmailData);
+    console.log('[TaskReply] mailbox_owner_email:', mailbox);
+    return mailbox;
+  }, [originalEmailData]);
 
   // Collect CC recipients from the original email's To and CC fields
-  // Excludes the sender (goes in To) and current user's email
+  // Excludes the sender (goes in To) and our own mailbox emails (will be From)
   const suggestedCcRecipients = useMemo(() => {
     const ccEmails = new Set<string>();
     const senderEmail = originalEmailSender?.toLowerCase();
 
     if (!originalEmailData) return [];
 
-    // Add original To recipients (except sender and current user robert@tekna)
+    // Helper to check if email is one of our mailboxes
+    const isOurMailbox = (email: string) => ourMailboxes.has(email.toLowerCase());
+
+    // Add original To recipients (except sender and our own mailboxes)
     originalEmailData.to_emails?.forEach((addr: string) => {
       const lower = addr.toLowerCase();
-      // Exclude: the sender, robert@tekna (current user), and @teeem internal
+      // Exclude: the sender, our mailboxes, and @teeem internal addresses
       if (lower !== senderEmail &&
-          !lower.includes('robert@tekna') &&
+          !isOurMailbox(addr) &&
           !lower.includes('@teeem.')) {
         ccEmails.add(addr);
       }
     });
 
-    // Add original CC recipients
+    // Add original CC recipients (same filtering)
     originalEmailData.cc_emails?.forEach((addr: string) => {
       const lower = addr.toLowerCase();
       if (lower !== senderEmail &&
-          !lower.includes('robert@tekna') &&
+          !isOurMailbox(addr) &&
           !lower.includes('@teeem.')) {
         ccEmails.add(addr);
       }
     });
 
     return Array.from(ccEmails);
-  }, [originalEmailData, originalEmailSender]);
+  }, [originalEmailData, originalEmailSender, ourMailboxes]);
 
   // Apply person filter to each category (for tree view)
   const filteredCategories = useMemo(() => {
@@ -1673,14 +1802,60 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     return totalMonths > 0 && collapsedEmailMonths.size >= totalMonths;
   }, [emailsByMonthPerCategory, collapsedEmailMonths]);
 
-  const documentAttachments = localAttachments.filter(a => a.document && !a.email);
+  const allDocumentAttachments = localAttachments.filter(a => a.document && !a.email);
 
-  // Split document attachments by category
-  const infoAttachments = documentAttachments.filter(a => a.category !== 'response');
-  const responseDocuments = documentAttachments.filter(a => a.category === 'response');
+  // Compute set of content hashes from email attachments (for filtering documents by source)
+  const emailAttachmentHashes = useMemo(() => {
+    const hashes = new Set<string>();
+    allEmailAttachments.forEach(att => {
+      (att.email?.attachment_content_hashes || []).forEach(h => hashes.add(h));
+    });
+    return hashes;
+  }, [allEmailAttachments]);
+
+  // Filter documents based on source filter
+  const documentAttachments = useMemo(() => {
+    if (documentSourceFilter === 'all') return allDocumentAttachments;
+    if (documentSourceFilter === 'email') {
+      // Documents from email attachments (content_hash matches an email attachment)
+      return allDocumentAttachments.filter(a =>
+        a.document?.content_hash && emailAttachmentHashes.has(a.document.content_hash)
+      );
+    }
+    // 'uploaded' - documents NOT from email attachments
+    return allDocumentAttachments.filter(a =>
+      !a.document?.content_hash || !emailAttachmentHashes.has(a.document.content_hash)
+    );
+  }, [allDocumentAttachments, emailAttachmentHashes, documentSourceFilter]);
+
+  // Count documents by source for filter badges
+  const documentCountBySource = useMemo(() => {
+    const fromEmail = allDocumentAttachments.filter(a =>
+      a.document?.content_hash && emailAttachmentHashes.has(a.document.content_hash)
+    ).length;
+    return {
+      all: allDocumentAttachments.length,
+      email: fromEmail,
+      uploaded: allDocumentAttachments.length - fromEmail
+    };
+  }, [allDocumentAttachments, emailAttachmentHashes]);
+
+  // All document attachments are available via the Attachments panel (Documents section)
+  // Response documents are those linked to questions OR with category 'response'
+  // SSoT: Same logic as emails - action_item_id means linked to a question
+  // Note: Use allDocumentAttachments (not filtered) for response docs
+  const responseDocuments = allDocumentAttachments.filter(a => a.action_item_id || a.category === 'response');
 
   // Emails linked to questions OR with category 'response' are response items
-  const responseEmails = allEmailAttachments.filter(a => a.action_item_id || a.category === 'response');
+  // FRC (Jan 2026): EXCLUDE source emails AND sent emails from response attachments
+  // - is_source=true marks the email the task was created from (INPUT)
+  // - isSentEmail() detects emails WE sent (already sent, shouldn't be re-attached)
+  // Only INCOMING emails that need to be forwarded/referenced should appear
+  const responseEmails = allEmailAttachments.filter(a =>
+    (a.action_item_id || a.category === 'response') &&
+    !a.is_source &&
+    !isSentEmail(a.email, ourMailboxes)
+  );
 
   // Combined response attachments (documents + emails linked to questions)
   const responseAttachments = [...responseDocuments, ...responseEmails];
@@ -1724,15 +1899,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     if (!task.description?.startsWith('**Created from email:**')) return null;
 
     const lines = task.description.split('\n');
-    const fromMatch = lines.find(l => l.startsWith('From:'));
-    const dateMatch = lines.find(l => l.startsWith('Date:'));
 
-    // Find where the email body starts (after the metadata lines)
+    // Only check first 5 lines for metadata (avoid matching "From:" in forwarded email body)
+    const metadataLines = lines.slice(0, 5);
+    const fromMatch = metadataLines.find(l => l.startsWith('From:'));
+    const dateMatch = metadataLines.find(l => l.startsWith('Date:'));
+
+    // Find where the email body starts (after the header + From + Date lines)
+    // Typically: line 0 = header, line 1 = From, line 2 = Date, line 3 = empty, line 4+ = body
     let bodyStartIndex = 0;
-    for (let i = 0; i < lines.length; i++) {
+    for (let i = 0; i < Math.min(lines.length, 5); i++) {
       if (lines[i].startsWith('From:') || lines[i].startsWith('Date:') || lines[i].startsWith('**Created from email:**')) {
         bodyStartIndex = i + 1;
       } else if (lines[i].trim() !== '') {
+        // Non-empty, non-metadata line = start of body
         break;
       }
     }
@@ -2449,6 +2629,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     setAttachmentLoading(false);
   };
 
+  // Remove from Response Files section only (keeps email in Emails section)
+  // FRC (Jan 2026): User expected delete from Response Files to only remove from that section,
+  // not delete the email entirely. This changes category from "response" to "info".
+  const handleRemoveFromResponses = async (attachmentId: number) => {
+    setAttachmentLoading(true);
+    try {
+      await api.delete(`/api/v1/sm_tasks/${task.id}/attachments/${attachmentId}?from_responses_only=true`);
+      // Update local state: change category to "info" so it moves out of responses
+      setLocalAttachments(prev => prev.map(a =>
+        a.id === attachmentId ? { ...a, category: 'info' } : a
+      ));
+    } catch (err) {
+      console.error('Failed to remove from responses:', err);
+    }
+    setAttachmentLoading(false);
+  };
+
   // Fetch suggested emails (related emails not yet attached, grouped by category)
   const fetchSuggestedEmails = async () => {
     setSuggestedEmailsLoading(true);
@@ -2681,89 +2878,101 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       if (response?.success && response?.share_url) {
         window.open(response.share_url, '_blank');
       } else {
-        // Fallback to direct URL if API fails
-        const url = att.document.storage_url || att.document.file_url;
+        // Fallback to inline URL if API fails (SSoT: use storage_url_inline for viewing)
+        const url = att.document.storage_url_inline || att.document.storage_url || att.document.file_url;
         if (url) {
           window.open(url, '_blank');
         }
       }
     } catch (err) {
       console.error('Failed to get open link:', err);
-      // Fallback to direct URL on error
-      const url = att.document.storage_url || att.document.file_url;
+      // Fallback to inline URL on error (SSoT: use storage_url_inline for viewing)
+      const url = att.document.storage_url_inline || att.document.storage_url || att.document.file_url;
       if (url) {
         window.open(url, '_blank');
       }
     }
   };
 
-  // Download all attachments at once
-  const [downloadingAll, setDownloadingAll] = useState(false);
-  const handleDownloadAllAttachments = async (attachments: TaskAttachment[]) => {
-    if (attachments.length === 0) return;
+  // Open attachment in full viewer (same as what external users see with Q&A sidebar)
+  const openInFullViewer = async (clickedAttIndex: number) => {
+    try {
+      // Build files array from response attachments (documents only)
+      const viewerFiles: { name: string; downloadUrl: string; openUrl: string }[] = [];
+      const attIdToFileIndex = new Map<number, number>();
 
-    setDownloadingAll(true);
-    let downloaded = 0;
-    let failed = 0;
+      for (const att of responseAttachments) {
+        if (att.document) {
+          // Download URL: presigned S3 URL (direct navigation doesn't have CORS issues)
+          const downloadUrl = att.document.storage_url || att.document.file_url;
 
-    for (const att of attachments) {
-      try {
-        if (att.email) {
-          // Download email as .eml file
-          const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
-            `/api/v1/synced_emails/${att.email.id}/download_eml`
-          );
-          if (response?.success) {
-            const byteCharacters = atob(response.content);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: response.content_type || 'message/rfc822' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = response.filename || `email-${att.email.id}.eml`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            downloaded++;
-          } else {
-            failed++;
-          }
-        } else if (att.document) {
-          // Download document
-          const url = att.document.storage_url || att.document.file_url;
-          if (url) {
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = att.document.display_name || att.document.file_name || 'document';
-            link.target = '_blank';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            downloaded++;
-          } else {
-            failed++;
+          // Open URL: Use presigned URL with inline disposition for viewing
+          // These are pre-signed URLs from the storage provider (S3/SharePoint)
+          const openUrl = att.document.storage_url_inline || att.document.storage_url || att.document.file_url;
+
+          if (downloadUrl && openUrl) {
+            attIdToFileIndex.set(att.id, viewerFiles.length);
+            viewerFiles.push({
+              name: att.document.display_name || att.document.file_name || 'Document',
+              downloadUrl,
+              openUrl
+            });
           }
         }
-        // Small delay between downloads to prevent browser blocking
-        await new Promise(resolve => setTimeout(resolve, 300));
-      } catch (err) {
-        console.error(`Failed to download attachment ${att.id}:`, err);
-        failed++;
       }
-    }
 
-    setDownloadingAll(false);
-    if (failed === 0) {
-      toast.success(`Downloaded ${downloaded} file${downloaded !== 1 ? 's' : ''}`);
-    } else if (downloaded > 0) {
-      toast.info(`Downloaded ${downloaded} file${downloaded !== 1 ? 's' : ''}, ${failed} failed`);
-    } else {
-      toast.error('Failed to download files');
+      if (viewerFiles.length === 0) {
+        toast.error('No documents to preview');
+        return;
+      }
+
+      // Build Q&A from questions with responses
+      const viewerQA = questionItems
+        .filter(q => q.include_in_response && (q.response || (q.attachments && q.attachments.length > 0)))
+        .map(q => {
+          const attachmentIndices: number[] = [];
+          if (q.attachments) {
+            for (const att of q.attachments) {
+              const fileIdx = attIdToFileIndex.get(att.id);
+              if (fileIdx !== undefined) {
+                attachmentIndices.push(fileIdx);
+              }
+            }
+          }
+          return {
+            question: q.text,
+            answer: q.response || undefined,
+            attachmentIndices: attachmentIndices.length > 0 ? attachmentIndices : undefined
+          };
+        });
+
+      // Get the file index for the clicked attachment
+      const clickedFileIndex = attIdToFileIndex.get(responseAttachments[clickedAttIndex]?.id) ?? 0;
+
+      // Create viewer context via API
+      const contextResponse = await api.post<{ success: boolean; id?: string; error?: string }>(
+        '/api/v1/viewer_contexts',
+        { context: { files: viewerFiles, allQA: viewerQA, currentIndex: clickedFileIndex } }
+      );
+
+      if (contextResponse?.success && contextResponse?.id) {
+        // Open the full viewer (same as external users see)
+        window.open(`/view/ctx/${contextResponse.id}?idx=${clickedFileIndex}`, '_blank');
+      } else {
+        // Fallback to simple viewer
+        const att = responseAttachments[clickedAttIndex];
+        if (att?.document) {
+          const openUrl = att.document.storage_url_inline || att.document.storage_url || att.document.file_url;
+          const fileName = att.document.display_name || att.document.file_name || 'Document';
+          if (openUrl) {
+            const viewerParams = new URLSearchParams({ url: openUrl, name: fileName });
+            window.open(`/view?${viewerParams.toString()}`, '_blank');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to open full viewer:', err);
+      toast.error('Failed to open viewer');
     }
   };
 
@@ -3710,8 +3919,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             .map(att => {
               const links = shareLinksMap[att.id];
               if (att.document) {
-                const fallback = att.document?.storage_url || att.document?.file_url || '';
-                return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+                // SSoT: Use storage_url for downloads (attachment disposition), storage_url_inline for viewing (inline disposition)
+                const downloadFallback = att.document?.storage_url || att.document?.file_url || '';
+                const openFallback = att.document?.storage_url_inline || downloadFallback;
+                return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || downloadFallback, openUrl: links?.open || openFallback };
               } else {
                 // Email attachment - use .eml extension for proper viewer handling
                 const emailName = getAttachmentDisplayName(att);
@@ -3724,11 +3935,18 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           if (q.response) {
             body += `<p>${q.response}`;
             // If there are attachments, add them immediately after (no gap)
+            // SSoT: Respect attachmentEmailOptions - 'attach' = filename only, 'link'/'both' = with links, 'none' = skip
             if (q.attachments && q.attachments.length > 0) {
               q.attachments.forEach((att, attIdx) => {
+                const opt = attachmentEmailOptions[att.id] || 'link';
+                if (opt === 'none') return; // Skip excluded attachments
+
+                // Only show links if option is 'link' or 'both'
+                const showLinks = opt === 'link' || opt === 'both';
+
                 if (att.document) {
-                  const links = shareLinksMap[att.id];
-                  const fallbackUrl = att.document.storage_url || att.document.file_url;
+                  const links = showLinks ? shareLinksMap[att.id] : undefined;
+                  const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
                   body += `\n📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                     question: q.text,
                     answer: q.response,
@@ -3739,10 +3957,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   })}`;
                 } else if (att.email) {
                   // Email attachment - add link with .eml extension
-                  const links = shareLinksMap[att.id];
+                  const links = showLinks ? shareLinksMap[att.id] : undefined;
                   const emailName = getAttachmentDisplayName(att);
                   const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
-                  if (links?.download || links?.open) {
+                  if (showLinks && (links?.download || links?.open)) {
                     body += `\n📧 ${formatFileLink(emlName, links?.download, links?.open, {
                       question: q.text,
                       answer: q.response,
@@ -3751,6 +3969,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       allQA,
                       contentType: 'message/rfc822'
                     })}`;
+                  } else {
+                    body += `\n📧 ${emlName}`;
                   }
                 }
               });
@@ -3758,12 +3978,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             body += `</p>\n`;
           } else if (q.attachments && q.attachments.length > 0) {
             // Attachments only (no text response)
+            // SSoT: Respect attachmentEmailOptions - 'attach' = filename only, 'link'/'both' = with links, 'none' = skip
             body += `<p>`;
+            let addedCount = 0;
             q.attachments.forEach((att, attIdx) => {
-              if (attIdx > 0) body += `<br>`;
+              const opt = attachmentEmailOptions[att.id] || 'link';
+              if (opt === 'none') return; // Skip excluded attachments
+
+              // Only show links if option is 'link' or 'both'
+              const showLinks = opt === 'link' || opt === 'both';
+
+              if (addedCount > 0) body += `<br>`;
+              addedCount++;
+
               if (att.document) {
-                const links = shareLinksMap[att.id];
-                const fallbackUrl = att.document.storage_url || att.document.file_url;
+                const links = showLinks ? shareLinksMap[att.id] : undefined;
+                const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
                 body += `📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                   question: q.text,
                   allFiles,
@@ -3773,10 +4003,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 })}`;
               } else if (att.email) {
                 // Email attachment - add link with .eml extension
-                const links = shareLinksMap[att.id];
+                const links = showLinks ? shareLinksMap[att.id] : undefined;
                 const emailName = getAttachmentDisplayName(att);
                 const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
-                if (links?.download || links?.open) {
+                if (showLinks && (links?.download || links?.open)) {
                   body += `📧 ${formatFileLink(emlName, links?.download, links?.open, {
                     question: q.text,
                     allFiles,
@@ -3784,6 +4014,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     allQA,
                     contentType: 'message/rfc822'
                   })}`;
+                } else {
+                  body += `📧 ${emlName}`;
                 }
               }
             });
@@ -3807,8 +4039,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             .map(att => {
               const links = shareLinksMap[att.id];
               if (att.document) {
-                const fallback = att.document?.storage_url || att.document?.file_url || '';
-                return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+                // SSoT: Use storage_url for downloads (attachment disposition), storage_url_inline for viewing (inline disposition)
+                const downloadFallback = att.document?.storage_url || att.document?.file_url || '';
+                const openFallback = att.document?.storage_url_inline || downloadFallback;
+                return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || downloadFallback, openUrl: links?.open || openFallback };
               } else {
                 // Email attachment - use .eml extension for proper viewer handling
                 const emailName = getAttachmentDisplayName(att);
@@ -3818,14 +4052,21 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             });
 
           // Show text response (no extra spacing before attachments)
+          // SSoT: Respect attachmentEmailOptions - 'attach' = filename only, 'link'/'both' = with links, 'none' = skip
           if (q.response) {
             body += `<p>${q.response}`;
             // If there are attachments, add them immediately after (no gap)
             if (q.attachments && q.attachments.length > 0) {
               q.attachments.forEach((att, attIdx) => {
+                const opt = attachmentEmailOptions[att.id] || 'link';
+                if (opt === 'none') return; // Skip excluded attachments
+
+                // Only show links if option is 'link' or 'both'
+                const showLinks = opt === 'link' || opt === 'both';
+
                 if (att.document) {
-                  const links = shareLinksMap[att.id];
-                  const fallbackUrl = att.document.storage_url || att.document.file_url;
+                  const links = showLinks ? shareLinksMap[att.id] : undefined;
+                  const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
                   body += `\n📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                     question: q.text,
                     answer: q.response,
@@ -3836,10 +4077,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   })}`;
                 } else if (att.email) {
                   // Email attachment - add link with .eml extension
-                  const links = shareLinksMap[att.id];
+                  const links = showLinks ? shareLinksMap[att.id] : undefined;
                   const emailName = getAttachmentDisplayName(att);
                   const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
-                  if (links?.download || links?.open) {
+                  if (showLinks && (links?.download || links?.open)) {
                     body += `\n📧 ${formatFileLink(emlName, links?.download, links?.open, {
                       question: q.text,
                       answer: q.response,
@@ -3848,6 +4089,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       allQA,
                       contentType: 'message/rfc822'
                     })}`;
+                  } else {
+                    body += `\n📧 ${emlName}`;
                   }
                 }
               });
@@ -3855,12 +4098,22 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             body += `</p>\n`;
           } else if (q.attachments && q.attachments.length > 0) {
             // Attachments only (no text response)
+            // SSoT: Respect attachmentEmailOptions - 'attach' = filename only, 'link'/'both' = with links, 'none' = skip
             body += `<p>`;
+            let addedCount = 0;
             q.attachments.forEach((att, attIdx) => {
-              if (attIdx > 0) body += `<br>`;
+              const opt = attachmentEmailOptions[att.id] || 'link';
+              if (opt === 'none') return; // Skip excluded attachments
+
+              // Only show links if option is 'link' or 'both'
+              const showLinks = opt === 'link' || opt === 'both';
+
+              if (addedCount > 0) body += `<br>`;
+              addedCount++;
+
               if (att.document) {
-                const links = shareLinksMap[att.id];
-                const fallbackUrl = att.document.storage_url || att.document.file_url;
+                const links = showLinks ? shareLinksMap[att.id] : undefined;
+                const fallbackUrl = showLinks ? (att.document.storage_url || att.document.file_url) : undefined;
                 body += `📎 ${formatFileLink(getAttachmentDisplayName(att), links?.download || fallbackUrl, links?.open, {
                   question: q.text,
                   allFiles,
@@ -3870,10 +4123,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                 })}`;
               } else if (att.email) {
                 // Email attachment - add link with .eml extension
-                const links = shareLinksMap[att.id];
+                const links = showLinks ? shareLinksMap[att.id] : undefined;
                 const emailName = getAttachmentDisplayName(att);
                 const emlName = emailName.toLowerCase().endsWith('.eml') ? emailName : `${emailName}.eml`;
-                if (links?.download || links?.open) {
+                if (showLinks && (links?.download || links?.open)) {
                   body += `📧 ${formatFileLink(emlName, links?.download, links?.open, {
                     question: q.text,
                     allFiles,
@@ -3881,6 +4134,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     allQA,
                     contentType: 'message/rfc822'
                   })}`;
+                } else {
+                  body += `📧 ${emlName}`;
                 }
               }
             });
@@ -3946,8 +4201,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       // Build file list for viewer navigation (if multiple linked files)
       const linkedFilesForViewer: ViewerFile[] = linkedFiles.map(att => {
         const links = shareLinksMap[att.id];
-        const fallback = att.document?.storage_url || att.document?.file_url || '';
-        return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || fallback, openUrl: links?.open || fallback };
+        // SSoT: Use storage_url for downloads (attachment disposition), storage_url_inline for viewing (inline disposition)
+        const downloadFallback = att.document?.storage_url || att.document?.file_url || '';
+        const openFallback = att.document?.storage_url_inline || downloadFallback;
+        return { name: getAttachmentDisplayName(att), downloadUrl: links?.download || downloadFallback, openUrl: links?.open || openFallback };
       });
 
       body += '<p><strong>File links:</strong></p>\n';
@@ -3967,19 +4224,28 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
     // NOTE: Email links removed - external recipients don't need .eml downloads of conversations they're part of
 
-    // Count total document attachments (question attachments + general response files)
-    const questionDocCount = includedQuestions.reduce((count, q) => {
-      return count + (q.attachments?.filter(a => a.document)?.length || 0);
+    // FRC (Jan 2026): Count only documents with LINKS (not 'attach' only)
+    // ZIP/expiry message only makes sense when there are download links in the email body
+    const questionLinkedDocCount = includedQuestions.reduce((count, q) => {
+      return count + (q.attachments?.filter(a => {
+        if (!a.document) return false;
+        const opt = attachmentEmailOptions[a.id] || 'link';
+        return opt === 'link' || opt === 'both';
+      })?.length || 0);
     }, 0);
-    const totalDocuments = questionDocCount + linkedFiles.length;
+    const totalLinkedDocuments = questionLinkedDocCount + linkedFiles.length;
 
-    // Add "Download All" link if available (for multiple files)
+    // Add "Download All" link if available (for multiple linked files)
     // Use ref for synchronous access (avoids React state timing issues)
     const downloadUrl = downloadAllShareUrlRef.current;
-    if (downloadUrl && totalDocuments > 1) {
+    if (downloadUrl && totalLinkedDocuments > 1) {
       const expiryDays = downloadAllExpiryDaysRef.current;
-      body += `<p>For your convenience, you can download all ${totalDocuments} files in a single ZIP archive:</p>\n`;
+      body += `<p>For your convenience, you can download all ${totalLinkedDocuments} files in a single ZIP archive:</p>\n`;
       body += `<p>📦 <a href="${downloadUrl}"><strong>Download All Files (ZIP)</strong></a></p>\n`;
+      body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
+    } else if (totalLinkedDocuments === 1) {
+      // Single linked document still needs expiration warning (links expire same as ZIP)
+      const expiryDays = downloadAllExpiryDaysRef.current;
       body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
     }
 
@@ -4008,6 +4274,26 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         body += '\n' + signature + '\n';
       }
     }
+
+    // Add Teeem marketing footer with spacing, logo, and TEEEM meaning
+    // NOTE: Using PNG for dark "t" logo matching app header branding (better email client compatibility than SVG)
+    body += '\n<br><br>\n';
+    body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
+    body += '<td style="vertical-align: middle; padding-right: 8px;">';
+    // Teeem logos - actual file sizes match display sizes (TipTap ignores CSS sizing)
+    // Main: 28px (matches app header), Inline: 10px (matches 10px text exactly)
+    const teeemLogoUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-28.png';
+    const teeemLogoSmallUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-10.png';
+    body += `<img src="${teeemLogoUrl}" alt="t" style="vertical-align:middle;">`;
+    // "teeem" text: Georgia serif (closest to Hedvig), normal weight, proportional to 28px logo
+    body += `<span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:normal;color:#18181b;margin-left:6px;vertical-align:middle;">teeem</span>`;
+    body += '</td>';
+    body += '<td style="vertical-align: middle; padding-left: 12px;">';
+    body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
+    body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
+    body += `<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <img src="${teeemLogoSmallUrl}" alt="t" style="vertical-align:middle;margin-right:2px;"><span style="font-family:Georgia,'Times New Roman',serif;font-size:10px;font-weight:normal;color:#18181b;vertical-align:middle;">teeem</span> <a href="https://www.teeem.com.au" style="font-size:10px;color:#666;margin-left:4px;">teeem.com.au</a></p>`;
+    body += '</td>';
+    body += '</tr></table>\n';
 
     // Include original email as quoted reply if enabled
     if (includeOriginalEmail && originalEmailData) {
@@ -4111,8 +4397,26 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       let processed = 0;
 
       // Process documents to attach
+      // Ultra fix (Jan 2026): Use PreUploadedAttachment for docs with storage_key (no re-upload needed)
+      // This shows in attachment bar AND avoids presigned URL upload failures
+      const preUploadedAttachments: PreUploadedAttachment[] = [];
       for (const att of documentsToAttach) {
         const fileName = att.document?.display_name || att.document?.file_name || 'file';
+
+        // If document has storage_key, use it directly (no download/re-upload needed)
+        if (att.document?.storage_key) {
+          console.log(`[prepareEmailResponse] Using storage_key for ${fileName}`);
+          preUploadedAttachments.push({
+            filename: fileName,
+            storageKey: att.document.storage_key,
+            fileSize: att.document.file_size,
+            contentType: att.document.content_type,
+          });
+          processed++;
+          continue;
+        }
+
+        // Fallback: Download for documents without storage_key
         setPrepareEmailStatus(`Downloading ${fileName}... (${processed + 1}/${totalToProcess})`);
         try {
           const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
@@ -4135,9 +4439,25 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         processed++;
       }
 
-      // Process emails to attach - download as .eml
+      // Process emails to attach - use storage key if available, otherwise download as .eml
+      // Ultra fix (Jan 2026): Use eml_storage_key for emails already stored (no re-upload needed)
       for (const att of emailsToAttach) {
         const subject = att.email?.subject || '(No subject)';
+        const fileName = `${subject.replace(/[/\\?%*:|"<>]/g, '-')}.eml`;
+
+        // If email has eml_storage_key, use it directly (no download/re-upload needed)
+        if (att.email?.eml_storage_key) {
+          console.log(`[prepareEmailResponse] Using eml_storage_key for ${fileName}`);
+          preUploadedAttachments.push({
+            filename: fileName,
+            storageKey: att.email.eml_storage_key,
+            contentType: 'message/rfc822',
+          });
+          processed++;
+          continue;
+        }
+
+        // Fallback: Download for emails without eml_storage_key
         setPrepareEmailStatus(`Downloading email "${subject}"... (${processed + 1}/${totalToProcess})`);
         try {
           const response = await api.get<{ success: boolean; filename: string; content: string; content_type: string }>(
@@ -4151,7 +4471,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             }
             const byteArray = new Uint8Array(byteNumbers);
             const blob = new Blob([byteArray], { type: response.content_type || 'message/rfc822' });
-            const file = new File([blob], response.filename || `${subject}.eml`, { type: 'message/rfc822' });
+            const file = new File([blob], response.filename || fileName, { type: 'message/rfc822' });
             filesToAttach.push(file);
           }
         } catch (err) {
@@ -4322,6 +4642,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       // Store the share links and file attachments
       setShareLinksMap(shareLinks);
       setEmailFileAttachments(filesToAttach);
+      // SSoT: Store pre-uploaded attachments (show in UI, no re-upload on send)
+      setEmailPreUploadedAttachments(preUploadedAttachments);
+      // Clear legacy storage keys (now using preUploadedAttachments)
+      setEmailExistingStorageKeys([]);
 
       // Store viewer context server-side (avoids URL length limits)
       // Build context with all Q&A and all files (documents AND emails)
@@ -4340,11 +4664,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           const links = shareLinks[att.id];
           // Handle both documents and emails
           if (att.document) {
-            const fallback = att.document.storage_url || att.document.file_url || '';
+            // SSoT: Use storage_url for downloads (attachment disposition), storage_url_inline for viewing (inline disposition)
+            const downloadFallback = att.document.storage_url || att.document.file_url || '';
+            const openFallback = att.document.storage_url_inline || downloadFallback;
             return {
               name: att.display_name || att.document.display_name || att.document.file_name || 'Document',
-              downloadUrl: links?.download || fallback,
-              openUrl: links?.open || fallback
+              downloadUrl: links?.download || downloadFallback,
+              openUrl: links?.open || openFallback
             };
           } else if (att.email) {
             // Ensure .eml extension for proper file type detection in document viewer
@@ -5395,97 +5721,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               )}
             </div>
 
-            {/* Info attachments - reference docs that can be dragged onto questions */}
-            {infoAttachments.length > 0 && (
-              <div className="mt-3 pt-3 border-t shrink-0">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Paperclip className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                    <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Reference docs:</span>
-                  </div>
-                  {infoAttachments.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => handleDownloadAllAttachments(infoAttachments)}
-                      disabled={downloadingAll}
-                      title="Download all reference docs to your computer"
-                    >
-                      {downloadingAll ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Downloading...
-                        </>
-                      ) : (
-                        <>
-                          <Download className="h-3 w-3 mr-1" />
-                          Download All
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  {infoAttachments.map((att) => (
-                    <div
-                      key={att.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('application/x-attachment-id', att.id.toString());
-                        e.dataTransfer.effectAllowed = 'link';
-                      }}
-                      className="flex items-center gap-2 p-2 rounded bg-blue-50 dark:bg-blue-950/30 text-sm group cursor-grab active:cursor-grabbing"
-                    >
-                      {att.email ? (
-                        <>
-                          <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                          <EmailAttachmentLink
-                            emailId={att.email.id}
-                            subject={att.email.subject || '(No subject)'}
-                            onSelect={(id) => setSelectedEmailId(id)}
-                            downloadUrl={att.email.download_eml_url}
-                            linkClassName="flex-1 truncate"
-                          />
-                        </>
-                      ) : (
-                        <>
-                          {downloadingAttachmentId === att.id ? (
-                            <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 animate-spin" />
-                          ) : (
-                            <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                          )}
-                          <button
-                            onClick={() => handleDownloadAttachment(att)}
-                            onDoubleClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleOpenAttachmentInNewWindow(att);
-                            }}
-                            className="flex-1 truncate font-medium text-left hover:underline cursor-pointer"
-                            title="Click to download, double-click to open in new window"
-                          >
-                            {att.document?.display_name || att.document?.file_name}
-                          </button>
-                        </>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveAttachment(att.id);
-                        }}
-                        title="Delete attachment"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
                 </div>
               </div>
             )}
@@ -5709,7 +5944,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   <span className="text-xs font-medium whitespace-nowrap">Attachments</span>
                 </div>
                 <div className="p-2">
-                  <Badge variant="secondary" className="text-xs px-1.5 py-0">{allEmailAttachments.length + infoAttachments.length + responseAttachments.length}</Badge>
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0">{allEmailAttachments.length + documentAttachments.length}</Badge>
                 </div>
               </div>
             ) : (
@@ -5764,6 +5999,11 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                   <Badge variant="secondary" className="text-xs">
                     {emailSourceFilter.type !== 'all' ? `${emailAttachments.length}/${allEmailAttachments.length}` : allEmailAttachments.length}
                   </Badge>
+                  {unreadEmailCount > 0 && (
+                    <Badge className="text-xs bg-blue-600 hover:bg-blue-600 text-white">
+                      {unreadEmailCount} unread
+                    </Badge>
+                  )}
                 </div>
                 {/* Quick filter chips - outside clickable area */}
                 {!emailsCollapsed && matchedEmailCount > 0 && (
@@ -6168,6 +6408,30 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     </Badge>
                   )}
                 </Button>
+
+                {/* Auto-attach email files toggle */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className="flex items-center gap-1.5 ml-auto pl-2 border-l border-border cursor-pointer"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Paperclip className="h-3 w-3 text-muted-foreground" />
+                        <Switch
+                          checked={task.auto_attach_email_files !== false}
+                          onCheckedChange={async (checked) => {
+                            await updateTask(task.id, { auto_attach_email_files: checked });
+                          }}
+                          className="h-4 w-7 data-[state=checked]:bg-blue-500"
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[200px]">
+                      <p className="text-xs">Auto-attach files from emails when emails are added to this task</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               {!emailsCollapsed && (
@@ -6338,7 +6602,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         {isMonthCollapsed ? <ChevronRight className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                                         <CalendarIcon className="h-2.5 w-2.5" />
                                         <span>{monthLabel}</span>
-                                        <span className="ml-auto">{monthEmails.length}</span>
+                                        <span className="ml-auto flex items-center gap-1.5">
+                                          {(() => {
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email, ourMailboxes)).length;
+                                            return unreadInMonth > 0 ? (
+                                              <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
+                                            ) : null;
+                                          })()}
+                                          <span>{monthEmails.length}</span>
+                                        </span>
                                       </div>
 
                                       {/* Emails for this month */}
@@ -6355,7 +6627,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               }}
                                               className={cn(
                                                 "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
-                                                selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                                                selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
+                                                // Sent emails: green styling; Unread received: blue styling
+                                                isSentEmail(att.email, ourMailboxes) && "bg-green-50/50 dark:bg-green-950/20 border-l-2 border-green-500",
+                                                !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                               )}
                                               onClick={() => {
                                                 if (att.email) {
@@ -6371,11 +6646,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                               }}
                                               title="Click to view, double-click to open in new tab"
                                             >
-                                              <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                                              {isSentEmail(att.email, ourMailboxes) ? (
+                                                <Send className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400" />
+                                              ) : (
+                                                <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                              )}
                                               <div className="flex-1 min-w-0">
-                                                <div className="font-medium truncate">{att.email?.subject}</div>
+                                                <div className={cn("truncate", !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                                 <div className="text-muted-foreground truncate flex items-center gap-2">
-                                                  <span className="truncate">{att.email?.from_email}</span>
+                                                  {isSentEmail(att.email, ourMailboxes) ? (
+                                                    <span className="truncate text-green-600 dark:text-green-400">To: {att.email?.to_emails?.[0] || 'Unknown'}</span>
+                                                  ) : (
+                                                    <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
+                                                  )}
                                                   {att.email?.received_at && (
                                                     <span className="shrink-0 text-[10px]">
                                                       {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
@@ -6559,7 +6842,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         {isMonthCollapsed ? <ChevronRight className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                                         <CalendarIcon className="h-2.5 w-2.5" />
                                         <span>{monthLabel}</span>
-                                        <span className="ml-auto">{monthEmails.length}</span>
+                                        <span className="ml-auto flex items-center gap-1.5">
+                                          {(() => {
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email, ourMailboxes)).length;
+                                            return unreadInMonth > 0 ? (
+                                              <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
+                                            ) : null;
+                                          })()}
+                                          <span>{monthEmails.length}</span>
+                                        </span>
                                       </div>
                                       {!isMonthCollapsed && (
                                         <div className="divide-y">
@@ -6574,7 +6865,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         className={cn(
                                           "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
-                                          selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                                          selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
+                                          // Sent emails: green styling; Unread received: blue styling
+                                          isSentEmail(att.email, ourMailboxes) && "bg-green-50/50 dark:bg-green-950/20 border-l-2 border-green-500",
+                                          !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                         )}
                                         onClick={() => {
                                           if (att.email) {
@@ -6590,11 +6884,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         title="Click to view, double-click to open in new tab"
                                       >
-                                        <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                                        {isSentEmail(att.email, ourMailboxes) ? (
+                                          <Send className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400" />
+                                        ) : (
+                                          <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                        )}
                                         <div className="flex-1 min-w-0">
-                                          <div className="font-medium truncate">{att.email?.subject}</div>
+                                          <div className={cn("truncate", !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                           <div className="text-muted-foreground truncate flex items-center gap-2">
-                                            <span className="truncate">{att.email?.from_email}</span>
+                                            {isSentEmail(att.email, ourMailboxes) ? (
+                                              <span className="truncate text-green-600 dark:text-green-400">To: {att.email?.to_emails?.[0] || 'Unknown'}</span>
+                                            ) : (
+                                              <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
+                                            )}
                                             {att.email?.received_at && (
                                               <span className="shrink-0 text-[10px]">
                                                 {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
@@ -6691,7 +6993,15 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         {isMonthCollapsed ? <ChevronRight className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                                         <CalendarIcon className="h-2.5 w-2.5" />
                                         <span>{monthLabel}</span>
-                                        <span className="ml-auto">{monthEmails.length}</span>
+                                        <span className="ml-auto flex items-center gap-1.5">
+                                          {(() => {
+                                            const unreadInMonth = monthEmails.filter(e => e.email?.is_read === false && !isSentEmail(e.email, ourMailboxes)).length;
+                                            return unreadInMonth > 0 ? (
+                                              <span className="text-blue-600 font-semibold">{unreadInMonth} unread</span>
+                                            ) : null;
+                                          })()}
+                                          <span>{monthEmails.length}</span>
+                                        </span>
                                       </div>
                                       {!isMonthCollapsed && (
                                         <div className="divide-y">
@@ -6706,7 +7016,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         className={cn(
                                           "flex items-center gap-2 p-2 hover:bg-muted/50 cursor-grab text-xs group",
-                                          selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30"
+                                          selectedEmailForHighlight === att.email?.id && "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/30",
+                                          // Sent emails: green styling; Unread received: blue styling
+                                          isSentEmail(att.email, ourMailboxes) && "bg-green-50/50 dark:bg-green-950/20 border-l-2 border-green-500",
+                                          !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false && "bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-500"
                                         )}
                                         onClick={() => {
                                           if (att.email) {
@@ -6722,11 +7035,19 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         title="Click to view, double-click to open in new tab"
                                       >
-                                        <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                                        {isSentEmail(att.email, ourMailboxes) ? (
+                                          <Send className="h-3 w-3 shrink-0 text-green-600 dark:text-green-400" />
+                                        ) : (
+                                          <Mail className={cn("h-3 w-3 shrink-0", att.email?.is_read === false ? "text-blue-600 fill-blue-600" : "text-muted-foreground")} />
+                                        )}
                                         <div className="flex-1 min-w-0">
-                                          <div className="font-medium truncate">{att.email?.subject}</div>
+                                          <div className={cn("truncate", !isSentEmail(att.email, ourMailboxes) && att.email?.is_read === false ? "font-semibold" : "font-medium")}>{att.email?.subject}</div>
                                           <div className="text-muted-foreground truncate flex items-center gap-2">
-                                            <span className="truncate">{att.email?.from_email}</span>
+                                            {isSentEmail(att.email, ourMailboxes) ? (
+                                              <span className="truncate text-green-600 dark:text-green-400">To: {att.email?.to_emails?.[0] || 'Unknown'}</span>
+                                            ) : (
+                                              <span className="truncate">{getEmailSenderDisplay(att.email)}</span>
+                                            )}
                                             {att.email?.received_at && (
                                               <span className="shrink-0 text-[10px]">
                                                 {format(new Date(att.email.received_at), 'dd MMM HH:mm')}
@@ -6795,39 +7116,74 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               )}
             </div>
 
-            {/* Documents Section (Info attachments) */}
+            {/* Documents Section (All document attachments) */}
             <div className="rounded-lg border overflow-hidden">
-              <div className="flex items-center gap-2 p-2 border-b">
-                <div
-                  className="flex items-center gap-2 cursor-pointer flex-1 hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
-                  onClick={() => setDocumentsCollapsed(!documentsCollapsed)}
-                >
-                  {documentsCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">Documents</span>
-                  <Badge variant="secondary" className="text-xs">{infoAttachments.length}</Badge>
+              <div className="flex flex-col gap-1 p-2 border-b">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="flex items-center gap-2 cursor-pointer flex-1 hover:bg-muted/50 rounded-md py-1 px-1 -ml-1 transition-colors"
+                    onClick={() => setDocumentsCollapsed(!documentsCollapsed)}
+                  >
+                    {documentsCollapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Documents</span>
+                    <Badge variant="secondary" className="text-xs">{documentAttachments.length}</Badge>
+                  </div>
+                  {/* Bulk actions when documents selected */}
+                  {selectedDocIds.size > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">{selectedDocIds.size} selected</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                        onClick={handleBulkDeleteDocs}
+                        disabled={attachmentLoading}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Delete
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={clearDocSelection}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  )}
                 </div>
-                {/* Bulk actions when documents selected */}
-                {selectedDocIds.size > 0 && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">{selectedDocIds.size} selected</span>
+                {/* Source filter toggle - only show when we have documents from different sources */}
+                {!documentsCollapsed && documentCountBySource.email > 0 && documentCountBySource.uploaded > 0 && (
+                  <div className="flex items-center gap-1 ml-6">
                     <Button
-                      variant="ghost"
+                      variant={documentSourceFilter === 'all' ? 'secondary' : 'ghost'}
                       size="sm"
-                      className="h-6 px-2 text-xs text-destructive hover:text-destructive"
-                      onClick={handleBulkDeleteDocs}
-                      disabled={attachmentLoading}
+                      className="h-5 px-2 text-[10px]"
+                      onClick={() => setDocumentSourceFilter('all')}
                     >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Delete
+                      All ({documentCountBySource.all})
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant={documentSourceFilter === 'email' ? 'secondary' : 'ghost'}
                       size="sm"
-                      className="h-6 px-2 text-xs"
-                      onClick={clearDocSelection}
+                      className="h-5 px-2 text-[10px]"
+                      onClick={() => setDocumentSourceFilter('email')}
+                      title="Documents from email attachments"
                     >
-                      Clear
+                      <Mail className="h-3 w-3 mr-1" />
+                      Email ({documentCountBySource.email})
+                    </Button>
+                    <Button
+                      variant={documentSourceFilter === 'uploaded' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="h-5 px-2 text-[10px]"
+                      onClick={() => setDocumentSourceFilter('uploaded')}
+                      title="Documents uploaded directly"
+                    >
+                      <Upload className="h-3 w-3 mr-1" />
+                      Uploaded ({documentCountBySource.uploaded})
                     </Button>
                   </div>
                 )}
@@ -6835,17 +7191,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
               {!documentsCollapsed && (
                 <div className="border rounded-md">
-                  {infoAttachments.length > 0 ? (
+                  {documentAttachments.length > 0 ? (
                     <div className="divide-y">
                       {/* Select all checkbox */}
                       <div className="flex items-center gap-2 p-2 bg-muted/30 text-xs border-b">
                         <input
                           type="checkbox"
                           className="h-3 w-3 rounded border-border"
-                          checked={infoAttachments.length > 0 && infoAttachments.every(a => selectedDocIds.has(a.id))}
+                          checked={documentAttachments.length > 0 && documentAttachments.every(a => selectedDocIds.has(a.id))}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              selectAllDocs(infoAttachments.map(a => a.id));
+                              selectAllDocs(documentAttachments.map(a => a.id));
                             } else {
                               clearDocSelection();
                             }
@@ -6853,7 +7209,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                         />
                         <span className="text-muted-foreground">Select all</span>
                       </div>
-                      {infoAttachments.map((att) => (
+                      {documentAttachments.map((att) => (
                         <div
                           key={att.id}
                           className={cn(
@@ -6872,18 +7228,26 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           />
                           <div
                             className="flex items-center gap-2 flex-1 min-w-0"
-                            onClick={() => handleDownloadAttachment(att)}
-                            onDoubleClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleOpenAttachmentInNewWindow(att);
-                            }}
-                            title="Click to download, double-click to open in new window"
+                            onClick={() => handleOpenAttachmentInNewWindow(att)}
+                            title="Click to preview"
                           >
-                            {downloadingAttachmentId === att.id ? (
-                              <Loader2 className="h-3 w-3 text-muted-foreground shrink-0 animate-spin" />
-                            ) : (
-                              <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                            {/* Download button - separate from preview */}
+                            {(att.document?.has_storage || att.document?.storage_url || att.document?.file_url) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownloadAttachment(att);
+                                }}
+                                className="text-muted-foreground hover:text-foreground"
+                                title="Download"
+                              >
+                                {downloadingAttachmentId === att.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Download className="h-3 w-3" />
+                                )}
+                              </button>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="font-medium truncate">
@@ -6944,13 +7308,60 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                     <span>Download All</span>
                   </button>
                 )}
+                {/* Select All dropdown for attachment options */}
+                {responseAttachments.length > 1 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <button className={`${responseAttachments.filter(att => att.document).length > 1 ? '' : 'ml-auto'} text-xs text-muted-foreground hover:text-foreground flex items-center gap-1`}>
+                        <Check className="h-3 w-3" />
+                        <span>Set All</span>
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenuItem onClick={() => {
+                        const newOptions: Record<number, 'attach' | 'link' | 'both' | 'none'> = {};
+                        responseAttachments.forEach(att => { newOptions[att.id] = 'attach'; });
+                        setAttachmentEmailOptions(newOptions);
+                      }}>
+                        <Paperclip className="h-3 w-3 mr-2" />
+                        Attach Only
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        const newOptions: Record<number, 'attach' | 'link' | 'both' | 'none'> = {};
+                        responseAttachments.forEach(att => { newOptions[att.id] = 'link'; });
+                        setAttachmentEmailOptions(newOptions);
+                      }}>
+                        <Link2 className="h-3 w-3 mr-2" />
+                        Link Only
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        const newOptions: Record<number, 'attach' | 'link' | 'both' | 'none'> = {};
+                        responseAttachments.forEach(att => { newOptions[att.id] = 'both'; });
+                        setAttachmentEmailOptions(newOptions);
+                      }}>
+                        <Check className="h-3 w-3 mr-2" />
+                        Both (Attach + Link)
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => {
+                        const newOptions: Record<number, 'attach' | 'link' | 'both' | 'none'> = {};
+                        responseAttachments.forEach(att => { newOptions[att.id] = 'none'; });
+                        setAttachmentEmailOptions(newOptions);
+                      }}>
+                        <X className="h-3 w-3 mr-2" />
+                        Skip All
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
 
               {!responseFilesCollapsed && (
                 <>
                 {responseAttachments.length > 0 ? (
                 <div className="border rounded-md divide-y bg-primary/5 dark:bg-primary/10 mb-2">
-                  {responseAttachments.map((att) => {
+                  {responseAttachments.map((att, attIndex) => {
                     // SSoT: has_storage indicates share links can be created (even for legacy SharePoint docs)
                     const hasExternalStorage = att.document?.has_storage || att.document?.storage_url || att.document?.file_url;
                     const emailOption = attachmentEmailOptions[att.id] || 'link';
@@ -6963,16 +7374,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             if (att.email) {
                               setSelectedEmailId(att.email.id);
                             } else if (att.document) {
-                              // Single click = open preview (consistent with Questions section)
-                              const url = att.document?.storage_url || att.document?.file_url;
-                              const fileName = att.document?.display_name || att.document?.file_name || 'Document';
-                              const ext = (att.document?.file_name || '').split('.').pop()?.toLowerCase() || '';
-                              const fileType: 'pdf' | 'image' | 'other' = ext === 'pdf' ? 'pdf'
-                                : ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext) ? 'image'
-                                : 'other';
-                              if (url) {
-                                setViewerDocument({ url, fileName, fileType });
-                              }
+                              // Single click = open full viewer with Q&A sidebar (same as EU sees)
+                              openInFullViewer(attIndex);
                             }
                           }}
                           onDoubleClick={(e) => {
@@ -7010,10 +7413,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                               )}
                             </>
                           )}
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 min-w-0 relative">
                             {renamingAttachmentId === att.id ? (
                               <form
-                                className="flex items-center gap-1"
+                                className="absolute left-0 top-0 z-50 flex items-center gap-1 bg-background border rounded-md shadow-lg p-1 min-w-[320px]"
                                 onSubmit={(e) => {
                                   e.preventDefault();
                                   const form = e.currentTarget;
@@ -7035,14 +7438,23 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                       setRenamingAttachmentName('');
                                     }
                                   }}
-                                  className="h-7 text-sm flex-1"
+                                  onChange={(e) => {
+                                    // Strip invalid filename characters as user types
+                                    const invalidChars = /[<>:"/\\|?*]/g;
+                                    if (invalidChars.test(e.target.value)) {
+                                      e.target.value = e.target.value.replace(invalidChars, '');
+                                    }
+                                  }}
+                                  className="h-7 text-sm flex-1 min-w-[240px]"
                                   autoFocus
+                                  maxLength={200}
+                                  title="Characters not allowed: brackets, colons, quotes, slashes, pipes, question marks, asterisks"
                                 />
                                 <Button
                                   type="submit"
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 w-6 p-0 text-green-600 hover:text-green-700"
+                                  className="h-6 w-6 p-0 text-green-600 hover:text-green-700 shrink-0"
                                   title="Save"
                                 >
                                   <Check className="h-3.5 w-3.5" />
@@ -7051,7 +7463,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground shrink-0"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setRenamingAttachmentId(null);
@@ -7096,9 +7508,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRemoveAttachment(att.id);
+                              handleRemoveFromResponses(att.id);
                             }}
-                            title="Delete attachment"
+                            title="Remove from responses"
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -7715,11 +8127,14 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           onOpenChange={setShowComposeEmail}
           defaultTo={originalEmailSender || ''}
           defaultCc={suggestedCcRecipients.join(', ')}
+          defaultFromEmail={originalEmailMailbox || undefined}
           defaultSubject={originalEmailData?.subject
             ? `Re: ${originalEmailData.subject.replace(/^(RE:|FW:|FWD:)\s*/gi, '')}`
             : `Re: Task #${task.task_number}  |  ${task.name}`}
           defaultBody={generateResponseBody()}
           initialAttachments={emailFileAttachments}
+          initialExistingStorageKeys={emailExistingStorageKeys}
+          initialPreUploadedAttachments={emailPreUploadedAttachments}
           smTaskId={task.id}
           skipSignature={true}
           onSent={() => {

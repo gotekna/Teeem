@@ -53,6 +53,8 @@ const sheetVariants = cva(
           "top-12 bottom-0 right-0 w-[600px] max-w-[600px] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
         "right-wide":
           "top-12 bottom-0 right-0 w-[800px] max-w-[800px] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+        "right-95":
+          "top-12 bottom-0 right-0 w-[95vw] max-w-[95vw] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
       },
     },
     defaultVariants: {

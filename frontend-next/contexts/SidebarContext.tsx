@@ -16,7 +16,9 @@ const COLLAPSED_WIDTH = 70;
 const EXPANDED_WIDTH = 240;
 
 // Get the base route (e.g., "/jobs/123" -> "jobs", "/contacts" -> "contacts")
-function getBaseRoute(pathname: string): string {
+// Note: pathname can be null during SSR/hydration
+function getBaseRoute(pathname: string | null): string {
+  if (!pathname) return "dashboard";
   const parts = pathname.split("/").filter(Boolean);
   return parts[0] || "dashboard";
 }

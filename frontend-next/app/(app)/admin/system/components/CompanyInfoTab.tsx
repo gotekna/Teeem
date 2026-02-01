@@ -34,7 +34,7 @@ const TIMEZONES = [
   { value: "UTC", label: "UTC" },
 ];
 
-// API Environment options (SSoT: CorporateCompanySetting::VALID_API_ENVIRONMENTS)
+// API Environment options (SSoT: CorporateSetting::VALID_API_ENVIRONMENTS)
 const API_ENVIRONMENTS = [
   {
     value: "production",
@@ -492,6 +492,19 @@ export default function CompanyInfoTab() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Date Format</Label>
+          <p className="text-sm text-muted-foreground">
+            Dates throughout the app are displayed in Australian format.
+          </p>
+          <div className="p-3 bg-muted/50 rounded-md">
+            <p className="text-sm font-mono">DD/MM/YYYY</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Example: {new Date().toLocaleDateString("en-AU")} (today)
+            </p>
+          </div>
         </div>
 
         <div className="space-y-2">

@@ -9,8 +9,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, HardHat, Building2, LayoutGrid, PenTool, X, Check, History, FileText, ExternalLink } from "lucide-react";
+import { Upload, HardHat, Building2, LayoutGrid, PenTool, X, Check, History, FileText, ExternalLink, Mail } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { HelpIcon, FieldLabel } from "@/components/help/HelpTooltip";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -42,6 +43,11 @@ import {
   getStoredPersona,
   setStoredPersona,
 } from "@/lib/personas";
+import {
+  SIGNATURE_STYLES,
+  type SignatureStyleId,
+  DEFAULT_SIGNATURE_STYLE,
+} from "@/lib/email-signature";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // QBCC Licence Classes relevant for Form 43 certificates
@@ -98,6 +104,10 @@ export default function ProfileSettingsPage() {
   const [signatureUsages, setSignatureUsages] = React.useState<SignatureUsage[]>([]);
   const [loadingHistory, setLoadingHistory] = React.useState(false);
   const [showHistory, setShowHistory] = React.useState(false);
+
+  // Email signature style state
+  const [emailSignatureStyle, setEmailSignatureStyle] = React.useState<SignatureStyleId>(DEFAULT_SIGNATURE_STYLE);
+  const [savingSignatureStyle, setSavingSignatureStyle] = React.useState(false);
 
   // Load persona from localStorage on mount
   React.useEffect(() => {
@@ -362,7 +372,11 @@ export default function ProfileSettingsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>QBCC Licence Number</Label>
+              <FieldLabel
+                label="QBCC Licence Number"
+                help="Your Queensland Building and Construction Commission licence number. Required for signing Form 43 certificates."
+                tips={["Find your licence number on your QBCC card or online account"]}
+              />
               <Input
                 value={qbccLicenceNumber}
                 onChange={(e) => setQbccLicenceNumber(e.target.value)}
@@ -370,7 +384,10 @@ export default function ProfileSettingsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>QBCC Licence Class</Label>
+              <FieldLabel
+                label="QBCC Licence Class"
+                help="The category of work your QBCC licence authorizes. This determines which certificates you can sign."
+              />
               <Select value={qbccLicenceClass} onValueChange={setQbccLicenceClass}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select licence class" />
@@ -388,7 +405,15 @@ export default function ProfileSettingsPage() {
 
           {/* Signature Upload */}
           <div className="space-y-2">
-            <Label>Digital Signature</Label>
+            <FieldLabel
+              label="Digital Signature"
+              help="Upload an image of your handwritten signature. This will be embedded in certificates and contracts you sign digitally."
+              tips={[
+                "Use a white background for best results",
+                "PNG format with transparency works best",
+                "Sign with black ink on white paper, then scan or photograph"
+              ]}
+            />
             <div className="flex items-start gap-4">
               {/* Signature Preview */}
               <div className="w-48 h-24 border rounded-md bg-white dark:bg-background flex items-center justify-center overflow-hidden">
@@ -518,7 +543,17 @@ export default function ProfileSettingsPage() {
         {/* View Mode / Persona Switcher */}
         <div className="space-y-3">
           <div>
-            <Label>View Mode</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>View Mode</Label>
+              <HelpIcon
+                content="Choose a persona to customize your sidebar navigation. Each mode shows only the features relevant to your role."
+                tips={[
+                  "Site mode: For field workers managing jobs and schedules",
+                  "Office mode: For admin staff handling contacts and finances",
+                  "Manager mode: Full access to all features"
+                ]}
+              />
+            </div>
             <p className="text-sm text-muted-foreground">
               Customize your sidebar to show only relevant features
             </p>

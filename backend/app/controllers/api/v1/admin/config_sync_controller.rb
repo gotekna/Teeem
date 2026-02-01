@@ -29,16 +29,61 @@ module Api
 
         # GET /api/v1/admin/config_sync/tenants/:tenant_id/config/:table
         # Browse a tenant's configuration records
+        #
+        # Params:
+        #   filter_existing_contacts: boolean - For price_histories, only show records
+        #                                       where the supplier exists in master tenant
         def browse
           source_tenant = Tenant.find(params[:tenant_id])
           service = TenantConfigSyncService.new(master_tenant)
           records = service.browse_tenant_config(source_tenant, params[:table])
+          total_unfiltered = records.length
+
+          # Filter price_histories to only show records for contacts that exist in master tenant
+          if params[:table] == "price_histories" && params[:filter_existing_contacts] == "true"
+            # Get contact display_names that exist in master tenant
+            master_contact_names = ActsAsTenant.with_tenant(master_tenant) do
+              Contact.pluck(:display_name).compact.map(&:downcase)
+            end
+
+            # Get source tenant contact names mapped to IDs
+            source_contacts = ActsAsTenant.with_tenant(source_tenant) do
+              Contact.pluck(:id, :display_name).to_h
+            end
+
+            # Filter records where supplier exists in master
+            records = records.select do |record|
+              supplier_id = record[:supplier_id] || record["supplier_id"]
+              supplier_name = source_contacts[supplier_id]&.downcase
+              supplier_name && master_contact_names.include?(supplier_name)
+            end
+          end
+
+          # Filter price_histories to only show latest per supplier+pricebook_item
+          if params[:table] == "price_histories" && params[:latest_only] == "true"
+            # Group by supplier_id + pricebook_item_id, keep latest by date_effective
+            latest_records = {}
+            records.each do |record|
+              key = "#{record[:supplier_id]}_#{record[:pricebook_item_id]}"
+              existing = latest_records[key]
+              record_date = record[:date_effective] || record[:created_at]
+
+              if existing.nil?
+                latest_records[key] = record
+              else
+                existing_date = existing[:date_effective] || existing[:created_at]
+                latest_records[key] = record if record_date && existing_date && record_date > existing_date
+              end
+            end
+            records = latest_records.values
+          end
 
           render json: {
             success: true,
             table: params[:table],
             source_tenant: tenant_info(source_tenant),
-            records: records
+            records: records,
+            total_unfiltered: total_unfiltered
           }
         rescue ActiveRecord::RecordNotFound
           render json: { success: false, error: "Tenant not found" }, status: :not_found
@@ -53,6 +98,7 @@ module Api
         #   source_tenant_id: integer - tenant to import from
         #   table: string - config table name
         #   record_ids: array - IDs of records to import
+        #   replace_existing_prices: boolean - For price_histories, delete existing before import
         def import
           source_tenant = Tenant.find(import_params[:source_tenant_id])
           service = TenantConfigSyncService.new(master_tenant)
@@ -60,17 +106,19 @@ module Api
           result = service.import_from_tenant(
             source_tenant: source_tenant,
             table: import_params[:table],
-            record_ids: import_params[:record_ids].map(&:to_i)
+            record_ids: import_params[:record_ids].map(&:to_i),
+            replace_existing_prices: import_params[:replace_existing_prices] == true || import_params[:replace_existing_prices] == "true"
           )
 
           if result[:success]
-            Rails.logger.info "[ConfigSync] User #{current_user.id} imported #{result[:imported].length} records from #{source_tenant.name}"
+            Rails.logger.info "[ConfigSync] User #{current_user.id} imported #{result[:imported].length} records from #{source_tenant.name} (deleted #{result[:deleted_count] || 0} existing)"
 
             render json: {
               success: true,
               message: "Configuration imported successfully",
               imported: result[:imported],
-              skipped: result[:skipped]
+              skipped: result[:skipped],
+              deleted_count: result[:deleted_count] || 0
             }
           else
             render json: {
@@ -78,13 +126,89 @@ module Api
               error: "Import failed with errors",
               errors: result[:errors],
               imported: result[:imported],
-              skipped: result[:skipped]
+              skipped: result[:skipped],
+              deleted_count: result[:deleted_count] || 0
             }, status: :unprocessable_entity
           end
         rescue ActiveRecord::RecordNotFound
           render json: { success: false, error: "Tenant not found" }, status: :not_found
         rescue ArgumentError => e
           render json: { success: false, error: e.message }, status: :bad_request
+        end
+
+        # GET /api/v1/admin/config_sync/sync_preferences
+        # Get sync preferences for master tenant records
+        #
+        # Params:
+        #   table: string - config table name
+        def sync_preferences
+          table_config = TenantConfigSyncService::CONFIG_TABLES[params[:table]&.to_sym]
+          unless table_config
+            return render json: { success: false, error: "Unknown table" }, status: :bad_request
+          end
+
+          model_name = table_config[:model]
+          preferences = TenantSyncPreference.modes_for_type(model_name, tenant: master_tenant)
+
+          render json: {
+            success: true,
+            table: params[:table],
+            model: model_name,
+            preferences: preferences # { record_id => sync_mode }
+          }
+        end
+
+        # POST /api/v1/admin/config_sync/sync_preferences
+        # Update sync preferences for master tenant records
+        #
+        # Params:
+        #   table: string - config table name
+        #   record_ids: array - IDs of records to update
+        #   sync_mode: string - 'compulsory', 'choice', or null to remove
+        def update_sync_preferences
+          table_config = TenantConfigSyncService::CONFIG_TABLES[sync_pref_params[:table]&.to_sym]
+          unless table_config
+            return render json: { success: false, error: "Unknown table" }, status: :bad_request
+          end
+
+          model = table_config[:model].constantize
+          record_ids = sync_pref_params[:record_ids].map(&:to_i)
+          sync_mode = sync_pref_params[:sync_mode]
+
+          # Validate sync_mode
+          if sync_mode.present? && !TenantSyncPreference::SYNC_MODES.include?(sync_mode)
+            return render json: {
+              success: false,
+              error: "Invalid sync_mode. Must be 'compulsory', 'choice', or null"
+            }, status: :bad_request
+          end
+
+          # Get records from master tenant
+          records = ActsAsTenant.with_tenant(master_tenant) do
+            model.where(id: record_ids)
+          end
+
+          if records.empty?
+            return render json: { success: false, error: "No records found" }, status: :not_found
+          end
+
+          # Update preferences
+          updated = []
+          records.each do |record|
+            TenantSyncPreference.set_mode(record, sync_mode.presence, tenant: master_tenant)
+            updated << record.id
+          end
+
+          Rails.logger.info "[ConfigSync] User #{current_user.id} set sync_mode=#{sync_mode || 'null'} for #{updated.length} #{table_config[:model]} records"
+
+          render json: {
+            success: true,
+            message: "Sync preferences updated",
+            updated_count: updated.length,
+            sync_mode: sync_mode
+          }
+        rescue => e
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
         end
 
         # GET /api/v1/admin/config_sync/compare
@@ -176,7 +300,11 @@ module Api
         end
 
         def import_params
-          params.permit(:source_tenant_id, :table, record_ids: [])
+          params.permit(:source_tenant_id, :table, :replace_existing_prices, record_ids: [])
+        end
+
+        def sync_pref_params
+          params.permit(:table, :sync_mode, record_ids: [])
         end
       end
     end

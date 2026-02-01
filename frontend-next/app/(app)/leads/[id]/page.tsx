@@ -46,7 +46,7 @@ export default function LeadDetailPage() {
 
   // Path-based tab: /leads/123/overview, /leads/123/documents
   const activeTab = useMemo(() => {
-    const parts = pathname.replace(`/leads/${leadId}`, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(`/leads/${leadId}`, "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname, leadId]);
 

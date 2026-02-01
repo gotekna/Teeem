@@ -3,7 +3,6 @@
 # WarehouseDocument - SSoT for File Warehouse metadata
 #
 # This is THE universal table for all document warehouse metadata.
-# Links ANY document type (JobDocument, EmailAttachment, etc.) to StorageBlob.
 #
 # Architecture (Phase 6: Ultra Design):
 #   WarehouseDocument (THE ONE table for 5000 clients)
@@ -27,6 +26,9 @@
 class WarehouseDocument < ApplicationRecord
   include TenantResolvable
 
+  # SSoT: Tenant scoping - ensures all queries are scoped to current tenant
+  acts_as_tenant :tenant
+
   # ========================================
   # Callbacks
   # ========================================
@@ -35,9 +37,16 @@ class WarehouseDocument < ApplicationRecord
   # This ensures ALL creation points get tenant_id without manual assignment
   before_validation :set_tenant_from_documentable, on: :create
 
+  # SSoT: Auto-compute folder from WarehouseProvider template if not provided
+  # This ensures folder always matches current template configuration
+  before_validation :compute_folder_from_template, on: :create, if: -> { folder.blank? }
+
   # ========================================
   # Associations
   # ========================================
+
+  # SSoT: Tenant association for multi-tenancy
+  belongs_to :tenant
 
   # Polymorphic association to any document model (legacy - optional for new Phase 6 docs)
   belongs_to :documentable, polymorphic: true, optional: true
@@ -123,17 +132,22 @@ class WarehouseDocument < ApplicationRecord
 
   # SSoT: Get presigned download URL - storage_blob is THE ONE source
   # Uses resolved_tenant (from TenantResolvable) for provider - Jan 2026 fix
-  def download_url(expires_in: 3600)
+  def download_url(expires_in: 3600, disposition: :attachment)
     return nil unless storage_blob&.storage_path.present?
 
     provider = DocumentProviders.for_tenant(resolved_tenant)
     provider.download_url(
       storage_blob.storage_path,
       expires_in: expires_in,
-      filename: download_filename
+      filename: download_filename,
+      disposition: disposition
     )
   rescue ::TenantNotFoundError => e
     Rails.logger.error "[WarehouseDocument] download_url failed - no tenant: #{e.message}"
+    nil
+  rescue DocumentProviders::NotConnectedError => e
+    # Storage not configured - gracefully return nil (common in local dev)
+    Rails.logger.debug "[WarehouseDocument] download_url skipped - storage not configured"
     nil
   end
 
@@ -146,7 +160,7 @@ class WarehouseDocument < ApplicationRecord
   # Computed Folder Path (Runtime Resolution)
   # ========================================
   #
-  # SSoT: Returns the folder path computed from CURRENT StorageConfiguration templates.
+  # SSoT: Returns the folder path computed from CURRENT WarehouseProvider templates.
   # This ensures folder paths update INSTANTLY when templates change in admin UI,
   # without needing any background sync jobs.
   #
@@ -350,28 +364,8 @@ class WarehouseDocument < ApplicationRecord
         email.storage_email_path.presence ||
         compute_email_legacy_path(email)
 
-    when "EmailAttachment"
-      att = documentable
-      att.storage_path.presence ||
-        compute_attachment_legacy_path(att)
-
-    when "JobDocument"
-      doc = documentable
-      doc.storage_path.presence ||
-        compute_job_document_legacy_path(doc)
-
-    when "CorporateCompanyDocument"
-      doc = documentable
-      doc.expected_storage_path.presence ||
-        compute_corporate_document_legacy_path(doc)
-
-    when "ContactDocument"
-      doc = documentable
-      doc.respond_to?(:storage_path) ? doc.storage_path : nil
-
-    when "PeopleDocument"
-      doc = documentable
-      doc.respond_to?(:storage_path) ? doc.storage_path : nil
+    # Note: EmailAttachment removed (Jan 2026) - attachments now in WarehouseDocument with source_type='email_attachment'
+    # SSoT: WarehouseDocument is now THE ONE table for all document metadata
 
     when "UserDocument"
       doc = documentable
@@ -406,26 +400,112 @@ class WarehouseDocument < ApplicationRecord
     nil
   end
 
+  # SSoT: Compute folder from WarehouseProvider template
+  # Maps source_type to warehouse_type and expands template with documentable context
+  # Uses resolve_virtual_path (not resolve_path) for UI display folder without root_path prefix
+  def compute_folder_from_template
+    warehouse_type = source_type_to_warehouse_type
+    return unless warehouse_type
+
+    config = WarehouseProvider.instance rescue nil
+    return unless config
+
+    tokens = extract_folder_tokens
+    computed = config.resolve_virtual_path(warehouse_type.to_sym, tokens)
+    self.folder = computed if computed.present?
+  rescue StandardError => e
+    Rails.logger.debug "[WarehouseDocument] Could not compute folder: #{e.message}"
+  end
+
+  # Map source_type to warehouse template key
+  def source_type_to_warehouse_type
+    case source_type
+    when "task" then "task_attachments"
+    when "email" then "email"
+    when "email_attachment" then "email_attachments"
+    when "corporate" then "corporate"
+    when "job" then "job"
+    when "contact" then "contact"
+    when "xero" then "bank_statement"
+    when "case" then "case"
+    else source_type
+    end
+  end
+
+  # Extract token values for template expansion
+  def extract_folder_tokens
+    tokens = {}
+
+    # Task context - handle both SmTask and SmTaskAttachment
+    if source_type == "task" && documentable.present?
+      if documentable.is_a?(SmTask)
+        tokens[:TaskId] = documentable.id
+      elsif documentable.respond_to?(:sm_task) && documentable.sm_task
+        # SmTaskAttachment - get the task via association
+        tokens[:TaskId] = documentable.sm_task.id
+      end
+    end
+
+    # Job context
+    if documentable.respond_to?(:job) && documentable.job
+      tokens[:JobCode] = documentable.job.job_code
+    elsif documentable.respond_to?(:job_code)
+      tokens[:JobCode] = documentable.job_code
+    end
+
+    # Contact context
+    if documentable.respond_to?(:contact) && documentable.contact
+      tokens[:ContactName] = documentable.contact.display_name.presence || "Contact-#{documentable.contact.id}"
+    end
+
+    # Corporate company context
+    if documentable.respond_to?(:corporate_company) && documentable.corporate_company
+      cc = documentable.corporate_company
+      tokens[:CompanyCode] = cc.company_code
+      tokens[:CompanyGroup] = cc.company_group.presence || "Default"
+    end
+
+    # Case context
+    if documentable.respond_to?(:case_number)
+      tokens[:CaseId] = documentable.case_number
+    end
+
+    # Email context
+    if source_type.in?(%w[email email_attachment])
+      tokens[:Mailbox] = meta("mailbox") || "Unknown"
+      received_at = email_received_at || created_at || Time.current
+      tokens[:Year] = received_at.year.to_s
+      tokens[:Month] = received_at.strftime("%m")
+    end
+
+    # Date tokens (fallback)
+    date = created_at || Time.current
+    tokens[:Year] ||= date.year.to_s
+    tokens[:Month] ||= date.strftime("%m")
+
+    tokens
+  end
+
   # Compute email legacy path if not stored
-  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
+  # SSoT: Uses WarehouseProvider for base folder (Jan 2026)
   def compute_email_legacy_path(email)
     return nil unless email.id.present?
 
-    emails_folder = StorageConfiguration.instance&.path_for(:emails) || "Emails"
+    emails_folder = WarehouseProvider.instance&.path_for(:emails) || "Emails"
     year = email.received_at&.year || Time.current.year
     month = format("%02d", email.received_at&.month || 1)
     "#{emails_folder}/Email Body/#{year}/#{month}/#{email.id}.eml"
   end
 
   # Compute attachment legacy path if not stored
-  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
+  # SSoT: Uses WarehouseProvider for base folder (Jan 2026)
   def compute_attachment_legacy_path(att)
     return nil unless att.id.present? && att.filename.present?
 
     email = att.email_warehouse
     return nil unless email
 
-    emails_folder = StorageConfiguration.instance&.path_for(:emails) || "Emails"
+    emails_folder = WarehouseProvider.instance&.path_for(:emails) || "Emails"
     year = email.received_at&.year || Time.current.year
     month = format("%02d", email.received_at&.month || 1)
     safe_filename = att.filename.gsub(/[<>:"|?*\\\/]/, "_")
@@ -433,33 +513,18 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # Compute job document legacy path if not stored
-  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
+  # SSoT: Uses WarehouseProvider for base folder (Jan 2026)
   def compute_job_document_legacy_path(doc)
     return nil unless doc.id.present?
 
     job = doc.job
     return nil unless job
 
-    jobs_folder = StorageConfiguration.instance&.path_for(:jobs) || "Jobs"
+    jobs_folder = WarehouseProvider.instance&.path_for(:jobs) || "Jobs"
     doc_type = doc.document_type&.name || "Documents"
     filename = doc.filename.presence || "#{doc.id}"
     safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")
     "#{jobs_folder}/#{job.job_code}/#{doc_type}/#{safe_filename}"
-  end
-
-  # Compute corporate document legacy path if not stored
-  # SSoT: Uses StorageConfiguration for base folder (Jan 2026)
-  def compute_corporate_document_legacy_path(doc)
-    return nil unless doc.id.present?
-
-    company = doc.corporate_company
-    return nil unless company
-
-    corporate_folder = StorageConfiguration.instance&.path_for(:corporate) || "Corporate"
-    doc_type = doc.document_type_record&.name || "Documents"
-    filename = doc.filename.presence || "#{doc.id}"
-    safe_filename = filename.gsub(/[<>:"|?*\\\/]/, "_")
-    "#{corporate_folder}/#{company.company_code}/#{doc_type}/#{safe_filename}"
   end
 
   # Full sanitization for 100% accurate filenames

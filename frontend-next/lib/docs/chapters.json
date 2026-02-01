@@ -1,0 +1,136 @@
+{
+  "version": "2.0.0",
+  "lastUpdated": "2026-01-31",
+  "chapters": {
+    "0": {
+      "title": "Getting Started",
+      "icon": "book-open",
+      "content": "## What is TEEEM?\n\nTEEEM is a comprehensive construction management platform that helps you:\n- Manage jobs from quote to completion\n- Create and track construction schedules\n- Generate purchase orders automatically\n- Sync with your accounting software (Xero)\n- Collaborate with your team\n- Track project financials\n\n## Quick Start (5 Minutes)\n\n1. **Log in** to TEEEM\n2. **Set up your company** (Settings > Company)\n3. **Add contacts** (customers and suppliers)\n4. **Create your first job**\n5. **Import an estimate** or create one manually\n\n## Navigation Overview\n\n### Main Menu\n- **Dashboard** - Your home screen with key metrics\n- **Jobs** - All your construction projects\n- **Contacts** - Customers, suppliers, subcontractors\n- **Email** - Integrated email management\n- **Tasks** - Action items and to-dos\n- **Calendar** - Schedule and appointments\n- **Settings** - System configuration\n\n### Getting Help\n- Click the **?** button (bottom-right) for contextual help\n- Use **Take a Tour** for guided walkthroughs\n- Search documentation with the search bar"
+    },
+    "1": {
+      "title": "Authentication & Users",
+      "icon": "lock",
+      "content": "## Logging In\n\n### Method 1: Email & Password\n\n1. Navigate to your TEEEM URL\n2. Enter your email and password\n3. Click **Log In**\n\n### Method 2: Login with Microsoft (Recommended)\n\n1. Click **Login with Microsoft**\n2. Authenticate with your Microsoft account\n3. Approve TEEEM access (first time only)\n\n**Benefits of Microsoft login:**\n- Single sign-on convenience\n- Automatic OneDrive integration\n- Outlook email sync ready to go\n\n## User Roles\n\n| Role | Permissions |\n|------|-------------|\n| **User** | View jobs, access documents |\n| **Manager** | Create jobs, manage team tasks |\n| **Estimator** | Create and edit estimates |\n| **Admin** | Full access, user management |\n| **Super Admin** | System configuration |\n\n## Password Reset\n\n1. Click **Forgot Password?** on login page\n2. Enter your email address\n3. Check your inbox for reset link\n4. Create a new strong password"
+    },
+    "2": {
+      "title": "System Administration",
+      "icon": "settings",
+      "content": "## Settings Overview\n\nAccess settings via the gear icon in the sidebar.\n\n### Personal Settings\n- **Profile** - Your name, email, avatar\n- **Preferences** - Theme, notifications, display options\n- **Security** - Password, two-factor authentication\n\n### Organization Settings (Admin only)\n- **Company** - Business details, branding\n- **Users** - Team member management\n- **Integrations** - Xero, email providers, storage\n\n## User Management\n\n### Adding a New User\n\n1. Go to **Settings > Users**\n2. Click **Add User**\n3. Enter email and name\n4. Select role and permissions\n5. Click **Send Invitation**\n\n### Modifying User Permissions\n\n1. Find user in the list\n2. Click **Edit**\n3. Adjust role or specific permissions\n4. Save changes"
+    },
+    "3": {
+      "title": "Contacts & Relationships",
+      "icon": "users",
+      "content": "## Contact Types\n\n- **Customers** - Your clients\n- **Suppliers** - Material providers\n- **Subcontractors** - Trade partners\n- **Prospects** - Potential customers\n\n## Adding a Contact\n\n1. Go to **Contacts**\n2. Click **Add Contact**\n3. Fill in details:\n   - Name and company\n   - Email and phone\n   - Address\n   - Contact type\n4. Click **Save**\n\n## Linking Contacts to Jobs\n\nContacts can be linked to jobs as:\n- **Client** - The customer for the job\n- **Supplier** - Providing materials\n- **Subcontractor** - Performing work\n\n## Merging Duplicate Contacts\n\n1. Select contacts to merge\n2. Click **Merge**\n3. Choose which record to keep\n4. Review merged data\n5. Confirm merge"
+    },
+    "4": {
+      "title": "Price Books & Suppliers",
+      "icon": "dollar-sign",
+      "content": "## Price Books\n\nPrice books store your standard pricing for materials and labor.\n\n### Creating a Price Book\n\n1. Go to **Settings > Price Books**\n2. Click **New Price Book**\n3. Add items with:\n   - Item code\n   - Description\n   - Unit price\n   - Unit of measure\n\n### Importing Prices\n\n1. Click **Import**\n2. Download the template CSV\n3. Fill in your prices\n4. Upload the file\n5. Review and confirm\n\n## Supplier Management\n\n- Track supplier pricing\n- Compare costs across suppliers\n- Maintain supplier contacts"
+    },
+    "5": {
+      "title": "Jobs & Construction",
+      "icon": "building",
+      "content": "## Creating a New Job\n\n1. Go to **Jobs**\n2. Click **Add Job**\n3. Enter job details:\n   - Job name and code\n   - Client (select from contacts)\n   - Address\n   - Job type and status\n4. Click **Create Job**\n\n## Job Tabs\n\n- **Overview** - Summary and key dates\n- **Documents** - Files and attachments\n- **Emails** - Related correspondence\n- **Schedule** - Gantt chart and tasks\n- **Financials** - Budget and costs\n- **Contacts** - Related people\n\n## Job Statuses\n\n| Status | Meaning |\n|--------|--------|\n| Quote | Preparing estimate |\n| Pending | Awaiting client approval |\n| In Progress | Active construction |\n| On Hold | Temporarily paused |\n| Complete | Finished |\n| Cancelled | Job cancelled |"
+    },
+    "6": {
+      "title": "Estimates & Quoting",
+      "icon": "file-text",
+      "content": "## Creating an Estimate\n\n1. Open a job\n2. Go to **Estimates** tab\n3. Click **New Estimate**\n4. Add line items from price book\n5. Adjust quantities and prices\n6. Apply markup if needed\n7. Generate PDF quote\n\n## Estimate Sections\n\n- **Materials** - Products and supplies\n- **Labor** - Work hours and rates\n- **Subcontractors** - Trade quotes\n- **Allowances** - Provisional sums\n\n## Sending Quotes\n\n1. Review estimate totals\n2. Click **Generate Quote**\n3. Select template\n4. Preview PDF\n5. Email to client or download"
+    },
+    "7": {
+      "title": "AI Plan Review",
+      "icon": "bot",
+      "content": "## What is AI Plan Review?\n\nAI Plan Review uses artificial intelligence to analyze construction drawings and extract quantities, materials, and specifications.\n\n## Using AI Plan Review\n\n1. Upload construction drawings (PDF)\n2. Select drawing type (floor plan, elevation, etc.)\n3. Click **Analyze**\n4. Review extracted data:\n   - Room dimensions\n   - Door/window counts\n   - Material quantities\n5. Import to estimate\n\n## Supported Drawing Types\n\n- Floor plans\n- Site plans\n- Elevations\n- Sections\n- Electrical layouts\n- Plumbing diagrams"
+    },
+    "8": {
+      "title": "Purchase Orders",
+      "icon": "shopping-cart",
+      "content": "## Creating a Purchase Order\n\n1. Go to **Purchase Orders**\n2. Click **New PO**\n3. Select supplier\n4. Add line items:\n   - From price book, or\n   - Manual entry\n5. Set delivery details\n6. Click **Create**\n\n## PO Workflow\n\n1. **Draft** - Being prepared\n2. **Sent** - Emailed to supplier\n3. **Acknowledged** - Supplier confirmed\n4. **Delivered** - Goods received\n5. **Invoiced** - Supplier invoice received\n\n## Auto-Create from Bills\n\nWhen a supplier invoice arrives without a PO:\n1. System prompts to create PO\n2. Review and approve\n3. PO links to invoice automatically"
+    },
+    "9": {
+      "title": "Gantt & Schedule Master",
+      "icon": "bar-chart-2",
+      "content": "## Understanding the Gantt Chart\n\nThe Gantt chart shows your project timeline visually:\n- **Tasks** listed on the left\n- **Timeline** displayed on the right\n- **Dependencies** shown as connecting lines\n\n## Creating Tasks\n\n1. Open job's **Schedule** tab\n2. Click **Add Task**\n3. Enter task details:\n   - Name and description\n   - Start and end dates\n   - Assigned resources\n4. Save\n\n## Task Dependencies\n\nLink tasks so one starts after another:\n1. Select a task\n2. Click **Add Dependency**\n3. Choose predecessor task\n4. Select dependency type:\n   - Finish-to-Start\n   - Start-to-Start\n   - Finish-to-Finish\n\n## Schedule Master\n\nSchedule Master is the central scheduling view across all jobs:\n- View all active tasks\n- Filter by trade, job, or resource\n- Drag to reschedule\n- Resolve conflicts"
+    },
+    "10": {
+      "title": "Tasks & Checklists",
+      "icon": "check-square",
+      "content": "## Task Management\n\n### Creating a Task\n\n1. Go to **Tasks**\n2. Click **Add Task**\n3. Fill in:\n   - Title\n   - Description\n   - Due date\n   - Assignee\n   - Priority\n4. Optionally link to a job\n5. Click **Create**\n\n### Task Views\n\n- **List** - Traditional task list\n- **Board** - Kanban-style columns\n- **Calendar** - Date-based view\n\n## Checklists\n\nChecklists are templates for recurring tasks:\n\n1. Go to **Settings > Checklists**\n2. Create checklist template\n3. Add items\n4. Apply to jobs as needed\n\n## Supervisor Checklists\n\nDaily site supervisor checklists ensure compliance:\n- Safety checks\n- Quality inspections\n- Progress updates"
+    },
+    "11": {
+      "title": "Weather & Holidays",
+      "icon": "cloud",
+      "content": "## Weather Tracking\n\nTEEEM tracks weather conditions that may affect your jobs:\n- Daily weather data for job locations\n- Weather delay logging\n- Impact on schedule calculations\n\n## Public Holidays\n\nHolidays are factored into scheduling:\n\n1. Go to **Settings > Holidays**\n2. View/edit holiday calendar\n3. Holidays auto-apply to schedules\n\n### Holiday Settings\n\n- **National holidays** - Pre-configured\n- **State holidays** - Location-based\n- **Company holidays** - Custom dates\n\n## Weather Delays\n\nWhen weather affects work:\n1. Open the job\n2. Go to **Schedule**\n3. Click **Log Weather Delay**\n4. Enter delay details\n5. Schedule adjusts automatically"
+    },
+    "12": {
+      "title": "OneDrive Integration",
+      "icon": "cloud",
+      "content": "## Connecting OneDrive\n\n1. Go to **Settings > Connections**\n2. Find **OneDrive/SharePoint**\n3. Click **Connect**\n4. Sign in with Microsoft account\n5. Authorize TEEEM access\n\n## Automatic Folder Creation\n\nWhen you create a new job, TEEEM automatically:\n- Creates a folder in OneDrive\n- Uses your folder template structure\n- Names it with the job code\n\n## Uploading Documents\n\n1. Open a job\n2. Go to **Documents** tab\n3. Drag files to upload, or\n4. Click **Upload** and select files\n\n## Folder Templates\n\nConfigure folder structure in **Settings > Storage**:\n- Define subfolders (Plans, Photos, Contracts)\n- Set naming conventions\n- Apply to all new jobs"
+    },
+    "13": {
+      "title": "Email Integration",
+      "icon": "mail",
+      "content": "## Overview\n\nTEEEM's email integration allows you to:\n- Connect multiple email accounts (IMAP)\n- Sync emails automatically\n- Link emails to jobs and contacts\n- Send emails directly from TEEEM\n- Create email rules for auto-filing\n\n---\n\n## Connecting an Email Account\n\n### Supported Providers\n\nTEEEM supports any IMAP email provider:\n- **Gmail** - Google Workspace or personal Gmail\n- **Outlook/Microsoft 365** - Office 365 or Outlook.com\n- **Webcentral** - Australian hosting provider\n- **Other IMAP** - Any provider with IMAP access\n\n---\n\n## TEEEM Email Hosting\n\nDon't have business email? TEEEM can provide hosted email for your team.\n\n### Pricing Options\n\n| Option | Price | What You Get |\n|--------|-------|-------------|\n| **Branded Email** | $5/month per mailbox | Use your own domain (e.g., you@yourcompany.com.au) |\n| **TEEEM Email** | $3/month per mailbox | Use @teeem.com.au (e.g., you@teeem.com.au) |\n\n### Branded Email (Own Domain)\n\nIf you own a domain name, we can set up professional email:\n- **Example:** info@smithbuilders.com.au\n- Full IMAP/SMTP access\n- Works with any email client\n- We handle the technical setup\n- **$5/month per mailbox**\n\n**Requirements:**\n- You own the domain name\n- Access to update DNS records (we'll guide you)\n\n### TEEEM Email (@teeem.com.au)\n\nNeed email but don't have a domain?\n- **Example:** john.smith@teeem.com.au\n- Professional email address\n- Full IMAP/SMTP access\n- **$3/month per mailbox**\n\n### Getting Started\n\nContact us to set up hosted email:\n- Email: support@teeem.com.au\n- Or ask your account manager\n\n---\n\n## Connecting Your Own Email\n\n### Step-by-Step Setup\n\n1. Go to **Email** in the sidebar\n2. Click **Add Email Account**\n3. Select your provider (or choose 'Other')\n4. Enter your credentials:\n   - **Email address** - your full email\n   - **Username** - usually same as email\n   - **Password** - your email password or app password\n5. Click **Test Connection**\n6. If successful, click **Save**\n\n### Gmail Setup\n\n**Important:** Gmail requires an App Password, not your regular password.\n\n1. Go to Google Account > Security\n2. Enable 2-Factor Authentication (if not already)\n3. Go to App Passwords\n4. Generate a new app password for 'Mail'\n5. Use this 16-character password in TEEEM\n\n**IMAP Settings (auto-filled):**\n- IMAP Server: imap.gmail.com\n- IMAP Port: 993 (SSL)\n- SMTP Server: smtp.gmail.com\n- SMTP Port: 587 (TLS)\n\n### Outlook/Microsoft 365 Setup\n\n1. Select 'Outlook' as provider\n2. Enter your Microsoft email\n3. Enter your password\n4. Settings auto-fill:\n   - IMAP: outlook.office365.com:993\n   - SMTP: smtp.office365.com:587\n\n### Webcentral Setup\n\n1. Select 'Webcentral' as provider\n2. Enter your email and password\n3. Settings auto-fill:\n   - IMAP: mail.webcentral.com.au:993\n   - SMTP: mail.webcentral.com.au:587\n\n---\n\n## Email Sync\n\n### Initial Sync\n\nAfter connecting, TEEEM syncs your recent emails:\n- Downloads last 30 days by default\n- Syncs all folders (Inbox, Sent, etc.)\n- Runs in background\n\n### Manual Resync\n\nTo force a resync:\n1. Go to **Email**\n2. Click the **Sync** button (circular arrows)\n3. Wait for sync to complete\n\n### Sync Settings\n\n- **Sync interval** - How often to check (default: 15 min)\n- **Sync period** - How far back to sync\n- **Folders** - Which folders to include\n\n---\n\n## Email Features\n\n### Reading Emails\n\n1. Select an account from the sidebar\n2. Browse folders (Inbox, Sent, etc.)\n3. Click an email to read\n4. View attachments inline\n\n### Composing Emails\n\n1. Click **Compose** button\n2. Enter recipients (To, CC, BCC)\n3. Add subject and message\n4. Attach files if needed\n5. Click **Send**\n\n### Linking to Jobs\n\nEmails can be linked to jobs for better organization:\n1. Open an email\n2. Click **Link to Job**\n3. Select the job\n4. Email now appears in job's Email tab\n\n---\n\n## Email Rules\n\nCreate rules to automatically process incoming emails:\n\n### Creating a Rule\n\n1. Go to **Email > Rules**\n2. Click **Add Rule**\n3. Set conditions:\n   - From address contains...\n   - Subject contains...\n   - Has attachment\n4. Set actions:\n   - Move to folder\n   - Link to job\n   - Apply label\n5. Save the rule\n\n### Example Rules\n\n- **Supplier invoices**: If from \"@supplier.com\" and subject contains \"invoice\" → Link to job, move to Invoices folder\n- **Client emails**: If from client contact → Auto-link to their job\n\n---\n\n## Blacklist\n\nBlock unwanted senders:\n\n1. Go to **Email > Settings > Blacklist**\n2. Click **Add to Blacklist**\n3. Enter email address or domain\n4. Future emails from this sender are hidden\n\n---\n\n## Troubleshooting\n\n### Connection Failed\n\n**Check:**\n- Email and password are correct\n- App password used for Gmail\n- IMAP is enabled in your email settings\n- Firewall allows IMAP connections\n\n### Emails Not Syncing\n\n**Try:**\n1. Click the Sync button to force sync\n2. Check sync status in account settings\n3. Verify IMAP folders are selected\n4. Check for sync errors in the log\n\n### Authentication Errors\n\n**Common causes:**\n- Password changed - update in TEEEM\n- App password expired - generate new one\n- Account locked - check email provider\n\n### Sync Errors\n\nIf an account shows sync errors:\n1. Go to Email settings\n2. Find the account with error\n3. Click **Test Connection**\n4. Review error message\n5. Update credentials if needed"
+    },
+    "14": {
+      "title": "Chat & Communications",
+      "icon": "message-circle",
+      "content": "## Team Chat\n\nTEEEM includes built-in team messaging:\n\n### Channels\n- **#general** - Company-wide announcements\n- **#team** - Internal discussions\n- Custom channels for projects\n\n### Direct Messages\nPrivate conversations with team members:\n1. Click **Messages** in sidebar\n2. Click **New Message**\n3. Select recipient\n4. Start chatting\n\n## SMS Integration\n\nSend text messages to contacts:\n1. Open a contact\n2. Click **Send SMS**\n3. Compose message\n4. Click **Send**\n\n**Note:** SMS requires Twilio integration setup by admin."
+    },
+    "15": {
+      "title": "Xero Accounting",
+      "icon": "bar-chart",
+      "content": "## Connecting Xero\n\n1. Go to **Settings > Connections**\n2. Find **Xero**\n3. Click **Connect**\n4. Sign in to Xero\n5. Authorize TEEEM\n\n## What Syncs\n\n- **Contacts** - Customers and suppliers\n- **Invoices** - Sales invoices\n- **Bills** - Purchase invoices\n- **Payments** - Payment records\n\n## Invoice Sync\n\nWhen you create an invoice in TEEEM:\n1. Invoice auto-syncs to Xero\n2. Payment status updates automatically\n3. No double-entry required\n\n## Troubleshooting\n\n### Sync Issues\n1. Check connection status in Settings\n2. Refresh Xero connection\n3. Check for sync errors\n\n### Duplicate Records\n- Use merge feature to combine\n- Set matching rules in settings"
+    },
+    "16": {
+      "title": "Payments & Financials",
+      "icon": "credit-card",
+      "content": "## Payment Tracking\n\nTrack payments received and made:\n\n### Recording a Payment\n\n1. Open the invoice or bill\n2. Click **Record Payment**\n3. Enter amount and date\n4. Select payment method\n5. Save\n\n## Job Financials\n\nView job financial summary:\n- **Contract value** - Total job value\n- **Invoiced** - Amount billed\n- **Received** - Payments received\n- **Costs** - Expenses and POs\n- **Profit** - Calculated margin\n\n## Reports\n\n- Accounts receivable aging\n- Accounts payable summary\n- Job profitability\n- Cash flow projection"
+    },
+    "17": {
+      "title": "Workflows & Automation",
+      "icon": "git-branch",
+      "content": "## What are Workflows?\n\nWorkflows automate repetitive tasks based on triggers:\n- When job status changes\n- When invoice is created\n- When task is completed\n\n## Creating a Workflow\n\n1. Go to **Settings > Workflows**\n2. Click **New Workflow**\n3. Set trigger event\n4. Add actions:\n   - Send email\n   - Create task\n   - Update field\n   - Notify user\n5. Save and activate\n\n## Example Workflows\n\n### New Job Notification\n- **Trigger:** Job created\n- **Action:** Email team with job details\n\n### Invoice Follow-up\n- **Trigger:** Invoice overdue 7 days\n- **Action:** Send reminder email to client"
+    },
+    "18": {
+      "title": "Custom Tables",
+      "icon": "table",
+      "content": "## Custom Data Tables\n\nCreate your own data tables for specific needs:\n- Equipment tracking\n- License management\n- Custom registers\n\n## Creating a Custom Table\n\n1. Go to **Settings > Custom Tables**\n2. Click **New Table**\n3. Define columns:\n   - Text, number, date\n   - Dropdown choices\n   - Lookup to other tables\n4. Set up views and filters\n5. Start entering data\n\n## Using Custom Tables\n\n- Access from sidebar\n- Filter and sort data\n- Export to Excel\n- Link records to jobs"
+    },
+    "19": {
+      "title": "Corporate Module",
+      "icon": "building-2",
+      "content": "## Corporate Overview\n\nThe Corporate Module manages company structures:\n- Multiple companies and groups\n- Directors and officers\n- Shareholders and ownership\n- Compliance tracking\n\n## Company Structure\n\n### Adding a Company\n\n1. Go to **Corporate**\n2. Click **Add Company**\n3. Enter company details:\n   - Legal name and ACN/ABN\n   - Registered address\n   - Company type\n4. Save\n\n### Company Groups\n\nOrganize related companies into groups:\n- Parent/subsidiary relationships\n- Shared resources\n- Group reporting"
+    },
+    "20": {
+      "title": "Corporate Extended",
+      "icon": "briefcase",
+      "content": "## Directors & Officers\n\nTrack company leadership:\n- Current and past directors\n- Appointment dates\n- Responsibilities\n\n## Shareholders\n\nManage share registers:\n- Shareholder details\n- Share classes\n- Ownership percentages\n- Transaction history\n\n## Compliance Calendar\n\nNever miss a deadline:\n- ASIC annual reviews\n- Financial year reporting\n- Regulatory filings\n- Custom reminders\n\n## ASIC Integration\n\nConnect to ASIC for:\n- Company searches\n- Document lodgement\n- Change notifications"
+    },
+    "21": {
+      "title": "Work Health & Safety",
+      "icon": "shield",
+      "content": "## WHS Overview\n\nManage workplace health and safety:\n- Incident reporting\n- Site inspections\n- Inductions\n- SWMS (Safe Work Method Statements)\n\n## Incident Reporting\n\n1. Go to **WHS > Incidents**\n2. Click **Report Incident**\n3. Fill in details:\n   - Date, time, location\n   - People involved\n   - Injury/damage details\n   - Witnesses\n4. Add photos if needed\n5. Submit\n\n## Site Inspections\n\nConduct regular safety inspections:\n1. Use inspection checklists\n2. Record findings\n3. Assign corrective actions\n4. Track completion\n\n## SWMS\n\nCreate Safe Work Method Statements:\n- High-risk work procedures\n- Hazard identification\n- Control measures\n- Required sign-offs"
+    },
+    "22": {
+      "title": "Customer Portal",
+      "icon": "globe",
+      "content": "## Portal Overview\n\nGive customers secure access to their project info:\n- View job progress\n- Review quotes\n- Pay invoices\n- Send messages\n\n## Setting Up Portal Access\n\n1. Open a contact\n2. Click **Portal Access**\n3. Set permissions:\n   - Which jobs to see\n   - What tabs to access\n4. Send invitation email\n\n## Customer Experience\n\nCustomers can:\n- View project photos and updates\n- Download documents\n- Approve quotes online\n- Make payments\n- Message your team"
+    },
+    "23": {
+      "title": "File Warehouse",
+      "icon": "folder",
+      "content": "## File Warehouse Overview\n\nCentral document storage across all your data:\n- All job documents\n- Email attachments\n- Contact files\n- Corporate documents\n\n## Navigating Files\n\n1. Go to **Warehouse** in sidebar\n2. Browse folder structure:\n   - Jobs/[Job Code]/[Category]\n   - Contacts/[Contact Name]\n   - Emails/[Year]/[Month]\n3. Click to preview or download\n\n## Uploading Files\n\n1. Navigate to destination folder\n2. Drag files to upload, or\n3. Click **Upload** button\n4. Files are auto-organized\n\n## Search\n\nFind files across all locations:\n1. Use search bar at top\n2. Search by filename or content\n3. Filter by date or type\n4. Click result to open"
+    },
+    "24": {
+      "title": "E-Signatures",
+      "icon": "edit",
+      "content": "## E-Signature Overview\n\nGet documents signed electronically:\n- Quotes and proposals\n- Contracts\n- Variations\n- Compliance forms\n\n## Sending for Signature\n\n1. Open a document\n2. Click **Send for Signature**\n3. Add signers:\n   - Name and email\n   - Signing order (if sequential)\n4. Place signature fields\n5. Send\n\n## Tracking Status\n\nView signature progress:\n- **Sent** - Awaiting signature\n- **Viewed** - Recipient opened\n- **Signed** - Signature complete\n- **Declined** - Recipient declined\n\n## Completed Documents\n\nAfter signing:\n- Original + signed version stored\n- Audit trail recorded\n- Notifications sent"
+    },
+    "25": {
+      "title": "Data Warehouse & Reports",
+      "icon": "database",
+      "content": "## Reporting Overview\n\nGenerate insights from your data:\n- Pre-built reports\n- Custom report builder\n- Scheduled reports\n- Data export\n\n## Standard Reports\n\n- Job profitability\n- Accounts receivable aging\n- Task completion\n- Team productivity\n- Sales pipeline\n\n## Custom Reports\n\n1. Go to **Reports > Builder**\n2. Select data source\n3. Choose columns\n4. Add filters\n5. Set grouping/sorting\n6. Save report\n\n## Scheduled Reports\n\nAutomate report delivery:\n1. Open a report\n2. Click **Schedule**\n3. Set frequency (daily/weekly/monthly)\n4. Add recipients\n5. Reports email automatically"
+    }
+  }
+}

@@ -9,7 +9,6 @@
 #
 # Include this concern in document models to get validated constants:
 #
-#   class JobDocument < ApplicationRecord
 #     include DocumentStorageConstants
 #
 #     validates :storage_provider, inclusion: { in: STORAGE_PROVIDERS }, allow_nil: true
@@ -22,7 +21,7 @@ module DocumentStorageConstants
   # ═══════════════════════════════════════════════════════════════
   # STORAGE PROVIDERS (THE ONE definition)
   # ═══════════════════════════════════════════════════════════════
-  # These match StorageConfiguration.provider_type values
+  # These match WarehouseProvider.provider_type values
   # sharepoint    = Microsoft SharePoint/OneDrive
   # s3_compatible = AWS S3, Wasabi, MinIO, or any S3-compatible storage
   # wasabi        = Wasabi Cloud Storage (legacy alias for s3_compatible)

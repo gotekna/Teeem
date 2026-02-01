@@ -10,7 +10,9 @@
 #   OrgEmailSyncJob.perform_later         # Queue for background processing
 
 class OrgEmailSyncJob < ApplicationJob
-  queue_as :low
+  # FRC (Jan 2026): Moved from :low to :default queue
+  # Email sync is user-visible and time-sensitive - shouldn't compete with background analytics
+  queue_as :default
 
   # Retry network errors up to 2 times with backoff, then discard
   # Runs every 15 minutes, so next scheduled run will try again
@@ -24,8 +26,25 @@ class OrgEmailSyncJob < ApplicationJob
   attr_reader :user_cache, :blacklist_cache
 
   # Performance: Parallel folder sync configuration
-  PARALLEL_FOLDER_THREADS = 3  # Number of folders to sync concurrently
+  # ⚠️ FRC (Jan 2026): Reduced from 3 to 2 threads to prevent connection pool exhaustion
+  # Root cause: One-off dynos and worker processes have limited pool sizes (5-10 connections).
+  # With 3 threads per folder batch + main thread, we exceed pool capacity.
+  # Each user syncs multiple folders, causing cascading connection failures.
+  # Fix: 2 threads is safer while still providing parallelism benefit.
+  PARALLEL_FOLDER_THREADS = 2  # Number of folders to sync concurrently
   SYNC_TIMEOUT_SECONDS = 300   # 5 minute timeout per folder
+
+  # ⚠️ ULTRA FIX (Jan 2026): Never lose emails due to timing issues
+  # ════════════════════════════════════════════════════════════════
+  # Problem: If last_sync_at=22:20 but an email arrived at 21:43 and wasn't
+  # saved (error/timeout/filter), subsequent syncs using since=22:20 would
+  # NEVER find that email again.
+  #
+  # Solution: Always add overlap buffer and enforce minimum lookback.
+  # Overlap is SAFE (upsert handles duplicates). Missing emails is NOT.
+  # ════════════════════════════════════════════════════════════════
+  SYNC_OVERLAP_BUFFER = 2.hours   # Always look back this much before last_sync_at
+  SYNC_MINIMUM_LOOKBACK = 24.hours # Never sync less than this window
 
   # SSoT: Supports multi-org via organization_id (preferred)
   # Falls back to credential_id or org_name for legacy compatibility (with warning)
@@ -48,15 +67,28 @@ class OrgEmailSyncJob < ApplicationJob
     sync_days = sync_config["sync_days"] # Optional: sync by days instead of years
 
     # Determine which users to sync
+    # Priority: 1) sync_all → all tenant mailboxes
+    #           2) user_emails configured → use those
+    #           3) Auto-detect: TEEEM users whose email matches a tenant mailbox
     if sync_all
       # Get all users from tenant
       client = MicrosoftAppGraphClient.new(@credential)
       tenant_users = client.list_users(select: "id,mail,userPrincipalName")
       user_emails = tenant_users.map { |u| u["mail"] || u["userPrincipalName"] }.compact
+    elsif user_emails.empty?
+      # FRC (Jan 2026): Auto-detect mailboxes from user_mailbox_access config
+      # If Sync All is OFF, only sync mailboxes that are visible to at least one user
+      # user_mailbox_access format: { "user_id" => ["mailbox1@...", "mailbox2@..."], ... }
+      user_mailbox_access = sync_config["user_mailbox_access"] || {}
+
+      # Collect all unique mailboxes that have at least one user with access
+      user_emails = user_mailbox_access.values.flatten.compact.uniq
+
+      Rails.logger.info "[OrgEmailSync] Auto-detected #{user_emails.count} mailboxes from user_mailbox_access"
     end
 
     if user_emails.empty?
-      Rails.logger.info "[OrgEmailSync] No users configured for sync"
+      Rails.logger.info "[OrgEmailSync] No users configured for sync (enable Sync All or add TEEEM users with matching emails)"
       return
     end
 
@@ -77,7 +109,10 @@ class OrgEmailSyncJob < ApplicationJob
     end
 
     # Update last sync time
-    @credential.update!(last_sync_at: Time.current)
+    # FRC (Jan 2026): Use update_columns to bypass optimistic locking
+    # Root cause: Long-running syncs (30+ min for 2000+ emails) hit StaleObjectError
+    # when credential is modified elsewhere. update_columns is safe for timestamps.
+    @credential.update_columns(last_sync_at: Time.current)
 
     Rails.logger.info "[OrgEmailSync] Completed: #{total_synced} emails synced, #{errors.count} errors"
 
@@ -104,8 +139,16 @@ class OrgEmailSyncJob < ApplicationJob
     when "full"
               lookback_time
     else
-              # Incremental - use last_sync_at or fallback to configured lookback
-              @credential.last_sync_at || lookback_time
+              # ⚠️ ULTRA FIX: Never trust last_sync_at exactly - always add overlap
+              # This ensures emails aren't lost due to timing issues or transient failures
+              if @credential.last_sync_at
+                # Use last_sync_at minus overlap buffer, but never less than minimum lookback
+                buffered_time = @credential.last_sync_at - SYNC_OVERLAP_BUFFER
+                minimum_time = SYNC_MINIMUM_LOOKBACK.ago
+                [buffered_time, minimum_time].min  # Use the OLDER of the two (larger window)
+              else
+                lookback_time
+              end
     end
 
     # Get all mail folders
@@ -122,12 +165,14 @@ class OrgEmailSyncJob < ApplicationJob
   end
 
   # Performance: Sync folders in parallel batches
-  # Impact: ~3x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
+  # Impact: ~2x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
+  # ⚠️ FRC (Jan 2026): Added retry logic for database connection errors
   def sync_folders_parallel(client, user_email, folders, since)
     return 0 if folders.empty?
 
     # Thread-safe counter for total synced emails
     total_synced = Concurrent::AtomicFixnum.new(0)
+    failed_folders = Concurrent::Array.new
 
     # Process folders in parallel batches
     folders.each_slice(PARALLEL_FOLDER_THREADS) do |folder_batch|
@@ -140,6 +185,10 @@ class OrgEmailSyncJob < ApplicationJob
               thread_client = MicrosoftAppGraphClient.new(@credential)
               synced = sync_folder(thread_client, user_email, folder, since)
               total_synced.increment(synced)
+            rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::StatementInvalid => e
+              # Database connection error - mark for retry
+              Rails.logger.warn "[OrgEmailSync] DB connection error for folder #{folder[:name]}, will retry: #{e.message}"
+              failed_folders << folder
             rescue StandardError => e
               Rails.logger.error "[OrgEmailSync] Parallel sync error for folder #{folder[:name]}: #{e.message}"
             end
@@ -151,6 +200,19 @@ class OrgEmailSyncJob < ApplicationJob
       threads.each do |thread|
         thread.join(SYNC_TIMEOUT_SECONDS)
         thread.kill if thread.alive?  # Kill timed-out threads
+      end
+    end
+
+    # Retry failed folders sequentially (connection pool should have connections now)
+    if failed_folders.any?
+      Rails.logger.info "[OrgEmailSync] Retrying #{failed_folders.count} failed folders sequentially"
+      failed_folders.each do |folder|
+        begin
+          synced = sync_folder(client, user_email, folder, since)
+          total_synced.increment(synced)
+        rescue StandardError => e
+          Rails.logger.error "[OrgEmailSync] Retry failed for folder #{folder[:name]}: #{e.message}"
+        end
       end
     end
 
@@ -196,8 +258,16 @@ class OrgEmailSyncJob < ApplicationJob
     # Extract sender info first (needed for filtering)
     from_data = email_data["from"]&.dig("emailAddress") || {}
     from_email = from_data["address"]
+    from_name = from_data["name"]
     subject = email_data["subject"] || ""
     has_attachments = email_data["hasAttachments"] || false
+
+    # FRC (Jan 2026): For Sent/Draft emails, MS Graph API may not include 'from' field
+    # since the sender is implicit (the mailbox owner). Use owner_email as fallback.
+    if from_email.blank? && %w[Sent\ Items Drafts].include?(folder_name)
+      from_email = owner_email
+      Rails.logger.debug "[OrgEmailSync] Using owner_email as from_email for #{folder_name}: #{from_email}"
+    end
 
     # NOTE: Drafts are now synced (to match Office 365 exactly)
     # They will appear with folder_name="Drafts" and can be filtered in frontend
@@ -238,11 +308,11 @@ class OrgEmailSyncJob < ApplicationJob
       end
     end
 
-    # Find or create - use internet_message_id as unique identifier
-    # Each email is stored once globally, regardless of which mailbox synced it
-    email = SyncedEmail.find_or_initialize_by(
-      internet_message_id: internet_message_id
-    )
+    # Ultra Email Architecture: Store email content ONCE, link to multiple mailboxes
+    # ⚠️ FRC (Jan 2026): Same email can appear in multiple mailboxes (e.g., To: both James and Andrew)
+    # Solution: Store content once via internet_message_id, track mailbox appearances separately.
+    # This fixes: "email shows for James but not Andrew" - both get linked to the SAME email record.
+    email = SyncedEmail.find_or_initialize_by(internet_message_id: internet_message_id)
 
     # Extract recipients
     to_emails = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
@@ -266,31 +336,44 @@ class OrgEmailSyncJob < ApplicationJob
     received_at = email_data["receivedDateTime"] || email_data["createdDateTime"]
     is_draft = email_data["isDraft"] || (folder_name == "Drafts")
 
+    # Ultra Email Architecture: Only update content fields if new record or content is blank
+    # Don't overwrite existing content from another mailbox sync
+    if email.new_record? || email.subject.blank?
+      email.assign_attributes(
+        subject: email_data["subject"],
+        from_email: from_data["address"],
+        from_name: from_data["name"],
+        to_emails: to_emails,
+        cc_emails: cc_emails,
+        received_at: received_at,
+        sent_at: email_data["sentDateTime"],
+        has_attachments: email_data["hasAttachments"] || false,
+        body_preview: email_data["bodyPreview"],
+        body_text: body_text,
+        body_html: body_html,
+        conversation_id: email_data["conversationId"],
+        importance: email_data["importance"],
+        in_reply_to: email_data["inReplyTo"],
+        references: email_data["references"],
+        microsoft_credential_id: @credential&.id,  # Track which org this email came from
+        # SSoT: Multi-tenancy - set tenant_id from credential's organization
+        # This ensures emails are isolated per tenant and don't leak across orgs
+        tenant_id: @credential&.organization&.tenant_id
+      )
+    end
+
+    # Always update sync tracking and backward-compat fields
     email.assign_attributes(
-      outlook_id: email_data["id"],
-      subject: email_data["subject"],
-      from_email: from_data["address"],
-      from_name: from_data["name"],
-      to_emails: to_emails,
-      cc_emails: cc_emails,
-      received_at: received_at,
-      sent_at: email_data["sentDateTime"],
-      has_attachments: email_data["hasAttachments"] || false,
-      body_preview: email_data["bodyPreview"],
-      body_text: body_text,
-      body_html: body_html,
-      conversation_id: email_data["conversationId"],
-      folder_name: folder_name,
-      is_read: email_data["isRead"] || false,
-      importance: email_data["importance"],
-      in_reply_to: email_data["inReplyTo"],
-      references: email_data["references"],
       last_synced_at: Time.current,
-      microsoft_credential_id: @credential&.id,  # Track which org this email came from
-      mailbox_owner_email: owner_email,  # Track which mailbox this email came from (for fetching attachments)
-      # SSoT: Multi-tenancy - set tenant_id from credential's organization
-      # This ensures emails are isolated per tenant and don't leak across orgs
-      tenant_id: @credential&.organization&.tenant_id
+      # Backward compatibility: Keep mailbox_owner_email (first mailbox to sync wins)
+      # SSoT: Use mailbox_appearances for multi-mailbox support
+      mailbox_owner_email: email.mailbox_owner_email || owner_email,
+      # Keep outlook_id for backward compat (per-mailbox outlook_id is in mailbox_appearances)
+      outlook_id: email.outlook_id || email_data["id"],
+      # folder_name is per-mailbox, but keep for backward compat
+      folder_name: email.folder_name || folder_name,
+      # FRC (Jan 2026): Sent emails are always "read" - you wrote them!
+      is_read: folder_name == "Sent Items" ? true : (email.is_read.nil? ? (email_data["isRead"] || false) : email.is_read)
     )
 
     # Set first_synced_at if new record
@@ -305,6 +388,24 @@ class OrgEmailSyncJob < ApplicationJob
 
     is_new_record = email.new_record?
     email.save!
+
+    # Ultra Email Architecture: Create/update mailbox appearance (per-mailbox tracking)
+    # This links the email to the current mailbox with its specific outlook_id, folder, and read status
+    # ⚠️ FRC (Jan 2026): MUST have error handling - if this fails, email exists but isn't linked to mailbox!
+    begin
+      email.ensure_mailbox_appearance(
+        mailbox_email: owner_email,
+        outlook_id: email_data["id"],
+        folder_name: folder_name,
+        # FRC (Jan 2026): Sent emails are always "read" - you wrote them!
+        is_read: folder_name == "Sent Items" ? true : (email_data["isRead"] || false),
+        microsoft_credential_id: @credential&.id
+      )
+    rescue StandardError => e
+      Rails.logger.error "[OrgEmailSync] Failed to create mailbox appearance for email #{email.id} in #{owner_email}: #{e.message}"
+      # Re-raise to ensure the sync knows this email wasn't fully processed
+      raise
+    end
 
     # Build recipient links (to Users and Contacts)
     if email.persisted?
@@ -525,6 +626,18 @@ class OrgEmailSyncJob < ApplicationJob
       .exists?
     return false if already_attached
 
+    # SSoT: Check if user previously deleted this attachment - respect their choice
+    # Soft delete prevents auto-attach from re-creating removed attachments
+    was_deleted = SmTaskAttachment.was_deleted?(
+      sm_task_id: task_id,
+      attachable_type: "SyncedEmail",
+      attachable_id: email.id
+    )
+    if was_deleted
+      Rails.logger.info "[OrgEmailSync] Skipping auto-attach of email #{email.id} to task ##{task_id} (user previously deleted)"
+      return false
+    end
+
     # Attach the new email to the task
     SmTaskAttachment.create!(
       sm_task: task,
@@ -593,7 +706,8 @@ class OrgEmailSyncJob < ApplicationJob
   end
 
   # Find an admin user for applying rules when no specific user is matched
+  # SSoT: Use user_roles join table (user.role column was removed in Dec 2025)
   def find_org_admin_user
-    @org_admin_user ||= User.where(role: "admin").first
+    @org_admin_user ||= User.with_role("admin").first
   end
 end

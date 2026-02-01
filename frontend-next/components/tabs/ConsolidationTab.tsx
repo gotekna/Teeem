@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 
 interface CompanyGroup {
   id: number;
@@ -157,7 +157,7 @@ function OrgChartNode({
 }
 
 interface ConsolidationTabProps {
-  company: CorporateCompany;
+  company: Corporate;
   companyId?: string;
   entityId?: string;
   onUpdate?: () => void;

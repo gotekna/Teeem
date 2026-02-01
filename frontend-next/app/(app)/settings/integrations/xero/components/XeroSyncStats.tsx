@@ -20,15 +20,20 @@ import {
   ChevronRight,
   Eye,
   Zap,
+  HardDrive,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
+import { FuzzyMatchReviewModal } from "./FuzzyMatchReviewModal";
+import { FuzzyMatchReviewSheet } from "./FuzzyMatchReviewSheet";
+import { XeroOrgContactsDrilldownSheet } from "./XeroOrgContactsDrilldownSheet";
 
 interface TenantContactStats {
   total_links: number;
   sync_enabled: number;
   pending_review: number;
   with_errors: number;
+  unlinked: number;
   cross_tenant_matches: number;
   last_synced_at: string | null;
 }
@@ -61,6 +66,55 @@ interface TenantPdfSyncStats {
   pending: number;
   percentage: number;
   last_synced_at: string | null;
+  next_sync_at: string | null;
+  schedule: string | null;
+  blocker: {
+    reason: string;
+    detail: string;
+    pending_count?: number;
+    sync_mode?: string;
+    daily_percentage?: number;
+    resets_at?: string;
+    resets_at_display?: string;
+  } | null;
+  breakdown: {
+    bills: { total: number; synced: number };
+    sales_invoices: { total: number; synced: number };
+    credit_notes: { total: number; synced: number };
+    quotes: { total: number; synced: number };
+  } | null;
+}
+
+interface TenantDataSyncStats {
+  total_in_database: number;
+  linked_to_contacts: number;
+  unlinked_count: number;
+  last_synced_at: string | null;
+  next_sync_at: string | null;
+  schedule: string | null;
+  blocker: {
+    reason: string;
+    detail: string;
+    unlinked_count: number;
+    unlinked_contact_count: number;
+  } | null;
+}
+
+interface TotalsSummary {
+  total_all: number;
+  active: number;
+  voided_deleted: number;
+  synced: number;
+  pending: number;
+}
+
+interface BlobHealth {
+  total_blobs: number;
+  validated: number;
+  missing_hash: number;
+  file_missing: number;
+  health_percentage: number;
+  status: "healthy" | "needs_validation" | "files_missing" | "no_blobs";
 }
 
 interface TenantStats {
@@ -73,6 +127,9 @@ interface TenantStats {
   match_breakdown: MatchBreakdown;
   rate_limits: TenantRateLimits | null;
   pdf_sync?: TenantPdfSyncStats;
+  data_sync?: TenantDataSyncStats;
+  totals_summary?: TotalsSummary;
+  blob_health?: BlobHealth;
 }
 
 interface PendingReviewItem {
@@ -125,12 +182,46 @@ export function XeroSyncStats() {
   const [data, setData] = React.useState<SyncStatsData | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [syncing, setSyncing] = React.useState<string | null>(null);
+  const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
+  const [selectedReviewItem, setSelectedReviewItem] = React.useState<PendingReviewItem | null>(null);
+  const [reviewSheetOpen, setReviewSheetOpen] = React.useState(false);
+  const [contactsDrilldownOpen, setContactsDrilldownOpen] = React.useState(false);
+
+  // Light-weight callback to update pending count without refetching everything
+  const handleReviewed = React.useCallback(() => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        global: {
+          ...prev.global,
+          pending_reviews: {
+            ...prev.global.pending_reviews,
+            count: Math.max(0, prev.global.pending_reviews.count - 1),
+          },
+        },
+      };
+    });
+  }, []);
 
   const fetchData = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: SyncStatsData }>("/api/v1/xero/sync_stats");
+      // Fetch sync_stats and global pdf_sync_status in parallel
+      const [response, globalPdfResponse] = await Promise.all([
+        api.get<{ success: boolean; data: SyncStatsData }>("/api/v1/xero/sync_stats"),
+        api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"), // No tenant_id = global
+      ]);
+
       if (response.success) {
-        // Enrich tenant data with PDF sync stats
+        // Extract global totals and blob health (single call, not aggregated)
+        let globalTotals: TotalsSummary | undefined;
+        let globalBlobHealth: BlobHealth | undefined;
+        if (globalPdfResponse.success && globalPdfResponse.data) {
+          globalTotals = globalPdfResponse.data.totals_summary;
+          globalBlobHealth = globalPdfResponse.data.blob_health;
+        }
+
+        // Enrich tenant data with PDF sync stats (per-tenant for detailed view)
         const enrichedTenants = await Promise.all(
           response.data.tenants.map(async (tenant) => {
             try {
@@ -138,15 +229,29 @@ export function XeroSyncStats() {
                 `/api/v1/xero/pdf_sync_status?tenant_id=${tenant.tenant_id}`
               );
               if (pdfResponse.success && pdfResponse.data) {
+                const stage1 = pdfResponse.data.stage1_data_sync;
                 const stage2 = pdfResponse.data.stage2_pdf_download || pdfResponse.data;
                 return {
                   ...tenant,
+                  data_sync: stage1 ? {
+                    total_in_database: stage1.total_in_database || 0,
+                    linked_to_contacts: stage1.linked_to_contacts || 0,
+                    unlinked_count: stage1.unlinked_count || 0,
+                    last_synced_at: stage1.last_synced_at || null,
+                    next_sync_at: stage1.next_sync_at || null,
+                    schedule: stage1.schedule || null,
+                    blocker: stage1.blocker || null,
+                  } : undefined,
                   pdf_sync: {
                     total: stage2.total_to_sync || 0,
                     synced: stage2.downloaded || 0,
                     pending: stage2.pending || 0,
                     percentage: stage2.progress_percentage || 0,
                     last_synced_at: stage2.last_synced_at || null,
+                    next_sync_at: stage2.next_sync_at || null,
+                    schedule: stage2.schedule || null,
+                    blocker: stage2.blocker || null,
+                    breakdown: stage2.breakdown || null,
                   },
                 };
               }
@@ -156,6 +261,17 @@ export function XeroSyncStats() {
             return tenant;
           })
         );
+
+        // Store global totals on the first tenant (for the overview card to access)
+        // This is a workaround - ideally we'd have a separate state for global stats
+        if (enrichedTenants.length > 0 && globalTotals) {
+          enrichedTenants[0] = {
+            ...enrichedTenants[0],
+            totals_summary: globalTotals,
+            blob_health: globalBlobHealth,
+          };
+        }
+
         setData({ ...response.data, tenants: enrichedTenants });
         setError(null);
       } else {
@@ -257,7 +373,7 @@ export function XeroSyncStats() {
             {global.pending_reviews.count > 0 && (
               <Button
                 variant="default"
-                onClick={() => router.push("/contacts/filter/pending_review")}
+                onClick={() => setReviewSheetOpen(true)}
               >
                 <Eye className="h-4 w-4 mr-2" />
                 Review {global.pending_reviews.count} Pending Matches
@@ -293,14 +409,20 @@ export function XeroSyncStats() {
 
       {/* Global Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Contacts Stats */}
-        <Card>
+        {/* Contacts Stats - Clickable */}
+        <Card
+          className="cursor-pointer hover:bg-accent/50 transition-colors group"
+          onClick={() => setContactsDrilldownOpen(true)}
+        >
           <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-blue-100 rounded">
-                <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded">
+                  <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <CardTitle className="text-base">Contacts</CardTitle>
               </div>
-              <CardTitle className="text-base">Contacts</CardTitle>
+              <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </CardHeader>
           <CardContent>
@@ -406,6 +528,107 @@ export function XeroSyncStats() {
         </Card>
       </div>
 
+      {/* Sync Status & Storage Health - Global stats (single API call) */}
+      {(() => {
+        // Use global stats from first tenant (stored there by fetchData)
+        const globalTotals = tenants[0]?.totals_summary;
+        const globalBlobHealth = tenants[0]?.blob_health;
+
+        // Only show if we have data
+        if (!globalTotals && !globalBlobHealth) return null;
+
+        const blobHealthPct = globalBlobHealth?.total_blobs && globalBlobHealth.total_blobs > 0
+          ? Math.round((globalBlobHealth.validated / globalBlobHealth.total_blobs) * 100)
+          : 100;
+        const blobStatus = globalBlobHealth?.file_missing && globalBlobHealth.file_missing > 0 ? "files_missing"
+          : globalBlobHealth?.missing_hash && globalBlobHealth.missing_hash > 0 ? "needs_validation"
+          : "healthy";
+        const syncPct = globalTotals?.active && globalTotals.active > 0
+          ? Math.round(((globalTotals.synced || 0) / globalTotals.active) * 100)
+          : 0;
+
+        return (
+          <Card className="border-cyan-200 dark:border-cyan-800 bg-cyan-50/50 dark:bg-cyan-950/20">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-cyan-100 dark:bg-cyan-900/50 rounded">
+                  <HardDrive className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                </div>
+                <CardTitle className="text-base">Sync Overview & Storage Health</CardTitle>
+                {blobStatus === "healthy" && globalBlobHealth && globalBlobHealth.total_blobs > 0 && (
+                  <Badge className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    All Blobs Validated
+                  </Badge>
+                )}
+                {blobStatus === "needs_validation" && globalBlobHealth && (
+                  <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {globalBlobHealth.missing_hash} Need Validation
+                  </Badge>
+                )}
+                {blobStatus === "files_missing" && globalBlobHealth && (
+                  <Badge className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {globalBlobHealth.file_missing} Files Missing
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {/* Total All */}
+                <div className="text-center p-3 bg-white dark:bg-background rounded border">
+                  <div className="text-2xl font-bold">{(globalTotals?.total_all || 0).toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Total (All)</div>
+                </div>
+                {/* Active */}
+                <div className="text-center p-3 bg-white dark:bg-background rounded border">
+                  <div className="text-2xl font-bold">{(globalTotals?.active || 0).toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Active</div>
+                  {globalTotals && globalTotals.voided_deleted > 0 && (
+                    <div className="text-[10px] text-muted-foreground mt-1">
+                      ({globalTotals.voided_deleted} voided/deleted)
+                    </div>
+                  )}
+                </div>
+                {/* Synced */}
+                <div className="text-center p-3 bg-white dark:bg-background rounded border">
+                  <div className="text-2xl font-bold text-green-600">{(globalTotals?.synced || 0).toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Synced</div>
+                  <Progress value={syncPct} className="h-1 mt-1 [&>div]:bg-green-500" />
+                  <div className="text-[10px] text-muted-foreground mt-1">{syncPct}%</div>
+                </div>
+                {/* Pending */}
+                <div className="text-center p-3 bg-white dark:bg-background rounded border">
+                  <div className={`text-2xl font-bold ${(globalTotals?.pending || 0) > 0 ? "text-blue-600" : "text-green-600"}`}>
+                    {(globalTotals?.pending || 0).toLocaleString()}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Pending</div>
+                </div>
+                {/* Blob Health */}
+                <div className={`text-center p-3 rounded border ${
+                  blobStatus === "healthy" ? "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800" :
+                  blobStatus === "needs_validation" ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800" :
+                  "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
+                }`}>
+                  <div className={`text-2xl font-bold ${
+                    blobStatus === "healthy" ? "text-green-600" :
+                    blobStatus === "needs_validation" ? "text-amber-600" : "text-red-600"
+                  }`}>
+                    {blobHealthPct}%
+                  </div>
+                  <div className="text-xs text-muted-foreground">Blobs Validated</div>
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    {globalBlobHealth?.validated || 0}/{globalBlobHealth?.total_blobs || 0}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Pending Reviews Alert */}
       {global.pending_reviews.count > 0 && (
         <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
@@ -421,7 +644,7 @@ export function XeroSyncStats() {
                 variant="outline"
                 size="sm"
                 className="border-amber-400 text-amber-800 hover:bg-amber-100"
-                onClick={() => router.push("/contacts/filter/pending_review")}
+                onClick={() => setReviewSheetOpen(true)}
               >
                 Review All
                 <ChevronRight className="h-4 w-4 ml-1" />
@@ -448,7 +671,10 @@ export function XeroSyncStats() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => router.push(`/contacts/${item.contact_id}`)}
+                    onClick={() => {
+                      setSelectedReviewItem(item);
+                      setReviewModalOpen(true);
+                    }}
                   >
                     Review
                   </Button>
@@ -527,6 +753,21 @@ export function XeroSyncStats() {
                       <div className="text-xs text-muted-foreground mt-1">
                         {tenant.documents.total.toLocaleString()} / {tenant.documents.total.toLocaleString()}
                       </div>
+                      {/* Stage 1 Timing */}
+                      {tenant.data_sync && (
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/50">
+                          <span>
+                            Last: {tenant.data_sync.last_synced_at
+                              ? formatDistanceToNow(new Date(tenant.data_sync.last_synced_at), { addSuffix: false })
+                              : "—"}
+                          </span>
+                          <span>
+                            Next: {tenant.data_sync.next_sync_at
+                              ? formatDistanceToNow(new Date(tenant.data_sync.next_sync_at), { addSuffix: false })
+                              : "—"}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     {/* Stage 2: PDF Sync */}
                     <div className="p-2 bg-muted/30 rounded border">
@@ -544,11 +785,100 @@ export function XeroSyncStats() {
                       <div className="text-xs text-muted-foreground mt-1">
                         {(tenant.pdf_sync?.synced || 0).toLocaleString()} / {(tenant.pdf_sync?.total || tenant.documents.total).toLocaleString()}
                       </div>
+                      {/* Stage 2 Timing */}
+                      {tenant.pdf_sync && (
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-1 pt-1 border-t border-border/50">
+                          <span>
+                            Last: {tenant.pdf_sync.last_synced_at
+                              ? formatDistanceToNow(new Date(tenant.pdf_sync.last_synced_at), { addSuffix: false })
+                              : "—"}
+                          </span>
+                          <span>
+                            Next: {tenant.pdf_sync.next_sync_at
+                              ? formatDistanceToNow(new Date(tenant.pdf_sync.next_sync_at), { addSuffix: false })
+                              : "—"}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
+                  {/* Schedule Info */}
+                  <div className="flex flex-wrap gap-2 text-[10px]">
+                    {tenant.data_sync?.schedule && (
+                      <span className="bg-muted px-2 py-0.5 rounded text-muted-foreground">
+                        {tenant.data_sync.schedule}
+                      </span>
+                    )}
+                    {tenant.pdf_sync?.schedule && (
+                      <span className="bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded text-blue-700 dark:text-blue-300">
+                        {tenant.pdf_sync.schedule}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Stage 1 Blocker - Unlinked Contacts */}
+                  {tenant.data_sync?.blocker && (
+                    <button
+                      onClick={() => router.push(`/settings/integrations/xero?tab=contacts&sheet=unlinked`)}
+                      className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/30 p-2 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors w-full text-left border border-amber-200 dark:border-amber-800"
+                    >
+                      <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{tenant.data_sync.blocker.reason}</span>
+                      <ChevronRight className="h-3 w-3 ml-auto flex-shrink-0" />
+                    </button>
+                  )}
+
+                  {/* Stage 2 Blocker - Rate Limiting / Catching Up */}
+                  {tenant.pdf_sync?.blocker && (
+                    <div className={`text-xs p-2 rounded border ${
+                      tenant.pdf_sync.blocker.sync_mode === "rate_limited"
+                        ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800"
+                        : tenant.pdf_sync.blocker.sync_mode === "catching_up"
+                        ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                        : "bg-muted text-muted-foreground border-border"
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        {tenant.pdf_sync.blocker.sync_mode === "rate_limited" ? (
+                          <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                        ) : (
+                          <Activity className="h-3 w-3 flex-shrink-0" />
+                        )}
+                        <span className="font-medium">{tenant.pdf_sync.blocker.reason}</span>
+                      </div>
+                      <div className="text-[10px] mt-1 opacity-80">{tenant.pdf_sync.blocker.detail}</div>
+                      {tenant.pdf_sync.blocker.resets_at_display && (
+                        <div className="text-[10px] mt-1">
+                          Resets: {tenant.pdf_sync.blocker.resets_at_display}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* PDF Breakdown by Type */}
+                  {tenant.pdf_sync?.breakdown && (
+                    <div className="grid grid-cols-4 gap-1 text-[10px]">
+                      <div className="text-center p-1 bg-muted/30 rounded">
+                        <div className="font-medium">{tenant.pdf_sync.breakdown.bills.synced}/{tenant.pdf_sync.breakdown.bills.total}</div>
+                        <div className="text-muted-foreground">Bills</div>
+                      </div>
+                      <div className="text-center p-1 bg-muted/30 rounded">
+                        <div className="font-medium">{tenant.pdf_sync.breakdown.sales_invoices.synced}/{tenant.pdf_sync.breakdown.sales_invoices.total}</div>
+                        <div className="text-muted-foreground">Invoices</div>
+                      </div>
+                      <div className="text-center p-1 bg-muted/30 rounded">
+                        <div className="font-medium">{tenant.pdf_sync.breakdown.quotes.synced}/{tenant.pdf_sync.breakdown.quotes.total}</div>
+                        <div className="text-muted-foreground">Quotes</div>
+                      </div>
+                      <div className="text-center p-1 bg-muted/30 rounded">
+                        <div className="font-medium">{tenant.pdf_sync.breakdown.credit_notes.synced}/{tenant.pdf_sync.breakdown.credit_notes.total}</div>
+                        <div className="text-muted-foreground">Credits</div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Stats Grid */}
-                  <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="grid grid-cols-4 gap-2 text-center">
                     <div className="p-2 bg-muted/50 rounded">
                       <div className="text-lg font-bold">{tenant.contacts.total_links}</div>
                       <div className="text-xs text-muted-foreground">Contacts</div>
@@ -557,6 +887,17 @@ export function XeroSyncStats() {
                       <div className="text-lg font-bold">{tenant.documents.total}</div>
                       <div className="text-xs text-muted-foreground">Documents</div>
                     </div>
+                    {tenant.contacts.unlinked > 0 ? (
+                      <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded border border-amber-300 dark:border-amber-700">
+                        <div className="text-lg font-bold text-amber-700 dark:text-amber-400">{tenant.contacts.unlinked}</div>
+                        <div className="text-xs text-amber-600 dark:text-amber-500">Unlinked</div>
+                      </div>
+                    ) : (
+                      <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded">
+                        <div className="text-lg font-bold text-green-700 dark:text-green-400">✓</div>
+                        <div className="text-xs text-green-600 dark:text-green-500">All Linked</div>
+                      </div>
+                    )}
                     <div className="p-2 bg-muted/50 rounded">
                       <div className="text-lg font-bold">{tenant.contacts.cross_tenant_matches}</div>
                       <div className="text-xs text-muted-foreground">Shared</div>
@@ -586,12 +927,15 @@ export function XeroSyncStats() {
                     </div>
                   )}
 
-                  {/* Pending Reviews Warning */}
+                  {/* Pending Reviews Warning - Clickable to open review sheet */}
                   {tenant.contacts.pending_review > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
+                    <button
+                      onClick={() => setReviewSheetOpen(true)}
+                      className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded hover:bg-amber-100 dark:hover:bg-amber-900/40 cursor-pointer transition-colors w-full text-left"
+                    >
                       <AlertTriangle className="h-3 w-3" />
                       {tenant.contacts.pending_review} pending review
-                    </div>
+                    </button>
                   )}
 
                   {/* Last Sync */}
@@ -606,6 +950,30 @@ export function XeroSyncStats() {
             ))}
         </div>
       </div>
+
+      {/* Fuzzy Match Review Modal */}
+      <FuzzyMatchReviewModal
+        open={reviewModalOpen}
+        onOpenChange={setReviewModalOpen}
+        item={selectedReviewItem}
+        onReviewed={handleReviewed}
+      />
+
+      {/* Review All Sheet */}
+      <FuzzyMatchReviewSheet
+        open={reviewSheetOpen}
+        onOpenChange={setReviewSheetOpen}
+        onReviewed={handleReviewed}
+      />
+
+      {/* Contacts Drilldown Sheet */}
+      <XeroOrgContactsDrilldownSheet
+        isOpen={contactsDrilldownOpen}
+        onClose={() => setContactsDrilldownOpen(false)}
+        tenants={tenants}
+        totalContacts={global.totals.contacts_with_links}
+        onLinkChanged={fetchData}
+      />
     </div>
   );
 }

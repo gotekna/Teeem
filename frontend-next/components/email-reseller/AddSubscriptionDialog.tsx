@@ -83,6 +83,9 @@ export function AddSubscriptionDialog({
   const [contactSearch, setContactSearch] = React.useState("");
   const [contactItems, setContactItems] = React.useState<(ComboboxItem & { email?: string })[]>([]);
   const [searchingContacts, setSearchingContacts] = React.useState(false);
+  // FRC (Feb 2026): Track search request to prevent race condition where slow "Te" response
+  // overwrites fast "Teeem PTY" response when user types quickly
+  const searchRequestIdRef = React.useRef(0);
 
   // O365 discovery
   const [discovering, setDiscovering] = React.useState(false);
@@ -114,11 +117,16 @@ export function AddSubscriptionDialog({
   }, [open]);
 
   // Search contacts
+  // FRC (Feb 2026): Uses request ID to prevent race condition - if user types "Te" then "Teeem",
+  // the slow "Te" response won't overwrite the fast "Teeem" response
   const searchContacts = React.useCallback(async (query: string) => {
     if (query.length < 2) {
       setContactItems([]);
       return;
     }
+
+    // Increment request ID to track this specific request
+    const currentRequestId = ++searchRequestIdRef.current;
 
     setSearchingContacts(true);
     try {
@@ -126,6 +134,12 @@ export function AddSubscriptionDialog({
       const response = await api.get<{ success: boolean; contacts: { id: number; display_name: string; email?: string }[] }>(
         `/api/v1/contacts?search=${encodeURIComponent(query)}&limit=10`
       );
+
+      // Only update state if this is still the latest request
+      // (prevents slow earlier responses from overwriting fast later responses)
+      if (currentRequestId !== searchRequestIdRef.current) {
+        return; // Stale response, ignore it
+      }
 
       const items: (ComboboxItem & { email?: string })[] = (response.contacts || []).map((contact) => ({
         id: String(contact.id),
@@ -138,7 +152,10 @@ export function AddSubscriptionDialog({
     } catch (err) {
       console.error("Failed to search contacts:", err);
     } finally {
-      setSearchingContacts(false);
+      // Only clear loading if this is still the latest request
+      if (currentRequestId === searchRequestIdRef.current) {
+        setSearchingContacts(false);
+      }
     }
   }, []);
 
@@ -361,8 +378,9 @@ export function AddSubscriptionDialog({
                   placeholder="Search for a contact..."
                   searchPlaceholder="Type at least 2 characters..."
                   onInputChange={(value) => {
+                    // Only set state - let the debounced useEffect handle the actual search
+                    // This prevents duplicate API calls and the race condition is handled by searchRequestIdRef
                     setContactSearch(value);
-                    searchContacts(value);
                   }}
                   disableInternalFilter={true}
                   isLoading={searchingContacts}

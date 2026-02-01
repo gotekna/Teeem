@@ -133,6 +133,8 @@ interface EmailDetailData {
   internet_message_id?: string;
   thread?: EmailDetailData[];
   thread_count?: number;
+  // Mailbox info for replies
+  mailbox_owner_email?: string;
 }
 
 interface Job {
@@ -275,6 +277,9 @@ export function EmailDetailDialog({
     const quotedContentHtml = originalContent.split("\n").map(line => line || "<br>").join("<br>");
     const quotedBody = `${attachmentsHtml}<blockquote style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${quotedHeader}<br><br>${quotedContentHtml}</blockquote>`;
 
+    // SSoT: Use the mailbox that received this email as the From address for replies
+    const mailboxEmail = email.mailbox_owner_email?.toLowerCase();
+
     switch (replyMode) {
       case "reply":
         return {
@@ -282,6 +287,7 @@ export function EmailDetailDialog({
           defaultSubject: replySubject,
           defaultBody: quotedBody,
           replyToMessageId: email.internet_message_id,
+          defaultFromEmail: email.mailbox_owner_email,
         };
       case "replyAll":
         const allRecipients = [
@@ -289,17 +295,23 @@ export function EmailDetailDialog({
           ...(email.to_emails || []),
           ...(email.cc_emails || []),
         ].filter((e, i, arr) => arr.indexOf(e) === i); // Unique
+        // Exclude the sender (goes in To) and our mailbox (will be From)
+        const ccRecipients = allRecipients.filter(
+          (e) => e !== email.from_email && e.toLowerCase() !== mailboxEmail
+        );
         return {
           defaultTo: email.from_email,
-          defaultCc: allRecipients.filter((e) => e !== email.from_email).join(", "),
+          defaultCc: ccRecipients.join(", "),
           defaultSubject: replySubject,
           defaultBody: quotedBody,
           replyToMessageId: email.internet_message_id,
+          defaultFromEmail: email.mailbox_owner_email,
         };
       case "forward":
         return {
           defaultSubject: forwardSubject,
           defaultBody: quotedBody,
+          defaultFromEmail: email.mailbox_owner_email,
         };
       default:
         return {};

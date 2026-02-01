@@ -1,17 +1,20 @@
 class ExternalInvoice < ApplicationRecord
   include ExternalSyncConstants
 
+  # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
+  # FRC: ExternalInvoice was leaking data across tenants
+  # Root cause: Legacy indirect relationship (invoice → contact/job → tenant)
+  # Fix: Direct tenant_id column + acts_as_tenant for automatic scoping
+  acts_as_tenant :tenant
+
+  belongs_to :tenant
   belongs_to :contact, optional: true
   belongs_to :job, optional: true
   # LIM (Jan 2026): xero_contact association removed - ContactExternalLink is THE ONE SSoT
   # XeroContact table had 0 records, ContactExternalLink has 1,018 records
 
-  # Documents attached to this invoice (PDF attachments from Xero, etc.)
-  has_many :corporate_company_documents, as: :documentable, dependent: :nullify
-
-  # SSoT: Callbacks to maintain PDF eligibility when invoice state changes
-  # PDFs are only "eligible" when invoice has a contact AND is not draft
-  after_save :update_pdf_eligibility_on_state_change
+  # SSoT: WarehouseDocument polymorphic association for document metadata
+  has_many :warehouse_documents, as: :documentable, dependent: :nullify
 
   # SSoT: Update contact's cached supplier flag when bill changes
   # Only bills (ACCPAY) affect is_supplier_cached
@@ -50,6 +53,19 @@ class ExternalInvoice < ApplicationRecord
   scope :paid, -> { where(status: "paid") }
   scope :unpaid, -> { where.not(status: "paid") }
   scope :active, -> { where.not(status: %w[voided deleted]) }
+
+  # SSoT: THE ONE scope for invoices needing contact linking
+  # Used by both status page counts and unlinked_contacts endpoint
+  # - active (not voided/deleted)
+  # - not draft (no PDF available for drafts)
+  # - no contact_id linked
+  # - has a real contact_name (not blank or "No Contact")
+  scope :needs_contact_linking, -> {
+    active
+      .where.not(status: "draft")
+      .where(contact_id: nil)
+      .where.not(contact_name: [nil, "", "No Contact"])
+  }
 
   # Sync scopes
   scope :enabled, -> { where(sync_enabled: true) }
@@ -281,46 +297,6 @@ class ExternalInvoice < ApplicationRecord
   end
 
   private
-
-  # SSoT: Update PDF eligibility when invoice state changes
-  # Called after_save to keep CorporateCompanyDocument.is_pdf_eligible in sync
-  def update_pdf_eligibility_on_state_change
-    # Only process if contact_id or status changed
-    return unless saved_change_to_contact_id? || saved_change_to_status?
-
-    # Determine if we're becoming eligible or ineligible
-    was_eligible = contact_id_before_last_save.present? && status_before_last_save != "draft"
-    now_eligible = pdf_eligible?
-
-    # No change in eligibility
-    return if was_eligible == now_eligible
-
-    if now_eligible
-      # Became eligible - restore PDFs
-      corporate_company_documents.where(source: "xero").update_all(
-        is_pdf_eligible: true,
-        orphaned_at: nil,
-        orphan_reason: nil
-      )
-      Rails.logger.info("[PDF_ELIGIBILITY] Invoice #{id} became eligible, restored #{corporate_company_documents.where(source: 'xero').count} PDFs")
-    else
-      # Became ineligible - orphan PDFs
-      reason = if !contact_id.present? && contact_id_before_last_save.present?
-        "contact_removed"
-      elsif status == "draft" && status_before_last_save != "draft"
-        "became_draft"
-      else
-        "eligibility_lost"
-      end
-
-      corporate_company_documents.where(source: "xero").update_all(
-        is_pdf_eligible: false,
-        orphaned_at: Time.current,
-        orphan_reason: reason
-      )
-      Rails.logger.info("[PDF_ELIGIBILITY] Invoice #{id} became ineligible (#{reason}), orphaned #{corporate_company_documents.where(source: 'xero').count} PDFs")
-    end
-  end
 
   # SSoT: Check if supplier flag should be refreshed on update
   def should_refresh_supplier_flag?

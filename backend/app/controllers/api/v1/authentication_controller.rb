@@ -53,8 +53,8 @@ module Api
       def signup
         user = User.new(signup_params)
 
-        # Auto-approve internal employees (SSoT: CorporateCompanySetting)
-        if CorporateCompanySetting.internal_email?(user.email)
+        # Auto-approve internal employees (SSoT: TenantSetting)
+        if TenantSetting.internal_email?(user.email)
           Rails.logger.info "Auto-approving internal employee: #{user.email}"
         end
 
@@ -91,21 +91,18 @@ module Api
           # Update last login timestamp
           user.update_column(:last_login_at, Time.current)
 
-          # Get the company's API environment config (SSoT: CorporateCompanySetting)
+          # Get the company's API environment config (SSoT: TenantSetting)
           # Production backend acts as "router" - returns api_url for the company's chosen environment
-          env_config = CorporateCompanySetting.api_environment_config
-
-          # TEEEM staff (email ends with @teeem.com.au) stay on production frontend
-          # They use TenantSwitcher to view different companies without redirect
-          is_teeem_staff = user.email.to_s.end_with?('@teeem.com.au')
+          env_config = TenantSetting.api_environment_config
 
           # Local development should stay local - don't redirect localhost requests
           # Check Origin or Referer header for localhost
           request_origin = request.headers['Origin'] || request.headers['Referer'] || ''
           is_localhost = request_origin.include?('localhost') || request_origin.include?('127.0.0.1')
 
-          # Skip redirect for TEEEM staff OR localhost requests
-          frontend_url = (is_teeem_staff || is_localhost) ? nil : env_config[:frontend_url]
+          # All users follow tenant's api_environment setting (no hardcoded exceptions)
+          # Skip redirect only for localhost requests
+          frontend_url = is_localhost ? nil : env_config[:frontend_url]
 
           # Remember me: 1 year expiry, otherwise 1 day
           token_expiry = login_params[:remember_me] == true || login_params[:remember_me] == "true" ? 1.year.from_now : 1.day.from_now
@@ -205,17 +202,15 @@ module Api
       def me
         # Get environment config for auto-login redirect check
         # (Same logic as login - needed so session restore can redirect to correct frontend)
-        env_config = CorporateCompanySetting.api_environment_config
-
-        # TEEEM staff stay on production frontend (use TenantSwitcher instead)
-        is_teeem_staff = @current_user.email.to_s.end_with?('@teeem.com.au')
+        env_config = TenantSetting.api_environment_config
 
         # Check if request is from localhost (don't redirect local dev)
         request_origin = request.headers['Origin'] || request.headers['Referer'] || ''
         is_localhost = request_origin.include?('localhost') || request_origin.include?('127.0.0.1')
 
-        # Only return frontend_url if redirect is needed
-        frontend_url = (is_teeem_staff || is_localhost) ? nil : env_config[:frontend_url]
+        # All users follow tenant's api_environment setting (no hardcoded exceptions)
+        # Skip redirect only for localhost requests
+        frontend_url = is_localhost ? nil : env_config[:frontend_url]
 
         render json: {
           success: true,
@@ -237,7 +232,14 @@ module Api
             default_theme_from_role: @current_user.default_theme_from_role,
             sidebar_collapsed_by_default: @current_user.sidebar_collapsed_by_default?,
             # Email signature style preference (Jan 2026)
-            email_signature_style: @current_user.email_signature_style || 'modern-dark'
+            # If company forces a signature, use it; otherwise fallback chain
+            email_signature_style: resolve_email_signature_style,
+            # Force mode info for frontend
+            email_signature_forced: TenantSetting.instance.force_email_signature || false,
+            forced_signature_style: TenantSetting.instance.forced_signature_style,
+            # Custom company signature (if exists)
+            custom_email_signature_html: TenantSetting.instance.custom_email_signature_html,
+            custom_email_signature_name: TenantSetting.instance.custom_email_signature_name
           },
           # Environment info for auto-login redirect check
           api_url: env_config[:api_url],
@@ -247,6 +249,20 @@ module Api
       end
 
       private
+
+      # Resolve the email signature style to use
+      # If company forces a signature, use it regardless of user preference
+      # Otherwise: User preference → Company default → 'modern-dark'
+      def resolve_email_signature_style
+        settings = TenantSetting.instance
+        if settings.force_email_signature && settings.forced_signature_style.present?
+          settings.forced_signature_style
+        else
+          @current_user.email_signature_style ||
+            settings.default_email_signature_style ||
+            'modern-dark'
+        end
+      end
 
       def dev_mode_enabled?
         ENV["DEV_MODE_AUTH_BYPASS"] == "true"

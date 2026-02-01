@@ -56,7 +56,7 @@ export default function RecipeDetailPage() {
 
   // Path-based tab: /recipes/123/details, /recipes/123/items, /recipes/123/versions
   const activeTab = useMemo(() => {
-    const parts = pathname.replace(`/recipes/${recipeId}`, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(`/recipes/${recipeId}`, "").split("/").filter(Boolean);
     return parts[0] || null;
   }, [pathname, recipeId]);
 

@@ -1,7 +1,21 @@
+# frozen_string_literal: true
+
+# XeroBankTransactionSyncJob - Syncs bank transactions from Xero
+#
+# Rate Limit Handling (Jan 2026):
+# - Pre-flight lockout check before processing each tenant
+# - Checks rate limits before each paginated API request
+# - Breaks pagination if approaching limits, schedules continuation
+# - Catches XeroApiClient::RateLimitError and records lockout
+#
 class XeroBankTransactionSyncJob < ApplicationJob
+  include XeroJobBase
   queue_as :default
 
-  def perform
+  # FRC (Jan 2026): Updated to sync ALL connected XeroCredentials, not just primary
+  # Bug: Was only syncing primary + CorporateXeroConnection, missing 9 of 10 orgs
+  def perform(options = {})
+    options = options.with_indifferent_access if options.is_a?(Hash)
     Rails.logger.info("Starting XeroBankTransactionSyncJob")
 
     result = {
@@ -10,28 +24,44 @@ class XeroBankTransactionSyncJob < ApplicationJob
       errors: [],
       pages_fetched: 0,
       total_transactions: 0,
-      tenants_synced: 0
+      tenants_synced: 0,
+      tenants_skipped_lockout: 0,
+      rate_limited: false
     }
 
     client = XeroApiClient.new
 
-    # 1. Sync from main XeroCredential (existing behavior)
-    main_credential = XeroCredential.current
-    if main_credential.present?
-      tenant_result = sync_tenant(client, main_credential.tenant_id, result)
-      result[:tenants_synced] += 1 if tenant_result[:success]
-    else
-      Rails.logger.warn("[BankTransactionSync] No main Xero credential found")
+    # SSoT: Sync ALL connected Xero credentials (same pattern as XeroInvoiceSyncJob)
+    credentials = XeroCredential.where(status: %w[connected degraded])
+
+    if credentials.empty?
+      Rails.logger.warn("[BankTransactionSync] No connected Xero credentials")
+      return result
     end
 
-    # 2. Sync from ALL connected corporate company Xero connections
-    CorporateCompanyXeroConnection.with_credential.includes(:xero_credential, :corporate_company).each do |connection|
-      next unless connection.connected?
-      next if connection.xero_tenant_id == main_credential&.tenant_id  # Skip if same as main
+    Rails.logger.info("[BankTransactionSync] Syncing #{credentials.count} connected tenants")
 
-      Rails.logger.info("[BankTransactionSync] Syncing corporate company: #{connection.corporate_company&.name} (tenant: #{connection.xero_tenant_id})")
-      tenant_result = sync_tenant(client, connection.xero_tenant_id, result)
+    credentials.each do |credential|
+      tenant_id = credential.tenant_id
+
+      # Pre-flight lockout check for each tenant
+      if XeroRateLimitTracker.current_lockout(tenant_id: tenant_id).present?
+        lockout_remaining = XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: tenant_id)
+        Rails.logger.warn("[BankTransactionSync] Tenant #{credential.tenant_name} locked out for #{lockout_remaining}s, skipping")
+        result[:tenants_skipped_lockout] += 1
+        next
+      end
+
+      Rails.logger.info("[BankTransactionSync] Syncing: #{credential.tenant_name} (#{tenant_id})")
+      tenant_result = sync_tenant_with_rate_limiting(client, tenant_id, result, options)
       result[:tenants_synced] += 1 if tenant_result[:success]
+
+      # FRC (Jan 2026): Use `next` not `break` for multi-tenant isolation
+      # If one tenant hits rate limit, continue to others
+      if tenant_result[:rate_limited]
+        result[:errors] << { tenant_id: tenant_id, error: "Rate limited" }
+        next
+      end
     end
 
     Rails.logger.info("XeroBankTransactionSyncJob completed: #{result.inspect}")
@@ -40,62 +70,108 @@ class XeroBankTransactionSyncJob < ApplicationJob
 
   private
 
+  # Schedule retry after lockout expires
+  def schedule_retry(options, wait_seconds)
+    Rails.logger.info("[BankTransactionSync] Scheduling retry in #{wait_seconds}s")
+    self.class.set(wait: wait_seconds.seconds).perform_later(options)
+  end
+
+  # Sync with rate limiting wrapper
+  def sync_tenant_with_rate_limiting(client, tenant_id, result, options)
+    begin
+      sync_tenant(client, tenant_id, result)
+    rescue XeroApiClient::RateLimitError => e
+      handle_rate_limit_error(tenant_id, e, options)
+      { success: false, rate_limited: true }
+    end
+  end
+
   # Sync bank transactions for a specific Xero tenant
   def sync_tenant(client, tenant_id, result)
     Rails.logger.info("[BankTransactionSync] Starting sync for tenant: #{tenant_id}")
-    tenant_result = { success: false, created: 0, updated: 0 }
+    tenant_result = { success: false, created: 0, updated: 0, rate_limited: false }
 
-    begin
-      # Fetch all pages of bank transactions
-      page = 1
-      loop do
-        response = client.get("BankTransactions", { page: page, tenant_id: tenant_id })
-
-        unless response[:success]
-          result[:errors] << "API error for tenant #{tenant_id} on page #{page}: #{response[:error]}"
-          break
-        end
-
-        transactions = response.dig(:data, "BankTransactions") || []
-        break if transactions.empty?
-
-        result[:pages_fetched] += 1
-        result[:total_transactions] += transactions.count
-
-        # Process each transaction
-        transactions.each do |txn|
-          process_result = process_transaction(txn, tenant_id)
-          if process_result[:created]
-            result[:created] += 1
-            tenant_result[:created] += 1
-          elsif process_result[:updated]
-            result[:updated] += 1
-            tenant_result[:updated] += 1
-          elsif process_result[:error]
-            result[:errors] << process_result[:error]
-          end
-        end
-
-        # Check pagination
-        pagination = response.dig(:data, "pagination")
-        break if pagination.nil? || page >= pagination["pageCount"]
-
-        page += 1
-
-        # Small delay to avoid rate limiting
-        sleep(0.5)
+    # Fetch all pages of bank transactions
+    page = 1
+    loop do
+      # SSoT: Check rate limits before each paginated request
+      if XeroRateLimitTracker.should_throttle?(tenant_id)
+        Rails.logger.warn("[BankTransactionSync] Approaching rate limit, stopping pagination at page #{page}")
+        tenant_result[:rate_limited] = true
+        break
       end
 
-      tenant_result[:success] = true
-      update_sync_status(tenant_result, tenant_id)
+      # Also check for lockout that might have been set by another job
+      if XeroRateLimitTracker.current_lockout(tenant_id: tenant_id).present?
+        Rails.logger.warn("[BankTransactionSync] Lockout detected mid-sync, stopping pagination")
+        tenant_result[:rate_limited] = true
+        break
+      end
 
-    rescue StandardError => e
-      Rails.logger.error("[BankTransactionSync] Failed for tenant #{tenant_id}: #{e.message}")
-      Rails.logger.error(e.backtrace.first(5).join("\n"))
-      result[:errors] << "Tenant #{tenant_id}: #{e.message}"
+      response = client.get("BankTransactions", { page: page, tenant_id: tenant_id })
+
+      unless response[:success]
+        result[:errors] << "API error for tenant #{tenant_id} on page #{page}: #{response[:error]}"
+        break
+      end
+
+      transactions = response.dig(:data, "BankTransactions") || []
+      break if transactions.empty?
+
+      result[:pages_fetched] += 1
+      result[:total_transactions] += transactions.count
+
+      # Process each transaction
+      transactions.each do |txn|
+        process_result = process_transaction(txn, tenant_id)
+        if process_result[:created]
+          result[:created] += 1
+          tenant_result[:created] += 1
+        elsif process_result[:updated]
+          result[:updated] += 1
+          tenant_result[:updated] += 1
+        elsif process_result[:error]
+          result[:errors] << process_result[:error]
+        end
+      end
+
+      # Check pagination
+      pagination = response.dig(:data, "pagination")
+      break if pagination.nil? || page >= pagination["pageCount"]
+
+      page += 1
+
+      # Small delay to spread requests
+      sleep(0.5)
     end
 
+    tenant_result[:success] = true unless tenant_result[:rate_limited]
+    update_sync_status(tenant_result, tenant_id) unless tenant_result[:rate_limited]
+
     tenant_result
+  rescue StandardError => e
+    Rails.logger.error("[BankTransactionSync] Failed for tenant #{tenant_id}: #{e.message}")
+    Rails.logger.error(e.backtrace.first(5).join("\n"))
+    result[:errors] << "Tenant #{tenant_id}: #{e.message}"
+    raise  # Re-raise to let wrapper handle rate limit errors
+  end
+
+  # Handle rate limit errors by recording lockout and scheduling retry
+  def handle_rate_limit_error(tenant_id, error, options)
+    retry_after = extract_retry_after(error.message)
+    XeroRateLimitTracker.record_lockout!(retry_after, tenant_id: tenant_id)
+
+    Rails.logger.warn("[BankTransactionSync] RATE LIMITED - Scheduling retry in #{retry_after + 60}s")
+    XeroSyncStatus.fail_sync!("bank_transactions", tenant_id: tenant_id, error: "Rate limited by Xero - retry in #{retry_after}s")
+
+    # Schedule retry after lockout expires
+    schedule_retry(options, retry_after + 60)
+  end
+
+  # Extract retry_after seconds from RateLimitError message
+  def extract_retry_after(message)
+    match = message.to_s.match(/retry after (\d+)/i)
+    match ? match[1].to_i : 3600  # Default 1 hour if not parseable
   end
 
   def process_transaction(txn, tenant_id)

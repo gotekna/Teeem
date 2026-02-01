@@ -45,7 +45,7 @@ module Api
                   .order(:name)
 
         # SSoT: Only show photos from current storage provider (no fallback)
-        storage_config = StorageConfiguration.instance
+        storage_config = WarehouseProvider.instance
         valid_providers = storage_config.current_provider_storage_values
 
         # Build response grouped by supervisor
@@ -56,14 +56,14 @@ module Api
           supervisor_contact = job.job_contacts.find { |jc| jc.role == "supervisor" }
           supervisor = supervisor_contact&.user&.name || "Unassigned"
 
-          # Get latest photos for this job from JobDocument (data warehouse)
-          # SSoT: Filter by current storage provider only - no fallback to other providers
-          photos = JobDocument.where(job_id: job.id)
-                              .where(file_type: "image")
-                              .where(storage_provider: valid_providers)
-                              .where.not(thumbnail_url: [nil, ""])
-                              .order(last_modified_at: :desc)
-                              .limit(photos_limit)
+          # SSoT (Jan 2026): Get latest photos from WarehouseDocument
+          # Filter by current storage provider only - no fallback to other providers
+          photos = WarehouseDocument.where(source_type: "job", linkable: job)
+                                    .where("content_type LIKE 'image/%'")
+                                    .where("metadata->>'storage_provider' IN (?)", valid_providers)
+                                    .where("metadata->>'thumbnail_url' IS NOT NULL AND metadata->>'thumbnail_url' != ''")
+                                    .order(created_at: :desc)
+                                    .limit(photos_limit)
 
           # Skip jobs with no photos
           next if photos.empty?
@@ -82,14 +82,15 @@ module Api
               # Build proxy URL for fetching image through backend (bypasses CORS and expired tokens)
               # SSoT: /api/v1/documents/job_document_download - provider-agnostic (S3/SharePoint)
               proxy_url = "/api/v1/documents/job_document_download?document_id=#{photo.id}&preview=true"
+              modified_at = photo.updated_at || photo.created_at
               {
                 id: photo.id,
-                name: photo.file_name,
-                thumbnail_url: photo.thumbnail_url,  # Graph API thumbnail (may expire)
-                proxy_url: proxy_url,                 # Backend proxy (always works)
-                full_url: photo.web_url,
-                modified_at: photo.last_modified_at&.iso8601,
-                days_old: photo.last_modified_at ? ((Time.current - photo.last_modified_at) / 1.day).to_i : nil
+                name: photo.display_name || photo.original_filename,
+                thumbnail_url: photo.meta("thumbnail_url"),  # Graph API thumbnail (may expire)
+                proxy_url: proxy_url,                         # Backend proxy (always works)
+                full_url: photo.meta("web_url"),
+                modified_at: modified_at&.iso8601,
+                days_old: modified_at ? ((Time.current - modified_at) / 1.day).to_i : nil
               }
             end
           }

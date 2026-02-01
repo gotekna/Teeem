@@ -21,31 +21,19 @@ function TaskDetailContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Try to find task in context first, otherwise fetch directly
+  // Fetch task directly - don't wait for full context to load
+  // FRC (Jan 2026): Was waiting for ALL tasks to load via contextLoading before showing
+  // anything, causing long white screen times. Now fetches single task immediately.
   useEffect(() => {
-    const findOrFetchTask = async () => {
+    const fetchTask = async () => {
       setLoading(true);
       setError(null);
 
-      // First check if task exists in context
-      const contextTask = tasks.find((t: SmTask) => t.id === taskId);
-      if (contextTask) {
-        setTask(contextTask);
-        expandTask(taskId);
-        setLoading(false);
-        return;
-      }
-
-      // If context is still loading, wait
-      if (contextLoading) {
-        return;
-      }
-
-      // Task not in context, fetch directly
       try {
         const response = await api.get<{ success: boolean; sm_task: SmTask }>(`/api/v1/sm_tasks/${taskId}`);
         if (response?.success && response.sm_task) {
           setTask(response.sm_task);
+          expandTask(taskId);
         } else {
           setError('Task not found');
         }
@@ -58,9 +46,9 @@ function TaskDetailContent() {
     };
 
     if (taskId) {
-      findOrFetchTask();
+      fetchTask();
     }
-  }, [taskId, tasks, contextLoading, expandTask]);
+  }, [taskId, expandTask]);
 
   // Update task when context refreshes
   useEffect(() => {
@@ -72,7 +60,7 @@ function TaskDetailContent() {
     }
   }, [tasks, taskId, task, contextLoading]);
 
-  if (loading || contextLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Spinner />

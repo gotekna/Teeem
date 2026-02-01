@@ -147,7 +147,7 @@ export default function ContactsPageClient({
   const leftActions = (
     <div className="flex items-center gap-2">
       <BackButton fallbackHref="/dashboard" />
-      <Button asChild>
+      <Button asChild data-tour="contacts-add">
         <Link href="/contacts/new">
           <Plus className="h-4 w-4 mr-2" />
           Add Contact
@@ -157,7 +157,7 @@ export default function ContactsPageClient({
   );
 
   return (
-    <TablePage>
+    <TablePage data-tour="contacts-table">
       <TeeemTableView
         foundationId="contacts"
         tableName="Contacts"

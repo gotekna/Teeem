@@ -12,10 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { CopyableField, CopyableLink } from "@/components/ui/copyable";
 import { CheckCircle, AlertTriangle, Mail, Phone } from "lucide-react";
 import { format } from "date-fns";
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 
 interface InformationTabProps {
-  company: CorporateCompany;
+  company: Corporate;
   // TabComponentProps compatibility
   entityId?: string;
   companyId?: string;

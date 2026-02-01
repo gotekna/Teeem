@@ -11,7 +11,7 @@ class GlSyncJob < ApplicationJob
   # @param sync_type [String] Type of sync: 'full', 'incremental', 'accounts', etc.
   # @param options [Hash] Additional options
   def perform(corporate_company_id, provider, tenant_id, sync_type = 'full', options = {})
-    @corporate_company = CorporateCompany.find(corporate_company_id)
+    @corporate_company = Corporate.find(corporate_company_id)
     @provider = provider
     @tenant_id = tenant_id
     @sync_type = sync_type

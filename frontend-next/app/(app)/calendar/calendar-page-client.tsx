@@ -209,7 +209,7 @@ export default function CalendarPageClient({ viewSlug }: CalendarPageClientProps
           <h1 className="text-xl font-semibold">Calendar</h1>
 
           {/* Navigation */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" data-tour="calendar-nav">
             <Button variant="outline" size="icon" onClick={goToPrevious}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -225,7 +225,7 @@ export default function CalendarPageClient({ viewSlug }: CalendarPageClientProps
           <span className="text-lg font-medium">{getMonthName(selectedDate)}</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" data-tour="calendar-filters">
           {/* View mode toggle */}
           <div className="flex items-center border rounded-md">
             <Button
@@ -302,6 +302,7 @@ export default function CalendarPageClient({ viewSlug }: CalendarPageClientProps
               setEventOpen(true);
             }}
             title="Add Event"
+            data-tour="calendar-add"
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -328,7 +329,7 @@ export default function CalendarPageClient({ viewSlug }: CalendarPageClientProps
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Calendar grid */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" data-tour="calendar-view">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <Spinner size={32} />

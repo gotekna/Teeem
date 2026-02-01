@@ -2,7 +2,7 @@
  * SSoT: Storage Upload Module
  *
  * Handles file uploads to the configured storage provider (Wasabi/S3 or SharePoint).
- * Provider is determined by StorageConfiguration.provider_type.
+ * Provider is determined by WarehouseProvider.provider_type.
  *
  * Flow:
  * 1. Check provider via /api/v1/documents/status

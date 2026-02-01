@@ -15,10 +15,10 @@ class SsotAuditor
 
   # Models most likely to have SSoT issues (high traffic, frequently refactored)
   PRIORITY_MODELS = %w[
-    Job Contact PurchaseOrder ExternalInvoice CorporateCompany
+    Job Contact PurchaseOrder ExternalInvoice Corporate
     SmTask CaseRecord QuoteRequest QuoteResponse Meeting User
     Lead Project PricebookItem PricebookCategory
-    CorporateCompanyShareholding CorporateCompanyDirector
+    CorporateShareholding CorporateDirector
     SyncedEmail BillInbox
   ].freeze
 

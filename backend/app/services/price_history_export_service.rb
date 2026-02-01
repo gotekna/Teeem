@@ -114,7 +114,7 @@ class PriceHistoryExportService
       end
     end
 
-    parts << CorporateCompanySetting.today.strftime("%Y%m%d")
+    parts << TenantSetting.today.strftime("%Y%m%d")
 
     "#{parts.join('_')}.xlsx"
   end

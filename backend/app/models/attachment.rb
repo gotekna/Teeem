@@ -3,8 +3,8 @@
 # Supports deduplication via content_hash - one file stored once, linked to multiple emails
 class Attachment < ApplicationRecord
   belongs_to :organization_microsoft_app_credential
-  has_many :email_attachments, dependent: :destroy
-  has_many :email_warehouses, through: :email_attachments
+  # Note: email_attachments table DROPPED (Jan 2026) - all attachments now in WarehouseDocument (Ultra Design)
+  # Use WarehouseDocument.where(source_type: 'email_attachment') to query email attachments
 
   validates :storage_file_id, presence: true
   validates :storage_path, presence: true

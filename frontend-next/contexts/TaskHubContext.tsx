@@ -17,6 +17,8 @@ export interface TaskAttachmentEmail {
   to_emails?: string[];
   cc_emails?: string[];
   received_at: string;
+  is_read?: boolean; // SSoT: Read status synced with inbox
+  folder_name?: string; // SSoT: "Sent Items" = sent email (never show as unread)
   has_attachments: boolean;
   document_attachments_count?: number; // Count of real documents (excludes signature images)
   conversation_id?: string;
@@ -26,6 +28,10 @@ export interface TaskAttachmentEmail {
   body_html?: string; // Full HTML body (preserves formatting)
   attachment_content_hashes?: string[]; // Content hashes of email file attachments for linking to documents
   download_eml_url?: string; // SSoT: API endpoint to download email as .eml file
+  mailbox_owner_email?: string; // The mailbox this email belongs to (for sent detection)
+  // SSoT: Storage key for emails already stored (Ultra fix Jan 2026)
+  // Pass directly to send_email API to avoid re-download and re-upload
+  eml_storage_key?: string;
 }
 
 export interface TaskAttachmentDocument {
@@ -33,9 +39,15 @@ export interface TaskAttachmentDocument {
   file_name: string;
   display_name: string;
   document_type?: string;
-  storage_url?: string; // SSoT: Provider-agnostic download URL from StorableDocument
+  storage_url?: string; // SSoT: Provider-agnostic download URL (Content-Disposition: attachment)
+  storage_url_inline?: string; // SSoT: Inline view URL for viewers (Content-Disposition: inline)
   file_url?: string; // For ActiveStorage files (when not in external storage)
   has_storage?: boolean; // SSoT: Can create share links (storage_blob, storage_path, or storage_reference)
+  // SSoT: Storage key for email attachments (Ultra fix Jan 2026)
+  // Pass directly to send_email API to avoid re-download and re-upload
+  storage_key?: string;
+  content_type?: string;
+  file_size?: number;
   created_at: string;
   content_hash?: string; // For matching with email attachment hashes
 }
@@ -54,6 +66,7 @@ export interface TaskAttachment {
   document?: TaskAttachmentDocument;
   sharepoint_url?: string; // For response files uploaded to SharePoint
   action_item_id?: number; // Links attachment to a specific question as response
+  is_source?: boolean; // SSoT: True if this is the source email (task created from)
 }
 
 export type ActionItemType = 'action' | 'question' | 'header';
@@ -171,7 +184,9 @@ export interface SmTask {
 
   // Attachments
   attachments_count?: number;
+  unread_email_count?: number; // SSoT: Count of unread emails for task card indicator
   attachments?: TaskAttachment[];
+  auto_attach_email_files?: boolean; // Toggle for auto-attaching email file attachments to task
 
   // Privacy
   is_private?: boolean;

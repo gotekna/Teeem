@@ -5,7 +5,7 @@ module Api
     class EntityTabsController < ApplicationController
       before_action :set_entity_tab, only: [:show, :update, :destroy]
 
-      # GET /api/v1/entity_tabs?warehouse_type=corporate_entity
+      # GET /api/v1/entity_tabs?warehouse_type=corporate
       # Also accepts ?scope= for backwards compatibility
       # Use include_disabled=true for admin views to show all tabs
       #
@@ -145,7 +145,7 @@ module Api
       def entity_types
         render json: {
           success: true,
-          data: CorporateCompanySetting.corporate_entity_types
+          data: TenantSetting.corporate_entity_types
         }
       end
 
@@ -158,11 +158,11 @@ module Api
           return render json: { success: false, error: "entity_types must be an array of strings" }, status: :unprocessable_entity
         end
 
-        CorporateCompanySetting.update_corporate_entity_types(types)
+        TenantSetting.update_corporate_entity_types(types)
 
         render json: {
           success: true,
-          data: CorporateCompanySetting.corporate_entity_types,
+          data: TenantSetting.corporate_entity_types,
           message: "Entity types updated"
         }
       end
@@ -170,10 +170,10 @@ module Api
       # GET /api/v1/entity_tabs/document_type_counts
       # Returns count of document types linked per warehouse type + total document types
       def document_type_counts
-        counts = StorageLocation::WAREHOUSE_TYPES.each_with_object({}) do |warehouse_type, hash|
-          hash[warehouse_type] = StorageLocationDocumentType
-            .joins(:storage_location)
-            .where(entity_tabs: { warehouse_type: warehouse_type })
+        counts = WarehouseFolder::WAREHOUSE_TYPES.each_with_object({}) do |warehouse_type, hash|
+          hash[warehouse_type] = WarehouseFolderDocumentType
+            .joins(:warehouse_folder)
+            .where(warehouse_folders: { warehouse_type: warehouse_type })
             .distinct
             .count(:document_type_id)
         end

@@ -172,7 +172,7 @@ module Api
         end
 
         def current_company_lock_date
-          CorporateCompanySetting.find_by(corporate_company_id: current_company.id)&.gl_lock_date
+          TenantSetting.find_by(corporate_company_id: current_company.id)&.gl_lock_date
         end
 
         def available_periods
@@ -210,7 +210,7 @@ module Api
         end
 
         def current_company
-          @current_company ||= CorporateCompany.find(
+          @current_company ||= Corporate.find(
             params[:corporate_company_id] || current_user.corporate_company_id
           )
         end

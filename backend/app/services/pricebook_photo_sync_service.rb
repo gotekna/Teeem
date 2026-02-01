@@ -2,9 +2,9 @@
 # Matches photos and QR codes by filename to item names/codes and updates image_url and qr_code_url
 
 class PricebookPhotoSyncService
-  # SSoT: Folder path from StorageConfiguration, fallback to default
+  # SSoT: Folder path from WarehouseProvider, fallback to default
   def self.folder_path
-    StorageConfiguration.instance.path_for(:pricebook_photos)
+    WarehouseProvider.instance.path_for(:pricebook_photos)
   end
 
   class SyncError < StandardError; end

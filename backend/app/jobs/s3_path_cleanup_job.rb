@@ -3,7 +3,7 @@
 # S3PathCleanupJob - Renames S3 objects to clean, human-readable paths
 #
 # ╔═══════════════════════════════════════════════════════════════════╗
-# ║  SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)  ║
+# ║  SSoT: WarehouseProvider.instance.path_for(:scope) (Jan 2026)  ║
 # ║  - path_for(:jobs) → default "Jobs" (with job.job_code prefix)    ║
 # ║  - path_for(:corporate) → default "Corporate"                     ║
 # ║  - path_for(:people) → default "People"                           ║
@@ -23,30 +23,32 @@ class S3PathCleanupJob < ApplicationJob
   queue_as :low
 
   # Batch method to queue all documents needing path cleanup
+  # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
   def self.rename_all_old_paths!
     count = 0
 
-    # Find JobDocuments on S3 with old-style paths (contain encoded chars or verbose naming)
-    JobDocument.where(storage_provider: 's3_compatible')
-               .where.not(storage_path: nil)
-               .find_each do |doc|
-      next if clean_path?(doc.storage_path)
+    # Find WarehouseDocuments on S3 with old-style paths (contain encoded chars or verbose naming)
+    WarehouseDocument.includes(:storage_blob)
+                     .where("metadata->>'storage_provider' = ?", "s3_compatible")
+                     .find_each do |doc|
+      storage_path = doc.storage_blob&.storage_path
+      next if storage_path.blank? || clean_path?(storage_path)
 
-      perform_later(doc.id, document_type: 'JobDocument')
+      perform_later(doc.id, document_type: 'WarehouseDocument')
       count += 1
     end
 
-    Rails.logger.info "[S3PathCleanup] Queued #{count} JobDocuments for path cleanup"
+    Rails.logger.info "[S3PathCleanup] Queued #{count} WarehouseDocuments for path cleanup"
     count
   end
 
   # Check if path uses SSoT folder structure (TitleCase, proper prefixes)
-  # SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)
+  # SSoT: WarehouseProvider.instance.path_for(:scope) (Jan 2026)
   def self.clean_path?(path)
     return true if path.blank?
 
-    # Get configured folder names from StorageConfiguration
-    config = StorageConfiguration.instance
+    # Get configured folder names from WarehouseProvider
+    config = WarehouseProvider.instance
     jobs_folder = config&.path_for(:jobs) || "Jobs"
     corporate_folder = config&.path_for(:corporate) || "Corporate"
     people_folder = config&.path_for(:people) || "People"
@@ -59,38 +61,38 @@ class S3PathCleanupJob < ApplicationJob
     path.match?(/\A(#{jobs_pattern}\/J\d+|#{corporate_pattern}\/\d+|#{corporate_pattern}\/#{people_pattern}\/\d+)\/[a-zA-Z0-9\-\/\._\s]+\z/)
   end
 
+  # SSoT (Jan 2026): Uses WarehouseDocument instead of JobDocument
   def perform(document_id, options = {})
-    document_type = options[:document_type] || 'JobDocument'
-    klass = document_type.constantize
-
-    document = klass.find(document_id)
+    document = WarehouseDocument.find(document_id)
 
     # Skip if not on S3
-    unless document.storage_provider == 's3_compatible'
-      Rails.logger.info "[S3PathCleanup] #{document_type} #{document_id} not on S3, skipping"
-      return { status: 'skipped', reason: 'not_s3' }
+    storage_provider = document.meta("storage_provider")
+    unless storage_provider == "s3_compatible"
+      Rails.logger.info "[S3PathCleanup] WarehouseDocument #{document_id} not on S3, skipping"
+      return { status: "skipped", reason: "not_s3" }
     end
 
-    old_path = document.storage_path
-    old_key = document.storage_item_id
+    blob = document.storage_blob
+    old_path = blob&.storage_path
+    old_key = old_path
 
     # Skip if already clean
     if self.class.clean_path?(old_path)
-      Rails.logger.info "[S3PathCleanup] #{document_type} #{document_id} already has clean path"
-      return { status: 'skipped', reason: 'already_clean' }
+      Rails.logger.info "[S3PathCleanup] WarehouseDocument #{document_id} already has clean path"
+      return { status: "skipped", reason: "already_clean" }
     end
 
     # Calculate new clean path
-    new_path = build_clean_path(document, document_type)
+    new_path = build_clean_path(document)
     new_key = new_path # For S3, key = path
 
     # Skip if paths are the same
     if old_key == new_key
-      Rails.logger.info "[S3PathCleanup] #{document_type} #{document_id} paths identical"
-      return { status: 'skipped', reason: 'same_path' }
+      Rails.logger.info "[S3PathCleanup] WarehouseDocument #{document_id} paths identical"
+      return { status: "skipped", reason: "same_path" }
     end
 
-    Rails.logger.info "[S3PathCleanup] Renaming #{document_type} #{document_id}"
+    Rails.logger.info "[S3PathCleanup] Renaming WarehouseDocument #{document_id}"
     Rails.logger.info "[S3PathCleanup]   FROM: #{old_key}"
     Rails.logger.info "[S3PathCleanup]   TO:   #{new_key}"
 
@@ -106,7 +108,7 @@ class S3PathCleanupJob < ApplicationJob
       force_path_style: true
     )
 
-    bucket = StorageConfiguration.bucket
+    bucket = WarehouseProvider.bucket
 
     begin
       # Step 1: Copy object to new key
@@ -121,11 +123,8 @@ class S3PathCleanupJob < ApplicationJob
       s3_client.head_object(bucket: bucket, key: new_key)
       Rails.logger.info "[S3PathCleanup] Verified new object exists"
 
-      # Step 3: Update database
-      document.update!(
-        storage_item_id: new_key,
-        storage_path: new_path
-      )
+      # Step 3: Update StorageBlob path
+      blob.update!(storage_path: new_path)
       Rails.logger.info "[S3PathCleanup] Updated database"
 
       # Step 4: Delete old object
@@ -133,7 +132,7 @@ class S3PathCleanupJob < ApplicationJob
       Rails.logger.info "[S3PathCleanup] Deleted old object"
 
       {
-        status: 'completed',
+        status: "completed",
         document_id: document_id,
         old_path: old_key,
         new_path: new_key
@@ -141,7 +140,7 @@ class S3PathCleanupJob < ApplicationJob
 
     rescue Aws::S3::Errors::NoSuchKey => e
       Rails.logger.error "[S3PathCleanup] Source file not found: #{old_key}"
-      { status: 'error', reason: 'source_not_found', error: e.message }
+      { status: "error", reason: "source_not_found", error: e.message }
 
     rescue StandardError => e
       Rails.logger.error "[S3PathCleanup] Failed: #{e.message}"
@@ -152,48 +151,43 @@ class S3PathCleanupJob < ApplicationJob
 
   private
 
-  # Build clean path for document using SSoT from StorageConfiguration
-  # SSoT: StorageConfiguration.instance.path_for(:scope) (Jan 2026)
-  def build_clean_path(document, document_type)
-    config = StorageConfiguration.instance
+  # Build clean path for document using SSoT from WarehouseProvider
+  # SSoT (Jan 2026): Uses WarehouseDocument source_type to determine path structure
+  def build_clean_path(document)
+    config = WarehouseProvider.instance
+    raise ArgumentError, "WarehouseProvider required for path generation" unless config
 
-    case document_type
-    when 'JobDocument'
-      job = document.job
-      # SSoT: Use job.job_code (e.g., "J49") from database column
+    source_type = document.source_type
+    filename = clean_filename(document.original_filename || document.display_name || "untitled")
+    subfolder = clean_subfolder(document.folder.presence || "Documents")
+
+    case source_type
+    when "job"
+      job = document.linkable
+      raise ArgumentError, "WarehouseDocument #{document.id} has no linkable Job - cannot determine path" unless job&.is_a?(Job)
+
       job_code = job.job_code
-      subfolder = clean_subfolder(document.folder_path.presence || "Documents")
-      filename = clean_filename(document.file_name)
-      # SSoT: path_for(:jobs) folder with job_code prefix (Jan 2026)
-      jobs_folder = config&.path_for(:jobs) || "Jobs"
+      jobs_folder = config.path_for(:jobs) || "Jobs"
       "#{jobs_folder}/#{job_code}/#{subfolder}/#{filename}"
 
-    when 'CorporateCompanyDocument'
-      company = document.corporate_company
-      # FAIL FAST: No fallbacks - missing data is a bug, not a feature (Jan 2026 FRC fix)
-      raise ArgumentError, "CorporateCompanyDocument #{document.id} has no corporate_company - cannot determine path" unless company
-      raise ArgumentError, "StorageConfiguration required for path generation" unless config
+    when "corporate"
+      company = document.linkable
+      raise ArgumentError, "WarehouseDocument #{document.id} has no linkable Corporate - cannot determine path" unless company&.is_a?(Corporate)
 
-      corporate_folder = config.path_for(:corporate)
-      folder = clean_subfolder(document.folder.presence || "Documents")
-      filename = clean_filename(document.file_name)
-      "#{corporate_folder}/#{company.id}/#{folder}/#{filename}"
+      corporate_folder = config.path_for(:corporate) || "Corporate"
+      "#{corporate_folder}/#{company.id}/#{subfolder}/#{filename}"
 
-    when 'PeopleDocument'
-      contact = document.contact
-      # FAIL FAST: No fallbacks - missing data is a bug (Jan 2026 FRC fix)
-      raise ArgumentError, "PeopleDocument #{document.id} has no contact - cannot determine path" unless contact
-      raise ArgumentError, "StorageConfiguration required for path generation" unless config
+    when "people", "contact"
+      contact = document.linkable
+      raise ArgumentError, "WarehouseDocument #{document.id} has no linkable Contact - cannot determine path" unless contact&.is_a?(Contact)
 
-      corporate_folder = config.path_for(:corporate)
-      people_folder = config.path_for(:people)
-      folder = clean_subfolder(document.folder.presence || "Documents")
-      filename = clean_filename(document.file_name)
-      "#{corporate_folder}/#{people_folder}/#{contact.id}/#{folder}/#{filename}"
+      corporate_folder = config.path_for(:corporate) || "Corporate"
+      people_folder = config.path_for(:people) || "People"
+      "#{corporate_folder}/#{people_folder}/#{contact.id}/#{subfolder}/#{filename}"
 
     else
-      # FAIL FAST: Unknown document type is a bug (Jan 2026 FRC fix)
-      raise ArgumentError, "Unknown document type: #{document.class.name} - add explicit path handling"
+      # FAIL FAST: Unknown source_type is a bug (Jan 2026 FRC fix)
+      raise ArgumentError, "Unknown source_type: #{source_type} - add explicit path handling"
     end
   end
 

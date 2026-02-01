@@ -17,8 +17,8 @@ class DailyHealthCheckJob < ApplicationJob
   queue_as :low
 
   def perform
-    # SSoT: Use CorporateCompanySetting for timezone
-    Rails.logger.info "[DailyHealthCheck] Starting daily health check at #{CorporateCompanySetting.now}"
+    # SSoT: Use TenantSetting for timezone
+    Rails.logger.info "[DailyHealthCheck] Starting daily health check at #{TenantSetting.now}"
 
     start_time = Time.current
     results = {
@@ -118,7 +118,7 @@ class DailyHealthCheckJob < ApplicationJob
     fixed_count = 0
 
     # Find companies with ABN/ACN formatting issues
-    CorporateCompany.find_each(batch_size: 500) do |company|
+    Corporate.find_each(batch_size: 500) do |company|
       next unless needs_company_fix?(company)
 
       begin

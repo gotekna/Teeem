@@ -376,15 +376,18 @@ type EmailAttachment = NonNullable<Email['attachments']>[number];
 
 interface EmailAccount {
   id: number | string;
-  type: "outlook" | "imap" | "ms365";
+  type: "outlook" | "imap" | "ms365" | "polaris";
   name: string;
   email_address: string | null;
   provider: string;
   is_active: boolean;
   is_default?: boolean;
   org_credential_id?: number;
+  email_mailbox_id?: number; // For PolarisMail accounts
   needs_mailbox_config?: boolean;
   is_favorite?: boolean;
+  last_synced_at?: string;
+  last_sync_status?: string;
 }
 
 interface Pagination {
@@ -731,6 +734,8 @@ export default function EmailPage() {
   const [loadingFolders, setLoadingFolders] = useAtom(loadingFoldersAtom);
   const [loading, setLoading] = useAtom(loadingAtom);
   const [syncing, setSyncing] = useAtom(syncingAtom);
+  // Track last sync completion time (for display - updates on sync complete)
+  const [lastLocalSyncAt, setLastLocalSyncAt] = useState<Date | null>(null);
   const [creatingTask, setCreatingTask] = useAtom(creatingTaskAtom);
   const [creatingContact, setCreatingContact] = useAtom(creatingContactAtom);
 
@@ -759,6 +764,11 @@ export default function EmailPage() {
   // Account selection (SSoT: selectedAccountAtom)
   const [selectedAccount, setSelectedAccount] = useAtom(selectedAccountAtom);
   const [expandedAccounts, setExpandedAccounts] = useAtom(expandedAccountsAtom);
+
+  // Reset last local sync when switching accounts
+  useEffect(() => {
+    setLastLocalSyncAt(null);
+  }, [selectedAccount]);
 
   // Historical mailbox filter (for Warehouse links to mailboxes without connected accounts)
   // When set, filters by mailbox_owner_email instead of account credential
@@ -948,6 +958,11 @@ export default function EmailPage() {
 
   const handleSyncCompleted = useCallback((stats: { new_count: number; updated_count: number; duration_seconds: number }) => {
     setSyncing(false);
+    // FRC (Jan 2026): Refresh accounts when WebSocket reports sync complete
+    // This updates the "Last sync" timestamps shown in the UI
+    fetchAccounts();
+    // Update local sync time for immediate UI feedback
+    setLastLocalSyncAt(new Date());
     if (stats.new_count > 0) {
       toast({
         title: "Sync complete",
@@ -1135,6 +1150,17 @@ export default function EmailPage() {
             // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
             const parts = selectedAccount.split("_");
             params.append("microsoft_credential_id", parts[1]);
+            // FRC (Jan 2026): MUST also filter by mailbox_owner_email when user has access
+            // to multiple mailboxes in the same MS365 org (e.g., robert@ AND james@)
+            // Without this, emails from ALL accessible mailboxes are returned
+            const ms365Account = accounts.find(a => String(a.id) === selectedAccount);
+            if (ms365Account?.email_address) {
+              params.append("mailbox_owner_email", ms365Account.email_address);
+            }
+          } else if (selectedAccount.startsWith("polaris_")) {
+            // PolarisMail accounts: extract email_mailbox_id from "polaris_X" format
+            const parts = selectedAccount.split("_");
+            params.append("email_mailbox_id", parts[1]);
           } else {
             params.append("imap_credential_id", selectedAccount);
           }
@@ -1147,6 +1173,11 @@ export default function EmailPage() {
       if (folderToUse) {
         params.append("folder_name", folderToUse);
       }
+
+      // FRC (Jan 2026): Show all individual emails, not just latest in thread
+      // This prevents confusion where an email appears "missing" because a reply exists
+      // Users can still see threads by clicking on an email to expand its conversation
+      params.append("latest_only", "false");
 
       const url = `/api/v1/synced_emails?${params.toString()}`;
       const response = await api.get<{ emails: Email[]; pagination: Pagination }>(url);
@@ -1176,7 +1207,7 @@ export default function EmailPage() {
         setLoading(false);
       }
     }
-  }, [toURLParams, selectedAccount, selectedFolder, historicalMailbox]);
+  }, [toURLParams, selectedAccount, selectedFolder, historicalMailbox, accounts]);
 
   // Performance: Infinite scroll - auto-load more emails when scrolling near bottom
   // Use refs to store latest state to avoid effect re-running on every state change
@@ -1490,54 +1521,103 @@ export default function EmailPage() {
     }
   }, [emailIdParam]);
 
-  // Sync ALL mailboxes (IMAP + Office 365)
+  // Sync current account OR all accounts if "all" is selected
+  // FRC (Feb 2026): Smart sync - syncs only the account you're viewing
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const syncPromises: Promise<unknown>[] = [];
+      const results: { total_synced?: number; message?: string }[] = [];
 
-      // Sync all IMAP accounts
-      syncPromises.push(api.post("/api/v1/imap_credentials/sync_all").catch(() => {}));
+      // If viewing specific account, sync only that account
+      if (selectedAccount && selectedAccount !== "all") {
+        const account = accounts.find(a => String(a.id) === selectedAccount);
+        if (account) {
+          if (account.type === "imap") {
+            // Sync specific IMAP account
+            const imapResult = await api.post<{ total_synced?: number; message?: string }>(
+              `/api/v1/imap_credentials/${account.org_credential_id}/sync`
+            ).catch(() => ({}));
+            if (imapResult) results.push(imapResult);
+          } else if (account.type === "outlook" || account.type === "ms365") {
+            // Sync specific Office 365 account
+            const ms365Result = await api.post<{ total_synced?: number; message?: string }>(
+              "/api/v1/synced_emails/sync"
+            ).catch(() => ({}));
+            if (ms365Result) results.push(ms365Result);
+          }
+        }
+      } else {
+        // Viewing "all accounts" - sync everything
+        // Sync all IMAP accounts
+        const imapResult = await api.post<{ total_synced?: number; message?: string }>("/api/v1/imap_credentials/sync_all").catch(() => ({}));
+        if (imapResult) results.push(imapResult);
 
-      // Sync Office 365/Outlook accounts
-      if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
-        syncPromises.push(api.post("/api/v1/synced_emails/sync").catch(() => {}));
+        // Sync Office 365/Outlook accounts (runs synchronously now)
+        if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
+          const ms365Result = await api.post<{ total_synced?: number; message?: string }>("/api/v1/synced_emails/sync").catch(() => ({}));
+          if (ms365Result) results.push(ms365Result);
+        }
       }
 
-      await Promise.all(syncPromises);
-      setTimeout(() => {
-        fetchEmails();
-        setSyncing(false);
-      }, 3000);
+      // Show results
+      const totalSynced = results.reduce((sum, r) => sum + (r?.total_synced || 0), 0);
+      if (totalSynced > 0) {
+        toast({ title: `Synced ${totalSynced} new email${totalSynced === 1 ? '' : 's'}` });
+      } else {
+        toast({ title: "No new emails" });
+      }
+
+      // Update local sync time immediately for visual feedback
+      setLastLocalSyncAt(new Date());
+
+      // Refresh the email list and account timestamps
+      // FRC (Jan 2026): Must refresh accounts to update "Last sync" timestamps in UI
+      fetchEmails();
+      fetchAccounts();
     } catch (error) {
       console.error("Failed to sync:", error);
+      toast({ title: "Sync failed", variant: "destructive" });
+    } finally {
       setSyncing(false);
     }
   };
 
   // Sync ALL accounts (same as handleSync - kept for backwards compatibility)
+  // FRC (Jan 2026): Sync is now synchronous - no more 3-second wait
   const handleSplitSync = async () => {
     setSyncing(true);
     try {
-      const syncPromises: Promise<unknown>[] = [];
+      const results: { total_synced?: number; message?: string }[] = [];
 
       // Sync all IMAP accounts
-      syncPromises.push(api.post("/api/v1/imap_credentials/sync_all").catch(() => {}));
+      const imapResult = await api.post<{ total_synced?: number; message?: string }>("/api/v1/imap_credentials/sync_all").catch(() => ({}));
+      if (imapResult) results.push(imapResult);
 
-      // Sync Office 365/Outlook accounts
+      // Sync Office 365/Outlook accounts (runs synchronously now)
       if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
-        syncPromises.push(api.post("/api/v1/synced_emails/sync").catch(() => {}));
+        const ms365Result = await api.post<{ total_synced?: number; message?: string }>("/api/v1/synced_emails/sync").catch(() => ({}));
+        if (ms365Result) results.push(ms365Result);
       }
 
-      await Promise.all(syncPromises);
+      // Show results
+      const totalSynced = results.reduce((sum, r) => sum + (r?.total_synced || 0), 0);
+      if (totalSynced > 0) {
+        toast({ title: `Synced ${totalSynced} new email${totalSynced === 1 ? '' : 's'}` });
+      } else {
+        toast({ title: "No new emails" });
+      }
 
-      // Wait for sync to complete, then refresh
-      setTimeout(() => {
-        splitInbox.refresh();
-        setSyncing(false);
-      }, 3000);
+      // Update local sync time immediately for visual feedback
+      setLastLocalSyncAt(new Date());
+
+      // Refresh the split inbox and account timestamps
+      // FRC (Jan 2026): Must refresh accounts to update "Last sync" timestamps in UI
+      splitInbox.refresh();
+      fetchAccounts();
     } catch (error) {
       console.error("Failed to sync:", error);
+      toast({ title: "Sync failed", variant: "destructive" });
+    } finally {
       setSyncing(false);
     }
   };
@@ -1916,8 +1996,19 @@ To: ${email.to_emails?.join(", ") || ""}
         maxSize="400px"
         className="bg-muted/30 flex flex-col"
       >
+        {/* Last sync indicator */}
+        {selectedAccount && selectedAccount !== "all" && (
+          <div className="px-2 pt-2 pb-1 text-xs text-muted-foreground">
+            {(() => {
+              const currentAccount = accounts.find(a => String(a.id) === selectedAccount);
+              const syncTime = lastLocalSyncAt || (currentAccount?.last_synced_at ? new Date(currentAccount.last_synced_at) : null);
+              if (!syncTime) return "Last sync: -";
+              return `Last sync: ${formatDistanceToNow(syncTime, { addSuffix: true })}`;
+            })()}
+          </div>
+        )}
         <div className="p-2 border-b flex items-center gap-1">
-          <Button className="flex-1" size="sm" onClick={handleCompose}>
+          <Button className="flex-1" size="sm" onClick={handleCompose} data-tour="email-compose">
             <Plus className="h-4 w-4 mr-1" />
             New
           </Button>
@@ -2080,7 +2171,7 @@ To: ${email.to_emails?.join(", ") || ""}
           <div className="border-b my-2" />
 
           {/* Mailbox list - show favorites or all based on toggle */}
-          <div className="px-1 mb-2">
+          <div className="px-1 mb-2" data-tour="email-accounts">
             <div className="flex items-center justify-between px-0.5 py-1">
               <span className="text-xs text-muted-foreground font-medium">
                 {showAllMailboxes ? "All Mailboxes" : "Favorites"}
@@ -2172,7 +2263,7 @@ To: ${email.to_emails?.join(", ") || ""}
                   </div>
 
                   {/* Folders */}
-                  <div className="mt-1">
+                  <div className="mt-1" data-tour="email-folders">
                     {account.needs_mailbox_config ? (
                       <div className="px-3 py-2 text-xs text-muted-foreground">
                         <p>Mailbox not configured</p>
@@ -2247,6 +2338,7 @@ To: ${email.to_emails?.join(", ") || ""}
           minSize="250px"
           maxSize={readingPanePosition === "off" ? undefined : "600px"}
           className="flex flex-col border-r min-w-0 overflow-hidden"
+          data-tour="email-list"
         >
         {/* Header - View toggle and search */}
         <div className="flex items-center gap-2 px-2 py-1.5 border-b shrink-0 bg-background">
@@ -2254,7 +2346,7 @@ To: ${email.to_emails?.join(", ") || ""}
 
           {/* Search - Only in folder mode */}
           {viewMode === "folders" && (
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0" data-tour="email-search">
               <EmailSearchFilters
                 filters={emailFilters.filters}
                 setFilter={emailFilters.setFilter}

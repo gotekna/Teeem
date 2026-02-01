@@ -28,8 +28,6 @@
 #  updated_at           :datetime         not null
 #
 class ProfitLossReport < ApplicationRecord
-  include DocumentTemplatable
-
   belongs_to :corporate_company, foreign_key: "company_id"
   belongs_to :document_type, optional: true
 

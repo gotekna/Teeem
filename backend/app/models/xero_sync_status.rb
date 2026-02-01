@@ -5,9 +5,11 @@
 # - invoices (ExternalInvoiceSyncService - every 30 min)
 # - contacts (XeroContactSyncService - every 30 min)
 # - pdfs (XeroAttachmentSyncService - every 2 hours)
-# - payments (future)
+# - payments (future - NOT IMPLEMENTED)
 class XeroSyncStatus < ApplicationRecord
-  SYNC_TYPES = %w[invoices contacts pdfs payments bank_transactions].freeze
+  # Only include implemented sync types. "payments" was never implemented and causes
+  # false "red" health status because it has no records.
+  SYNC_TYPES = %w[invoices contacts pdfs bank_transactions].freeze
   STATUSES = %w[success failed in_progress].freeze
 
   validates :sync_type, presence: true, inclusion: { in: SYNC_TYPES }
@@ -64,18 +66,28 @@ class XeroSyncStatus < ApplicationRecord
     # - bank_transactions: every 6 hours → stale after 8 hours
     # Using conservative defaults here; UI can check next_sync_at for accuracy
     def health_summary(tenant_id: nil)
+      # FRC (Jan 2026): Must order by last_synced_at DESC to get MOST RECENT sync per type
+      # Bug: Using .find on unordered collection returned oldest records (by ID), causing
+      # false "stale" warnings when recent syncs existed for other tenants.
       statuses = tenant_id ? for_tenant(tenant_id) : all
+      statuses = statuses.order(last_synced_at: :desc)
 
-      # SSoT: Thresholds should be > expected sync interval
-      # Most syncs run every 30 min, so stale = 45 min, critical = 90 min
-      stale_threshold = 45.minutes
-      critical_threshold = 90.minutes
+      # SSoT: Per-sync-type thresholds based on ACTUAL schedules from recurring.yml
+      # FRC (Jan 2026): Single 45-min threshold was wrong for pdfs (2hr) and bank_transactions (6hr)
+      sync_thresholds = {
+        "invoices" => { stale: 10.minutes, critical: 20.minutes },           # runs every 5 min
+        "contacts" => { stale: 60.minutes, critical: 120.minutes },          # webhook-driven
+        "pdfs" => { stale: 3.hours, critical: 4.hours },                     # runs every 2 hours
+        "bank_transactions" => { stale: 8.hours, critical: 10.hours }        # runs every 6 hours
+      }
 
       result = {}
       health_statuses = []
 
       SYNC_TYPES.each do |sync_type|
+        # Get the most recent sync status for this type (already ordered DESC)
         status = statuses.find { |s| s.sync_type == sync_type }
+        thresholds = sync_thresholds[sync_type] || { stale: 45.minutes, critical: 90.minutes }
 
         if status
           # Calculate freshness
@@ -83,18 +95,18 @@ class XeroSyncStatus < ApplicationRecord
           age_seconds = last_synced ? (Time.current - last_synced).to_i : nil
           age_minutes = age_seconds ? (age_seconds / 60.0).round(1) : nil
 
-          # Determine health status: green (< 5 min), yellow (5-10 min), red (> 10 min)
+          # Determine health status based on sync-type-specific thresholds
           health_status = if age_seconds.nil?
             "red"
-          elsif age_seconds <= stale_threshold
+          elsif age_seconds <= thresholds[:stale]
             "green"
-          elsif age_seconds <= critical_threshold
+          elsif age_seconds <= thresholds[:critical]
             "yellow"
           else
             "red"
           end
 
-          is_stale = age_seconds.nil? || age_seconds > stale_threshold
+          is_stale = age_seconds.nil? || age_seconds > thresholds[:stale]
 
           health_statuses << health_status
 
@@ -166,78 +178,19 @@ class XeroSyncStatus < ApplicationRecord
     end
 
     # SSoT: Detect orphaned PDFs - documents that exist for invoices that are no longer eligible
-    # This catches data inconsistencies between CorporateCompanyDocument and ExternalInvoice
+    # This method returns empty stats since the legacy table no longer exists
     def detect_orphaned_pdfs
-      # Count PDFs marked as orphaned
-      marked_orphaned = CorporateCompanyDocument.where(source: "xero", is_pdf_eligible: false).count
-
-      # Count PDFs that SHOULD be orphaned but aren't (data inconsistency)
-      # These are PDFs where the invoice exists but has no contact or is draft
-      inconsistent_pdfs = CorporateCompanyDocument
-        .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-        .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", is_pdf_eligible: true })
-        .where("external_invoices.contact_id IS NULL OR external_invoices.status = 'draft'")
-        .count
-
-      # Count PDFs that are marked orphaned but shouldn't be (invoice is now eligible)
-      false_orphans = CorporateCompanyDocument
-        .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-        .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", is_pdf_eligible: false })
-        .where.not(external_invoices: { contact_id: nil })
-        .where.not(external_invoices: { status: "draft" })
-        .count
-
-      health_status = if inconsistent_pdfs > 0 || false_orphans > 0
-        "yellow"  # Data inconsistency detected
-      elsif marked_orphaned > 0
-        "green"   # Orphans exist but are properly tracked
-      else
-        "green"   # No orphans at all
-      end
-
       {
-        marked_orphaned: marked_orphaned,
-        inconsistent_should_be_orphaned: inconsistent_pdfs,
-        inconsistent_should_not_be_orphaned: false_orphans,
-        health_status: health_status,
-        message: inconsistent_pdfs > 0 || false_orphans > 0 ?
-          "#{inconsistent_pdfs + false_orphans} PDFs have inconsistent eligibility state" :
-          "#{marked_orphaned} orphaned PDFs properly tracked"
+        marked_orphaned: 0,
+        inconsistent_should_be_orphaned: 0,
+        inconsistent_should_not_be_orphaned: 0,
+        health_status: "green",
       }
     end
 
-    # SSoT: Fix orphaned PDFs - run this to heal data inconsistencies
+    # SSoT: Fix orphaned PDFs - DEPRECATED
     def heal_orphaned_pdfs!
-      healed_count = 0
-
-      # Fix PDFs that should be orphaned but aren't
-      CorporateCompanyDocument
-        .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-        .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", is_pdf_eligible: true })
-        .where("external_invoices.contact_id IS NULL OR external_invoices.status = 'draft'")
-        .find_each do |doc|
-          invoice = doc.documentable
-          reason = if invoice.contact_id.nil?
-            "contact_removed"
-          elsif invoice.status == "draft"
-            "became_draft"
-          else
-            "eligibility_lost"
-          end
-          doc.update!(is_pdf_eligible: false, orphaned_at: Time.current, orphan_reason: reason)
-          healed_count += 1
-        end
-
-      # Fix PDFs that are marked orphaned but shouldn't be
-      CorporateCompanyDocument
-        .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-        .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", is_pdf_eligible: false })
-        .where.not(external_invoices: { contact_id: nil })
-        .where.not(external_invoices: { status: "draft" })
-        .update_all(is_pdf_eligible: true, orphaned_at: nil, orphan_reason: nil)
-
-      Rails.logger.info("[ORPHAN_HEALER] Healed #{healed_count} orphaned PDFs")
-      healed_count
+      0
     end
   end
 end

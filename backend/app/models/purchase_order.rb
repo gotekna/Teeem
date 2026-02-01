@@ -92,8 +92,7 @@ class PurchaseOrder < ApplicationRecord
   has_many :bill_payments, dependent: :nullify
   belongs_to :last_bill_inbox, class_name: "BillInbox", optional: true
 
-  # Documents attached to this PO (via polymorphic documentable)
-  has_many :corporate_company_documents, as: :documentable, dependent: :nullify
+  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
 
   # Nested attributes
   accepts_nested_attributes_for :line_items, allow_destroy: true
@@ -147,7 +146,7 @@ class PurchaseOrder < ApplicationRecord
   scope :by_status, ->(status) { where(status: status) if status.present? }
   scope :by_construction, ->(job_id) { where(job_id: job_id) if job_id.present? }
   scope :recent, -> { order(created_at: :desc) }
-  scope :overdue, -> { where("required_date < ? AND status NOT IN (?)", CorporateCompanySetting.today, [ "received", "cancelled" ]) }
+  scope :overdue, -> { where("required_date < ? AND status NOT IN (?)", TenantSetting.today, [ "received", "cancelled" ]) }
   scope :pending_approval, -> { where(status: "pending") }
   scope :for_schedule, -> { where(creates_schedule_tasks: true) }
   scope :visible_to_suppliers, -> { where(visible_to_supplier: true) }
@@ -230,13 +229,13 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def send_to_supplier!(document_url: nil)
-    result = update(status: "sent", ordered_date: CorporateCompanySetting.today)
+    result = update(status: "sent", ordered_date: TenantSetting.today)
     log_activity(:sent, document_url: document_url) if result
     result
   end
 
   def mark_received!
-    result = update(status: "received", received_date: CorporateCompanySetting.today)
+    result = update(status: "received", received_date: TenantSetting.today)
     log_activity(:received) if result
     result
   end

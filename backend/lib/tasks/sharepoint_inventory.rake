@@ -14,9 +14,9 @@ namespace :sharepoint do
     # Get Microsoft Graph client
     client = service.send(:get_onedrive_client)
 
-    # Find root folder (SSoT: uses CorporateCompanySetting)
+    # Find root folder (SSoT: uses TenantSetting)
     puts "📁 Finding Corporate folder root..."
-    company_folder_path = CorporateCompanySetting.instance.sharepoint_company_path.presence || "00 TEEEM PRIVATE"
+    company_folder_path = TenantSetting.instance.sharepoint_company_path.presence || "00 TEEEM PRIVATE"
     root_folder = service.find_folder_by_path(company_folder_path)
 
     if root_folder.nil?

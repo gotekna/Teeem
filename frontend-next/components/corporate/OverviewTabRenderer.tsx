@@ -14,7 +14,7 @@ import { Suspense } from "react";
 import { AlertCircle } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { getTabComponent } from "@/lib/tab-component-registry";
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 
 // Mapping from tab_key to component_name in registry
 // SSoT for this mapping should eventually be EntityTabs.component_name
@@ -41,7 +41,7 @@ const TAB_KEY_TO_COMPONENT: Record<string, string> = {
 
 interface OverviewTabRendererProps {
   tabKey: string;
-  company: CorporateCompany;
+  company: Corporate;
   companyId: string;
   onUpdate?: () => void;
   // Special handling for "info" tab which has ATOSetupCard

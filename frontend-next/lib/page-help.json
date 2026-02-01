@@ -1,0 +1,1264 @@
+{
+  "_meta": {
+    "description": "SSoT for contextual page help. Claude updates this when screens change.",
+    "lastUpdated": "2026-01-31",
+    "totalPages": 185,
+    "format": "Each page has: title, description, tips (array), tasks (array)"
+  },
+  "pages": {
+    "/": {
+      "title": "Home",
+      "description": "Landing page and entry point to TEEEM.",
+      "tips": ["Login to access your dashboard", "New users can sign up for an account"],
+      "tasks": ["Login to your account", "Create new account", "Reset password"]
+    },
+    "/login": {
+      "title": "Login",
+      "description": "Sign in to your TEEEM account.",
+      "tips": ["Use your email and password", "Enable 'Remember me' for convenience", "Contact admin if locked out"],
+      "tasks": ["Enter credentials", "Reset forgotten password", "Sign up for new account"]
+    },
+    "/signup": {
+      "title": "Sign Up",
+      "description": "Create a new TEEEM account.",
+      "tips": ["Use a valid business email", "Choose a strong password", "Check email for verification"],
+      "tasks": ["Enter your details", "Verify email address", "Complete profile setup"]
+    },
+    "/dashboard": {
+      "title": "Dashboard",
+      "description": "Your home base showing key metrics, recent activity, and quick access to important items.",
+      "tips": ["Click any metric card to drill down into details", "Recent items show your last 10 accessed records", "Use the quick actions bar for common tasks"],
+      "tasks": ["View overdue tasks and upcoming deadlines", "Check recent job updates", "Access frequently used pages"]
+    },
+    "/tasks": {
+      "title": "Task Hub",
+      "description": "Manage all your tasks, to-dos, and action items in one place.",
+      "tips": ["Use filters to show only your tasks or all team tasks", "Click a task to view details and add comments", "Drag tasks to reorder priority"],
+      "tasks": ["Create new tasks with the + button", "Assign tasks to team members", "Set due dates and reminders", "Mark tasks complete with the checkbox"]
+    },
+    "/agent-tasks": {
+      "title": "AI Agent Tasks",
+      "description": "View and manage tasks being processed by AI agents.",
+      "tips": ["Monitor AI task progress in real-time", "Review AI-generated results before applying", "Retry failed tasks if needed"],
+      "tasks": ["View agent task queue", "Review completed tasks", "Retry failed tasks", "Configure agent settings"]
+    },
+    "/email": {
+      "title": "Email",
+      "description": "Unified inbox showing emails from all connected accounts. View, compose, and manage emails linked to jobs and contacts.",
+      "tips": ["Switch between mailboxes using the sidebar", "Emails are automatically linked to jobs and contacts", "Use keyboard shortcuts: j/k to navigate, c to compose, r to reply"],
+      "tasks": ["Read and reply to emails", "Compose new emails", "Link emails to jobs or contacts", "Search across all mailboxes"]
+    },
+    "/email/[mailbox]": {
+      "title": "Email",
+      "description": "Unified inbox showing emails from all connected accounts (IMAP and Microsoft 365).",
+      "tips": ["Emails are automatically linked to jobs and contacts", "Use the search bar to find specific emails", "Star important emails for quick access"],
+      "tasks": ["Compose and send emails", "Link emails to jobs or contacts", "Archive or delete emails", "Manage email folders"]
+    },
+    "/email/rules": {
+      "title": "Email Rules",
+      "description": "Create rules to automatically organize and process incoming emails.",
+      "tips": ["Rules run on new emails automatically", "Use conditions to match specific senders or subjects", "Actions can move, label, or link emails"],
+      "tasks": ["Create new email rule", "Edit existing rules", "Set rule priority", "Test rule matching"]
+    },
+    "/email/settings": {
+      "title": "Email Settings",
+      "description": "Configure email account connections and sync settings.",
+      "tips": ["Add IMAP or Microsoft 365 accounts", "Set sync frequency for each account", "Configure email signatures"],
+      "tasks": ["Add email account", "Edit sync settings", "Configure signatures", "Test email connection"]
+    },
+    "/jobs": {
+      "title": "Jobs",
+      "description": "Central hub for all construction jobs and projects.",
+      "tips": ["Use filters to find jobs by status, type, or date", "Click a job code to open job details", "The status column shows current workflow stage"],
+      "tasks": ["Create a new job", "Update job status", "View job schedule and Gantt", "Access job documents and emails"]
+    },
+    "/jobs/new": {
+      "title": "Create New Job",
+      "description": "Start a new construction job or project.",
+      "tips": ["Required fields are marked with *", "Job code is auto-generated based on your settings", "Link a contact as the client"],
+      "tasks": ["Enter job details", "Select job type and status", "Link client contact", "Set job address"]
+    },
+    "/jobs/new/status/[status]": {
+      "title": "Create Job with Status",
+      "description": "Create a new job with a pre-selected status.",
+      "tips": ["Status is pre-filled from your selection", "Complete remaining required fields", "Review before saving"],
+      "tasks": ["Enter job details", "Confirm status selection", "Link contacts", "Save new job"]
+    },
+    "/jobs/photos": {
+      "title": "Job Photos",
+      "description": "Browse and manage photos across all jobs.",
+      "tips": ["Filter by job or date range", "Click to view full-size images", "Download photos individually or in bulk"],
+      "tasks": ["Browse job photos", "Download photos", "Filter by job", "Search by date"]
+    },
+    "/jobs/view/[slug]": {
+      "title": "Job Public View",
+      "description": "Public shareable view of a job.",
+      "tips": ["Share this link with clients", "View-only access for external users", "Updates reflect in real-time"],
+      "tasks": ["View job summary", "Access shared documents", "Contact project team"]
+    },
+    "/jobs/[id]": {
+      "title": "Job Details",
+      "description": "Complete view of a single job including all tabs, documents, and related data.",
+      "tips": ["Use tabs to navigate between Overview, Documents, Emails, Schedule, etc.", "The breadcrumb shows your location - click to go back", "Changes save automatically"],
+      "tasks": ["Update job information", "Upload documents", "View linked emails", "Access Gantt chart"]
+    },
+    "/jobs/[id]/dashboard": {
+      "title": "Job Dashboard",
+      "description": "Overview dashboard for a specific job showing key metrics and status.",
+      "tips": ["View job health at a glance", "Click metrics to drill down", "See recent activity on this job"],
+      "tasks": ["Review job status", "Check upcoming milestones", "View recent activity", "Access quick actions"]
+    },
+    "/jobs/[id]/edit": {
+      "title": "Edit Job",
+      "description": "Edit job details and settings.",
+      "tips": ["All changes save automatically", "Required fields cannot be left blank", "Review changes before navigating away"],
+      "tasks": ["Update job details", "Change job status", "Modify job settings", "Update linked contacts"]
+    },
+    "/jobs/[id]/schedule": {
+      "title": "Job Schedule",
+      "description": "View and manage the schedule for this job.",
+      "tips": ["Drag tasks to reschedule", "Set dependencies between tasks", "View in timeline or list mode"],
+      "tasks": ["Add schedule tasks", "Set task dates", "Create dependencies", "Assign resources"]
+    },
+    "/jobs/[id]/schedule/gantt": {
+      "title": "Job Gantt Chart",
+      "description": "Interactive Gantt chart for job scheduling and task management.",
+      "tips": ["Drag bars to reschedule tasks", "Link tasks to create dependencies", "Use zoom controls for different time views", "Colors indicate task status"],
+      "tasks": ["View project timeline", "Reschedule tasks", "Set dependencies", "Track progress"]
+    },
+    "/jobs/[id]/plans": {
+      "title": "Job Plans",
+      "description": "Construction plans and drawings for this job.",
+      "tips": ["Upload PDF plans for AI review", "Markup plans with annotations", "Compare plan versions"],
+      "tasks": ["Upload plans", "View plan details", "Add annotations", "Request AI review"]
+    },
+    "/jobs/[id]/specifications": {
+      "title": "Job Specifications",
+      "description": "Technical specifications and requirements for the job.",
+      "tips": ["Organize specs by category", "Link to relevant plans", "Track specification changes"],
+      "tasks": ["Add specifications", "Link to plans", "Update spec details", "Export spec list"]
+    },
+    "/jobs/[id]/resources": {
+      "title": "Job Resources",
+      "description": "Manage resources assigned to this job.",
+      "tips": ["Assign team members and equipment", "Track resource availability", "View resource utilization"],
+      "tasks": ["Assign resources", "View availability", "Track utilization", "Manage allocations"]
+    },
+    "/jobs/[id]/purchase-orders": {
+      "title": "Job Purchase Orders",
+      "description": "Purchase orders linked to this job.",
+      "tips": ["View all POs for this job", "Track delivery status", "Create new POs directly"],
+      "tasks": ["View purchase orders", "Create new PO", "Track deliveries", "Export PO list"]
+    },
+    "/jobs/[id]/colours": {
+      "title": "Job Colours",
+      "description": "Colour selections and finishes for the job.",
+      "tips": ["Record client colour choices", "Link to supplier products", "Generate colour schedules"],
+      "tasks": ["Add colour selections", "Link to products", "Generate schedule", "Export to PDF"]
+    },
+    "/jobs/[id]/site": {
+      "title": "Job Site",
+      "description": "Site information and management for this job.",
+      "tips": ["Record site access details", "Manage site contacts", "Track site conditions"],
+      "tasks": ["Update site info", "Add site contacts", "Record conditions", "Upload site photos"]
+    },
+    "/jobs/[id]/field": {
+      "title": "Job Field",
+      "description": "Field operations and on-site management.",
+      "tips": ["Track field activities", "Record daily progress", "Manage site personnel"],
+      "tasks": ["Log field activities", "Record progress", "Manage personnel", "Submit field reports"]
+    },
+    "/jobs/[id]/setup": {
+      "title": "Job Setup",
+      "description": "Configure job-specific settings and workflows.",
+      "tips": ["Set up job templates", "Configure notifications", "Define job stages"],
+      "tasks": ["Configure job settings", "Set up workflows", "Define stages", "Configure notifications"]
+    },
+    "/jobs/[id]/analytics": {
+      "title": "Job Analytics",
+      "description": "Performance analytics and reporting for this job.",
+      "tips": ["View job performance metrics", "Track budget vs actual", "Analyze time trends"],
+      "tasks": ["View performance metrics", "Analyze budget", "Generate reports", "Export data"]
+    },
+    "/contacts": {
+      "title": "Contacts",
+      "description": "Directory of all people and companies you work with.",
+      "tips": ["Search by name, email, or company", "Click to view full contact details", "Use filters to show only suppliers, clients, etc."],
+      "tasks": ["Add new contacts", "Link contacts to companies", "View contact history", "Send email to contact"]
+    },
+    "/contacts/new": {
+      "title": "Add New Contact",
+      "description": "Create a new contact record for a person or company.",
+      "tips": ["Email is used to detect duplicates", "Link to an existing company or create new", "Set contact type for filtering"],
+      "tasks": ["Enter contact details", "Set contact type", "Link to company", "Add notes"]
+    },
+    "/contacts/duplicates": {
+      "title": "Duplicate Contacts",
+      "description": "Review and merge duplicate contact records.",
+      "tips": ["Duplicates are detected by matching email or phone", "Review carefully before merging", "Merged contacts combine all linked records"],
+      "tasks": ["Review duplicate pairs", "Select which record to keep", "Merge duplicates", "Ignore false positives"]
+    },
+    "/contacts/quality-review": {
+      "title": "Contact Quality Review",
+      "description": "Review and improve contact data quality.",
+      "tips": ["Fix incomplete contact records", "Verify contact information", "Improve data consistency"],
+      "tasks": ["Review flagged contacts", "Update missing information", "Verify contact details", "Mark as reviewed"]
+    },
+    "/contacts/view/[slug]": {
+      "title": "Contact Public View",
+      "description": "Public shareable view of a contact.",
+      "tips": ["Share this link externally", "View-only access", "Shows approved information only"],
+      "tasks": ["View contact details", "Access shared documents", "Contact this person"]
+    },
+    "/contacts/[id]": {
+      "title": "Contact Details",
+      "description": "Full profile for a contact including history, linked jobs, and documents.",
+      "tips": ["The Activity tab shows all interactions", "Link contacts to companies in the Relationships tab", "View all jobs this contact is linked to"],
+      "tasks": ["Edit contact information", "View contact history", "Link to company", "Send email"]
+    },
+    "/estimates": {
+      "title": "Estimates",
+      "description": "Create and manage job estimates and quotes.",
+      "tips": ["Use templates for faster estimate creation", "Items pull from your pricebook automatically", "Convert approved estimates to jobs"],
+      "tasks": ["Create new estimate", "Add line items from pricebook", "Send estimate to client", "Convert to job when approved"]
+    },
+    "/purchase_orders": {
+      "title": "Purchase Orders",
+      "description": "Manage supplier purchase orders and track deliveries.",
+      "tips": ["POs link to jobs and suppliers automatically", "Track delivery status with the status column", "Export POs to PDF for sending"],
+      "tasks": ["Create purchase order", "Link to job and supplier", "Track delivery status", "Mark as received"]
+    },
+    "/purchase_orders/new": {
+      "title": "Create Purchase Order",
+      "description": "Create a new purchase order for a supplier.",
+      "tips": ["Select a job to link the PO", "Add items from pricebook or manually", "Set expected delivery date"],
+      "tasks": ["Select supplier", "Add line items", "Set delivery date", "Submit for approval"]
+    },
+    "/purchase_orders/view/[slug]": {
+      "title": "Purchase Order Public View",
+      "description": "Public shareable view of a purchase order.",
+      "tips": ["Share with suppliers", "View-only access", "Shows PO details and line items"],
+      "tasks": ["View PO details", "Download PDF", "Contact supplier"]
+    },
+    "/purchase_orders/[id]": {
+      "title": "Purchase Order Details",
+      "description": "View and manage a specific purchase order.",
+      "tips": ["Track line item status", "Record deliveries received", "Link to invoices"],
+      "tasks": ["View PO details", "Update line items", "Record delivery", "Mark as complete"]
+    },
+    "/warehouse": {
+      "title": "File Warehouse",
+      "description": "Central document storage for all files across jobs, contacts, and emails.",
+      "tips": ["Browse by folder structure (Jobs, Contacts, Emails, etc.)", "Search across all documents", "Preview PDFs and images inline"],
+      "tasks": ["Upload documents", "Organize into folders", "Search for files", "Download or share documents"]
+    },
+    "/pricebook": {
+      "title": "Pricebook",
+      "description": "Manage your product and service catalog with pricing.",
+      "tips": ["Use categories to organize items", "Set markup percentages for cost-to-price calculation", "Import from supplier price lists"],
+      "tasks": ["Add new pricebook item", "Update prices", "Import supplier prices", "Export price list"]
+    },
+    "/pricebook/health": {
+      "title": "Pricebook Health",
+      "description": "Review pricebook data quality and identify issues.",
+      "tips": ["Fix items with missing prices", "Update outdated pricing", "Review duplicate items"],
+      "tasks": ["Review flagged items", "Update missing data", "Merge duplicates", "Verify pricing"]
+    },
+    "/pricebook/view/[slug]": {
+      "title": "Pricebook Public View",
+      "description": "Public shareable view of pricebook items.",
+      "tips": ["Share pricing with customers", "View-only access", "Shows approved items only"],
+      "tasks": ["View item details", "See pricing", "Contact for quote"]
+    },
+    "/pricebook/[code]": {
+      "title": "Pricebook Item",
+      "description": "View and edit a specific pricebook item.",
+      "tips": ["Update pricing and descriptions", "Set supplier links", "Track price history"],
+      "tasks": ["Edit item details", "Update pricing", "View price history", "Link to supplier"]
+    },
+    "/price_histories": {
+      "title": "Price Histories",
+      "description": "Track historical pricing changes across pricebook items.",
+      "tips": ["View price trends over time", "Compare supplier pricing", "Identify cost increases"],
+      "tasks": ["View price history", "Compare prices", "Export history", "Analyze trends"]
+    },
+    "/recipes": {
+      "title": "Recipes",
+      "description": "Reusable templates for estimates and standard work packages.",
+      "tips": ["Create recipes from common work patterns", "Use recipes to quickly build estimates", "Update recipes to keep prices current"],
+      "tasks": ["Create new recipe", "Edit recipe items", "Use recipe in estimate", "Update prices"]
+    },
+    "/recipes/[id]": {
+      "title": "Recipe Details",
+      "description": "View and edit a specific recipe template.",
+      "tips": ["Add or remove line items", "Update item quantities", "Preview recipe total"],
+      "tasks": ["Edit recipe items", "Update quantities", "Preview total", "Apply to estimate"]
+    },
+    "/schedule-master": {
+      "title": "Schedule Master",
+      "description": "High-level resource and task scheduling across all jobs.",
+      "tips": ["Drag tasks to reschedule", "Filter by resource or job", "Click a task to see details"],
+      "tasks": ["Schedule tasks", "Assign resources", "View resource availability", "Manage task dependencies"]
+    },
+    "/schedule-templates": {
+      "title": "Schedule Templates",
+      "description": "Create reusable schedule templates for common project types.",
+      "tips": ["Build templates from successful projects", "Apply templates to new jobs", "Include standard durations"],
+      "tasks": ["Create schedule template", "Edit template tasks", "Apply to job", "Manage template library"]
+    },
+    "/schedule-templates/[id]": {
+      "title": "Schedule Template Details",
+      "description": "View and edit a specific schedule template.",
+      "tips": ["Add or remove template tasks", "Set default durations", "Define task dependencies"],
+      "tasks": ["Edit template tasks", "Set durations", "Define dependencies", "Save template"]
+    },
+    "/sm_tasks": {
+      "title": "Schedule Master Tasks",
+      "description": "Manage tasks within Schedule Master.",
+      "tips": ["View tasks across all jobs", "Filter by status or assignee", "Bulk update task properties"],
+      "tasks": ["View all tasks", "Update task status", "Assign tasks", "Bulk edit tasks"]
+    },
+    "/sm_tasks/[id]": {
+      "title": "Schedule Master Task",
+      "description": "View and edit a specific Schedule Master task.",
+      "tips": ["Update task details", "Set dependencies", "Track progress"],
+      "tasks": ["Edit task details", "Set dates", "Assign resources", "Update status"]
+    },
+    "/task-templates": {
+      "title": "Task Templates",
+      "description": "Create reusable task templates for common workflows.",
+      "tips": ["Build templates for recurring tasks", "Include default assignees", "Set standard durations"],
+      "tasks": ["Create task template", "Edit template details", "Apply to tasks", "Manage templates"]
+    },
+    "/calendar": {
+      "title": "Calendar",
+      "description": "Calendar view of tasks, meetings, and deadlines.",
+      "tips": ["Switch between day, week, and month views", "Click a date to create a new event", "Drag events to reschedule"],
+      "tasks": ["View upcoming events", "Schedule meetings", "Set reminders", "Create recurring events"]
+    },
+    "/calendar/[view]": {
+      "title": "Calendar View",
+      "description": "Specific calendar view (day, week, or month).",
+      "tips": ["Navigate between dates", "Click events for details", "Create new events"],
+      "tasks": ["View schedule", "Add events", "Edit events", "Navigate dates"]
+    },
+    "/meetings": {
+      "title": "Meetings",
+      "description": "Schedule and manage team meetings.",
+      "tips": ["Link meetings to jobs for context", "Add attendees from contacts", "Attach agenda and minutes"],
+      "tasks": ["Schedule new meeting", "Invite attendees", "Add agenda items", "Record meeting notes"]
+    },
+    "/meetings/new": {
+      "title": "New Meeting",
+      "description": "Schedule a new meeting.",
+      "tips": ["Set date, time, and location", "Add attendees", "Create agenda"],
+      "tasks": ["Set meeting details", "Invite attendees", "Add agenda", "Send invitations"]
+    },
+    "/meeting-types": {
+      "title": "Meeting Types",
+      "description": "Configure different types of meetings.",
+      "tips": ["Create types for different meeting purposes", "Set default durations", "Configure templates"],
+      "tasks": ["Create meeting type", "Edit type settings", "Set defaults", "Manage types"]
+    },
+    "/chat": {
+      "title": "Team Chat",
+      "description": "Real-time messaging with team members.",
+      "tips": ["Use @mentions to notify specific people", "Attach files directly in chat", "Search chat history"],
+      "tasks": ["Send message to team", "Share files", "Search conversations", "Manage notifications"]
+    },
+    "/training": {
+      "title": "Training",
+      "description": "Access training materials and learning resources.",
+      "tips": ["Watch video tutorials", "Complete training modules", "Track your progress"],
+      "tasks": ["Start a training module", "Watch tutorial videos", "Take quizzes", "View completion certificates"]
+    },
+    "/training/[sessionId]": {
+      "title": "Training Session",
+      "description": "View a specific training session or module.",
+      "tips": ["Follow along with the content", "Complete exercises", "Mark as complete when done"],
+      "tasks": ["View training content", "Complete exercises", "Take assessment", "Mark complete"]
+    },
+    "/notebooks": {
+      "title": "Notes",
+      "description": "Create and organize personal and shared notes.",
+      "tips": ["Notes can be linked to jobs or contacts", "Use markdown for formatting", "Share notes with team members"],
+      "tasks": ["Create new note", "Link note to job", "Share with team", "Search notes"]
+    },
+    "/my-docs": {
+      "title": "My Documents",
+      "description": "Your personal document storage space.",
+      "tips": ["Store personal work documents", "Organize with folders", "Access from anywhere"],
+      "tasks": ["Upload documents", "Create folders", "Search files", "Share documents"]
+    },
+    "/plans": {
+      "title": "Plans",
+      "description": "Construction plans library and AI review tools.",
+      "tips": ["Upload plans for AI analysis", "Compare plan versions", "Mark up and annotate"],
+      "tasks": ["Upload plans", "Request AI review", "Compare versions", "Add annotations"]
+    },
+    "/import": {
+      "title": "Import Data",
+      "description": "Import data from external sources or files.",
+      "tips": ["Use templates for proper formatting", "Preview before importing", "Check for duplicates"],
+      "tasks": ["Upload import file", "Map columns", "Preview data", "Run import"]
+    },
+    "/leads": {
+      "title": "Leads",
+      "description": "Track sales leads and opportunities.",
+      "tips": ["Move leads through pipeline stages", "Link to email proposals", "Convert leads to jobs when won"],
+      "tasks": ["Add new lead", "Update lead status", "Send proposal", "Convert to job"]
+    },
+    "/leads/emails": {
+      "title": "Lead Emails",
+      "description": "View emails associated with leads.",
+      "tips": ["Track email communication history", "Link emails to specific leads", "Send follow-up emails"],
+      "tasks": ["View lead emails", "Send email", "Link to lead", "Track responses"]
+    },
+    "/leads/[id]": {
+      "title": "Lead Details",
+      "description": "View and manage a specific lead.",
+      "tips": ["Track all lead interactions", "Update lead status", "View linked proposals"],
+      "tasks": ["Edit lead details", "Update status", "View history", "Convert to job"]
+    },
+    "/quote-requests": {
+      "title": "Quote Requests",
+      "description": "Manage incoming quote requests and RFQs.",
+      "tips": ["Review requests in order received", "Link to supplier contacts", "Track response status"],
+      "tasks": ["Review quote request", "Send to suppliers", "Compare responses", "Award quote"]
+    },
+    "/cases": {
+      "title": "Cases",
+      "description": "Manage support cases, issues, and tickets.",
+      "tips": ["Use status to track case progress", "Link cases to contacts and jobs", "Add notes and attachments"],
+      "tasks": ["Create new case", "Update case status", "Assign to team member", "Add case notes"]
+    },
+    "/cases/new": {
+      "title": "New Case",
+      "description": "Create a new support case or issue.",
+      "tips": ["Describe the issue clearly", "Link to relevant job or contact", "Set priority level"],
+      "tasks": ["Enter case details", "Link to records", "Set priority", "Assign owner"]
+    },
+    "/cases/[id]": {
+      "title": "Case Details",
+      "description": "View and manage a specific case.",
+      "tips": ["Track case progress", "Add updates and notes", "View related documents"],
+      "tasks": ["Update case status", "Add notes", "Assign tasks", "Close case"]
+    },
+    "/workflows": {
+      "title": "Workflows",
+      "description": "Automate business processes with visual workflows.",
+      "tips": ["Use the designer to create workflows", "Set triggers for automatic execution", "Monitor workflow runs"],
+      "tasks": ["Create new workflow", "Edit workflow steps", "Test workflow", "View run history"]
+    },
+    "/workflows/designer/[id]": {
+      "title": "Workflow Designer",
+      "description": "Visual workflow designer for building automation.",
+      "tips": ["Drag and drop workflow steps", "Connect steps with conditions", "Test before activating"],
+      "tasks": ["Add workflow steps", "Configure conditions", "Set triggers", "Test workflow"]
+    },
+    "/workflows/designer-v2/[id]": {
+      "title": "Workflow Designer V2",
+      "description": "New workflow designer with enhanced capabilities.",
+      "tips": ["Use the improved visual interface", "Add complex conditions", "Preview workflow execution"],
+      "tasks": ["Design workflow", "Add steps and conditions", "Test execution", "Activate workflow"]
+    },
+    "/workflows/processes": {
+      "title": "Workflow Processes",
+      "description": "View and manage running workflow processes.",
+      "tips": ["Monitor active workflows", "View execution history", "Troubleshoot failed runs"],
+      "tasks": ["View active processes", "Check run history", "Retry failed runs", "Stop processes"]
+    },
+    "/designer": {
+      "title": "Designer",
+      "description": "Visual design tools for documents and templates.",
+      "tips": ["Drag and drop elements", "Preview before saving", "Use templates as starting points"],
+      "tasks": ["Create design", "Edit elements", "Preview output", "Save template"]
+    },
+    "/designer/new": {
+      "title": "New Design",
+      "description": "Create a new design from scratch.",
+      "tips": ["Start with a blank canvas or template", "Add elements from the toolbar", "Save frequently"],
+      "tasks": ["Choose starting point", "Add elements", "Customize design", "Save design"]
+    },
+    "/e-signature": {
+      "title": "E-Signatures",
+      "description": "Manage electronic signatures for documents.",
+      "tips": ["Track signature requests", "View signing status", "Download signed documents"],
+      "tasks": ["Send for signature", "Track status", "Download signed docs", "Resend requests"]
+    },
+    "/e-signature/prepare": {
+      "title": "Prepare for Signature",
+      "description": "Prepare a document for electronic signature.",
+      "tips": ["Place signature fields on the document", "Add signer details", "Set signing order"],
+      "tasks": ["Upload document", "Add signature fields", "Set signers", "Send for signing"]
+    },
+    "/e-signature/[id]": {
+      "title": "Signature Request",
+      "description": "View and manage a specific signature request.",
+      "tips": ["Track signing progress", "Send reminders", "Download completed document"],
+      "tasks": ["View status", "Send reminder", "Download document", "Cancel request"]
+    },
+    "/sign/[token]": {
+      "title": "Sign Document",
+      "description": "Sign a document electronically.",
+      "tips": ["Review document before signing", "Click signature fields to sign", "Confirm to complete"],
+      "tasks": ["Review document", "Add signature", "Complete signing", "Download copy"]
+    },
+    "/corporate": {
+      "title": "Corporate",
+      "description": "Manage company groups, subsidiaries, and corporate compliance.",
+      "tips": ["View company hierarchy in the structure view", "Track compliance deadlines", "Store ASIC and director information"],
+      "tasks": ["Add company to group", "Track compliance dates", "Manage directors", "Store corporate documents"]
+    },
+    "/corporate/structure": {
+      "title": "Corporate Structure",
+      "description": "Visual tree view of company group hierarchy.",
+      "tips": ["Click to expand/collapse branches", "Drag to reorganize structure", "Click a company to view details"],
+      "tasks": ["View group structure", "Add new company", "Move company in hierarchy", "Export structure diagram"]
+    },
+    "/corporate/structure/[id]": {
+      "title": "Company Structure",
+      "description": "View structure for a specific company group.",
+      "tips": ["See subsidiaries and related entities", "Navigate the hierarchy", "Access company details"],
+      "tasks": ["View company hierarchy", "Add related company", "Edit relationships", "Export structure"]
+    },
+    "/corporate/directors": {
+      "title": "Directors",
+      "description": "Manage director appointments and details across companies.",
+      "tips": ["Track appointment and resignation dates", "Link directors to contacts", "View director's positions across all companies"],
+      "tasks": ["Add new director", "Record appointment", "Update director details", "Track compliance"]
+    },
+    "/corporate/shareholders": {
+      "title": "Shareholders",
+      "description": "Track company shareholders and share ownership.",
+      "tips": ["Record share classes and holdings", "Track share transfers", "Generate share registers"],
+      "tasks": ["Add shareholder", "Record share transfer", "View share register", "Generate shareholder report"]
+    },
+    "/corporate/beneficiaries": {
+      "title": "Beneficiaries",
+      "description": "Manage trust beneficiaries and distributions.",
+      "tips": ["Track beneficiary entitlements", "Record distribution history", "Link to contact records"],
+      "tasks": ["Add beneficiary", "Update entitlements", "Record distribution", "View distribution history"]
+    },
+    "/corporate/memberships": {
+      "title": "Memberships",
+      "description": "Manage company memberships in associations and organizations.",
+      "tips": ["Track membership renewals", "Store membership documents", "Set renewal reminders"],
+      "tasks": ["Add membership", "Update membership details", "Set renewal reminder", "Store membership certificate"]
+    },
+    "/corporate/charity-members": {
+      "title": "Charity Members",
+      "description": "Track charity members and membership categories.",
+      "tips": ["Record member categories", "Track voting rights", "Manage member communications"],
+      "tasks": ["Add charity member", "Update member status", "Record membership category", "Generate member list"]
+    },
+    "/corporate/companies": {
+      "title": "Companies",
+      "description": "List and manage all corporate entities.",
+      "tips": ["Filter by company type or status", "Search by company name or ACN", "Click to view company details"],
+      "tasks": ["Add new company", "View company details", "Update company status", "Export company list"]
+    },
+    "/corporate/companies/new": {
+      "title": "New Company",
+      "description": "Add a new company to the corporate register.",
+      "tips": ["Enter ACN/ABN for Australian companies", "Set company type correctly", "Link to company group"],
+      "tasks": ["Enter company details", "Set company type", "Add to group", "Save company"]
+    },
+    "/corporate/companies/[id]": {
+      "title": "Company Details",
+      "description": "View and manage details for a specific company.",
+      "tips": ["Use tabs to navigate company information", "Track compliance status", "Link related documents"],
+      "tasks": ["Update company details", "View directors and shareholders", "Track compliance", "Store company documents"]
+    },
+    "/corporate/groups": {
+      "title": "Corporate Groups",
+      "description": "Manage company groups and related entities.",
+      "tips": ["Organize companies into groups", "View group hierarchy", "Share documents across group"],
+      "tasks": ["Create company group", "Add company to group", "View group structure", "Manage group settings"]
+    },
+    "/corporate/people": {
+      "title": "Corporate People",
+      "description": "Manage individuals associated with corporate entities.",
+      "tips": ["Link people to director and shareholder records", "Track roles across multiple companies", "Store identification documents"],
+      "tasks": ["Add person record", "Link to director position", "View company associations", "Update contact details"]
+    },
+    "/corporate/compliance-calendar": {
+      "title": "Compliance Calendar",
+      "description": "Track corporate compliance deadlines and obligations.",
+      "tips": ["Set up recurring compliance tasks", "Get reminders before deadlines", "Mark tasks complete when done"],
+      "tasks": ["View upcoming deadlines", "Add compliance task", "Mark as complete", "Set reminders"]
+    },
+    "/corporate/assets": {
+      "title": "Corporate Assets",
+      "description": "Track company assets, vehicles, and equipment.",
+      "tips": ["Record purchase dates and values", "Track depreciation", "Assign assets to locations"],
+      "tasks": ["Add new asset", "Update asset details", "Track depreciation", "Generate asset reports"]
+    },
+    "/corporate/assets/new": {
+      "title": "New Asset",
+      "description": "Add a new corporate asset.",
+      "tips": ["Enter purchase details", "Set depreciation method", "Assign to company"],
+      "tasks": ["Enter asset details", "Set depreciation", "Assign company", "Save asset"]
+    },
+    "/corporate/assets/reports": {
+      "title": "Asset Reports",
+      "description": "Generate reports on corporate assets.",
+      "tips": ["View asset summaries", "Export depreciation schedules", "Analyze asset values"],
+      "tasks": ["Generate report", "Export data", "View summaries", "Print reports"]
+    },
+    "/corporate/assets/[id]": {
+      "title": "Asset Details",
+      "description": "View and manage a specific corporate asset.",
+      "tips": ["Update asset information", "View depreciation history", "Track maintenance"],
+      "tasks": ["Edit asset details", "View depreciation", "Record maintenance", "Dispose asset"]
+    },
+    "/corporate/asic-logins": {
+      "title": "ASIC Logins",
+      "description": "Manage ASIC portal login credentials for corporate filings.",
+      "tips": ["Store login details securely", "Track which companies have ASIC access", "Set reminders for password changes"],
+      "tasks": ["Add ASIC login", "Update credentials", "View login history", "Set password reminder"]
+    },
+    "/corporate/minute-templates": {
+      "title": "Minute Templates",
+      "description": "Manage templates for board minutes and resolutions.",
+      "tips": ["Use templates for consistent formatting", "Customize templates for different meeting types", "Include standard clauses"],
+      "tasks": ["Create minute template", "Edit template content", "Generate minutes from template", "Manage template categories"]
+    },
+    "/corporate/document-types": {
+      "title": "Corporate Document Types",
+      "description": "Configure document types for corporate records.",
+      "tips": ["Organize documents by type", "Set required documents per company type", "Configure document workflows"],
+      "tasks": ["Add document type", "Edit type settings", "Set requirements", "Manage categories"]
+    },
+    "/corporate/consolidation": {
+      "title": "Consolidation",
+      "description": "View consolidated financial and reporting data across groups.",
+      "tips": ["Review group-wide financials", "Track inter-company transactions", "Generate consolidated reports"],
+      "tasks": ["View consolidation summary", "Review inter-company items", "Generate consolidated report", "Reconcile balances"]
+    },
+    "/corporate/health": {
+      "title": "Corporate Health",
+      "description": "Monitor compliance and health status across all companies.",
+      "tips": ["Green indicators show healthy companies", "Red flags indicate issues needing attention", "Click to drill into specific issues"],
+      "tasks": ["Review health dashboard", "Address compliance issues", "View overdue items", "Generate health report"]
+    },
+    "/company-groups": {
+      "title": "Company Groups",
+      "description": "Manage company group structures.",
+      "tips": ["Organize related companies", "Set group hierarchies", "Share settings across groups"],
+      "tasks": ["Create group", "Add companies", "Set hierarchy", "Manage group settings"]
+    },
+    "/finance": {
+      "title": "Finance",
+      "description": "Financial management and accounting integration.",
+      "tips": ["View financial summaries", "Access bills and payments", "Sync with Xero"],
+      "tasks": ["View financials", "Manage bills", "Process payments", "Review reports"]
+    },
+    "/finance/bills": {
+      "title": "Bills",
+      "description": "Manage supplier bills and invoices to pay.",
+      "tips": ["Bills sync from Xero automatically", "Link bills to jobs for cost tracking", "Mark as paid when processed"],
+      "tasks": ["Review bills", "Link to job", "Approve for payment", "Mark as paid"]
+    },
+    "/finance/bills/[id]": {
+      "title": "Bill Details",
+      "description": "View and manage a specific bill.",
+      "tips": ["Review line items", "Link to purchase orders", "Track payment status"],
+      "tasks": ["View bill details", "Link to PO", "Approve bill", "Record payment"]
+    },
+    "/finance/invoices/[id]": {
+      "title": "Invoice Details",
+      "description": "View and manage a specific invoice.",
+      "tips": ["Track payment status", "Send reminders", "Record payments"],
+      "tasks": ["View invoice", "Send reminder", "Record payment", "Export PDF"]
+    },
+    "/finance/payments": {
+      "title": "Payments",
+      "description": "Track payments made and received.",
+      "tips": ["Payments sync from Xero", "View payment history by contact", "Reconcile with bank"],
+      "tasks": ["View payment history", "Record payment", "Reconcile payments", "Export report"]
+    },
+    "/finance/settings": {
+      "title": "Finance Settings",
+      "description": "Configure finance module settings.",
+      "tips": ["Set payment terms", "Configure tax settings", "Manage chart of accounts"],
+      "tasks": ["Configure settings", "Set defaults", "Manage accounts", "Update tax rates"]
+    },
+    "/financial": {
+      "title": "Financial",
+      "description": "Financial reporting and analysis tools.",
+      "tips": ["View financial dashboards", "Generate reports", "Analyze trends"],
+      "tasks": ["View dashboards", "Run reports", "Export data", "Analyze trends"]
+    },
+    "/financial/reports": {
+      "title": "Financial Reports",
+      "description": "Generate and view financial reports.",
+      "tips": ["Select report type and date range", "Export to Excel or PDF", "Schedule recurring reports"],
+      "tasks": ["Generate report", "Select date range", "Export report", "Schedule report"]
+    },
+    "/financial/transactions": {
+      "title": "Financial Transactions",
+      "description": "View and manage financial transactions.",
+      "tips": ["Filter by date or type", "Search transactions", "Export for reconciliation"],
+      "tasks": ["View transactions", "Search records", "Export data", "Reconcile accounts"]
+    },
+    "/financial/tas": {
+      "title": "Tax & Accounting",
+      "description": "Tax and accounting management tools.",
+      "tips": ["Track tax obligations", "Manage BAS/GST", "Generate tax reports"],
+      "tasks": ["View tax summary", "Generate BAS", "Track obligations", "Export reports"]
+    },
+    "/accounts": {
+      "title": "Accounts",
+      "description": "View account summaries from Xero.",
+      "tips": ["Account data syncs from Xero", "Click account for details", "Use filters to find accounts"],
+      "tasks": ["View account balances", "Search accounts", "View transactions", "Export report"]
+    },
+    "/xero": {
+      "title": "Xero Dashboard",
+      "description": "View Xero sync status and manage integration.",
+      "tips": ["Sync runs automatically via webhooks", "Review pending contacts before syncing", "Check sync logs for errors"],
+      "tasks": ["View sync status", "Review pending contacts", "Trigger manual sync", "View sync history"]
+    },
+    "/xero/callback": {
+      "title": "Xero Callback",
+      "description": "OAuth callback handler for Xero authentication.",
+      "tips": ["This page handles authentication automatically", "Wait for redirect to complete", "Contact support if stuck"],
+      "tasks": ["Wait for authentication", "Complete connection", "Return to dashboard"]
+    },
+    "/xero/sync": {
+      "title": "Xero Sync",
+      "description": "Manage Xero data synchronization.",
+      "tips": ["View sync progress", "Review sync errors", "Trigger manual sync"],
+      "tasks": ["View sync status", "Review errors", "Manual sync", "View history"]
+    },
+    "/outlook": {
+      "title": "Outlook",
+      "description": "Microsoft Outlook integration and email management.",
+      "tips": ["Connect your Outlook account", "Sync emails to TEEEM", "Manage calendar integration"],
+      "tasks": ["Connect Outlook", "Sync emails", "Manage settings", "View sync status"]
+    },
+    "/sharepoint": {
+      "title": "SharePoint",
+      "description": "SharePoint integration for document management.",
+      "tips": ["Connect to SharePoint sites", "Sync document libraries", "Access files in TEEEM"],
+      "tasks": ["Connect SharePoint", "Select libraries", "Sync documents", "Manage connection"]
+    },
+    "/whs": {
+      "title": "WHS (Work Health & Safety)",
+      "description": "Manage workplace health and safety compliance.",
+      "tips": ["Track incidents and near-misses", "Manage SWMS documents", "Schedule safety inspections"],
+      "tasks": ["Log incident", "Create SWMS", "Schedule inspection", "Review action items"]
+    },
+    "/whs/dashboard": {
+      "title": "WHS Dashboard",
+      "description": "Overview of workplace health and safety status.",
+      "tips": ["View safety metrics at a glance", "Track incident trends", "Monitor compliance status"],
+      "tasks": ["Review safety status", "View incident trends", "Check compliance", "Access quick actions"]
+    },
+    "/whs/incidents": {
+      "title": "WHS Incidents",
+      "description": "Log and track workplace incidents and near-misses.",
+      "tips": ["Report incidents as soon as they occur", "Include photos and witness statements", "Track corrective actions"],
+      "tasks": ["Report new incident", "Update incident status", "Add corrective actions", "Close incident"]
+    },
+    "/whs/inspections": {
+      "title": "WHS Inspections",
+      "description": "Schedule and record safety inspections.",
+      "tips": ["Use templates for consistent inspections", "Record findings with photos", "Track action items from findings"],
+      "tasks": ["Schedule inspection", "Complete inspection checklist", "Record findings", "Assign action items"]
+    },
+    "/whs/inductions": {
+      "title": "WHS Inductions",
+      "description": "Track worker site inductions and training.",
+      "tips": ["Record inductions by site", "Track expiry dates", "Generate induction reports"],
+      "tasks": ["Record new induction", "Check induction status", "Renew expired inductions", "Export induction list"]
+    },
+    "/whs/swms": {
+      "title": "SWMS",
+      "description": "Manage Safe Work Method Statements.",
+      "tips": ["Create SWMS for high-risk work", "Get worker sign-off", "Review and update regularly"],
+      "tasks": ["Create SWMS", "Get signatures", "Review existing", "Update SWMS"]
+    },
+    "/whs/action-items": {
+      "title": "WHS Action Items",
+      "description": "Track safety action items and corrective measures.",
+      "tips": ["Assign action items to responsible persons", "Set due dates", "Track completion status"],
+      "tasks": ["View action items", "Assign tasks", "Set due dates", "Mark complete"]
+    },
+    "/support": {
+      "title": "Support",
+      "description": "Get help and submit support requests.",
+      "tips": ["Search knowledge base first", "Provide detailed descriptions", "Attach screenshots if helpful"],
+      "tasks": ["Search help articles", "Submit support ticket", "Track ticket status", "Contact support"]
+    },
+    "/support/[id]": {
+      "title": "Support Ticket",
+      "description": "View and manage a support ticket.",
+      "tips": ["Track ticket progress", "Add comments or updates", "Attach additional files"],
+      "tasks": ["View ticket status", "Add comment", "Attach files", "Close ticket"]
+    },
+    "/data-warehouse": {
+      "title": "Data Warehouse",
+      "description": "Advanced data management and reporting tools.",
+      "tips": ["Run custom queries on your data", "Export reports to Excel", "Schedule automated reports"],
+      "tasks": ["Run data query", "Export to Excel", "Create scheduled report", "View data statistics"]
+    },
+    "/system-health": {
+      "title": "System Health",
+      "description": "Monitor system status, background jobs, and performance.",
+      "tips": ["Green indicators mean healthy", "Yellow indicates warnings", "Red requires immediate attention"],
+      "tasks": ["Check overall system status", "View background job queue", "Monitor API performance", "Check storage usage"]
+    },
+    "/system-performance": {
+      "title": "System Performance",
+      "description": "Monitor system performance metrics.",
+      "tips": ["View response times", "Track resource usage", "Identify bottlenecks"],
+      "tasks": ["View performance metrics", "Check response times", "Monitor resources", "View trends"]
+    },
+    "/brand-guidelines": {
+      "title": "Brand Guidelines",
+      "description": "Company brand guidelines and design standards.",
+      "tips": ["Reference for consistent branding", "Download brand assets", "View color palette"],
+      "tasks": ["View guidelines", "Download assets", "Check colors", "Review standards"]
+    },
+    "/design-system": {
+      "title": "Design System",
+      "description": "UI components and design patterns reference.",
+      "tips": ["Browse available components", "View usage examples", "Copy code snippets"],
+      "tasks": ["Browse components", "View examples", "Copy code", "Check guidelines"]
+    },
+    "/device": {
+      "title": "Device",
+      "description": "Device management and settings.",
+      "tips": ["Manage connected devices", "Configure device settings", "View device status"],
+      "tasks": ["View devices", "Configure settings", "Manage connections", "Check status"]
+    },
+    "/view": {
+      "title": "View",
+      "description": "General view page for records.",
+      "tips": ["View record details", "Access related information", "Navigate to edit"],
+      "tasks": ["View details", "Access related", "Navigate", "Print view"]
+    },
+    "/view/[id]": {
+      "title": "Record View",
+      "description": "View a specific record.",
+      "tips": ["See all record details", "Access linked records", "View history"],
+      "tasks": ["View record", "Access links", "View history", "Edit record"]
+    },
+    "/view/ctx/[id]": {
+      "title": "Context View",
+      "description": "View record in context.",
+      "tips": ["See record with related context", "Navigate related items", "Understand relationships"],
+      "tasks": ["View in context", "Navigate related", "Understand links", "Access details"]
+    },
+    "/t/[id]": {
+      "title": "Task View",
+      "description": "Quick view of a specific task.",
+      "tips": ["View task details", "Update status quickly", "Access related items"],
+      "tasks": ["View task", "Update status", "View related", "Edit task"]
+    },
+    "/pay/[token]": {
+      "title": "Payment",
+      "description": "Make a payment using a payment link.",
+      "tips": ["Review invoice before paying", "Enter payment details securely", "Save receipt after payment"],
+      "tasks": ["Review invoice", "Enter payment", "Confirm payment", "Save receipt"]
+    },
+    "/migrate/[token]": {
+      "title": "Migration",
+      "description": "Data migration wizard.",
+      "tips": ["Follow migration steps carefully", "Review data before confirming", "Contact support if issues arise"],
+      "tasks": ["Start migration", "Map data fields", "Review preview", "Confirm migration"]
+    },
+    "/profile": {
+      "title": "My Profile",
+      "description": "View and edit your personal profile.",
+      "tips": ["Keep your contact details current", "Set your timezone for accurate scheduling", "Add a profile photo for team recognition"],
+      "tasks": ["Update personal info", "Change password", "Set preferences", "Upload photo"]
+    },
+    "/public-holidays": {
+      "title": "Public Holidays",
+      "description": "Manage public holidays that affect scheduling.",
+      "tips": ["Holidays exclude dates from schedule calculations", "Set by region for multi-location teams", "Import standard holiday lists"],
+      "tasks": ["Add public holiday", "Import holiday list", "Set holiday region", "Remove holiday"]
+    },
+    "/missing": {
+      "title": "Missing Items",
+      "description": "View items that need attention or are incomplete.",
+      "tips": ["Review items missing required data", "Fix issues to improve data quality", "Use filters to focus on specific types"],
+      "tasks": ["Review missing items", "Update incomplete records", "Fix data issues", "Mark as resolved"]
+    },
+    "/onboarding": {
+      "title": "Onboarding",
+      "description": "Set up your TEEEM account with guided onboarding.",
+      "tips": ["Complete each step to fully set up your account", "Import data from existing systems", "Skip steps you don't need"],
+      "tasks": ["Complete company setup", "Import contacts", "Import jobs", "Configure integrations"]
+    },
+    "/onboarding/import": {
+      "title": "Onboarding Import",
+      "description": "Import data as part of onboarding.",
+      "tips": ["Use provided templates", "Map columns correctly", "Preview before importing"],
+      "tasks": ["Select data type", "Upload file", "Map columns", "Run import"]
+    },
+    "/onboarding/import/[type]": {
+      "title": "Import Type",
+      "description": "Import specific data type during onboarding.",
+      "tips": ["Download the template first", "Follow column requirements", "Check for duplicates"],
+      "tasks": ["Download template", "Prepare data", "Upload file", "Complete import"]
+    },
+    "/site-presence/live": {
+      "title": "Site Presence Live",
+      "description": "Real-time view of site presence and check-ins.",
+      "tips": ["See who is on site now", "Track check-in/out times", "Monitor site activity"],
+      "tasks": ["View current presence", "Check attendance", "Export report", "Monitor activity"]
+    },
+    "/settings": {
+      "title": "Settings",
+      "description": "Configure your account and organization settings.",
+      "tips": ["Personal settings affect only your account", "Organization settings require admin access", "Changes take effect immediately"],
+      "tasks": ["Update profile information", "Change notification preferences", "Manage users and permissions", "Configure integrations"]
+    },
+    "/settings/profile": {
+      "title": "Profile Settings",
+      "description": "Manage your personal account details.",
+      "tips": ["Keep your contact info up to date", "Set your timezone for correct scheduling", "Upload a profile photo"],
+      "tasks": ["Update name and email", "Change password", "Set timezone", "Upload photo"]
+    },
+    "/settings/preferences": {
+      "title": "Preferences",
+      "description": "Set your personal preferences and defaults.",
+      "tips": ["Customize your experience", "Set default views", "Configure shortcuts"],
+      "tasks": ["Set preferences", "Configure defaults", "Customize UI", "Save settings"]
+    },
+    "/settings/notifications": {
+      "title": "Notification Settings",
+      "description": "Control how and when you receive notifications.",
+      "tips": ["Set email frequency to reduce inbox clutter", "Enable push notifications for urgent items", "Customize by notification type"],
+      "tasks": ["Set email preferences", "Enable push notifications", "Customize notification types", "Set quiet hours"]
+    },
+    "/settings/security": {
+      "title": "Security Settings",
+      "description": "Manage your account security and authentication.",
+      "tips": ["Enable two-factor authentication for extra security", "Review active sessions periodically", "Use a strong unique password"],
+      "tasks": ["Change password", "Enable 2FA", "Review active sessions", "Revoke session"]
+    },
+    "/settings/training": {
+      "title": "Training Settings",
+      "description": "Configure training and learning preferences.",
+      "tips": ["Set training notifications", "Track completion requirements", "Configure learning paths"],
+      "tasks": ["Set preferences", "View progress", "Configure paths", "Manage certificates"]
+    },
+    "/settings/users": {
+      "title": "User Management",
+      "description": "Manage team members, roles, and permissions.",
+      "tips": ["Invite users via email", "Assign roles to control access", "Deactivate users to revoke access without deleting"],
+      "tasks": ["Invite new user", "Change user role", "Reset user password", "Deactivate user"]
+    },
+    "/settings/roles": {
+      "title": "Access Control",
+      "description": "Configure roles, permissions, and access groups.",
+      "tips": ["Roles define what users can see and do", "Groups allow bulk permission assignment", "Test permissions with the preview feature"],
+      "tasks": ["Create custom role", "Assign permissions", "Add users to groups", "Test role access"]
+    },
+    "/settings/company": {
+      "title": "Company Settings",
+      "description": "Configure organization-wide settings and branding.",
+      "tips": ["Brand colors affect buttons and accents throughout the app", "Document templates use company letterhead", "Holidays affect scheduling calculations"],
+      "tasks": ["Update company information", "Configure brand colors", "Manage document templates", "Set public holidays"]
+    },
+    "/settings/corporate": {
+      "title": "Corporate Settings",
+      "description": "Configure corporate module settings and defaults.",
+      "tips": ["Set up company groups and structure", "Configure compliance templates", "Manage corporate document types"],
+      "tasks": ["Configure company groups", "Set up compliance alerts", "Manage document types", "Configure defaults"]
+    },
+    "/settings/operations": {
+      "title": "Operations Settings",
+      "description": "Configure operational settings like schedule master and contact types.",
+      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records"],
+      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates"]
+    },
+    "/settings/connections": {
+      "title": "Connections",
+      "description": "Manage integrations with external services (Storage, Email, Xero).",
+      "tips": ["Storage provider syncs documents to cloud", "Email integration syncs your inbox", "Xero connects accounting data"],
+      "tasks": ["Connect storage provider", "Add email account", "Link Xero organization", "Test connections"]
+    },
+    "/settings/integrations": {
+      "title": "Integrations",
+      "description": "Configure third-party integrations.",
+      "tips": ["Connect external services", "Manage API keys", "Configure sync settings"],
+      "tasks": ["View integrations", "Connect service", "Configure settings", "Test connection"]
+    },
+    "/settings/integrations/xero": {
+      "title": "Xero Integration",
+      "description": "Connect to Xero for accounting sync (contacts, invoices, bills).",
+      "tips": ["Xero syncs via webhooks automatically", "Review pending contacts before syncing", "Check sync status in the dashboard"],
+      "tasks": ["Connect Xero organization", "Review pending contacts", "Configure sync settings", "View sync history"]
+    },
+    "/settings/integrations/microsoft": {
+      "title": "Microsoft 365 Integration",
+      "description": "Connect Microsoft 365 for email and OneDrive/SharePoint sync.",
+      "tips": ["Admin consent is required for organization-wide access", "Configure which mailboxes to sync", "SharePoint folders appear in File Warehouse"],
+      "tasks": ["Grant admin consent", "Configure mailbox access", "Set up SharePoint connection", "Test email sync"]
+    },
+    "/settings/integrations/cloudflare": {
+      "title": "Cloudflare Integration",
+      "description": "Configure Cloudflare settings for CDN and security.",
+      "tips": ["Manage CDN settings", "Configure security rules", "Monitor performance"],
+      "tasks": ["Configure CDN", "Set security rules", "View analytics", "Manage DNS"]
+    },
+    "/settings/documents": {
+      "title": "Document Settings",
+      "description": "Configure document types, templates, and PDF fields.",
+      "tips": ["Document types categorize files", "Templates auto-generate documents", "PDF fields map to document data"],
+      "tasks": ["Create document type", "Edit template", "Configure PDF fields", "Set default templates"]
+    },
+    "/settings/system": {
+      "title": "System Settings",
+      "description": "Advanced system configuration for administrators.",
+      "tips": ["Navigation Manager controls sidebar menu", "AI Agents configure automated processing", "Scheduled Jobs show background task status"],
+      "tasks": ["Manage navigation items", "Configure AI processing", "View scheduled job status", "Check system health"]
+    },
+    "/settings/developer": {
+      "title": "Developer Settings",
+      "description": "Development tools and advanced configuration.",
+      "tips": ["Components Lab shows all UI components", "Brand Guidelines document design standards", "Use for testing and debugging"],
+      "tasks": ["View component library", "Test UI components", "Access developer tools", "View system info"]
+    },
+    "/settings/email-reseller": {
+      "title": "Email Reseller",
+      "description": "Manage email reseller services and subscriptions.",
+      "tips": ["Configure email hosting", "Manage customer subscriptions", "Monitor usage"],
+      "tasks": ["View subscriptions", "Configure settings", "Monitor usage", "Manage customers"]
+    },
+    "/settings/email-reseller/subscriptions": {
+      "title": "Email Subscriptions",
+      "description": "Manage email service subscriptions.",
+      "tips": ["View active subscriptions", "Add new subscriptions", "Monitor billing"],
+      "tasks": ["View subscriptions", "Add subscription", "Edit details", "Cancel subscription"]
+    },
+    "/settings/email-reseller/subscriptions/[id]": {
+      "title": "Subscription Details",
+      "description": "View and manage a specific email subscription.",
+      "tips": ["Review subscription details", "Update settings", "View usage history"],
+      "tasks": ["View details", "Update settings", "View usage", "Modify plan"]
+    },
+    "/settings/email-reseller/migrations": {
+      "title": "Email Migrations",
+      "description": "Manage email migration processes.",
+      "tips": ["Plan migrations carefully", "Monitor migration progress", "Verify after completion"],
+      "tasks": ["Start migration", "Monitor progress", "Verify completion", "Troubleshoot issues"]
+    },
+    "/settings/email-reseller/reports": {
+      "title": "Email Reports",
+      "description": "View email service reports and analytics.",
+      "tips": ["Track email usage", "Monitor deliverability", "View trends"],
+      "tasks": ["Generate reports", "View analytics", "Export data", "Schedule reports"]
+    },
+    "/settings/email-reseller/settings": {
+      "title": "Email Reseller Settings",
+      "description": "Configure email reseller service settings.",
+      "tips": ["Set default configurations", "Configure pricing", "Manage templates"],
+      "tasks": ["Configure defaults", "Set pricing", "Manage templates", "Update settings"]
+    },
+    "/admin/system/teeem-xl": {
+      "title": "TEEEM XL",
+      "description": "Create and manage spreadsheets.",
+      "tips": ["Create Excel-compatible spreadsheets", "Use formulas and functions", "Export to various formats"],
+      "tasks": ["Create spreadsheet", "Import data", "Use formulas", "Export file"]
+    },
+    "/admin/system/teeem-xl/list": {
+      "title": "TEEEM XL List",
+      "description": "View all TEEEM XL spreadsheets.",
+      "tips": ["Browse existing spreadsheets", "Search by name", "Sort by date"],
+      "tasks": ["Browse spreadsheets", "Open existing", "Delete old files", "Create new"]
+    },
+    "/admin/system/teeem-word": {
+      "title": "TEEEM Word",
+      "description": "Create and edit documents.",
+      "tips": ["Create Word-compatible documents", "Use templates for formatting", "Export to various formats"],
+      "tasks": ["Create document", "Edit text", "Format content", "Export file"]
+    },
+    "/admin/system/teeem-word/list": {
+      "title": "TEEEM Word List",
+      "description": "View all TEEEM Word documents.",
+      "tips": ["Browse existing documents", "Search by name", "Sort by date"],
+      "tasks": ["Browse documents", "Open existing", "Delete old files", "Create new"]
+    },
+    "/admin/system/teeem-powerpoint": {
+      "title": "TEEEM PowerPoint",
+      "description": "Create and edit presentations.",
+      "tips": ["Create presentation slides", "Add multimedia content", "Use templates"],
+      "tasks": ["Create presentation", "Add slides", "Edit content", "Export file"]
+    },
+    "/admin/system/teeem-powerpoint/list": {
+      "title": "TEEEM PowerPoint List",
+      "description": "View all TEEEM PowerPoint presentations.",
+      "tips": ["Browse existing presentations", "Search by name", "Sort by date"],
+      "tasks": ["Browse presentations", "Open existing", "Delete old files", "Create new"]
+    },
+    "/admin/system/teeem-pdf": {
+      "title": "TEEEM PDF",
+      "description": "View and edit PDF documents.",
+      "tips": ["View PDF files", "Add annotations", "Fill form fields"],
+      "tasks": ["Open PDF", "Add annotations", "Fill forms", "Save changes"]
+    },
+    "/admin/system/teeem-pdf/list": {
+      "title": "TEEEM PDF List",
+      "description": "View all TEEEM PDF documents.",
+      "tips": ["Browse PDF files", "Search by name", "Sort by date"],
+      "tasks": ["Browse PDFs", "Open existing", "Delete old files", "Upload new"]
+    },
+    "/admin/system/entity-config": {
+      "title": "Entity Configuration",
+      "description": "Configure entity types and their settings.",
+      "tips": ["Define entity types", "Configure fields and relationships", "Set validation rules"],
+      "tasks": ["Add entity type", "Configure fields", "Set relationships", "Define validation"]
+    },
+    "/admin/system/entity-config/[scope]": {
+      "title": "Entity Scope Config",
+      "description": "Configure settings for a specific entity scope.",
+      "tips": ["Modify scope settings", "Configure fields", "Set permissions"],
+      "tasks": ["Edit settings", "Configure fields", "Set permissions", "Save changes"]
+    },
+    "/admin/system/schedule-master": {
+      "title": "Schedule Master Admin",
+      "description": "Administrative settings for Schedule Master.",
+      "tips": ["Configure scheduling rules", "Set default settings", "Manage templates"],
+      "tasks": ["Configure rules", "Set defaults", "Manage templates", "Update settings"]
+    },
+    "/admin/system/document-types/[id]": {
+      "title": "Document Type Config",
+      "description": "Configure a specific document type.",
+      "tips": ["Set document type properties", "Configure required fields", "Set workflows"],
+      "tasks": ["Edit properties", "Configure fields", "Set workflow", "Save changes"]
+    },
+    "/admin/tenants": {
+      "title": "Tenant Management",
+      "description": "Manage multi-tenant system tenants.",
+      "tips": ["View all tenants", "Configure tenant settings", "Monitor usage"],
+      "tasks": ["View tenants", "Add tenant", "Configure settings", "Monitor usage"]
+    },
+    "/admin/referrers": {
+      "title": "Referrer Management",
+      "description": "Manage referral sources and tracking.",
+      "tips": ["Track referral sources", "Configure referrer rewards", "Monitor referral performance"],
+      "tasks": ["View referrers", "Add referrer", "Track performance", "Configure rewards"]
+    },
+    "/admin/saas-customers": {
+      "title": "SaaS Customers",
+      "description": "Manage TEEEM customer tenants (TEEEM staff only).",
+      "tips": ["View customer subscription status", "Access customer data for support", "Manage tenant settings"],
+      "tasks": ["View customer list", "Access customer tenant", "Update subscription", "Configure tenant settings"]
+    },
+    "/admin/saas-customers/[id]": {
+      "title": "SaaS Customer Details",
+      "description": "View and manage a specific SaaS customer.",
+      "tips": ["Review customer details", "Update subscription", "Access tenant"],
+      "tasks": ["View details", "Update subscription", "Access tenant", "Contact customer"]
+    },
+    "/admin/support-tickets": {
+      "title": "Support Tickets",
+      "description": "Manage customer support tickets (TEEEM staff only).",
+      "tips": ["Prioritize tickets by urgency", "Track resolution time", "Escalate complex issues"],
+      "tasks": ["Review new tickets", "Assign to team member", "Update ticket status", "Close resolved tickets"]
+    },
+    "/admin/site-presence": {
+      "title": "Site Presence Admin",
+      "description": "Administer site presence tracking.",
+      "tips": ["Configure site presence rules", "View all site activity", "Generate reports"],
+      "tasks": ["Configure rules", "View activity", "Generate reports", "Manage sites"]
+    },
+    "/portal": {
+      "title": "Customer Portal",
+      "description": "External customer portal access.",
+      "tips": ["Customers access their projects here", "View-only for most features", "Secure external access"],
+      "tasks": ["View projects", "Access documents", "Make payments", "Contact team"]
+    },
+    "/portal/login": {
+      "title": "Portal Login",
+      "description": "Customer portal login page.",
+      "tips": ["Use your customer credentials", "Contact support if locked out", "Check email for password reset"],
+      "tasks": ["Enter credentials", "Reset password", "Contact support"]
+    },
+    "/portal/dashboard": {
+      "title": "Portal Dashboard",
+      "description": "Customer portal overview showing project status and updates.",
+      "tips": ["View your project progress at a glance", "Access recent documents", "Check for new messages"],
+      "tasks": ["View project status", "Access documents", "Send message", "View invoices"]
+    },
+    "/portal/jobs": {
+      "title": "Portal Jobs",
+      "description": "View your jobs and their current progress.",
+      "tips": ["Click a job to see details", "Track progress with status indicators", "View job schedule"],
+      "tasks": ["View job details", "Check progress", "View schedule", "Download documents"]
+    },
+    "/portal/invoices": {
+      "title": "Portal Invoices",
+      "description": "View and pay your invoices online.",
+      "tips": ["Click to view invoice details", "Pay online with credit card", "Download PDF copies"],
+      "tasks": ["View invoice", "Make payment", "Download PDF", "View payment history"]
+    },
+    "/portal/quotes": {
+      "title": "Portal Quotes",
+      "description": "Review and approve quotes for your projects.",
+      "tips": ["Review quote details carefully", "Ask questions via comments", "Accept or reject quotes"],
+      "tasks": ["Review quote", "Ask question", "Accept quote", "Request changes"]
+    },
+    "/portal/schedule": {
+      "title": "Portal Schedule",
+      "description": "View the schedule for your projects.",
+      "tips": ["See upcoming work dates", "Track milestone progress", "View task completion"],
+      "tasks": ["View upcoming work", "Check milestones", "Download schedule", "Contact project manager"]
+    },
+    "/portal/paynow": {
+      "title": "Pay Now",
+      "description": "Make payments for outstanding invoices.",
+      "tips": ["Select invoices to pay", "Choose payment method", "Receive instant receipt"],
+      "tasks": ["Select invoices", "Enter payment details", "Confirm payment", "Download receipt"]
+    },
+    "/portal/kudos": {
+      "title": "Portal Kudos",
+      "description": "Give feedback and kudos for great service.",
+      "tips": ["Recognize great work", "Leave positive feedback", "Rate your experience"],
+      "tasks": ["Give kudos", "Leave feedback", "Rate service", "Share experience"]
+    },
+    "/portal/price_histories": {
+      "title": "Portal Price History",
+      "description": "View price history for your quoted items.",
+      "tips": ["Track price changes", "Compare historical pricing", "Review quote history"],
+      "tasks": ["View price history", "Compare prices", "Review quotes", "Download history"]
+    },
+    "/portal/settings": {
+      "title": "Portal Settings",
+      "description": "Manage your customer portal settings.",
+      "tips": ["Update contact information", "Set notification preferences", "Manage account security"],
+      "tasks": ["Update profile", "Set notifications", "Change password", "Configure preferences"]
+    },
+    "/(public)/get-started": {
+      "title": "Get Started",
+      "description": "Start your TEEEM journey with guided setup.",
+      "tips": ["Choose your plan", "Follow the setup wizard", "Contact sales for help"],
+      "tasks": ["Choose plan", "Start setup", "Learn features", "Contact sales"]
+    },
+    "/(public)/get-started/plan": {
+      "title": "Choose Plan",
+      "description": "Select the right TEEEM plan for your business.",
+      "tips": ["Compare plan features", "Consider your team size", "Contact sales for custom plans"],
+      "tasks": ["Compare plans", "Select plan", "Start trial", "Contact sales"]
+    },
+    "/(public)/get-started/templates": {
+      "title": "Templates",
+      "description": "Browse templates to jumpstart your setup.",
+      "tips": ["Choose industry-specific templates", "Preview before selecting", "Customize after import"],
+      "tasks": ["Browse templates", "Preview options", "Select template", "Customize setup"]
+    },
+    "/(public)/get-started/complete": {
+      "title": "Setup Complete",
+      "description": "Congratulations on completing setup!",
+      "tips": ["Explore your new workspace", "Check out training resources", "Invite team members"],
+      "tasks": ["Access dashboard", "Start training", "Invite team", "Begin using TEEEM"]
+    }
+  }
+}

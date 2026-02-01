@@ -167,7 +167,7 @@ module Api
         end
 
         def parent_company
-          @parent_company ||= CorporateCompany.find(
+          @parent_company ||= Corporate.find(
             params[:corporate_company_id] || current_user&.corporate_company_id || 1
           )
         end
@@ -176,7 +176,7 @@ module Api
           # Would look up from company relationships
           # For now, return companies in same group if specified
           if params[:subsidiary_ids].present?
-            CorporateCompany.where(id: params[:subsidiary_ids].split(','))
+            Corporate.where(id: params[:subsidiary_ids].split(','))
           else
             []
           end

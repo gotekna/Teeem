@@ -5,8 +5,13 @@ module Api
 
       # GET /api/v1/email_job_proposals
       # List proposals with filtering
+      # SSoT (Jan 2026): Tenant scoping via SyncedEmail join
       def index
+        # EmailJobProposal doesn't have acts_as_tenant, so we scope via SyncedEmail
+        # SyncedEmail has acts_as_tenant which auto-filters to current_tenant
+        tenant_synced_email_ids = SyncedEmail.pluck(:id)
         proposals = EmailJobProposal
+          .where(email_warehouse_id: tenant_synced_email_ids)
           .includes(:synced_email, :created_by_user, :approved_by_user, :job)
 
         # Filter by status (default: pending)
@@ -82,8 +87,8 @@ module Api
 
         # Sync PDF attachments if not already synced
         # SSoT: Per-user Outlook credentials removed - uses org credentials
-        # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
-        if email.has_attachments && email.email_attachments.empty?
+        # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+        if email.has_attachments && email.attachment_documents.empty?
           begin
             email.sync_attachments!
           rescue StandardError => e
@@ -197,8 +202,8 @@ module Api
 
         # Sync PDF attachments if not already synced
         # SSoT: Per-user Outlook credentials removed - uses org credentials
-        # Note: has_many_attached :files was removed (Jan 2026) - check email_attachments instead
-        if email.has_attachments && email.email_attachments.empty?
+        # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+        if email.has_attachments && email.attachment_documents.empty?
           begin
             email.sync_attachments!
             Rails.logger.info "Synced attachments for email #{email.id} during re-extraction"
@@ -248,7 +253,9 @@ module Api
       private
 
       def set_proposal
-        @proposal = EmailJobProposal.find(params[:id])
+        # SSoT (Jan 2026): Tenant scoping via SyncedEmail join
+        tenant_synced_email_ids = SyncedEmail.pluck(:id)
+        @proposal = EmailJobProposal.where(email_warehouse_id: tenant_synced_email_ids).find(params[:id])
       end
 
       def serialize_proposal(proposal, include_full_email: false)
@@ -276,8 +283,8 @@ module Api
             received_at: proposal.synced_email.received_at,
             has_attachments: proposal.synced_email.has_attachments,
             attachment_count: proposal.synced_email.attachment_count,
-            # Note: content_type is on storage_blobs table, not email_attachments (Jan 2026 refactor)
-            pdf_count: proposal.synced_email.email_attachments.joins(:storage_blob).where(storage_blobs: { content_type: "application/pdf" }).count
+            # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+            pdf_count: proposal.synced_email.attachment_documents.joins(:storage_blob).where(storage_blobs: { content_type: "application/pdf" }).count
           } : nil,
 
           # User info (may be nil for system-created proposals)

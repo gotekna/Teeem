@@ -136,6 +136,306 @@ namespace :warehouse do
     puts "Warehouse folder tree cache cleared"
   end
 
+  desc "Sync user-created documents (Excel, Word, PDF, PPT) to File Warehouse"
+  task sync_teeem_docs: :environment do
+    puts "🔄 Syncing Teeem documents to File Warehouse..."
+    puts ""
+
+    # Set tenant context (required for StorageConfiguration)
+    tenant = Tenant.first
+    ActsAsTenant.current_tenant = tenant
+    puts "Using tenant: #{tenant.name}"
+    puts ""
+
+    total = 0
+    success = 0
+    failed = 0
+
+    [TeeemSpreadsheet, TeeemDocument, TeeemPresentation, TeeemPdf].each do |model|
+      count = model.count
+      next if count.zero?
+
+      puts "#{model.name}: #{count} documents"
+
+      model.find_each do |doc|
+        total += 1
+        begin
+          result = doc.sync_to_warehouse!
+          if result[:success]
+            success += 1
+            puts "  ✅ #{doc.name} (#{doc.id})"
+          else
+            failed += 1
+            puts "  ❌ #{doc.name} (#{doc.id}): #{result[:error]}"
+          end
+        rescue StandardError => e
+          failed += 1
+          puts "  ❌ #{doc.name} (#{doc.id}): #{e.message}"
+        end
+      end
+      puts ""
+    end
+
+    puts "Total: #{total}, Success: #{success}, Failed: #{failed}"
+    puts ""
+    puts "WarehouseDocument by source_type:"
+    WarehouseDocument.group(:source_type).count.each { |k, v| puts "  #{k}: #{v}" }
+  end
+
+  desc "Fix task document linkage - sets linkable_id and corrects folder paths"
+  task fix_task_links: :environment do
+    puts "🔧 Fixing task document linkage..."
+    puts ""
+
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        config = StorageConfiguration.instance rescue nil
+        next unless config
+
+        puts "Tenant: #{tenant.name}"
+
+        fixed = 0
+        orphaned = 0
+        errors = 0
+
+        # Find task documents without linkable_id
+        WarehouseDocument.where(source_type: "task").where(linkable_id: nil).find_each do |doc|
+          begin
+            # Get the SmTaskAttachment
+            attachment = doc.documentable
+            unless attachment.is_a?(SmTaskAttachment)
+              orphaned += 1
+              next
+            end
+
+            # Get the task
+            task = attachment.sm_task
+            unless task
+              orphaned += 1
+              puts "  ⚠️  ##{doc.id}: SmTaskAttachment ##{attachment.id} has no task (orphaned)"
+              next
+            end
+
+            # Determine folder based on category
+            folder_type = case attachment.category
+                          when "response" then :task_responses
+                          else :task_attachments
+                          end
+
+            new_folder = config.resolve_virtual_path(folder_type, { TaskId: task.id })
+
+            # Update the document
+            doc.update!(
+              linkable_type: "SmTask",
+              linkable_id: task.id,
+              folder: new_folder
+            )
+
+            fixed += 1
+            puts "  ✅ ##{doc.id}: → Task ##{task.id}, folder: #{new_folder}"
+          rescue StandardError => e
+            errors += 1
+            puts "  ❌ ##{doc.id}: #{e.message}"
+          end
+        end
+
+        puts "  Fixed: #{fixed}, Orphaned: #{orphaned}, Errors: #{errors}"
+        puts ""
+      end
+    end
+
+    puts "Done!"
+  end
+
+  desc "Sync missing warehouse entries for task attachments (creates WarehouseDocument for linked docs)"
+  task sync_task_attachments: :environment do
+    puts "🔄 Syncing missing warehouse entries for task attachments..."
+    puts ""
+
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        puts "Tenant: #{tenant.name}"
+
+        created = 0
+        skipped = 0
+        errors = 0
+
+        # Find SmTaskAttachments without corresponding WarehouseDocument
+        SmTaskAttachment.includes(:sm_task, :attachable, :warehouse_document).find_each do |att|
+          # Skip if already has warehouse document
+          if att.warehouse_document.present?
+            skipped += 1
+            next
+          end
+
+          begin
+            task = att.sm_task
+            unless task
+              puts "  ⚠️  SmTaskAttachment ##{att.id}: No task found"
+              errors += 1
+              next
+            end
+
+            # Get the storage blob from the attachable
+            blob = att.storage_blob
+            unless blob
+              puts "  ⚠️  SmTaskAttachment ##{att.id}: No storage blob"
+              errors += 1
+              next
+            end
+
+            # Compute folder path from StorageConfiguration
+            # SSoT: Same logic as SmTaskAttachment#compute_task_folder_path
+            # FRC (Jan 2026): No hardcoded fallback - fail fast if config is wrong
+            config = StorageConfiguration.instance rescue nil
+            unless config
+              puts "  ⚠️  SmTaskAttachment ##{att.id}: No StorageConfiguration found"
+              errors += 1
+              next
+            end
+
+            # SSoT: task_attachments and task_responses have FULL paths (Jan 2026 FRC fix)
+            folder_type = att.category == "response" ? :task_responses : :task_attachments
+            folder = config.resolve_virtual_path(folder_type, {
+              TaskId: task.id,
+              TaskName: task.name&.parameterize || "task-#{task.id}"
+            })
+
+            unless folder.present?
+              puts "  ⚠️  SmTaskAttachment ##{att.id}: resolve_virtual_path returned blank for #{folder_type}"
+              errors += 1
+              next
+            end
+
+            # Get display name from attachable
+            display_name = case att.attachable_type
+                           when "WarehouseDocument"
+                             att.attachable&.display_name || att.attachable&.original_filename || "Document"
+                           when "SyncedEmail"
+                             att.attachable&.subject || "Email"
+                           else
+                             att.read_attribute(:display_name) || "Attachment"
+                           end
+
+            # Get original filename
+            filename = case att.attachable_type
+                       when "WarehouseDocument"
+                         att.attachable&.original_filename || att.attachable&.display_name
+                       when "SyncedEmail"
+                         "#{att.attachable&.subject || 'Email'}.eml"
+                       else
+                         nil
+                       end
+
+            # Create the warehouse document
+            wd = WarehouseDocument.create!(
+              documentable: att,
+              source_type: "task",
+              folder: folder,
+              display_name: display_name,
+              original_filename: filename,
+              storage_blob: blob,
+              linkable_type: "SmTask",
+              linkable_id: task.id,
+              metadata: {
+                task_id: task.id,
+                task_name: task.name,
+                category: att.category,
+                attachable_type: att.attachable_type,
+                attachable_id: att.attachable_id,
+                original_warehouse_document_id: att.attachable_type == "WarehouseDocument" ? att.attachable_id : nil
+              }
+            )
+
+            created += 1
+            puts "  ✅ SmTaskAttachment ##{att.id} → WarehouseDocument ##{wd.id} (#{display_name}) [#{folder}]"
+          rescue StandardError => e
+            errors += 1
+            puts "  ❌ SmTaskAttachment ##{att.id}: #{e.message}"
+          end
+        end
+
+        puts "  Created: #{created}, Skipped: #{skipped}, Errors: #{errors}"
+        puts ""
+      end
+    end
+
+    puts "Done!"
+  end
+
+  desc "Fix orphaned documents - move null folder docs to Orphans/YYYY/MM and cleanup broken task attachments"
+  task fix_orphans: :environment do
+    puts "🔧 Fixing orphaned documents..."
+    puts ""
+
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        puts "Tenant: #{tenant.name}"
+
+        # 1. Fix WarehouseDocuments with null/blank folders
+        null_folder_docs = WarehouseDocument.where(folder: [nil, ""])
+        puts "  Documents with null folder: #{null_folder_docs.count}"
+
+        fixed_folders = 0
+        moved_to_orphans = 0
+
+        null_folder_docs.find_each do |doc|
+          # Try to compute folder from documentable
+          if doc.documentable.present? && doc.documentable.respond_to?(:virtual_folder_path)
+            begin
+              computed = doc.documentable.virtual_folder_path
+              if computed.present?
+                doc.update!(folder: computed)
+                fixed_folders += 1
+                next
+              end
+            rescue StandardError
+              # Fall through to other methods
+            end
+          end
+
+          # For emails/email_attachments - compute from metadata
+          if doc.source_type.in?(%w[email email_attachment])
+            mailbox = doc.meta("mailbox")
+            received_at = doc.meta("received_at")&.then { |t| Time.parse(t) rescue nil }
+            date = received_at || doc.created_at || Time.current
+
+            if mailbox.present?
+              subfolder = doc.source_type == "email" ? "Email Body" : "Attachments"
+              computed = "Emails/#{mailbox}/#{subfolder}/#{date.year}/#{format('%02d', date.month)}"
+              doc.update!(folder: computed)
+              fixed_folders += 1
+              next
+            end
+          end
+
+          # Move to Orphans/YYYY/MM based on created_at
+          date = doc.created_at || Time.current
+          orphan_folder = "Orphans/#{date.year}/#{format('%02d', date.month)}"
+          doc.update!(folder: orphan_folder)
+          moved_to_orphans += 1
+        end
+
+        puts "    Fixed with computed folder: #{fixed_folders}"
+        puts "    Moved to Orphans: #{moved_to_orphans}"
+
+        # 2. Clean up SmTaskAttachments pointing to deleted records
+        broken_attachments = 0
+        SmTaskAttachment.find_each do |att|
+          if att.attachable.nil?
+            att.destroy
+            broken_attachments += 1
+          end
+        end
+        puts "    Deleted broken task attachments: #{broken_attachments}"
+
+        puts ""
+      end
+    end
+
+    puts "Done!"
+  end
+
   desc "Full warehouse setup: link docs, sync attachments, refresh views, capture snapshot"
   task setup: :environment do
     puts "🚀 Running full warehouse setup..."

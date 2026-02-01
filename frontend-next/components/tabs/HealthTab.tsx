@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 
 // Health status colors
 const HEALTH_STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -81,7 +81,7 @@ function CompletionItem({ label, completed, value }: { label: string; completed?
 }
 
 interface HealthTabProps {
-  company: CorporateCompany;
+  company: Corporate;
   companyId?: string;
   entityId?: string;
   onUpdate?: () => void;

@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { X, CheckCircle, XCircle, RefreshCw, Building2, Calendar, ArrowRight, AlertTriangle } from "lucide-react";
+import React, { useEffect, useState, useMemo } from "react";
+import { X, CheckCircle, XCircle, RefreshCw, Building2, AlertTriangle, ChevronDown, Users, Search, Filter } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface CompanyLink {
   id: number;
@@ -16,26 +19,33 @@ interface CompanyLink {
   xero_tenant_name: string;
   connection_status: string;
   connected?: boolean;
-  // SSoT: Unified status from XeroConnectionHealth service
   display_status?: 'connected' | 'warning' | 'error' | 'disconnected';
   last_sync_at?: string;
   days_since_last_sync?: number;
 }
 
 interface XeroOrganization {
+  id: number;
   tenant_id: string;
   tenant_name: string;
   connected: boolean;
   expired: boolean;
   expires_at: string;
-  status?: string; // 'connected' | 'degraded' | 'disconnected'
+  status?: string;
   degraded?: boolean;
-  // SSoT: Unified status from XeroConnectionHealth service
   display_status?: 'connected' | 'warning' | 'error' | 'disconnected';
   message?: string;
   needs_attention?: boolean;
   action_required?: string;
   companies: CompanyLink[];
+  teeem_tenant_id?: number;
+  teeem_tenant_name?: string;
+}
+
+interface TeeemTenant {
+  id: number;
+  name: string;
+  is_master: boolean;
 }
 
 interface Company {
@@ -50,14 +60,24 @@ interface XeroConnectionsPopupProps {
   onClose: () => void;
 }
 
+type FilterType = 'all' | 'connected' | 'needs_reauth' | 'not_linked';
+
 export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupProps) {
   const { toast } = useToast();
   const [organizations, setOrganizations] = useState<XeroOrganization[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [availableTenants, setAvailableTenants] = useState<TeeemTenant[]>([]);
+  const [isMasterTenant, setIsMasterTenant] = useState(false);
   const [loading, setLoading] = useState(true);
   const [linkingTenantId, setLinkingTenantId] = useState<string | null>(null);
-  const [openDropdownTenantId, setOpenDropdownTenantId] = useState<string | null>(null);
-  const [searchTerms, setSearchTerms] = useState<Record<string, string>>({});
+  const [assigningOrgId, setAssigningOrgId] = useState<number | null>(null);
+
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [openTenantDropdown, setOpenTenantDropdown] = useState<number | null>(null);
+  const [openCompanyDropdown, setOpenCompanyDropdown] = useState<string | null>(null);
+  const [companySearchTerms, setCompanySearchTerms] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -66,16 +86,17 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
     }
   }, [isOpen]);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (openDropdownTenantId && !(e.target as Element).closest('.combobox-container')) {
-        setOpenDropdownTenantId(null);
+      if (!(e.target as Element).closest('.dropdown-container')) {
+        setOpenTenantDropdown(null);
+        setOpenCompanyDropdown(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openDropdownTenantId]);
+  }, []);
 
   const loadConnections = async () => {
     try {
@@ -85,10 +106,12 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
         organizations: XeroOrganization[];
         total_organizations: number;
         connected_organizations: number;
-      }>(
-        "/api/v1/company_xero_connections"
-      );
+        is_master_tenant: boolean;
+        available_tenants: TeeemTenant[];
+      }>("/api/v1/company_xero_connections");
       setOrganizations(response.organizations || []);
+      setIsMasterTenant(response.is_master_tenant || false);
+      setAvailableTenants(response.available_tenants || []);
     } catch (error) {
       console.error("Failed to load Xero connections:", error);
     } finally {
@@ -96,11 +119,29 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
     }
   };
 
+  const handleAssignTenant = async (credentialId: number, teeemTenantId: number) => {
+    try {
+      setAssigningOrgId(credentialId);
+      const response = await api.patch<{ success: boolean; message: string }>(
+        `/api/v1/company_xero_connections/${credentialId}/assign_tenant`,
+        { teeem_tenant_id: teeemTenantId }
+      );
+      if (response?.success) {
+        await loadConnections();
+        toast({ title: "Success", description: response.message });
+      }
+    } catch (error) {
+      console.error("Failed to assign tenant:", error);
+      toast({ title: "Error", description: "Failed to assign tenant", variant: "destructive" });
+    } finally {
+      setAssigningOrgId(null);
+      setOpenTenantDropdown(null);
+    }
+  };
+
   const loadCompanies = async () => {
     try {
-      const response = await api.get<{ success: boolean; companies: Company[] }>(
-        "/api/v1/companies"
-      );
+      const response = await api.get<{ success: boolean; companies: Company[] }>("/api/v1/companies");
       setCompanies(response.companies || []);
     } catch (error) {
       console.error("Failed to load companies:", error);
@@ -111,12 +152,11 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
     try {
       const response = await api.xero.getAuthUrl();
       if (response.success && response.auth_url) {
-        // Redirect to Xero OAuth page
         window.location.href = response.auth_url;
       }
     } catch (error) {
       console.error("Failed to get Xero auth URL:", error);
-      toast({ title: "Error", description: "Failed to connect to Xero. Please try again.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to connect to Xero", variant: "destructive" });
     }
   };
 
@@ -127,302 +167,377 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
         `/api/v1/companies/${companyId}/xero/link`,
         { tenant_id: tenantId }
       );
-
-      if (response && response.success) {
-        // Reload connections to show the new link
+      if (response?.success) {
         await loadConnections();
-        toast({ title: "Success", description: "Successfully linked company to Xero organization" });
+        toast({ title: "Success", description: "Company linked to Xero" });
       }
     } catch (error) {
       console.error("Failed to link company:", error);
-      toast({ title: "Error", description: "Failed to link company. Please try again.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to link company", variant: "destructive" });
     } finally {
       setLinkingTenantId(null);
+      setOpenCompanyDropdown(null);
+      setCompanySearchTerms({});
     }
   };
 
+  // Get organization status
+  const getOrgStatus = (org: XeroOrganization): 'connected' | 'warning' | 'error' => {
+    if (org.display_status === 'connected' || (!org.display_status && org.connected && !org.degraded)) {
+      return 'connected';
+    }
+    if (org.display_status === 'warning' || org.degraded || org.status === 'degraded') {
+      return 'warning';
+    }
+    return 'error';
+  };
+
+  // Filter and search organizations
+  const filteredOrganizations = useMemo(() => {
+    let filtered = organizations;
+
+    // Apply status filter
+    if (activeFilter !== 'all') {
+      filtered = filtered.filter(org => {
+        const status = getOrgStatus(org);
+        switch (activeFilter) {
+          case 'connected': return status === 'connected';
+          case 'needs_reauth': return status === 'warning' || status === 'error';
+          case 'not_linked': return org.companies.length === 0;
+          default: return true;
+        }
+      });
+    }
+
+    // Apply search
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(org =>
+        org.tenant_name.toLowerCase().includes(query) ||
+        org.teeem_tenant_name?.toLowerCase().includes(query) ||
+        org.companies.some(c => c.company.name.toLowerCase().includes(query))
+      );
+    }
+
+    return filtered;
+  }, [organizations, activeFilter, searchQuery]);
+
+  // Get linked company IDs
+  const linkedCompanyIds = useMemo(() =>
+    new Set(organizations.flatMap(org => org.companies.map(c => c.company_id))),
+    [organizations]
+  );
+
+  // Available companies for linking
+  const availableCompanies = useMemo(() =>
+    companies.filter(c => {
+      const belongsToGroup = c.company_group_id != null;
+      const isCorporateEntity = ['Company', 'company', 'Trust', 'trust'].includes(c.entity_type || '');
+      const hasNoConnection = !linkedCompanyIds.has(c.id);
+      return belongsToGroup && isCorporateEntity && hasNoConnection;
+    }),
+    [companies, linkedCompanyIds]
+  );
+
+  // Stats
+  const stats = useMemo(() => ({
+    total: organizations.length,
+    connected: organizations.filter(o => getOrgStatus(o) === 'connected').length,
+    needsReauth: organizations.filter(o => getOrgStatus(o) !== 'connected').length,
+    notLinked: organizations.filter(o => o.companies.length === 0).length,
+  }), [organizations]);
+
   if (!isOpen) return null;
-
-  const totalOrgs = organizations.length;
-  const connectedOrgs = organizations.filter((o) => o.connected).length;
-  const totalCompanies = organizations.reduce((sum, org) => sum + org.companies.length, 0);
-  const connectedCompanies = organizations.reduce((sum, org) =>
-    sum + org.companies.filter((c) => c.connected).length, 0
-  );
-
-  // Get list of company IDs that already have Xero connections
-  const linkedCompanyIds = new Set(
-    organizations.flatMap(org => org.companies.map(c => c.company_id))
-  );
-
-  // Show ONLY corporate entities that belong to a Company Group
-  const availableCompanies = companies.filter(c => {
-    // Only include companies that:
-    // 1. Belong to a Company Group (company_group_id != null) - excludes suppliers/vendors
-    // 2. Are corporate entities (entity_type = "Company", "company", "Trust", or "trust")
-    // 3. Don't already have a Xero connection
-    const belongsToGroup = c.company_group_id != null;
-    const isCorporateEntity =
-      c.entity_type === "Company" ||
-      c.entity_type === "company" ||
-      c.entity_type === "Trust" ||
-      c.entity_type === "trust";
-    const hasNoConnection = !linkedCompanyIds.has(c.id);
-    return belongsToGroup && isCorporateEntity && hasNoConnection;
-  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="relative w-full max-w-3xl max-h-[85vh] flex flex-col rounded-lg bg-white shadow-xl dark:bg-card"
+        className="relative w-full max-w-4xl max-h-[90vh] flex flex-col rounded-lg bg-white shadow-xl dark:bg-card"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border p-4 dark:border-border">
+        <div className="flex items-center justify-between border-b p-4">
           <div>
-            <h2 className="text-lg font-semibold text-foreground dark:text-white">
-              Xero Connections
-            </h2>
-            <p className="text-sm text-muted-foreground dark:text-muted-foreground">
-              {connectedOrgs} of {totalOrgs} Xero organizations • {connectedCompanies} of {totalCompanies} companies connected
+            <h2 className="text-lg font-semibold">Xero Connections</h2>
+            <p className="text-sm text-muted-foreground">
+              {stats.connected}/{stats.total} connected • {stats.notLinked} not linked
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 hover:bg-muted dark:hover:bg-muted"
-          >
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="overflow-y-auto overflow-x-hidden p-4 flex-1">
+        {/* Search and Filters */}
+        <div className="border-b p-3 space-y-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search Xero orgs, tenants, or companies..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <button
+              onClick={() => setActiveFilter('all')}
+              className={cn(
+                "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                activeFilter === 'all'
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted hover:bg-muted/80 text-muted-foreground"
+              )}
+            >
+              All ({stats.total})
+            </button>
+            <button
+              onClick={() => setActiveFilter('connected')}
+              className={cn(
+                "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                activeFilter === 'connected'
+                  ? "bg-green-600 text-white"
+                  : "bg-green-100 hover:bg-green-200 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+              )}
+            >
+              Connected ({stats.connected})
+            </button>
+            <button
+              onClick={() => setActiveFilter('needs_reauth')}
+              className={cn(
+                "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                activeFilter === 'needs_reauth'
+                  ? "bg-orange-600 text-white"
+                  : "bg-orange-100 hover:bg-orange-200 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+              )}
+            >
+              Needs Re-auth ({stats.needsReauth})
+            </button>
+            <button
+              onClick={() => setActiveFilter('not_linked')}
+              className={cn(
+                "px-3 py-1 rounded-full text-xs font-medium transition-colors",
+                activeFilter === 'not_linked'
+                  ? "bg-gray-600 text-white"
+                  : "bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
+              )}
+            >
+              Not Linked ({stats.notLinked})
+            </button>
+          </div>
+        </div>
+
+        {/* Compact Table */}
+        <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <RefreshCw className="h-8 w-8 animate-spin text-blue-500 dark:text-blue-400" />
+              <RefreshCw className="h-8 w-8 animate-spin text-primary" />
             </div>
-          ) : organizations.length === 0 ? (
+          ) : filteredOrganizations.length === 0 ? (
             <div className="py-12 text-center">
               <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
-              <p className="mt-4 text-sm text-muted-foreground dark:text-muted-foreground">
-                No Xero connections found
+              <p className="mt-4 text-sm text-muted-foreground">
+                {searchQuery ? "No results found" : "No Xero connections"}
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {organizations.map((org) => (
-                <div
-                  key={org.tenant_id}
-                  className="rounded-lg border border-border bg-muted dark:border-border dark:bg-background"
-                >
-                  {/* Xero Organization Header */}
-                  <div className="flex items-center justify-between border-b border-border bg-white p-3 dark:border-border dark:bg-card">
-                    <div className="flex items-center space-x-3">
-                      {/* Organization Status - SSoT: Uses display_status from backend */}
-                      <div className="relative">
-                        {(org.display_status === 'connected' || (!org.display_status && org.connected)) ? (
-                          <>
-                            <CheckCircle className="h-6 w-6 text-green-500 dark:text-green-400" />
-                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-border" />
-                          </>
-                        ) : (org.display_status === 'warning' || org.degraded || org.status === 'degraded') ? (
-                          <>
-                            <AlertTriangle className="h-6 w-6 text-orange-500 dark:text-orange-400" />
-                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-orange-500 border-2 border-white dark:border-border" />
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-6 w-6 text-red-500 dark:text-red-400" />
-                            <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-border" />
-                          </>
-                        )}
-                      </div>
+            <table className="w-full">
+              <thead className="bg-muted/50 sticky top-0">
+                <tr className="text-xs text-muted-foreground">
+                  <th className="text-left py-2 px-3 font-medium">Status</th>
+                  <th className="text-left py-2 px-3 font-medium">Xero Organization</th>
+                  <th className="text-left py-2 px-3 font-medium">TEEEM Tenant</th>
+                  <th className="text-left py-2 px-3 font-medium">Linked Company</th>
+                  <th className="text-right py-2 px-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filteredOrganizations.map((org) => {
+                  const status = getOrgStatus(org);
+                  const linkedCompany = org.companies[0]; // Show first linked company
 
-                      {/* Organization Name */}
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-semibold text-foreground dark:text-white">
+                  return (
+                    <tr key={org.tenant_id} className="hover:bg-muted/30 text-sm">
+                      {/* Status */}
+                      <td className="py-2 px-3">
+                        {status === 'connected' ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : status === 'warning' ? (
+                          <AlertTriangle className="h-4 w-4 text-orange-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
+                      </td>
+
+                      {/* Xero Org Name */}
+                      <td className="py-2 px-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium truncate max-w-[200px]" title={org.tenant_name}>
                             {org.tenant_name}
                           </span>
                           {org.companies.length === 0 && (
-                            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-muted dark:text-muted-foreground">
-                              Not linked
-                            </span>
+                            <Badge variant="outline" className="text-xs">Not linked</Badge>
+                          )}
+                          {org.companies.length > 1 && (
+                            <Badge variant="secondary" className="text-xs">+{org.companies.length - 1}</Badge>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground dark:text-muted-foreground">
-                          Xero Organization {org.companies.length > 0 && `• ${org.companies.length} ${org.companies.length === 1 ? 'company' : 'companies'}`}
-                        </p>
-                      </div>
-                    </div>
+                        {status !== 'connected' && org.message && (
+                          <p className="text-xs text-orange-600 dark:text-orange-400 truncate max-w-[200px]" title={org.message}>
+                            {org.message}
+                          </p>
+                        )}
+                      </td>
 
-                    <div className="text-right">
-                      {org.companies.length > 0 ? (
-                        <>
-                          {/* SSoT: Use display_status to determine company connection counts */}
-                          <span className={`text-sm font-medium ${
-                            org.companies.every(c => c.display_status === 'connected' || (!c.display_status && c.connected))
-                              ? 'text-green-600 dark:text-green-400'
-                              : 'text-orange-600 dark:text-orange-400'
-                          }`}>
-                            {org.companies.filter(c => c.display_status === 'connected' || (!c.display_status && c.connected)).length} / {org.companies.length}
-                          </span>
-                          <p className="text-xs text-muted-foreground dark:text-muted-foreground">linked</p>
-                        </>
-                      ) : (
-                        /* SSoT: Use display_status from backend */
-                        <span className={`text-sm font-medium ${
-                          (org.display_status === 'connected' || (!org.display_status && org.connected)) ? 'text-green-600 dark:text-green-400' :
-                          (org.display_status === 'warning' || org.degraded || org.status === 'degraded') ? 'text-orange-600 dark:text-orange-400' :
-                          'text-red-600 dark:text-red-400'
-                        }`}>
-                          {(org.display_status === 'connected' || (!org.display_status && org.connected)) ? 'Connected' :
-                           (org.display_status === 'warning' || org.degraded || org.status === 'degraded') ? 'Needs Re-auth' :
-                           org.message || 'Disconnected'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Linked TEEEM Companies */}
-                  <div className="p-3 space-y-2">
-                    {org.companies.length > 0 ? (
-                      org.companies.map((connection) => (
-                        <div
-                          key={connection.id}
-                          className="flex items-center justify-between rounded-md bg-white p-3 dark:bg-card"
-                        >
-                          <div className="flex items-center space-x-3 flex-1">
-                            {/* Company Status - SSoT: Uses display_status from backend */}
-                            <div>
-                              {(connection.display_status === 'connected' || (!connection.display_status && connection.connected)) ? (
-                                <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
-                              ) : connection.display_status === 'warning' ? (
-                                <AlertTriangle className="h-4 w-4 text-orange-500 dark:text-orange-400" />
-                              ) : (
-                                <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
-                              )}
-                            </div>
-
-                            {/* Arrow */}
-                            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-
-                            {/* TEEEM Company Name */}
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2">
-                                <Building2 className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm font-medium text-foreground dark:text-white">
-                                  {connection.company.name}
-                                </span>
-                              </div>
-                              {connection.last_sync_at && (
-                                <div className="mt-0.5 flex items-center space-x-1 text-xs text-muted-foreground dark:text-muted-foreground">
-                                  <Calendar className="h-3 w-3" />
-                                  <span>
-                                    Last sync: {new Date(connection.last_sync_at).toLocaleDateString()}
-                                    {connection.days_since_last_sync !== undefined &&
-                                      ` (${connection.days_since_last_sync}d ago)`}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* View Button */}
+                      {/* Tenant Selector */}
+                      <td className="py-2 px-3">
+                        {isMasterTenant ? (
+                          <div className="relative dropdown-container">
                             <button
-                              onClick={() => {
-                                window.location.href = `/corporate/companies/${connection.company_id}/xero`;
-                                onClose();
-                              }}
-                              className="whitespace-nowrap rounded-md border border-border bg-white px-3 py-1 text-xs font-medium text-foreground hover:bg-muted dark:border-border dark:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
+                              onClick={() => setOpenTenantDropdown(openTenantDropdown === org.id ? null : org.id)}
+                              disabled={assigningOrgId === org.id}
+                              className="flex items-center gap-1 text-xs px-2 py-1 rounded border hover:bg-muted disabled:opacity-50 min-w-[100px]"
                             >
-                              View
+                              <Users className="h-3 w-3 text-muted-foreground" />
+                              <span className="truncate max-w-[80px]">{org.teeem_tenant_name || "Unassigned"}</span>
+                              {assigningOrgId === org.id ? (
+                                <RefreshCw className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3" />
+                              )}
                             </button>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="rounded-md bg-white p-4 dark:bg-card">
-                        <p className="mb-3 text-sm text-muted-foreground dark:text-muted-foreground">
-                          No TEEEM companies linked to this organization yet.
-                        </p>
-                        {availableCompanies.length > 0 ? (
-                          <div className="space-y-2 relative combobox-container">
-                            <input
-                              type="text"
-                              placeholder="Search and select a company..."
-                              value={searchTerms[org.tenant_id] || ""}
-                              onChange={(e) => {
-                                setSearchTerms({ ...searchTerms, [org.tenant_id]: e.target.value });
-                                setOpenDropdownTenantId(org.tenant_id);
-                              }}
-                              onFocus={() => setOpenDropdownTenantId(org.tenant_id)}
-                              disabled={linkingTenantId === org.tenant_id}
-                              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-border dark:bg-muted dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                            />
-                            {openDropdownTenantId === org.tenant_id && (
-                              <div className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto rounded-md border border-border bg-white shadow-lg dark:border-border dark:bg-muted">
-                                {availableCompanies
-                                  .filter(company =>
-                                    company.name.toLowerCase().includes((searchTerms[org.tenant_id] || "").toLowerCase())
-                                  )
-                                  .map((company) => (
-                                    <button
-                                      key={company.id}
-                                      onClick={() => {
-                                        handleLinkCompany(org.tenant_id, company.id);
-                                        setOpenDropdownTenantId(null);
-                                        setSearchTerms({ ...searchTerms, [org.tenant_id]: "" });
-                                      }}
-                                      className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-accent text-foreground dark:text-white"
-                                    >
-                                      {company.name}
-                                    </button>
-                                  ))}
-                                {availableCompanies.filter(company =>
-                                  company.name.toLowerCase().includes((searchTerms[org.tenant_id] || "").toLowerCase())
-                                ).length === 0 && (
-                                  <div className="px-3 py-2 text-sm text-muted-foreground dark:text-muted-foreground">
-                                    No companies found
-                                  </div>
-                                )}
+                            {openTenantDropdown === org.id && (
+                              <div className="absolute z-50 mt-1 w-40 rounded border bg-white shadow-lg dark:bg-card">
+                                {availableTenants.map((tenant) => (
+                                  <button
+                                    key={tenant.id}
+                                    onClick={() => handleAssignTenant(org.id, tenant.id)}
+                                    className={cn(
+                                      "w-full px-3 py-1.5 text-left text-xs hover:bg-muted",
+                                      org.teeem_tenant_id === tenant.id && "bg-primary/10 text-primary"
+                                    )}
+                                  >
+                                    {tenant.name} {tenant.is_master && "(Master)"}
+                                  </button>
+                                ))}
                               </div>
-                            )}
-                            {linkingTenantId === org.tenant_id && (
-                              <p className="text-xs text-blue-600 dark:text-blue-400">
-                                Linking company...
-                              </p>
                             )}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground dark:text-muted-foreground">
-                            All companies already have Xero connections.
-                          </p>
+                          <span className="text-xs text-muted-foreground">
+                            {org.teeem_tenant_name || "—"}
+                          </span>
                         )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                      </td>
+
+                      {/* Linked Company */}
+                      <td className="py-2 px-3">
+                        {linkedCompany ? (
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs truncate max-w-[150px]" title={linkedCompany.company.name}>
+                              {linkedCompany.company.name}
+                            </span>
+                          </div>
+                        ) : availableCompanies.length > 0 ? (
+                          <div className="relative dropdown-container">
+                            <button
+                              onClick={() => setOpenCompanyDropdown(openCompanyDropdown === org.tenant_id ? null : org.tenant_id)}
+                              disabled={linkingTenantId === org.tenant_id}
+                              className="text-xs text-primary hover:underline disabled:opacity-50"
+                            >
+                              {linkingTenantId === org.tenant_id ? "Linking..." : "+ Link company"}
+                            </button>
+                            {openCompanyDropdown === org.tenant_id && (
+                              <div className="absolute z-50 mt-1 w-56 rounded border bg-white shadow-lg dark:bg-card">
+                                <div className="p-2 border-b">
+                                  <Input
+                                    placeholder="Search companies..."
+                                    value={companySearchTerms[org.tenant_id] || ""}
+                                    onChange={(e) => setCompanySearchTerms({ ...companySearchTerms, [org.tenant_id]: e.target.value })}
+                                    className="h-7 text-xs"
+                                  />
+                                </div>
+                                <div className="max-h-40 overflow-y-auto">
+                                  {availableCompanies
+                                    .filter(c => c.name.toLowerCase().includes((companySearchTerms[org.tenant_id] || "").toLowerCase()))
+                                    .slice(0, 20)
+                                    .map((company) => (
+                                      <button
+                                        key={company.id}
+                                        onClick={() => handleLinkCompany(org.tenant_id, company.id)}
+                                        className="w-full px-3 py-1.5 text-left text-xs hover:bg-muted truncate"
+                                      >
+                                        {company.name}
+                                      </button>
+                                    ))}
+                                  {availableCompanies.filter(c =>
+                                    c.name.toLowerCase().includes((companySearchTerms[org.tenant_id] || "").toLowerCase())
+                                  ).length === 0 && (
+                                    <p className="px-3 py-2 text-xs text-muted-foreground">No companies found</p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">All linked</span>
+                        )}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-2 px-3 text-right">
+                        {status !== 'connected' && (
+                          <button
+                            onClick={handleConnectToXero}
+                            className="text-xs text-orange-600 hover:underline dark:text-orange-400"
+                          >
+                            Re-auth
+                          </button>
+                        )}
+                        {linkedCompany && (
+                          <button
+                            onClick={() => {
+                              window.location.href = `/corporate/companies/${linkedCompany.company_id}/xero`;
+                              onClose();
+                            }}
+                            className="text-xs text-primary hover:underline ml-2"
+                          >
+                            View
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
 
         {/* Footer */}
-        <div className="border-t border-border p-4 dark:border-border">
-          <div className="flex gap-3">
-            <button
-              onClick={handleConnectToXero}
-              className="flex flex-1 items-center justify-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-            >
-              <Building2 className="h-4 w-4" />
-              <span>Connect to Xero</span>
-            </button>
+        <div className="border-t p-3 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            Showing {filteredOrganizations.length} of {organizations.length} organizations
+          </span>
+          <div className="flex gap-2">
             <button
               onClick={loadConnections}
-              className="flex items-center justify-center rounded-lg border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-muted dark:border-border dark:bg-muted dark:text-muted-foreground dark:hover:bg-accent"
-              title="Refresh connection data"
+              className="flex items-center gap-1 rounded border px-3 py-1.5 text-xs hover:bg-muted"
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="h-3 w-3" />
+              Refresh
+            </button>
+            <button
+              onClick={handleConnectToXero}
+              className="flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground hover:bg-primary/90"
+            >
+              <Building2 className="h-3 w-3" />
+              Connect New
             </button>
           </div>
         </div>

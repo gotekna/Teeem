@@ -126,7 +126,8 @@ class Api::V1::LocationTrackingController < ApplicationController
   # Get all currently active workers with their latest locations
   def active
     # Only supervisors and admins can view live locations
-    unless current_user&.admin? || current_user&.role.in?(%w[supervisor manager])
+    # SSoT: Use has_role? (user.role column was removed, roles are now in user_roles table)
+    unless current_user&.admin? || current_user&.has_role?('supervisor') || current_user&.has_role?('manager')
       return render json: { success: false, error: "Unauthorized" }, status: :forbidden
     end
 
@@ -186,7 +187,8 @@ class Api::V1::LocationTrackingController < ApplicationController
   # GET /api/v1/location_tracking/geofence_events
   # Get recent geofence events (for alerts dashboard)
   def geofence_events
-    unless current_user&.admin? || current_user&.role.in?(%w[supervisor manager])
+    # SSoT: Use has_role? (user.role column was removed, roles are now in user_roles table)
+    unless current_user&.admin? || current_user&.has_role?('supervisor') || current_user&.has_role?('manager')
       return render json: { success: false, error: "Unauthorized" }, status: :forbidden
     end
 
@@ -230,7 +232,8 @@ class Api::V1::LocationTrackingController < ApplicationController
 
   def can_view_session?(session)
     return true if current_user&.admin?
-    return true if current_user&.role.in?(%w[supervisor manager])
+    # SSoT: Use has_role? (user.role column was removed, roles are now in user_roles table)
+    return true if current_user&.has_role?('supervisor') || current_user&.has_role?('manager')
     return true if session.worker_profile.user_id == current_user&.id
 
     false

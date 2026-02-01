@@ -4,7 +4,7 @@ class ApplyPriceUpdatesJob < ApplicationJob
   def perform
     # Find all price histories with effective dates that have arrived (today or earlier)
     # but haven't been applied yet
-    today = CorporateCompanySetting.today
+    today = TenantSetting.today
 
     # Get price histories where:
     # 1. date_effective <= today

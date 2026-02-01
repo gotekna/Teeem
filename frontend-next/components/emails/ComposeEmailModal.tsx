@@ -47,7 +47,7 @@ import {
   MAX_TOTAL_ATTACHMENTS_SIZE_BYTES,
 } from "@/lib/email-constants";
 import { formatFileSize } from "@/utils/formatters";
-import type { EmailDraft, EmailAccount, EmailContact } from "@/lib/email-types";
+import type { EmailDraft, EmailAccount, EmailContact, PreUploadedAttachment } from "@/lib/email-types";
 import { LayoutTemplate } from "lucide-react";
 import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
 import { format, setHours, setMinutes } from "date-fns";
@@ -64,10 +64,17 @@ interface ComposeEmailModalProps {
   defaultBody?: string;
   replyToMessageId?: string;
   defaultFromAccountId?: string; // Account ID to send from (for replies)
+  defaultFromEmail?: string; // Email address to find account for (alternative to ID)
   /** Resume from a saved draft */
   draft?: EmailDraft;
   /** Pre-loaded file attachments (e.g., from Task response) */
   initialAttachments?: File[];
+  /** SSoT: Existing storage keys for files already in S3 (Ultra fix Jan 2026)
+   * Pass these directly to backend - avoids re-downloading and re-uploading */
+  initialExistingStorageKeys?: string[];
+  /** Pre-uploaded attachments with display names (Ultra fix Jan 2026)
+   * These show in attachment bar but use storage_key on send (no re-upload) */
+  initialPreUploadedAttachments?: PreUploadedAttachment[];
   /** SM Task ID to link sent email to task */
   smTaskId?: number;
   /** Skip signature generation (when body already includes signature) */
@@ -84,8 +91,11 @@ export function ComposeEmailModal({
   defaultBody = "",
   replyToMessageId,
   defaultFromAccountId,
+  defaultFromEmail,
   draft,
   initialAttachments,
+  initialExistingStorageKeys,
+  initialPreUploadedAttachments,
   smTaskId,
   skipSignature = false,
   onSent,
@@ -110,6 +120,10 @@ export function ComposeEmailModal({
   const { deleteDraft } = useEmailDrafts();
 
   const [attachments, setAttachments] = useState<File[]>([]);
+  // SSoT: Existing storage keys (pass directly to backend, no re-upload)
+  const [existingStorageKeys, setExistingStorageKeys] = useState<string[]>([]);
+  // Pre-uploaded attachments with display names (show in UI, no re-upload on send)
+  const [preUploadedAttachments, setPreUploadedAttachments] = useState<PreUploadedAttachment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -218,11 +232,21 @@ export function ComposeEmailModal({
 
   // Generate signature from current user data (SSoT: uses user's preferred signature style)
   const getUserSignature = (): string => {
-    if (!currentUser) return "";
+    if (!currentUser) {
+      console.log('[ComposeSignature] getUserSignature: no currentUser');
+      return "";
+    }
 
     // Get user's preferred signature style or fall back to default
     const signatureStyle = ((currentUser as { email_signature_style?: string }).email_signature_style as SignatureStyleId)
       || DEFAULT_SIGNATURE_STYLE;
+
+    console.log('[ComposeSignature] getUserSignature:', {
+      signatureStyle,
+      userName: currentUser.name,
+      userEmail: currentUser.email,
+      companyName: companySettings?.company_name,
+    });
 
     return generateSignatureByStyle(
       signatureStyle,
@@ -291,8 +315,13 @@ export function ComposeEmailModal({
   }, []);
 
   // Fetch accounts when modal opens
+  // Track if this is initial open vs prop changes while open
+  const [hasInitialized, setHasInitialized] = useState(false);
+
   useEffect(() => {
-    if (open) {
+    if (open && !hasInitialized) {
+      console.log('[ComposeModal] Initializing modal...');
+      setHasInitialized(true);
       fetchAccounts();
       fetchFrequentContacts();
       setContacts([]);
@@ -321,15 +350,16 @@ export function ComposeEmailModal({
         const bodyAsHtml = defaultBody && !defaultBody.includes("<")
           ? plainTextToHtml(defaultBody)
           : defaultBody;
-        setFormData({
-          credential_id: "",
-          from_address: "",
+        // DON'T set credential_id here - let fetchAccounts set it when accounts load
+        // This prevents the race condition where credential_id gets reset
+        setFormData((prev) => ({
+          ...prev,
           to: defaultTo,
           cc: defaultCc,
           bcc: "",
           subject: defaultSubject,
           body: bodyAsHtml,
-        });
+        }));
         // Show CC/BCC fields if defaultCc is provided (Reply All)
         if (defaultCc) {
           setShowCcBcc(true);
@@ -337,38 +367,68 @@ export function ComposeEmailModal({
       }
 
       setAttachments(initialAttachments || []);
+      // SSoT: Set existing storage keys (pass directly to backend, no re-upload)
+      setExistingStorageKeys(initialExistingStorageKeys || []);
+      // Pre-uploaded attachments with display names
+      setPreUploadedAttachments(initialPreUploadedAttachments || []);
       setError(null);
       setSignatureHtml(""); // Reset signature (will be regenerated when account selected)
       // Reset schedule state
       setIsScheduled(false);
       setScheduledDate(undefined);
       setScheduledTime("09:00");
+    } else if (!open && hasInitialized) {
+      // Reset initialization flag when modal closes
+      setHasInitialized(false);
     }
-  }, [open, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments]);
+  }, [open, hasInitialized, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments, initialExistingStorageKeys, initialPreUploadedAttachments]);
 
 
   // Generate signature when account is selected and user/company data is available
   useEffect(() => {
-    if (!formData.credential_id || accounts.length === 0 || !currentUser) return;
+    console.log('[ComposeSignature] Effect triggered:', {
+      credential_id: formData.credential_id,
+      accounts_length: accounts.length,
+      currentUser: currentUser?.name,
+      companySettings: companySettings?.company_name,
+      body_has_signature: hasSignature(formData.body),
+    });
+
+    if (!formData.credential_id || accounts.length === 0 || !currentUser) {
+      console.log('[ComposeSignature] Early return - missing data');
+      return;
+    }
 
     // Don't add signature to body if it already has one (e.g., from draft)
     if (hasSignature(formData.body)) {
+      console.log('[ComposeSignature] Body already has signature, clearing signatureHtml');
       setSignatureHtml(""); // Clear separate signature since it's in body
       return;
     }
 
     const signature = getUserSignature();
+    console.log('[ComposeSignature] Generated signature length:', signature.length);
+    console.log('[ComposeSignature] Calling setSignatureHtml...');
     setSignatureHtml(signature);
+    console.log('[ComposeSignature] setSignatureHtml called (state update queued)');
   }, [formData.credential_id, accounts, currentUser, companySettings]);
 
   const fetchAccounts = async () => {
+    console.log('[ComposeAccounts] fetchAccounts called');
     setLoading(true);
     try {
       const response = await api.get<{ success: boolean; data: EmailAccount[] }>("/api/v1/imap_credentials/all_accounts");
       const typedResponse = response as { success: boolean; data: EmailAccount[] };
+      console.log('[ComposeAccounts] API response:', {
+        success: typedResponse.success,
+        total_accounts: typedResponse.data?.length,
+        accounts: typedResponse.data?.map(a => ({ id: a.id, email: a.email_address, is_active: a.is_active })),
+      });
+
       const activeAccounts = (typedResponse.data || []).filter(
         (a) => a.is_active
       );
+      console.log('[ComposeAccounts] Active accounts:', activeAccounts.length);
       setAccounts(activeAccounts);
 
       // If a specific account was requested (e.g., for replies), use that
@@ -377,18 +437,36 @@ export function ComposeEmailModal({
 
       if (defaultFromAccountId) {
         accountToSelect = activeAccounts.find((a) => String(a.id) === defaultFromAccountId);
+        console.log('[ComposeAccounts] Looking for defaultFromAccountId:', defaultFromAccountId, 'found:', !!accountToSelect);
+      }
+
+      // If no account found by ID, try to find by email address (for replies)
+      if (!accountToSelect && defaultFromEmail) {
+        const emailLower = defaultFromEmail.toLowerCase();
+        accountToSelect = activeAccounts.find(
+          (a) => a.email_address.toLowerCase() === emailLower ||
+                 a.email_aliases?.some(alias => alias.toLowerCase() === emailLower)
+        );
+        console.log('[ComposeAccounts] Looking for defaultFromEmail:', defaultFromEmail, 'found:', !!accountToSelect);
       }
 
       if (!accountToSelect) {
         accountToSelect = activeAccounts.find((a) => a.is_default) || activeAccounts[0];
+        console.log('[ComposeAccounts] Selected account:', accountToSelect?.email_address, 'is_default:', accountToSelect?.is_default);
       }
 
       if (accountToSelect) {
-        setFormData((prev) => ({
-          ...prev,
-          credential_id: String(accountToSelect!.id),
-          from_address: accountToSelect!.email_address,
-        }));
+        console.log('[ComposeAccounts] Setting credential_id:', accountToSelect.id);
+        setFormData((prev) => {
+          console.log('[ComposeAccounts] setFormData called, prev credential_id:', prev.credential_id);
+          return {
+            ...prev,
+            credential_id: String(accountToSelect!.id),
+            from_address: accountToSelect!.email_address,
+          };
+        });
+      } else {
+        console.log('[ComposeAccounts] No account to select!');
       }
     } catch (err) {
       console.error("Failed to fetch accounts:", err);
@@ -442,19 +520,30 @@ export function ComposeEmailModal({
   };
 
   const handleSend = async () => {
+    console.log('[ComposeSend] handleSend called:', {
+      credential_id: formData.credential_id,
+      to: formData.to,
+      subject: formData.subject,
+      body_length: formData.body?.length,
+      signatureHtml_length: signatureHtml?.length,
+    });
+
     setError(null);
 
     if (!formData.credential_id) {
+      console.log('[ComposeSend] Error: no credential_id');
       setError("Please select an email account");
       return;
     }
 
     if (!formData.to.trim()) {
+      console.log('[ComposeSend] Error: no to');
       setError("Please enter a recipient");
       return;
     }
 
     if (!formData.subject.trim()) {
+      console.log('[ComposeSend] Error: no subject');
       setError("Please enter a subject");
       return;
     }
@@ -528,6 +617,8 @@ export function ComposeEmailModal({
           body: fullBody,
           reply_to_message_id: replyToMessageId,
           attachments: attachments,
+          // SSoT: Pass pre-uploaded attachments with filenames (Ultra fix Jan 2026)
+          preUploadedAttachments: preUploadedAttachments.length > 0 ? preUploadedAttachments : undefined,
           sm_task_id: smTaskId,  // Link sent email to SM task
         });
       }
@@ -630,26 +721,36 @@ export function ComposeEmailModal({
             Save Draft
           </Button>
 
-          {/* From Account - native select for reliability inside dialogs */}
+          {/* From Account - shows main email + aliases for selected account */}
           {accounts.length > 0 && (
             <select
-              value={formData.credential_id}
+              value={`${formData.credential_id}:${formData.from_address}`}
               onChange={(e) => {
-                const account = accounts.find(a => String(a.id) === e.target.value);
+                const [credId, fromAddr] = e.target.value.split(':');
+                const account = accounts.find(a => String(a.id) === credId);
                 if (account) {
                   setFormData({
                     ...formData,
-                    credential_id: String(account.id),
-                    from_address: account.email_address || "",
+                    credential_id: credId,
+                    from_address: fromAddr || account.email_address,
                   });
                 }
               }}
-              className="h-9 px-3 text-sm border rounded-md bg-background max-w-[250px]"
+              className="h-9 px-3 text-sm border rounded-md bg-background text-foreground max-w-[300px]"
             >
               {accounts.map((account) => (
-                <option key={account.id} value={String(account.id)}>
-                  {account.email_address}
-                </option>
+                <optgroup key={account.id} label={account.name || account.email_address}>
+                  {/* Main email address */}
+                  <option value={`${account.id}:${account.email_address}`}>
+                    {account.email_address}
+                  </option>
+                  {/* Aliases (if any) */}
+                  {account.email_aliases?.map((alias) => (
+                    <option key={alias} value={`${account.id}:${alias}`}>
+                      {alias} (alias)
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           )}
@@ -848,12 +949,13 @@ export function ComposeEmailModal({
               />
             </div>
 
-            {/* Attachments bar */}
-            {attachments.length > 0 && (
+            {/* Attachments bar - shows both regular and pre-uploaded attachments */}
+            {(attachments.length > 0 || preUploadedAttachments.length > 0) && (
               <div className="flex flex-wrap gap-2 px-4 py-2 border-b bg-muted/30">
+                {/* Regular file attachments */}
                 {attachments.map((file, index) => (
                   <Badge
-                    key={index}
+                    key={`file-${index}`}
                     variant="secondary"
                     className="flex items-center gap-1"
                   >
@@ -864,6 +966,31 @@ export function ComposeEmailModal({
                     <button
                       type="button"
                       onClick={() => removeAttachment(index)}
+                      className="ml-1 hover:text-red-500 dark:text-red-400"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                {/* Pre-uploaded attachments (already in storage, no re-upload needed) */}
+                {preUploadedAttachments.map((att, index) => (
+                  <Badge
+                    key={`pre-${index}`}
+                    variant="secondary"
+                    className="flex items-center gap-1"
+                    title="Already in storage (no upload needed)"
+                  >
+                    {att.filename}
+                    {att.fileSize && (
+                      <span className="text-xs text-muted-foreground ml-1">
+                        ({formatFileSize(att.fileSize)})
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreUploadedAttachments(prev => prev.filter((_, i) => i !== index));
+                      }}
                       className="ml-1 hover:text-red-500 dark:text-red-400"
                     >
                       <X className="h-3 w-3" />
@@ -890,7 +1017,7 @@ export function ComposeEmailModal({
                 {/* Hidden when skipSignature is true (signature already in body) */}
                 {signatureHtml && !skipSignature && (
                   <div
-                    className="mt-4 pointer-events-none"
+                    className="mt-4 pointer-events-none border-t pt-4"
                     dangerouslySetInnerHTML={{ __html: signatureHtml }}
                   />
                 )}

@@ -107,6 +107,22 @@ export type EmailDraftData = Omit<EmailDraft, "id" | "created_at" | "updated_at"
 // =============================================================================
 
 /**
+ * Pre-uploaded attachment that already exists in storage.
+ * Used for documents that have been downloaded for display but don't need re-uploading.
+ * (Ultra fix Jan 2026)
+ */
+export interface PreUploadedAttachment {
+  /** Display name shown in attachment bar */
+  filename: string;
+  /** Storage key to pass directly to backend (no re-upload needed) */
+  storageKey: string;
+  /** Optional: file size for display */
+  fileSize?: number;
+  /** Optional: content type for icon display */
+  contentType?: string;
+}
+
+/**
  * Parameters for sending an email.
  */
 export interface SendEmailParams {
@@ -120,14 +136,19 @@ export interface SendEmailParams {
   reply_to_message_id?: string;
   attachments?: File[];
   sm_task_id?: number;  // Optional: Link sent email to SM task
+  // SSoT: Pre-uploaded attachments already in S3 (Ultra fix Jan 2026)
+  // Pass with filename and storageKey - avoids re-downloading and re-uploading
+  preUploadedAttachments?: PreUploadedAttachment[];
 }
 
 /**
  * Queued email waiting to be sent (with undo capability).
  */
-export interface QueuedEmail extends Omit<SendEmailParams, "attachments"> {
+export interface QueuedEmail extends Omit<SendEmailParams, "attachments" | "preUploadedAttachments"> {
   id: string;
   attachments: File[];
+  // SSoT: Pre-uploaded attachments (pass directly to backend with filenames)
+  preUploadedAttachments: PreUploadedAttachment[];
   timeoutId: NodeJS.Timeout;
   countdown: number;
   intervalId: NodeJS.Timeout;

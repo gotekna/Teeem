@@ -67,7 +67,7 @@ class CorporateSharePointProvisionerService
       company_folder_id = root_folder["id"]
 
       # SSoT: Get folder structure from EntityTab (falls back to FOLDER_STRUCTURE constant)
-      folder_structure = self.class.folder_structure_from_entity_tabs("corporate_entity")
+      folder_structure = self.class.folder_structure_from_entity_tabs("corporate")
 
       # Create subfolders
       folder_structure.each do |parent_folder, subfolders|
@@ -139,8 +139,8 @@ class CorporateSharePointProvisionerService
   # Preview the folder structure that would be created in configurable base path
   # Returns a hash describing the structure without creating anything
   def preview_private_folder_structure(dry_run: true)
-    # SSoT: Use StorageConfiguration for corporate path
-    base_path = StorageConfiguration.instance.path_for(:corporate)
+    # SSoT: Use WarehouseProvider for corporate path
+    base_path = WarehouseProvider.instance.path_for(:corporate)
     structure = {
       root: base_path,
       groups: []
@@ -187,8 +187,8 @@ class CorporateSharePointProvisionerService
   # Create the entire folder structure in configurable base path
   # Structure: [base_path] / [Group Name] / [Company Name] / [Document Type Folders]
   def create_private_folder_structure!
-    # SSoT: Use StorageConfiguration for corporate path
-    base_path = StorageConfiguration.instance.path_for(:corporate)
+    # SSoT: Use WarehouseProvider for corporate path
+    base_path = WarehouseProvider.instance.path_for(:corporate)
     Rails.logger.info "Creating private folder structure at: #{base_path}..."
 
     # Get or create base folder
@@ -366,33 +366,12 @@ class CorporateSharePointProvisionerService
   end
 
   # Create or link document in database
+  # Note: corporate_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
+  # TODO: Migrate this method to create WarehouseDocument records instead
   def sync_document_to_database(company, file_id)
-    file = @client.get_file(file_id)
-
-    # Parse document name
-    parsed = parse_document_name(file["name"])
-    document_type = DocumentType.find_by(name: parsed[:type])
-
-    company_document = company.corporate_company_documents.find_or_initialize_by(
-      sharepoint_file_id: file_id
-    )
-
-    company_document.assign_attributes(
-      document_name: parsed[:description] || file["name"],
-      document_type: document_type&.category,
-      document_type_record: document_type,
-      file_name: file["name"],
-      file_size: file["size"],
-      year: parsed[:date]&.year,
-      folder: file.dig("parentReference", "path")&.split("/").last,
-      storage_type: "electronic",
-      sharepoint_file_id: file_id,
-      sharepoint_download_url: file["webUrl"],
-      company_code: extract_company_code(file["name"], company)
-    )
-
-    company_document.save!
-    company_document
+    Rails.logger.warn "[CorporateSharePointProvisionerService] sync_document_to_database called but corporate_documents table dropped. File ID: #{file_id}"
+    # Return nil to prevent errors - callers should handle nil gracefully
+    nil
   end
 
   private
@@ -414,7 +393,7 @@ class CorporateSharePointProvisionerService
     end
 
     # Try to find any known company code in the filename
-    CorporateCompany.where.not(code: [ nil, "" ]).find_each do |c|
+    Corporate.where.not(code: [ nil, "" ]).find_each do |c|
       if name_without_ext.match?(/\b#{Regexp.escape(c.code)}\b/i)
         return c.code.upcase
       end
@@ -567,14 +546,14 @@ class CorporateSharePointProvisionerService
 
   # SSoT: Get folder structure from EntityTab instead of hardcoded constant
   # Returns hash of { folder_name => [subfolders] } for tabs with storage folders
-  def self.folder_structure_from_entity_tabs(scope = "corporate_entity")
-    tabs = EntityTab.where(scope: scope, has_storage_folder: true, parent_id: nil)
+  def self.folder_structure_from_entity_tabs(scope = "corporate")
+    tabs = EntityTab.where(warehouse_type: scope, warehouse_enabled: true, parent_id: nil)
     structure = {}
 
     tabs.each do |tab|
       folder_name = tab.display_name
       # Get children with storage folders
-      children = tab.children.where(has_storage_folder: true).pluck(:display_name)
+      children = tab.children.where(warehouse_enabled: true).pluck(:display_name)
       structure[folder_name] = children
     end
 

@@ -27,6 +27,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Mail,
   Plus,
@@ -55,6 +62,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmailSyncDashboardTab } from "./EmailSyncDashboardTab";
 
 interface ImapCredential {
   id: number;
@@ -68,14 +77,18 @@ interface ImapCredential {
   smtp_port: number;
   sync_interval_minutes: number;
   is_active: boolean;
+  sync_all: boolean; // Jan 2026: Sync all historical emails
   last_synced_at: string | null;
   last_sync_status: string | null;
   last_sync_error: string | null;
   created_at: string;
   email_signature: string | null;
+  email_aliases: string[]; // Send-from aliases (e.g., demo@, sales@)
   shared_with_user_ids: number[];
   shared_with_users: { id: number; name: string }[];
   user_id: number;
+  owner_name?: string; // Name of the credential owner
+  is_shared?: boolean; // True if current user is not the owner
 }
 
 interface Provider {
@@ -102,6 +115,7 @@ const DEFAULT_FORM = {
   username: "",
   password: "",
   email_signature: "",
+  email_aliases: "" as string,  // Comma-separated list
 };
 
 // MS365 Organization with mailboxes for access configuration
@@ -111,6 +125,7 @@ interface MS365Organization {
   status: string;
   mailboxes: string[];
   user_mailbox_access: Record<string, string[]>; // user_id -> mailbox emails
+  sync_all: boolean; // Jan 2026: Option B - sync ALL tenant mailboxes
 }
 
 interface TeeemUser {
@@ -133,6 +148,30 @@ function MS365MailboxAccessConfig() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<number | null>(null);
   const [localAccess, setLocalAccess] = useState<Record<number, Record<string, string[]>>>({});
+  const [syncAllState, setSyncAllState] = useState<Record<number, boolean>>({});
+  const [togglingSyncAll, setTogglingSyncAll] = useState<number | null>(null);
+  const [syncingOrgId, setSyncingOrgId] = useState<number | null>(null);
+
+  // Trigger a full sync for an MS365 organization
+  const handleSyncOrg = async (orgId: number) => {
+    setSyncingOrgId(orgId);
+    try {
+      await api.post(`/api/v1/microsoft_app/${orgId}/sync`, { full_sync: true });
+      toast({
+        title: "Sync Started",
+        description: "Full email sync has been triggered. This may take a few minutes.",
+      });
+    } catch (error) {
+      console.error("Failed to trigger sync:", error);
+      toast({
+        title: "Error",
+        description: "Failed to trigger email sync",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingOrgId(null);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -149,10 +188,13 @@ function MS365MailboxAccessConfig() {
 
         // Initialize local access state from server data
         const initialAccess: Record<number, Record<string, string[]>> = {};
+        const initialSyncAll: Record<number, boolean> = {};
         response.organizations.forEach(org => {
           initialAccess[org.id] = org.user_mailbox_access || {};
+          initialSyncAll[org.id] = org.sync_all || false;
         });
         setLocalAccess(initialAccess);
+        setSyncAllState(initialSyncAll);
       }
     } catch (error) {
       console.error("Failed to fetch MS365 organizations:", error);
@@ -201,6 +243,36 @@ function MS365MailboxAccessConfig() {
       });
     } finally {
       setSaving(null);
+    }
+  };
+
+  // Toggle sync_all setting for an organization
+  const toggleSyncAll = async (orgId: number, newValue: boolean) => {
+    setTogglingSyncAll(orgId);
+    // Optimistically update UI
+    setSyncAllState(prev => ({ ...prev, [orgId]: newValue }));
+
+    try {
+      await api.put(`/api/v1/microsoft_app/${orgId}/toggle_sync_all`, {
+        sync_all: newValue
+      });
+      toast({
+        title: newValue ? "Sync All Enabled" : "Sync All Disabled",
+        description: newValue
+          ? "All tenant mailboxes will now be synced automatically"
+          : "Only configured mailboxes will be synced",
+      });
+    } catch (error) {
+      console.error("Failed to toggle sync_all:", error);
+      // Revert optimistic update on error
+      setSyncAllState(prev => ({ ...prev, [orgId]: !newValue }));
+      toast({
+        title: "Error",
+        description: "Failed to update sync setting",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingSyncAll(null);
     }
   };
 
@@ -254,7 +326,7 @@ function MS365MailboxAccessConfig() {
                   </CardDescription>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Badge variant={org.status === "connected" ? "default" : "secondary"}>
                   {org.status === "connected" ? (
                     <>
@@ -265,6 +337,43 @@ function MS365MailboxAccessConfig() {
                     org.status
                   )}
                 </Badge>
+                {/* Sync All toggle (Jan 2026: Option B - sync all tenant mailboxes) */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50">
+                  <Label
+                    htmlFor={`sync-all-${org.id}`}
+                    className="text-xs font-medium cursor-pointer"
+                    title="When enabled, all mailboxes from this tenant will be synced automatically"
+                  >
+                    Sync All
+                  </Label>
+                  <Switch
+                    id={`sync-all-${org.id}`}
+                    checked={syncAllState[org.id] || false}
+                    onCheckedChange={(checked) => toggleSyncAll(org.id, checked)}
+                    disabled={togglingSyncAll === org.id}
+                  />
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSyncOrg(org.id)}
+                        disabled={syncingOrgId === org.id}
+                      >
+                        <RefreshCw
+                          className={`h-4 w-4 mr-1 ${syncingOrgId === org.id ? "animate-spin" : ""}`}
+                        />
+                        Sync
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Trigger a full sync of all configured mailboxes</p>
+                      <p className="text-xs text-muted-foreground">This may take several minutes for large mailboxes</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <Button
                   size="sm"
                   onClick={() => saveOrgAccess(org.id)}
@@ -511,6 +620,7 @@ export function EmailAccountsTab() {
   const [showPassword, setShowPassword] = useState(false);
   const [syncingId, setSyncingId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [togglingSyncAllId, setTogglingSyncAllId] = useState<number | null>(null);
   // Sharing state
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [sharingCredential, setSharingCredential] = useState<ImapCredential | null>(null);
@@ -632,6 +742,40 @@ export function EmailAccountsTab() {
     }
   };
 
+  // Toggle sync_all for IMAP credential (Jan 2026: sync all historical emails)
+  const toggleImapSyncAll = async (id: number, newValue: boolean) => {
+    setTogglingSyncAllId(id);
+    // Optimistically update UI
+    setCredentials(prev =>
+      prev.map(c => c.id === id ? { ...c, sync_all: newValue } : c)
+    );
+
+    try {
+      await api.put(`/api/v1/imap_credentials/${id}/toggle_sync_all`, {
+        sync_all: newValue
+      });
+      toast({
+        title: newValue ? "Sync All Enabled" : "Sync All Disabled",
+        description: newValue
+          ? "All historical emails will now be synced"
+          : "Only recent emails will be synced",
+      });
+    } catch (error) {
+      console.error("Failed to toggle sync_all:", error);
+      // Revert optimistic update on error
+      setCredentials(prev =>
+        prev.map(c => c.id === id ? { ...c, sync_all: !newValue } : c)
+      );
+      toast({
+        title: "Error",
+        description: "Failed to update sync setting",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingSyncAllId(null);
+    }
+  };
+
   const handleEdit = (cred: ImapCredential) => {
     setEditingId(cred.id);
     setFormData({
@@ -645,6 +789,7 @@ export function EmailAccountsTab() {
       username: cred.username || cred.email_address,
       password: "", // Don't prefill password for security
       email_signature: cred.email_signature || "",
+      email_aliases: (cred.email_aliases || []).join(", "),  // Convert array to comma-separated
     });
     setTestResult(null);
     setDialogOpen(true);
@@ -726,14 +871,21 @@ export function EmailAccountsTab() {
 
   return (
     <div className="space-y-6 pb-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-medium">Email Accounts</h3>
-          <p className="text-sm text-muted-foreground">
-            Connect email accounts to sync and send emails from TEEEM.
-          </p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+      <Tabs defaultValue="configuration" className="w-full">
+        <TabsList>
+          <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          <TabsTrigger value="sync-dashboard">Sync Dashboard</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="configuration" className="mt-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium">Email Accounts</h3>
+              <p className="text-sm text-muted-foreground">
+                Connect email accounts to sync and send emails from TEEEM.
+              </p>
+            </div>
+            <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
@@ -836,6 +988,19 @@ export function EmailAccountsTab() {
                 />
                 <p className="text-xs text-muted-foreground">
                   This signature will be automatically added to emails sent from this account.
+                </p>
+              </div>
+
+              {/* Email Aliases */}
+              <div className="space-y-2">
+                <Label>Email Aliases (Send From)</Label>
+                <Input
+                  placeholder="demo@company.com, sales@company.com"
+                  value={formData.email_aliases}
+                  onChange={(e) => setFormData({ ...formData, email_aliases: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated list of aliases you can send emails from. These must be configured with your email provider.
                 </p>
               </div>
 
@@ -973,16 +1138,39 @@ export function EmailAccountsTab() {
                       <CardTitle className="text-base">
                         {cred.name || cred.email_address}
                       </CardTitle>
-                      <CardDescription>{cred.email_address}</CardDescription>
+                      <CardDescription className="flex items-center gap-2 flex-wrap">
+                        <span>{cred.email_address}</span>
+                        {cred.email_aliases?.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            + {cred.email_aliases.length} alias{cred.email_aliases.length > 1 ? 'es' : ''}: {cred.email_aliases.join(', ')}
+                          </span>
+                        )}
+                      </CardDescription>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <Badge variant={cred.is_active ? "default" : "secondary"}>
                       {cred.is_active ? "Active" : "Inactive"}
                     </Badge>
                     {cred.provider && (
                       <Badge variant="outline">{cred.provider}</Badge>
                     )}
+                    {/* Sync All toggle (Jan 2026: sync all historical emails) */}
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/50">
+                      <Label
+                        htmlFor={`imap-sync-all-${cred.id}`}
+                        className="text-xs font-medium cursor-pointer"
+                        title="When enabled, all historical emails will be synced"
+                      >
+                        Sync All
+                      </Label>
+                      <Switch
+                        id={`imap-sync-all-${cred.id}`}
+                        checked={cred.sync_all || false}
+                        onCheckedChange={(checked) => toggleImapSyncAll(cred.id, checked)}
+                        disabled={togglingSyncAllId === cred.id}
+                      />
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -1040,17 +1228,27 @@ export function EmailAccountsTab() {
                       <Pencil className="h-4 w-4 mr-1" />
                       Edit
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSync(cred.id)}
-                      disabled={syncingId === cred.id}
-                    >
-                      <RefreshCw
-                        className={`h-4 w-4 mr-1 ${syncingId === cred.id ? "animate-spin" : ""}`}
-                      />
-                      Sync
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSync(cred.id)}
+                            disabled={syncingId === cred.id}
+                          >
+                            <RefreshCw
+                              className={`h-4 w-4 mr-1 ${syncingId === cred.id ? "animate-spin" : ""}`}
+                            />
+                            Sync
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Sync recent emails (incremental)</p>
+                          <p className="text-xs text-muted-foreground">Enable &quot;Sync All&quot; toggle above for full historical sync</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1070,30 +1268,36 @@ export function EmailAccountsTab() {
               </CardContent>
             </Card>
           ))}
-        </div>
-      )}
+          </div>
+          )}
 
-      {/* MS365 Mailbox Access Configuration */}
-      <div className="mt-8 pt-8 border-t">
-        <div className="mb-4">
-          <h3 className="text-lg font-medium">Microsoft 365 Mailbox Access</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure which users can access which mailboxes from connected Microsoft 365 organizations.
-          </p>
-        </div>
-        <MS365MailboxAccessConfig />
-      </div>
+          {/* MS365 Mailbox Access Configuration */}
+          <div className="mt-8 pt-8 border-t">
+            <div className="mb-4">
+              <h3 className="text-lg font-medium">Microsoft 365 Mailbox Access</h3>
+              <p className="text-sm text-muted-foreground">
+                Configure which users can access which mailboxes from connected Microsoft 365 organizations.
+              </p>
+            </div>
+            <MS365MailboxAccessConfig />
+          </div>
 
-      {/* Team Email Domains Configuration */}
-      <div className="mt-8 pt-8 border-t">
-        <div className="mb-4">
-          <h3 className="text-lg font-medium">Team Email Domains</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure email domains that belong to your team. Emails from these domains will appear in the &quot;Team&quot; tab of the Split Inbox.
-          </p>
-        </div>
-        <TeamEmailDomainsConfig />
-      </div>
+          {/* Team Email Domains Configuration */}
+          <div className="mt-8 pt-8 border-t">
+            <div className="mb-4">
+              <h3 className="text-lg font-medium">Team Email Domains</h3>
+              <p className="text-sm text-muted-foreground">
+                Configure email domains that belong to your team. Emails from these domains will appear in the &quot;Team&quot; tab of the Split Inbox.
+              </p>
+            </div>
+            <TeamEmailDomainsConfig />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="sync-dashboard" className="mt-6">
+          <EmailSyncDashboardTab />
+        </TabsContent>
+      </Tabs>
 
       {/* Share Email Access Dialog */}
       <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
@@ -1101,68 +1305,104 @@ export function EmailAccountsTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Share2 className="h-5 w-5" />
-              Share Email Access
+              {sharingCredential?.is_shared ? "Email Access Details" : "Share Email Access"}
             </DialogTitle>
             <DialogDescription>
               {sharingCredential && (
-                <>
-                  Grant other team members access to view emails from{" "}
-                  <strong>{sharingCredential.email_address}</strong>
-                </>
+                sharingCredential.is_shared ? (
+                  <div className="space-y-1">
+                    <div>
+                      Viewing emails from{" "}
+                      <strong>{sharingCredential.email_address}</strong>
+                    </div>
+                    <div className="text-sm">
+                      Shared by{" "}
+                      <span className="font-medium text-foreground">
+                        {sharingCredential.owner_name || "Unknown"}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    Grant other team members access to view emails from{" "}
+                    <strong>{sharingCredential.email_address}</strong>
+                  </>
+                )
               )}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4 space-y-3 max-h-[400px] overflow-y-auto">
-            {shareableUsers.length === 0 ? (
-              <div className="flex items-center justify-center py-8">
-                <Spinner />
+          {sharingCredential?.is_shared ? (
+            // Viewing shared credential - show info only
+            <div className="py-4">
+              <div className="p-4 rounded-lg bg-muted/50 border">
+                <p className="text-sm text-muted-foreground">
+                  You have been granted access to view emails from this account.
+                  Only the owner can modify sharing settings.
+                </p>
               </div>
-            ) : (
-              shareableUsers
-                .filter((user) => user.id !== sharingCredential?.user_id) // Exclude owner
-                .map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                  >
-                    <Checkbox
-                      checked={selectedSharedUsers.includes(user.id)}
-                      onCheckedChange={() => handleToggleUserAccess(user.id)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{user.name}</div>
-                      <div className="text-sm text-muted-foreground truncate">
-                        {user.email}
+            </div>
+          ) : (
+            // Owner view - show sharing controls
+            <div className="py-4 space-y-3 max-h-[400px] overflow-y-auto">
+              {shareableUsers.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <Spinner />
+                </div>
+              ) : (
+                shareableUsers
+                  .filter((user) => user.id !== sharingCredential?.user_id) // Exclude owner
+                  .map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <Checkbox
+                        checked={selectedSharedUsers.includes(user.id)}
+                        onCheckedChange={() => handleToggleUserAccess(user.id)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{user.name}</div>
+                        <div className="text-sm text-muted-foreground truncate">
+                          {user.email}
+                        </div>
                       </div>
+                      {user.email === sharingCredential?.email_address && (
+                        <Badge variant="secondary" className="text-xs">
+                          Email owner
+                        </Badge>
+                      )}
                     </div>
-                    {user.email === sharingCredential?.email_address && (
-                      <Badge variant="secondary" className="text-xs">
-                        Email owner
-                      </Badge>
-                    )}
-                  </div>
-                ))
-            )}
-          </div>
+                  ))
+              )}
+            </div>
+          )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveSharing} disabled={savingSharing}>
-              {savingSharing ? (
-                <>
-                  <Spinner className="h-4 w-4 mr-2" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save
-                </>
-              )}
-            </Button>
+            {sharingCredential?.is_shared ? (
+              <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveSharing} disabled={savingSharing}>
+                  {savingSharing ? (
+                    <>
+                      <Spinner className="h-4 w-4 mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

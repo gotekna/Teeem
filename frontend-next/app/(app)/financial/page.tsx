@@ -1514,7 +1514,7 @@ export default function FinancialPage() {
   // SSoT: Parse path segments for state
   // Pattern: /financial/[tab]/company/[companyId]
   const pathSegments = React.useMemo(() => {
-    const parts = pathname.replace("/financial", "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace("/financial", "").split("/").filter(Boolean);
     const KNOWN_TABS = ["dashboard", "bank", "aged", "cashflow", "bas", "reports"];
 
     // Find tab (first segment if it's a known tab)

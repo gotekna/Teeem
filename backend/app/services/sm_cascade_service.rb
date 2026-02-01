@@ -23,9 +23,9 @@ class SmCascadeService
     @task = task
     @construction = task.construction
     @options = options
-    # SSoT: CorporateCompanySetting.instance for all working days calculations
+    # SSoT: TenantSetting.instance for all working days calculations
     # (consistent with GanttDateCalculationService, SmTaskCompletionService)
-    @calendar = WorkingDaysCalculator.new(CorporateCompanySetting.instance)
+    @calendar = WorkingDaysCalculator.new(TenantSetting.instance)
   end
 
   # Preview cascade without making changes

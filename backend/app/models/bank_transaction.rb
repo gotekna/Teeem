@@ -1,5 +1,12 @@
 class BankTransaction < ApplicationRecord
+  # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
+  # FRC: BankTransaction was leaking data across tenants
+  # Root cause: Legacy indirect relationship (transaction → bank_account → corporate_company → tenant)
+  # Fix: Direct tenant_id column + acts_as_tenant for automatic scoping
+  acts_as_tenant :tenant
+
   # Associations
+  belongs_to :tenant
   belongs_to :corporate_company, foreign_key: "company_id"
   belongs_to :bank_account, optional: true
 

@@ -349,7 +349,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Parse path segments for state
   // Pattern: /[basePath]/[subtab]/[view-or-table]
   const pathSegments = React.useMemo(() => {
-    const parts = pathname.replace(basePath, "").split("/").filter(Boolean);
+    const parts = (pathname ?? "").replace(basePath, "").split("/").filter(Boolean);
     return {
       subtab: parts[0] || null,  // e.g., "data-view", "tables"
       extra: parts[1] || null,   // e.g., "live" (view) or "sm_resources" (table)
@@ -941,7 +941,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     setLoadingTemplatePreview(true);
     try {
       // Build query params for customized preview
-      // Backend uses real company data from CorporateCompanySetting + job data if provided
+      // Backend uses real company data from CorporateSetting + job data if provided
       const params = new URLSearchParams();
       if (options?.tradingName) params.set('trading_name', options.tradingName);
       if (options?.claimPercentage) params.set('claim_percentage', String(options.claimPercentage));

@@ -39,7 +39,7 @@ module Api
             params[:search],
             columns: %w[title case_number],
             mode: params[:search_mode] || 'contains',
-            model: LegalCase
+            model: CaseRecord
           )
         end
 
@@ -309,7 +309,7 @@ module Api
 
       # POST /api/v1/cases/:id/add_document
       def add_document
-        doc = CorporateCompanyDocument.find(params[:document_id])
+        doc = WarehouseDocument.find(params[:document_id])
         case_doc = @case.add_document(doc,
           relevance: params[:relevance] || "supporting",
           notes: params[:notes],
@@ -365,7 +365,7 @@ module Api
 
       # POST /api/v1/cases/:id/add_company
       def add_company
-        company = CorporateCompany.find(params[:company_id])
+        company = Corporate.find(params[:company_id])
         case_company = @case.add_company(company,
           role: params[:role] || "related_entity",
           notes: params[:notes],
@@ -561,15 +561,17 @@ module Api
         when "replace"
           review.replace!(current_user)
         when "keep_both"
-          new_doc = CorporateCompanyDocument.create!(
-            company_id: @case.company_id,
-            title: review.new_file_name,
-            filename: review.new_file_name,
-            mime_type: Marcel::MimeType.for(name: review.new_file_name),  # Required for PDF/image preview
-            onedrive_id: params[:new_onedrive_id],
-            onedrive_path: review.new_file_path,
-            content_hash: review.new_file_hash,
-            file_size: review.new_file_size
+          # SSoT: Folder path comes from WarehouseProvider template (warehouse_folders['case'])
+          # Use resolve_virtual_path for WarehouseDocument.folder (UI display)
+          folder_path = WarehouseProvider.instance.resolve_virtual_path(:case, { CaseId: @case.case_number })
+          new_doc = WarehouseDocument.create!(
+            display_name: review.new_file_name,
+            original_filename: review.new_file_name,
+            source_type: "corporate",
+            folder: folder_path,
+            content_type: Marcel::MimeType.for(name: review.new_file_name),
+            file_size: review.new_file_size,
+            documentable: @case.corporate_company
           )
           review.keep_both!(current_user, new_doc)
         else
