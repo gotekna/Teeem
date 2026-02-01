@@ -107,7 +107,13 @@ export function AdminConfigSyncTab() {
         }>("/api/v1/admin/config_sync/tables");
 
         if (response?.success) {
-          setTables(response.tables);
+          // Sort tables alphabetically by display name
+          const sortedTables = [...response.tables].sort((a, b) => {
+            const nameA = a.model.replace(/([A-Z])/g, " $1").trim().toLowerCase();
+            const nameB = b.model.replace(/([A-Z])/g, " $1").trim().toLowerCase();
+            return nameA.localeCompare(nameB);
+          });
+          setTables(sortedTables);
           setMasterTenant(response.master_tenant);
           // Filter out master tenant from list
           setTenants(
