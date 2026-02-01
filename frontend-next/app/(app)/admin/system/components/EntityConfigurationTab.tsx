@@ -7,6 +7,7 @@ import { DocumentTypesTab } from "./DocumentTypesTab";
 import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncTab } from "./ConfigSyncTab";
+import { AdminConfigSyncTab } from "./AdminConfigSyncTab";
 import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -114,7 +115,7 @@ const SCOPE_LABELS: Record<string, string> = {
   document_types: "Document Types",
   storage_config: "Storage Config",
   email_config: "Email Config",
-  config_sync: "Sync from TEEEM",
+  config_sync: "Config Sync",
 };
 
 // Build breadcrumb items from path and active scope
@@ -226,7 +227,16 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
               ) : "isEmailConfig" in scope && scope.isEmailConfig ? (
                 <EmailConfigTab />
               ) : "isConfigSync" in scope && scope.isConfigSync ? (
-                <ConfigSyncTab />
+                <div className="space-y-8">
+                  {/* Admin Import UI - Pull data FROM other tenants INTO TEEEM */}
+                  <AdminConfigSyncTab />
+
+                  {/* Divider */}
+                  <div className="border-t pt-8">
+                    <h2 className="text-lg font-semibold mb-4">Tenant Configuration Overview</h2>
+                    <ConfigSyncTab />
+                  </div>
+                </div>
               ) : (
                 <DocumentTypesTab />
               )}
