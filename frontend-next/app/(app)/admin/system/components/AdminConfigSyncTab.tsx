@@ -516,11 +516,14 @@ export function AdminConfigSyncTab() {
                         <TableRow
                           key={record.id}
                           className={cn(
+                            "cursor-pointer hover:bg-muted/50",
                             selectedRecords.has(record.id) && "bg-primary/5"
                           )}
+                          onClick={() => toggleRecord(record.id)}
                         >
-                          <TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox
+                              id={`record-${record.id}`}
                               checked={selectedRecords.has(record.id)}
                               onCheckedChange={() => toggleRecord(record.id)}
                             />
@@ -534,7 +537,7 @@ export function AdminConfigSyncTab() {
                           <TableCell className="text-muted-foreground">
                             {new Date(record.updated_at).toLocaleDateString()}
                           </TableCell>
-                          <TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Dialog>
                               <DialogTrigger asChild>
                                 <Button variant="ghost" size="sm">
