@@ -3,8 +3,8 @@
 module Api
   module V1
     class SignupController < ApplicationController
-      skip_before_action :authorize_request, only: [:create, :check_availability, :template_packs, :tiers]
-      skip_before_action :set_tenant, only: [:create, :check_availability, :template_packs, :tiers], raise: false
+      skip_before_action :authorize_request, only: [:create, :check_availability, :template_packs, :tiers, :invitation]
+      skip_before_action :set_tenant, only: [:create, :check_availability, :template_packs, :tiers, :invitation], raise: false
 
       # POST /api/v1/signup
       # Create a new tenant (self-service signup)
@@ -115,6 +115,47 @@ module Api
           available: available,
           suggested_slug: slug,
           login_url: available ? "https://#{slug}.teeem.com.au" : nil
+        }
+      end
+
+      # GET /api/v1/signup/invitation/:token
+      # Get invitation details by token (for prefilling signup form)
+      def invitation
+        token = params[:token]
+
+        if token.blank?
+          return render json: {
+            success: false,
+            error: "Token is required"
+          }, status: :bad_request
+        end
+
+        invitation = TrialInvitation.valid.find_by(token: token)
+
+        if invitation.nil?
+          return render json: {
+            success: false,
+            error: "Invalid or expired invitation"
+          }, status: :not_found
+        end
+
+        # Split name into first/last
+        name_parts = invitation.name.to_s.split
+        first_name = name_parts.first || ""
+        last_name = name_parts[1..].join(' ')
+
+        render json: {
+          success: true,
+          data: {
+            email: invitation.email,
+            name: invitation.name,
+            first_name: first_name,
+            last_name: last_name,
+            company_name: invitation.company_name,
+            personal_message: invitation.personal_message,
+            sender_name: invitation.sender_name,
+            expires_at: invitation.expires_at.iso8601
+          }
         }
       end
 

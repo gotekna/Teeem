@@ -4207,11 +4207,13 @@ Rails.application.routes.draw do
       # GET    /api/v1/signup/check_availability -> Check if company name available
       # GET    /api/v1/signup/template_packs -> List available starter templates
       # GET    /api/v1/signup/tiers          -> List available pricing tiers
+      # GET    /api/v1/signup/invitation/:token -> Get invitation details by token
       resource :signup, only: [:create], controller: "signup" do
         collection do
           get :check_availability
           get :template_packs
           get :tiers
+          get 'invitation/:token', action: :invitation, as: :invitation
         end
       end
 
