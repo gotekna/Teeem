@@ -406,7 +406,9 @@ export function ComposeEmailModal({
 
     const signature = getUserSignature();
     console.log('[ComposeSignature] Generated signature length:', signature.length);
+    console.log('[ComposeSignature] Calling setSignatureHtml...');
     setSignatureHtml(signature);
+    console.log('[ComposeSignature] setSignatureHtml called (state update queued)');
   }, [formData.credential_id, accounts, currentUser, companySettings]);
 
   const fetchAccounts = async () => {
@@ -1003,7 +1005,7 @@ export function ComposeEmailModal({
                 {/* Hidden when skipSignature is true (signature already in body) */}
                 {signatureHtml && !skipSignature && (
                   <div
-                    className="mt-4 pointer-events-none"
+                    className="mt-4 pointer-events-none border-t pt-4"
                     dangerouslySetInnerHTML={{ __html: signatureHtml }}
                   />
                 )}

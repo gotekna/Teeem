@@ -1377,7 +1377,8 @@ export function RichTextEditor({
         class: cn(
           "prose prose-sm dark:prose-invert max-w-none",
           "focus:outline-none px-3 py-2",
-          "min-h-[inherit]"
+          "min-h-[inherit]",
+          "text-foreground"
         ),
         spellcheck: "true",
       },
@@ -1487,7 +1488,7 @@ export function InlineRichTextEditor({
         class: cn(
           "prose prose-sm max-w-none focus:outline-none px-2 py-1 min-h-[60px]",
           "[&_ul]:list-disc [&_ul]:ml-3 [&_ol]:list-decimal [&_ol]:ml-3",
-          "dark:prose-invert text-sm"
+          "dark:prose-invert text-sm text-foreground"
         ),
         spellcheck: "true",
       },

@@ -276,6 +276,32 @@ export function EmailContactAutocomplete({
     inputRef.current?.focus();
   };
 
+  // Add a custom email (typed by user, not from contacts)
+  const addCustomEmail = (email: string) => {
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      // If it doesn't look like an email, don't add it
+      return;
+    }
+    // Check if already added
+    if (emailChips.some(e => e.toLowerCase() === email.toLowerCase())) {
+      setSearchInput("");
+      return;
+    }
+    const newChip: EmailChip = {
+      email: email,
+      contactId: undefined,
+      displayName: undefined,
+    };
+    const newChips = [...chips, newChip];
+    updateChips(newChips);
+    setSearchInput("");
+    onSearch("");
+    setIsOpen(false);
+    inputRef.current?.focus();
+  };
+
   const toggleCompany = (companyName: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setCollapsedCompanies((prev) => {
@@ -321,7 +347,11 @@ export function EmailContactAutocomplete({
       case "Enter":
         e.preventDefault();
         if (selectableItems.length > 0 && highlightedIndex < selectableItems.length) {
+          // Add highlighted suggestion
           handleSelectItem(selectableItems[highlightedIndex]);
+        } else if (searchInput.trim()) {
+          // Add typed email as custom entry (even if not in contacts)
+          addCustomEmail(searchInput.trim());
         }
         break;
       case "Escape":
@@ -329,7 +359,21 @@ export function EmailContactAutocomplete({
         setIsOpen(false);
         break;
       case "Tab":
-        setIsOpen(false);
+        // Add typed email on Tab (if valid)
+        if (searchInput.trim()) {
+          e.preventDefault();
+          addCustomEmail(searchInput.trim());
+        } else {
+          setIsOpen(false);
+        }
+        break;
+      case ",":
+      case ";":
+        // Add typed email on comma or semicolon
+        if (searchInput.trim()) {
+          e.preventDefault();
+          addCustomEmail(searchInput.trim());
+        }
         break;
     }
   };
