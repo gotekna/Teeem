@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   Building2,
   Users,
@@ -297,10 +298,15 @@ export default function AdminTenantsPage() {
             <Button variant="outline" onClick={loadData}>
               <RefreshCw className="h-4 w-4 mr-2" /> Refresh
             </Button>
+            <Button variant="outline" asChild>
+              <Link href="/get-started" target="_blank">
+                <Plus className="h-4 w-4 mr-2" /> Add Tenancy
+              </Link>
+            </Button>
             <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
               <DialogTrigger asChild>
                 <Button>
-                  <Plus className="h-4 w-4 mr-2" /> Invite Trial Customer
+                  <Mail className="h-4 w-4 mr-2" /> Invite Trial Customer
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
