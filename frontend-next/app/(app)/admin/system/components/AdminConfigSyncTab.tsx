@@ -349,7 +349,7 @@ export function AdminConfigSyncTab() {
               <SelectTrigger className="w-full max-w-md">
                 <SelectValue placeholder="Choose a configuration table..." />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[400px]" position="popper" sideOffset={4}>
                 {tables.map((table) => (
                   <SelectItem key={table.key} value={table.key}>
                     <div className="flex flex-col">
