@@ -1003,7 +1003,6 @@ export function ComposeEmailModal({
 
                 {/* Signature Preview - rendered separately to preserve HTML formatting */}
                 {/* Hidden when skipSignature is true (signature already in body) */}
-                {console.log('[ComposeRender] Signature render check:', { signatureHtml_length: signatureHtml?.length, skipSignature, should_render: !!(signatureHtml && !skipSignature) })}
                 {signatureHtml && !skipSignature && (
                   <div
                     className="mt-4 pointer-events-none border-t pt-4"
