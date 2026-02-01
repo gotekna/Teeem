@@ -12,15 +12,29 @@
 class DocumentMigrationService
   class << self
     # Get current migration status
-    # @return [Hash] Status information
+    # @return [Hash] Status information matching frontend MigrationStatus interface
     def migration_status
+      current_provider = WarehouseProvider.instance&.provider_type || "none"
+
       {
-        in_progress: false,
-        current_provider: WarehouseProvider.instance&.provider_type || "none",
-        migrated_count: 0,
-        failed_count: 0,
-        total_count: 0,
-        percent_complete: 0,
+        # Match frontend MigrationStatus interface
+        total_documents: 0,
+        grand_total: 0,
+        migration_in_progress: false,
+        status_counts: {
+          pending: 0,
+          in_progress: 0,
+          completed: 0,
+          failed: 0,
+          not_migrated: 0
+        },
+        provider_breakdown: {
+          current_provider => 0
+        },
+        progress_percent: 0,
+        recent_failures: [],
+        # Additional context
+        current_provider: current_provider,
         started_at: nil,
         error: nil
       }

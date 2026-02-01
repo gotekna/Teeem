@@ -1618,16 +1618,17 @@ interface MigrationStatus {
   total_documents: number;
   grand_total?: number;
   migration_in_progress: boolean;
-  status_counts: {
+  // Optional to handle stub backend responses gracefully
+  status_counts?: {
     pending: number;
     in_progress: number;
     completed: number;
     failed: number;
     not_migrated: number;
   };
-  provider_breakdown: Record<string, number>;
+  provider_breakdown?: Record<string, number>;
   progress_percent: number;
-  recent_failures: Array<{
+  recent_failures?: Array<{
     id: number;
     file_name: string;
     error: string;
@@ -2165,9 +2166,9 @@ function DocumentMigrationCard() {
     );
   }
 
-  const totalQueued = (status?.status_counts.pending || 0) + (status?.status_counts.in_progress || 0);
+  const totalQueued = (status?.status_counts?.pending || 0) + (status?.status_counts?.in_progress || 0);
   const hasPendingWork = totalQueued > 0;
-  const hasFailures = (status?.status_counts.failed || 0) > 0;
+  const hasFailures = (status?.status_counts?.failed || 0) > 0;
 
   return (
     <Card>
@@ -2212,20 +2213,20 @@ function DocumentMigrationCard() {
             </div>
             <Progress value={status?.progress_percent || 0} className="h-2" />
             <div className="flex gap-4 text-xs text-muted-foreground">
-              <span>Pending: {status?.status_counts.pending || 0}</span>
-              <span>In Progress: {status?.status_counts.in_progress || 0}</span>
-              <span className="text-green-600 dark:text-green-400">Completed: {status?.status_counts.completed || 0}</span>
-              {hasFailures && <span className="text-red-600 dark:text-red-400">Failed: {status?.status_counts.failed || 0}</span>}
+              <span>Pending: {status?.status_counts?.pending || 0}</span>
+              <span>In Progress: {status?.status_counts?.in_progress || 0}</span>
+              <span className="text-green-600 dark:text-green-400">Completed: {status?.status_counts?.completed || 0}</span>
+              {hasFailures && <span className="text-red-600 dark:text-red-400">Failed: {status?.status_counts?.failed || 0}</span>}
             </div>
           </div>
         )}
 
         {/* Migration Status Summary */}
-        {!hasPendingWork && (status?.status_counts.completed || 0) > 0 && (
+        {!hasPendingWork && (status?.status_counts?.completed || 0) > 0 && (
           <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
             <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
               <Check className="h-4 w-4" />
-              <span>{status?.status_counts.completed} documents migrated</span>
+              <span>{status?.status_counts?.completed} documents migrated</span>
             </div>
           </div>
         )}
@@ -2235,7 +2236,7 @@ function DocumentMigrationCard() {
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="failures" className="border-none">
               <AccordionTrigger className="py-2 text-sm text-red-600 dark:text-red-400 hover:no-underline">
-                {status.status_counts.failed} failed migrations
+                {status?.status_counts?.failed || 0} failed migrations
               </AccordionTrigger>
               <AccordionContent>
                 <div className="max-h-24 overflow-y-auto space-y-1">
