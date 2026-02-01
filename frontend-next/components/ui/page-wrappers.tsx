@@ -314,7 +314,8 @@ function TabbedSettingsPageRoot({
     <TabbedSettingsContext.Provider value={{ isFullHeight }}>
       <div
         className={cn(
-          isFullHeight ? "flex flex-col h-full" : "space-y-6",
+          "flex flex-col gap-6",
+          isFullHeight && "h-full",
           className
         )}
       >
@@ -331,7 +332,7 @@ function TabbedSettingsPageRoot({
         {/* Tab Sections */}
         {tabSections.length > 0 && (
           <div
-            className={cn("space-y-4", isFullHeight ? "shrink-0" : "")}
+            className={cn("flex flex-col gap-4", isFullHeight ? "shrink-0" : "")}
           >
             {tabSections}
           </div>

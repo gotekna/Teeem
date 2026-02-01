@@ -1541,6 +1541,9 @@ export default function EmailPage() {
         toast({ title: "No new emails" });
       }
 
+      // Update local sync time immediately for visual feedback
+      setLastLocalSyncAt(new Date());
+
       // Refresh the email list and account timestamps
       // FRC (Jan 2026): Must refresh accounts to update "Last sync" timestamps in UI
       fetchEmails();
@@ -1577,6 +1580,9 @@ export default function EmailPage() {
       } else {
         toast({ title: "No new emails" });
       }
+
+      // Update local sync time immediately for visual feedback
+      setLastLocalSyncAt(new Date());
 
       // Refresh the split inbox and account timestamps
       // FRC (Jan 2026): Must refresh accounts to update "Last sync" timestamps in UI

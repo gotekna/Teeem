@@ -507,13 +507,55 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{account.name}</p>
                           <p className="text-xs text-muted-foreground truncate">{account.email}</p>
-                          {account.lastSyncedAt && (
-                            <p className="text-[10px] text-muted-foreground">
-                              Last sync: {new Date(account.lastSyncedAt).toLocaleString('en-AU', {
-                                day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-                              })}
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {account.lastSyncedAt && (
+                              <p className="text-[10px] text-muted-foreground">
+                                Last sync: {new Date(account.lastSyncedAt).toLocaleString('en-AU', {
+                                  day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+                                })}
+                              </p>
+                            )}
+                            {/* Sync status badge */}
+                            {(() => {
+                              if (account.status === 'syncing') {
+                                return (
+                                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
+                                    Syncing
+                                  </Badge>
+                                );
+                              }
+                              if (account.status === 'error') {
+                                return (
+                                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                                    Error
+                                  </Badge>
+                                );
+                              }
+                              if (account.lastSyncedAt && account.status === 'connected') {
+                                const minutesAgo = Math.floor((Date.now() - new Date(account.lastSyncedAt).getTime()) / 60000);
+                                if (minutesAgo < 30) {
+                                  return (
+                                    <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
+                                      Up-to-date
+                                    </Badge>
+                                  );
+                                } else if (minutesAgo < 120) {
+                                  return (
+                                    <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20">
+                                      Stale
+                                    </Badge>
+                                  );
+                                } else {
+                                  return (
+                                    <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20">
+                                      Not synced
+                                    </Badge>
+                                  );
+                                }
+                              }
+                              return null;
+                            })()}
+                          </div>
                           {account.error && (
                             <p className="text-[10px] text-red-500 truncate" title={account.error}>
                               {account.error}
