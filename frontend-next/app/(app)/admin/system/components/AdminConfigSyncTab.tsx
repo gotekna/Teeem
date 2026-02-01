@@ -92,6 +92,7 @@ export function AdminConfigSyncTab() {
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"browse" | "compare">("browse");
   const [compareOpen, setCompareOpen] = useState(false);
+  const [entityTypeFilter, setEntityTypeFilter] = useState<string>("all");
 
   // Fetch available tables and tenants on mount
   useEffect(() => {
@@ -135,6 +136,7 @@ export function AdminConfigSyncTab() {
       setError(null);
       setImportResult(null);
       setSelectedRecords(new Set());
+      setEntityTypeFilter("all");
 
       const response = await api.get<{
         success: boolean;
@@ -207,7 +209,7 @@ export function AdminConfigSyncTab() {
   };
 
   const selectAll = () => {
-    setSelectedRecords(new Set(records.map((r) => r.id)));
+    setSelectedRecords(new Set(filteredRecords.map((r) => r.id)));
   };
 
   const clearSelection = () => {
@@ -255,6 +257,23 @@ export function AdminConfigSyncTab() {
 
   // Get source tenant info
   const sourceTenant = tenants.find((t) => t.id.toString() === selectedTenant);
+
+  // Get unique entity types for filtering (when contacts table is selected)
+  const uniqueEntityTypes = React.useMemo(() => {
+    if (selectedTable !== "contacts") return [];
+    const types = new Set<string>();
+    records.forEach((r) => {
+      const entityType = r.entity_type as string | undefined;
+      if (entityType) types.add(entityType);
+    });
+    return Array.from(types).sort();
+  }, [records, selectedTable]);
+
+  // Filter records by entity type
+  const filteredRecords = React.useMemo(() => {
+    if (selectedTable !== "contacts" || entityTypeFilter === "all") return records;
+    return records.filter((r) => r.entity_type === entityTypeFilter);
+  }, [records, selectedTable, entityTypeFilter]);
 
   if (loading) {
     return (
@@ -360,6 +379,28 @@ export function AdminConfigSyncTab() {
                 </SelectContent>
               </Select>
             )}
+
+            {/* Entity Type Filter - only show for contacts table */}
+            {viewMode === "browse" && selectedTable === "contacts" && uniqueEntityTypes.length > 0 && (
+              <Select value={entityTypeFilter} onValueChange={setEntityTypeFilter}>
+                <SelectTrigger className="w-full max-w-xs">
+                  <SelectValue placeholder="Filter by entity type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    All Types ({records.length})
+                  </SelectItem>
+                  {uniqueEntityTypes.map((type) => {
+                    const count = records.filter((r) => r.entity_type === type).length;
+                    return (
+                      <SelectItem key={type} value={type}>
+                        {type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} ({count})
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -405,7 +446,7 @@ export function AdminConfigSyncTab() {
             </Card>
           )}
 
-          {!recordsLoading && records.length > 0 && (
+          {!recordsLoading && filteredRecords.length > 0 && (
             <>
               {/* Import Controls */}
               <Card>
@@ -413,7 +454,8 @@ export function AdminConfigSyncTab() {
                   <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div className="flex items-center gap-4">
                       <span className="text-sm font-medium">
-                        {selectedRecords.size} of {records.length} records selected
+                        {selectedRecords.size} of {filteredRecords.length} records selected
+                        {entityTypeFilter !== "all" && ` (filtered from ${records.length} total)`}
                       </span>
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={selectAll}>
@@ -450,7 +492,12 @@ export function AdminConfigSyncTab() {
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
                     Records from {sourceTenant?.name}
-                    <Badge variant="secondary">{records.length}</Badge>
+                    <Badge variant="secondary">{filteredRecords.length}</Badge>
+                    {entityTypeFilter !== "all" && (
+                      <Badge variant="outline" className="ml-1">
+                        {entityTypeFilter.replace(/_/g, " ")}
+                      </Badge>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -459,12 +506,13 @@ export function AdminConfigSyncTab() {
                       <TableRow>
                         <TableHead className="w-12"></TableHead>
                         <TableHead>Name</TableHead>
+                        {selectedTable === "contacts" && <TableHead>Type</TableHead>}
                         <TableHead>Last Updated</TableHead>
                         <TableHead>Details</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {records.map((record) => (
+                      {filteredRecords.map((record) => (
                         <TableRow
                           key={record.id}
                           className={cn(
@@ -478,6 +526,11 @@ export function AdminConfigSyncTab() {
                             />
                           </TableCell>
                           <TableCell className="font-medium">{record.name}</TableCell>
+                          {selectedTable === "contacts" && (
+                            <TableCell className="text-muted-foreground text-xs">
+                              {(record.entity_type as string)?.replace(/_/g, " ") || "-"}
+                            </TableCell>
+                          )}
                           <TableCell className="text-muted-foreground">
                             {new Date(record.updated_at).toLocaleDateString()}
                           </TableCell>
@@ -510,11 +563,13 @@ export function AdminConfigSyncTab() {
             </>
           )}
 
-          {!recordsLoading && selectedTable && selectedTenant && records.length === 0 && (
+          {!recordsLoading && selectedTable && selectedTenant && filteredRecords.length === 0 && (
             <Card>
               <CardContent className="py-8 text-center">
                 <p className="text-muted-foreground">
-                  No records found in this tenant for the selected table
+                  {records.length > 0 && entityTypeFilter !== "all"
+                    ? `No ${entityTypeFilter.replace(/_/g, " ")} contacts found (${records.length} total contacts available)`
+                    : "No records found in this tenant for the selected table"}
                 </p>
               </CardContent>
             </Card>
