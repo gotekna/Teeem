@@ -403,7 +403,7 @@ export function EmailContactAutocomplete({
         {chips.map((chip, index) => (
           <span
             key={`${chip.email}-${index}`}
-            className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary rounded text-sm max-w-[200px] group"
+            className="inline-flex items-center gap-1 px-2 py-0.5 bg-muted text-foreground rounded text-sm max-w-[200px] group"
           >
             {/* Clickable email - opens contact page */}
             <span

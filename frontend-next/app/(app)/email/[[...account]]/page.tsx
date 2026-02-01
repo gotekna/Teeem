@@ -385,6 +385,8 @@ interface EmailAccount {
   org_credential_id?: number;
   needs_mailbox_config?: boolean;
   is_favorite?: boolean;
+  last_synced_at?: string;
+  last_sync_status?: string;
 }
 
 interface Pagination {
@@ -731,6 +733,8 @@ export default function EmailPage() {
   const [loadingFolders, setLoadingFolders] = useAtom(loadingFoldersAtom);
   const [loading, setLoading] = useAtom(loadingAtom);
   const [syncing, setSyncing] = useAtom(syncingAtom);
+  // Track last sync completion time (for display - updates on sync complete)
+  const [lastLocalSyncAt, setLastLocalSyncAt] = useState<Date | null>(null);
   const [creatingTask, setCreatingTask] = useAtom(creatingTaskAtom);
   const [creatingContact, setCreatingContact] = useAtom(creatingContactAtom);
 
@@ -759,6 +763,11 @@ export default function EmailPage() {
   // Account selection (SSoT: selectedAccountAtom)
   const [selectedAccount, setSelectedAccount] = useAtom(selectedAccountAtom);
   const [expandedAccounts, setExpandedAccounts] = useAtom(expandedAccountsAtom);
+
+  // Reset last local sync when switching accounts
+  useEffect(() => {
+    setLastLocalSyncAt(null);
+  }, [selectedAccount]);
 
   // Historical mailbox filter (for Warehouse links to mailboxes without connected accounts)
   // When set, filters by mailbox_owner_email instead of account credential
@@ -951,6 +960,8 @@ export default function EmailPage() {
     // FRC (Jan 2026): Refresh accounts when WebSocket reports sync complete
     // This updates the "Last sync" timestamps shown in the UI
     fetchAccounts();
+    // Update local sync time for immediate UI feedback
+    setLastLocalSyncAt(new Date());
     if (stats.new_count > 0) {
       toast({
         title: "Sync complete",
@@ -1953,6 +1964,19 @@ To: ${email.to_emails?.join(", ") || ""}
         maxSize="400px"
         className="bg-muted/30 flex flex-col"
       >
+        {/* Last sync indicator */}
+        {(() => {
+          const currentAccount = selectedAccount !== "all"
+            ? accounts.find(a => String(a.id) === selectedAccount)
+            : null;
+          const syncTime = lastLocalSyncAt || (currentAccount?.last_synced_at ? new Date(currentAccount.last_synced_at) : null);
+          if (!syncTime) return null;
+          return (
+            <div className="px-2 pt-2 pb-1 text-xs text-muted-foreground">
+              Last sync: {formatDistanceToNow(syncTime, { addSuffix: true })}
+            </div>
+          );
+        })()}
         <div className="p-2 border-b flex items-center gap-1">
           <Button className="flex-1" size="sm" onClick={handleCompose} data-tour="email-compose">
             <Plus className="h-4 w-4 mr-1" />
