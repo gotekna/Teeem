@@ -136,10 +136,6 @@ module Api
           updatedAt: credential.updated_at
         }
       end
-
-      def current_organization
-        ActsAsTenant.current_tenant
-      end
     end
   end
 end

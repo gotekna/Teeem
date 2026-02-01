@@ -3,6 +3,7 @@ class Asset < ApplicationRecord
   acts_as_tenant :tenant
 
   # Associations
+  belongs_to :tenant
   belongs_to :corporate_company, foreign_key: "company_id"
   belongs_to :assigned_user, class_name: "User", optional: true
 

@@ -1,7 +1,14 @@
 # frozen_string_literal: true
 
 class BillPaymentBatch < ApplicationRecord
+  # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
+  # FRC: BillPaymentBatch was leaking data across tenants
+  # Root cause: Legacy indirect relationship (batch → corporate_company → tenant)
+  # Fix: Direct tenant_id column + acts_as_tenant for automatic scoping
+  acts_as_tenant :tenant
+
   # Associations
+  belongs_to :tenant
   belongs_to :corporate_company
   belongs_to :bank_account
   belongs_to :created_by, class_name: "User", optional: true

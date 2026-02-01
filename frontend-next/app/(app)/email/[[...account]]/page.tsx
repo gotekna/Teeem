@@ -1530,7 +1530,7 @@ export default function EmailPage() {
           if (account.type === "imap") {
             // Sync specific IMAP account
             const imapResult = await api.post<{ total_synced?: number; message?: string }>(
-              `/api/v1/imap_credentials/${account.credential_id}/sync`
+              `/api/v1/imap_credentials/${account.org_credential_id}/sync`
             ).catch(() => ({}));
             if (imapResult) results.push(imapResult);
           } else if (account.type === "outlook" || account.type === "ms365") {

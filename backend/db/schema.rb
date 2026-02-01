@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_01_010001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -714,6 +714,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_010001) do
     t.string "match_source", limit: 30
     t.string "storage_item_id"
     t.bigint "storage_blob_id"
+    t.bigint "tenant_id", null: false
     t.index ["approved_by_id"], name: "index_bill_inboxes_on_approved_by_id"
     t.index ["corporate_company_id", "status"], name: "index_bill_inboxes_on_corporate_company_id_and_status"
     t.index ["corporate_company_id"], name: "index_bill_inboxes_on_corporate_company_id"
@@ -728,6 +729,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_010001) do
     t.index ["storage_item_id"], name: "index_bill_inboxes_on_storage_item_id"
     t.index ["supplier_id", "invoice_number"], name: "index_bill_inboxes_on_supplier_id_and_invoice_number", unique: true, where: "(invoice_number IS NOT NULL)"
     t.index ["supplier_id"], name: "index_bill_inboxes_on_supplier_id"
+    t.index ["tenant_id"], name: "index_bill_inboxes_on_tenant_id"
   end
 
   create_table "bill_payment_batches", force: :cascade do |t|
@@ -10721,6 +10723,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_010001) do
   add_foreign_key "bill_inboxes", "external_invoices"
   add_foreign_key "bill_inboxes", "purchase_orders", column: "matched_purchase_order_id"
   add_foreign_key "bill_inboxes", "storage_blobs"
+  add_foreign_key "bill_inboxes", "tenants"
   add_foreign_key "bill_inboxes", "users", column: "approved_by_id"
   add_foreign_key "bill_payment_batches", "bank_accounts"
   add_foreign_key "bill_payment_batches", "bpmn_process_instances"
