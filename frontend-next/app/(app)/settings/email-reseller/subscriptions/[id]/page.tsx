@@ -141,8 +141,9 @@ export default function SubscriptionDetailPage() {
     });
   };
 
-  const formatStorage = (usedGb: number, quotaGb: number) => {
-    return `${usedGb.toFixed(1)} / ${quotaGb} GB`;
+  const formatStorage = (usedGb: number | null | undefined, quotaGb: number) => {
+    const used = usedGb ?? 0;
+    return `${used.toFixed(1)} / ${quotaGb} GB`;
   };
 
   if (loading) {
