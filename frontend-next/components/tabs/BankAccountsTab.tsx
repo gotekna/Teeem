@@ -13,14 +13,14 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { XeroStatementView } from "@/components/corporate/XeroStatementView";
 import { Spinner } from "@/components/ui/spinner";
 
 interface BankAccountsTabProps {
-  company: CorporateCompany;
+  company: Corporate;
   companyId?: string;
   entityId?: string;
 }

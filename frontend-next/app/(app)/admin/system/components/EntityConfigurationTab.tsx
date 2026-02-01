@@ -10,6 +10,7 @@ import { ConfigSyncTab } from "./ConfigSyncTab";
 import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { useSidebar } from "@/contexts/SidebarContext";
 
 /**
  * EntityConfigurationTab - SSoT for ALL tab configuration
@@ -141,6 +142,7 @@ function buildBreadcrumbs(basePath: string, activeScope: string): Array<{ label:
 
 export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFAULT_ENTITY_CONFIG_BASE_PATH }: EntityConfigurationTabProps) {
   const router = useRouter();
+  const { sidebarWidth } = useSidebar();
   // Support both scope and subTab props (subTab for consistency with other tabs)
   const activeScope = scope || subTab || "storage_config";
 
@@ -170,9 +172,13 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
   }, []);
 
   // Render full page below header AND breadcrumbs
-  // top-24 = 96px to sit below header + breadcrumbs, z-50 to cover sidebar
+  // top-24 = 96px to sit below header + breadcrumbs
+  // Left offset matches sidebar width on desktop (md+), full-width on mobile
   return (
-    <div className="fixed top-24 left-0 right-0 bottom-0 bg-background flex flex-col z-50">
+    <div
+      className="fixed top-24 left-0 md:left-[var(--sidebar-width)] right-0 bottom-0 bg-background flex flex-col z-40 transition-[left] duration-300"
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+    >
       <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full flex-1 min-h-0">
         {/* Compact header with scope tabs inline */}
         <div className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-muted/30">

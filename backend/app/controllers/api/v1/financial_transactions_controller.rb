@@ -119,7 +119,7 @@ module Api
 
       # GET /api/v1/financial_transactions/summary
       def summary
-        company = CorporateCompany.find(params[:company_id]) if params[:company_id]
+        company = Corporate.find(params[:company_id]) if params[:company_id]
         scope = FinancialTransaction.posted
         scope = scope.for_company(company.id) if company
 
@@ -171,9 +171,9 @@ module Api
 
       def set_company
         @company = if params[:company_id]
-                    CorporateCompany.find(params[:company_id])
+                    Corporate.find(params[:company_id])
         else
-                    CorporateCompany.first
+                    Corporate.first
         end
       rescue ActiveRecord::RecordNotFound
         render json: {

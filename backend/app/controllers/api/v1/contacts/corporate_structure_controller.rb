@@ -34,7 +34,7 @@ module Api
         end
 
         # GET /api/v1/contacts/corporate_structure/:contact_id/directorships
-        # Returns all directorships for this contact (from CorporateCompanyDirector table)
+        # Returns all directorships for this contact (from CorporateDirector table)
         def directorships
           directorships = @contact.corporate_company_directorships
             .includes(corporate_company: :corporate_group)
@@ -72,7 +72,7 @@ module Api
         end
 
         # GET /api/v1/contacts/corporate_structure/:contact_id/shareholdings
-        # Returns all shareholdings for this contact (from CorporateCompanyShareholding table)
+        # Returns all shareholdings for this contact (from CorporateShareholding table)
         def shareholdings
           shareholdings = @contact.corporate_company_shareholdings
             .includes(corporate_company: :corporate_group)
@@ -242,7 +242,7 @@ module Api
           visited.add(company.id)
 
           # Get companies this company owns shares in
-          child_holdings = CorporateCompanyShareholding
+          child_holdings = CorporateShareholding
             .where(shareholder_type: "Company", shareholder_id: company.id)
             .where("number_of_shares > 0")
             .includes(corporate_company: [:corporate_group])
@@ -256,7 +256,7 @@ module Api
           # Check if this company is a trustee
           trust_entity = nil
           if company.is_trustee && company.trust_name.present?
-            trust_entity = CorporateCompany.where(entity_type: ["Trust", "Superfund"]).find_by(name: company.trust_name)
+            trust_entity = Corporate.where(entity_type: ["Trust", "Superfund"]).find_by(name: company.trust_name)
           end
 
           {

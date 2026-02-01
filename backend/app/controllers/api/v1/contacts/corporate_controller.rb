@@ -4,7 +4,7 @@
 # Part of Contact SSoT Consolidation
 #
 # Purpose:
-# Expose CorporateCompany data through Contact endpoints.
+# Expose Corporate data through Contact endpoints.
 # Contact is THE ONE SSoT for identity; this controller provides
 # corporate extension data (ASIC, compliance, etc.) for corporate-managed contacts.
 #

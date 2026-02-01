@@ -11,8 +11,8 @@ class BillInbox < ApplicationRecord
 
   # Associations
   belongs_to :tenant
-  belongs_to :corporate_company, optional: true
-  belongs_to :detected_company, class_name: "CorporateCompany", optional: true
+  belongs_to :corporate, optional: true
+  belongs_to :detected_company, class_name: "Corporate", optional: true
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :matched_purchase_order, class_name: "PurchaseOrder", optional: true
   belongs_to :approved_by, class_name: "User", optional: true

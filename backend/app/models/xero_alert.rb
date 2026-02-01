@@ -118,7 +118,7 @@ class XeroAlert < ApplicationRecord
 
   def self.find_company_for_credential(credential)
     return nil unless credential
-    connection = CorporateCompanyXeroConnection.find_by(xero_credential: credential)
-    connection&.corporate_company
+    connection = CorporateXeroConnection.find_by(xero_credential: credential)
+    connection&.corporate
   end
 end

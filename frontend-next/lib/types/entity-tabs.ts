@@ -159,7 +159,7 @@ export const GROUP_LABELS: Record<TabGroup, string> = {
   system: 'System',
 };
 
-// Entity type options are now fetched from API (SSoT: CorporateCompanySetting)
+// Entity type options are now fetched from API (SSoT: CorporateSetting)
 // See: GET /api/v1/entity_tabs/entity_types
 
 // ============================================================================

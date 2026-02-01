@@ -16,7 +16,7 @@ export interface Tenant {
   loginUrl: string;
   logoUrl?: string;
   primaryColor?: string;
-  // SSoT: Backend provides these from CorporateCompanySetting constants
+  // SSoT: Backend provides these from CorporateSetting constants
   frontendUrl?: string;
   apiUrl?: string;
   stats?: {
@@ -150,7 +150,7 @@ export const TenantProvider = ({ children }: TenantProviderProps) => {
         // CROSS-ENVIRONMENT REDIRECT
         // When switching to a tenant in a different environment, redirect to
         // that environment's frontend URL instead of just reloading.
-        // URLs are now DYNAMIC from backend SSoT (CorporateCompanySetting)
+        // URLs are now DYNAMIC from backend SSoT (CorporateSetting)
         // ════════════════════════════════════════════════════════════════════
 
         // Determine current environment from hostname

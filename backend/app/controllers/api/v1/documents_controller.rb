@@ -1914,7 +1914,7 @@ module Api
           .order(created_at: :desc)
           .limit(500)
           .map do |doc|
-            company = doc.linkable if doc.linkable_type == "CorporateCompany"
+            company = doc.linkable if doc.linkable_type == "Corporate"
             filename = doc.original_filename || doc.display_name || "Untitled"
             {
               name: doc.display_name || filename,
@@ -2128,7 +2128,7 @@ module Api
             abbreviation: doc_type.abbreviation || doc_type.name[0..2].upcase
           } : nil,
           fiscal_year: doc.meta("fiscal_year")&.to_s,
-          company_name: linkable.is_a?(CorporateCompany) ? linkable.name : nil,
+          company_name: linkable.is_a?(Corporate) ? linkable.name : nil,
           verified: doc.meta("ai_verification_status") == "verified",
           verified_at: doc.meta("user_validated_at"),
           verified_by: doc.meta("user_validated_by")
@@ -2214,7 +2214,7 @@ module Api
           }
 
           case linkable
-          when CorporateCompany
+          when Corporate
             base_info.merge(
               companyId: linkable.id,
               companyName: linkable.name,

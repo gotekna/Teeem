@@ -55,7 +55,7 @@ import { XeroTabRenderer } from "@/components/xero/XeroTabRenderer";
 import { ActivityTab } from "@/components/tabs";
 import { Spinner } from "@/components/ui/spinner";
 // Shared types for corporate entities (SSoT for Company type)
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 
 // SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
@@ -73,8 +73,8 @@ import { getIcon } from "@/lib/icon-map";
 // NO FALLBACK ARRAYS - if API fails, show error so we can fix it
 // Manage tabs via: Admin > System > Entity Configuration
 
-// Company type alias - SSoT: CorporateCompany from @/lib/types/corporate
-type Company = CorporateCompany;
+// Company type alias - SSoT: Corporate from @/lib/types/corporate
+type Company = Corporate;
 
 // =============================================================================
 // PAGE COMPONENT

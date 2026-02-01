@@ -941,7 +941,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     setLoadingTemplatePreview(true);
     try {
       // Build query params for customized preview
-      // Backend uses real company data from CorporateCompanySetting + job data if provided
+      // Backend uses real company data from CorporateSetting + job data if provided
       const params = new URLSearchParams();
       if (options?.tradingName) params.set('trading_name', options.tradingName);
       if (options?.claimPercentage) params.set('claim_percentage', String(options.claimPercentage));

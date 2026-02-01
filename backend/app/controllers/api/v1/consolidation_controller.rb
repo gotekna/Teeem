@@ -138,7 +138,7 @@ module Api
       # GET /api/v1/consolidation/company/:company_id
       # Returns intercompany summary for a specific company
       def company_summary
-        company = CorporateCompany.find_by_slug_or_id(params[:company_id])
+        company = Corporate.find_by_slug_or_id(params[:company_id])
         unless company
           return render json: { success: false, error: "Company not found" }, status: :not_found
         end

@@ -263,7 +263,7 @@ module Api
           return unless source.link_to_cg
 
           if source.linked_company_id.present? && target_contact.linked_company_id.blank?
-            CorporateCompany.where(contact_id: source.id).update_all(contact_id: target_contact.id)
+            Corporate.where(contact_id: source.id).update_all(contact_id: target_contact.id)
             target_contact.update(linked_company_id: source.linked_company_id, link_to_cg: true)
           end
 

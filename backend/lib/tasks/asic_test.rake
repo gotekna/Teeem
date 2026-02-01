@@ -3,7 +3,7 @@ namespace :asic do
   task :test_scraper, [ :company_id ] => :environment do |t, args|
     company_id = args[:company_id] || 7 # Default to Gen2612
 
-    company = CorporateCompany.find_by(id: company_id)
+    company = Corporate.find_by(id: company_id)
 
     unless company
       puts "❌ Company not found with ID #{company_id}"
@@ -108,7 +108,7 @@ namespace :asic do
 
   desc "Check ASIC credentials for all companies"
   task check_credentials: :environment do
-    companies = CorporateCompany.where.not(asic_username: [ nil, "" ])
+    companies = Corporate.where.not(asic_username: [ nil, "" ])
 
     puts "=" * 80
     puts "ASIC CREDENTIALS AUDIT"

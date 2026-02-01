@@ -105,9 +105,9 @@ namespace :directorships do
     puts
 
     # Skip callbacks during import
-    CorporateCompanyDirector.skip_callback(:create, :after, :create_appointment_activity)
-    CorporateCompanyDirector.skip_callback(:create, :after, :ensure_ssot_director_membership)
-    CorporateCompanyDirector.skip_callback(:commit, :after, :sync_to_contact_relationship)
+    CorporateDirector.skip_callback(:create, :after, :create_appointment_activity)
+    CorporateDirector.skip_callback(:create, :after, :ensure_ssot_director_membership)
+    CorporateDirector.skip_callback(:commit, :after, :sync_to_contact_relationship)
 
     stats = {
       directorships_found: directorships.count,
@@ -125,7 +125,7 @@ namespace :directorships do
 
     directorships.each_with_index do |dir_data, index|
       # Find company by name
-      corp_company = CorporateCompany.find_by("name ILIKE ?", dir_data[:company_name])
+      corp_company = Corporate.find_by("name ILIKE ?", dir_data[:company_name])
 
       if corp_company
         stats[:companies_matched] += 1
@@ -140,7 +140,7 @@ namespace :directorships do
             company_group_id = group&.id
           end
 
-          corp_company = CorporateCompany.create!(
+          corp_company = Corporate.create!(
             name: dir_data[:company_name],
             status: dir_data[:is_current] ? "active" : "struck_off",
             entity_type: "company",
@@ -158,7 +158,7 @@ namespace :directorships do
 
       # Create directorship
       begin
-        directorship = CorporateCompanyDirector.find_or_initialize_by(
+        directorship = CorporateDirector.find_or_initialize_by(
           contact_id: rachel.id,
           company_id: corp_company.id,
           appointment_date: dir_data[:appointment_date]
@@ -184,9 +184,9 @@ namespace :directorships do
     puts
 
     # Re-enable callbacks
-    CorporateCompanyDirector.set_callback(:create, :after, :create_appointment_activity)
-    CorporateCompanyDirector.set_callback(:create, :after, :ensure_ssot_director_membership)
-    CorporateCompanyDirector.set_callback(:commit, :after, :sync_to_contact_relationship)
+    CorporateDirector.set_callback(:create, :after, :create_appointment_activity)
+    CorporateDirector.set_callback(:create, :after, :ensure_ssot_director_membership)
+    CorporateDirector.set_callback(:commit, :after, :sync_to_contact_relationship)
 
     # Final summary
     puts
@@ -212,7 +212,7 @@ namespace :directorships do
 
     # Show current directorships count
     current_count = rachel.current_directorships.count
-    total_count = rachel.corporate_company_directorships.count
+    total_count = rachel.corporate_directorships.count
 
     puts "Rachel Harder Directorships:"
     puts "  Current: #{current_count}"

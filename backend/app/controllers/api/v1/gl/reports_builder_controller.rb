@@ -268,7 +268,7 @@ module Api
         private
 
         def set_corporate_company
-          @corporate_company = CorporateCompany.find(params[:corporate_company_id])
+          @corporate_company = Corporate.find(params[:corporate_company_id])
         end
 
         def report_params

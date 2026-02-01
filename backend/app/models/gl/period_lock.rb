@@ -27,25 +27,25 @@ module Gl
 
     # Check if a date is locked for a company
     def self.date_locked?(company, date)
-      company_id = company.is_a?(CorporateCompany) ? company.id : company
+      company_id = company.is_a?(Corporate) ? company.id : company
       active.where(corporate_company_id: company_id).for_date(date).exists?
     end
 
     # Check if a date is hard locked (no exceptions)
     def self.date_hard_locked?(company, date)
-      company_id = company.is_a?(CorporateCompany) ? company.id : company
+      company_id = company.is_a?(Corporate) ? company.id : company
       locked.where(corporate_company_id: company_id).for_date(date).exists?
     end
 
     # Get the lock for a specific date
     def self.lock_for_date(company, date)
-      company_id = company.is_a?(CorporateCompany) ? company.id : company
+      company_id = company.is_a?(Corporate) ? company.id : company
       active.where(corporate_company_id: company_id).for_date(date).first
     end
 
     # Lock a period
     def self.lock_period!(company, period_type:, period_end:, locked_by: nil, reason: nil)
-      company_id = company.is_a?(CorporateCompany) ? company.id : company
+      company_id = company.is_a?(Corporate) ? company.id : company
 
       period_start = calculate_period_start(period_end, period_type)
 

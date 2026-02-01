@@ -72,6 +72,3 @@ class CorporateMinute < ApplicationRecord
     )
   end
 end
-
-# Backwards compatibility alias (deprecated - use CorporateMinute directly)
-CorporateCompanyMinute = CorporateMinute

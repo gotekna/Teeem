@@ -127,7 +127,7 @@ module Api
 
       def set_company
         @company = if params[:company_id]
-                    CorporateCompany.find(params[:company_id])
+                    Corporate.find(params[:company_id])
         else
                     current_user.company
         end

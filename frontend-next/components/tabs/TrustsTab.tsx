@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 
 // Trust icon SVG component
 function TrustIcon({ className = "h-5 w-5" }: { className?: string }) {
@@ -47,7 +47,7 @@ interface TrustCompany {
 }
 
 interface TrustsTabProps {
-  company: CorporateCompany;
+  company: Corporate;
   companyId?: string;
   entityId?: string;
   onUpdate?: () => void;

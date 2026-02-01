@@ -579,7 +579,7 @@ module Api
           "pricebook" => "pricebook-items",
           "contacts" => "contacts",
           "features-tracking" => "feature_trackers"
-          # NOTE: Companies uses CorporateCompany Rails model, not Foundation
+          # NOTE: Companies uses Corporate Rails model, not Foundation
         }
 
         db_slugs = key_mapping.values

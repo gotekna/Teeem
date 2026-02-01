@@ -220,7 +220,7 @@ namespace :financial_reports do
   task generate_all: :environment do
     puts "Generating financial reports for all Xero-connected companies..."
 
-    companies = CorporateCompany.with_xero
+    companies = Corporate.with_xero
     puts "Found #{companies.count} companies with Xero connection"
 
     companies.each do |company|

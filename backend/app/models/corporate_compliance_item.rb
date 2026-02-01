@@ -92,6 +92,3 @@ class CorporateComplianceItem < ApplicationRecord
     )
   end
 end
-
-# Backwards compatibility alias (deprecated - use CorporateComplianceItem directly)
-CorporateCompanyComplianceItem = CorporateComplianceItem

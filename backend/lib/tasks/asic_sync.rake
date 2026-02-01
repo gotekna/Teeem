@@ -7,7 +7,7 @@ namespace :asic do
     puts
 
     # Find all companies with ASIC credentials
-    companies = CorporateCompany.where.not(asic_username: [ nil, "" ])
+    companies = Corporate.where.not(asic_username: [ nil, "" ])
 
     puts "Found #{companies.count} companies with ASIC credentials"
     puts
@@ -76,9 +76,9 @@ namespace :asic do
       puts
 
       # Skip callbacks during sync
-      CorporateCompanyDirector.skip_callback(:create, :after, :create_appointment_activity)
-      CorporateCompanyDirector.skip_callback(:create, :after, :ensure_ssot_director_membership)
-      CorporateCompanyDirector.skip_callback(:commit, :after, :sync_to_contact_relationship)
+      CorporateDirector.skip_callback(:create, :after, :create_appointment_activity)
+      CorporateDirector.skip_callback(:create, :after, :ensure_ssot_director_membership)
+      CorporateDirector.skip_callback(:commit, :after, :sync_to_contact_relationship)
 
       directors.each do |director_data|
         puts "    Processing: #{director_data[:name]} (#{director_data[:position]})"
@@ -92,7 +92,7 @@ namespace :asic do
         end
 
         # Find or create directorship record
-        directorship = CorporateCompanyDirector.find_or_initialize_by(
+        directorship = CorporateDirector.find_or_initialize_by(
           company_id: company.id,
           contact_id: contact.id
         )
@@ -119,9 +119,9 @@ namespace :asic do
       end
 
       # Re-enable callbacks
-      CorporateCompanyDirector.set_callback(:create, :after, :create_appointment_activity)
-      CorporateCompanyDirector.set_callback(:create, :after, :ensure_ssot_director_membership)
-      CorporateCompanyDirector.set_callback(:commit, :after, :sync_to_contact_relationship)
+      CorporateDirector.set_callback(:create, :after, :create_appointment_activity)
+      CorporateDirector.set_callback(:create, :after, :ensure_ssot_director_membership)
+      CorporateDirector.set_callback(:commit, :after, :sync_to_contact_relationship)
 
       stats[:companies_processed] += 1
       puts
@@ -159,7 +159,7 @@ namespace :asic do
       exit 1
     end
 
-    company = CorporateCompany.find_by(id: company_id)
+    company = Corporate.find_by(id: company_id)
 
     if company.nil?
       puts "❌ Error: Company not found with ID #{company_id}"
@@ -204,7 +204,7 @@ namespace :asic do
     puts
 
     # List companies that need extracts
-    companies = CorporateCompany.where.not(asic_username: [ nil, "" ])
+    companies = Corporate.where.not(asic_username: [ nil, "" ])
 
     puts "Companies with ASIC credentials (#{companies.count}):"
     puts

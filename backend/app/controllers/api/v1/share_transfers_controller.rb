@@ -82,7 +82,7 @@ module Api
       private
 
       def set_company
-        @company = CorporateCompany.find(params[:company_id])
+        @company = Corporate.find(params[:company_id])
       end
 
       def set_share_transfer

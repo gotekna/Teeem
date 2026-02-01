@@ -49,7 +49,7 @@ import type { Contact } from "../types";
 // SSoT: Documents Tab (ROOT level)
 // =============================================================================
 // Shows ContactDocument records stored in the database.
-// Includes Xero invoice/bill PDFs migrated from CorporateCompanyDocument.
+// Includes Xero invoice/bill PDFs migrated from CorporateDocument.
 // Grouped by Year → Month → Folder type (latest first)
 // Visibility: Always visible
 // =============================================================================

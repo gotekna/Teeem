@@ -4,7 +4,7 @@
 # - OAuth tokens: This model (access_token, refresh_token, expires_at)
 # - Connection health: This model (status: connected/degraded/disconnected)
 # - Sync timing: XeroSyncStatus (NOT this model)
-# - Company mapping: CorporateCompanyXeroConnection
+# - Company mapping: CorporateXeroConnection
 #
 # Key status values:
 # - connected: Healthy, tokens valid and working

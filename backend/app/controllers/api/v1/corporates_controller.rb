@@ -71,7 +71,7 @@ module Api
           # Note: total_asset_value removed - depends on assets table
         )
 
-        # Serialize current directors separately (corporate_directors returns CorporateCompanyDirector objects)
+        # Serialize current directors separately (corporate_directors returns CorporateDirector objects)
         company_json["current_directors"] = @company.corporate_directors.current.includes(:contact).map do |director|
           director.as_json(
             include: { contact: {} },
@@ -101,12 +101,12 @@ module Api
       end
 
       # POST /api/v1/companies/create_from_contact
-      # Creates a CorporateCompany from an existing Contact
+      # Creates a Corporate from an existing Contact
       # This is the SSoT for "Add Existing" functionality
       def create_from_contact
         contact = Contact.find(params[:contact_id])
 
-        # Check if a CorporateCompany already exists for this contact
+        # Check if a Corporate already exists for this contact
         existing = Corporate.find_by(contact_id: contact.id)
         if existing
           # Just update the company_group_id if it already exists
@@ -118,7 +118,7 @@ module Api
           }
         end
 
-        # Create new CorporateCompany from Contact data
+        # Create new Corporate from Contact data
         @company = Corporate.new(
           contact_id: contact.id,
           name: contact.display_name,
@@ -832,8 +832,8 @@ module Api
       # Uses only local database queries - no Xero API calls for performance
       # Performance: Pre-fetches all counts with GROUP BY to avoid N+1 queries
       def xero_setup_overview
-        companies = CorporateCompany
-          .includes(:corporate_company_xero_connection)
+        companies = Corporate
+          .includes(:corporate_xero_connection)
           .order(:name)
 
         company_ids = companies.map(&:id)

@@ -365,7 +365,7 @@ module Api
 
       # POST /api/v1/cases/:id/add_company
       def add_company
-        company = CorporateCompany.find(params[:company_id])
+        company = Corporate.find(params[:company_id])
         case_company = @case.add_company(company,
           role: params[:role] || "related_entity",
           notes: params[:notes],

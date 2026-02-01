@@ -34,7 +34,7 @@ const TIMEZONES = [
   { value: "UTC", label: "UTC" },
 ];
 
-// API Environment options (SSoT: CorporateCompanySetting::VALID_API_ENVIRONMENTS)
+// API Environment options (SSoT: CorporateSetting::VALID_API_ENVIRONMENTS)
 const API_ENVIRONMENTS = [
   {
     value: "production",

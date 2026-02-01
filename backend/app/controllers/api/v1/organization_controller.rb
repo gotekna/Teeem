@@ -753,7 +753,7 @@ module Api
         }
 
         # Xero stats - SSoT: Filter connections by XeroConnectionHealth
-        all_xero_connections = CorporateCompanyXeroConnection.includes(:xero_credential).where.not(xero_credential_id: nil)
+        all_xero_connections = CorporateXeroConnection.includes(:xero_credential).where.not(xero_credential_id: nil)
         connected_xero_connections = all_xero_connections.select(&:connected?)
         xero_stats = {
           connected: connected_xero_connections.any?,
@@ -953,7 +953,7 @@ module Api
         end
 
         # Corporate (Companies) stats
-        active_companies = CorporateCompany.where(active: [ true, nil ])
+        active_companies = Corporate.where(active: [ true, nil ])
         total_companies = active_companies.count
         missing_abn = active_companies.where(abn: [ nil, "" ]).count
         missing_acn = active_companies.where(acn: [ nil, "" ])
@@ -979,7 +979,7 @@ module Api
           data: {
             organization: {
               name: company_setting&.company_name || "Organization",
-              total_companies: CorporateCompany.count,
+              total_companies: Corporate.count,
               total_jobs: Job.count
             },
             documents: doc_stats,

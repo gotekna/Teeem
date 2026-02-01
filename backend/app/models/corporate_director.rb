@@ -162,6 +162,3 @@ class CorporateDirector < ApplicationRecord
     Rails.logger.error("CorporateDirector##{id}: Failed to refresh contact director flag - #{e.message}")
   end
 end
-
-# Backwards compatibility alias (deprecated - use CorporateDirector directly)
-CorporateCompanyDirector = CorporateDirector

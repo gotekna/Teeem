@@ -557,7 +557,7 @@ export function XeroHealthTab() {
             Bank Statement Document Generation
           </CardTitle>
           <CardDescription>
-            Regenerate bank statement PDFs and create CorporateCompanyDocument records for the document warehouse.
+            Regenerate bank statement PDFs and create CorporateDocument records for the document warehouse.
             Use this when bringing in new companies or fixing missing documents.
           </CardDescription>
         </CardHeader>

@@ -89,7 +89,7 @@ interface BatchesResponse {
   };
 }
 
-interface CorporateCompany {
+interface Corporate {
   id: number;
   name: string;
   code: string;
@@ -106,7 +106,7 @@ const statusColors: Record<string, string> = {
 
 export default function PaymentBatchesPage() {
   const [batches, setBatches] = useState<BillPaymentBatch[]>([]);
-  const [companies, setCompanies] = useState<CorporateCompany[]>([]);
+  const [companies, setCompanies] = useState<Corporate[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -152,7 +152,7 @@ export default function PaymentBatchesPage() {
   const loadCompaniesAndAccounts = useCallback(async () => {
     try {
       const [companiesRes, accountsRes] = await Promise.all([
-        api.get<{ companies: CorporateCompany[] } | CorporateCompany[]>("/api/v1/companies"),
+        api.get<{ companies: Corporate[] } | Corporate[]>("/api/v1/companies"),
         api.get<{ bank_accounts: BankAccount[] } | BankAccount[]>("/api/v1/bank_accounts?is_ap_enabled=true"),
       ]);
       setCompanies(Array.isArray(companiesRes) ? companiesRes : (companiesRes.companies || []));

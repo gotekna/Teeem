@@ -13,7 +13,7 @@
  * Foundation IDs for corporate entities.
  *
  * SSoT for columns is the Foundation API (Gold Standard Tables).
- * Data comes from Rails models (CorporateCompany, Asset, Contact).
+ * Data comes from Rails models (Corporate, Asset, Contact).
  */
 export const CORPORATE_TABLE_IDS = {
   // Active Foundation IDs
@@ -21,7 +21,7 @@ export const CORPORATE_TABLE_IDS = {
   COMPANY_DOCUMENT: 357,    // Company Documents Foundation
 
   // Legacy IDs (do not use - these Foundations were never created)
-  COMPANIES: 353,           // Use CorporateCompany Rails model, no Foundation
+  COMPANIES: 353,           // Use Corporate Rails model, no Foundation
   COMPANY_ACTIVITY: 354,
   COMPANY_COMPLIANCE_ITEM: 355,
   COMPANY_DIRECTOR: 356,
