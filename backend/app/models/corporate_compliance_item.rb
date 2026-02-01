@@ -1,6 +1,13 @@
-class CorporateCompanyComplianceItem < ApplicationRecord
+class CorporateComplianceItem < ApplicationRecord
+  acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
+
+  # Explicit table name since we renamed from corporate_company_compliance_items
+  self.table_name = "corporate_compliance_items"
+
   # Associations
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :tenant
+  belongs_to :corporate, foreign_key: "company_id"
+  alias_method :company, :corporate
 
   # Validations
   validates :title, presence: true
@@ -52,6 +59,9 @@ class CorporateCompanyComplianceItem < ApplicationRecord
     item_type.to_s.titleize.gsub("_", " ")
   end
 
+  # Alias for backwards compatibility with API
+  alias_method :formatted_compliance_type, :formatted_item_type
+
   private
 
   def create_next_occurrence
@@ -70,7 +80,7 @@ class CorporateCompanyComplianceItem < ApplicationRecord
 
     return unless next_due_date.present?
 
-    company.company_compliance_items.create!(
+    company.corporate_compliance_items.create!(
       item_type: item_type,
       title: title.gsub(/\d{4}/, next_due_date.year.to_s),
       description: description,
@@ -82,3 +92,6 @@ class CorporateCompanyComplianceItem < ApplicationRecord
     )
   end
 end
+
+# Backwards compatibility alias (deprecated - use CorporateComplianceItem directly)
+CorporateCompanyComplianceItem = CorporateComplianceItem

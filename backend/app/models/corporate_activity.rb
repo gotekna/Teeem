@@ -1,6 +1,12 @@
-class CorporateCompanyActivity < ApplicationRecord
+class CorporateActivity < ApplicationRecord
+  acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
+
+  # Explicit table name since we renamed from corporate_company_activities
+  self.table_name = "corporate_activities"
+
   # Associations
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :tenant
+  belongs_to :corporate, foreign_key: "company_id"
   belongs_to :user, optional: true
   alias_method :performed_by, :user
 
@@ -44,3 +50,6 @@ class CorporateCompanyActivity < ApplicationRecord
     end
   end
 end
+
+# Backwards compatibility alias (deprecated - use CorporateActivity directly)
+CorporateCompanyActivity = CorporateActivity

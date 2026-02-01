@@ -1,21 +1,24 @@
-class CorporateCompany < ApplicationRecord
+class Corporate < ApplicationRecord
   include SelfHealing  # Auto-fix formatting issues (ABN, ACN) and earn System kudos
   acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
 
+  # Explicit table name since we renamed from corporate_companies
+  self.table_name = "corporates"
+
   # ============================================
-  # SSoT: CorporateCompany is an EXTENSION table
+  # SSoT: Corporate is an EXTENSION table
   # ============================================
   # Contact is THE ONE SSoT for all entity identity (people, companies, trusts).
-  # CorporateCompany EXTENDS Contact with corporate-specific data:
+  # Corporate EXTENDS Contact with corporate-specific data:
   # - ASIC credentials (corporate_key, asic_username, encrypted_asic_password)
   # - Compliance tracking
   # - Encrypted TFN
   # - Share register details
   # - GL module associations
   #
-  # All CorporateCompanies MUST have a linked Contact record.
+  # All Corporates MUST have a linked Contact record.
   # The Contact record is THE ONE source for: name, ABN, ACN, email, phone, address
-  # CorporateCompany stores: ASIC details, compliance, TFN, financial reporting config
+  # Corporate stores: ASIC details, compliance, TFN, financial reporting config
 
   # Associations
   belongs_to :tenant, optional: true
@@ -26,20 +29,20 @@ class CorporateCompany < ApplicationRecord
   has_one :organization, dependent: :nullify
 
   # Hierarchy - parent/subsidiary relationships
-  belongs_to :parent_company, class_name: "CorporateCompany", optional: true
-  has_many :subsidiaries, class_name: "CorporateCompany", foreign_key: "parent_company_id", dependent: :nullify
+  belongs_to :parent_company, class_name: "Corporate", optional: true
+  has_many :subsidiaries, class_name: "Corporate", foreign_key: "parent_company_id", dependent: :nullify
 
   # Consolidation - financial consolidation parent/children
-  belongs_to :consolidation_parent, class_name: "CorporateCompany", optional: true
-  has_many :consolidated_children, class_name: "CorporateCompany", foreign_key: "consolidation_parent_id", dependent: :nullify
+  belongs_to :consolidation_parent, class_name: "Corporate", optional: true
+  has_many :consolidated_children, class_name: "Corporate", foreign_key: "consolidation_parent_id", dependent: :nullify
 
   # Investments - what this company owns (as shareholder)
-  has_many :investments, class_name: "CorporateCompanyShareholding", as: :shareholder, dependent: :destroy
+  has_many :investments, class_name: "CorporateShareholding", as: :shareholder, dependent: :destroy
 
-  has_many :corporate_company_directors, foreign_key: "company_id", dependent: :destroy
-  has_many :directors, through: :corporate_company_directors, source: :contact
-  has_many :current_directors, -> { where(corporate_company_directors: { is_current: true }) },
-           through: :corporate_company_directors, source: :contact
+  has_many :corporate_directors, foreign_key: "company_id", dependent: :destroy
+  has_many :directors, through: :corporate_directors, source: :contact
+  has_many :current_directors, -> { where(corporate_directors: { is_current: true }) },
+           through: :corporate_directors, source: :contact
 
   has_many :bank_accounts, foreign_key: "company_id", dependent: :destroy
   has_many :active_bank_accounts, -> { where(status: "active") }, class_name: "BankAccount", foreign_key: "company_id"
@@ -48,26 +51,26 @@ class CorporateCompany < ApplicationRecord
   has_many :assets, foreign_key: "company_id", dependent: :destroy
   has_many :active_assets, -> { where(status: "active") }, class_name: "Asset", foreign_key: "company_id"
 
-  has_many :corporate_company_compliance_items, foreign_key: "company_id", dependent: :destroy
-  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: "CorporateCompanyComplianceItem", foreign_key: "company_id"
+  has_many :corporate_compliance_items, foreign_key: "company_id", dependent: :destroy
+  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: "CorporateComplianceItem", foreign_key: "company_id"
 
-  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
-  has_many :corporate_company_activities, foreign_key: "company_id", dependent: :destroy
-  has_one :corporate_company_xero_connection, foreign_key: "company_id", dependent: :destroy
-  has_many :corporate_company_monthly_pls, dependent: :destroy  # Cached Xero P&L data
+  # Note: corporate_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
+  has_many :corporate_activities, foreign_key: "company_id", dependent: :destroy
+  has_one :corporate_xero_connection, foreign_key: "company_id", dependent: :destroy
+  has_many :corporate_monthly_pls, foreign_key: "corporate_id", dependent: :destroy  # Cached Xero P&L data
 
   # SSoT Aliases - Backwards compatibility (shorter names)
-  alias_method :company_activities, :corporate_company_activities
-  alias_method :company_xero_connection, :corporate_company_xero_connection
+  alias_method :company_activities, :corporate_activities
+  alias_method :company_xero_connection, :corporate_xero_connection
 
   # New corporate associations
-  has_many :corporate_company_shareholdings, foreign_key: "company_id", dependent: :destroy
-  has_many :shareholders, through: :corporate_company_shareholdings, source: :shareholder
+  has_many :corporate_shareholdings, foreign_key: "company_id", dependent: :destroy
+  has_many :shareholders, through: :corporate_shareholdings, source: :shareholder
   has_many :share_transfers, foreign_key: "company_id", dependent: :destroy
   has_many :dividends, foreign_key: "company_id", dependent: :destroy
-  has_many :corporate_company_minutes, foreign_key: "company_id", dependent: :destroy
-  has_many :loans_as_lender, class_name: "CorporateCompanyLoan", foreign_key: "lender_company_id", dependent: :destroy
-  has_many :loans_as_borrower, class_name: "CorporateCompanyLoan", foreign_key: "borrower_company_id", dependent: :destroy
+  has_many :corporate_minutes, foreign_key: "company_id", dependent: :destroy
+  has_many :loans_as_lender, class_name: "CorporateLoan", foreign_key: "lender_company_id", dependent: :destroy
+  has_many :loans_as_borrower, class_name: "CorporateLoan", foreign_key: "borrower_company_id", dependent: :destroy
 
   # Intercompany balances for consolidated financials
   has_many :intercompany_balances, foreign_key: "company_id", dependent: :destroy
@@ -174,15 +177,15 @@ class CorporateCompany < ApplicationRecord
   scope :active, -> { where(status: "active") }
   scope :by_group, ->(group) { where(company_group: group) }
   # SSoT: Join through to xero_credentials table for connection status
-  scope :with_xero, -> { joins(corporate_company_xero_connection: :xero_credential).where(xero_credentials: { status: "connected" }) }
+  scope :with_xero, -> { joins(corporate_xero_connection: :xero_credential).where(xero_credentials: { status: "connected" }) }
   scope :top_level, -> { where(parent_company_id: nil) }
   scope :with_parent, -> { where.not(parent_company_id: nil) }
   scope :trustees, -> { where(is_trustee: true) }
   scope :trusts, -> { where.not(trust_name: [ nil, "" ]) }
   scope :compliance_due_soon, -> {
-    joins(:corporate_company_compliance_items)
-      .where("corporate_company_compliance_items.due_date BETWEEN ? AND ?", Date.today, 90.days.from_now)
-      .where(corporate_company_compliance_items: { completed: false })
+    joins(:corporate_compliance_items)
+      .where("corporate_compliance_items.due_date BETWEEN ? AND ?", Date.today, 90.days.from_now)
+      .where(corporate_compliance_items: { completed: false })
       .distinct
   }
 
@@ -253,7 +256,7 @@ class CorporateCompany < ApplicationRecord
 
   # SSoT: Use connected? which delegates to XeroConnectionHealth service
   def has_xero_connection?
-    corporate_company_xero_connection.present? && corporate_company_xero_connection.connected?
+    corporate_xero_connection.present? && corporate_xero_connection.connected?
   end
 
   # SSoT: Check if this company is a consolidation parent (has children)
@@ -301,11 +304,11 @@ class CorporateCompany < ApplicationRecord
   end
 
   def overdue_compliance_items
-    corporate_company_compliance_items.where("due_date < ? AND completed = ?", Date.today, false)
+    corporate_compliance_items.where("due_date < ? AND completed = ?", Date.today, false)
   end
 
   def upcoming_compliance_items(days = 30)
-    corporate_company_compliance_items.where(
+    corporate_compliance_items.where(
       "due_date BETWEEN ? AND ? AND completed = ?",
       Date.today,
       days.days.from_now,
@@ -319,7 +322,7 @@ class CorporateCompany < ApplicationRecord
 
   # All loans (as lender or borrower)
   def all_loans
-    CorporateCompanyLoan.where("lender_company_id = ? OR borrower_company_id = ?", id, id)
+    CorporateLoan.where("lender_company_id = ? OR borrower_company_id = ?", id, id)
   end
 
   # Calculate and update health score
@@ -330,16 +333,16 @@ class CorporateCompany < ApplicationRecord
     # Critical issues (major impact)
     issues << "Missing ACN" if acn.blank?
     issues << "Missing ABN" if abn.blank?
-    issues << "No current directors" if corporate_company_directors.where(is_current: true).empty?
+    issues << "No current directors" if corporate_directors.where(is_current: true).empty?
     issues << "Missing registered office address" if registered_office_address.blank?
 
     # Warnings (minor impact)
     warnings << "Missing TFN" if tfn.blank?
     warnings << "No bank accounts" if bank_accounts.empty?
-    warnings << "No shareholders recorded" if corporate_company_shareholdings.empty?
+    warnings << "No shareholders recorded" if corporate_shareholdings.empty?
     warnings << "Missing incorporation date" if date_incorporated.blank?
-    warnings << "No secretary appointed" if corporate_company_directors.where(is_current: true, position: "secretary").empty?
-    warnings << "No public officer" unless corporate_company_directors.where(is_current: true).any? { |d| d.notes&.downcase&.include?("public officer") }
+    warnings << "No secretary appointed" if corporate_directors.where(is_current: true, position: "secretary").empty?
+    warnings << "No public officer" unless corporate_directors.where(is_current: true).any? { |d| d.notes&.downcase&.include?("public officer") }
 
     # Only check for corporate credentials if this is an actual company (has ACN)
     # Individuals and trusts don't need ASIC logins
@@ -350,7 +353,7 @@ class CorporateCompany < ApplicationRecord
 
     warnings << "No review date set" if review_date.blank?
     warnings << "Missing principal place of business" if principal_place_of_business.blank?
-    warnings << "No compliance items tracked" if corporate_company_compliance_items.empty?
+    warnings << "No compliance items tracked" if corporate_compliance_items.empty?
 
     # Calculate score
     total_checks = 15
@@ -392,7 +395,7 @@ class CorporateCompany < ApplicationRecord
     where(slug: nil).find_each do |company|
       company.send(:generate_slug)
       company.save!
-      Rails.logger.info "[CorporateCompany] Generated slug for #{company.name}: #{company.slug}"
+      Rails.logger.info "[Corporate] Generated slug for #{company.name}: #{company.slug}"
     end
   end
 
@@ -492,7 +495,7 @@ class CorporateCompany < ApplicationRecord
   private
 
   def calculate_hierarchy_level(parent_id)
-    parent = CorporateCompany.find_by(id: parent_id)
+    parent = Corporate.find_by(id: parent_id)
     return 0 unless parent
     parent.hierarchy_level + 1
   end
@@ -531,7 +534,7 @@ class CorporateCompany < ApplicationRecord
     # Ensure uniqueness by adding a number suffix if needed
     candidate = base_slug
     counter = 1
-    while CorporateCompany.where(slug: candidate).where.not(id: id).exists?
+    while Corporate.where(slug: candidate).where.not(id: id).exists?
       counter += 1
       candidate = "#{base_slug}-#{counter}"
     end
@@ -543,7 +546,7 @@ class CorporateCompany < ApplicationRecord
     user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
     user ||= User.first
 
-    corporate_company_activities.create!(
+    corporate_activities.create!(
       activity_type: "company_created",
       description: "Company #{name} was created",
       user: user
@@ -556,7 +559,7 @@ class CorporateCompany < ApplicationRecord
     user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
     user ||= User.first
 
-    corporate_company_activities.create!(
+    corporate_activities.create!(
       activity_type: "company_updated",
       description: "Company information was updated",
       user: user,
@@ -632,8 +635,11 @@ class CorporateCompany < ApplicationRecord
     # Strip spaces from ABN before syncing to Contact (Contact stores without formatting)
     contact.update!(tax_number: abn&.gsub(/\s/, ""))
   rescue StandardError => e
-    Rails.logger.error("CorporateCompany##{id}: Sync ABN to Contact failed - #{e.message}")
+    Rails.logger.error("Corporate##{id}: Sync ABN to Contact failed - #{e.message}")
   ensure
     Thread.current[:syncing_company_to_contact] = false
   end
 end
+
+# Backwards compatibility alias (deprecated - use Corporate directly)
+CorporateCompany = Corporate
