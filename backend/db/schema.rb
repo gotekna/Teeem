@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_01_130001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_01_130002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9680,6 +9680,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130001) do
     t.index ["tenant_id"], name: "index_tenant_settings_on_tenant_id"
   end
 
+  create_table "tenant_sync_preferences", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "configurable_type", null: false
+    t.bigint "configurable_id", null: false
+    t.string "sync_mode"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["configurable_type", "sync_mode"], name: "idx_sync_prefs_type_mode"
+    t.index ["tenant_id", "configurable_type", "configurable_id"], name: "idx_sync_prefs_unique_record", unique: true
+    t.index ["tenant_id"], name: "index_tenant_sync_preferences_on_tenant_id"
+  end
+
   create_table "tenants", force: :cascade do |t|
     t.string "name", null: false
     t.string "slug", null: false
@@ -11605,6 +11617,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_130001) do
   add_foreign_key "tenant_settings", "contacts", column: "saas_customer_contact_id"
   add_foreign_key "tenant_settings", "corporate_groups"
   add_foreign_key "tenant_settings", "tenants"
+  add_foreign_key "tenant_sync_preferences", "tenants"
   add_foreign_key "tenants", "corporates", column: "billing_company_id"
   add_foreign_key "tenants", "jobs", column: "onboarding_job_id", on_delete: :nullify
   add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
