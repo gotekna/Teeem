@@ -12,7 +12,7 @@ interface EntityConfigPageProps {
 
 export default async function EntityConfigPage({ params }: EntityConfigPageProps) {
   const resolvedParams = await params;
-  let scope = resolvedParams.scope || "corporate_entity";
+  let scope = resolvedParams.scope || "corporate";
 
   // Handle legacy URLs
   if (LEGACY_REDIRECTS[scope]) {

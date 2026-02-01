@@ -63,8 +63,8 @@ import { getIcon } from "@/lib/icon-map";
 
 // =============================================================================
 // TAB CONFIGURATION
-// SSoT: GET /api/v1/entity_tabs?scope=corporate_entity (EntityTab model)
-// Xero tabs are children of the Xero tab in corporate_entity scope (SSoT)
+// SSoT: GET /api/v1/entity_tabs?scope=corporate (EntityTab model)
+// Xero tabs are children of the Xero tab in corporate scope (SSoT)
 // Manage via: Admin > System > Entity Configuration
 // Phase 5 Migration: Using XeroTabRenderer for dynamic Xero tab rendering
 // =============================================================================
@@ -175,7 +175,7 @@ export default function CompanyDetailPage() {
 
   // SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
   const { tabs: entityTabs } = useEntityTabs({
-    scope: "corporate_entity",
+    scope: "corporate",
     entityType: normalizedEntityType,
   });
 

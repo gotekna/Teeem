@@ -15,7 +15,7 @@
  *
  * Usage:
  *   <UnifiedTabRenderer
- *     scope="corporate_entity"
+ *     scope="corporate"
  *     entityId={companyId}
  *     entityType="Company"
  *     entityData={company}
@@ -52,7 +52,7 @@ export function isUnifiedTabsEnabled(): boolean {
 // ============================================
 
 interface UnifiedTabRendererProps {
-  /** Tab scope (corporate_entity, job, contact) */
+  /** Tab scope (corporate, job, contact) */
   scope: EntityTabScope;
 
   /** Entity ID for data fetching */

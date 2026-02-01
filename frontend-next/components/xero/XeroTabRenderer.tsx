@@ -153,9 +153,9 @@ export function XeroTabRenderer({
   // State for tab stats (counts)
   const [tabStats, setTabStats] = React.useState<XeroTabStats | null>(null);
 
-  // Fetch Xero tabs from API (children of "xero" parent in corporate_entity scope)
+  // Fetch Xero tabs from API (children of "xero" parent in corporate scope)
   const { tabs, loading, error } = useEntityTabs({
-    scope: "corporate_entity",
+    scope: "corporate",
     // entityType filtering not needed for Xero tabs
   });
 

@@ -1333,7 +1333,7 @@ export default function JobsPage() {
                 {[
                   { scope: "job", icon: Briefcase, path: "Jobs/{{JobCode}}", color: "green", desc: "Job documents, plans, photos" },
                   { scope: "contact", icon: Users, path: "Contacts/{{ContactName}}", color: "purple", desc: "Client/supplier docs" },
-                  { scope: "corporate_entity", icon: Building2, path: "Corporate/{{CompanyGroup}}", color: "orange", desc: "Company-level docs" },
+                  { scope: "corporate", icon: Building2, path: "Corporate/{{CompanyGroup}}", color: "orange", desc: "Company-level docs" },
                   { scope: "task", icon: ClipboardList, path: "Tasks/{{TaskId}}", color: "red", desc: "Task attachments" },
                   { scope: "email", icon: Mail, path: "Emails/{{Mailbox}}", color: "blue", desc: "Synced emails" },
                   { scope: "warehouse", icon: Archive, path: "Warehousing/{{UserName}}", color: "gray", desc: "General storage" },

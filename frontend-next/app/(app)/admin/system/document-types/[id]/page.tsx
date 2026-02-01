@@ -225,11 +225,11 @@ export default function DocumentTypeDetailPage() {
   React.useEffect(() => {
     const fetchFolders = async () => {
       try {
-        // Use document type scope (for existing) or URL scope (for new), default to corporate_entity
+        // Use document type scope (for existing) or URL scope (for new), default to corporate
         const scope = (documentType?.scope || urlScope || "company").toLowerCase();
         // Map document type scope to EntityTab scope
         // SSoT: "contacts" maps to "contact" (Jan 2026 consolidation)
-        const entityTabScope = scope === "contacts" ? "contact" : scope === "job" || scope === "jobs" ? "job" : "corporate_entity";
+        const entityTabScope = scope === "contacts" ? "contact" : scope === "job" || scope === "jobs" ? "job" : "corporate";
 
         // Build folder hierarchy recursively for all depths
         const mapTabRecursive = (tab: any): any => ({
@@ -242,7 +242,7 @@ export default function DocumentTypeDetailPage() {
         });
 
         // Fetch EntityTabs for the appropriate scope, documents group
-        // SSoT: Xero tabs are children of the Xero tab in corporate_entity scope
+        // SSoT: Xero tabs are children of the Xero tab in corporate scope
         const data = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${entityTabScope}`);
         let allDocumentTabs: any[] = [];
 
@@ -254,7 +254,7 @@ export default function DocumentTypeDetailPage() {
         // SSoT: Fetch ALL tabs from ALL scopes for name lookups
         // This ensures we can display tab names even for tabs from other scopes
         // (e.g., a company doc type referencing a job or contact tab)
-        const allScopes = ['corporate_entity', 'job', 'contact'];
+        const allScopes = ['corporate', 'job', 'contact'];
         const allTabsFromAllScopes: any[] = [];
         for (const scope of allScopes) {
           try {
