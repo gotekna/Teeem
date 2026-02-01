@@ -512,7 +512,7 @@ module Api
         {
           id: sub.id,
           contact_id: sub.contact_id,
-          contact_name: sub.contact.display_name,
+          contact_name: sub.contact&.display_name || "Unknown Contact",
           domain: sub.domain,
           status: sub.status,
           dns_status: sub.dns_status,
