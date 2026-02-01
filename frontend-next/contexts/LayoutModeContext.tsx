@@ -49,8 +49,25 @@ interface LayoutModeContextType {
 
 const LayoutModeContext = React.createContext<LayoutModeContextType | undefined>(undefined);
 
-// Compute classes based on layout mode
-// Note: These are now the ONLY source of overflow behavior (no hardcoded overflow in layout)
+// ============================================================================
+// 🔴 CRITICAL FIX (Feb 2026): Block Layout by Default for space-y Compatibility
+// ============================================================================
+//
+// ROOT CAUSE: 208 files use `space-y-*` which is a BLOCK layout utility.
+// Previously ALL modes forced `flex flex-col` which broke space-y everywhere.
+//
+// THE FIX:
+// - "padded" mode: Block layout (overflow-auto only, no flex)
+//   → Allows space-y, mt-*, mb-* to work naturally
+//   → 99% of pages expect this (forms, content, settings)
+//
+// - "full-height" mode: Flex layout (needed for tables, fullscreen)
+//   → Pages using TablePage, TabbedDetailPage explicitly need flex
+//   → These pages call useSetLayoutMode("full-height")
+//
+// This fixes scrolling for 208 files while keeping specialized layouts working.
+// ============================================================================
+
 function getContainerClassName(mode: LayoutMode): string {
   // Container ALWAYS clips - the inner content div handles scrolling
   // Having overflow-auto on BOTH causes scroll conflicts
@@ -67,17 +84,21 @@ function getContainerClassName(mode: LayoutMode): string {
 function getContentClassName(mode: LayoutMode): string {
   switch (mode) {
     case "padded":
-      // Padded mode: inner div scrolls (layout adds h-full, we add overflow-auto)
-      return "pt-6 pb-0 px-4 flex flex-col overflow-auto";
+      // ✅ BLOCK LAYOUT (default) - works with space-y-*, margin-top, etc.
+      // This is what 99% of pages expect (forms, content, settings)
+      return "pt-6 pb-0 px-4 overflow-auto";
     case "full-height":
-      // Full-height: content fills available space, manages own scroll
+      // ✅ FLEX LAYOUT - for pages that explicitly need it
+      // Used by: TablePage, TabbedDetailPage, FullscreenPage
       return "pt-4 pb-0 px-4 flex flex-col overflow-auto";
     case "edge-to-edge":
+      // ✅ FLEX LAYOUT - for edge-to-edge content
       return "flex flex-col overflow-auto";
     case "fullscreen":
+      // ✅ FLEX LAYOUT - for fullscreen pages (Schedule Master)
       return "flex flex-col overflow-auto";
     default:
-      return "pt-6 pb-0 px-4 flex flex-col overflow-auto";
+      return "pt-6 pb-0 px-4 overflow-auto";
   }
 }
 

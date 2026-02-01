@@ -1516,21 +1516,42 @@ export default function EmailPage() {
     }
   }, [emailIdParam]);
 
-  // Sync ALL mailboxes (IMAP + Office 365)
-  // FRC (Jan 2026): Sync is now synchronous - no more 3-second wait
+  // Sync current account OR all accounts if "all" is selected
+  // FRC (Feb 2026): Smart sync - syncs only the account you're viewing
   const handleSync = async () => {
     setSyncing(true);
     try {
       const results: { total_synced?: number; message?: string }[] = [];
 
-      // Sync all IMAP accounts
-      const imapResult = await api.post<{ total_synced?: number; message?: string }>("/api/v1/imap_credentials/sync_all").catch(() => ({}));
-      if (imapResult) results.push(imapResult);
+      // If viewing specific account, sync only that account
+      if (selectedAccount && selectedAccount !== "all") {
+        const account = accounts.find(a => String(a.id) === selectedAccount);
+        if (account) {
+          if (account.type === "imap") {
+            // Sync specific IMAP account
+            const imapResult = await api.post<{ total_synced?: number; message?: string }>(
+              `/api/v1/imap_credentials/${account.credential_id}/sync`
+            ).catch(() => ({}));
+            if (imapResult) results.push(imapResult);
+          } else if (account.type === "outlook" || account.type === "ms365") {
+            // Sync specific Office 365 account
+            const ms365Result = await api.post<{ total_synced?: number; message?: string }>(
+              "/api/v1/synced_emails/sync"
+            ).catch(() => ({}));
+            if (ms365Result) results.push(ms365Result);
+          }
+        }
+      } else {
+        // Viewing "all accounts" - sync everything
+        // Sync all IMAP accounts
+        const imapResult = await api.post<{ total_synced?: number; message?: string }>("/api/v1/imap_credentials/sync_all").catch(() => ({}));
+        if (imapResult) results.push(imapResult);
 
-      // Sync Office 365/Outlook accounts (runs synchronously now)
-      if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
-        const ms365Result = await api.post<{ total_synced?: number; message?: string }>("/api/v1/synced_emails/sync").catch(() => ({}));
-        if (ms365Result) results.push(ms365Result);
+        // Sync Office 365/Outlook accounts (runs synchronously now)
+        if (accounts.some(a => a.type === "outlook" || a.type === "ms365")) {
+          const ms365Result = await api.post<{ total_synced?: number; message?: string }>("/api/v1/synced_emails/sync").catch(() => ({}));
+          if (ms365Result) results.push(ms365Result);
+        }
       }
 
       // Show results
