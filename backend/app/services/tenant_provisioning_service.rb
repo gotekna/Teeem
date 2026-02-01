@@ -63,6 +63,7 @@ class TenantProvisioningService
       # Phase 4: Optional enhancements
       start_trial if @params[:start_trial]
       import_starter_templates
+      copy_master_pricebook if @params[:include_pricebook]
       create_stripe_customer if stripe_enabled?
 
       raise ActiveRecord::Rollback if @errors.any?
@@ -370,6 +371,71 @@ class TenantProvisioningService
 
   def default_template_packs
     TemplatePack.where(visibility: :curated, status: :published).pluck(:id)
+  end
+
+  # Copy pricebook from master tenant with 5% markup
+  # Uses TenantConfigSyncService for FK remapping and consistency
+  def copy_master_pricebook
+    master = Tenant.find_by(is_master_tenant: true) || Tenant.find_by(slug: "teeem")
+    unless master
+      Rails.logger.warn "[TenantProvisioning] No master tenant found, skipping pricebook copy"
+      return
+    end
+
+    sync_service = TenantConfigSyncService.new(@tenant)
+    markup_percent = 5.0
+
+    # Step 1: Copy contacts (suppliers) - needed for FK references in price_histories
+    supplier_contact_ids = ActsAsTenant.with_tenant(master) do
+      # Only copy contacts that have price histories (suppliers with pricing data)
+      Contact.joins("INNER JOIN price_histories ON price_histories.supplier_id = contacts.id")
+             .distinct
+             .pluck(:id)
+    end
+
+    if supplier_contact_ids.any?
+      contacts_result = sync_service.pull_from_master(
+        table: :contacts,
+        record_ids: supplier_contact_ids,
+        mode: :add_new
+      )
+      Rails.logger.info "[TenantProvisioning] Copied #{contacts_result[:imported]&.length || 0} supplier contacts"
+    end
+
+    # Step 2: Copy pricebook items with 5% markup
+    pricebook_item_ids = ActsAsTenant.with_tenant(master) do
+      PricebookItem.where(is_active: true).pluck(:id)
+    end
+
+    if pricebook_item_ids.any?
+      items_result = sync_service.pull_from_master(
+        table: :pricebook_items,
+        record_ids: pricebook_item_ids,
+        mode: :add_new,
+        price_markup_percent: markup_percent
+      )
+      Rails.logger.info "[TenantProvisioning] Copied #{items_result[:imported]&.length || 0} pricebook items with #{markup_percent}% markup"
+    end
+
+    # Step 3: Copy price histories with 5% markup
+    price_history_ids = ActsAsTenant.with_tenant(master) do
+      PriceHistory.pluck(:id)
+    end
+
+    if price_history_ids.any?
+      histories_result = sync_service.pull_from_master(
+        table: :price_histories,
+        record_ids: price_history_ids,
+        mode: :add_new,
+        price_markup_percent: markup_percent
+      )
+      Rails.logger.info "[TenantProvisioning] Copied #{histories_result[:imported]&.length || 0} price histories with #{markup_percent}% markup"
+    end
+
+    Rails.logger.info "[TenantProvisioning] Pricebook copy complete for #{@tenant.name}"
+  rescue StandardError => e
+    Rails.logger.warn "[TenantProvisioning] Pricebook copy warning: #{e.message}"
+    # Don't fail provisioning for pricebook errors - can be synced later via Config Sync
   end
 
   def stripe_enabled?

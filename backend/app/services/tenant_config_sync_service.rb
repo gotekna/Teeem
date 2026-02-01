@@ -455,9 +455,11 @@ class TenantConfigSyncService
   # mode: :add_new - only add records that don't exist
   #       :replace_existing - update existing records with master values
   #       :skip_existing - skip if exists, only add new
-  def pull_from_master(table:, record_ids:, mode: :add_new)
+  # price_markup_percent: Optional markup percentage to apply to prices (for pricebook sync)
+  def pull_from_master(table:, record_ids:, mode: :add_new, price_markup_percent: 0)
     validate_table!(table)
     @errors = []
+    @price_markup_percent = price_markup_percent.to_f
     master = master_tenant
 
     unless master
@@ -527,7 +529,8 @@ class TenantConfigSyncService
       imported: imported.map { |r| record_to_json(r, config) },
       updated: updated.map { |r| record_to_json(r, config) },
       skipped: skipped,
-      errors: @errors
+      errors: @errors,
+      price_markup_applied: @price_markup_percent > 0 ? @price_markup_percent : nil
     }
 
     # Include price history sync results if applicable
@@ -644,8 +647,9 @@ class TenantConfigSyncService
   def create_new_record(source_record, config, model)
     ActsAsTenant.with_tenant(tenant) do
       new_record = model.new
-      config[:sync_fields].each do |field|
-        new_record.send("#{field}=", source_record.send(field)) if source_record.respond_to?(field)
+      attrs = build_sync_attrs(source_record, config)
+      attrs.each do |field, value|
+        new_record.send("#{field}=", value) if new_record.respond_to?("#{field}=")
       end
       new_record.save!
       { created: true, record: new_record }
@@ -678,6 +682,30 @@ class TenantConfigSyncService
       end
 
       attrs[field] = value
+    end
+
+    # Apply price markup for pricebook-related tables
+    model_name = source_record.class.name
+    if @price_markup_percent && @price_markup_percent > 0 && model_name.in?(%w[PricebookItem PriceHistory])
+      attrs = apply_price_markup(attrs, @price_markup_percent, model_name)
+    end
+
+    attrs
+  end
+
+  # Apply percentage markup to price fields
+  # PricebookItem: current_price, supplier_price
+  # PriceHistory: old_price, new_price
+  def apply_price_markup(attrs, markup_percent, model_name)
+    multiplier = 1 + (markup_percent / 100.0)
+
+    case model_name
+    when "PricebookItem"
+      attrs[:current_price] = (attrs[:current_price].to_f * multiplier).round(2) if attrs[:current_price].present?
+      attrs[:supplier_price] = (attrs[:supplier_price].to_f * multiplier).round(2) if attrs[:supplier_price].present?
+    when "PriceHistory"
+      attrs[:old_price] = (attrs[:old_price].to_f * multiplier).round(2) if attrs[:old_price].present?
+      attrs[:new_price] = (attrs[:new_price].to_f * multiplier).round(2) if attrs[:new_price].present?
     end
 
     attrs

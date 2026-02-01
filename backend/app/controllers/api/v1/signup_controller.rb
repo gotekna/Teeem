@@ -251,6 +251,7 @@ module Api
           :timezone,
           :locale,
           :currency,
+          :include_pricebook,
           template_pack_ids: []
         )
       end
