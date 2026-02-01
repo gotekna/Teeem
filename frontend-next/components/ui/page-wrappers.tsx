@@ -3,10 +3,18 @@
 /**
  * PAGE WRAPPER COMPONENTS (SSoT)
  *
+ * 🔴 EVERY PAGE MUST USE A WRAPPER - See: lib/GOLD_STANDARD_PAGE_PATTERNS.md
+ *
  * These are THE ONLY components that should call useSetLayoutMode.
  * Individual tabs and child components MUST NOT change global layout.
  *
+ * WHY THIS MATTERS:
+ * - 260+ pages need consistent scrolling behavior
+ * - Parent layout can be block OR flex depending on mode
+ * - Wrappers ensure pages work correctly in both modes
+ *
  * See: frontend-next/lib/component-registry.ts
+ * See: frontend-next/lib/GOLD_STANDARD_PAGE_PATTERNS.md
  *
  * Usage:
  * ```tsx
@@ -18,6 +26,17 @@
  *     <TablePage>
  *       <TeeemTableView ... />
  *     </TablePage>
+ *   );
+ * }
+ *
+ * // For scrollable content (forms, settings, etc.)
+ * import { ScrollablePage } from "@/components/ui/page-wrappers";
+ *
+ * export default function SettingsPage() {
+ *   return (
+ *     <ScrollablePage>
+ *       <form className="space-y-6">...</form>
+ *     </ScrollablePage>
  *   );
  * }
  *
