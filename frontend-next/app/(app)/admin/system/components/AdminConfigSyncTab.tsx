@@ -391,6 +391,29 @@ export function AdminConfigSyncTab() {
       return parts.length > 0 ? parts.join(" - ") : `Record #${record.id}`;
     }
 
+    // For job_type_statuses (join table), show IDs with labels
+    if (selectedTable === "job_type_statuses") {
+      const jobTypeId = record.job_type_id as number | undefined;
+      const jobStatusId = record.job_status_id as number | undefined;
+      return `Type #${jobTypeId || "?"} → Status #${jobStatusId || "?"}`;
+    }
+
+    // For job_status_stages (join table), show IDs with labels
+    if (selectedTable === "job_status_stages") {
+      const jobTypeId = record.job_type_id as number | undefined;
+      const jobStatusId = record.job_status_id as number | undefined;
+      const jobStageId = record.job_stage_id as number | undefined;
+      return `Type #${jobTypeId || "?"} / Status #${jobStatusId || "?"} → Stage #${jobStageId || "?"}`;
+    }
+
+    // For public_holidays, show name + date to distinguish different years
+    if (selectedTable === "public_holidays") {
+      const name = record.name as string | undefined;
+      const date = record.date as string | undefined;
+      const dateStr = date ? new Date(date).toLocaleDateString() : "";
+      return name ? `${name} (${dateStr})` : `Record #${record.id}`;
+    }
+
     // Fallback to showing the name or ID
     return record.name?.toString() || `Record #${record.id}`;
   }, [selectedTable]);

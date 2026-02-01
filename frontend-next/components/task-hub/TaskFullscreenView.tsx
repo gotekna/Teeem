@@ -1658,37 +1658,47 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     return findOldestExternalEmail(categorizedEmails.linked);
   }, [categorizedEmails, forwardedEmailInfo, allEmailAttachments, currentUser]);
 
+  // Get the mailbox email that received the original message (for Reply From address)
+  // SSoT: Ensures reply is sent from the same mailbox the original was received at
+  const originalEmailMailbox = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (originalEmailData as any)?.mailbox_owner_email || null;
+  }, [originalEmailData]);
+
   // Collect CC recipients from the original email's To and CC fields
-  // Excludes the sender (goes in To) and current user's email
+  // Excludes the sender (goes in To) and our own mailbox emails (will be From)
   const suggestedCcRecipients = useMemo(() => {
     const ccEmails = new Set<string>();
     const senderEmail = originalEmailSender?.toLowerCase();
 
     if (!originalEmailData) return [];
 
-    // Add original To recipients (except sender and current user robert@tekna)
+    // Helper to check if email is one of our mailboxes
+    const isOurMailbox = (email: string) => ourMailboxes.has(email.toLowerCase());
+
+    // Add original To recipients (except sender and our own mailboxes)
     originalEmailData.to_emails?.forEach((addr: string) => {
       const lower = addr.toLowerCase();
-      // Exclude: the sender, robert@tekna (current user), and @teeem internal
+      // Exclude: the sender, our mailboxes, and @teeem internal addresses
       if (lower !== senderEmail &&
-          !lower.includes('robert@tekna') &&
+          !isOurMailbox(addr) &&
           !lower.includes('@teeem.')) {
         ccEmails.add(addr);
       }
     });
 
-    // Add original CC recipients
+    // Add original CC recipients (same filtering)
     originalEmailData.cc_emails?.forEach((addr: string) => {
       const lower = addr.toLowerCase();
       if (lower !== senderEmail &&
-          !lower.includes('robert@tekna') &&
+          !isOurMailbox(addr) &&
           !lower.includes('@teeem.')) {
         ccEmails.add(addr);
       }
     });
 
     return Array.from(ccEmails);
-  }, [originalEmailData, originalEmailSender]);
+  }, [originalEmailData, originalEmailSender, ourMailboxes]);
 
   // Apply person filter to each category (for tree view)
   const filteredCategories = useMemo(() => {
@@ -8110,6 +8120,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           onOpenChange={setShowComposeEmail}
           defaultTo={originalEmailSender || ''}
           defaultCc={suggestedCcRecipients.join(', ')}
+          defaultFromEmail={originalEmailMailbox || undefined}
           defaultSubject={originalEmailData?.subject
             ? `Re: ${originalEmailData.subject.replace(/^(RE:|FW:|FWD:)\s*/gi, '')}`
             : `Re: Task #${task.task_number}  |  ${task.name}`}

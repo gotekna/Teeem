@@ -96,7 +96,7 @@ const scopes = [
     isEmailConfig: true,
   },
   {
-    id: "config_sync",
+    id: "sync",
     label: "Sync",
     icon: RefreshCw,
     showEntityFilters: false,
@@ -115,7 +115,7 @@ const SCOPE_LABELS: Record<string, string> = {
   document_types: "Document Types",
   storage_config: "Storage Config",
   email_config: "Email Config",
-  config_sync: "Config Sync",
+  sync: "Sync",
 };
 
 // Build breadcrumb items from path and active scope
