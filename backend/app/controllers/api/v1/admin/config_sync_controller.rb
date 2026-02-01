@@ -29,16 +29,42 @@ module Api
 
         # GET /api/v1/admin/config_sync/tenants/:tenant_id/config/:table
         # Browse a tenant's configuration records
+        #
+        # Params:
+        #   filter_existing_contacts: boolean - For price_histories, only show records
+        #                                       where the supplier exists in master tenant
         def browse
           source_tenant = Tenant.find(params[:tenant_id])
           service = TenantConfigSyncService.new(master_tenant)
           records = service.browse_tenant_config(source_tenant, params[:table])
+          total_unfiltered = records.length
+
+          # Filter price_histories to only show records for contacts that exist in master tenant
+          if params[:table] == "price_histories" && params[:filter_existing_contacts] == "true"
+            # Get contact display_names that exist in master tenant
+            master_contact_names = ActsAsTenant.with_tenant(master_tenant) do
+              Contact.pluck(:display_name).compact.map(&:downcase)
+            end
+
+            # Get source tenant contact names mapped to IDs
+            source_contacts = ActsAsTenant.with_tenant(source_tenant) do
+              Contact.pluck(:id, :display_name).to_h
+            end
+
+            # Filter records where supplier exists in master
+            records = records.select do |record|
+              supplier_id = record[:supplier_id] || record["supplier_id"]
+              supplier_name = source_contacts[supplier_id]&.downcase
+              supplier_name && master_contact_names.include?(supplier_name)
+            end
+          end
 
           render json: {
             success: true,
             table: params[:table],
             source_tenant: tenant_info(source_tenant),
-            records: records
+            records: records,
+            total_unfiltered: total_unfiltered
           }
         rescue ActiveRecord::RecordNotFound
           render json: { success: false, error: "Tenant not found" }, status: :not_found
