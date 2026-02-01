@@ -1606,6 +1606,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           return email;
         }
       }
+      // If not found by name, try to get mailbox_owner_email from any attachment
+      // SSoT: This preserves the correct reply From address even when name match fails
+      const firstEmailWithMailbox = allEmailAttachments.find(att => att.email?.mailbox_owner_email);
       // If not found in stored emails, return what we have from parsing
       return {
         from_name: forwardedEmailInfo.from_name,
@@ -1618,6 +1621,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         body_text: undefined,
         body_html: undefined,
         conversation_id: undefined, // Required for SSoT conversation threading
+        mailbox_owner_email: firstEmailWithMailbox?.email?.mailbox_owner_email, // SSoT: Preserve for Reply From
       };
     }
 
