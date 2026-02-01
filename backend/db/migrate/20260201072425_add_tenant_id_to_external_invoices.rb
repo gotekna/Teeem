@@ -185,9 +185,12 @@ class AddTenantIdToExternalInvoices < ActiveRecord::Migration[8.0]
   end
 
   def down
+    execute "DROP VIEW IF EXISTS xero_sync_contacts_view"
     remove_foreign_key :external_invoices, :tenants
-    remove_index :external_invoices, :tenant_id
+    # Index was already there, don't remove it
     # Convert back to string
     execute "ALTER TABLE external_invoices ALTER COLUMN tenant_id TYPE varchar USING tenant_id::varchar"
+    # Recreate view after column type change
+    recreate_xero_sync_contacts_view
   end
 end
