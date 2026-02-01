@@ -128,6 +128,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
       emails = emails.where(imap_credential_id: params[:imap_credential_id])
     end
 
+    # Filter by PolarisMail mailbox (EmailMailbox)
+    if params[:email_mailbox_id].present?
+      emails = emails.where(email_mailbox_id: params[:email_mailbox_id])
+    end
+
     # Filter by mailbox_owner_email (for Warehouse links to historical mailboxes)
     # This allows filtering by mailbox even if it's not a connected account
     # ⚠️ FRC (Jan 2026): When microsoft_credential_id is present, SKIP this filter!
@@ -673,6 +678,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
         end
       end
 
+      # Get PolarisMail mailboxes (EmailMailbox)
+      polaris_mailboxes = EmailMailbox.active.includes(:email_subscription)
+                                      .select { |m| m.email_subscription&.status == "active" }
+      polaris_mailbox_ids = polaris_mailboxes.map(&:id)
+      polaris_mailbox_emails = polaris_mailboxes.map(&:email_address)
+      all_accounts.concat(polaris_mailbox_emails)
+
       conditions = []
       bind_values = []
 
@@ -689,6 +701,12 @@ class Api::V1::SyncedEmailsController < ApplicationController
         conditions << "(id IN (SELECT synced_email_id FROM synced_email_mailboxes WHERE microsoft_credential_id IN (?) AND LOWER(mailbox_owner_email) IN (?)))"
         bind_values << ms365_cred_ids
         bind_values << ms365_mailbox_emails.map(&:downcase)
+      end
+
+      # PolarisMail mailboxes
+      if polaris_mailbox_ids.any?
+        conditions << "(email_mailbox_id IN (?))"
+        bind_values << polaris_mailbox_ids
       end
 
       if conditions.any?
@@ -720,8 +738,22 @@ class Api::V1::SyncedEmailsController < ApplicationController
           .count
       end
 
+      # For PolarisMail, use the email-level is_read
+      polaris_unread_by_account = {}
+      if polaris_mailbox_ids.any?
+        # Group by email address from the mailbox, not mailbox_owner_email
+        polaris_mailbox_map = polaris_mailboxes.index_by(&:id)
+        SyncedEmail.where(email_mailbox_id: polaris_mailbox_ids, is_read: false)
+          .group(:email_mailbox_id)
+          .count
+          .each do |mailbox_id, count|
+            mailbox = polaris_mailbox_map[mailbox_id]
+            polaris_unread_by_account[mailbox&.email_address] = count if mailbox
+          end
+      end
+
       # Merge the counts
-      unread_by_account = ms365_unread_by_account.merge(imap_unread_by_account)
+      unread_by_account = ms365_unread_by_account.merge(imap_unread_by_account).merge(polaris_unread_by_account)
       total_unread = unread_by_account.values.sum
 
       # Build result including all accounts (even with 0 unread)

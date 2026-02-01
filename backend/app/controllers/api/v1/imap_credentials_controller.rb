@@ -463,6 +463,27 @@ class Api::V1::ImapCredentialsController < ApplicationController
       }
     end
 
+    # Add PolarisMail accounts (EmailMailbox)
+    # These are mailboxes from email subscriptions managed by PolarisMail/EmailArray
+    EmailMailbox.active.includes(:email_subscription).each do |mailbox|
+      # Skip if subscription isn't active
+      next unless mailbox.email_subscription&.status == "active"
+
+      account_id = "polaris_#{mailbox.id}"
+      accounts << {
+        id: account_id,
+        type: "polaris",
+        name: mailbox.display_name.presence || mailbox.email_address.split("@").first,
+        email_address: mailbox.email_address,
+        provider: "polaris",
+        is_active: true,
+        is_default: false,
+        email_mailbox_id: mailbox.id,
+        position: saved_positions[account_id] || (fallback_position += 1),
+        is_favorite: favorite_ids.include?(account_id)
+      }
+    end
+
     # Sort by position to match navigation sidebar order
     accounts.sort_by! { |a| a[:position] }
 
