@@ -3,7 +3,14 @@
 class BillInbox < ApplicationRecord
   include StorageUploadable
 
+  # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
+  # FRC: BillInbox was leaking data across tenants - users could see other tenants' bills
+  # Root cause: Legacy indirect relationship (bill → corporate_company → corporate_group → tenant)
+  # Fix: Direct tenant_id column + acts_as_tenant for automatic scoping
+  acts_as_tenant :tenant
+
   # Associations
+  belongs_to :tenant
   belongs_to :corporate_company, optional: true
   belongs_to :detected_company, class_name: "CorporateCompany", optional: true
   belongs_to :supplier, class_name: "Contact", optional: true
@@ -149,10 +156,8 @@ class BillInbox < ApplicationRecord
   # Phase 4: Virtual folder path for File Warehouse
   # SSoT: Reads from WarehouseProvider.path_for(:bill_inbox)
   # Configure at: /settings/company/entity-config → Storage Config
-  # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
-    tenant = resolve_tenant_for_config
-    return "Warehousing/BillInbox/Unknown" unless tenant
+    return "Warehousing/BillInbox/Unknown" unless tenant_id
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.path_for(:bill_inbox)
@@ -227,38 +232,14 @@ class BillInbox < ApplicationRecord
 
   private
 
-  # Resolve tenant for WarehouseProvider access
-  # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
-  # Derive tenant from: corporate_company → group → tenant, or approved_by → tenant
-  def resolve_tenant_for_config
-    # Try corporate_company → corporate_group → tenant
-    if corporate_company&.corporate_group&.respond_to?(:tenant) && corporate_company.corporate_group.tenant.present?
-      return corporate_company.corporate_group.tenant
-    end
-
-    # Try approved_by user
-    if approved_by&.respond_to?(:tenant) && approved_by.tenant.present?
-      return approved_by.tenant
-    end
-
-    # Fall back to ActsAsTenant if available
-    ActsAsTenant.current_tenant
-  end
-
   # Create WarehouseDocument entry for this bill inbox item
-  # ⚠️ FRC (Jan 2026): Must set tenant_id explicitly - model callbacks don't have
-  # ActsAsTenant context, and WarehouseDocument validates tenant presence
+  # SSoT (Feb 2026): Uses direct tenant_id association (acts_as_tenant)
   def create_warehouse_entry
     return unless storage_blob
-
-    tenant = resolve_tenant_for_config
-    unless tenant
-      Rails.logger.warn("[BillInbox] ##{id}: No tenant found, skipping warehouse entry")
-      return
-    end
+    return unless tenant_id # Guaranteed by acts_as_tenant + NOT NULL constraint
 
     create_warehouse_document!(
-      tenant_id: tenant.id,
+      tenant_id: tenant_id,
       source_type: "warehouse",
       folder: virtual_folder_path,
       display_name: display_name,
