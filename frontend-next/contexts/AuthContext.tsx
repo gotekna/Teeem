@@ -131,7 +131,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // Skip auth checks for public routes (document viewer, login page)
     // These routes should work without authentication and shouldn't trigger redirects
     if (typeof window !== 'undefined') {
-      const publicPaths = ['/view', '/login', '/signup', '/forgot-password'];
+      const publicPaths = ['/view', '/login', '/signup', '/forgot-password', '/get-started'];
       const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path));
       if (isPublicPath) {
         setLoading(false);
