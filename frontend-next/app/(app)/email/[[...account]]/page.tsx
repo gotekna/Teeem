@@ -1965,18 +1965,16 @@ To: ${email.to_emails?.join(", ") || ""}
         className="bg-muted/30 flex flex-col"
       >
         {/* Last sync indicator */}
-        {(() => {
-          const currentAccount = selectedAccount !== "all"
-            ? accounts.find(a => String(a.id) === selectedAccount)
-            : null;
-          const syncTime = lastLocalSyncAt || (currentAccount?.last_synced_at ? new Date(currentAccount.last_synced_at) : null);
-          if (!syncTime) return null;
-          return (
-            <div className="px-2 pt-2 pb-1 text-xs text-muted-foreground">
-              Last sync: {formatDistanceToNow(syncTime, { addSuffix: true })}
-            </div>
-          );
-        })()}
+        {selectedAccount && selectedAccount !== "all" && (
+          <div className="px-2 pt-2 pb-1 text-xs text-muted-foreground">
+            {(() => {
+              const currentAccount = accounts.find(a => String(a.id) === selectedAccount);
+              const syncTime = lastLocalSyncAt || (currentAccount?.last_synced_at ? new Date(currentAccount.last_synced_at) : null);
+              if (!syncTime) return "Last sync: -";
+              return `Last sync: ${formatDistanceToNow(syncTime, { addSuffix: true })}`;
+            })()}
+          </div>
+        )}
         <div className="p-2 border-b flex items-center gap-1">
           <Button className="flex-1" size="sm" onClick={handleCompose} data-tour="email-compose">
             <Plus className="h-4 w-4 mr-1" />
