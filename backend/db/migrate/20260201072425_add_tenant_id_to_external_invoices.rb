@@ -138,6 +138,7 @@ class AddTenantIdToExternalInvoices < ActiveRecord::Migration[8.0]
       ) link_count ON true
 
       -- Invoice/bill stats subquery (filtered by THIS tenant)
+      -- Note: cel.tenant_id is varchar (from Xero), ei.tenant_id is bigint - must cast
       LEFT JOIN LATERAL (
         SELECT
           COUNT(*) FILTER (WHERE invoice_type = 'sales_invoice') AS invoices_count,
@@ -146,7 +147,7 @@ class AddTenantIdToExternalInvoices < ActiveRecord::Migration[8.0]
           MAX(last_synced_at) AS last_invoice_sync_at
         FROM external_invoices ei
         WHERE ei.contact_id = c.id
-          AND ei.tenant_id = cel.tenant_id
+          AND ei.tenant_id = NULLIF(cel.tenant_id, '')::bigint
       ) inv_stats ON true
 
       -- PDF stats subquery (filtered by THIS tenant)
@@ -159,7 +160,7 @@ class AddTenantIdToExternalInvoices < ActiveRecord::Migration[8.0]
         WHERE wd.documentable_type = 'ExternalInvoice'
           AND wd.source_type = 'xero'
           AND ei.contact_id = c.id
-          AND ei.tenant_id = cel.tenant_id
+          AND ei.tenant_id = NULLIF(cel.tenant_id, '')::bigint
       ) pdf_stats ON true
 
       -- Blob health stats (checks if storage blobs have content_hash)
@@ -173,7 +174,7 @@ class AddTenantIdToExternalInvoices < ActiveRecord::Migration[8.0]
         WHERE wd.documentable_type = 'ExternalInvoice'
           AND wd.source_type = 'xero'
           AND ei.contact_id = c.id
-          AND ei.tenant_id = cel.tenant_id
+          AND ei.tenant_id = NULLIF(cel.tenant_id, '')::bigint
       ) blob_health ON true
 
       -- Primary company join
