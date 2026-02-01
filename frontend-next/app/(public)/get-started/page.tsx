@@ -364,7 +364,7 @@ function GetStartedPageContent() {
                         Include starter pricebook
                       </Label>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Get started with 1,200+ supplier items and pricing from industry-standard rates (5% markup applied)
+                        Copy our full pricebook with supplier items and industry-standard pricing (5% markup applied)
                       </p>
                     </div>
                   </div>
