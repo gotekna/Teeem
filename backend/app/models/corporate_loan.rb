@@ -1,8 +1,14 @@
-class CorporateCompanyLoan < ApplicationRecord
+class CorporateLoan < ApplicationRecord
+  acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
+
+  # Explicit table name since we renamed from corporate_company_loans
+  self.table_name = "corporate_loans"
+
   # Associations
-  belongs_to :lender_company, class_name: "CorporateCompany"
-  belongs_to :borrower_company, class_name: "CorporateCompany"
-  # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
+  belongs_to :tenant
+  belongs_to :lender_company, class_name: "Corporate"
+  belongs_to :borrower_company, class_name: "Corporate"
+  # Note: corporate_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
 
   # Validations
   validates :principal_amount, presence: true, numericality: { greater_than: 0 }
@@ -50,3 +56,6 @@ class CorporateCompanyLoan < ApplicationRecord
     self.current_balance ||= principal_amount
   end
 end
+
+# Backwards compatibility alias (deprecated - use CorporateLoan directly)
+CorporateCompanyLoan = CorporateLoan

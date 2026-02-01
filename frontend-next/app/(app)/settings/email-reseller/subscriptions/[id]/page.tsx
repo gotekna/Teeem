@@ -103,6 +103,7 @@ export default function SubscriptionDetailPage() {
   const fetchData = React.useCallback(async () => {
     try {
       const data = await getSubscription(subscriptionId);
+      console.log("[DEBUG] Subscription data received:", JSON.stringify(data, null, 2));
       setSubscription(data as SubscriptionDetail);
     } catch (err) {
       console.error("Failed to fetch subscription:", err);

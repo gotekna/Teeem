@@ -1,11 +1,11 @@
 module Api
   module V1
-    class CorporateCompanyComplianceItemsController < ApplicationController
+    class CorporateComplianceItemsController < ApplicationController
       before_action :set_compliance_item, only: [ :show, :update, :destroy, :mark_completed ]
 
       # GET /api/v1/company_compliance_items
       def index
-        @items = CorporateCompanyComplianceItem.includes(:corporate_company).all
+        @items = CorporateComplianceItem.includes(:corporate).all
 
         # Filter by company
         @items = @items.where(company_id: params[:company_id]) if params[:company_id].present?
@@ -45,7 +45,7 @@ module Api
 
       # POST /api/v1/company_compliance_items
       def create
-        @item = CorporateCompanyComplianceItem.new(compliance_item_params)
+        @item = CorporateComplianceItem.new(compliance_item_params)
 
         if @item.save
           render json: {
@@ -100,7 +100,7 @@ module Api
       private
 
       def set_compliance_item
-        @item = CorporateCompanyComplianceItem.find(params[:id])
+        @item = CorporateComplianceItem.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Compliance item not found" }, status: :not_found
       end

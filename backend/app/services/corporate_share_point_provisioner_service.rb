@@ -366,10 +366,10 @@ class CorporateSharePointProvisionerService
   end
 
   # Create or link document in database
-  # Note: corporate_company_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
+  # Note: corporate_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
   # TODO: Migrate this method to create WarehouseDocument records instead
   def sync_document_to_database(company, file_id)
-    Rails.logger.warn "[CorporateSharePointProvisionerService] sync_document_to_database called but corporate_company_documents table dropped. File ID: #{file_id}"
+    Rails.logger.warn "[CorporateSharePointProvisionerService] sync_document_to_database called but corporate_documents table dropped. File ID: #{file_id}"
     # Return nil to prevent errors - callers should handle nil gracefully
     nil
   end
@@ -393,7 +393,7 @@ class CorporateSharePointProvisionerService
     end
 
     # Try to find any known company code in the filename
-    CorporateCompany.where.not(code: [ nil, "" ]).find_each do |c|
+    Corporate.where.not(code: [ nil, "" ]).find_each do |c|
       if name_without_ext.match?(/\b#{Regexp.escape(c.code)}\b/i)
         return c.code.upcase
       end

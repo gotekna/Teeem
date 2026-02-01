@@ -172,7 +172,7 @@ class S3PathCleanupJob < ApplicationJob
 
     when "corporate"
       company = document.linkable
-      raise ArgumentError, "WarehouseDocument #{document.id} has no linkable CorporateCompany - cannot determine path" unless company&.is_a?(CorporateCompany)
+      raise ArgumentError, "WarehouseDocument #{document.id} has no linkable Corporate - cannot determine path" unless company&.is_a?(Corporate)
 
       corporate_folder = config.path_for(:corporate) || "Corporate"
       "#{corporate_folder}/#{company.id}/#{subfolder}/#{filename}"

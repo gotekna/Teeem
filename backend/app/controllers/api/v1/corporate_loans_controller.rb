@@ -1,6 +1,6 @@
 module Api
   module V1
-    class CorporateCompanyLoansController < ApplicationController
+    class CorporateLoansController < ApplicationController
       before_action :set_company, only: [ :index, :show, :create, :update, :destroy ]
       before_action :set_loan, only: [ :show, :update, :destroy ]
 
@@ -33,7 +33,7 @@ module Api
       # GET /api/v1/company_loans
       # List all loans across all companies
       def all
-        @loans = CorporateCompanyLoan.includes(:lender_company, :borrower_company)
+        @loans = CorporateLoan.includes(:lender_company, :borrower_company)
                             .order(loan_date: :desc)
 
         if params[:status].present?
@@ -56,7 +56,7 @@ module Api
 
       # POST /api/v1/companies/:company_id/loans
       def create
-        @loan = CorporateCompanyLoan.new(loan_params)
+        @loan = CorporateLoan.new(loan_params)
 
         # Ensure the company is involved in the loan
         unless [ @loan.lender_company_id, @loan.borrower_company_id ].include?(@company.id)
@@ -135,7 +135,7 @@ module Api
       private
 
       def set_company
-        @company = CorporateCompany.find(params[:company_id])
+        @company = Corporate.find(params[:company_id])
       end
 
       def set_loan

@@ -68,8 +68,8 @@ export interface EmailMailbox {
 
   // Storage
   storage_quota_gb: number;
-  storage_used_gb: number;
-  storage_used_percentage: number;
+  storage_used_gb: number | null;
+  storage_used_percentage?: number;
 
   // Timestamps
   provisioned_at: string | null;

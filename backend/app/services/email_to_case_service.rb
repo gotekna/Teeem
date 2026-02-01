@@ -420,11 +420,11 @@ class EmailToCaseService
     (extracted["related_companies"] || []).each do |company_ref|
       company = nil
       if company_ref["acn"].present?
-        company = CorporateCompany.find_by(acn: company_ref["acn"].gsub(/\s/, ""))
+        company = Corporate.find_by(acn: company_ref["acn"].gsub(/\s/, ""))
       elsif company_ref["abn"].present?
-        company = CorporateCompany.find_by(abn: company_ref["abn"].gsub(/\s/, ""))
+        company = Corporate.find_by(abn: company_ref["abn"].gsub(/\s/, ""))
       elsif company_ref["name"].present?
-        company = CorporateCompany.where("LOWER(name) LIKE ?", "%#{company_ref['name'].downcase}%").first
+        company = Corporate.where("LOWER(name) LIKE ?", "%#{company_ref['name'].downcase}%").first
       end
 
       if company
@@ -607,7 +607,7 @@ class EmailToCaseService
     end
 
     company_ids.uniq { |c| c[:id] }.each do |company_ref|
-      company = CorporateCompany.find_by(id: company_ref[:id])
+      company = Corporate.find_by(id: company_ref[:id])
       next unless company
 
       case_record.add_company(company, role: company_ref[:role] || "subject")

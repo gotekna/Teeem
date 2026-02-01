@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_01_130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -539,10 +539,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
     t.boolean "is_ap_enabled", default: false
     t.integer "next_aba_sequence", default: 1
     t.string "bank_feed_name"
+    t.bigint "tenant_id", null: false
     t.index ["company_id", "is_ap_enabled"], name: "idx_bank_accounts_company_ap"
     t.index ["company_id", "status"], name: "index_bank_accounts_on_company_id_and_status"
     t.index ["company_id"], name: "index_bank_accounts_on_company_id"
     t.index ["status"], name: "index_bank_accounts_on_status"
+    t.index ["tenant_id"], name: "index_bank_accounts_on_tenant_id"
     t.index ["xero_account_id"], name: "index_bank_accounts_on_xero_account_id"
   end
 
@@ -616,11 +618,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
     t.index ["bank_account_id", "transaction_date"], name: "idx_on_bank_account_id_transaction_date_4b5f834392"
     t.index ["bank_account_id"], name: "index_bank_transactions_on_bank_account_id"
     t.index ["company_id", "transaction_date"], name: "index_bank_transactions_on_company_id_and_transaction_date"
     t.index ["company_id"], name: "index_bank_transactions_on_company_id"
     t.index ["status"], name: "index_bank_transactions_on_status"
+    t.index ["tenant_id"], name: "index_bank_transactions_on_tenant_id"
     t.index ["xero_contact_id"], name: "index_bank_transactions_on_xero_contact_id"
     t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
   end
@@ -756,6 +760,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
     t.index ["approved_by_id"], name: "index_bill_payment_batches_on_approved_by_id"
     t.index ["bank_account_id"], name: "index_bill_payment_batches_on_bank_account_id"
     t.index ["batch_reference"], name: "index_bill_payment_batches_on_batch_reference", unique: true
@@ -764,6 +769,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
     t.index ["created_by_id"], name: "index_bill_payment_batches_on_created_by_id"
     t.index ["payment_date"], name: "index_bill_payment_batches_on_payment_date"
     t.index ["status"], name: "index_bill_payment_batches_on_status"
+    t.index ["tenant_id"], name: "index_bill_payment_batches_on_tenant_id"
   end
 
   create_table "bill_payments", force: :cascade do |t|
@@ -784,11 +790,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
     t.string "sync_error"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "tenant_id", null: false
     t.index ["bill_inbox_id"], name: "index_bill_payments_on_bill_inbox_id"
     t.index ["bill_payment_batch_id", "bill_inbox_id"], name: "idx_bill_payments_batch_inbox_unique", unique: true
     t.index ["bill_payment_batch_id"], name: "index_bill_payments_on_bill_payment_batch_id"
     t.index ["purchase_order_id"], name: "index_bill_payments_on_purchase_order_id"
     t.index ["status"], name: "index_bill_payments_on_status"
+    t.index ["tenant_id"], name: "index_bill_payments_on_tenant_id"
   end
 
   create_table "bpmn_edges", force: :cascade do |t|
@@ -1709,7 +1717,263 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
     t.index ["xero_contact_types"], name: "index_contacts_on_xero_contact_types", using: :gin
   end
 
-  create_table "corporate_companies", force: :cascade do |t|
+  create_table "corporate_activities", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "user_id"
+    t.string "activity_type", null: false
+    t.text "description"
+    t.jsonb "change_details", default: {}
+    t.string "related_type"
+    t.bigint "related_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
+    t.index ["activity_type"], name: "index_corporate_activities_on_activity_type"
+    t.index ["company_id"], name: "index_corporate_activities_on_company_id"
+    t.index ["created_at"], name: "index_corporate_activities_on_created_at"
+    t.index ["related_type", "related_id"], name: "index_corporate_activities_on_related_type_and_related_id"
+    t.index ["tenant_id"], name: "index_corporate_activities_on_tenant_id"
+    t.index ["user_id"], name: "index_corporate_activities_on_user_id"
+  end
+
+  create_table "corporate_compliance_items", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.string "title", null: false
+    t.text "description"
+    t.string "item_type", null: false
+    t.date "due_date", null: false
+    t.boolean "completed", default: false
+    t.datetime "completed_at"
+    t.string "reminder_days"
+    t.datetime "last_reminder_sent_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "recurrence"
+    t.boolean "asic_related", default: false
+    t.boolean "ato_related", default: false
+    t.bigint "tenant_id"
+    t.index ["asic_related"], name: "index_corporate_compliance_items_on_asic_related"
+    t.index ["ato_related"], name: "index_corporate_compliance_items_on_ato_related"
+    t.index ["company_id", "due_date", "completed"], name: "idx_on_company_id_due_date_completed_0150d439f1"
+    t.index ["company_id"], name: "index_corporate_compliance_items_on_company_id"
+    t.index ["completed"], name: "index_corporate_compliance_items_on_completed"
+    t.index ["due_date"], name: "index_corporate_compliance_items_on_due_date"
+    t.index ["item_type"], name: "index_corporate_compliance_items_on_item_type"
+    t.index ["recurrence"], name: "index_corporate_compliance_items_on_recurrence"
+    t.index ["tenant_id"], name: "index_corporate_compliance_items_on_tenant_id"
+  end
+
+  create_table "corporate_directors", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "contact_id", null: false
+    t.string "position"
+    t.date "appointment_date"
+    t.date "resignation_date"
+    t.boolean "is_current", default: true
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
+    t.index ["appointment_date"], name: "index_corporate_directors_on_appointment_date"
+    t.index ["company_id", "contact_id"], name: "index_company_directors_unique_active", unique: true, where: "(is_current = true)"
+    t.index ["company_id"], name: "index_corporate_directors_on_company_id"
+    t.index ["contact_id"], name: "index_corporate_directors_on_contact_id"
+    t.index ["is_current"], name: "index_corporate_directors_on_is_current"
+    t.index ["tenant_id"], name: "index_corporate_directors_on_tenant_id"
+  end
+
+  create_table "corporate_entity_tabs", force: :cascade do |t|
+    t.string "tab_key", null: false
+    t.string "display_name", null: false
+    t.string "tab_group", default: "documents"
+    t.string "entity_types", default: [], array: true
+    t.integer "order_position", default: 0
+    t.boolean "enabled", default: true
+    t.string "icon_name"
+    t.text "description"
+    t.string "component_name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "has_storage_folder", default: false
+    t.string "storage_folder_path"
+    t.jsonb "sub_tabs", default: []
+    t.bigint "company_group_id"
+    t.bigint "tenant_id"
+    t.index ["company_group_id"], name: "index_corporate_entity_tabs_on_company_group_id"
+    t.index ["enabled"], name: "index_corporate_entity_tabs_on_enabled"
+    t.index ["order_position"], name: "index_corporate_entity_tabs_on_order_position"
+    t.index ["tab_group"], name: "index_corporate_entity_tabs_on_tab_group"
+    t.index ["tab_key"], name: "index_corporate_entity_tabs_on_tab_key", unique: true
+    t.index ["tenant_id"], name: "index_corporate_entity_tabs_on_tenant_id"
+  end
+
+  create_table "corporate_groups", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.string "default_registered_office"
+    t.string "default_principal_place"
+    t.string "default_accountant"
+    t.string "default_accountant_contact"
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "code"
+    t.string "slug"
+    t.integer "tier", default: 0
+    t.integer "environment", default: 0
+    t.boolean "is_master_tenant", default: false
+    t.string "website"
+    t.string "logo_url"
+    t.string "primary_color"
+    t.string "secondary_color"
+    t.bigint "tenant_id"
+    t.index ["environment"], name: "index_corporate_groups_on_environment"
+    t.index ["is_master_tenant"], name: "index_corporate_groups_on_is_master_tenant"
+    t.index ["name"], name: "index_corporate_groups_on_name", unique: true
+    t.index ["slug"], name: "index_corporate_groups_on_slug", unique: true
+    t.index ["tenant_id"], name: "index_corporate_groups_on_tenant_id"
+    t.index ["tier"], name: "index_corporate_groups_on_tier"
+  end
+
+  create_table "corporate_loans", force: :cascade do |t|
+    t.bigint "lender_company_id", null: false
+    t.bigint "borrower_company_id", null: false
+    t.decimal "principal_amount", precision: 12, scale: 2, null: false
+    t.decimal "current_balance", precision: 12, scale: 2
+    t.decimal "interest_rate", precision: 5, scale: 2
+    t.string "interest_type"
+    t.date "loan_date"
+    t.date "maturity_date"
+    t.boolean "loan_documents_in_place", default: false
+    t.string "security_type"
+    t.string "status", default: "active"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
+    t.index ["borrower_company_id"], name: "index_corporate_loans_on_borrower_company_id"
+    t.index ["lender_company_id"], name: "index_corporate_loans_on_lender_company_id"
+    t.index ["loan_date"], name: "index_corporate_loans_on_loan_date"
+    t.index ["loan_documents_in_place"], name: "index_corporate_loans_on_loan_documents_in_place"
+    t.index ["status"], name: "index_corporate_loans_on_status"
+    t.index ["tenant_id"], name: "index_corporate_loans_on_tenant_id"
+  end
+
+  create_table "corporate_minutes", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "minute_template_id"
+    t.string "title", null: false
+    t.date "meeting_date", null: false
+    t.text "content"
+    t.string "status", default: "draft"
+    t.date "signed_date"
+    t.string "signed_by"
+    t.string "document_path"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
+    t.index ["company_id"], name: "index_corporate_minutes_on_company_id"
+    t.index ["meeting_date"], name: "index_corporate_minutes_on_meeting_date"
+    t.index ["minute_template_id"], name: "index_corporate_minutes_on_minute_template_id"
+    t.index ["status"], name: "index_corporate_minutes_on_status"
+    t.index ["tenant_id"], name: "index_corporate_minutes_on_tenant_id"
+  end
+
+  create_table "corporate_monthly_pls", force: :cascade do |t|
+    t.bigint "corporate_id", null: false
+    t.date "month", null: false
+    t.string "month_label"
+    t.decimal "revenue", precision: 15, scale: 2, default: "0.0"
+    t.decimal "expenses", precision: 15, scale: 2, default: "0.0"
+    t.decimal "net_profit", precision: 15, scale: 2, default: "0.0"
+    t.datetime "synced_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "tenant_id"
+    t.index ["corporate_id", "month"], name: "idx_company_monthly_pl_unique", unique: true
+    t.index ["corporate_id"], name: "index_corporate_monthly_pls_on_corporate_id"
+    t.index ["tenant_id"], name: "index_corporate_monthly_pls_on_tenant_id"
+  end
+
+  create_table "corporate_shareholdings", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "shareholder_id", null: false
+    t.string "share_class", default: "ordinary"
+    t.bigint "number_of_shares", null: false
+    t.boolean "beneficially_held", default: false
+    t.string "beneficial_owner"
+    t.date "acquired_date"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "shareholder_type", default: "Contact"
+    t.date "acquisition_date"
+    t.date "disposal_date"
+    t.string "certificate_number"
+    t.decimal "consideration_paid", precision: 15, scale: 2
+    t.bigint "tenant_id"
+    t.index ["beneficially_held"], name: "index_corporate_shareholdings_on_beneficially_held"
+    t.index ["company_id", "shareholder_id", "share_class"], name: "idx_shareholdings_unique", unique: true
+    t.index ["company_id"], name: "index_corporate_shareholdings_on_company_id"
+    t.index ["share_class"], name: "index_corporate_shareholdings_on_share_class"
+    t.index ["shareholder_id"], name: "index_corporate_shareholdings_on_shareholder_id"
+    t.index ["shareholder_type", "shareholder_id"], name: "idx_shareholdings_polymorphic"
+    t.index ["tenant_id"], name: "index_corporate_shareholdings_on_tenant_id"
+  end
+
+  create_table "corporate_xero_accounts", force: :cascade do |t|
+    t.bigint "corporate_xero_connection_id", null: false
+    t.string "xero_account_id", null: false
+    t.string "account_code"
+    t.string "account_name"
+    t.string "account_type"
+    t.string "tax_type"
+    t.string "description"
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "account_class"
+    t.string "status"
+    t.string "bank_account_number"
+    t.string "currency_code"
+    t.string "reporting_code"
+    t.string "reporting_code_name"
+    t.boolean "enable_payments", default: false
+    t.boolean "show_in_expense_claims", default: false
+    t.datetime "synced_at"
+    t.string "consolidated_account_code"
+    t.bigint "tenant_id"
+    t.index ["account_code"], name: "index_corporate_xero_accounts_on_account_code"
+    t.index ["corporate_xero_connection_id"], name: "index_corporate_xero_accounts_on_corporate_xero_connection_id"
+    t.index ["corporate_xero_connection_id"], name: "index_xero_accounts_on_connection_id"
+    t.index ["is_active"], name: "index_corporate_xero_accounts_on_is_active"
+    t.index ["tenant_id"], name: "index_corporate_xero_accounts_on_tenant_id"
+    t.index ["xero_account_id"], name: "index_corporate_xero_accounts_on_xero_account_id"
+  end
+
+  create_table "corporate_xero_connections", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.string "xero_tenant_id", null: false
+    t.string "xero_tenant_name"
+    t.datetime "last_sync_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "xero_credential_id"
+    t.string "accounting_method"
+    t.date "financial_year_end"
+    t.datetime "monthly_pl_synced_at"
+    t.datetime "accounts_synced_at"
+    t.datetime "invoices_synced_at"
+    t.datetime "balance_sheet_synced_at"
+    t.date "xero_start_date"
+    t.bigint "tenant_id"
+    t.index ["company_id"], name: "index_corporate_xero_connections_on_company_id", unique: true
+    t.index ["tenant_id"], name: "index_corporate_xero_connections_on_tenant_id"
+    t.index ["xero_credential_id"], name: "index_corporate_xero_connections_on_xero_credential_id"
+    t.index ["xero_tenant_id"], name: "index_corporate_xero_connections_on_xero_tenant_id"
+  end
+
+  create_table "corporates", force: :cascade do |t|
     t.string "name", null: false
     t.string "company_group"
     t.string "acn"
@@ -1766,260 +2030,22 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
     t.string "business_names"
     t.bigint "tenant_id"
     t.string "trading_names", default: [], array: true
-    t.index ["abn"], name: "index_corporate_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
-    t.index ["acn"], name: "index_corporate_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
-    t.index ["code"], name: "index_corporate_companies_on_code", unique: true
-    t.index ["company_group"], name: "index_corporate_companies_on_company_group"
+    t.index ["abn"], name: "index_corporates_on_abn", unique: true, where: "(abn IS NOT NULL)"
+    t.index ["acn"], name: "index_corporates_on_acn", unique: true, where: "(acn IS NOT NULL)"
+    t.index ["code"], name: "index_corporates_on_code", unique: true
+    t.index ["company_group"], name: "index_corporates_on_company_group"
     t.index ["company_group_id", "parent_company_id"], name: "index_companies_on_group_and_parent"
-    t.index ["company_group_id"], name: "index_corporate_companies_on_company_group_id"
-    t.index ["consolidation_parent_id"], name: "index_corporate_companies_on_consolidation_parent_id"
-    t.index ["contact_id"], name: "index_corporate_companies_on_contact_id"
-    t.index ["name"], name: "index_corporate_companies_on_name"
-    t.index ["parent_company_id"], name: "index_corporate_companies_on_parent_company_id"
-    t.index ["review_date"], name: "index_corporate_companies_on_review_date"
-    t.index ["slug"], name: "index_corporate_companies_on_slug", unique: true
-    t.index ["status"], name: "index_corporate_companies_on_status"
-    t.index ["storage_folder_id"], name: "index_corporate_companies_on_storage_folder_id"
-    t.index ["tenant_id"], name: "index_corporate_companies_on_tenant_id"
-    t.index ["trading_names"], name: "index_corporate_companies_on_trading_names", using: :gin
-  end
-
-  create_table "corporate_company_activities", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.bigint "user_id"
-    t.string "activity_type", null: false
-    t.text "description"
-    t.jsonb "change_details", default: {}
-    t.string "related_type"
-    t.bigint "related_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["activity_type"], name: "index_corporate_company_activities_on_activity_type"
-    t.index ["company_id"], name: "index_corporate_company_activities_on_company_id"
-    t.index ["created_at"], name: "index_corporate_company_activities_on_created_at"
-    t.index ["related_type", "related_id"], name: "idx_on_related_type_related_id_d4aa46e723"
-    t.index ["user_id"], name: "index_corporate_company_activities_on_user_id"
-  end
-
-  create_table "corporate_company_compliance_items", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.string "title", null: false
-    t.text "description"
-    t.string "item_type", null: false
-    t.date "due_date", null: false
-    t.boolean "completed", default: false
-    t.datetime "completed_at"
-    t.string "reminder_days"
-    t.datetime "last_reminder_sent_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "recurrence"
-    t.boolean "asic_related", default: false
-    t.boolean "ato_related", default: false
-    t.index ["asic_related"], name: "index_corporate_company_compliance_items_on_asic_related"
-    t.index ["ato_related"], name: "index_corporate_company_compliance_items_on_ato_related"
-    t.index ["company_id", "due_date", "completed"], name: "idx_on_company_id_due_date_completed_83c37a183d"
-    t.index ["company_id"], name: "index_corporate_company_compliance_items_on_company_id"
-    t.index ["completed"], name: "index_corporate_company_compliance_items_on_completed"
-    t.index ["due_date"], name: "index_corporate_company_compliance_items_on_due_date"
-    t.index ["item_type"], name: "index_corporate_company_compliance_items_on_item_type"
-    t.index ["recurrence"], name: "index_corporate_company_compliance_items_on_recurrence"
-  end
-
-  create_table "corporate_company_directors", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.bigint "contact_id", null: false
-    t.string "position"
-    t.date "appointment_date"
-    t.date "resignation_date"
-    t.boolean "is_current", default: true
-    t.text "notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["appointment_date"], name: "index_corporate_company_directors_on_appointment_date"
-    t.index ["company_id", "contact_id"], name: "index_company_directors_unique_active", unique: true, where: "(is_current = true)"
-    t.index ["company_id"], name: "index_corporate_company_directors_on_company_id"
-    t.index ["contact_id"], name: "index_corporate_company_directors_on_contact_id"
-    t.index ["is_current"], name: "index_corporate_company_directors_on_is_current"
-  end
-
-  create_table "corporate_company_loans", force: :cascade do |t|
-    t.bigint "lender_company_id", null: false
-    t.bigint "borrower_company_id", null: false
-    t.decimal "principal_amount", precision: 12, scale: 2, null: false
-    t.decimal "current_balance", precision: 12, scale: 2
-    t.decimal "interest_rate", precision: 5, scale: 2
-    t.string "interest_type"
-    t.date "loan_date"
-    t.date "maturity_date"
-    t.boolean "loan_documents_in_place", default: false
-    t.string "security_type"
-    t.string "status", default: "active"
-    t.text "notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["borrower_company_id"], name: "index_corporate_company_loans_on_borrower_company_id"
-    t.index ["lender_company_id"], name: "index_corporate_company_loans_on_lender_company_id"
-    t.index ["loan_date"], name: "index_corporate_company_loans_on_loan_date"
-    t.index ["loan_documents_in_place"], name: "index_corporate_company_loans_on_loan_documents_in_place"
-    t.index ["status"], name: "index_corporate_company_loans_on_status"
-  end
-
-  create_table "corporate_company_minutes", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.bigint "minute_template_id"
-    t.string "title", null: false
-    t.date "meeting_date", null: false
-    t.text "content"
-    t.string "status", default: "draft"
-    t.date "signed_date"
-    t.string "signed_by"
-    t.string "document_path"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["company_id"], name: "index_corporate_company_minutes_on_company_id"
-    t.index ["meeting_date"], name: "index_corporate_company_minutes_on_meeting_date"
-    t.index ["minute_template_id"], name: "index_corporate_company_minutes_on_minute_template_id"
-    t.index ["status"], name: "index_corporate_company_minutes_on_status"
-  end
-
-  create_table "corporate_company_monthly_pls", force: :cascade do |t|
-    t.bigint "corporate_company_id", null: false
-    t.date "month", null: false
-    t.string "month_label"
-    t.decimal "revenue", precision: 15, scale: 2, default: "0.0"
-    t.decimal "expenses", precision: 15, scale: 2, default: "0.0"
-    t.decimal "net_profit", precision: 15, scale: 2, default: "0.0"
-    t.datetime "synced_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["corporate_company_id", "month"], name: "idx_company_monthly_pl_unique", unique: true
-    t.index ["corporate_company_id"], name: "index_corporate_company_monthly_pls_on_corporate_company_id"
-  end
-
-  create_table "corporate_company_shareholdings", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.bigint "shareholder_id", null: false
-    t.string "share_class", default: "ordinary"
-    t.bigint "number_of_shares", null: false
-    t.boolean "beneficially_held", default: false
-    t.string "beneficial_owner"
-    t.date "acquired_date"
-    t.text "notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "shareholder_type", default: "Contact"
-    t.date "acquisition_date"
-    t.date "disposal_date"
-    t.string "certificate_number"
-    t.decimal "consideration_paid", precision: 15, scale: 2
-    t.index ["beneficially_held"], name: "index_corporate_company_shareholdings_on_beneficially_held"
-    t.index ["company_id", "shareholder_id", "share_class"], name: "idx_shareholdings_unique", unique: true
-    t.index ["company_id"], name: "index_corporate_company_shareholdings_on_company_id"
-    t.index ["share_class"], name: "index_corporate_company_shareholdings_on_share_class"
-    t.index ["shareholder_id"], name: "index_corporate_company_shareholdings_on_shareholder_id"
-    t.index ["shareholder_type", "shareholder_id"], name: "idx_shareholdings_polymorphic"
-  end
-
-  create_table "corporate_company_xero_accounts", force: :cascade do |t|
-    t.bigint "company_xero_connection_id", null: false
-    t.string "xero_account_id", null: false
-    t.string "account_code"
-    t.string "account_name"
-    t.string "account_type"
-    t.string "tax_type"
-    t.string "description"
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "account_class"
-    t.string "status"
-    t.string "bank_account_number"
-    t.string "currency_code"
-    t.string "reporting_code"
-    t.string "reporting_code_name"
-    t.boolean "enable_payments", default: false
-    t.boolean "show_in_expense_claims", default: false
-    t.datetime "synced_at"
-    t.string "consolidated_account_code"
-    t.index ["account_code"], name: "index_corporate_company_xero_accounts_on_account_code"
-    t.index ["company_xero_connection_id"], name: "idx_on_company_xero_connection_id_dd7b188bc9"
-    t.index ["company_xero_connection_id"], name: "index_xero_accounts_on_connection_id"
-    t.index ["is_active"], name: "index_corporate_company_xero_accounts_on_is_active"
-    t.index ["xero_account_id"], name: "index_corporate_company_xero_accounts_on_xero_account_id"
-  end
-
-  create_table "corporate_company_xero_connections", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.string "xero_tenant_id", null: false
-    t.string "xero_tenant_name"
-    t.datetime "last_sync_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "xero_credential_id"
-    t.string "accounting_method"
-    t.date "financial_year_end"
-    t.datetime "monthly_pl_synced_at"
-    t.datetime "accounts_synced_at"
-    t.datetime "invoices_synced_at"
-    t.datetime "balance_sheet_synced_at"
-    t.date "xero_start_date"
-    t.index ["company_id"], name: "index_corporate_company_xero_connections_on_company_id", unique: true
-    t.index ["xero_credential_id"], name: "index_corporate_company_xero_connections_on_xero_credential_id"
-    t.index ["xero_tenant_id"], name: "index_corporate_company_xero_connections_on_xero_tenant_id"
-  end
-
-  create_table "corporate_entity_tabs", force: :cascade do |t|
-    t.string "tab_key", null: false
-    t.string "display_name", null: false
-    t.string "tab_group", default: "documents"
-    t.string "entity_types", default: [], array: true
-    t.integer "order_position", default: 0
-    t.boolean "enabled", default: true
-    t.string "icon_name"
-    t.text "description"
-    t.string "component_name"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "has_storage_folder", default: false
-    t.string "storage_folder_path"
-    t.jsonb "sub_tabs", default: []
-    t.bigint "company_group_id"
-    t.bigint "tenant_id"
-    t.index ["company_group_id"], name: "index_corporate_entity_tabs_on_company_group_id"
-    t.index ["enabled"], name: "index_corporate_entity_tabs_on_enabled"
-    t.index ["order_position"], name: "index_corporate_entity_tabs_on_order_position"
-    t.index ["tab_group"], name: "index_corporate_entity_tabs_on_tab_group"
-    t.index ["tab_key"], name: "index_corporate_entity_tabs_on_tab_key", unique: true
-    t.index ["tenant_id"], name: "index_corporate_entity_tabs_on_tenant_id"
-  end
-
-  create_table "corporate_groups", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.string "default_registered_office"
-    t.string "default_principal_place"
-    t.string "default_accountant"
-    t.string "default_accountant_contact"
-    t.boolean "active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "code"
-    t.string "slug"
-    t.integer "tier", default: 0
-    t.integer "environment", default: 0
-    t.boolean "is_master_tenant", default: false
-    t.string "website"
-    t.string "logo_url"
-    t.string "primary_color"
-    t.string "secondary_color"
-    t.bigint "tenant_id"
-    t.index ["environment"], name: "index_corporate_groups_on_environment"
-    t.index ["is_master_tenant"], name: "index_corporate_groups_on_is_master_tenant"
-    t.index ["name"], name: "index_corporate_groups_on_name", unique: true
-    t.index ["slug"], name: "index_corporate_groups_on_slug", unique: true
-    t.index ["tenant_id"], name: "index_corporate_groups_on_tenant_id"
-    t.index ["tier"], name: "index_corporate_groups_on_tier"
+    t.index ["company_group_id"], name: "index_corporates_on_company_group_id"
+    t.index ["consolidation_parent_id"], name: "index_corporates_on_consolidation_parent_id"
+    t.index ["contact_id"], name: "index_corporates_on_contact_id"
+    t.index ["name"], name: "index_corporates_on_name"
+    t.index ["parent_company_id"], name: "index_corporates_on_parent_company_id"
+    t.index ["review_date"], name: "index_corporates_on_review_date"
+    t.index ["slug"], name: "index_corporates_on_slug", unique: true
+    t.index ["status"], name: "index_corporates_on_status"
+    t.index ["storage_folder_id"], name: "index_corporates_on_storage_folder_id"
+    t.index ["tenant_id"], name: "index_corporates_on_tenant_id"
+    t.index ["trading_names"], name: "index_corporates_on_trading_names", using: :gin
   end
 
   create_table "cost_centres", force: :cascade do |t|
@@ -2694,6 +2720,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "source_email"
     t.index ["contact_id"], name: "index_email_mailboxes_on_contact_id"
     t.index ["email_address"], name: "index_email_mailboxes_on_email_address", unique: true
     t.index ["email_subscription_id"], name: "index_email_mailboxes_on_email_subscription_id"
@@ -2986,7 +3013,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   create_table "external_invoices", force: :cascade do |t|
     t.string "source", null: false
     t.string "external_id"
-    t.string "tenant_id"
+    t.bigint "tenant_id", null: false
     t.string "invoice_number"
     t.string "reference"
     t.string "invoice_type", null: false
@@ -10700,7 +10727,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "asset_service_histories", "storage_blobs", column: "document_blob_id"
   add_foreign_key "asset_service_histories", "storage_blobs", column: "invoice_blob_id"
   add_foreign_key "asset_service_histories", "users"
-  add_foreign_key "assets", "corporate_companies", column: "company_id"
+  add_foreign_key "assets", "corporates", column: "company_id"
   add_foreign_key "assets", "tenants"
   add_foreign_key "assets", "users", column: "assigned_user_id"
   add_foreign_key "ato_effective_life_rates", "ato_effective_life_categories"
@@ -10708,18 +10735,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "backup_configurations", "s3_compatible_credentials", column: "secondary_credential_id"
   add_foreign_key "backup_configurations", "tenants"
   add_foreign_key "backup_logs", "backup_configurations"
-  add_foreign_key "balance_sheet_reports", "corporate_companies", column: "company_id"
+  add_foreign_key "balance_sheet_reports", "corporates", column: "company_id"
   add_foreign_key "balance_sheet_reports", "document_types"
-  add_foreign_key "bank_accounts", "corporate_companies", column: "company_id"
+  add_foreign_key "bank_accounts", "corporates", column: "company_id"
+  add_foreign_key "bank_accounts", "tenants"
   add_foreign_key "bank_statement_reports", "document_types"
   add_foreign_key "bank_transactions", "bank_accounts"
-  add_foreign_key "bank_transactions", "corporate_companies", column: "company_id"
+  add_foreign_key "bank_transactions", "corporates", column: "company_id"
+  add_foreign_key "bank_transactions", "tenants"
   add_foreign_key "batch_operations", "jobs"
   add_foreign_key "batch_operations", "users"
   add_foreign_key "bill_inboxes", "bpmn_process_instances"
   add_foreign_key "bill_inboxes", "contacts", column: "supplier_id"
-  add_foreign_key "bill_inboxes", "corporate_companies"
-  add_foreign_key "bill_inboxes", "corporate_companies", column: "detected_company_id"
+  add_foreign_key "bill_inboxes", "corporates", column: "corporate_company_id"
+  add_foreign_key "bill_inboxes", "corporates", column: "detected_company_id"
   add_foreign_key "bill_inboxes", "external_invoices"
   add_foreign_key "bill_inboxes", "purchase_orders", column: "matched_purchase_order_id"
   add_foreign_key "bill_inboxes", "storage_blobs"
@@ -10727,12 +10756,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "bill_inboxes", "users", column: "approved_by_id"
   add_foreign_key "bill_payment_batches", "bank_accounts"
   add_foreign_key "bill_payment_batches", "bpmn_process_instances"
-  add_foreign_key "bill_payment_batches", "corporate_companies"
+  add_foreign_key "bill_payment_batches", "corporates", column: "corporate_company_id"
+  add_foreign_key "bill_payment_batches", "tenants"
   add_foreign_key "bill_payment_batches", "users", column: "approved_by_id"
   add_foreign_key "bill_payment_batches", "users", column: "created_by_id"
   add_foreign_key "bill_payments", "bill_inboxes"
   add_foreign_key "bill_payments", "bill_payment_batches"
   add_foreign_key "bill_payments", "purchase_orders"
+  add_foreign_key "bill_payments", "tenants"
   add_foreign_key "bpmn_edges", "bpmn_nodes", column: "source_node_id", on_delete: :cascade
   add_foreign_key "bpmn_edges", "bpmn_nodes", column: "target_node_id", on_delete: :cascade
   add_foreign_key "bpmn_edges", "bpmn_processes", on_delete: :cascade
@@ -10747,7 +10778,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "case_actions", "cases"
   add_foreign_key "case_actions", "users", column: "created_by_id"
   add_foreign_key "case_companies", "cases"
-  add_foreign_key "case_companies", "corporate_companies", column: "company_id"
+  add_foreign_key "case_companies", "corporates", column: "company_id"
   add_foreign_key "case_contacts", "cases"
   add_foreign_key "case_contacts", "contacts"
   add_foreign_key "case_contacts", "users", column: "added_by_id"
@@ -10757,11 +10788,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "case_jobs", "jobs"
   add_foreign_key "case_timeline_events", "cases"
   add_foreign_key "case_timeline_events", "contacts"
-  add_foreign_key "case_timeline_events", "corporate_companies", column: "company_id"
+  add_foreign_key "case_timeline_events", "corporates", column: "company_id"
   add_foreign_key "case_timeline_events", "jobs"
   add_foreign_key "cases", "cases", column: "parent_case_id"
   add_foreign_key "cases", "contacts"
-  add_foreign_key "cases", "corporate_companies", column: "company_id"
+  add_foreign_key "cases", "corporates", column: "company_id"
   add_foreign_key "cases", "tenants"
   add_foreign_key "cases", "users", column: "assigned_to_id"
   add_foreign_key "cases", "users", column: "created_by_id"
@@ -10774,14 +10805,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
   add_foreign_key "company_approval_rules", "bpmn_processes"
-  add_foreign_key "company_approval_rules", "corporate_companies"
+  add_foreign_key "company_approval_rules", "corporates", column: "corporate_company_id"
   add_foreign_key "company_approval_rules", "users", column: "approver_id"
   add_foreign_key "company_approval_rules", "users", column: "escalation_to_user_id"
   add_foreign_key "contact_activities", "contacts"
   add_foreign_key "contact_addresses", "contacts"
   add_foreign_key "contact_corporate_group_memberships", "contacts"
-  add_foreign_key "contact_corporate_group_memberships", "corporate_companies", column: "company_id"
   add_foreign_key "contact_corporate_group_memberships", "corporate_groups", column: "company_group_id"
+  add_foreign_key "contact_corporate_group_memberships", "corporates", column: "company_id"
   add_foreign_key "contact_corporate_group_memberships", "tenants"
   add_foreign_key "contact_documents", "contacts"
   add_foreign_key "contact_documents", "document_types"
@@ -10801,39 +10832,48 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "contacts", "contacts", column: "parent_company_contact_id"
   add_foreign_key "contacts", "contacts", column: "primary_company_id"
   add_foreign_key "contacts", "tenants"
-  add_foreign_key "corporate_companies", "contacts"
-  add_foreign_key "corporate_companies", "corporate_companies", column: "consolidation_parent_id", on_delete: :nullify
-  add_foreign_key "corporate_companies", "corporate_companies", column: "parent_company_id"
-  add_foreign_key "corporate_companies", "corporate_groups", column: "company_group_id"
-  add_foreign_key "corporate_companies", "tenants"
-  add_foreign_key "corporate_company_activities", "corporate_companies", column: "company_id"
-  add_foreign_key "corporate_company_activities", "users"
-  add_foreign_key "corporate_company_compliance_items", "corporate_companies", column: "company_id"
-  add_foreign_key "corporate_company_directors", "contacts"
-  add_foreign_key "corporate_company_directors", "corporate_companies", column: "company_id"
-  add_foreign_key "corporate_company_loans", "corporate_companies", column: "borrower_company_id"
-  add_foreign_key "corporate_company_loans", "corporate_companies", column: "lender_company_id"
-  add_foreign_key "corporate_company_minutes", "corporate_companies", column: "company_id"
-  add_foreign_key "corporate_company_minutes", "minute_templates"
-  add_foreign_key "corporate_company_monthly_pls", "corporate_companies"
-  add_foreign_key "corporate_company_shareholdings", "corporate_companies", column: "company_id"
-  add_foreign_key "corporate_company_xero_accounts", "corporate_company_xero_connections", column: "company_xero_connection_id"
-  add_foreign_key "corporate_company_xero_connections", "corporate_companies", column: "company_id"
-  add_foreign_key "corporate_company_xero_connections", "xero_credentials"
+  add_foreign_key "corporate_activities", "corporates", column: "company_id"
+  add_foreign_key "corporate_activities", "tenants"
+  add_foreign_key "corporate_activities", "users"
+  add_foreign_key "corporate_compliance_items", "corporates", column: "company_id"
+  add_foreign_key "corporate_compliance_items", "tenants"
+  add_foreign_key "corporate_directors", "contacts"
+  add_foreign_key "corporate_directors", "corporates", column: "company_id"
+  add_foreign_key "corporate_directors", "tenants"
   add_foreign_key "corporate_entity_tabs", "corporate_groups", column: "company_group_id"
   add_foreign_key "corporate_entity_tabs", "tenants"
   add_foreign_key "corporate_groups", "tenants"
+  add_foreign_key "corporate_loans", "corporates", column: "borrower_company_id"
+  add_foreign_key "corporate_loans", "corporates", column: "lender_company_id"
+  add_foreign_key "corporate_loans", "tenants"
+  add_foreign_key "corporate_minutes", "corporates", column: "company_id"
+  add_foreign_key "corporate_minutes", "minute_templates"
+  add_foreign_key "corporate_minutes", "tenants"
+  add_foreign_key "corporate_monthly_pls", "corporates"
+  add_foreign_key "corporate_monthly_pls", "tenants"
+  add_foreign_key "corporate_shareholdings", "corporates", column: "company_id"
+  add_foreign_key "corporate_shareholdings", "tenants"
+  add_foreign_key "corporate_xero_accounts", "corporate_xero_connections"
+  add_foreign_key "corporate_xero_accounts", "tenants"
+  add_foreign_key "corporate_xero_connections", "corporates", column: "company_id"
+  add_foreign_key "corporate_xero_connections", "tenants"
+  add_foreign_key "corporate_xero_connections", "xero_credentials"
+  add_foreign_key "corporates", "contacts"
+  add_foreign_key "corporates", "corporate_groups", column: "company_group_id"
+  add_foreign_key "corporates", "corporates", column: "consolidation_parent_id", on_delete: :nullify
+  add_foreign_key "corporates", "corporates", column: "parent_company_id"
+  add_foreign_key "corporates", "tenants"
   add_foreign_key "cost_centres", "cost_centres", column: "parent_id", on_delete: :nullify
   add_foreign_key "custom_pricings", "contacts"
   add_foreign_key "desktop_clients", "organizations"
   add_foreign_key "desktop_clients", "users"
   add_foreign_key "director_onboarding_requests", "contacts"
-  add_foreign_key "director_onboarding_requests", "corporate_companies", column: "company_id"
+  add_foreign_key "director_onboarding_requests", "corporates", column: "company_id"
   add_foreign_key "director_onboarding_requests", "users", column: "invited_by_id"
   add_foreign_key "director_onboarding_requests", "users", column: "reviewed_by_id"
   add_foreign_key "dividend_payments", "contacts", column: "shareholder_id"
   add_foreign_key "dividend_payments", "dividends"
-  add_foreign_key "dividends", "corporate_companies", column: "company_id"
+  add_foreign_key "dividends", "corporates", column: "company_id"
   add_foreign_key "document_activities", "users"
   add_foreign_key "document_duplicate_reviews", "cases"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
@@ -10892,9 +10932,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "estimates", "tenants"
   add_foreign_key "external_invoices", "contacts"
   add_foreign_key "external_invoices", "jobs"
+  add_foreign_key "external_invoices", "tenants"
   add_foreign_key "fact_job_daily_snapshots", "jobs"
   add_foreign_key "feature_trackers", "feature_chapters"
-  add_foreign_key "financial_transactions", "corporate_companies", column: "company_id"
+  add_foreign_key "financial_transactions", "corporates", column: "company_id"
   add_foreign_key "financial_transactions", "jobs"
   add_foreign_key "financial_transactions", "storage_blobs"
   add_foreign_key "financial_transactions", "users"
@@ -10907,77 +10948,77 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "geofence_events", "worker_profiles"
   add_foreign_key "gl_account_balances", "gl_accounts"
   add_foreign_key "gl_account_balances", "gl_periods"
-  add_foreign_key "gl_accounts", "corporate_companies"
+  add_foreign_key "gl_accounts", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_accounts", "gl_accounts", column: "parent_account_id"
-  add_foreign_key "gl_ai_categorization_attempts", "corporate_companies"
+  add_foreign_key "gl_ai_categorization_attempts", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_ai_categorization_attempts", "gl_accounts", column: "suggested_account_id"
-  add_foreign_key "gl_ai_categorization_learnings", "corporate_companies"
+  add_foreign_key "gl_ai_categorization_learnings", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_ai_categorization_learnings", "gl_accounts", column: "ai_suggested_account_id"
   add_foreign_key "gl_ai_categorization_learnings", "gl_accounts", column: "user_chosen_account_id"
   add_foreign_key "gl_ai_po_match_attempts", "bill_inboxes"
-  add_foreign_key "gl_ai_po_match_attempts", "corporate_companies"
+  add_foreign_key "gl_ai_po_match_attempts", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_ai_po_match_attempts", "purchase_orders", column: "matched_po_id"
   add_foreign_key "gl_ai_po_match_learnings", "bill_inboxes"
-  add_foreign_key "gl_ai_po_match_learnings", "corporate_companies"
+  add_foreign_key "gl_ai_po_match_learnings", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_ai_po_match_learnings", "purchase_orders"
   add_foreign_key "gl_ai_po_match_learnings", "users"
-  add_foreign_key "gl_anomalies", "corporate_companies"
+  add_foreign_key "gl_anomalies", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_anomalies", "users", column: "assigned_to_id"
   add_foreign_key "gl_anomalies", "users", column: "resolved_by_id"
-  add_foreign_key "gl_anomaly_reviews", "corporate_companies"
+  add_foreign_key "gl_anomaly_reviews", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_anomaly_reviews", "users", column: "reviewed_by_id"
-  add_foreign_key "gl_anomaly_rules", "corporate_companies"
+  add_foreign_key "gl_anomaly_rules", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_approval_actions", "gl_approval_requests", column: "approval_request_id"
   add_foreign_key "gl_approval_actions", "gl_approval_workflow_steps", column: "workflow_step_id"
   add_foreign_key "gl_approval_actions", "users"
   add_foreign_key "gl_approval_actions", "users", column: "delegated_to_id"
-  add_foreign_key "gl_approval_requests", "corporate_companies"
+  add_foreign_key "gl_approval_requests", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_approval_requests", "gl_approval_workflows", column: "workflow_id"
   add_foreign_key "gl_approval_requests", "users", column: "requested_by_id"
   add_foreign_key "gl_approval_workflow_steps", "gl_approval_workflows", column: "workflow_id"
   add_foreign_key "gl_approval_workflow_steps", "users", column: "approver_id"
-  add_foreign_key "gl_approval_workflows", "corporate_companies"
+  add_foreign_key "gl_approval_workflows", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_approval_workflows", "users", column: "created_by_id"
-  add_foreign_key "gl_audit_logs", "corporate_companies"
+  add_foreign_key "gl_audit_logs", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_audit_logs", "users"
-  add_foreign_key "gl_audit_snapshots", "corporate_companies"
+  add_foreign_key "gl_audit_snapshots", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_audit_snapshots", "users", column: "created_by_id"
-  add_foreign_key "gl_bank_reconciliations", "corporate_companies"
+  add_foreign_key "gl_bank_reconciliations", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_bank_reconciliations", "gl_accounts"
   add_foreign_key "gl_bank_reconciliations", "users", column: "completed_by_id"
-  add_foreign_key "gl_bank_rule_learnings", "corporate_companies"
+  add_foreign_key "gl_bank_rule_learnings", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_bank_rule_learnings", "gl_accounts"
   add_foreign_key "gl_bank_rule_learnings", "users"
-  add_foreign_key "gl_bas_lodgements", "corporate_companies"
+  add_foreign_key "gl_bas_lodgements", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_bas_lodgements", "users", column: "lodged_by_id"
   add_foreign_key "gl_billable_expenses", "contacts"
-  add_foreign_key "gl_billable_expenses", "corporate_companies"
+  add_foreign_key "gl_billable_expenses", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_billable_expenses", "gl_invoices", column: "billed_invoice_id"
   add_foreign_key "gl_billable_expenses", "gl_invoices", column: "source_invoice_id"
   add_foreign_key "gl_billable_expenses", "jobs"
   add_foreign_key "gl_billable_expenses", "users"
   add_foreign_key "gl_billable_rates", "contacts"
-  add_foreign_key "gl_billable_rates", "corporate_companies"
+  add_foreign_key "gl_billable_rates", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_billable_rates", "jobs"
   add_foreign_key "gl_billable_rates", "users"
-  add_foreign_key "gl_billable_time_entries", "corporate_companies"
+  add_foreign_key "gl_billable_time_entries", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_billable_time_entries", "gl_billable_rates", column: "billable_rate_id"
   add_foreign_key "gl_billable_time_entries", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_billable_time_entries", "jobs"
   add_foreign_key "gl_billable_time_entries", "users"
   add_foreign_key "gl_billable_time_entries", "users", column: "approved_by_id"
   add_foreign_key "gl_billing_milestones", "contacts"
-  add_foreign_key "gl_billing_milestones", "corporate_companies"
+  add_foreign_key "gl_billing_milestones", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_billing_milestones", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_billing_milestones", "jobs"
   add_foreign_key "gl_billing_milestones", "users", column: "completed_by_id"
-  add_foreign_key "gl_budget_scenarios", "corporate_companies"
+  add_foreign_key "gl_budget_scenarios", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_budget_scenarios", "users", column: "created_by_id"
-  add_foreign_key "gl_budgets", "corporate_companies"
+  add_foreign_key "gl_budgets", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_budgets", "gl_accounts"
   add_foreign_key "gl_budgets", "gl_periods"
   add_foreign_key "gl_budgets", "jobs"
-  add_foreign_key "gl_categorization_predictions", "corporate_companies"
+  add_foreign_key "gl_categorization_predictions", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_categorization_predictions", "gl_accounts", column: "actual_account_id"
   add_foreign_key "gl_categorization_predictions", "gl_accounts", column: "predicted_account_id"
   add_foreign_key "gl_categorization_predictions", "gl_transaction_categories", column: "actual_category_id"
@@ -10985,39 +11026,39 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "gl_categorization_predictions", "users", column: "reviewed_by_id"
   add_foreign_key "gl_change_order_lines", "gl_change_orders", column: "change_order_id"
   add_foreign_key "gl_change_orders", "contacts"
-  add_foreign_key "gl_change_orders", "corporate_companies"
+  add_foreign_key "gl_change_orders", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_change_orders", "jobs"
   add_foreign_key "gl_change_orders", "users", column: "approved_by_id"
   add_foreign_key "gl_change_orders", "users", column: "requested_by_id"
   add_foreign_key "gl_class_assignments", "gl_tracking_classes", column: "tracking_class_id"
-  add_foreign_key "gl_currencies", "corporate_companies"
-  add_foreign_key "gl_custom_reports", "corporate_companies"
+  add_foreign_key "gl_currencies", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_custom_reports", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_custom_reports", "users", column: "created_by_id"
   add_foreign_key "gl_customer_payment_stats", "contacts"
-  add_foreign_key "gl_customer_payment_stats", "corporate_companies"
+  add_foreign_key "gl_customer_payment_stats", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_customer_statement_lines", "gl_customer_statements", column: "statement_id"
   add_foreign_key "gl_customer_statement_lines", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_customer_statement_lines", "gl_payments", column: "payment_id"
   add_foreign_key "gl_customer_statements", "contacts"
-  add_foreign_key "gl_customer_statements", "corporate_companies"
+  add_foreign_key "gl_customer_statements", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_customer_statements", "users", column: "generated_by_id"
   add_foreign_key "gl_dashboard_widgets", "gl_custom_reports", column: "custom_report_id"
   add_foreign_key "gl_dashboard_widgets", "gl_report_dashboards", column: "dashboard_id"
-  add_foreign_key "gl_departments", "corporate_companies"
+  add_foreign_key "gl_departments", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_departments", "gl_departments", column: "parent_id"
   add_foreign_key "gl_departments", "users", column: "manager_id"
   add_foreign_key "gl_deposit_allocations", "gl_deposits", column: "deposit_id"
   add_foreign_key "gl_deposit_allocations", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_deposit_allocations", "users", column: "allocated_by_id"
   add_foreign_key "gl_deposits", "contacts"
-  add_foreign_key "gl_deposits", "corporate_companies"
+  add_foreign_key "gl_deposits", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_deposits", "gl_accounts", column: "bank_account_id"
   add_foreign_key "gl_deposits", "jobs"
   add_foreign_key "gl_deposits", "users", column: "received_by_id"
   add_foreign_key "gl_direct_debit_mandates", "contacts"
-  add_foreign_key "gl_direct_debit_mandates", "corporate_companies"
+  add_foreign_key "gl_direct_debit_mandates", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_document_requests", "contacts"
-  add_foreign_key "gl_document_requests", "corporate_companies"
+  add_foreign_key "gl_document_requests", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_document_requests", "jobs"
   add_foreign_key "gl_document_requests", "users", column: "created_by_id"
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "bill1_id"
@@ -11025,16 +11066,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "kept_bill_id"
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "voided_bill_id"
   add_foreign_key "gl_duplicate_bill_reviews", "users", column: "reviewed_by_id"
-  add_foreign_key "gl_duplicate_groups", "corporate_companies"
+  add_foreign_key "gl_duplicate_groups", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_duplicate_groups", "users", column: "reviewed_by_id"
   add_foreign_key "gl_duplicate_members", "gl_duplicate_groups", column: "duplicate_group_id"
-  add_foreign_key "gl_equipment", "corporate_companies"
+  add_foreign_key "gl_equipment", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_equipment_usages", "gl_equipment", column: "equipment_id"
   add_foreign_key "gl_equipment_usages", "jobs"
   add_foreign_key "gl_equipment_usages", "users"
-  add_foreign_key "gl_exchange_rates", "corporate_companies"
+  add_foreign_key "gl_exchange_rates", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_exchange_rates", "gl_currencies"
-  add_foreign_key "gl_inventory_items", "corporate_companies"
+  add_foreign_key "gl_inventory_items", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_inventory_items", "gl_accounts", column: "cogs_account_id"
   add_foreign_key "gl_inventory_items", "gl_accounts", column: "income_account_id"
   add_foreign_key "gl_inventory_items", "gl_accounts", column: "inventory_account_id"
@@ -11046,75 +11087,75 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "gl_invoice_lines", "gl_tax_rates"
   add_foreign_key "gl_invoice_lines", "jobs"
   add_foreign_key "gl_invoices", "contacts"
-  add_foreign_key "gl_invoices", "corporate_companies"
+  add_foreign_key "gl_invoices", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_invoices", "gl_departments", column: "department_id"
   add_foreign_key "gl_invoices", "gl_journal_entries"
   add_foreign_key "gl_invoices", "gl_recurring_invoices", column: "recurring_invoice_id"
   add_foreign_key "gl_invoices", "jobs"
   add_foreign_key "gl_invoices", "users", column: "approved_by_id"
-  add_foreign_key "gl_journal_entries", "corporate_companies"
+  add_foreign_key "gl_journal_entries", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_journal_entries", "gl_departments", column: "department_id"
   add_foreign_key "gl_journal_entries", "gl_periods"
   add_foreign_key "gl_journal_entries", "jobs"
   add_foreign_key "gl_journal_entries", "users", column: "created_by_id"
-  add_foreign_key "gl_kpi_definitions", "corporate_companies"
+  add_foreign_key "gl_kpi_definitions", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_ledger_lines", "contacts"
   add_foreign_key "gl_ledger_lines", "gl_accounts"
   add_foreign_key "gl_ledger_lines", "gl_journal_entries"
   add_foreign_key "gl_ledger_lines", "jobs"
   add_foreign_key "gl_lien_waivers", "contacts"
-  add_foreign_key "gl_lien_waivers", "corporate_companies"
+  add_foreign_key "gl_lien_waivers", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_lien_waivers", "gl_progress_claims", column: "progress_claim_id"
   add_foreign_key "gl_lien_waivers", "jobs"
-  add_foreign_key "gl_opening_balances", "corporate_companies"
+  add_foreign_key "gl_opening_balances", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_opening_balances", "gl_accounts"
   add_foreign_key "gl_payment_allocations", "gl_invoices"
   add_foreign_key "gl_payment_allocations", "gl_payments"
   add_foreign_key "gl_payment_batch_items", "contacts"
   add_foreign_key "gl_payment_batch_items", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_payment_batch_items", "gl_payment_batches", column: "payment_batch_id"
-  add_foreign_key "gl_payment_batches", "corporate_companies"
+  add_foreign_key "gl_payment_batches", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_payment_batches", "gl_accounts", column: "bank_account_id"
   add_foreign_key "gl_payment_batches", "users", column: "approved_by_id"
   add_foreign_key "gl_payment_batches", "users", column: "created_by_id"
   add_foreign_key "gl_payment_predictions", "contacts"
-  add_foreign_key "gl_payment_predictions", "corporate_companies"
+  add_foreign_key "gl_payment_predictions", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_payment_predictions", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_payments", "contacts"
-  add_foreign_key "gl_payments", "corporate_companies"
+  add_foreign_key "gl_payments", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_payments", "gl_accounts"
   add_foreign_key "gl_payments", "gl_journal_entries"
-  add_foreign_key "gl_period_locks", "corporate_companies"
+  add_foreign_key "gl_period_locks", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_period_locks", "users", column: "locked_by_id"
   add_foreign_key "gl_period_locks", "users", column: "unlocked_by_id"
-  add_foreign_key "gl_period_snapshots", "corporate_companies"
-  add_foreign_key "gl_periods", "corporate_companies"
+  add_foreign_key "gl_period_snapshots", "corporates", column: "corporate_company_id"
+  add_foreign_key "gl_periods", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_periods", "users", column: "closed_by_id"
   add_foreign_key "gl_portal_sessions", "contacts"
   add_foreign_key "gl_portal_sessions", "gl_portal_tokens", column: "portal_token_id"
   add_foreign_key "gl_portal_tokens", "contacts"
-  add_foreign_key "gl_portal_tokens", "corporate_companies"
+  add_foreign_key "gl_portal_tokens", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_progress_claim_lines", "gl_progress_claims", column: "progress_claim_id"
   add_foreign_key "gl_progress_claims", "contacts"
-  add_foreign_key "gl_progress_claims", "corporate_companies"
+  add_foreign_key "gl_progress_claims", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_progress_claims", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_progress_claims", "jobs"
   add_foreign_key "gl_progress_claims", "users", column: "approved_by_id"
   add_foreign_key "gl_progress_claims", "users", column: "created_by_id"
-  add_foreign_key "gl_provider_credentials", "corporate_companies"
+  add_foreign_key "gl_provider_credentials", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_quote_lines", "gl_quotes", column: "quote_id"
   add_foreign_key "gl_quote_lines", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "gl_quote_versions", "gl_quotes", column: "quote_id"
   add_foreign_key "gl_quote_versions", "users", column: "created_by_id"
   add_foreign_key "gl_quotes", "contacts"
-  add_foreign_key "gl_quotes", "corporate_companies"
+  add_foreign_key "gl_quotes", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_quotes", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_quotes", "jobs"
   add_foreign_key "gl_quotes", "users", column: "created_by_id"
   add_foreign_key "gl_reconciliation_lines", "gl_accounts"
   add_foreign_key "gl_reconciliation_lines", "gl_bank_reconciliations"
   add_foreign_key "gl_reconciliation_lines", "gl_ledger_lines"
-  add_foreign_key "gl_reconciliation_rules", "corporate_companies"
+  add_foreign_key "gl_reconciliation_rules", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_reconciliation_rules", "gl_accounts"
   add_foreign_key "gl_reconciliation_rules", "gl_accounts", column: "target_account_id"
   add_foreign_key "gl_recurring_invoices", "contacts"
@@ -11122,7 +11163,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "gl_recurring_invoices", "users", column: "created_by_id"
   add_foreign_key "gl_recurring_invoices", "users", column: "updated_by_id"
   add_foreign_key "gl_report_columns", "gl_custom_reports", column: "custom_report_id"
-  add_foreign_key "gl_report_dashboards", "corporate_companies"
+  add_foreign_key "gl_report_dashboards", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_report_dashboards", "users", column: "created_by_id"
   add_foreign_key "gl_report_favorites", "gl_custom_reports", column: "custom_report_id"
   add_foreign_key "gl_report_favorites", "users"
@@ -11131,60 +11172,60 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "gl_report_runs", "users", column: "run_by_id"
   add_foreign_key "gl_requested_documents", "gl_document_requests", column: "document_request_id"
   add_foreign_key "gl_requested_documents", "users", column: "reviewed_by_id"
-  add_foreign_key "gl_retainage_releases", "corporate_companies"
+  add_foreign_key "gl_retainage_releases", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_retainage_releases", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_retainage_releases", "gl_progress_claims", column: "progress_claim_id"
   add_foreign_key "gl_retainage_releases", "jobs"
   add_foreign_key "gl_retainage_releases", "users", column: "approved_by_id"
-  add_foreign_key "gl_scheduled_invoices", "corporate_companies"
+  add_foreign_key "gl_scheduled_invoices", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_scheduled_invoices", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_scheduled_invoices", "users", column: "created_by_id"
-  add_foreign_key "gl_scheduled_reports", "corporate_companies"
+  add_foreign_key "gl_scheduled_reports", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_scheduled_reports", "users", column: "created_by_id"
   add_foreign_key "gl_split_lines", "gl_accounts", column: "account_id"
   add_foreign_key "gl_split_lines", "gl_departments", column: "department_id"
   add_foreign_key "gl_split_lines", "gl_split_transactions", column: "split_transaction_id"
   add_foreign_key "gl_split_lines", "gl_tax_rates", column: "tax_rate_id"
   add_foreign_key "gl_split_lines", "jobs"
-  add_foreign_key "gl_split_transactions", "corporate_companies"
+  add_foreign_key "gl_split_transactions", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_split_transactions", "users", column: "approved_by_id"
   add_foreign_key "gl_split_transactions", "users", column: "created_by_id"
   add_foreign_key "gl_stock_count_lines", "gl_inventory_items", column: "inventory_item_id"
   add_foreign_key "gl_stock_count_lines", "gl_stock_counts", column: "stock_count_id"
-  add_foreign_key "gl_stock_counts", "corporate_companies"
+  add_foreign_key "gl_stock_counts", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_stock_counts", "users", column: "approved_by_id"
   add_foreign_key "gl_stock_counts", "users", column: "created_by_id"
-  add_foreign_key "gl_sync_logs", "corporate_companies"
+  add_foreign_key "gl_sync_logs", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_sync_logs", "gl_provider_credentials"
   add_foreign_key "gl_sync_logs", "users", column: "triggered_by_id"
-  add_foreign_key "gl_tax_rates", "corporate_companies"
+  add_foreign_key "gl_tax_rates", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_tax_rates", "gl_accounts"
   add_foreign_key "gl_time_billing_batches", "contacts"
-  add_foreign_key "gl_time_billing_batches", "corporate_companies"
+  add_foreign_key "gl_time_billing_batches", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_time_billing_batches", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_time_billing_batches", "jobs"
   add_foreign_key "gl_time_billing_batches", "users", column: "created_by_id"
   add_foreign_key "gl_tpar_payees", "contacts"
   add_foreign_key "gl_tpar_payees", "gl_tpar_reports", column: "tpar_report_id"
-  add_foreign_key "gl_tpar_reports", "corporate_companies"
+  add_foreign_key "gl_tpar_reports", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_tpar_reports", "users", column: "created_by_id"
-  add_foreign_key "gl_tracking_classes", "corporate_companies"
+  add_foreign_key "gl_tracking_classes", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_tracking_classes", "gl_tracking_classes", column: "parent_id"
-  add_foreign_key "gl_transaction_categories", "corporate_companies"
+  add_foreign_key "gl_transaction_categories", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_transaction_categories", "gl_accounts", column: "default_account_id"
   add_foreign_key "gl_transaction_categories", "gl_tax_rates", column: "default_tax_rate_id"
   add_foreign_key "gl_wip_report_jobs", "gl_wip_reports", column: "wip_report_id"
   add_foreign_key "gl_wip_report_jobs", "jobs"
-  add_foreign_key "gl_wip_reports", "corporate_companies"
+  add_foreign_key "gl_wip_reports", "corporates", column: "corporate_company_id"
   add_foreign_key "gl_wip_reports", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
   add_foreign_key "health_kudos_events", "users", on_delete: :nullify
   add_foreign_key "imap_credentials", "users"
   add_foreign_key "import_audit_logs", "tenants"
   add_foreign_key "import_audit_logs", "users"
-  add_foreign_key "insurance_policies", "corporate_companies", column: "company_id"
-  add_foreign_key "intercompany_balances", "corporate_companies", column: "company_id"
-  add_foreign_key "intercompany_balances", "corporate_companies", column: "related_company_id"
+  add_foreign_key "insurance_policies", "corporates", column: "company_id"
+  add_foreign_key "intercompany_balances", "corporates", column: "company_id"
+  add_foreign_key "intercompany_balances", "corporates", column: "related_company_id"
   add_foreign_key "job_activities", "jobs"
   add_foreign_key "job_activities", "users"
   add_foreign_key "job_address_searches", "jobs"
@@ -11302,7 +11343,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "notebook_shares", "users", column: "granted_by_id"
   add_foreign_key "notebooks", "users", column: "owner_id"
   add_foreign_key "notifications", "users"
-  add_foreign_key "organizations", "corporate_companies"
+  add_foreign_key "organizations", "corporates", column: "corporate_company_id"
   add_foreign_key "organizations", "tenants"
   add_foreign_key "page_help_contents", "users", column: "last_updated_by_id"
   add_foreign_key "pay_now_requests", "contacts"
@@ -11350,7 +11391,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "pricebooks", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
   add_foreign_key "pricebooks", "pricebook_categories", column: "category_id"
   add_foreign_key "pricebooks", "tenants"
-  add_foreign_key "profit_loss_reports", "corporate_companies", column: "company_id"
+  add_foreign_key "profit_loss_reports", "corporates", column: "company_id"
   add_foreign_key "profit_loss_reports", "document_types"
   add_foreign_key "projects", "jobs"
   add_foreign_key "projects", "users", column: "project_manager_id"
@@ -11396,7 +11437,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "scheduled_emails", "users", column: "created_by_id"
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
-  add_foreign_key "share_transfers", "corporate_companies", column: "company_id"
+  add_foreign_key "share_transfers", "corporates", column: "company_id"
   add_foreign_key "signature_usages", "document_types"
   add_foreign_key "signature_usages", "job_documents"
   add_foreign_key "signature_usages", "jobs"
@@ -11564,7 +11605,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "tenant_settings", "contacts", column: "saas_customer_contact_id"
   add_foreign_key "tenant_settings", "corporate_groups"
   add_foreign_key "tenant_settings", "tenants"
-  add_foreign_key "tenants", "corporate_companies", column: "billing_company_id"
+  add_foreign_key "tenants", "corporates", column: "billing_company_id"
   add_foreign_key "tenants", "jobs", column: "onboarding_job_id", on_delete: :nullify
   add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
@@ -11632,7 +11673,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_01_071741) do
   add_foreign_key "worker_profiles", "contacts", on_delete: :nullify
   add_foreign_key "worker_profiles", "cost_centres", on_delete: :nullify
   add_foreign_key "worker_profiles", "users", on_delete: :nullify
-  add_foreign_key "xero_alerts", "corporate_companies"
+  add_foreign_key "xero_alerts", "corporates", column: "corporate_company_id"
   add_foreign_key "xero_alerts", "users", column: "dismissed_by_id"
   add_foreign_key "xero_alerts", "xero_credentials"
   add_foreign_key "xero_bank_transactions", "contacts"

@@ -49,7 +49,7 @@ module Gl
 
     def initialize(job)
       @job = job
-      @corporate_company = job.respond_to?(:corporate_company) ? job.corporate_company : CorporateCompany.first
+      @corporate_company = job.respond_to?(:corporate_company) ? job.corporate_company : Corporate.first
     end
 
     # Get complete job costing summary

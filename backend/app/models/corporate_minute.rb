@@ -1,7 +1,14 @@
-class CorporateCompanyMinute < ApplicationRecord
+class CorporateMinute < ApplicationRecord
+  acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
+
+  # Explicit table name since we renamed from corporate_company_minutes
+  self.table_name = "corporate_minutes"
+
   # Associations
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :tenant
+  belongs_to :corporate, foreign_key: "company_id"
   belongs_to :minute_template, optional: true
+  alias_method :company, :corporate
 
   # Validations
   validates :title, presence: true
@@ -65,3 +72,6 @@ class CorporateCompanyMinute < ApplicationRecord
     )
   end
 end
+
+# Backwards compatibility alias (deprecated - use CorporateMinute directly)
+CorporateCompanyMinute = CorporateMinute

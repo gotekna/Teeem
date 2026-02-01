@@ -1,22 +1,22 @@
-# CorporateCompanyXeroSyncService
+# CorporateXeroSyncService
 #
 # SSoT for syncing Xero data to local database for corporate companies.
 # Handles: Monthly P&L, Chart of Accounts, Invoices, Balance Sheets
 #
 # Usage:
-#   service = CorporateCompanyXeroSyncService.new(corporate_company)
+#   service = CorporateXeroSyncService.new(corporate_company)
 #   service.sync_all                    # Sync everything
 #   service.sync_monthly_pl             # Just monthly P&L
 #   service.sync_monthly_pl(force: true) # Force refresh even if recently synced
 #
-class CorporateCompanyXeroSyncService
+class CorporateXeroSyncService
   SYNC_COOLDOWN = 1.hour  # Don't re-sync if synced within this time
 
   class SyncError < StandardError; end
 
   def initialize(corporate_company)
     @company = corporate_company
-    @connection = corporate_company.corporate_company_xero_connection
+    @connection = corporate_company.corporate_xero_connection
   end
 
   # Sync all Xero data types
@@ -80,7 +80,7 @@ class CorporateCompanyXeroSyncService
     all_monthly_data.each do |data|
       next if data[:month_date].nil?
 
-      CorporateCompanyMonthlyPl.upsert_from_xero(@company, data[:month_date], data)
+      CorporateMonthlyPl.upsert_from_xero(@company, data[:month_date], data)
       saved_count += 1
     rescue StandardError => e
       Rails.logger.warn("[CorporateXeroSync] Failed to save monthly PL for #{data[:month]}: #{e.message}")
@@ -92,7 +92,7 @@ class CorporateCompanyXeroSyncService
     {
       success: true,
       months_synced: saved_count,
-      total_records: @company.corporate_company_monthly_pls.count
+      total_records: @company.corporate_monthly_pls.count
     }
   rescue StandardError => e
     Rails.logger.error("[CorporateXeroSync] sync_monthly_pl failed: #{e.message}")

@@ -344,13 +344,13 @@ module Gl
 
       def xero_credential
         # Use existing XeroCredential
-        # Priority: 1) Explicit, 2) From GL ProviderCredential, 3) From CorporateCompanyXeroConnection
+        # Priority: 1) Explicit, 2) From GL ProviderCredential, 3) From CorporateXeroConnection
         @xero_credential ||= @explicit_xero_credential || credential&.xero_credential || find_xero_credential_for_company
       end
 
       def find_xero_credential_for_company
-        # Find first connected XeroCredential through CorporateCompanyXeroConnection
-        connection = CorporateCompanyXeroConnection
+        # Find first connected XeroCredential through CorporateXeroConnection
+        connection = CorporateXeroConnection
           .joins(:xero_credential)
           .where(corporate_company: corporate_company)
           .where(xero_credentials: { status: 'connected' })

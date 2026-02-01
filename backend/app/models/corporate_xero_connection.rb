@@ -9,11 +9,18 @@
 # - connection_status -> Now computed by XeroConnectionHealth.for_company()
 # - last_sync_error -> Now tracked in XeroHealthEvent
 #
-class CorporateCompanyXeroConnection < ApplicationRecord
+class CorporateXeroConnection < ApplicationRecord
+  acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
+
+  # Explicit table name since we renamed from corporate_company_xero_connections
+  self.table_name = "corporate_xero_connections"
+
   # Associations
-  belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :tenant
+  belongs_to :corporate, foreign_key: "company_id"
   belongs_to :xero_credential, optional: true  # SSoT for OAuth tokens
-  has_many :corporate_company_xero_accounts, foreign_key: "company_xero_connection_id", dependent: :destroy
+  has_many :corporate_xero_accounts, foreign_key: "corporate_xero_connection_id", dependent: :destroy
+  alias_method :company, :corporate
 
   # Validations
   validates :xero_tenant_id, presence: true, uniqueness: { scope: :company_id }
@@ -87,7 +94,7 @@ class CorporateCompanyXeroConnection < ApplicationRecord
       from: "disconnected",
       to: "connected",
       trigger: "link_to_credential",
-      message: "Company #{corporate_company&.name} linked to Xero org #{credential.tenant_name}"
+      message: "Company #{corporate&.name} linked to Xero org #{credential.tenant_name}"
     )
 
     create_connection_activity if was_unlinked
@@ -120,7 +127,7 @@ class CorporateCompanyXeroConnection < ApplicationRecord
       )
     end
 
-    corporate_company.corporate_company_activities.create!(
+    corporate.corporate_activities.create!(
       activity_type: "xero_disconnected",
       description: "Xero connection disconnected#{error_message.present? ? ": #{error_message}" : ''}",
       metadata: { xero_tenant_id: xero_tenant_id },
@@ -220,20 +227,20 @@ class CorporateCompanyXeroConnection < ApplicationRecord
 
   # SSoT: Auto-sync bank accounts when Xero connection is established
   def sync_bank_accounts_from_xero
-    return unless corporate_company.present? && connected?
+    return unless corporate.present? && connected?
 
-    Rails.logger.info("[XeroConnection] Auto-syncing bank accounts for company #{corporate_company.id} after Xero connection")
+    Rails.logger.info("[XeroConnection] Auto-syncing bank accounts for company #{corporate.id} after Xero connection")
 
     begin
-      sync_service = XeroBankSyncService.new(corporate_company)
+      sync_service = XeroBankSyncService.new(corporate)
       result = sync_service.sync_bank_accounts(auto_create: true)
 
       if result[:success]
-        Rails.logger.info("[XeroConnection] Auto-synced #{result[:auto_created_count]} bank accounts from Xero for company #{corporate_company.id}")
+        Rails.logger.info("[XeroConnection] Auto-synced #{result[:auto_created_count]} bank accounts from Xero for company #{corporate.id}")
 
         # Create activity if any accounts were created
         if result[:auto_created_count] > 0
-          corporate_company.corporate_company_activities.create!(
+          corporate.corporate_activities.create!(
             activity_type: "bank_accounts_synced",
             description: "#{result[:auto_created_count]} bank account(s) auto-synced from Xero",
             metadata: { created_count: result[:auto_created_count], linked_count: result[:auto_linked_count] },
@@ -250,9 +257,9 @@ class CorporateCompanyXeroConnection < ApplicationRecord
   end
 
   def create_connection_activity
-    return unless corporate_company.present?
+    return unless corporate.present?
 
-    corporate_company.corporate_company_activities.create!(
+    corporate.corporate_activities.create!(
       activity_type: "xero_connected",
       description: "Xero organization connected: #{xero_tenant_name}",
       metadata: { xero_tenant_id: xero_tenant_id, xero_tenant_name: xero_tenant_name },
@@ -263,3 +270,6 @@ class CorporateCompanyXeroConnection < ApplicationRecord
     Rails.logger.error("Failed to create xero connection activity: #{e.message}")
   end
 end
+
+# Backwards compatibility alias (deprecated - use CorporateXeroConnection directly)
+CorporateCompanyXeroConnection = CorporateXeroConnection

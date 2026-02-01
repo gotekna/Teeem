@@ -118,7 +118,7 @@ class DailyHealthCheckJob < ApplicationJob
     fixed_count = 0
 
     # Find companies with ABN/ACN formatting issues
-    CorporateCompany.find_each(batch_size: 500) do |company|
+    Corporate.find_each(batch_size: 500) do |company|
       next unless needs_company_fix?(company)
 
       begin

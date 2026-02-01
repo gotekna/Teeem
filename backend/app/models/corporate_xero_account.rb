@@ -1,6 +1,12 @@
-class CorporateCompanyXeroAccount < ApplicationRecord
+class CorporateXeroAccount < ApplicationRecord
+  acts_as_tenant :tenant  # Multi-tenancy: Auto-scope queries to current tenant
+
+  # Explicit table name since we renamed from corporate_company_xero_accounts
+  self.table_name = "corporate_xero_accounts"
+
   # Associations
-  belongs_to :company_xero_connection, class_name: "CorporateCompanyXeroConnection"
+  belongs_to :tenant
+  belongs_to :corporate_xero_connection, foreign_key: "corporate_xero_connection_id"
 
   # Validations
   validates :xero_account_id, presence: true, uniqueness: true
@@ -37,6 +43,9 @@ class CorporateCompanyXeroAccount < ApplicationRecord
   end
 
   def company
-    company_xero_connection.company
+    corporate_xero_connection.corporate
   end
 end
+
+# Backwards compatibility alias (deprecated - use CorporateXeroAccount directly)
+CorporateCompanyXeroAccount = CorporateXeroAccount

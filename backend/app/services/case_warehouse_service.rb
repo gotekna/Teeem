@@ -248,7 +248,7 @@ class CaseWarehouseService
     {
       contact: contact,
       directorships: contact.corporate_company_directors.includes(:corporate_company),
-      shareholdings: CorporateCompanyShareholding.where(shareholder_type: "Contact", shareholder_id: contact_id)
+      shareholdings: CorporateShareholding.where(shareholder_type: "Contact", shareholder_id: contact_id)
                                         .includes(:corporate_company),
       relationships: contact.contact_relationships.includes(:related_contact),
       documents: WarehouseDocument.where(documentable_type: "Contact", documentable_id: contact_id),
@@ -259,7 +259,7 @@ class CaseWarehouseService
 
   # Deep analysis of a company
   def analyze_company(company_id)
-    company = CorporateCompany.find(company_id)
+    company = Corporate.find(company_id)
 
     # Get warehouse metrics
     job_ids = company.jobs.pluck(:id)

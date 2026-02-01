@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ interface SignupData {
   include_pricebook: boolean;
 }
 
-export default function GetStartedPage() {
+function GetStartedPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite_token");
@@ -448,6 +448,18 @@ export default function GetStartedPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function GetStartedPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+        <Spinner size={32} />
+      </div>
+    }>
+      <GetStartedPageContent />
+    </Suspense>
   );
 }
 
