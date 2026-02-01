@@ -174,15 +174,23 @@ export default function AdminTenantsPage() {
 
     setSending(true);
     try {
-      const res = await api.post<{ success: boolean; message: string }>(
+      const res = await api.post<{ success: boolean; message: string; data?: { signup_url?: string } }>(
         "/api/v1/admin/trial_invitations",
         { invitation: inviteForm }
       );
       if (res?.success) {
+        const signupUrl = res.data?.signup_url;
         toast({
           title: "Invitation sent!",
-          description: `Email sent to ${inviteForm.email}`,
+          description: signupUrl
+            ? `Email sent to ${inviteForm.email}. Test link: ${signupUrl}`
+            : `Email sent to ${inviteForm.email}`,
+          duration: 15000, // Keep toast visible longer for copying link
         });
+        // Copy signup URL to clipboard for easy testing
+        if (signupUrl) {
+          navigator.clipboard.writeText(signupUrl).catch(() => {});
+        }
         setInviteOpen(false);
         setInviteForm({
           name: "",
