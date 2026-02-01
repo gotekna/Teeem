@@ -157,23 +157,34 @@ class TenantProvisioningService
   end
 
   def create_corporate_company
-    @corporate_company = Corporate.create!(
-      tenant: @tenant,
-      corporate_group: @corporate_group,
+    # Corporate requires a Contact (Contact is THE ONE SSoT for identity)
+    # Create company contact first
+    company_contact = Contact.create!(
+      tenant_id: @tenant.id,
       display_name: @params[:company_name],
       legal_name: @params[:company_name],
-      abn: @params[:abn],
       email: @params[:email],
       phone: @params[:phone],
       website: @params[:website],
-      is_active: true,
-      entity_type: "Company"
+      abn: @params[:abn],
+      entity_type: "company",
+      is_active: true
+    )
+
+    @corporate_company = Corporate.create!(
+      tenant: @tenant,
+      company_group_id: @corporate_group.id,
+      contact: company_contact,
+      name: @params[:company_name],
+      abn: @params[:abn],
+      entity_type: "Company",
+      active: true
     )
 
     # Set this company as the billing company for the tenant
     @tenant.update!(billing_company: @corporate_company)
 
-    Rails.logger.info "[TenantProvisioning] Created Corporate: #{@corporate_company.display_name}"
+    Rails.logger.info "[TenantProvisioning] Created Corporate: #{@corporate_company.name}"
   rescue ActiveRecord::RecordInvalid => e
     @errors << "Failed to create corporate company: #{e.message}"
     raise ActiveRecord::Rollback
