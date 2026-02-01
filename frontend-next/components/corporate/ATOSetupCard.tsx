@@ -13,10 +13,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, FileText, Pencil } from "lucide-react";
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 
 interface ATOSetupCardProps {
-  company: CorporateCompany;
+  company: Corporate;
 }
 
 export function ATOSetupCard({ company }: ATOSetupCardProps) {

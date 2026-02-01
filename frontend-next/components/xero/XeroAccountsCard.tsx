@@ -121,7 +121,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
       }>(`/api/v1/companies/${companyId}/xero/connection`);
 
       if (companyResponse?.success && companyResponse.connection?.xero_tenant_id) {
-        // Sync from Xero - populates both XeroChartOfAccount (master) and CorporateCompanyXeroAccount (per-company)
+        // Sync from Xero - populates both XeroChartOfAccount (master) and CorporateXeroAccount (per-company)
         await api.post(`/api/v1/xero_chart_of_accounts/sync_from_xero`, {
           tenant_id: companyResponse.connection.xero_tenant_id,
           company_id: companyId,

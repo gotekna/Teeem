@@ -649,7 +649,7 @@ module Api
         # Add primary company and employment details
         if @contact.primary_company.present?
           company = @contact.primary_company
-          company_record = CorporateCompany.find_by(contact_id: company.id)
+          company_record = Corporate.find_by(contact_id: company.id)
 
           contact_json[:primary_company] = {
             id: company.id,
@@ -751,7 +751,7 @@ module Api
           end
 
         # SSoT: If this contact is linked to a Company, include company data
-        linked_company = CorporateCompany.find_by(contact_id: @contact.id)
+        linked_company = Corporate.find_by(contact_id: @contact.id)
         if linked_company
           linked_company_data = {
             id: linked_company.id,
@@ -928,7 +928,7 @@ module Api
         if @contact.link_to_cg
           if @contact.linked_company_id.present?
             # This contact is linked to a Company record
-            company = CorporateCompany.find_by(id: @contact.linked_company_id)
+            company = Corporate.find_by(id: @contact.linked_company_id)
             return render json: {
               success: false,
               error: "Cannot delete contact linked to Company '#{company&.name || 'Unknown'}'. Unlink from Company Group first.",
@@ -950,7 +950,7 @@ module Api
         end
 
         # Check if this contact has a Company record pointing to it
-        linked_company = CorporateCompany.find_by(contact_id: @contact.id)
+        linked_company = Corporate.find_by(contact_id: @contact.id)
         if linked_company.present?
           return render json: {
             success: false,
@@ -1084,7 +1084,7 @@ module Api
         # Check for Company Group links
         if @contact.link_to_cg
           if @contact.linked_company_id.present?
-            company = CorporateCompany.find_by(id: @contact.linked_company_id)
+            company = Corporate.find_by(id: @contact.linked_company_id)
             check[:can_delete] = false
             check[:blockers] << {
               type: "linked_to_company",

@@ -7,7 +7,7 @@
 
 // Hardcoded table IDs (Foundation-based tables only)
 // NOTE: COMPANIES (353) removed - Foundation doesn't exist.
-// Corporate uses CorporateCompany Rails model directly.
+// Corporate uses Corporate Rails model directly.
 const HARDCODED_TABLE_IDS = {
   GOLD_STANDARD: 1,
   JOBS: 204,
@@ -96,7 +96,7 @@ export const TABLE_UI_CONFIG: Record<number, TableUIConfig> = {
     enableSchemaEditor: true,
   },
 
-  // Companies - removed, uses CorporateCompany Rails model not Foundation
+  // Companies - removed, uses Corporate Rails model not Foundation
   // Config for corporate is in use-corporate-table.ts
 
   // Features Tracking

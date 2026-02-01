@@ -13,7 +13,7 @@ class XeroBankTransactionSyncJob < ApplicationJob
   queue_as :default
 
   # FRC (Jan 2026): Updated to sync ALL connected XeroCredentials, not just primary
-  # Bug: Was only syncing primary + CorporateCompanyXeroConnection, missing 9 of 10 orgs
+  # Bug: Was only syncing primary + CorporateXeroConnection, missing 9 of 10 orgs
   def perform(options = {})
     options = options.with_indifferent_access if options.is_a?(Hash)
     Rails.logger.info("Starting XeroBankTransactionSyncJob")

@@ -93,11 +93,11 @@ class Contact < ApplicationRecord
   has_many :pay_now_requests, dependent: :destroy
 
   # Corporate director/shareholder associations
-  has_many :corporate_company_directorships, class_name: "CorporateCompanyDirector", dependent: :destroy
-  has_many :directed_companies, through: :corporate_company_directorships, source: :corporate_company
-  has_many :current_directorships, -> { where(is_current: true) }, class_name: "CorporateCompanyDirector"
-  has_many :corporate_company_shareholdings, foreign_key: :shareholder_id, dependent: :destroy
-  has_many :shareholding_companies, through: :corporate_company_shareholdings, source: :corporate_company
+  has_many :corporate_directorships, class_name: "CorporateDirector", dependent: :destroy
+  has_many :directed_companies, through: :corporate_directorships, source: :corporate
+  has_many :current_directorships, -> { where(is_current: true) }, class_name: "CorporateDirector"
+  has_many :corporate_shareholdings, foreign_key: :shareholder_id, dependent: :destroy
+  has_many :shareholding_companies, through: :corporate_shareholdings, source: :corporate
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
 
   # Note: corporate_company_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
@@ -113,18 +113,18 @@ class Contact < ApplicationRecord
   has_many :corporate_groups_via_membership, through: :corporate_group_memberships, source: :corporate_group
 
   # SSoT - if this contact is a company/trust, link to the Company record
-  has_one :company_record, class_name: "CorporateCompany", foreign_key: "contact_id", dependent: :nullify
+  has_one :company_record, class_name: "Corporate", foreign_key: "contact_id", dependent: :nullify
 
   # SSoT: Corporate Details (alias for company_record)
-  # CorporateCompany is an EXTENSION table for corporate-specific data (ASIC, compliance, etc.)
-  # Contact is THE ONE SSoT for identity; CorporateCompany extends it for corporate management
+  # Corporate is an EXTENSION table for corporate-specific data (ASIC, compliance, etc.)
+  # Contact is THE ONE SSoT for identity; Corporate extends it for corporate management
   alias_method :corporate_details, :company_record
 
   # ============================================
   # Corporate Hierarchy (SSoT: Contact level)
   # ============================================
   # Parent company for subsidiary contacts (companies/trusts)
-  # This mirrors CorporateCompany.parent_company_id but at the Contact level
+  # This mirrors Corporate.parent_company_id but at the Contact level
   belongs_to :parent_company_contact, class_name: "Contact", optional: true
 
   # Subsidiary contacts (inverse of parent_company_contact)
@@ -157,7 +157,7 @@ class Contact < ApplicationRecord
 
   # Encrypted TFN for directors
   # NOTE: tfn column was removed in migration 20251210093313
-  # TFN is now stored in CorporateCompany.tfn instead
+  # TFN is now stored in Corporate.tfn instead
   # encrypts :tfn, deterministic: true
 
   # Constants
@@ -543,9 +543,9 @@ class Contact < ApplicationRecord
   # This ensures the relationship exists when primary_company is set directly
   after_commit :sync_primary_company_to_relationship, if: :should_sync_primary_company_to_relationship?
 
-  # SSoT: Sync Contact → CorporateCompany for standard contact fields
+  # SSoT: Sync Contact → Corporate for standard contact fields
   # One-way sync: Contact is SSoT for name, email, phone, bank details
-  # Two-way sync for ABN: Contact.abn ↔ CorporateCompany.abn
+  # Two-way sync for ABN: Contact.abn ↔ Corporate.abn
   after_commit :sync_to_corporate_company, if: :should_sync_to_corporate?
 
   # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
@@ -854,7 +854,7 @@ class Contact < ApplicationRecord
   end
 
   # Family/Director helpers
-  # SSoT: Use cached column for performance (updated via callbacks on CorporateCompanyDirector)
+  # SSoT: Use cached column for performance (updated via callbacks on CorporateDirector)
   def is_director?
     is_director_cached
   end
@@ -868,7 +868,7 @@ class Contact < ApplicationRecord
   # Check if this contact has corporate management features
   # Returns true if:
   # 1. is_corporate_managed flag is set, OR
-  # 2. Contact has a linked CorporateCompany record (corporate_details)
+  # 2. Contact has a linked Corporate record (corporate_details)
   def corporate_managed?
     is_corporate_managed? || corporate_details.present?
   end
@@ -879,7 +879,7 @@ class Contact < ApplicationRecord
   end
 
   # Enable corporate management for this contact
-  # Creates CorporateCompany extension record if needed
+  # Creates Corporate extension record if needed
   def enable_corporate_management!
     return false unless can_be_corporate_managed?
 
@@ -887,9 +887,9 @@ class Contact < ApplicationRecord
       # Set flag
       update!(is_corporate_managed: true)
 
-      # Create CorporateCompany if needed
+      # Create Corporate if needed
       unless corporate_details.present?
-        CorporateCompany.create!(
+        Corporate.create!(
           contact: self,
           tenant: tenant,
           name: display_name,
@@ -930,7 +930,7 @@ class Contact < ApplicationRecord
   # Call refresh_cached_flags! when related data changes:
   # - JobContact created/destroyed → is_customer_cached
   # - PurchaseOrder/Pricebook/PriceHistory/ExternalInvoice(ACCPAY) created/destroyed → is_supplier_cached
-  # - CorporateCompanyDirector created/updated/destroyed → is_director_cached
+  # - CorporateDirector created/updated/destroyed → is_director_cached
 
   # Refresh all cached flags from source data (call after related records change)
   def refresh_cached_flags!
@@ -960,7 +960,7 @@ class Contact < ApplicationRecord
     )
   end
 
-  # Refresh only director flag (called by CorporateCompanyDirector callbacks)
+  # Refresh only director flag (called by CorporateDirector callbacks)
   def refresh_director_flag!
     update_column(:is_director_cached, current_directorships.exists?)
   end
@@ -1936,17 +1936,17 @@ class Contact < ApplicationRecord
     end.join(" ")
   end
 
-  # SSoT: Check if this contact should sync to CorporateCompany
+  # SSoT: Check if this contact should sync to Corporate
   def should_sync_to_corporate?
-    # Only sync if this is a company/trust with a linked CorporateCompany record
-    # Don't sync if we're already syncing from CorporateCompany to Contact (prevent loop)
+    # Only sync if this is a company/trust with a linked Corporate record
+    # Don't sync if we're already syncing from Corporate to Contact (prevent loop)
     # Case-insensitive check to handle legacy data with capitalized entity_type
     entity_type&.downcase.in?([ "company", "trust" ]) &&
       company_record.present? &&
       !Thread.current[:syncing_company_to_contact]
   end
 
-  # SSoT: Sync Contact → CorporateCompany for standard contact fields
+  # SSoT: Sync Contact → Corporate for standard contact fields
   def sync_to_corporate_company
     # Prevent infinite loops
     return if Thread.current[:syncing_contact_to_company]
@@ -1958,7 +1958,7 @@ class Contact < ApplicationRecord
       abn: abn  # SelfHealing will format with spaces
     )
   rescue StandardError => e
-    Rails.logger.error("Contact##{id}: Sync to CorporateCompany failed - #{e.message}")
+    Rails.logger.error("Contact##{id}: Sync to Corporate failed - #{e.message}")
   ensure
     Thread.current[:syncing_contact_to_company] = false
   end

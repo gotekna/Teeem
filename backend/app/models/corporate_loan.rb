@@ -56,6 +56,3 @@ class CorporateLoan < ApplicationRecord
     self.current_balance ||= principal_amount
   end
 end
-
-# Backwards compatibility alias (deprecated - use CorporateLoan directly)
-CorporateCompanyLoan = CorporateLoan

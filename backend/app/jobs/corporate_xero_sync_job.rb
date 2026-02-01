@@ -5,7 +5,7 @@
 # Syncs Xero data (Monthly P&L, Accounts, Invoices) to local database for all
 # Xero-connected corporate companies. Runs daily to keep data fresh.
 #
-# SSoT: CorporateCompanyXeroSyncService handles the actual sync logic.
+# SSoT: CorporateXeroSyncService handles the actual sync logic.
 #
 # Rate Limit Handling (Jan 2026):
 # - Pre-flight lockout check before processing
@@ -50,7 +50,7 @@ class CorporateXeroSyncJob < ApplicationJob
     Rails.logger.info("[CorporateXeroSyncJob] Found #{companies.count} companies to sync")
 
     companies.each do |company|
-      tenant_id = company.corporate_company_xero_connection&.xero_tenant_id
+      tenant_id = company.corporate_xero_connection&.xero_tenant_id
 
       # SSoT: Check for Xero-enforced lockout before processing each company
       if tenant_id.present? && XeroRateLimitTracker.current_lockout(tenant_id: tenant_id).present?
@@ -86,21 +86,21 @@ class CorporateXeroSyncJob < ApplicationJob
   private
 
   def fetch_companies(company_ids = nil)
-    scope = CorporateCompany.includes(:corporate_company_xero_connection)
-                            .joins(:corporate_company_xero_connection)
-                            .where.not(corporate_company_xero_connections: { xero_credential_id: nil })
+    scope = Corporate.includes(:corporate_xero_connection)
+                            .joins(:corporate_xero_connection)
+                            .where.not(corporate_xero_connections: { xero_credential_id: nil })
 
     scope = scope.where(id: company_ids) if company_ids.present?
     scope.order(:name)
   end
 
   def sync_company(company, data_types, force, result)
-    connection = company.corporate_company_xero_connection
+    connection = company.corporate_xero_connection
     return unless connection&.connected?
 
     Rails.logger.info("[CorporateXeroSyncJob] Syncing #{company.name}...")
 
-    sync_service = CorporateCompanyXeroSyncService.new(company)
+    sync_service = CorporateXeroSyncService.new(company)
 
     # Sync Monthly P&L
     if data_types.include?("monthly_pl")

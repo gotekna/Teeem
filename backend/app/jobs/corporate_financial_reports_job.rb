@@ -53,7 +53,7 @@ class CorporateFinancialReportsJob < ApplicationJob
   private
 
   def fetch_companies(company_ids = nil)
-    scope = CorporateCompany.includes(:company_xero_connection)
+    scope = Corporate.includes(:company_xero_connection)
                             .joins(:company_xero_connection)
                             .where(company_xero_connections: { status: "connected" })
 

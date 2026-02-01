@@ -49,7 +49,7 @@ interface XeroTabRendererProps {
   /** Company name for display */
   companyName?: string;
 
-  /** Full company data object - uses any to support CorporateCompany from caller */
+  /** Full company data object - uses any to support Corporate from caller */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   company?: any;
 
@@ -74,7 +74,7 @@ interface XeroTabRendererProps {
   /**
    * Component for rendering SharePoint document folder tabs
    * Used when tab has warehouse_enabled=true
-   * Uses any for company to support CorporateCompany type from caller
+   * Uses any for company to support Corporate type from caller
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DocumentsTabComponent?: React.ComponentType<{

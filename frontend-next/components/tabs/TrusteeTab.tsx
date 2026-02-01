@@ -15,10 +15,10 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
-import type { CorporateCompany, TrustRolesData } from "@/lib/types/corporate";
+import type { Corporate, TrustRolesData } from "@/lib/types/corporate";
 
 interface TrusteeTabProps {
-  company: CorporateCompany;
+  company: Corporate;
   companyId?: string;
   entityId?: string;
 }

@@ -115,6 +115,3 @@ class CorporateShareholding < ApplicationRecord
     Thread.current[:syncing_shareholder_relationship] = false
   end
 end
-
-# Backwards compatibility alias (deprecated - use CorporateShareholding directly)
-CorporateCompanyShareholding = CorporateShareholding

@@ -729,7 +729,7 @@ function SortableQuestionItem({
       {item.attachments && item.attachments.length > 0 && (
         <div className="space-y-0.5">
           {item.attachments.map((att) => {
-            // Handle document attachments (CorporateCompanyDocument)
+            // Handle document attachments (CorporateDocument)
             if (att.document) {
               // SSoT: Use storage_url for downloads, storage_url_inline for viewers
               const downloadUrl = att.document?.storage_url || att.document?.file_url;

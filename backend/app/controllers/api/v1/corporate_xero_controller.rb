@@ -888,7 +888,7 @@ module Api
         consolidated_company_ids << @company.id
         consolidated_company_ids.uniq!
 
-        companies_with_xero = CorporateCompany.where(id: consolidated_company_ids)
+        companies_with_xero = Corporate.where(id: consolidated_company_ids)
           .includes(:corporate_xero_connection)
           .select { |c| c.corporate_xero_connection&.connected? }
 

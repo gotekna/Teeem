@@ -46,6 +46,3 @@ class CorporateXeroAccount < ApplicationRecord
     corporate_xero_connection.corporate
   end
 end
-
-# Backwards compatibility alias (deprecated - use CorporateXeroAccount directly)
-CorporateCompanyXeroAccount = CorporateXeroAccount

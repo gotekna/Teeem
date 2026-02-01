@@ -89,7 +89,7 @@ class TenantAuditRunner
       puts "⚠️  ORPHANED CORPORATE GROUPS (no tenant_id):"
       puts "#{SECTION}"
       orphaned_groups.each do |group|
-        companies_count = group.corporate_companies.count
+        companies_count = group.corporates.count
         puts "   - ID: #{group.id}, Name: #{group.name}, Slug: #{group.slug || 'NULL'}"
         puts "     Companies: #{companies_count}, is_master_tenant: #{group.is_master_tenant?}"
       end
@@ -293,8 +293,8 @@ class TenantAuditRunner
       puts ""
     end
 
-    # Check for CorporateCompanies without a corporate_group
-    orphaned_companies = CorporateCompany.where(company_group_id: nil)
+    # Check for Corporates without a corporate_group
+    orphaned_companies = Corporate.where(company_group_id: nil)
     if orphaned_companies.any?
       puts "#{SECTION}"
       puts "⚠️  ORPHANED CORPORATE COMPANIES (no company_group_id)"
@@ -304,7 +304,7 @@ class TenantAuditRunner
       end
       puts "  ... and #{orphaned_companies.count - 20} more" if orphaned_companies.count > 20
       @corporate_issues ||= []
-      @corporate_issues << "#{orphaned_companies.count} CorporateCompanies have no company_group_id"
+      @corporate_issues << "#{orphaned_companies.count} Corporates have no company_group_id"
     end
   end
 

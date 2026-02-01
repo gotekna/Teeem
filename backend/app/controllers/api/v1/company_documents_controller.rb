@@ -27,7 +27,7 @@ module Api
         docs = WarehouseDocument
           .where(source_type: "corporate")
           .where(
-            "metadata->>'company_id' = :id OR (linkable_type = 'CorporateCompany' AND linkable_id = :id_int)",
+            "metadata->>'company_id' = :id OR (linkable_type = 'Corporate' AND linkable_id = :id_int)",
             id: company_id.to_s, id_int: company_id.to_i
           )
           .includes(:storage_blob)
@@ -118,7 +118,7 @@ module Api
         # SSoT: Query WarehouseDocument for corporate documents with this company_id
         # Documents can be linked via:
         # 1. metadata->>'company_id' (newer documents)
-        # 2. linkable_type='CorporateCompany' and linkable_id (if using polymorphic link)
+        # 2. linkable_type='Corporate' and linkable_id (if using polymorphic link)
         counts = WarehouseDocument
           .where(source_type: "corporate")
           .where("metadata->>'company_id' = ?", company_id.to_s)
@@ -128,7 +128,7 @@ module Api
         # Also check for documents linked via polymorphic association
         polymorphic_counts = WarehouseDocument
           .where(source_type: "corporate")
-          .where(linkable_type: "CorporateCompany", linkable_id: company_id)
+          .where(linkable_type: "Corporate", linkable_id: company_id)
           .group("COALESCE(metadata->>'document_type', 'Other')")
           .count
 

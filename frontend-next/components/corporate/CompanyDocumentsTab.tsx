@@ -35,7 +35,7 @@ import type { TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
 import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
 import { Spinner } from "@/components/ui/spinner";
-import type { CorporateCompany } from "@/lib/types/corporate";
+import type { Corporate } from "@/lib/types/corporate";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 
@@ -86,7 +86,7 @@ const DOCUMENT_TYPE_OPTIONS = [
 
 interface CompanyDocumentsTabProps {
   companyId: string;
-  company: CorporateCompany;
+  company: Corporate;
   category?: string;
 }
 
@@ -95,7 +95,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   const { confirm } = useConfirm();
   const [documents, setDocuments] = React.useState<CompanyDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [companies, setCompanies] = React.useState<CorporateCompany[]>([]);
+  const [companies, setCompanies] = React.useState<Corporate[]>([]);
 
   // Document preview state - side panel for single click, fullscreen modal for double click
   const [selectedDocument, setSelectedDocument] = React.useState<CompanyDocument | null>(null);
@@ -113,7 +113,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
 
   const loadCompanies = async () => {
     try {
-      const response = await api.get<{ companies: CorporateCompany[] }>("/api/v1/companies");
+      const response = await api.get<{ companies: Corporate[] }>("/api/v1/companies");
       setCompanies(response.companies || []);
     } catch (error) {
       console.error("Failed to load companies:", error);

@@ -270,6 +270,3 @@ class CorporateXeroConnection < ApplicationRecord
     Rails.logger.error("Failed to create xero connection activity: #{e.message}")
   end
 end
-
-# Backwards compatibility alias (deprecated - use CorporateXeroConnection directly)
-CorporateCompanyXeroConnection = CorporateXeroConnection

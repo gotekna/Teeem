@@ -79,7 +79,7 @@ module Api
 
       # GET /api/v1/xero_chart_of_accounts/for_company/:company_id
       def for_company
-        company = CorporateCompany.find(params[:company_id])
+        company = Corporate.find(params[:company_id])
         @accounts = XeroChartOfAccount.for_company(company).by_code
 
         render json: {
@@ -95,7 +95,7 @@ module Api
 
       # POST /api/v1/xero_chart_of_accounts/sync_from_xero
       # Import chart of accounts from Xero
-      # Also syncs to CorporateCompanyXeroAccount if company_id provided
+      # Also syncs to CorporateXeroAccount if company_id provided
       def sync_from_xero
         company_group_id = params[:company_group_id]
         tenant_id = params[:tenant_id]
@@ -125,7 +125,7 @@ module Api
           # Find company connection if company_id provided
           connection = nil
           if company_id.present?
-            company = CorporateCompany.find_by(id: company_id)
+            company = Corporate.find_by(id: company_id)
             connection = company&.corporate_company_xero_connection
           end
 
@@ -157,9 +157,9 @@ module Api
               stats[:skipped] += 1
             end
 
-            # Also sync to per-company accounts (CorporateCompanyXeroAccount)
+            # Also sync to per-company accounts (CorporateXeroAccount)
             if connection.present?
-              company_account = CorporateCompanyXeroAccount.find_or_initialize_by(
+              company_account = CorporateXeroAccount.find_or_initialize_by(
                 company_xero_connection_id: connection.id,
                 xero_account_id: xero_account["AccountID"]
               )
@@ -256,10 +256,10 @@ module Api
 
       # GET /api/v1/xero_chart_of_accounts/with_company_presence
       # Returns accounts aggregated from ALL companies in the group with presence columns
-      # This builds the view from per-company accounts (CorporateCompanyXeroAccount)
+      # This builds the view from per-company accounts (CorporateXeroAccount)
       # Required: company_id param to determine the company group
       def with_company_presence
-        company = CorporateCompany.find(params[:company_id])
+        company = Corporate.find(params[:company_id])
         group = company.corporate_group
 
         # Get all companies in the group that have Xero connected
@@ -297,7 +297,7 @@ module Api
         end
 
         # Get Foundation ID for TeeemTableView
-        foundation = Foundation.find_by(model_class: "CorporateCompanyXeroAccount")
+        foundation = Foundation.find_by(model_class: "CorporateXeroAccount")
 
         # Build enriched accounts with company presence columns
         enriched_accounts = accounts_map.values.map do |entry|
@@ -354,7 +354,7 @@ module Api
       # GET /api/v1/xero_chart_of_accounts/company_accounts
       # Returns per-company Xero accounts with consolidated_account_code mapping
       def company_accounts
-        company = CorporateCompany.find(params[:company_id])
+        company = Corporate.find(params[:company_id])
         connection = company.corporate_company_xero_connection
 
         unless connection
@@ -369,7 +369,7 @@ module Api
         @accounts = @accounts.order(:account_code)
 
         # Get Foundation for TeeemTableView
-        foundation = Foundation.find_by(model_class: "CorporateCompanyXeroAccount")
+        foundation = Foundation.find_by(model_class: "CorporateXeroAccount")
 
         render json: {
           success: true,

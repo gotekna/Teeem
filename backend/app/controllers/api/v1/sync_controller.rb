@@ -192,7 +192,7 @@ module Api
           .order(created_at: :desc)
           .limit(100)
 
-        companies = CorporateCompany.order(:name)
+        companies = Corporate.order(:name)
           .limit(100)
 
         contacts = Contact.where.not(first_name: nil)
@@ -203,7 +203,7 @@ module Api
           success: true,
           data: {
             jobs: jobs.map { |j| folder_json(j, "Job") },
-            companies: companies.map { |c| folder_json(c, "CorporateCompany") },
+            companies: companies.map { |c| folder_json(c, "Corporate") },
             contacts: contacts.map { |c| folder_json(c, "Contact") }
           }
         }
@@ -227,7 +227,7 @@ module Api
         syncable_id = params[:syncable_id]
         include_subfolders = params[:include_subfolders] != false
 
-        unless %w[Job CorporateCompany Contact].include?(syncable_type)
+        unless %w[Job Corporate Contact].include?(syncable_type)
           return render json: { success: false, error: "Invalid syncable_type" }, status: :bad_request
         end
 
@@ -687,14 +687,14 @@ module Api
             document_count: entity.job_documents.count,
             has_sharepoint_folder: entity.storage_folder_id.present?
           }
-        when "CorporateCompany"
+        when "Corporate"
           base = config.path_for(:corporate)
           # SSoT: Use WarehouseDocument for company document count (Jan 2026)
           doc_count = defined?(WarehouseDocument) ?
             WarehouseDocument.where(documentable: entity).count : 0
           {
             id: "company:#{entity.id}",
-            type: "CorporateCompany",
+            type: "Corporate",
             syncable_id: entity.id,
             name: entity.name,
             path: "/#{base}/#{entity.name}",
@@ -741,10 +741,10 @@ module Api
               }
             }
           end
-        when "CorporateCompany"
+        when "Corporate"
           # SSoT: Use WarehouseDocument for company documents (Jan 2026)
           if defined?(WarehouseDocument)
-            docs = WarehouseDocument.where(documentable_type: "CorporateCompany", documentable_id: subscription.syncable_id)
+            docs = WarehouseDocument.where(documentable_type: "Corporate", documentable_id: subscription.syncable_id)
               .where("updated_at > ?", subscription.last_sync_at || 100.years.ago)
               .includes(:storage_blob)
 

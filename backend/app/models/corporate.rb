@@ -640,6 +640,3 @@ class Corporate < ApplicationRecord
     Thread.current[:syncing_company_to_contact] = false
   end
 end
-
-# Backwards compatibility alias (deprecated - use Corporate directly)
-CorporateCompany = Corporate

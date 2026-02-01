@@ -189,7 +189,7 @@ module Api
       def create_corporate_document(key, filename, content_type, file_size, metadata, provider)
         # Get company from metadata or current user's default
         company_id = metadata[:company_id] || metadata["company_id"]
-        company = company_id ? CorporateCompany.find_by(id: company_id) : current_user.corporate_companies.first
+        company = company_id ? Corporate.find_by(id: company_id) : current_user.corporates.first
         return { success: false, error: "Company required for corporate documents" } unless company
 
         # Move to permanent location with content-hash deduplication

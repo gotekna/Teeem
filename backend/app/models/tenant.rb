@@ -36,8 +36,8 @@ class Tenant < ApplicationRecord
   # Associations
   # =============================================================================
 
-  # Billing - the CorporateCompany we invoice for software usage
-  belongs_to :billing_company, class_name: 'CorporateCompany', optional: true
+  # Billing - the Corporate we invoice for software usage
+  belongs_to :billing_company, class_name: 'Corporate', optional: true
 
   # Settings
   has_one :tenant_setting, dependent: :destroy

@@ -75,8 +75,8 @@ class DirectorOnboardingRequest < ApplicationRecord
 
       # Create company director relationship if company specified
       if corporate_company.present?
-        CorporateCompanyDirector.find_or_create_by!(
-          corporate_company: corporate_company,
+        CorporateDirector.find_or_create_by!(
+          corporate: corporate_company,
           contact: contact_record
         ) do |cd|
           cd.position = "director"

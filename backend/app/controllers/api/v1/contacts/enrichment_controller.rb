@@ -160,7 +160,7 @@ module Api
           if existing_contact_with_company && existing_contact_with_company.primary_company
             # Found existing company for this domain - link to it
             company_contact = existing_contact_with_company.primary_company
-            company = CorporateCompany.find_by(contact_id: company_contact.id)
+            company = Corporate.find_by(contact_id: company_contact.id)
 
             @contact.update!(primary_company_id: company_contact.id)
 
@@ -222,8 +222,8 @@ module Api
 
             if has_acn || (has_abn && !is_sole_trader)
               # It's a company - check if company already exists
-              existing_company = CorporateCompany.find_by(abn: website_details[:abn]) if website_details[:abn].present?
-              existing_company ||= CorporateCompany.find_by(acn: website_details[:acn]) if website_details[:acn].present?
+              existing_company = Corporate.find_by(abn: website_details[:abn]) if website_details[:abn].present?
+              existing_company ||= Corporate.find_by(acn: website_details[:acn]) if website_details[:acn].present?
 
               if existing_company
                 # Link to existing company
@@ -235,8 +235,8 @@ module Api
                   contact_id: existing_company.contact_id
                 }
               else
-                # Create new company Contact (NOT CorporateCompany)
-                # SSoT: CorporateCompany = entities you OWN/MANAGE (SPVs, trusts)
+                # Create new company Contact (NOT Corporate)
+                # SSoT: Corporate = entities you OWN/MANAGE (SPVs, trusts)
                 #       Contact (entity_type='company') = companies you do business WITH
                 company_contact = Contact.create!(
                   display_name: company_name,

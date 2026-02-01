@@ -231,7 +231,7 @@ module Api
         return nil unless contact  # Skip orphaned memberships
 
         # Check if this contact has a linked Company record
-        linked_company = CorporateCompany.find_by(contact_id: contact.id)
+        linked_company = Corporate.find_by(contact_id: contact.id)
         {
           id: membership.id,
           contact_id: contact.id,

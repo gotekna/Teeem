@@ -55,7 +55,7 @@ interface UseCorporateTableOptions {
 }
 
 // =============================================================================
-// Company Columns (hardcoded - CorporateCompany is a Rails model, not Foundation)
+// Company Columns (hardcoded - Corporate is a Rails model, not Foundation)
 // =============================================================================
 
 const COMPANY_COLUMNS: ApiColumn[] = [
@@ -277,7 +277,7 @@ export function useCorporateTable(
 function getFoundationId(entityType: CorporateEntityType): number | null {
   switch (entityType) {
     case 'companies':
-      return null; // Companies use CorporateCompany Rails model, not Foundation
+      return null; // Companies use Corporate Rails model, not Foundation
     case 'assets':
       return 530; // Assets Foundation - database-driven columns synced from assets table
     case 'directors':

@@ -307,14 +307,14 @@ namespace :xero do
       with_company_id = WarehouseDocument
         .where(source_type: "corporate")
         .where(documentable_id: nil)
-        .where("metadata->>'corporate_company_id' IS NOT NULL")
+        .where("metadata->>'corporate_id' IS NOT NULL")
         .count
-      puts "  With corporate_company_id in metadata: #{with_company_id}"
+      puts "  With corporate_id in metadata: #{with_company_id}"
 
       with_company_name = WarehouseDocument
         .where(source_type: "corporate")
         .where(documentable_id: nil)
-        .where("metadata->>'company_name' IS NOT NULL OR metadata->>'corporate_company_name' IS NOT NULL")
+        .where("metadata->>'company_name' IS NOT NULL OR metadata->>'corporate_company_name' IS NOT NULL OR metadata->>'corporate_name' IS NOT NULL")
         .count
       puts "  With company_name in metadata: #{with_company_name}"
 
@@ -329,14 +329,14 @@ namespace :xero do
           puts "    Display: #{doc.display_name[0..50]}..."
           puts "    Folder: #{doc.folder}"
           puts "    Linkable: #{doc.linkable_type}##{doc.linkable_id}" if doc.linkable_id
-          puts "    Metadata: #{doc.metadata&.slice('corporate_company_id', 'company_name', 'document_type')}"
+          puts "    Metadata: #{doc.metadata&.slice('corporate_id', 'company_name', 'document_type')}"
           puts ""
         end
 
       puts "\n" + "=" * 60
     end
 
-    desc "Dry run: Reconcile corporate documents to CorporateCompany"
+    desc "Dry run: Reconcile corporate documents to Corporate"
     task corporate_reconcile_dry_run: :environment do
       puts "=" * 60
       puts "Corporate Document Reconciliation - DRY RUN"
@@ -365,12 +365,12 @@ namespace :xero do
       puts "  rails xero:cleanup:corporate_reconcile_execute"
     end
 
-    desc "Execute: Reconcile corporate documents to CorporateCompany"
+    desc "Execute: Reconcile corporate documents to Corporate"
     task corporate_reconcile_execute: :environment do
       puts "=" * 60
       puts "Corporate Document Reconciliation - EXECUTE"
       puts "=" * 60
-      puts "\nThis will link orphaned corporate documents to CorporateCompany."
+      puts "\nThis will link orphaned corporate documents to Corporate."
       puts "Press Ctrl+C within 5 seconds to cancel..."
       sleep 5
 
@@ -485,7 +485,7 @@ namespace :xero do
       # Find docs with linkable but missing metadata company_id
       docs_to_fix = WarehouseDocument
         .where(source_type: "corporate")
-        .where(linkable_type: "CorporateCompany")
+        .where(linkable_type: "Corporate")
         .where.not(linkable_id: nil)
         .where("metadata->>'company_id' IS NULL")
 
@@ -526,7 +526,7 @@ namespace :xero do
       puts "Link All Unmatched Corporate Docs to Homes of Hope"
       puts "=" * 60
 
-      hoh_company = CorporateCompany.find(35)
+      hoh_company = Corporate.find(35)
       puts "Company: #{hoh_company.name} (ID: #{hoh_company.id})"
 
       unmatched = WarehouseDocument
@@ -542,7 +542,7 @@ namespace :xero do
       unmatched.find_each do |doc|
         begin
           doc.update!(
-            linkable_type: "CorporateCompany",
+            linkable_type: "Corporate",
             linkable_id: hoh_company.id,
             metadata: (doc.metadata || {}).merge(
               "company_id" => hoh_company.id.to_s,
@@ -570,13 +570,13 @@ namespace :xero do
       puts "\n" + "=" * 60
     end
 
-    desc "Link HOH folder documents to Homes of Hope (CorporateCompany #35)"
+    desc "Link HOH folder documents to Homes of Hope (Corporate #35)"
     task link_hoh: :environment do
       puts "=" * 60
       puts "Link HOH Documents to Homes of Hope"
       puts "=" * 60
 
-      hoh_company = CorporateCompany.find(35)
+      hoh_company = Corporate.find(35)
       puts "Company: #{hoh_company.name} (ID: #{hoh_company.id})"
 
       hoh_docs = WarehouseDocument
@@ -594,7 +594,7 @@ namespace :xero do
       hoh_docs.find_each do |doc|
         begin
           doc.update!(
-            linkable_type: "CorporateCompany",
+            linkable_type: "Corporate",
             linkable_id: hoh_company.id,
             metadata: (doc.metadata || {}).merge(
               "reconciled_at" => Time.current.iso8601,
@@ -701,7 +701,7 @@ namespace :xero do
       puts "  No blob, no file (metadata-only orphans): #{no_blob}"
       puts "\n  Action: Delete #{blob_dupes} blob duplicates immediately."
       puts "  Action: #{no_blob} metadata-only records have no viewable file."
-      puts "          These are ghost records from the CorporateCompanyDocument migration."
+      puts "          These are ghost records from the CorporateDocument migration."
 
       puts "\n" + "=" * 60
     end
@@ -870,19 +870,19 @@ namespace :xero do
       puts "Found #{results[:orphaned]} orphaned corporate documents"
 
       # Build company lookup caches
-      companies_by_id = CorporateCompany.all.index_by(&:id)
-      companies_by_name = CorporateCompany.all.index_by { |c| c.name&.downcase&.strip }
-      companies_by_code = CorporateCompany.all.index_by { |c| c.company_code&.downcase&.strip }
+      companies_by_id = Corporate.all.index_by(&:id)
+      companies_by_name = Corporate.all.index_by { |c| c.name&.downcase&.strip }
+      companies_by_code = Corporate.all.index_by { |c| c.company_code&.downcase&.strip }
 
       orphans.find_each.with_index do |doc, index|
         begin
           company = nil
           match_reason = nil
 
-          # Try 1: Match by corporate_company_id in metadata
-          if doc.metadata&.dig("corporate_company_id").present?
-            company = companies_by_id[doc.metadata["corporate_company_id"].to_i]
-            match_reason = "metadata corporate_company_id"
+          # Try 1: Match by corporate_id in metadata
+          if doc.metadata&.dig("corporate_id").present?
+            company = companies_by_id[doc.metadata["corporate_id"].to_i]
+            match_reason = "metadata corporate_id"
           end
 
           # Try 2: Match by company_name in metadata
@@ -907,7 +907,7 @@ namespace :xero do
           end
 
           # Try 4: Match by linkable if already set
-          if company.nil? && doc.linkable_type == "CorporateCompany" && doc.linkable_id.present?
+          if company.nil? && doc.linkable_type == "Corporate" && doc.linkable_id.present?
             company = companies_by_id[doc.linkable_id]
             match_reason = "existing linkable"
           end
@@ -923,7 +923,7 @@ namespace :xero do
               results[:samples] << {
                 doc_id: doc.id,
                 display_name: doc.display_name,
-                link_type: "CorporateCompany",
+                link_type: "Corporate",
                 link_id: company.id,
                 link_name: company.name,
                 match_reason: match_reason
@@ -932,7 +932,7 @@ namespace :xero do
 
             unless dry_run
               doc.update!(
-                linkable_type: "CorporateCompany",
+                linkable_type: "Corporate",
                 linkable_id: company.id,
                 metadata: (doc.metadata || {}).merge(
                   "reconciled_at" => Time.current.iso8601,

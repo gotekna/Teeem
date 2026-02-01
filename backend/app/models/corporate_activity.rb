@@ -50,6 +50,3 @@ class CorporateActivity < ApplicationRecord
     end
   end
 end
-
-# Backwards compatibility alias (deprecated - use CorporateActivity directly)
-CorporateCompanyActivity = CorporateActivity

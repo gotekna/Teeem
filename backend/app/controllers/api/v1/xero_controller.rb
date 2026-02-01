@@ -3036,9 +3036,9 @@ module Api
           Rails.logger.info("[Xero] Starting sync_all_companies")
 
           # Get all corporate companies with Xero connections
-          companies_with_xero = CorporateCompany.joins(:corporate_company_xero_connection)
-            .includes(:corporate_company_xero_connection)
-            .where(corporate_company_xero_connections: { xero_tenant_id: XeroCredential.pluck(:tenant_id) })
+          companies_with_xero = Corporate.joins(:corporate_xero_connection)
+            .includes(:corporate_xero_connection)
+            .where(corporate_xero_connections: { xero_tenant_id: XeroCredential.pluck(:tenant_id) })
 
           if companies_with_xero.empty?
             return render json: {
@@ -3090,7 +3090,7 @@ module Api
               # 2. Sync Monthly P&L data
               pl_result = { success: true }
               begin
-                pl_sync_service = CorporateCompanyXeroSyncService.new(company)
+                pl_sync_service = CorporateXeroSyncService.new(company)
                 pl_result = pl_sync_service.sync_all(force: false)
               rescue StandardError => e
                 Rails.logger.warn("[Xero] P&L sync failed for #{company.name}: #{e.message}")

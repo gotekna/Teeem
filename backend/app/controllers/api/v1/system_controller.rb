@@ -49,7 +49,7 @@ module Api
             jobs_count: Job.count,
             contacts_count: Contact.count,
             pricebook_items_count: PricebookItem.count,
-            companies_count: CorporateCompany.count,
+            companies_count: Corporate.count,
             pending_jobs: get_pending_jobs_count,
             failed_jobs: get_failed_jobs_count
           }

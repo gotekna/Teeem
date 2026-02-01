@@ -37,6 +37,3 @@ class CorporateMonthlyPl < ApplicationRecord
     record
   end
 end
-
-# Backwards compatibility alias (deprecated - use CorporateMonthlyPl directly)
-CorporateCompanyMonthlyPl = CorporateMonthlyPl

@@ -15,10 +15,10 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ExternalLink, Plus } from "lucide-react";
 import { api } from "@/lib/api";
-import type { CorporateCompany, TrustRolesData, TrustRolesMember } from "@/lib/types/corporate";
+import type { Corporate, TrustRolesData, TrustRolesMember } from "@/lib/types/corporate";
 
 interface BeneficiariesTabProps {
-  company: CorporateCompany;
+  company: Corporate;
   companyId?: string;
   entityId?: string;
   onAddBeneficiary?: () => void;
