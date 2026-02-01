@@ -82,7 +82,7 @@ class TrialInvitation < ApplicationRecord
   # Generate signup URL with invitation token
   def signup_url
     frontend_url = ENV['FRONTEND_URL'] || 'http://localhost:3000'
-    "#{frontend_url}/get-started?invite=#{token}"
+    "#{frontend_url}/get-started?invite_token=#{token}"
   end
 
   # Get the effective sender (who the email appears to come from)

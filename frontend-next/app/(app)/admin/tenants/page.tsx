@@ -467,14 +467,15 @@ export default function AdminTenantsPage() {
                           )}
 
                           <div className="pt-4">
-                            <a
-                              href="/get-started"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-block bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                            <span
+                              className="inline-block bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium cursor-default"
+                              title="Actual email will contain unique invite link"
                             >
                               Start Your Free Trial →
-                            </a>
+                            </span>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Button will link to: /get-started?invite_token=...
+                            </p>
                           </div>
 
                           <p className="text-sm text-muted-foreground">
