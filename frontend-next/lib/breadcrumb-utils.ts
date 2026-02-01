@@ -173,7 +173,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   // Settings > Company > Folder Config sub-tabs
   "storage_config": "Storage Config",
   "document_types": "Document Types",
-  "corporate": "Corporate",
+  // Note: "corporate" already defined above for Settings tabs
   "job": "Jobs",
   "contact": "Contacts",
   "email_config": "Email Config",
