@@ -467,9 +467,14 @@ export default function AdminTenantsPage() {
                           )}
 
                           <div className="pt-4">
-                            <div className="inline-block bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium">
+                            <a
+                              href="/get-started"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium hover:opacity-90 transition-opacity"
+                            >
                               Start Your Free Trial →
-                            </div>
+                            </a>
                           </div>
 
                           <p className="text-sm text-muted-foreground">
