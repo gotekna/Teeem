@@ -4325,12 +4325,16 @@ Rails.application.routes.draw do
         # GET    /api/v1/admin/config_sync/tenants/:tenant_id/config/:table -> Browse tenant's config
         # POST   /api/v1/admin/config_sync/import                        -> Import records into master
         # GET    /api/v1/admin/config_sync/compare                       -> Compare across tenants
+        # GET    /api/v1/admin/config_sync/sync_preferences              -> Get sync preferences
+        # POST   /api/v1/admin/config_sync/sync_preferences              -> Update sync preferences
         resource :config_sync, only: [], controller: "config_sync" do
           collection do
             get :tables
             get "tenants/:tenant_id/config/:table", action: :browse
             post :import
             get :compare
+            get :sync_preferences
+            post :sync_preferences, action: :update_sync_preferences
           end
         end
       end

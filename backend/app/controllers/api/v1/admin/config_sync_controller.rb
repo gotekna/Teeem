@@ -113,6 +113,81 @@ module Api
           render json: { success: false, error: e.message }, status: :bad_request
         end
 
+        # GET /api/v1/admin/config_sync/sync_preferences
+        # Get sync preferences for master tenant records
+        #
+        # Params:
+        #   table: string - config table name
+        def sync_preferences
+          table_config = TenantConfigSyncService::CONFIG_TABLES[params[:table]&.to_sym]
+          unless table_config
+            return render json: { success: false, error: "Unknown table" }, status: :bad_request
+          end
+
+          model_name = table_config[:model]
+          preferences = TenantSyncPreference.modes_for_type(model_name, tenant: master_tenant)
+
+          render json: {
+            success: true,
+            table: params[:table],
+            model: model_name,
+            preferences: preferences # { record_id => sync_mode }
+          }
+        end
+
+        # POST /api/v1/admin/config_sync/sync_preferences
+        # Update sync preferences for master tenant records
+        #
+        # Params:
+        #   table: string - config table name
+        #   record_ids: array - IDs of records to update
+        #   sync_mode: string - 'compulsory', 'choice', or null to remove
+        def update_sync_preferences
+          table_config = TenantConfigSyncService::CONFIG_TABLES[sync_pref_params[:table]&.to_sym]
+          unless table_config
+            return render json: { success: false, error: "Unknown table" }, status: :bad_request
+          end
+
+          model = table_config[:model].constantize
+          record_ids = sync_pref_params[:record_ids].map(&:to_i)
+          sync_mode = sync_pref_params[:sync_mode]
+
+          # Validate sync_mode
+          if sync_mode.present? && !TenantSyncPreference::SYNC_MODES.include?(sync_mode)
+            return render json: {
+              success: false,
+              error: "Invalid sync_mode. Must be 'compulsory', 'choice', or null"
+            }, status: :bad_request
+          end
+
+          # Get records from master tenant
+          records = ActsAsTenant.with_tenant(master_tenant) do
+            model.where(id: record_ids)
+          end
+
+          if records.empty?
+            return render json: { success: false, error: "No records found" }, status: :not_found
+          end
+
+          # Update preferences
+          updated = []
+          records.each do |record|
+            TenantSyncPreference.set_mode(record, sync_mode.presence, tenant: master_tenant)
+            updated << record.id
+          end
+
+          Rails.logger.info "[ConfigSync] User #{current_user.id} set sync_mode=#{sync_mode || 'null'} for #{updated.length} #{table_config[:model]} records"
+
+          render json: {
+            success: true,
+            message: "Sync preferences updated",
+            updated_count: updated.length,
+            sync_mode: sync_mode
+          }
+        rescue => e
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        end
+
         # GET /api/v1/admin/config_sync/compare
         # Compare records across multiple tenants for a table
         #
@@ -203,6 +278,10 @@ module Api
 
         def import_params
           params.permit(:source_tenant_id, :table, record_ids: [])
+        end
+
+        def sync_pref_params
+          params.permit(:table, :sync_mode, record_ids: [])
         end
       end
     end
