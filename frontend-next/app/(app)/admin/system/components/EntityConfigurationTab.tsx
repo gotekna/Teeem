@@ -181,11 +181,9 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
       style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
     >
       <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full flex-1 min-h-0">
-        {/* Compact header with scope tabs inline */}
+        {/* Scope tabs */}
         <div className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-muted/30">
-          <div className="flex items-center gap-4">
-            <h1 className="text-base font-semibold whitespace-nowrap">Storage Locations</h1>
-            <TabsList className="h-8 bg-transparent p-0 gap-1">
+          <TabsList className="h-8 bg-transparent p-0 gap-1">
               {scopes.map((s) => {
                 const Icon = s.icon;
                 return (
@@ -205,8 +203,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
                   </TabsTrigger>
                 );
               })}
-            </TabsList>
-          </div>
+          </TabsList>
         </div>
 
         {/* Scope Content */}
