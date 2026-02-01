@@ -93,6 +93,8 @@ export function AdminConfigSyncTab() {
   const [viewMode, setViewMode] = useState<"browse" | "compare">("browse");
   const [compareOpen, setCompareOpen] = useState(false);
   const [entityTypeFilter, setEntityTypeFilter] = useState<string>("all");
+  const [filterExistingContacts, setFilterExistingContacts] = useState<boolean>(true);
+  const [totalUnfiltered, setTotalUnfiltered] = useState<number>(0);
 
   // Fetch available tables and tenants on mount
   useEffect(() => {
@@ -144,14 +146,21 @@ export function AdminConfigSyncTab() {
       setSelectedRecords(new Set());
       setEntityTypeFilter("all");
 
+      // For price_histories, add filter parameter
+      const filterParam = selectedTable === "price_histories" && filterExistingContacts
+        ? "?filter_existing_contacts=true"
+        : "";
+
       const response = await api.get<{
         success: boolean;
         records: ConfigRecord[];
         source_tenant: TenantInfo;
-      }>(`/api/v1/admin/config_sync/tenants/${selectedTenant}/config/${selectedTable}`);
+        total_unfiltered?: number;
+      }>(`/api/v1/admin/config_sync/tenants/${selectedTenant}/config/${selectedTable}${filterParam}`);
 
       if (response?.success) {
         setRecords(response.records);
+        setTotalUnfiltered(response.total_unfiltered || response.records.length);
       }
     } catch (err) {
       console.error("Failed to fetch records:", err);
@@ -159,7 +168,7 @@ export function AdminConfigSyncTab() {
     } finally {
       setRecordsLoading(false);
     }
-  }, [selectedTenant, selectedTable]);
+  }, [selectedTenant, selectedTable, filterExistingContacts]);
 
   useEffect(() => {
     if (viewMode === "browse") {
@@ -406,6 +415,25 @@ export function AdminConfigSyncTab() {
                   })}
                 </SelectContent>
               </Select>
+            )}
+
+            {/* Price History Filter - only show for contacts that exist in TEEEM */}
+            {viewMode === "browse" && selectedTable === "price_histories" && selectedTenant && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="filter-existing-contacts"
+                  checked={filterExistingContacts}
+                  onCheckedChange={(checked) => setFilterExistingContacts(!!checked)}
+                />
+                <label htmlFor="filter-existing-contacts" className="text-sm cursor-pointer">
+                  Only for TEEEM contacts
+                  {filterExistingContacts && totalUnfiltered > 0 && records.length !== totalUnfiltered && (
+                    <span className="text-muted-foreground ml-1">
+                      ({records.length} of {totalUnfiltered})
+                    </span>
+                  )}
+                </label>
+              </div>
             )}
           </div>
         </CardContent>
