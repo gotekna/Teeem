@@ -337,52 +337,105 @@ function SidebarContent({
           </div>
         )}
 
-        {/* Debug Tools - dev/staging only - 3 compact buttons */}
-        {(isExpanded || mobile) && isDevOrStaging && (
-          <div className="px-2 py-1 grid grid-cols-3 gap-0.5">
-            <button
-              onClick={handleCopyConsole}
-              className={cn(
-                "flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] font-medium transition-all border",
-                copiedConsole
-                  ? "bg-green-600 text-white border-green-600"
-                  : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
-              )}
-              title="Copy all console logs"
-            >
-              {copiedConsole ? <Check className="h-2.5 w-2.5" /> : <ClipboardCopy className="h-2.5 w-2.5" />}
-              <span>{logCount}</span>
-            </button>
-            <button
-              onClick={handleCopyProblems}
-              className={cn(
-                "flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] font-medium transition-all border",
-                copiedProblems
-                  ? "bg-green-600 text-white border-green-600"
-                  : errorCount > 0
-                    ? "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
-                    : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
-              )}
-              title="Copy errors & warnings"
-            >
-              {copiedProblems ? <Check className="h-2.5 w-2.5" /> : <span>!</span>}
-              <span>{errorCount}</span>
-            </button>
-            <button
-              onClick={handleClearCache}
-              disabled={clearing}
-              className={cn(
-                "flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] font-medium transition-all border",
-                clearing
-                  ? "bg-green-600 text-white border-green-600"
-                  : "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
-              )}
-              title="Clear cache + hard refresh"
-            >
-              <Trash2 className="h-2.5 w-2.5" />
-              <RefreshCw className="h-2 w-2" />
-            </button>
-          </div>
+        {/* Debug Tools - dev/staging only */}
+        {isDevOrStaging && (
+          <>
+            {/* Expanded: 3 buttons in a row */}
+            {(isExpanded || mobile) && (
+              <div className="px-2 py-1 grid grid-cols-3 gap-0.5">
+                <button
+                  onClick={handleCopyConsole}
+                  className={cn(
+                    "flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] font-medium transition-all border",
+                    copiedConsole
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                  )}
+                  title="Copy all console logs"
+                >
+                  {copiedConsole ? <Check className="h-2.5 w-2.5" /> : <ClipboardCopy className="h-2.5 w-2.5" />}
+                  <span>{logCount}</span>
+                </button>
+                <button
+                  onClick={handleCopyProblems}
+                  className={cn(
+                    "flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] font-medium transition-all border",
+                    copiedProblems
+                      ? "bg-green-600 text-white border-green-600"
+                      : errorCount > 0
+                        ? "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                  )}
+                  title="Copy errors & warnings"
+                >
+                  {copiedProblems ? <Check className="h-2.5 w-2.5" /> : <span>!</span>}
+                  <span>{errorCount}</span>
+                </button>
+                <button
+                  onClick={handleClearCache}
+                  disabled={clearing}
+                  className={cn(
+                    "flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] font-medium transition-all border",
+                    clearing
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+                  )}
+                  title="Clear cache + hard refresh"
+                >
+                  <Trash2 className="h-2.5 w-2.5" />
+                  <RefreshCw className="h-2 w-2" />
+                </button>
+              </div>
+            )}
+
+            {/* Collapsed: 3 icon-only buttons stacked vertically */}
+            {!isExpanded && !mobile && (
+              <div className="px-2 py-1 flex flex-col gap-0.5">
+                <button
+                  onClick={handleCopyConsole}
+                  className={cn(
+                    "flex items-center justify-center gap-1 py-1 rounded text-[9px] font-medium transition-all border",
+                    copiedConsole
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                  )}
+                  title="Copy all console logs"
+                >
+                  {copiedConsole ? <Check className="h-3 w-3" /> : <ClipboardCopy className="h-3 w-3" />}
+                  <span>{logCount}</span>
+                </button>
+                <button
+                  onClick={handleCopyProblems}
+                  className={cn(
+                    "flex items-center justify-center gap-1 py-1 rounded text-[9px] font-medium transition-all border",
+                    copiedProblems
+                      ? "bg-green-600 text-white border-green-600"
+                      : errorCount > 0
+                        ? "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                  )}
+                  title="Copy errors & warnings"
+                >
+                  {copiedProblems ? <Check className="h-3 w-3" /> : <span>!</span>}
+                  <span>{errorCount}</span>
+                </button>
+                <button
+                  onClick={handleClearCache}
+                  disabled={clearing}
+                  className={cn(
+                    "flex items-center justify-center gap-1 py-1 rounded text-[9px] font-medium transition-all border",
+                    clearing
+                      ? "bg-green-600 text-white border-green-600"
+                      : "bg-red-100 text-red-600 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50"
+                  )}
+                  title="Clear cache + hard refresh"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <RefreshCw className="h-2.5 w-2.5" />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

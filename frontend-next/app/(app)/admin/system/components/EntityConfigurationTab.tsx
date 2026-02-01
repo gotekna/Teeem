@@ -54,7 +54,7 @@ const scopes = [
     isEntityTab: false,
   },
   {
-    id: "corporate_entity",
+    id: "corporate",
     label: "Corporate",
     icon: Building2,
     showEntityFilters: true,
@@ -108,7 +108,7 @@ const scopes = [
 
 // Scope label mapping
 const SCOPE_LABELS: Record<string, string> = {
-  corporate_entity: "Corporate",
+  corporate: "Corporate",
   job: "Jobs",
   contact: "Contacts",
   document_types: "Document Types",
@@ -214,7 +214,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, basePath = DEFA
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               {scope.isEntityTab ? (
                 <EntityTabsConfig
-                  scope={scope.id as "corporate_entity" | "job" | "contact" | "email" | "warehouse" | "task"}
+                  scope={scope.id as "corporate" | "job" | "contact" | "email" | "warehouse" | "task"}
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}
                   showDocumentTypes={scope.showDocumentTypes}

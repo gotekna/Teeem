@@ -22,9 +22,9 @@ import { redirect } from "next/navigation";
 const PATH_REDIRECTS: Record<string, string> = {
   // Entity Configuration deep links → Admin System (where EntityConfigurationTab lives)
   // These need to go to admin/system, not settings/developer
-  "system/entity-config": "/admin/system/entity-config/corporate_entity",
-  "system/entity-configuration": "/admin/system/entity-config/corporate_entity",
-  "developer/entity-config": "/admin/system/entity-config/corporate_entity",
+  "system/entity-config": "/admin/system/entity-config/corporate",
+  "system/entity-configuration": "/admin/system/entity-config/corporate",
+  "developer/entity-config": "/admin/system/entity-config/corporate",
 
   // Component deep links → Developer tab (path-based)
   "system/components": "/settings/developer/components",
@@ -53,7 +53,7 @@ function getRedirectUrl(pathSegments: string[]): string {
   // Special handling for entity-config deep links (preserve the scope)
   // e.g., system/entity-config/storage_config → /admin/system/entity-config/storage_config
   if (fullPath.startsWith("system/entity-config/") || fullPath.startsWith("system/entity-configuration/")) {
-    const scope = pathSegments[2] || "corporate_entity";
+    const scope = pathSegments[2] || "corporate";
     return `/admin/system/entity-config/${scope}`;
   }
 

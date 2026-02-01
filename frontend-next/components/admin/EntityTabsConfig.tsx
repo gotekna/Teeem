@@ -239,7 +239,7 @@ function useEntityTypes() {
 
 interface EntityTabsConfigProps {
   scope: EntityTabScope;
-  showEntityFilters?: boolean;      // Show entity type checkboxes (for corporate_entity)
+  showEntityFilters?: boolean;      // Show entity type checkboxes (for corporate scope)
   showSharePointPaths?: boolean;    // Show SharePoint path config
   showDocumentTypes?: boolean;      // Show linked document types
   showTabGroups?: boolean;          // Show grouped by tab_group
@@ -345,7 +345,7 @@ export function EntityTabsConfig({
     const templates: Record<string, string> = {
       task: "{{TaskId}}/{{Category}}",
       job: "{{JobCode}}/{{TabName}}",
-      corporate_entity: "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
+      corporate: "{{CompanyGroup}}/{{CompanyCode}}/{{TabName}}",
       people: "{{ContactName}}/{{TabName}}",
       contact: "{{ContactName}}/{{TabName}}",
       email: "{{Year}}/{{Month}}",
@@ -1394,7 +1394,7 @@ export function EntityTabsConfig({
                 </Badge>
               )}
             </div>
-            {/* Entity filters (for corporate_entity) - clickable toggles, only on root items */}
+            {/* Entity filters (for corporate scope) - clickable toggles, only on root items */}
             {showEntityFilters && depth === 0 && (
               <div className="flex gap-1 mt-1 flex-wrap">
                 {entityTypes.map((type) => {
@@ -1616,7 +1616,7 @@ export function EntityTabsConfig({
   // Action buttons - rendered in Card header for compact mode, or standalone for non-compact
   const actionButtons = (
     <div className="flex items-center gap-2">
-      {scope === "corporate_entity" && (
+      {scope === "corporate" && (
         <Button
           variant="ghost"
           size="sm"
@@ -1647,8 +1647,8 @@ export function EntityTabsConfig({
         </div>
       )}
 
-      {/* Entity Types Editor (SSoT) - Only for corporate_entity scope */}
-      {scope === "corporate_entity" && showEntityTypesEditor && (
+      {/* Entity Types Editor (SSoT) - Only for corporate scope */}
+      {scope === "corporate" && showEntityTypesEditor && (
         <Card className="border-dashed">
           <CardContent className="py-4">
             <div className="flex items-start justify-between gap-4">
@@ -2296,7 +2296,7 @@ export function EntityTabsConfig({
                 </div>
               )}
 
-              {/* Entity Filters (for corporate_entity) */}
+              {/* Entity Filters (for corporate scope) */}
               {showEntityFilters && (
                 <div className="space-y-2">
                   <Label>Show for Entity Types</Label>
@@ -2530,7 +2530,7 @@ export function EntityTabsConfig({
                       className="h-7 text-xs"
                       onClick={() => {
                         // Map EntityTabScope to document type scope
-                        const docTypeScope = scope === 'corporate_entity' ? 'company' : scope;
+                        const docTypeScope = scope === 'corporate' ? 'company' : scope;
                         // Pass tab ID so it can be pre-selected as the folder
                         const tabId = editingTab?.id;
                         window.open(`/admin/system/document-types/new?scope=${docTypeScope}${tabId ? `&tab=${tabId}` : ''}`, '_blank');

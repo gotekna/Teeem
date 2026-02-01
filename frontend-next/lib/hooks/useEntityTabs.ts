@@ -64,7 +64,7 @@ function invalidateCache(key: string): void {
 
 interface UseEntityTabsOptions {
   scope: EntityTabScope;
-  entityType?: string; // For filtering corporate_entity tabs by Company, Trust, etc.
+  entityType?: string; // For filtering corporate tabs by Company, Trust, etc.
   tabGroup?: TabGroup; // Filter by group
   includeDisabled?: boolean; // Include disabled tabs (for admin views)
 }

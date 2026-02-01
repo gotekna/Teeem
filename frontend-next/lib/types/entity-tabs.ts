@@ -4,8 +4,9 @@
 // Frontend keeps "EntityTab" as interface name for UI tab rendering
 // "WarehouseFolder" and "StorageLocation" are aliases for backward compatibility
 
+// SSoT: 'corporate' is THE ONE scope for corporate entities (Jan 2026 - 'corporate_entity' renamed)
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
-export type EntityTabScope = 'corporate_entity' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
+export type EntityTabScope = 'corporate' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
 
 // Tab groups - matches backend EntityTab::TAB_GROUPS
 // 'system' is for system-managed tabs (email storage, warehousing) - read-only in UI
@@ -137,9 +138,10 @@ export interface ReorderTabParams {
 }
 
 // Scope display names for UI
+// SSoT: 'corporate' is THE ONE scope for corporate entities (Jan 2026 - 'corporate_entity' renamed)
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
 export const SCOPE_LABELS: Record<EntityTabScope, string> = {
-  corporate_entity: 'Corporate Entity',
+  corporate: 'Corporate',
   job: 'Job',
   contact: 'Contact',
   email: 'Email',

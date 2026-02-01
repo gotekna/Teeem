@@ -173,7 +173,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   // Settings > Company > Folder Config sub-tabs
   "storage_config": "Storage Config",
   "document_types": "Document Types",
-  "corporate_entity": "Corporate",
+  "corporate": "Corporate",
   "job": "Jobs",
   "contact": "Contacts",
   "email_config": "Email Config",
@@ -393,7 +393,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "connections": ["provider", "migration", "costs"],
   "security": ["users", "roles", "groups"],
   "corporate": ["groups", "companies", "company-tabs"],
-  "entity-config": ["storage_config", "document_types", "corporate_entity", "job", "contact", "email_config", "config_sync"],
+  "entity-config": ["storage_config", "document_types", "corporate", "job", "contact", "email_config", "config_sync"],
 };
 
 /**

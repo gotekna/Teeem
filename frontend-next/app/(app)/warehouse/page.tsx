@@ -233,8 +233,7 @@ const SCOPE_ICONS: Record<string, React.ReactNode> = {
   job: <Briefcase className="h-4 w-4" />,
   jobs: <Briefcase className="h-4 w-4" />,
   corporate: <Building2 className="h-4 w-4" />,
-  corporate_entity: <Building2 className="h-4 w-4" />,
-  company: <Building2 className="h-4 w-4" />,
+    company: <Building2 className="h-4 w-4" />,
   people: <Users className="h-4 w-4" />,
   users: <User className="h-4 w-4" />,
   user_photos: <ImageIcon className="h-4 w-4" />,
@@ -538,7 +537,7 @@ export default function AllDocumentsPage() {
         // Fetch folders for all scopes in parallel
         const [jobRes, corpRes, contactRes] = await Promise.all([
           api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=job&include_disabled=false"),
-          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=corporate_entity&include_disabled=false"),
+          api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=corporate&include_disabled=false"),
           api.get<{ success: boolean; data: { tabs: EntityTabFolder[] } }>("/api/v1/entity_tabs?scope=contact&include_disabled=false"),
         ]);
 
@@ -1699,7 +1698,7 @@ export default function AllDocumentsPage() {
     const getFolderPath = (): string | undefined => {
       // For S3-driven scope folders (job, corporate, contact, etc.),
       // use the scope folder name directly (e.g., "Jobs"), NOT the fullPath with template tokens
-      const S3_SCOPE_IDS = ["job", "corporate", "corporate_entity", "contact", "contacts"];
+      const S3_SCOPE_IDS = ["job", "corporate", "contact", "contacts"];
       if (S3_SCOPE_IDS.includes(node.id)) {
         // Use scopeFolders mapping which gives us just the folder name (e.g., "Jobs")
         const scopePath = scopeFolders[node.id];
@@ -1767,7 +1766,7 @@ export default function AllDocumentsPage() {
         >
           {/* Show chevron if expandable (has children OR files OR is S3-driven folder)
               BUT NOT for external link folders (they navigate away, not expand) */}
-          {!node.externalLink && (hasChildren || fileCount > 0 || node.id.startsWith("s3-folder-") || ["job", "corporate", "corporate_entity", "contact", "contacts"].includes(node.id)) ? (
+          {!node.externalLink && (hasChildren || fileCount > 0 || node.id.startsWith("s3-folder-") || ["job", "corporate", "contact", "contacts"].includes(node.id)) ? (
             isLoading ? (
               <Loader2 className="h-4 w-4 text-muted-foreground animate-spin shrink-0" />
             ) : (

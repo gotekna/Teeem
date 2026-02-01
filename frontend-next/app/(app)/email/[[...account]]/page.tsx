@@ -376,13 +376,14 @@ type EmailAttachment = NonNullable<Email['attachments']>[number];
 
 interface EmailAccount {
   id: number | string;
-  type: "outlook" | "imap" | "ms365";
+  type: "outlook" | "imap" | "ms365" | "polaris";
   name: string;
   email_address: string | null;
   provider: string;
   is_active: boolean;
   is_default?: boolean;
   org_credential_id?: number;
+  email_mailbox_id?: number; // For PolarisMail accounts
   needs_mailbox_config?: boolean;
   is_favorite?: boolean;
   last_synced_at?: string;
@@ -1156,6 +1157,10 @@ export default function EmailPage() {
             if (ms365Account?.email_address) {
               params.append("mailbox_owner_email", ms365Account.email_address);
             }
+          } else if (selectedAccount.startsWith("polaris_")) {
+            // PolarisMail accounts: extract email_mailbox_id from "polaris_X" format
+            const parts = selectedAccount.split("_");
+            params.append("email_mailbox_id", parts[1]);
           } else {
             params.append("imap_credential_id", selectedAccount);
           }

@@ -158,7 +158,7 @@ export function EntityTabsTable() {
   // Load tabs from API
   const loadTabs = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs?warehouse_type=corporate_entity");
+      const response = await api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs?warehouse_type=corporate");
       if (response.success && response.data?.tabs) {
         setTabs(response.data.tabs);
       }
